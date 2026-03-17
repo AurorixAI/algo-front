@@ -1,0 +1,13 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: algo-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Connect to backend via host network on Docker Desktop for Mac/Windows
+      - NEXT_PUBLIC_API_URL=http://host.docker.internal:8000
+    restart: unless-stopped
