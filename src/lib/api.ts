@@ -1,5 +1,11 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-const API_V1 = `${API_BASE_URL}/api/v1`;
+const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8000";
+const AUTH_API_V1 = `${AUTH_API_BASE}/api/v1`;
+
+const EXAM_API_BASE = process.env.NEXT_PUBLIC_EXAM_API_URL ?? "http://localhost:8003";
+const EXAM_API_V1 = `${EXAM_API_BASE}/api/v1`;
+
+const DIAG_API_BASE = process.env.NEXT_PUBLIC_DIAG_API_URL ?? "http://localhost:8002";
+const DIAG_API_V1 = `${DIAG_API_BASE}/api/v1`;
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -39,7 +45,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${API_V1}${endpoint}`, {
+  const response = await fetch(`${AUTH_API_V1}${endpoint}`, {
     method,
     headers,
     credentials: "include",
@@ -53,7 +59,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     if (refreshed) {
       // Retry with new token
       headers["Authorization"] = `Bearer ${refreshed}`;
-      const retryResponse = await fetch(`${API_V1}${endpoint}`, {
+      const retryResponse = await fetch(`${AUTH_API_V1}${endpoint}`, {
         method,
         headers,
         credentials: "include",
@@ -89,7 +95,7 @@ async function tryRefreshToken(): Promise<string | null> {
   if (typeof window === "undefined") return null;
   try {
     // Refresh via httpOnly cookie (sent automatically with credentials: include)
-    const resp = await fetch(`${API_V1}/auth/refresh`, {
+    const resp = await fetch(`${AUTH_API_V1}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -105,6 +111,66 @@ async function tryRefreshToken(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/**
+ * Lightweight fetch wrapper for exam-service (no auth refresh cycle needed
+ * since most exam endpoints are public or handled by exam-service internally).
+ */
+async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
+  const { method = "GET", body } = options;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const response = await fetch(`${EXAM_API_V1}${endpoint}`, {
+    method,
+    headers,
+    credentials: "include",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    let message = "Request failed";
+    if (typeof error.detail === "string") {
+      message = error.detail;
+    } else if (Array.isArray(error.detail)) {
+      message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return response.json();
+}
+
+async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
+  const { method = "GET", body } = options;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const response = await fetch(`${DIAG_API_V1}${endpoint}`, {
+    method,
+    headers,
+    credentials: "include",
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
+    let message = "Request failed";
+    if (typeof error.detail === "string") {
+      message = error.detail;
+    } else if (typeof error.detail === "object" && error.detail !== null) {
+      message = (error.detail as any).message || JSON.stringify(error.detail);
+    }
+    throw new ApiError(response.status, message);
+  }
+
+  return response.json();
 }
 
 // ============================================================================
@@ -313,145 +379,133 @@ export const diagnosticInviteApi = {
 // ANALYTICS API
 // ============================================================================
 
-export const analyticsApi = {
-  // Student progress
-  studentSkillMap: (studentId: string) =>
-    api<any>(`/analytics/students/${studentId}/skill-map`),
-  studentTimeline: (studentId: string) =>
-    api<any>(`/analytics/students/${studentId}/timeline`),
-  studentWeaknesses: (studentId: string) =>
-    api<any>(`/analytics/students/${studentId}/weaknesses`),
-  studentDiagnostics: (studentId: string) =>
-    api<any>(`/analytics/students/${studentId}/diagnostics`),
+const diagApi = diagServiceApi;
 
-  // Group analytics
-  groupOverview: (groupId: string) =>
-    api<any>(`/analytics/groups/${groupId}/overview`),
-  groupHeatmap: (groupId: string) =>
-    api<any>(`/analytics/groups/${groupId}/heatmap`),
-  groupProblemSkills: (groupId: string) =>
-    api<any>(`/analytics/groups/${groupId}/problem-skills`),
+export const analyticsApi = {
+  // Student progress — diagnostic-service (DIAG_API_V1)
+  studentSkillMap: (studentId: string) =>
+    diagApi<any>(`/analytics/students/${studentId}/skill-map`),
+  studentTimeline: (studentId: string) =>
+    diagApi<any>(`/analytics/students/${studentId}/timeline`),
+  studentReport: (studentId: string) =>
+    diagApi<any>(`/analytics/students/${studentId}/report`),
+
+  // Group analytics — передаём student_ids списком
+  groupOverview: (studentIds: string[]) =>
+    diagApi<any>(`/analytics/groups/overview?${studentIds.map(id => `student_ids=${id}`).join("&")}`),
+  groupHeatmap: (studentIds: string[]) =>
+    diagApi<any>(`/analytics/groups/heatmap?${studentIds.map(id => `student_ids=${id}`).join("&")}`),
 
   // Org analytics
-  orgProblemSkills: () => api<any>("/analytics/org/problem-skills"),
+  orgLiveQueue: (hours?: number) =>
+    diagApi<any>(`/analytics/org/live-queue${hours ? `?hours=${hours}` : ""}`),
+  orgStats: () => diagApi<any>("/analytics/org/stats"),
+  orgOverview: () => diagApi<any>("/analytics/org/overview"),
   orgEnrollment: (days?: number) =>
-    api<any>(`/analytics/org/enrollment${days ? `?days=${days}` : ""}`),
-  orgLiveQueue: () => api<any>("/analytics/org/live-queue"),
-  orgOverview: () => api<any>("/analytics/org/overview"),
+    diagApi<any>(`/analytics/org/enrollment${days ? `?days=${days}` : ""}`),
+  orgProblemSkills: () => diagApi<any>("/analytics/org/problem-skills"),
 };
 
 // ============================================================================
-// CAT API (Shadow CAT Engine)
+// DIAGNOSTIC SERVICE API  — calls diagnostic-service directly (NEXT_PUBLIC_DIAG_API_URL)
 // ============================================================================
 
-export interface CATTask {
+export interface DiagTaskOut {
   task_id: string;
   skill_id: string;
-  difficulty: string;
+  topic_id: string;
   question_text: string;
   question_latex: string | null;
   question_image_url: string | null;
   answer_type: string;
+  answer_options: string[] | null;
+  hints: string[] | null;
   phase: string;
-  item_number: number;
-  options?: string[];  // MC options (WARMUP phase only)
+  items_answered: number;
+  items_max: number;
+  is_deep_scan: boolean;
 }
 
-export interface CATStartResponse {
-  session_id: string;
-  phase: string;
-  config: Record<string, any>;
-  first_task: CATTask;
-}
-
-export interface CATAnswerResponse {
+export interface DiagAnswerResult {
   is_correct: boolean;
-  correct_answer: string | null;
+  outcome: number;
+  eval_category: string;
   theta: number;
-  theta_se: number;
-  phase: string;
-  item_number: number;
-  accuracy: number;
-  next_task: CATTask | null;
-  is_complete: boolean;
-  flags: string[];
-}
-
-export interface CATResultResponse {
-  session_id: string;
-  theta_eap: number;
-  theta_mle: number | null;
   se: number;
-  ci_low: number;
-  ci_high: number;
-  total_items: number;
-  correct: number;
-  accuracy: number;
-  skills_tested: string[];
-  difficulty_distribution: Record<string, number>;
-  response_pattern: string;
-  theta_trajectory: number[];
-  se_trajectory: number[];
-  integrity: {
-    is_valid: boolean;
-    overall_confidence: number;
-    person_fit_lz: number | null;
-    person_fit_verdict: string;
-    anomalies: Array<{
-      type: string;
-      severity: string;
-      confidence: number;
-      description: string;
-    }>;
-  };
+  next_task: DiagTaskOut | null;
+  session_completed: boolean;
 }
 
-export const catApi = {
-  start: (data: {
-    class_level?: number;
-    skill_ids?: string[];
-    max_items?: number;
+export interface DiagReport {
+  session_id: string;
+  student_id: string;
+  grade_level: number;
+  overall_theta: number;
+  overall_level: string;
+  confidence_interval: [number, number];
+  topic_breakdown: Record<string, any>;
+  weak_skills: string[];
+  recommended_start: string | null;
+  items_total: number;
+}
+
+export const diagnosticApi = {
+  createSession: (data: {
+    student_id: string;
+    grade_level: number;
+    invite_code?: string;
     prior_theta?: number;
-    diagnostic_code?: string;
   }) =>
-    api<CATStartResponse>("/cat/start", { method: "POST", body: data }),
+    diagServiceApi<{ session_id: string; first_task: DiagTaskOut }>(
+      "/diagnostic/sessions",
+      { method: "POST", body: data },
+    ),
 
-  answer: (session_id: string, task_id: string, answer: string, time_ms: number) =>
-    api<CATAnswerResponse>(`/cat/${session_id}/answer`, {
-      method: "POST",
-      body: { task_id, answer, time_ms },
-    }),
+  submitAnswer: (
+    sessionId: string,
+    data: { task_id: string; student_answer: string; time_ms?: number },
+  ) =>
+    diagServiceApi<DiagAnswerResult>(
+      `/diagnostic/sessions/${sessionId}/answer`,
+      { method: "POST", body: data },
+    ),
 
-  result: (session_id: string) =>
-    api<CATResultResponse>(`/cat/${session_id}/result`),
-
-  progress: (session_id: string) =>
-    api<Record<string, any>>(`/cat/${session_id}/progress`),
+  getReport: (sessionId: string) =>
+    diagServiceApi<DiagReport>(`/diagnostic/sessions/${sessionId}/report`),
 };
 
 // ============================================================================
-// SKILLS API
+// CAT API (Shadow CAT Engine — monolith, kept for backward compat)
+// ============================================================================
+// EXAMS API  — calls exam-service directly (NEXT_PUBLIC_EXAM_API_URL)
 // ============================================================================
 
-export const skillsApi = {
-  list: (params?: { level?: string; class_level?: number }) => {
-    const query = new URLSearchParams();
-    if (params?.level) query.set("level", params.level);
-    if (params?.class_level) query.set("class_level", String(params.class_level));
-    const qs = query.toString();
-    return api<any[]>(`/skills${qs ? `?${qs}` : ""}`);
-  },
+export interface ExamSummary {
+  exam_id: string;
+  title: string;
+  status: string;
+  access_code: string | null;
+  tasks_per_variant: number;
+  tasks_count?: number;
+  variants_count: number;
+  sessions_count?: number;
+  created_at: string;
+}
 
-  get: (skill_id: string) => api<any>(`/skills/${skill_id}`),
-
-  prerequisites: (skill_id: string) => api<any[]>(`/skills/${skill_id}/prerequisites`),
-};
-
-// ============================================================================
-// EXAMS API
-// ============================================================================
+export interface PublishExamResult {
+  exam_id: string;
+  title: string;
+  status: string;
+  access_code: string;
+  tasks_per_variant: number;
+  variants_count: number;
+  created_at: string;
+  url: string;
+}
 
 export const examsApi = {
+  // ── Teacher: create / manage ─────────────────────────────────────────────
+
   generate: (data: {
     title: string;
     textbook_id?: string;
@@ -466,13 +520,17 @@ export const examsApi = {
     shuffle_options?: boolean;
     mc_mode?: string;
   }) =>
-    api<any>("/exams/generate", { method: "POST", body: data }),
+    examApi<{ exam_id: string; access_code?: string; status: string; tasks_count: number; variants_count: number; skills_covered: string[] }>(
+      "/exams/generate",
+      { method: "POST", body: data },
+    ),
 
-  // --- Draft management (teacher) ---
+  /** List all exams (teacher view) */
+  list: () => examApi<ExamSummary[]>("/exams"),
 
-  /** Get exam draft with all answers/distractors */
+  /** Full draft with tasks & correct answers (teacher only) */
   getDraft: (examId: string) =>
-    api<{
+    examApi<{
       exam_id: string;
       title: string;
       status: string;
@@ -508,16 +566,9 @@ export const examsApi = {
       }>;
     }>(`/exams/${examId}/draft`),
 
-  /** Replace a task in draft */
-  replaceTask: (examId: string, data: { variant_number: number; task_id: string }) =>
-    api<{ status: string; new_task: any }>(`/exams/${examId}/draft/replace-task`, {
-      method: "POST",
-      body: data,
-    }),
-
-  /** Get alternative tasks for replacement */
+  /** Get alternative tasks for replacing one task in a draft variant */
   getAlternatives: (examId: string, variantNumber: number, taskId: string) =>
-    api<Array<{
+    examApi<Array<{
       task_id: string;
       question_text: string;
       question_latex: string | null;
@@ -526,36 +577,51 @@ export const examsApi = {
       answer_type: string;
     }>>(`/exams/${examId}/draft/alternatives?variant_number=${variantNumber}&task_id=${taskId}`),
 
-  /** Publish draft exam → active */
-  publish: (examId: string) =>
-    api<{ status: string; access_code: string; exam_id: string; url: string }>(
-      `/exams/${examId}/publish`,
-      { method: "POST" }
-    ),
+  /** Replace a task in a draft variant */
+  replaceTask: (examId: string, data: { variant_number: number; task_id: string }) =>
+    examApi<{ status: string; new_task: any }>(`/exams/${examId}/draft/replace-task`, {
+      method: "POST",
+      body: data,
+    }),
 
-  /** Close exam */
+  /** Publish draft → active, returns access_code + url */
+  publish: (examId: string, data?: { teacher_name?: string; subject?: string }) =>
+    examApi<PublishExamResult>(`/exams/${examId}/publish`, {
+      method: "POST",
+      body: data ?? {},
+    }),
+
+  /** Close an active exam */
   close: (examId: string) =>
-    api<{ status: string }>(`/exams/${examId}/close`, { method: "POST" }),
+    examApi<{ exam_id: string; status: string }>(`/exams/${examId}/close`, { method: "POST" }),
 
-  // --- Public exam-taking endpoints (no auth required) ---
+  /** Get sessions list for an exam (teacher) */
+  getSessions: (examId: string) => examApi<any[]>(`/exams/${examId}/sessions`),
 
-  /** Get exam info by access code (lobby screen) */
+  /** Get analytics for an exam (teacher) */
+  getAnalytics: (examId: string) => examApi<any>(`/exams/${examId}/analytics`),
+
+  // ── Student: public (no auth) ────────────────────────────────────────────
+
+  /** Exam info by access code — shown on lobby screen */
   getByCode: (code: string) =>
-    api<{
+    examApi<{
+      exam_id: string;
       title: string;
-      teacher_name: string;
       subject: string;
+      teacher_name: string | null;
       total_time_minutes: number;
       tasks_per_variant: number;
       variants_count: number;
       status: string;
     }>(`/exams/by-code/${code}`),
 
-  /** Start an exam session */
+  /** Start exam session — returns tasks without correct answers */
   startSession: (code: string, data: { student_name: string; class_level: number }) =>
-    api<{
+    examApi<{
       session_id: string;
       variant_number: number;
+      time_minutes: number;
       tasks: Array<{
         task_id: string;
         text: string;
@@ -565,12 +631,11 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-      time_minutes: number;
     }>(`/exams/by-code/${code}/start`, { method: "POST", body: data }),
 
-  /** Submit exam answers */
-  submit: (code: string, data: { session_id: string; answers: Record<string, string>; time_spent_seconds: number }) =>
-    api<{
+  /** Submit answers — called with session_id, not code */
+  submit: (sessionId: string, data: { answers: Record<string, string>; time_spent_seconds: number }) =>
+    examApi<{
       session_id: string;
       score: number;
       max_score: number;
@@ -578,11 +643,11 @@ export const examsApi = {
       answered_count: number;
       total_tasks: number;
       percentage: number;
-    }>(`/exams/by-code/${code}/submit`, { method: "POST", body: data }),
+    }>(`/exam-sessions/${sessionId}/submit`, { method: "POST", body: data }),
 
-  /** Get session result */
+  /** Detailed session results (shown after submission) */
   getResult: (sessionId: string) =>
-    api<{
+    examApi<{
       session_id: string;
       exam_title: string;
       student_name: string;
@@ -604,15 +669,7 @@ export const examsApi = {
         is_correct: boolean;
         skill_name: string;
       }>;
-    }>(`/exams/sessions/${sessionId}/result`),
-
-  // --- Teacher endpoints (auth required) ---
-
-  /** List all exams for current teacher */
-  list: () => api<any[]>("/exams"),
-
-  /** Get sessions for an exam */
-  getSessions: (examId: string) => api<any[]>(`/exams/${examId}/sessions`),
+    }>(`/exam-sessions/${sessionId}/results`),
 };
 
 // ============================================================================
@@ -682,14 +739,14 @@ export const textbookApi = {
     if (params?.country) query.set("country", params.country);
     if (params?.status) query.set("status", params.status);
     const qs = query.toString();
-    return api<{ textbooks: TextbookBrief[]; total: number }>(
+    return examApi<TextbookBrief[]>(
       `/textbooks${qs ? `?${qs}` : ""}`
-    ).then((d) => d.textbooks);
+    ).then((d) => (Array.isArray(d) ? d : []));
   },
 
   /** Оглавление учебника (дерево) */
   toc: (textbookId: string) =>
-    api<TOCNode[]>(`/textbooks/${textbookId}/toc/tree`),
+    examApi<TOCNode[]>(`/textbooks/${textbookId}/toc/tree`),
 
   /** Задачи из учебника */
   tasks: (
@@ -703,13 +760,13 @@ export const textbookApi = {
     if (params?.limit) query.set("limit", String(params.limit));
     if (params?.offset) query.set("offset", String(params.offset));
     const qs = query.toString();
-    return api<TextbookTask[]>(`/textbooks/${textbookId}/tasks${qs ? `?${qs}` : ""}`);
+    return examApi<TextbookTask[]>(`/textbooks/${textbookId}/tasks${qs ? `?${qs}` : ""}`);
   },
 
   /** Дерево навыков (для режима "По программе") */
   skillTree: (classLevel?: number) => {
     const qs = classLevel ? `?class_level=${classLevel}` : "";
-    return api<SkillTreeNode[]>(`/textbooks/skills/tree${qs}`);
+    return examApi<SkillTreeNode[]>(`/textbooks/skills/tree${qs}`);
   },
 };
 

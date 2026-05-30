@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ import {
   Shield,
   AlertCircle,
 } from "lucide-react";
-import { catApi, diagnosticInviteApi, type CATTask, type CATAnswerResponse, type CATResultResponse } from "@/lib/api";
+import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 
@@ -97,7 +97,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [answer, setAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [result, setResult] = useState<CATResultResponse | null>(null);
+  const [result, setResult] = useState<DiagReport | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
 
   // Timer for current question
@@ -113,25 +113,34 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     return () => clearInterval(interval);
   }, [phase]);
 
-  // class_level is determined by the backend from diagnostic_code
-  // We pass undefined so CAT router resolves it from the invite record
-  const classLevel = useCallback(() => {
-    return (user as any)?.class_level || undefined;
-  }, [user]);
-
-  /** Start CAT session via API */
+  /** Start diagnostic session via diagnostic-service */
   const handleStartTest = async () => {
     try {
       setPhase("testing");
       setErrorMsg(null);
 
-      const response = await catApi.start({
-        class_level: classLevel(),
-        max_items: 30,
-        diagnostic_code: code,
+      // student_id is required by diagnostic-service; it comes from the monolith
+      // via /auth/diagnostic/{code}. If missing (anonymous flow) we block early.
+      const studentId: string | undefined = inviteInfo?.student_id ?? undefined;
+      const gradeLevel: number = inviteInfo?.class_level ?? (user as any)?.class_level ?? 9;
+
+      if (!studentId) {
+        throw new Error(
+          "Не удалось определить ученика. Убедитесь что вы открыли ссылку из QR-кода."
+        );
+      }
+
+      const response = await diagnosticApi.createSession({
+        student_id: studentId,
+        grade_level: gradeLevel,
+        invite_code: code,
       });
 
-      diagStore.startSession(response.session_id, response.phase, response.first_task);
+      diagStore.startSession(
+        String(response.session_id),
+        response.first_task.phase,
+        response.first_task,
+      );
       questionStartRef.current = Date.now();
       sessionStartRef.current = Date.now();
     } catch (err: any) {
@@ -140,7 +149,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     }
   };
 
-  /** Submit answer */
+  /** Submit answer to diagnostic-service */
   const handleSubmit = async () => {
     if (!answer.trim() || !diagStore.currentTask || !diagStore.sessionId) return;
 
@@ -149,18 +158,19 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     const timeMs = Date.now() - questionStartRef.current;
 
     try {
-      const resp: CATAnswerResponse = await catApi.answer(
+      const resp: DiagAnswerResult = await diagnosticApi.submitAnswer(
         diagStore.sessionId,
-        diagStore.currentTask.task_id,
-        answer.trim(),
-        timeMs
+        {
+          task_id: diagStore.currentTask.task_id,
+          student_answer: answer.trim(),
+          time_ms: timeMs,
+        },
       );
 
-      // No feedback during diagnostic — move to next immediately
       setAnswer("");
       setIsSubmitting(false);
 
-      if (resp.is_complete) {
+      if (resp.session_completed) {
         diagStore.complete();
         setPhase("analyzing");
         fetchResult(diagStore.sessionId!);
@@ -168,10 +178,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         diagStore.setNextTask(
           resp.next_task,
           resp.theta,
-          resp.theta_se,
-          resp.accuracy,
-          resp.phase,
-          resp.item_number
+          resp.se,
+          0,
+          resp.next_task.phase,
+          resp.next_task.items_answered + 1,
         );
         questionStartRef.current = Date.now();
       }
@@ -181,17 +191,17 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       setErrorMsg(
         msg.includes("не найдена") || msg.includes("истекла")
           ? "Сессия истекла. Нажмите «Попробовать снова» для перезапуска."
-          : msg
+          : msg,
       );
       diagStore.reset();
       setPhase("error");
     }
   };
 
-  /** Fetch final result */
+  /** Fetch final report from diagnostic-service */
   const fetchResult = async (sessionId: string) => {
     try {
-      const res = await catApi.result(sessionId);
+      const res = await diagnosticApi.getReport(sessionId);
       setResult(res);
       setTimeout(() => setPhase("results"), 2000);
     } catch (err: any) {
@@ -207,7 +217,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     }
   };
 
-  const currentTask = diagStore.currentTask as CATTask | null;
+  const currentTask = diagStore.currentTask as DiagTaskOut | null;
 
   return (
     <div className="h-screen w-full overflow-hidden relative bg-background-light text-slate-800 font-sans">
@@ -396,9 +406,9 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </QuestionCard>
 
                   {/* Answer area — MC or text */}
-                  {currentTask.options && currentTask.options.length > 0 ? (
+                  {currentTask.answer_options && currentTask.answer_options.length > 0 ? (
                     <OptionGrid
-                      options={currentTask.options.map((opt: string, idx: number) => ({
+                      options={currentTask.answer_options.map((opt: string, idx: number) => ({
                         key: opt,
                         label: String.fromCharCode(65 + idx),
                         content: opt,
@@ -542,7 +552,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     className="grid grid-cols-2 gap-3 mb-6"
                   >
                     <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <p className="text-2xl font-bold text-slate-900">{result.total_items}</p>
+                      <p className="text-2xl font-bold text-slate-900">{result.items_total}</p>
                       <p className="text-xs text-slate-500">Вопросов</p>
                     </div>
                     <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
