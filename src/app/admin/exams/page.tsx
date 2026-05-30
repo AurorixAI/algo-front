@@ -2,23 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { examsApi } from "@/lib/api";
+import { examsApi, ExamSummary } from "@/lib/api";
 import {
   FileText, Search, Plus, Clock, CheckCircle, XCircle,
   Users, Copy, Check, ExternalLink, Eye,
 } from "lucide-react";
 import Link from "next/link";
 
-interface ExamInfo {
-  exam_id: string;
-  title: string;
-  access_code: string | null;
-  status: string;
-  tasks_count: number;
-  variants_count: number;
-  sessions_count: number;
-  created_at: string;
-}
+type ExamInfo = ExamSummary;
 
 const statusConfig: Record<string, { label: string; color: string; dot: string; icon: any }> = {
   draft:     { label: "Черновик",     color: "bg-slate-50 text-slate-600 border-slate-200",       dot: "bg-slate-400",   icon: Clock },

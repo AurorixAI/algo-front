@@ -46,7 +46,7 @@ interface Task {
 
 interface ExamInfo {
   title: string;
-  teacher_name: string;
+  teacher_name: string | null;
   subject: string;
   total_time_minutes: number;
   tasks_per_variant: number;
@@ -208,8 +208,7 @@ export default function ExamPage() {
     setPhase("submitting");
     try {
       const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      const submitResult = await examsApi.submit(code, {
-        session_id: sessionId,
+      const submitResult = await examsApi.submit(sessionId, {
         answers,
         time_spent_seconds: timeSpent,
       });

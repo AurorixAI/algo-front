@@ -3,11 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_AUTH_API_URL: http://localhost:8000
+        NEXT_PUBLIC_EXAM_API_URL: http://localhost:8003
+        NEXT_PUBLIC_DIAG_API_URL: http://localhost:8002
     container_name: algo-frontend
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      # Connect to backend via host network on Docker Desktop for Mac/Windows
-      - NEXT_PUBLIC_API_URL=http://host.docker.internal:8000
+      - NEXT_PUBLIC_AUTH_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_EXAM_API_URL=http://localhost:8003
+      - NEXT_PUBLIC_DIAG_API_URL=http://localhost:8002
     restart: unless-stopped
