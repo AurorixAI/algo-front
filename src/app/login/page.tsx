@@ -10,32 +10,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 
-const DEV_ROLES = [
-  {
-    role: "admin",
-    label: "Admin",
-    emoji: "🛡️",
-    gradient: "from-violet-500 to-violet-600",
-    hoverBg: "hover:bg-violet-50 hover:border-violet-300",
-    redirect: "/admin/diagnostics",
-  },
-  {
-    role: "teacher",
-    label: "Teacher",
-    emoji: "👩‍🏫",
-    gradient: "from-emerald-500 to-emerald-600",
-    hoverBg: "hover:bg-emerald-50 hover:border-emerald-300",
-    redirect: "/teacher/diagnostic",
-  },
-];
-
 export default function LoginPage() {
   const router = useRouter();
-  const { login, devLogin, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError } = useAuthStore();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [devLoading, setDevLoading] = useState<string | null>(null);
 
   const handleLogin = async () => {
     clearError();
@@ -48,19 +28,6 @@ export default function LoginPage() {
       else router.push("/admin/diagnostics");
     } catch {
       // Error already set in store
-    }
-  };
-
-  const handleDevLogin = async (roleConfig: (typeof DEV_ROLES)[0]) => {
-    clearError();
-    setDevLoading(roleConfig.role);
-    try {
-      await devLogin(roleConfig.role);
-      router.push(roleConfig.redirect);
-    } catch {
-      // Error already set in store
-    } finally {
-      setDevLoading(null);
     }
   };
 
@@ -157,36 +124,6 @@ export default function LoginPage() {
               >
                 Войти
               </Button>
-            </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">или</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            {/* Demo accounts */}
-            <div className="text-center mb-4">
-              <p className="text-xs text-slate-400">Демо-аккаунты для тестирования</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {DEV_ROLES.map((roleConfig) => (
-                <button
-                  key={roleConfig.role}
-                  onClick={() => handleDevLogin(roleConfig)}
-                  disabled={devLoading !== null || isLoading}
-                  className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 transition-all duration-200 ${roleConfig.hoverBg} disabled:opacity-50 disabled:cursor-not-allowed group`}
-                >
-                  {devLoading === roleConfig.role ? (
-                    <div className="w-4 h-4 border-2 border-slate-300 border-t-primary-600 rounded-full animate-spin" />
-                  ) : (
-                    <span className="text-base">{roleConfig.emoji}</span>
-                  )}
-                  <span className="font-medium text-sm text-slate-700">{roleConfig.label}</span>
-                </button>
-              ))}
             </div>
           </GlassCard>
         </motion.div>

@@ -66,20 +66,8 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
       });
-      const user = useAuthStore.getState().user;
-      if (user) {
-        // Auto-login: redirect based on role
-        const role = user.role || user.org_role;
-        if (role === "owner" || role === "admin") {
-          router.push("/admin/diagnostics");
-        } else {
-          router.push("/teacher/diagnostic");
-        }
-        return;
-      } else {
-        setSuccess(true);
-        setStep(3);
-      }
+      setSuccess(true);
+      setStep(3);
     } catch {
       // Error handled by store
     }
@@ -296,7 +284,7 @@ export default function RegisterPage() {
                 </motion.div>
               )}
 
-              {/* Step 3: Success */}
+              {/* Step 3: Success (Pending approval) */}
               {step === 3 && (
                 <motion.div
                   key="step3"
@@ -313,19 +301,19 @@ export default function RegisterPage() {
                       <CheckCircle className="w-8 h-8 text-green-600" />
                     </div>
                   </motion.div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-2">Готово!</h3>
-                  <p className="text-sm text-slate-500 mb-1">
-                    Организация &laquo;{orgName}&raquo; успешно создана.
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Заявка принята</h3>
+                  <p className="text-sm text-slate-500 mb-2">
+                    Ваша заявка на регистрацию организации &laquo;{orgName}&raquo; успешно отправлена и ожидает подтверждения администратором.
                   </p>
                   <p className="text-sm text-slate-500 mb-6">
-                    Теперь вы можете войти в систему.
+                    После одобрения на указанный email <strong>{email}</strong> будет отправлена ссылка для активации аккаунта.
                   </p>
                   <Button
                     onClick={() => router.push("/login")}
                     className="w-full"
                     size="lg"
                   >
-                    Войти в систему
+                    Вернуться ко входу
                   </Button>
                 </motion.div>
               )}

@@ -215,6 +215,14 @@ export interface AuthResponse {
   org: OrgInfo | null;
 }
 
+export interface OrgApplicationPendingResponse {
+  message: string;
+  org_id: string;
+  org_name: string;
+  status: string;
+  success: boolean;
+}
+
 export const authApi = {
   apply: (data: {
     org_name: string;
@@ -227,9 +235,16 @@ export const authApi = {
     last_name: string;
     language?: string;
   }) =>
-    api<AuthResponse>("/auth/apply", {
+    api<OrgApplicationPendingResponse>("/auth/apply", {
       method: "POST",
       body: data,
+      noAuth: true,
+    }),
+
+  activate: (token: string) =>
+    api<AuthResponse>("/auth/activate", {
+      method: "POST",
+      body: { token },
       noAuth: true,
     }),
 

@@ -76,13 +76,10 @@ export const useAuthStore = create<AuthState>()(
       applyOrg: async (data) => {
         set({ isLoading: true, error: null });
         try {
-          const response = await authApi.apply(data);
+          await authApi.apply(data);
+          // Registration now returns a pending response — no tokens issued.
+          // The user will receive an activation email after admin approval.
           set({
-            user: response.user,
-            org: response.org,
-            token: response.tokens.access_token,
-            refreshToken: response.tokens.refresh_token,
-            isAuthenticated: true,
             isLoading: false,
             error: null,
           });
