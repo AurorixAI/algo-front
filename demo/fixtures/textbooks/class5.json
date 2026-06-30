@@ -1,0 +1,47 @@
+[
+  {
+    "textbook_id": "5630a994-061d-4c20-9863-fe049c8059fb",
+    "title": "Математика 5 класс — IDUM, часть 1",
+    "subtitle": "IDUM, 2020",
+    "authors": [
+      "Авторский коллектив IDUM"
+    ],
+    "class_level": 5,
+    "publisher": "IDUM",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 519,
+    "cover_image_url": null
+  },
+  {
+    "textbook_id": "47167115-5961-4405-bb55-1bda8ce1b687",
+    "title": "Математика 5 класс — IDUM, часть 2",
+    "subtitle": "Издание 3-е, 2020",
+    "authors": [
+      "Б.К. Хайдаров"
+    ],
+    "class_level": 5,
+    "publisher": "Huquq va Jamiyat",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 832,
+    "cover_image_url": null
+  },
+  {
+    "textbook_id": "184640af-64e7-47af-a974-8b8112e6ffb2",
+    "title": "Математика 5 класс — Виленкин",
+    "subtitle": "Мнемозина, 2013",
+    "authors": [
+      "Н.Я. Виленкин",
+      "В.И. Жохов",
+      "А.С. Чесноков",
+      "С.И. Шварцбурд"
+    ],
+    "class_level": 5,
+    "publisher": "Мнемозина",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 1595,
+    "cover_image_url": null
+  }
+]

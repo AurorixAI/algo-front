@@ -1,0 +1,34 @@
+[
+  {
+    "textbook_id": "69fc47e1-7f72-4e79-9bf4-9ee6fb7e9b7f",
+    "title": "Алгебра 7 класс — Макарычев",
+    "subtitle": "Просвещение, 15-е изд., 2023",
+    "authors": [
+      "Ю.Н. Макарычев",
+      "М.А. Миндюк",
+      "К.И. Нешков",
+      "Н.Г. Суворов",
+      "С.Б. Суворова"
+    ],
+    "class_level": 7,
+    "publisher": "Просвещение",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 850,
+    "cover_image_url": null
+  },
+  {
+    "textbook_id": "4b19752a-3d54-4538-b6a6-26ce1fbb48fd",
+    "title": "Алгебра 7 класс — Школьное издание",
+    "subtitle": "Новое издание, 2022",
+    "authors": [
+      "Авторский коллектив"
+    ],
+    "class_level": 7,
+    "publisher": "Новое издание",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 2343,
+    "cover_image_url": null
+  }
+]

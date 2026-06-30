@@ -1,0 +1,35 @@
+[
+  {
+    "textbook_id": "b8f4a2c1-3d5e-4f60-9182-3456789abcde",
+    "title": "Алгебра 8 класс — Макарычев",
+    "subtitle": null,
+    "authors": [
+      "Макарычев",
+      "Миндюк",
+      "Нешков",
+      "Суворова"
+    ],
+    "class_level": 8,
+    "publisher": "Просвещение",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 2036,
+    "cover_image_url": null
+  },
+  {
+    "textbook_id": "e8f3a1b2-7c4d-5e6f-8091-2345678abcde",
+    "title": "Алгебра 8 класс — Школьное издание",
+    "subtitle": "O'qituvchi, 2019",
+    "authors": [
+      "Ш.А. Алимов",
+      "А.Р. Халмухамедов",
+      "М.А. Мирзахмедов"
+    ],
+    "class_level": 8,
+    "publisher": "O'qituvchi",
+    "digitization_status": "done",
+    "digitization_progress": 0,
+    "tasks_extracted": 1346,
+    "cover_image_url": null
+  }
+]

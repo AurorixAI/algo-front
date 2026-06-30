@@ -1,0 +1,33 @@
+[
+  {
+    "textbook_id": "351a95c1-5208-4ae9-8323-6d7dd5e8bb82",
+    "title": "Математика 6 класс — Виленкин",
+    "subtitle": "Мнемозина",
+    "authors": [
+      "Н.Я. Виленкин",
+      "В.И. Жохов",
+      "А.С. Чесноков",
+      "С.И. Шварцбурд"
+    ],
+    "class_level": 6,
+    "publisher": "Мнемозина",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 1637,
+    "cover_image_url": null
+  },
+  {
+    "textbook_id": "a7585f33-4f43-47b2-8ca6-c4ef6c8020c8",
+    "title": "Математика 6 класс — Школьное издание",
+    "subtitle": "O'qituvchi, 2017",
+    "authors": [
+      "Учебный коллектив"
+    ],
+    "class_level": 6,
+    "publisher": "O'qituvchi",
+    "digitization_status": "done",
+    "digitization_progress": 100,
+    "tasks_extracted": 2367,
+    "cover_image_url": null
+  }
+]

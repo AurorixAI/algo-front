@@ -1,0 +1,8 @@
+{
+  "buildCommand": "npm run build:demo",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_DEMO_MODE": "true"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "org": {
+    "id": "org-demo-001",
+    "name": "Школа «Алго» (Демо)",
+    "org_type": "private_school",
+    "city": "Москва",
+    "status": "active"
+  },
+  "students": [
+    {
+      "id": "stu-demo-001",
+      "first_name": "Алексей",
+      "last_name": "Петров",
+      "class_level": 8,
+      "status": "new"
+    },
+    {
+      "id": "stu-demo-002",
+      "first_name": "Мария",
+      "last_name": "Иванова",
+      "class_level": 8,
+      "status": "diagnosed"
+    },
+    {
+      "id": "stu-demo-003",
+      "first_name": "Дмитрий",
+      "last_name": "Сидоров",
+      "class_level": 7,
+      "status": "new"
+    }
+  ],
+  "admin": {
+    "email": "demo@algo.ru",
+    "password": "demo2026",
+    "first_name": "Демо",
+    "last_name": "Администратор",
+    "role": "admin",
+    "org_role": "admin"
+  },
+  "teacher": {
+    "email": "teacher@algo.ru",
+    "password": "demo2026",
+    "first_name": "Елена",
+    "last_name": "Учителева",
+    "role": "teacher",
+    "org_role": "teacher"
+  }
+}
