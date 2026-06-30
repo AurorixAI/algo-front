@@ -4,7 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:demo": "NEXT_PUBLIC_DEMO_MODE=true next dev",
     "build": "next build",
+    "build:demo": "NEXT_PUBLIC_DEMO_MODE=true next build",
+    "sync-demo": "rm -rf demo && cp -R ../demo ./demo",
+    "deploy:demo": "npm run sync-demo && npx vercel deploy --prod --yes",
     "start": "next start",
     "lint": "next lint"
   },
@@ -14,6 +18,7 @@
     "@types/qrcode.react": "^1.0.5",
     "clsx": "^2.1.0",
     "framer-motion": "^10.18.0",
+    "katex": "^0.16.11",
     "lucide-react": "^0.312.0",
     "next": "^14.2.35",
     "qrcode.react": "^3.2.0",
@@ -26,6 +31,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/katex": "^0.16.7",
     "@types/node": "^20.19.31",
     "@types/react": "^18.3.27",
     "@types/react-dom": "^18.3.7",

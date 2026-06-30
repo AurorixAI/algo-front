@@ -430,7 +430,7 @@ export default function NewExamPage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto pb-24">
+    <div className="w-full max-w-[1400px] mx-auto pb-24">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Создать экзамен</h1>
       <p className="text-slate-500 mb-10">Настройте параметры и сгенерируйте варианты</p>
 
@@ -441,9 +441,9 @@ export default function NewExamPage() {
                 <motion.button
                   onClick={() => s.num <= step && setStep(s.num as Step)}
                   disabled={s.num > step}
-                  animate={{ scale: step === s.num ? 1.1 : 1 }}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
-                    step === s.num ? "bg-primary-500 text-white shadow-lg shadow-primary-500/30"
+                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-full transition-colors duration-200 ${
+                    step === s.num ? "bg-primary-500 text-white shadow-lg shadow-primary-500/30 scale-105"
                     : step > s.num ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-400"
                   } ${s.num <= step ? "cursor-pointer" : "cursor-not-allowed"}`}
                 >
@@ -814,7 +814,7 @@ export default function NewExamPage() {
 
             {step === 4 && (
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                <GlassCard className="p-8">
+                <GlassCard className="p-8 sm:p-10">
                   <div className="text-center mb-8">
                     <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-indigo-100 flex items-center justify-center">
                       <Monitor className="w-8 h-8 text-indigo-600" />
@@ -823,31 +823,76 @@ export default function NewExamPage() {
                     <p className="text-slate-500 text-sm">Как ученики будут проходить экзамен</p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto items-stretch">
                     {[
                       { id: "online", emoji: "🖥️", title: "Онлайн", desc: "Ученики проходят на своих устройствах по QR-коду", features: ["Автопроверка", "Результаты сразу", "Антиплагиат"] },
                       { id: "print", emoji: "🖨️", title: "Печать", desc: "PDF-варианты для печати + файл с ответами", features: ["Бланки ответов", "Ключи для учителя", "Критерии"] },
                       { id: "hybrid", emoji: "🔄", title: "Гибрид", desc: "Печатные задания + онлайн ввод ответов", features: ["Офлайн решение", "Быстрая проверка", "Аналитика"] },
                     ].map((mode) => (
-                      <button key={mode.id} onClick={() => setConfig({ ...config, mode: mode.id as ExamMode })}
-                        className={`p-6 rounded-2xl border-2 text-left transition-all ${config.mode === mode.id ? "border-primary-500 bg-primary-50" : "border-slate-200 hover:border-slate-300 bg-white"}`}>
-                        <div className="text-3xl mb-3">{mode.emoji}</div>
-                        <h3 className="font-semibold text-slate-900 mb-1">{mode.title}</h3>
-                        <p className="text-sm text-slate-500 mb-3">{mode.desc}</p>
-                        <ul className="space-y-1">
-                          {mode.features.map((f, i) => <li key={i} className="text-xs text-slate-600 flex items-center gap-1"><Check className="w-3 h-3 text-green-500" />{f}</li>)}
+                      <button
+                        key={mode.id}
+                        type="button"
+                        onClick={() => setConfig({ ...config, mode: mode.id as ExamMode })}
+                        className={`h-full min-h-[220px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all flex flex-col ${
+                          config.mode === mode.id
+                            ? "border-primary-500 bg-primary-50 shadow-sm"
+                            : "border-slate-200 hover:border-slate-300 bg-white"
+                        }`}
+                      >
+                        <div className="text-3xl mb-3 flex-shrink-0">{mode.emoji}</div>
+                        <h3 className="font-semibold text-slate-900 mb-1 flex-shrink-0">{mode.title}</h3>
+                        <p className="text-sm text-slate-500 mb-3 leading-snug flex-1">{mode.desc}</p>
+                        <ul className="space-y-1 flex-shrink-0">
+                          {mode.features.map((f, i) => (
+                            <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                              <Check className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
+                              <span className="break-words">{f}</span>
+                            </li>
+                          ))}
                         </ul>
                       </button>
                     ))}
                   </div>
 
-                  <div className="mt-8 p-4 rounded-xl bg-slate-50 max-w-2xl mx-auto">
-                    <h3 className="font-medium text-slate-900 mb-3">📋 Итого:</h3>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div><p className="text-slate-500">Название</p><p className="font-medium text-slate-900 truncate">{config.name || "—"}</p></div>
-                      <div><p className="text-slate-500">Класс</p><p className="font-medium text-slate-900">{config.classId ? `${config.classId} класс` : "—"}</p></div>
-                      <div><p className="text-slate-500">Вариантов × Заданий</p><p className="font-medium text-slate-900">{generateVariants ? config.variantsCount : 1} × {config.questionsCount}</p></div>
-                      <div><p className="text-slate-500">Время</p><p className="font-medium text-slate-900">{config.duration} мин</p></div>
+                  <div className="mt-8 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 max-w-4xl mx-auto overflow-hidden">
+                    <h3 className="font-medium text-slate-900 mb-4">📋 Итого</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Название</p>
+                        <p className="font-medium text-slate-900 break-words leading-snug">{config.name || "—"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Класс</p>
+                        <p className="font-medium text-slate-900">{config.classId ? `${config.classId} класс` : "—"}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Тип</p>
+                        <p className="font-medium text-slate-900">
+                          {config.type === "control" ? "Контрольная работа" : "Быстрая проверка"}
+                        </p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Время</p>
+                        <p className="font-medium text-slate-900">{config.duration} мин</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Вариантов</p>
+                        <p className="font-medium text-slate-900">{generateVariants ? config.variantsCount : 1}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Заданий в варианте</p>
+                        <p className="font-medium text-slate-900">{config.questionsCount}</p>
+                      </div>
+                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
+                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Источник</p>
+                        <p className="font-medium text-slate-900 break-words leading-snug">
+                          {config.sourceType === "topics"
+                            ? `По темам (${config.selectedTopics.size} навыков)`
+                            : config.sourceType === "textbook"
+                              ? `По учебнику (${config.selectedSections.size} параграфов)`
+                              : "Свои задания"}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </GlassCard>

@@ -33,6 +33,7 @@ import {
 
 interface DistractorMeta {
   value: string;
+  value_latex?: string | null;
   error_type: string;
   explanation: string;
   plausibility: number;
@@ -48,6 +49,7 @@ interface DraftTask {
   question_image_url: string | null;
   answer_type: string;
   correct_answer: string;
+  correct_answer_latex?: string | null;
   answer_options: string[] | null;
   distractor_meta: DistractorMeta[] | null;
   is_template_generated: boolean;
@@ -89,27 +91,8 @@ const diffColors: Record<string, string> = {
   C: "bg-red-100 text-red-700",
 };
 
-// ─── Render LaTeX-ified text (simple: detect formulas like $...$) ───
-function MathText({ text }: { text: string }) {
-  // Simple: just render as text. In production, use KaTeX/MathJax.
-  // Handle basic LaTeX patterns
-  return <span dangerouslySetInnerHTML={{ __html: text.replace(/\n/g, "<br/>") }} />;
-}
-
-// ─── Error type labels ───
-const errorLabels: Record<string, string> = {
-  sign_error: "Ошибка знака",
-  sign_transfer_error: "Перенос через =",
-  off_by_one: "Ошибка ±1",
-  wrong_operation: "Перепутал операцию",
-  formula_swap: "Неверная формула",
-  partial_solution: "Промежуточный шаг",
-  digit_swap: "Перестановка цифр",
-  magnitude_error: "Порядок числа",
-  operation_swap: "×↔÷",
-  common_mistake: "Типичная ошибка",
-  random_plausible: "Близкое число",
-};
+import { MathText } from "@/components/ui/math-renderer";
+import { pickAnswerDisplayText } from "@/lib/task-display";
 
 // ============================================================================
 // MAIN COMPONENT
@@ -254,7 +237,7 @@ export default function ExamDraftPage() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto py-12">
+      <div className="w-full max-w-[1400px] mx-auto py-12">
         <div className="flex items-center justify-center gap-3 text-slate-400">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500" />
           Загрузка черновика...
@@ -265,7 +248,7 @@ export default function ExamDraftPage() {
 
   if (error || !draft) {
     return (
-      <div className="max-w-5xl mx-auto py-12 text-center">
+      <div className="w-full max-w-[1400px] mx-auto py-12 text-center">
         <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
         <p className="text-slate-600">{error || "Экзамен не найден"}</p>
         <Link href="/teacher/exams">
@@ -353,7 +336,7 @@ export default function ExamDraftPage() {
   // ─── Main Draft Layout ───
 
   return (
-    <div className="max-w-5xl mx-auto py-6">
+    <div className="w-full max-w-[1400px] mx-auto py-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -489,14 +472,9 @@ export default function ExamDraftPage() {
                                 {globalIdx + 1}
                               </span>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-slate-800 leading-relaxed">
+                                <div className="text-sm text-slate-800 leading-relaxed">
                                   <MathText text={task.question_text} />
-                                </p>
-                                {task.question_latex && task.question_latex !== task.question_text && (
-                                  <p className="mt-1 text-xs text-slate-400 font-mono truncate">
-                                    {task.question_latex}
-                                  </p>
-                                )}
+                                </div>
                               </div>
                             </div>
 
@@ -525,21 +503,18 @@ export default function ExamDraftPage() {
 
                           {/* Answer + Distractors */}
                           <div className="ml-10 mt-2 flex flex-wrap gap-2">
-                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                              <CheckCircle2 className="w-3 h-3" />
-                              {task.correct_answer}
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 max-w-full">
+                              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                              <MathText text={pickAnswerDisplayText(task.correct_answer, task.correct_answer_latex)} className="text-xs" />
                             </span>
                             {task.distractor_meta?.map((dm, i) => (
                               <span
                                 key={i}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-red-50 text-red-600 border border-red-100"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-red-50 text-red-600 border border-red-100 max-w-full"
                                 title={dm.explanation}
                               >
-                                <XCircle className="w-3 h-3" />
-                                {dm.value}
-                                <span className="text-[10px] text-red-400 ml-0.5">
-                                  {errorLabels[dm.error_type] || dm.error_type}
-                                </span>
+                                <XCircle className="w-3 h-3 flex-shrink-0" />
+                                <MathText text={pickAnswerDisplayText(dm.value, dm.value_latex)} className="text-xs" />
                               </span>
                             ))}
                           </div>

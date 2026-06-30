@@ -27,6 +27,8 @@ import {
 import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
+import { MathRenderer } from "@/components/ui/math-renderer";
+import { pickTaskDisplayText } from "@/lib/task-display";
 
 type Phase = "loading" | "confirm" | "welcome" | "testing" | "analyzing" | "results" | "error";
 
@@ -150,10 +152,13 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   };
 
   /** Submit answer to diagnostic-service */
-  const handleSubmit = async () => {
-    if (!answer.trim() || !diagStore.currentTask || !diagStore.sessionId) return;
+  const handleSubmit = async (answerOverride?: string) => {
+    const submitted = (answerOverride ?? answer).trim();
+    if (!submitted || !diagStore.currentTask || !diagStore.sessionId) return;
+    if (isSubmitting) return;
 
     setIsSubmitting(true);
+    setAnswer(submitted);
 
     const timeMs = Date.now() - questionStartRef.current;
 
@@ -162,7 +167,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         diagStore.sessionId,
         {
           task_id: diagStore.currentTask.task_id,
-          student_answer: answer.trim(),
+          student_answer: submitted,
           time_ms: timeMs,
         },
       );
@@ -393,7 +398,13 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     questionKey={currentTask.task_id}
                     topic={`Вопрос ${diagStore.itemNumber}`}
                   >
-                    {currentTask.question_text}
+                    <MathRenderer
+                      text={pickTaskDisplayText({
+                        task_id: currentTask.task_id,
+                        question_text: currentTask.question_text,
+                        question_latex: currentTask.question_latex,
+                      })}
+                    />
                     {currentTask.question_image_url && (
                       <div className="mt-6 flex justify-center">
                         <img
@@ -408,20 +419,19 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   {/* Answer area — MC or text */}
                   {currentTask.answer_options && currentTask.answer_options.length > 0 ? (
                     <OptionGrid
+                      questionKey={currentTask.task_id}
                       options={currentTask.answer_options.map((opt: string, idx: number) => ({
+                        id: `${currentTask.task_id}-${idx}`,
                         key: opt,
                         label: String.fromCharCode(65 + idx),
                         content: opt,
+                        contentLatex: currentTask.answer_options_latex?.[idx] ?? null,
                       }))}
                       selected={answer}
+                      disabled={isSubmitting}
                       onSelect={(key) => {
                         setAnswer(key);
-                        // Auto-submit MC answers after a short delay
-                        setTimeout(() => {
-                          if (!isSubmitting && key.trim()) {
-                            handleSubmit();
-                          }
-                        }, 300);
+                        void handleSubmit(key);
                       }}
                     />
                   ) : (

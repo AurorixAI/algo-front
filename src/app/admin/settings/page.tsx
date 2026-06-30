@@ -39,7 +39,7 @@ export default function AdminSettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 w-full max-w-5xl mx-auto">
       <h1 className="text-3xl font-bold text-slate-900">Настройки</h1>
 
       {msg && (

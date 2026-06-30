@@ -66,8 +66,22 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
       });
-      setSuccess(true);
-      setStep(3);
+      const user = useAuthStore.getState().user;
+      if (user) {
+        // Auto-login: redirect based on role
+        const role = user.role || user.org_role;
+        if (role === "owner") {
+          router.push("/owner/dashboard");
+        } else if (role === "admin") {
+          router.push("/admin/diagnostics");
+        } else {
+          router.push("/teacher/diagnostic");
+        }
+        return;
+      } else {
+        setSuccess(true);
+        setStep(3);
+      }
     } catch {
       // Error handled by store
     }

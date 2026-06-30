@@ -29,6 +29,8 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { examsApi } from "@/lib/api";
+import { MathRenderer } from "@/components/ui/math-renderer";
+import { pickAnswerDisplayText, pickTaskDisplayText } from "@/lib/task-display";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,9 @@ type Phase = "loading" | "lobby" | "starting" | "exam" | "review" | "submitting"
 interface Task {
   task_id: string;
   text: string;
+  question_latex?: string | null;
   options: string[];
+  options_latex?: string[] | null;
   image_url?: string;
   difficulty: string;
   skill_name: string;
@@ -73,6 +77,7 @@ interface ExamResult {
     options: string[];
     student_answer: string | null;
     correct_answer: string;
+    correct_answer_latex?: string | null;
     is_correct: boolean;
     skill_name: string;
   }>;
@@ -403,7 +408,13 @@ export default function ExamPage() {
                     </span>
                   }
                 >
-                  {task.text}
+                  <MathRenderer
+                    text={pickTaskDisplayText({
+                      task_id: task.task_id,
+                      question_text: task.text,
+                      question_latex: task.question_latex,
+                    })}
+                  />
                   {task.image_url && (
                     <div className="mt-6 flex justify-center">
                       <img
@@ -417,13 +428,21 @@ export default function ExamPage() {
                 {/* Answer area */}
                 {task.options && task.options.length > 0 ? (
                   <OptionGrid
+                    questionKey={task.task_id}
                     options={task.options.map((opt, idx) => ({
+                      id: `${task.task_id}-${idx}`,
                       key: opt,
                       label: String.fromCharCode(65 + idx),
                       content: opt,
+                      contentLatex: task.options_latex?.[idx],
                     }))}
                     selected={answers[task.task_id] || ""}
-                    onSelect={(key) => handleAnswer(task.task_id, key)}
+                    onSelect={(key) => {
+                      handleAnswer(task.task_id, key);
+                      if (currentQuestion < tasks.length - 1) {
+                        setTimeout(() => goNext(), 180);
+                      }
+                    }}
                   />
                 ) : (
                   <TextInputAnswer
@@ -587,8 +606,16 @@ export default function ExamPage() {
                       Результаты будут доступны у вашего преподавателя.
                     </p>
 
-                    {/* Brief stats */}
-                    <div className="grid grid-cols-2 gap-3 mb-8">
+                    {/* Score + stats */}
+                    <div className="grid grid-cols-2 gap-3 mb-6">
+                      <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none col-span-2">
+                        <p className="text-3xl font-bold text-primary-600">
+                          {result.percentage?.toFixed(0) ?? 0}%
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {result.score}/{result.max_score} баллов · {result.correct_count} верных
+                        </p>
+                      </div>
                       <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none">
                         <p className="text-lg font-bold text-slate-900">{result.answered_count}/{result.total_tasks}</p>
                         <p className="text-xs text-slate-500">Отвечено</p>
@@ -601,6 +628,57 @@ export default function ExamPage() {
                         <p className="text-xs text-slate-500">Время</p>
                       </div>
                     </div>
+
+                    {result.tasks && result.tasks.length > 0 && (
+                      <div className="mb-6 text-left">
+                        <button
+                          type="button"
+                          onClick={() => setShowDetailedResults(!showDetailedResults)}
+                          className="text-sm text-primary-600 font-medium mb-3 hover:underline"
+                        >
+                          {showDetailedResults ? "Скрыть разбор" : "Показать разбор ответов"}
+                        </button>
+                        {showDetailedResults && (
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {result.tasks.map((t: any, i: number) => (
+                              <div
+                                key={t.task_id}
+                                className={`p-3 rounded-lg text-sm border ${
+                                  t.is_correct
+                                    ? "bg-emerald-50 border-emerald-100"
+                                    : "bg-red-50 border-red-100"
+                                }`}
+                              >
+                                <div className="flex items-start gap-2">
+                                  {t.is_correct ? (
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                                  ) : (
+                                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+                                  )}
+                                  <div>
+                                    <p className="text-xs text-slate-500 mb-1">Вопрос {i + 1}</p>
+                                    <MathRenderer
+                                      text={pickTaskDisplayText({
+                                        task_id: t.task_id,
+                                        question_text: t.text,
+                                        question_latex: t.question_latex,
+                                      })}
+                                      className="text-slate-800"
+                                    />
+                                    <p className="mt-1 text-xs">
+                                      Ваш ответ: <strong><MathRenderer text={pickAnswerDisplayText(t.student_answer ?? "")} className="inline text-xs" /></strong>
+                                      {!t.is_correct && (
+                                        <> · Верно: <strong><MathRenderer text={pickAnswerDisplayText(t.correct_answer ?? "", t.correct_answer_latex)} className="inline text-xs" /></strong></>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <Link href="/login">
                       <Button className="w-full" icon={<Home className="w-4 h-4" />}>

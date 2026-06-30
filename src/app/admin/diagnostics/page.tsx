@@ -144,30 +144,56 @@ export default function AdminDiagnosticsPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Всего", value: counts.all, icon: Brain, color: "text-slate-600", bg: "bg-slate-50" },
-          { label: "Ожидают", value: counts.pending, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-          { label: "Проходят", value: counts.in_progress, icon: Sparkles, color: "text-purple-600", bg: "bg-purple-50" },
-          { label: "Завершены", value: counts.completed, icon: Check, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Всего", value: counts.all, icon: Brain, color: "text-blue-500", bg: "bg-blue-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)]", chartGlow: "from-blue-500 to-cyan-500", chart: [40, 70, 45, 90, 65, 85] },
+          { label: "Ожидают", value: counts.pending, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]", chartGlow: "from-amber-500 to-orange-500", chart: [20, 40, 35, 60, 80, 100] },
+          { label: "Проходят", value: counts.in_progress, icon: Sparkles, color: "text-purple-500", bg: "bg-purple-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]", chartGlow: "from-purple-500 to-pink-500", chart: [60, 50, 40, 30, 20, 10] },
+          { label: "Завершены", value: counts.completed, icon: Check, color: "text-emerald-500", bg: "bg-emerald-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(16,185,129,0.3)]", chartGlow: "from-emerald-500 to-teal-500", chart: [30, 50, 80, 60, 90, 100] },
         ].map((stat) => (
           <button
             key={stat.label}
             onClick={() => setFilter(filterKey(stat.label))}
-            className={
-              "p-4 rounded-xl border transition-all text-left " +
-              (filter === filterKey(stat.label)
-                ? "border-primary-200 bg-primary-50/50 shadow-sm"
-                : "border-slate-100 bg-white hover:border-slate-200")
-            }
+            className={`relative overflow-hidden text-left p-5 rounded-[2rem] transition-all duration-300 ease-out group ${stat.glow} ${
+              filter === filterKey(stat.label)
+                ? "bg-white ring-1 ring-slate-200/50 shadow-sm"
+                : "bg-white/60 hover:bg-white"
+            }`}
           >
-            <div className="flex items-center justify-between mb-2">
-              <div className={"w-8 h-8 rounded-lg flex items-center justify-center " + stat.bg}>
-                <stat.icon className={"w-4 h-4 " + stat.color} />
-              </div>
-              <span className="text-2xl font-bold text-slate-900">{stat.value}</span>
+            {/* Giant watermark icon */}
+            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.06] transition-all duration-300 ease-out transform group-hover:scale-110 group-hover:-rotate-6 pointer-events-none">
+              <stat.icon className={`w-28 h-28 ${stat.color}`} />
             </div>
-            <p className="text-xs text-slate-500">{stat.label}</p>
+
+            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
+                  <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                </div>
+                <span className={`text-xs font-bold tracking-wider uppercase ${filter === filterKey(stat.label) ? "text-primary-700" : "text-slate-500"}`}>
+                  {stat.label}
+                </span>
+              </div>
+              
+              <div className="flex items-end justify-between">
+                <span className="text-4xl font-bold text-slate-800 tracking-tight tabular-nums">
+                  {stat.value}
+                </span>
+                
+                {/* Mini chart visualizer */}
+                <div className="w-12 h-6 flex items-end gap-1 opacity-40 group-hover:opacity-80 transition-opacity duration-300">
+                  {stat.chart.map((h, j) => (
+                    <motion.div 
+                      key={j} 
+                      initial={{ height: "10%" }}
+                      animate={{ height: `${h}%` }}
+                      transition={{ duration: 0.4, delay: j * 0.05, ease: "easeOut" }}
+                      className={`w-1 rounded-t-sm bg-gradient-to-t ${stat.chartGlow}`} 
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
           </button>
         ))}
       </div>
@@ -199,11 +225,8 @@ export default function AdminDiagnosticsPage() {
             const sc = statusConfig[inv.status] || statusConfig.pending;
             const isCompleted = inv.status === "completed";
             return (
-              <motion.div
+              <div
                 key={inv.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
                 className="bg-white rounded-xl p-4 transition-all hover:shadow-sm"
               >
                 <div className="flex items-center gap-4">
@@ -289,13 +312,16 @@ export default function AdminDiagnosticsPage() {
                         </button>
                     )}
                     {isCompleted && (
-                      <button className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-emerald-50 text-emerald-700 rounded-lg hover:bg-emerald-100 transition-colors whitespace-nowrap w-[110px]">
-                        <UserPlus className="w-3.5 h-3.5" /> Зачислить
-                      </button>
+                      <Link
+                        href={`/admin/diagnostics/${inv.id}/report`}
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap w-[110px]"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" /> Отчёт
+                      </Link>
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>

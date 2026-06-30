@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -15,6 +15,8 @@ import {
   ChevronRight,
   Search,
   UserCog,
+  Shield,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/store";
@@ -54,22 +56,29 @@ export function Sidebar() {
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
-    { href: "/admin/groups", label: "Группы", icon: Users, comingSoon: true },
+    { href: "/admin/groups", label: "Группы", icon: Users },
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
+  ];
+
+  const ownerNav: NavItem[] = [
+    { href: "/owner/dashboard", label: "Панель управления", icon: LayoutDashboard },
+    { href: "/owner/analytics", label: "Аналитика", icon: BarChart3 },
+    { href: "/owner/groups", label: "Группы", icon: Users },
+    { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];
 
   const teacherNav: NavItem[] = [
     { href: "/teacher/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
+    { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
     { href: "/teacher/exams", label: "Экзамены", icon: FileText },
-    { href: "/teacher/students", label: "Ученики", icon: GraduationCap },
-    { href: "/teacher/groups", label: "Мои группы", icon: Users, comingSoon: true },
+    { href: "/teacher/groups", label: "Мои группы", icon: Users },
     { href: "/teacher/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
     { href: "/teacher/library", label: "Библиотека", icon: BookOpen, comingSoon: true },
   ];
 
-  const navItems = role === "admin" ? adminNav : teacherNav;
-  const settingsPath = role === "admin" ? "/admin/settings" : "/teacher/settings";
-  const displayRole = role === "admin" ? "Администратор" : "Учитель";
+  const navItems = rawRole === "owner" ? ownerNav : role === "admin" ? adminNav : teacherNav;
+  const settingsPath = rawRole === "owner" ? "/owner/settings" : role === "admin" ? "/admin/settings" : "/teacher/settings";
+  const displayRole = rawRole === "owner" ? "Владелец" : role === "admin" ? "Администратор" : "Учитель";
   const displayName = user?.first_name
     ? `${user.first_name} ${user.last_name || ""}`.trim()
     : user?.full_name || displayRole;
@@ -101,7 +110,7 @@ export function Sidebar() {
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3 overflow-hidden">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md shadow-primary-600/20">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-md shadow-primary-600/20">
           ∫
         </div>
         {!collapsed && (

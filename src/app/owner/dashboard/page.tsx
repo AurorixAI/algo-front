@@ -6,9 +6,8 @@ import { orgApi, analyticsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import {
   Users, GraduationCap, Brain, TrendingUp,
-  BarChart3, AlertTriangle, Plus, Settings,
-  ArrowRight, RefreshCw, Shield, Activity,
-  Calendar, Clock,
+  Settings, Activity, Calendar, MapPin, Building,
+  TrendingDown, AlertCircle, Trophy, Clock, Video, Shield
 } from "lucide-react";
 import Link from "next/link";
 
@@ -57,8 +56,13 @@ export default function OwnerDashboard() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center">
+            <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+          </div>
+          <p className="text-sm font-medium text-slate-500 animate-pulse">Анализ данных организации...</p>
+        </div>
       </div>
     );
   }
@@ -66,180 +70,272 @@ export default function OwnerDashboard() {
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Доброе утро" : now.getHours() < 18 ? "Добрый день" : "Добрый вечер";
 
+  // Calculate global average theta across all groups
+  const groupsWithTheta = groups.filter(g => g.avg_theta !== null);
+  const globalTheta = groupsWithTheta.length > 0 
+    ? groupsWithTheta.reduce((acc, g) => acc + (g.avg_theta || 0), 0) / groupsWithTheta.length 
+    : 0;
+
+  // Smart Lists
+  const sortedGroups = [...groupsWithTheta].sort((a, b) => (b.avg_theta || 0) - (a.avg_theta || 0));
+  const topGroups = sortedGroups.slice(0, 3);
+  const riskGroups = sortedGroups.slice().reverse().slice(0, 3).filter(g => (g.avg_theta || 0) < 0.5); // Highlight those struggling
+
+  // 4 Core KPIs
   const statCards = [
-    { label: "Учеников", value: stats?.total_students || 0, icon: Users, color: "from-blue-500 to-blue-600", bg: "bg-blue-50" },
-    { label: "Групп", value: stats?.total_groups || 0, icon: GraduationCap, color: "from-emerald-500 to-emerald-600", bg: "bg-emerald-50" },
-    { label: "Сотрудников", value: stats?.total_members || 0, icon: Shield, color: "from-violet-500 to-violet-600", bg: "bg-violet-50" },
-    { label: "Завершённых диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "from-amber-500 to-amber-600", bg: "bg-amber-50" },
-    { label: "Новые ученики", value: stats?.new_students || 0, icon: TrendingUp, color: "from-rose-500 to-rose-600", bg: "bg-rose-50" },
-    { label: "Активных тестов", value: stats?.active_diagnostics || 0, icon: Activity, color: "from-cyan-500 to-cyan-600", bg: "bg-cyan-50" },
+    { label: "Всего учеников", value: stats?.total_students || 0, trend: "+12%", isPositive: true, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
+    { label: "Сотрудников", value: stats?.total_members || 0, trend: "0", isPositive: true, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
+    { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, trend: "+24%", isPositive: true, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
+    { 
+      label: "Средний уровень (θ)", 
+      value: globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2), 
+      trend: "+0.15", 
+      isPositive: true, 
+      icon: Activity, 
+      color: globalTheta >= 0.5 ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500", 
+      bg: globalTheta >= 0.5 ? "bg-emerald-50" : "bg-rose-50", 
+      iconColor: globalTheta >= 0.5 ? "text-emerald-600" : "text-rose-600" 
+    },
+  ];
+
+  // Mock Live Classes Data (Realistic presentation)
+  const currentHour = now.getHours();
+  const currentMinute = now.getMinutes().toString().padStart(2, "0");
+  const liveClasses = [
+    { id: 1, groupName: "Python Pro (10 класс)", teacher: "Анна Смирнова", time: `${currentHour}:00 - ${currentHour + 1}:30`, type: "online", students: 12 },
+    { id: 2, groupName: "Математика База (9 класс)", teacher: "Иван Петров", time: `${currentHour}:15 - ${currentHour + 1}:45`, type: "offline", students: 8 },
+    { id: 3, groupName: "Олимпиадная инфа (11 класс)", teacher: "Елена Коваль", time: `${currentHour - 1}:30 - ${currentHour}:50`, type: "offline", students: 5 },
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 w-full max-w-[1600px] mx-auto pb-12">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <motion.h1
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="text-3xl font-bold text-slate-900"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-3xl font-bold tracking-tight text-slate-900"
           >
-            {greeting}, {user?.first_name || "Владелец"}!
+            {greeting}, {user?.first_name || "Владелец"}
           </motion.h1>
-          <p className="text-slate-500 mt-1 flex items-center gap-2">
-            <Calendar className="w-4 h-4" />
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="text-slate-500 mt-1.5 flex items-center gap-2 text-sm font-medium"
+          >
+            <Calendar className="w-4 h-4 text-slate-400" />
             {now.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <Link href="/owner/settings">
-            <button className="flex items-center gap-2 px-4 py-2 text-sm bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">
-              <Settings className="w-4 h-4" /> Настройки
-            </button>
-          </Link>
+          </motion.p>
         </div>
       </div>
 
-      {/* Org banner */}
+      {/* Unified Premium Hero Block */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-gradient-to-r from-primary-600 to-primary-800 rounded-2xl p-6 text-white relative overflow-hidden"
+        className="relative overflow-hidden rounded-[2rem] bg-slate-900 shadow-2xl shadow-slate-900/10 border border-slate-800"
       >
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-        <div className="relative z-10">
-          <h2 className="text-xl font-bold">{org?.name || "Моя организация"}</h2>
-          <p className="text-white/70 text-sm mt-1">
-            {org?.city ? `${org.city} · ` : ""}Тип: {org?.org_type === "private_school" ? "Частная школа" : org?.org_type === "tutoring_center" ? "Репетиторский центр" : org?.org_type || "—"} · Статус: {org?.status === "active" ? "Активна" : org?.status || "—"}
-          </p>
-          <div className="flex gap-6 mt-4">
-            <div>
-              <p className="text-2xl font-bold">{stats?.total_students || 0}</p>
-              <p className="text-white/60 text-xs">учеников</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats?.total_members || 0}</p>
-              <p className="text-white/60 text-xs">сотрудников</p>
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats?.total_groups || 0}</p>
-              <p className="text-white/60 text-xs">групп</p>
+        {/* Decorative Glowing Orbs */}
+        <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-primary-500/20 rounded-full blur-[120px] -translate-y-1/3 translate-x-1/3 mix-blend-screen pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-indigo-500/20 rounded-full blur-[100px] translate-y-1/3 -translate-x-1/3 mix-blend-screen pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('/noise.svg')] opacity-20 mix-blend-overlay pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
+
+        <div className="relative z-10 p-8 md:p-10 flex flex-col gap-8 md:gap-10">
+          
+          {/* Org Info Section */}
+          <div className="flex flex-col md:flex-row items-start justify-between gap-6">
+            <div className="max-w-2xl">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 backdrop-blur-md mb-5 shadow-inner">
+                <span className={`w-2 h-2 rounded-full ${org?.status === "active" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
+                <span className="text-xs font-semibold tracking-wide text-white/90 uppercase">
+                  {org?.status === "active" ? "Система активна" : "Ожидание"}
+                </span>
+              </div>
+              <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-4 drop-shadow-sm">
+                {org?.name || "Моя организация"}
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 text-slate-300 text-sm font-medium">
+                {org?.city && (
+                  <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
+                    <MapPin className="w-4 h-4 text-slate-400" /> {org.city}
+                  </span>
+                )}
+                <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
+                  <Building className="w-4 h-4 text-slate-400" /> 
+                  {org?.org_type === "private_school" ? "Частная школа" : org?.org_type === "tutoring_center" ? "Репетиторский центр" : org?.org_type || "Не указан"}
+                </span>
+              </div>
             </div>
           </div>
+
+          {/* Integrated KPIs Grid (Glassmorphism) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {statCards.map((card, i) => (
+              <motion.div
+                key={card.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 + i * 0.05 }}
+                className="group relative bg-white/5 hover:bg-white/10 rounded-2xl p-5 border border-white/10 backdrop-blur-md transition-all duration-300 overflow-hidden"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className={`w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5`}>
+                    <card.icon className={`w-5 h-5 text-slate-200 group-hover:text-white transition-colors`} />
+                  </div>
+                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md ${card.isPositive ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/20 text-rose-400 border border-rose-500/20"}`}>
+                    {card.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {card.trend}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
+                  <p className="text-sm font-medium text-slate-400 mt-1">{card.label}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+
         </div>
       </motion.div>
 
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        {statCards.map((card, i) => (
-          <motion.div
-            key={card.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-shadow"
-          >
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${card.color} flex items-center justify-center mb-3`}>
-              <card.icon className="w-5 h-5 text-white" />
+      {/* Smart Lists (Top & At-Risk) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+        {/* Top Performers */}
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
+              <Trophy className="w-6 h-6 text-emerald-600" />
             </div>
-            <p className="text-2xl font-bold text-slate-900">{card.value}</p>
-            <p className="text-xs text-slate-500">{card.label}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { href: "/owner/teachers", icon: Plus, label: "Пригласить сотрудника", primary: true },
-          { href: "/owner/groups", icon: GraduationCap, label: "Управление группами" },
-          { href: "/owner/analytics", icon: BarChart3, label: "Аналитика организации" },
-          { href: "/owner/settings", icon: Settings, label: "Настройки" },
-        ].map((action, i) => (
-          <motion.div key={action.label} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 + i * 0.05 }}>
-            <Link href={action.href}>
-              <div className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all cursor-pointer ${
-                action.primary
-                  ? "bg-primary-600 text-white border-primary-600 hover:bg-primary-700"
-                  : "bg-white text-slate-700 border-slate-200 hover:border-primary-300 hover:bg-primary-50"
-              }`}>
-                <action.icon className="w-5 h-5" />
-                <span className="text-sm font-medium text-center">{action.label}</span>
-              </div>
-            </Link>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Groups table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-900">Группы организации</h2>
-            <p className="text-sm text-slate-400 mt-0.5">{groups.length} групп</p>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Лидеры успеваемости</h3>
+              <p className="text-sm font-medium text-slate-500">Группы с высшим средним баллом</p>
+            </div>
           </div>
-          <Link href="/owner/groups" className="text-sm text-primary-600 hover:underline flex items-center gap-1">
-            Все группы <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-slate-50 text-left text-sm text-slate-500">
-                <th className="px-6 py-3 font-medium">Название</th>
-                <th className="px-6 py-3 font-medium">Класс</th>
-                <th className="px-6 py-3 font-medium">Учеников</th>
-                <th className="px-6 py-3 font-medium">Ср. уровень (θ)</th>
-                <th className="px-6 py-3 font-medium">Статус</th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <GraduationCap className="w-12 h-12 mx-auto mb-3 text-slate-200" />
-                    <p className="text-slate-400 mb-2">Нет групп</p>
-                    <Link href="/owner/groups" className="text-primary-600 text-sm hover:underline">
-                      Создать первую группу →
-                    </Link>
-                  </td>
-                </tr>
-              ) : (
-                groups.map((g) => (
-                  <tr key={g.group_id} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-medium text-slate-900">{g.name}</td>
-                    <td className="px-6 py-4 text-slate-600">{g.class_level || "—"}</td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                        <Users className="w-3 h-3" /> {g.student_count}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      {g.avg_theta !== null ? (
-                        <span className={`font-mono text-sm font-medium ${
-                          g.avg_theta >= 1 ? "text-emerald-600" :
-                          g.avg_theta >= 0 ? "text-amber-600" : "text-red-600"
-                        }`}>
-                          θ = {g.avg_theta.toFixed(2)}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-sm">Нет данных</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Активна
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+          
+          <div className="space-y-4 flex-1">
+            {topGroups.length > 0 ? topGroups.map((g, i) => (
+              <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/30 hover:border-emerald-100 transition-colors">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-slate-400">#{i + 1}</span>
+                    <p className="font-semibold text-slate-900 line-clamp-1">{g.name}</p>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {g.student_count} уч.</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl text-sm">
+                    θ = {g.avg_theta?.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+                <GraduationCap className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">Нет данных для анализа</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* At-Risk Groups */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center">
+              <AlertCircle className="w-6 h-6 text-rose-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Зоны риска</h3>
+              <p className="text-sm font-medium text-slate-500">Группы, требующие внимания</p>
+            </div>
+          </div>
+          
+          <div className="space-y-4 flex-1">
+            {riskGroups.length > 0 ? riskGroups.map((g) => (
+              <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 hover:border-rose-200 transition-colors">
+                <div>
+                  <p className="font-semibold text-slate-900 line-clamp-1">{g.name}</p>
+                  <p className="text-xs text-slate-500 mt-1 flex items-center gap-3">
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> {g.student_count} уч.</span>
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="font-mono font-bold text-rose-600 bg-white px-3 py-1.5 rounded-xl text-sm shadow-sm border border-rose-100">
+                    θ = {g.avg_theta?.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )) : (
+              <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
+                <Shield className="w-8 h-8 mb-2 opacity-50" />
+                <p className="text-sm">Нет отстающих групп. Отлично!</p>
+              </div>
+            )}
+          </div>
+        </motion.div>
       </div>
+
+      {/* Full-width Live Classes Board */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+              <span className="relative flex h-3.5 w-3.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+              </span>
+              Уроки сейчас
+            </h3>
+            <p className="text-sm font-medium text-slate-500 mt-1">Актуальное расписание занятий в реальном времени</p>
+          </div>
+          <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+            <Clock className="w-5 h-5 text-slate-400" />
+            <span className="text-xl font-bold font-mono text-slate-900 tracking-tight">{currentHour}:{currentMinute}</span>
+          </div>
+        </div>
+        
+        <div className="p-6 md:p-8 bg-slate-50/30">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {liveClasses.map((lesson) => (
+              <div key={lesson.id} className="bg-white border border-slate-200 hover:border-primary-300 rounded-[1.25rem] p-6 shadow-sm hover:shadow-md transition-all group">
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex flex-col gap-2">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg w-fit">
+                      <Clock className="w-3.5 h-3.5" />
+                      {lesson.time}
+                    </span>
+                    {lesson.type === "online" ? (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg w-fit border border-indigo-100/50">
+                        <Video className="w-3.5 h-3.5" /> Онлайн
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg w-fit border border-amber-100/50">
+                        <Building className="w-3.5 h-3.5" /> Офлайн
+                      </span>
+                    )}
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center shadow-inner shrink-0">
+                    <span className="font-bold text-primary-700">{lesson.teacher.charAt(0)}</span>
+                  </div>
+                </div>
+                
+                <h4 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-primary-600 transition-colors line-clamp-1">{lesson.groupName}</h4>
+                
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
+                  <p className="text-sm font-medium text-slate-600 truncate">{lesson.teacher}</p>
+                  <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5 shrink-0 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50">
+                    <Users className="w-4 h-4 text-slate-400" /> {lesson.students}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 }

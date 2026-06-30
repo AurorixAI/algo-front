@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { orgApi } from "@/lib/api";
-import { Users, Search, Brain, GraduationCap, ArrowRight } from "lucide-react";
+import { Users, Search, Brain, GraduationCap, ArrowRight, Folder } from "lucide-react";
 import Link from "next/link";
+import { CascadingFilter } from "@/components/ui/cascading-filter";
+import { GroupCard } from "@/components/groups/group-card";
 
 interface StudentInfo {
   id: string;
@@ -30,15 +32,18 @@ export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterClass, setFilterClass] = useState<number | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterTeacher, setFilterTeacher] = useState<string>("");
+  const [filterGroup, setFilterGroup] = useState<string>("");
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [groups, setGroups] = useState<any[]>([]);
 
   const loadStudents = async () => {
     try {
       const data = await orgApi.listStudents({
         search: search || undefined,
-        class_level: filterClass || undefined,
-        status: filterStatus || undefined,
+        teacher_id: filterTeacher || undefined,
+        group_id: filterGroup || undefined,
+        exclude_status: "new,diagnosed",
       });
       setStudents(Array.isArray(data) ? data : (data as any)?.items || []);
     } catch (e) {
@@ -48,7 +53,21 @@ export default function AdminStudentsPage() {
     }
   };
 
-  useEffect(() => { loadStudents(); }, [search, filterClass, filterStatus]);
+  const loadFilters = async () => {
+    try {
+      const [membersData, groupsData] = await Promise.all([
+        orgApi.listMembers(),
+        orgApi.listGroups()
+      ]);
+      setTeachers(Array.isArray(membersData) ? membersData.filter((m: any) => m.role === "teacher" || m.role === "owner") : []);
+      setGroups(Array.isArray(groupsData) ? groupsData : (groupsData as any)?.items || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => { loadFilters(); }, []);
+  useEffect(() => { loadStudents(); }, [search, filterTeacher, filterGroup]);
 
   if (loading) {
     return (
@@ -70,12 +89,6 @@ export default function AdminStudentsPage() {
               : "Ученики появляются после прохождения диагностики"}
           </p>
         </div>
-        <Link
-          href="/admin/diagnostics"
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
-        >
-          <Brain className="w-4 h-4" /> Новая диагностика <ArrowRight className="w-3.5 h-3.5" />
-        </Link>
       </div>
 
       {/* Filters */}
@@ -86,24 +99,41 @@ export default function AdminStudentsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по имени..."
-            className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
           />
         </div>
-        <select value={filterClass ?? ""} onChange={(e) => setFilterClass(e.target.value ? Number(e.target.value) : null)} className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500">
-          <option value="">Все классы</option>
-          {[5, 6, 7, 8, 9, 10, 11].map((n) => <option key={n} value={n}>{n} класс</option>)}
-        </select>
-        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="px-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500">
-          <option value="">Все статусы</option>
-          <option value="new">Новые</option>
-          <option value="diagnosed">Диагностированы</option>
-          <option value="active">Активные</option>
-          <option value="archived">Архив</option>
-        </select>
+        
+        <CascadingFilter 
+          teachers={teachers}
+          groups={groups}
+          value={{ teacherId: filterTeacher, groupId: filterGroup }}
+          onChange={({ teacherId, groupId }) => {
+            setFilterTeacher(teacherId);
+            setFilterGroup(groupId);
+          }}
+        />
       </div>
 
-      {/* Empty state or table */}
-      {students.length === 0 ? (
+      {/* Content Area */}
+      {filterTeacher && !filterGroup ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {groups.filter(g => g.teacher_id === filterTeacher).length === 0 ? (
+            <div className="col-span-full bg-white rounded-2xl border border-slate-100 p-16 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+                <Folder className="w-8 h-8 text-slate-300" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 mb-2">У преподавателя пока нет групп</h3>
+              <p className="text-slate-500 text-sm">Вы можете создать группы в разделе управления расписанием.</p>
+            </div>
+          ) : (
+            groups.filter(g => g.teacher_id === filterTeacher).map((g, i) => (
+              <div key={g.id} onClick={() => setFilterGroup(g.id)}>
+                <GroupCard group={g} href="" index={i} />
+              </div>
+            ))
+          )}
+        </div>
+      ) : students.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8 text-primary-400" />

@@ -1,206 +1,237 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { orgApi } from "@/lib/api";
-import { useAuthStore } from "@/lib/store";
-import { GraduationCap, Plus, Users, X } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Plus, GraduationCap, Users, Target, TrendingUp,
+  Filter, Search, Archive, ChevronDown
+} from "lucide-react";
+import { orgApi, GroupInfo } from "@/lib/api";
+import { GroupCard } from "@/components/groups/group-card";
+import { GroupCreateModal } from "@/components/groups/group-create-modal";
 
-interface GroupInfo {
-  id: string;
-  name: string;
-  class_level: number | null;
-  teacher_id: string | null;
-  status: string;
-  max_students: number;
-  student_count?: number;
-  created_at: string | null;
-}
+const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
+
+type StatusFilter = "active" | "waiting" | "archived";
 
 export default function OwnerGroupsPage() {
-  const { org } = useAuthStore();
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", class_level: 5, teacher_id: "", max_students: 30 });
-  const [saving, setSaving] = useState(false);
+  const [filterClass, setFilterClass] = useState<number | null>(null);
+  const [filterStatus, setFilterStatus] = useState<StatusFilter>("active");
+  const [search, setSearch] = useState("");
+  const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const loadData = async () => {
+  const showToast = (msg: string, type: "success" | "error" = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
     try {
       const [g, m] = await Promise.all([
-        orgApi.listGroups().catch(() => []),
+        orgApi.listGroups(),
         orgApi.listMembers().catch(() => []),
       ]);
-      setGroups(Array.isArray(g) ? g : (g as any)?.items || []);
-      setMembers(Array.isArray(m) ? m : (m as any)?.items || []);
-    } catch (e) {
-      console.error(e);
+      setGroups(Array.isArray(g) ? g : []);
+      setMembers(Array.isArray(m) ? m : []);
+    } catch {
+      setGroups([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [loadData]);
 
-  const handleCreate = async () => {
-    setSaving(true);
+  const handleArchive = async (id: string) => {
+    if (!confirm("Архивировать группу? Ученики останутся в системе.")) return;
+    setArchivingId(id);
     try {
-      await orgApi.createGroup({
-        name: form.name,
-        class_level: form.class_level || undefined,
-        teacher_id: form.teacher_id || undefined,
-        max_students: form.max_students,
-      });
-      setShowCreate(false);
-      setForm({ name: "", class_level: 5, teacher_id: "", max_students: 30 });
-      loadData();
+      const updated = await orgApi.archiveGroup(id);
+      setGroups((prev) => prev.map((g) => g.id === id ? updated : g));
+      showToast("Группа архивирована");
     } catch (e: any) {
-      alert(e.message || "Ошибка создания группы");
+      showToast(e.message || "Ошибка", "error");
     } finally {
-      setSaving(false);
+      setArchivingId(null);
     }
   };
 
-  const teachers = members.filter((m: any) => m.org_role === "teacher" || m.org_role === "owner" || m.org_role === "admin");
+  // Teachers and admins for group assignment
+  const teachers = members.filter((m: any) =>
+    ["teacher", "admin", "owner"].includes(m.org_role)
+  ).map((m: any) => ({
+    id: m.user_id || m.id,
+    first_name: m.first_name || m.full_name?.split(" ")[0] || "",
+    last_name: m.last_name || m.full_name?.split(" ")[1] || "",
+    org_role: m.org_role,
+  }));
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
-      </div>
-    );
-  }
+  // Filtered + searched
+  const filtered = groups.filter((g) => {
+    if (filterStatus === "waiting") {
+      if (g.status !== "active" || !!g.teacher_id) return false;
+    } else if (filterStatus === "active") {
+      if (g.status !== "active" || !g.teacher_id) return false;
+    } else if (filterStatus === "archived") {
+      if (g.status !== "archived") return false;
+    }
+
+    if (filterClass && g.class_level !== filterClass) return false;
+    
+    if (search) {
+      const q = search.toLowerCase();
+      const groupName = g.name.toLowerCase();
+      const teacherName = g.teacher 
+        ? `${g.teacher.first_name} ${g.teacher.last_name || ""}`.toLowerCase() 
+        : "";
+      if (!groupName.includes(q) && !teacherName.includes(q)) return false;
+    }
+    
+    return true;
+  });
+
+  // Summary stats (active groups only)
+  const active = groups.filter((g) => g.status === "active");
+  const totalStudents = active.reduce((s, g) => s + g.student_count, 0);
+  const avgFill = active.length > 0
+    ? Math.round(active.reduce((s, g) => s + (g.student_count / g.max_students) * 100, 0) / active.length)
+    : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-[1400px] mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Группы</h1>
-          <p className="text-slate-500 mt-1">Управление учебными группами</p>
+          <h1 className="text-2xl font-bold text-slate-900">Группы</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Управление учебными группами организации</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
         >
-          <Plus className="w-4 h-4" /> Новая группа
+          <Plus className="w-4 h-4" />
+          Новая группа
         </button>
       </div>
 
-      {/* Create modal */}
-      {showCreate && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6"
-        >
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900">Создать группу</h3>
-            <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-slate-600">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Название</label>
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="5А, Алгебра-продвинутые..."
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Класс</label>
-              <select
-                value={form.class_level}
-                onChange={(e) => setForm({ ...form, class_level: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500"
-              >
-                {[5, 6, 7, 8, 9, 10, 11].map((n) => (
-                  <option key={n} value={n}>{n} класс</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Учитель</label>
-              <select
-                value={form.teacher_id}
-                onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500"
-              >
-                <option value="">Не назначен</option>
-                {teachers.map((t: any) => (
-                  <option key={t.user_id || t.id} value={t.user_id || t.id}>
-                    {t.full_name || `${t.first_name} ${t.last_name}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Макс. учеников</label>
-              <input
-                type="number"
-                value={form.max_students}
-                onChange={(e) => setForm({ ...form, max_students: Number(e.target.value) })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex justify-end">
+
+      {/* Filters bar */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по названию или учителю..."
+            className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none w-[340px] shrink-0"
+          />
+        </div>
+
+        {/* Status tabs */}
+        <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+          {([
+            { key: "active",   label: "Активные" },
+            { key: "waiting",  label: "Ожидание" },
+            { key: "archived", label: "Архив" },
+          ] as const).map(({ key, label }) => (
             <button
-              onClick={handleCreate}
-              disabled={!form.name.trim() || saving}
-              className="px-6 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              key={key}
+              onClick={() => setFilterStatus(key)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                filterStatus === key
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
             >
-              {saving ? "Создание..." : "Создать"}
+              {label}
             </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Groups grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-52 bg-white rounded-2xl border border-slate-100 animate-pulse" />
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center justify-center py-20 bg-white rounded-2xl border border-slate-100"
+        >
+          <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mb-4">
+            <GraduationCap className="w-8 h-8 text-primary-300" />
           </div>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">
+            {search
+              ? `Нет групп по запросу «${search}»`
+              : filterClass
+              ? `Нет групп для ${filterClass} класса`
+              : "Групп пока нет"}
+          </h3>
+          <p className="text-slate-500 text-sm mb-6 text-center max-w-xs">
+            Создайте учебную группу и добавьте в неё учеников для совместного обучения.
+          </p>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Создать группу
+          </button>
         </motion.div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((group, i) => (
+            <GroupCard
+              key={group.id}
+              group={group}
+              href={`/owner/groups/${group.id}`}
+              index={i}
+            />
+          ))}
+        </div>
       )}
 
-      {/* Groups list */}
-      <div className="grid gap-4">
-        {groups.length === 0 ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
-            <GraduationCap className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-            <p className="text-slate-500">Нет групп. Создайте первую группу.</p>
-          </div>
-        ) : (
-          groups.map((g, i) => (
-            <motion.div
-              key={g.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-              className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm flex items-center justify-between"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-                  <GraduationCap className="w-6 h-6 text-emerald-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">{g.name}</h3>
-                  <p className="text-sm text-slate-500">
-                    {g.class_level ? `${g.class_level} класс` : "Без класса"} · Макс. {g.max_students} уч.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-6 text-sm">
-                <div className="text-center">
-                  <p className="font-bold text-slate-900">{g.student_count ?? "—"}</p>
-                  <p className="text-slate-400">учеников</p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  g.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                }`}>
-                  {g.status === "active" ? "Активна" : "Архив"}
-                </span>
-              </div>
-            </motion.div>
-          ))
+      {/* Create modal */}
+      <GroupCreateModal
+        open={showCreate}
+        teachers={teachers}
+        onClose={() => setShowCreate(false)}
+        onCreated={(g) => {
+          setGroups((prev) => [g, ...prev]);
+          setShowCreate(false);
+          showToast(`Группа «${g.name}» создана`);
+        }}
+      />
+
+      {/* Toast */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.96 }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-lg text-sm font-medium ${
+              toast.type === "success"
+                ? "bg-slate-900 text-white"
+                : "bg-red-600 text-white"
+            }`}
+          >
+            {toast.msg}
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </div>
   );
 }

@@ -60,7 +60,8 @@ export function middleware(request: NextRequest) {
   // The AuthGuard on client-side handles the actual role check.
   // Here we just check if ANY auth state exists via cookie.
   // The server sets httpOnly cookie "algo_auth_token" on login/apply/refresh.
-  const authCookie = request.cookies.get("algo_auth_token");
+  const authCookie =
+    request.cookies.get("algo_auth_token") ?? request.cookies.get("algo_demo_session");
 
   if (!authCookie?.value) {
     // No token — redirect to login with return URL

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import {
@@ -54,17 +55,24 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function TeacherExamsPage() {
+  const pathname = usePathname();
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadExams = useCallback(() => {
+    setLoading(true);
     examsApi
       .list()
       .then((data) => setExams(Array.isArray(data) ? data : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (pathname !== "/teacher/exams") return;
+    loadExams();
+  }, [pathname, loadExams]);
 
   const handleCopyCode = (exam: ExamSummary) => {
     if (!exam.access_code) return;

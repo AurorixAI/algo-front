@@ -1,11 +1,22 @@
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8000";
-const AUTH_API_V1 = `${AUTH_API_BASE}/api/v1`;
+const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-const EXAM_API_BASE = process.env.NEXT_PUBLIC_EXAM_API_URL ?? "http://localhost:8003";
-const EXAM_API_V1 = `${EXAM_API_BASE}/api/v1`;
+function demoApiV1(): string {
+  if (typeof window !== "undefined") return "/api/demo/v1";
+  const origin = process.env.NEXT_PUBLIC_DEMO_ORIGIN ?? "http://localhost:3000";
+  return `${origin}/api/demo/v1`;
+}
 
-const DIAG_API_BASE = process.env.NEXT_PUBLIC_DIAG_API_URL ?? "http://localhost:8002";
-const DIAG_API_V1 = `${DIAG_API_BASE}/api/v1`;
+const AUTH_API_V1 = DEMO_MODE
+  ? demoApiV1()
+  : `${process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8000"}/api/v1`;
+
+const EXAM_API_V1 = DEMO_MODE
+  ? demoApiV1()
+  : `${process.env.NEXT_PUBLIC_EXAM_API_URL ?? "http://localhost:8003"}/api/v1`;
+
+const DIAG_API_V1 = DEMO_MODE
+  ? demoApiV1()
+  : `${process.env.NEXT_PUBLIC_DIAG_API_URL ?? "http://localhost:8002"}/api/v1`;
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
@@ -49,6 +60,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     method,
     headers,
     credentials: "include",
+    cache: "no-store",
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -223,6 +235,75 @@ export interface OrgApplicationPendingResponse {
   success: boolean;
 }
 
+// ── Groups ────────────────────────────────────────────────────────────────────
+
+export interface GroupInfo {
+  id: string;
+  org_id: string;
+  name: string;
+  class_level: number | null;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  description: string | null;
+  status: string;
+  max_students: number;
+  student_count: number;
+  created_at: string | null;
+}
+
+export interface StudentInGroup {
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  class_level: number;
+  status: string;
+  student_phone: string | null;
+  joined_at: string | null;
+  last_theta: number | null;
+  last_level: "below_grade" | "at_grade" | "above_grade" | null;
+  last_diagnosed_at: string | null;
+}
+
+export interface GroupDetail extends GroupInfo {
+  students: StudentInGroup[];
+}
+
+export interface ThetaDistribution {
+  below_grade: number;
+  at_grade: number;
+  above_grade: number;
+}
+
+export interface GroupStats {
+  group_id: string;
+  total_students: number;
+  diagnosed_count: number;
+  undiagnosed_count: number;
+  avg_theta: number | null;
+  theta_distribution: ThetaDistribution;
+  weak_skills: string[];
+}
+
+export type AttendanceStatus = "present" | "absent" | "excused" | "late";
+
+export interface Lesson {
+  id: string;
+  date: string; // YYYY-MM-DD
+  topic?: string;
+  start_time?: string;
+}
+
+export interface AttendanceRecord {
+  student_id: string;
+  status: AttendanceStatus;
+}
+
+export interface GroupAttendance {
+  lessons: Lesson[];
+  records: Record<string, Record<string, AttendanceStatus>>; // lesson_id -> student_id -> status
+}
+
 export const authApi = {
   apply: (data: {
     org_name: string;
@@ -329,11 +410,13 @@ export const orgApi = {
   // Students
   createStudent: (data: { first_name: string; last_name: string; class_level: number; student_phone: string; comment?: string }) =>
     api<any>("/auth/org/students", { method: "POST", body: data }),
-  listStudents: (params?: { class_level?: number; group_id?: string; status?: string; search?: string }) => {
+  listStudents: (params?: { class_level?: number; group_id?: string; teacher_id?: string; status?: string; exclude_status?: string; search?: string }) => {
     const query = new URLSearchParams();
     if (params?.class_level) query.set("class_level", String(params.class_level));
     if (params?.group_id) query.set("group_id", params.group_id);
+    if (params?.teacher_id) query.set("teacher_id", params.teacher_id);
     if (params?.status) query.set("status", params.status);
+    if (params?.exclude_status) query.set("exclude_status", params.exclude_status);
     if (params?.search) query.set("search", params.search);
     const qs = query.toString();
     return api<any[]>(`/auth/org/students${qs ? `?${qs}` : ""}`);
@@ -353,21 +436,62 @@ export const orgApi = {
   },
 
   // Groups
-  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; max_students?: number }) =>
-    api<any>("/auth/org/groups", { method: "POST", body: data }),
+  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number }) =>
+    api<GroupInfo>("/auth/org/groups", { method: "POST", body: data }),
   listGroups: (params?: { teacher_id?: string; class_level?: number }) => {
     const query = new URLSearchParams();
     if (params?.teacher_id) query.set("teacher_id", params.teacher_id);
     if (params?.class_level) query.set("class_level", String(params.class_level));
     const qs = query.toString();
-    return api<any[]>(`/auth/org/groups${qs ? `?${qs}` : ""}`);
+    return api<GroupInfo[]>(`/auth/org/groups${qs ? `?${qs}` : ""}`);
   },
-  updateGroup: (id: string, data: any) =>
-    api<any>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
+  getGroup: (id: string) => api<GroupDetail>(`/auth/org/groups/${id}`),
+  getGroupStats: (id: string) => api<GroupStats>(`/auth/org/groups/${id}/stats`),
+  updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; status: string }>) =>
+    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
+  archiveGroup: (id: string) =>
+    api<GroupInfo>(`/auth/org/groups/${id}/archive`, { method: "POST" }),
   addStudentToGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
+  bulkAddStudents: (groupId: string, studentIds: string[]) =>
+    api<{ group_id: string; added: number; skipped: number }>(
+      `/auth/org/groups/${groupId}/students/bulk`,
+      { method: "POST", body: { student_ids: studentIds } }
+    ),
+
+  // Attendance (MOCK for now)
+  getGroupAttendance: async (groupId: string, month: string): Promise<GroupAttendance> => {
+    // Return mock data for demonstration
+    const d = new Date(month + "-01");
+    const year = d.getFullYear();
+    const m = d.getMonth();
+    const lessons: Lesson[] = [];
+    // Generate lessons for the month (Mon/Fri pattern as requested)
+    for (let day = 1; day <= 28; day++) {
+      const date = new Date(year, m, day);
+      if (date.getDay() === 1 || date.getDay() === 5) {
+        const yyyy = date.getFullYear();
+        const mm = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = String(date.getDate()).padStart(2, "0");
+        const dateStr = `${yyyy}-${mm}-${dd}`;
+
+        lessons.push({
+          id: `lesson_${dateStr}`,
+          date: dateStr,
+          topic: "Тема урока",
+        });
+      }
+    }
+    return {
+      lessons,
+      records: {},
+    };
+  },
+  updateAttendance: async (groupId: string, lessonId: string, records: AttendanceRecord[]): Promise<{ success: boolean }> => {
+    return { success: true };
+  },
 };
 
 // ============================================================================
@@ -434,6 +558,7 @@ export interface DiagTaskOut {
   question_image_url: string | null;
   answer_type: string;
   answer_options: string[] | null;
+  answer_options_latex?: string[] | null;
   hints: string[] | null;
   phase: string;
   items_answered: number;
@@ -569,9 +694,11 @@ export const examsApi = {
           question_image_url: string | null;
           answer_type: string;
           correct_answer: string;
+          correct_answer_latex?: string | null;
           answer_options: string[] | null;
           distractor_meta: Array<{
             value: string;
+            value_latex?: string | null;
             error_type: string;
             explanation: string;
             plausibility: number;
@@ -640,7 +767,9 @@ export const examsApi = {
       tasks: Array<{
         task_id: string;
         text: string;
+        question_latex?: string | null;
         options: string[];
+        options_latex?: string[] | null;
         image_url?: string;
         difficulty: string;
         skill_name: string;
@@ -678,9 +807,11 @@ export const examsApi = {
       tasks: Array<{
         task_id: string;
         text: string;
+        question_latex?: string | null;
         options: string[];
         student_answer: string | null;
         correct_answer: string;
+        correct_answer_latex?: string | null;
         is_correct: boolean;
         skill_name: string;
       }>;
