@@ -2,24 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
-import { orgApi } from "@/lib/api";
+import { orgApi, GroupInfo } from "@/lib/api";
 import {
   GraduationCap, Plus, Users, X, Search, Archive,
   CheckCircle, UserPlus,
 } from "lucide-react";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
-
-interface GroupInfo {
-  id: string;
-  name: string;
-  class_level: number | null;
-  teacher_id: string | null;
-  status: string;
-  max_students: number;
-  student_count?: number;
-  created_at: string | null;
-}
 
 type StatusFilter = "active" | "waiting" | "archived";
 
@@ -66,9 +55,7 @@ export default function AdminGroupsPage() {
     if (!search) return true;
     const q = search.toLowerCase();
     const groupName = g.name.toLowerCase();
-    const teacherName = g.teacher 
-      ? `${g.teacher.first_name} ${g.teacher.last_name || ""}`.toLowerCase() 
-      : "";
+    const teacherName = g.teacher_name?.toLowerCase() ?? "";
     
     return groupName.includes(q) || teacherName.includes(q);
   });

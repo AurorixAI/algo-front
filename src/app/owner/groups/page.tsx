@@ -87,9 +87,7 @@ export default function OwnerGroupsPage() {
     if (search) {
       const q = search.toLowerCase();
       const groupName = g.name.toLowerCase();
-      const teacherName = g.teacher 
-        ? `${g.teacher.first_name} ${g.teacher.last_name || ""}`.toLowerCase() 
-        : "";
+      const teacherName = g.teacher_name?.toLowerCase() ?? "";
       if (!groupName.includes(q) && !teacherName.includes(q)) return false;
     }
     

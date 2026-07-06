@@ -22,9 +22,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build-time env: empty string = relative paths through nginx proxy
-ARG NEXT_PUBLIC_API_URL=""
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+# Build-time env: NEXT_PUBLIC_ vars are baked into the bundle at build time.
+# For local dev these are not set (code falls back to localhost defaults).
+# For staging/prod these must be passed via --build-arg.
+ARG NEXT_PUBLIC_AUTH_API_URL=""
+ENV NEXT_PUBLIC_AUTH_API_URL=$NEXT_PUBLIC_AUTH_API_URL
 
 ARG NEXT_PUBLIC_EXAM_API_URL=""
 ENV NEXT_PUBLIC_EXAM_API_URL=$NEXT_PUBLIC_EXAM_API_URL
