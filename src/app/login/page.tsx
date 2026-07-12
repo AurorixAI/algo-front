@@ -1,78 +1,66 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 
-const DEV_ROLES = [
-  {
-    role: "owner",
-    label: "Owner",
-    emoji: "👑",
-    gradient: "from-amber-500 to-amber-600",
-    hoverBg: "hover:bg-amber-50 hover:border-amber-300",
-    redirect: "/owner/dashboard",
-  },
-  {
-    role: "admin",
-    label: "Admin",
-    emoji: "🛡️",
-    gradient: "from-violet-500 to-violet-600",
-    hoverBg: "hover:bg-violet-50 hover:border-violet-300",
-    redirect: "/admin/diagnostics",
-  },
-  {
-    role: "teacher",
-    label: "Teacher",
-    emoji: "👩‍🏫",
-    gradient: "from-emerald-500 to-emerald-600",
-    hoverBg: "hover:bg-emerald-50 hover:border-emerald-300",
-    redirect: "/teacher/diagnostic",
-  },
+const ROLE_OPTIONS = [
+  { value: "owner", label: "Владелец" },
+  { value: "admin", label: "Админ" },
+  { value: "teacher", label: "Учитель" },
 ];
 
+const ROLE_DASHBOARD: Record<string, string> = {
+  owner: "/owner/dashboard",
+  admin: "/admin/diagnostics",
+  teacher: "/teacher/dashboard",
+};
+
 export default function LoginPage() {
-  const router = useRouter();
-  const { login, devLogin, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, errorCode, clearError } = useAuthStore();
+  const [role, setRole] = useState("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [devLoading, setDevLoading] = useState<string | null>(null);
+  const [roleMismatch, setRoleMismatch] = useState(false);
 
-  useEffect(() => {
-    DEV_ROLES.forEach((r) => router.prefetch(r.redirect));
-  }, [router]);
-
-  const handleDevLogin = useCallback(async (roleConfig: (typeof DEV_ROLES)[0]) => {
-    if (devLoading || isLoading) return;
-    clearError();
-    setDevLoading(roleConfig.role);
-    try {
-      await devLogin(roleConfig.role);
-      router.push(roleConfig.redirect);
-    } catch {
-      // Error already set in store
-    } finally {
-      setDevLoading(null);
-    }
-  }, [clearError, devLogin, devLoading, isLoading, router]);
+  // NOTE: deliberately no router.prefetch() of the dashboards here. Prefetching
+  // them while unauthenticated makes Next.js's middleware redirect them to
+  // /login and cache that redirect in the client router cache — so after a
+  // real login, router.push() could reuse the stale cached redirect instead
+  // of hitting the server fresh (symptom: "200 OK on /login but nothing
+  // happens until a hard refresh"). Hence also using a hard navigation below
+  // instead of router.push().
 
   const handleLogin = async () => {
     clearError();
+    setRoleMismatch(false);
     try {
       await login(email, password);
       const user = useAuthStore.getState().user;
-      const role = user?.org_role || user?.role;
-      if (role === "owner") router.push("/owner/dashboard");
-      else if (role === "admin") router.push("/admin/diagnostics");
-      else if (role === "teacher") router.push("/teacher/diagnostic");
-      else router.push("/admin/diagnostics");
+      const actualRole = user?.org_role || user?.role;
+
+      // The role dropdown isn't just cosmetic — the account's real role must
+      // match what was selected, otherwise a teacher picking "Владелец" (or
+      // vice versa) would silently land in someone else's dashboard context.
+      // Message is deliberately identical to "no account" — don't reveal
+      // that the email exists under a different role.
+      if (actualRole && actualRole !== role) {
+        await useAuthStore.getState().logout();
+        setRoleMismatch(true);
+        return;
+      }
+
+      // Hard navigation (not router.push) — guarantees a fresh request that
+      // the middleware evaluates with the just-set cookie, bypassing any
+      // client router cache entirely.
+      window.location.href = ROLE_DASHBOARD[actualRole || ""] || "/admin/diagnostics";
     } catch {
       // Error already set in store
     }
@@ -83,6 +71,14 @@ export default function LoginPage() {
       handleLogin();
     }
   };
+
+  const isOwner = role === "owner";
+  const accountNotFound = errorCode === "ACCOUNT_NOT_FOUND" || roleMismatch;
+  const errorMessage = accountNotFound
+    ? isOwner
+      ? "Аккаунт с таким email не найден."
+      : "Аккаунт с таким email не найден. Обратитесь к владельцу или администратору вашей организации — они выдадут вам логин и пароль."
+    : error;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
@@ -107,11 +103,6 @@ export default function LoginPage() {
             <h1 className="text-3xl font-bold text-slate-900">ALGO</h1>
           </Link>
           <p className="text-slate-500 text-sm">Войдите в свой аккаунт</p>
-          {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
-            <p className="mt-2 text-xs text-primary-600 bg-primary-50 inline-block px-3 py-1 rounded-full">
-              Demo: demo@algo.ru / demo2026
-            </p>
-          )}
         </motion.div>
 
         {/* Main login card */}
@@ -122,15 +113,31 @@ export default function LoginPage() {
         >
           <GlassCard variant="elevated" className="p-8 [contain:paint]">
             {/* Error message */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{error}</span>
+            {errorMessage && (
+              <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  {errorMessage}
+                  {accountNotFound && isOwner && (
+                    <>
+                      {" "}
+                      <Link href="/register" className="font-medium underline hover:no-underline">
+                        Зарегистрировать организацию
+                      </Link>
+                    </>
+                  )}
+                </span>
               </div>
             )}
 
-            {/* Email/Password form — always visible */}
             <div className="space-y-4" onKeyDown={handleKeyDown}>
+              <Select
+                label="Кто входит?"
+                options={ROLE_OPTIONS}
+                value={role}
+                onChange={(e) => { setRole(e.target.value); setRoleMismatch(false); }}
+              />
+
               <Input
                 label="Email"
                 type="email"
@@ -177,58 +184,21 @@ export default function LoginPage() {
                 Войти
               </Button>
             </div>
-
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-6">
-              <div className="flex-1 h-px bg-slate-200" />
-              <span className="text-xs text-slate-400 font-medium">или</span>
-              <div className="flex-1 h-px bg-slate-200" />
-            </div>
-
-            {/* Demo accounts */}
-            <div className="text-center mb-4">
-              <p className="text-xs text-slate-400">Демо-аккаунты для тестирования</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {DEV_ROLES.map((roleConfig) => {
-                const isActive = devLoading === roleConfig.role;
-                const isBusy = devLoading !== null || isLoading;
-                return (
-                  <button
-                    key={roleConfig.role}
-                    type="button"
-                    onClick={() => handleDevLogin(roleConfig)}
-                    disabled={isBusy}
-                    className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium
-                      transition-[transform,background-color,border-color,box-shadow] duration-150 ease-out
-                      active:scale-[0.97] will-change-transform
-                      ${roleConfig.role === "owner" ? "col-span-2" : ""}
-                      ${isActive
-                        ? "border-primary-300 bg-primary-50 text-primary-700 shadow-sm"
-                        : `border-slate-200 bg-white text-slate-700 ${roleConfig.hoverBg}`
-                      }
-                      disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100`}
-                  >
-                    {isActive ? (
-                      <div className="w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-                    ) : (
-                      <span className="text-base leading-none">{roleConfig.emoji}</span>
-                    )}
-                    <span>{roleConfig.label}</span>
-                  </button>
-                );
-              })}
-            </div>
           </GlassCard>
         </motion.div>
 
-        {/* Register link */}
+        {/* Footer hint — depends on selected role */}
         <p className="text-center mt-6 text-sm text-slate-500">
-          Нет аккаунта?{" "}
-          <Link href="/register" className="text-primary-600 font-medium hover:underline">
-            Зарегистрировать организацию
-          </Link>
+          {isOwner ? (
+            <>
+              Нет аккаунта?{" "}
+              <Link href="/register" className="text-primary-600 font-medium hover:underline">
+                Зарегистрировать организацию
+              </Link>
+            </>
+          ) : (
+            "Нет доступа? Обратитесь к владельцу или администратору вашей организации за логином и паролем."
+          )}
         </p>
       </div>
     </div>

@@ -39,9 +39,7 @@ export default function AdminGroupsPage() {
     loadData();
   }, [loadData]);
 
-  const teachers = members.filter(
-    (m: any) => m.org_role === "teacher" || m.org_role === "owner" || m.org_role === "admin"
-  );
+  const teachers = members.filter((m: any) => m.org_role === "teacher");
 
   const filtered = groups.filter((g) => {
     if (filterStatus === "waiting") {

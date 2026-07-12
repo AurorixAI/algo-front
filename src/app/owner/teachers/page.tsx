@@ -29,10 +29,10 @@ interface Invitation {
   created_at: string;
 }
 
-const roleConfig: Record<string, { label: string; color: string; badge: string; icon: React.ElementType }> = {
-  owner: { label: "Владелец", color: "from-violet-500 to-purple-600", badge: "bg-violet-50 text-violet-700 border-violet-100", icon: ShieldCheck },
-  admin: { label: "Администратор", color: "from-blue-500 to-indigo-600", badge: "bg-blue-50 text-blue-700 border-blue-100", icon: Shield },
-  teacher: { label: "Учитель", color: "from-emerald-400 to-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
+const roleConfig: Record<string, { label: string; pluralLabel: string; color: string; badge: string; icon: React.ElementType }> = {
+  owner: { label: "Владелец", pluralLabel: "Владелец", color: "from-violet-500 to-purple-600", badge: "bg-violet-50 text-violet-700 border-violet-100", icon: ShieldCheck },
+  admin: { label: "Администратор", pluralLabel: "Администраторы", color: "from-blue-500 to-indigo-600", badge: "bg-blue-50 text-blue-700 border-blue-100", icon: Shield },
+  teacher: { label: "Учитель", pluralLabel: "Учителя", color: "from-emerald-400 to-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
 };
 
 export default function OwnerTeachersPage() {
@@ -99,7 +99,7 @@ export default function OwnerTeachersPage() {
   };
 
   const handleCopy = (code: string) => {
-    const link = `${window.location.origin}/invite?code=${code}`;
+    const link = `${window.location.origin}/invite/${code}`;
     navigator.clipboard.writeText(link);
     setCopied(code);
     setTimeout(() => setCopied(null), 2000);
@@ -188,65 +188,73 @@ export default function OwnerTeachersPage() {
             animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
-            className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden"
+            className="space-y-6"
           >
-            <div className="divide-y divide-slate-100">
-              {members.length === 0 ? (
-                <div className="p-12 text-center flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                    <Users className="w-8 h-8 text-slate-300" />
-                  </div>
-                  <h3 className="text-slate-900 font-semibold mb-1">Пока только вы</h3>
-                  <p className="text-slate-500 text-sm max-w-sm">Пригласите преподавателей и администраторов, чтобы начать совместную работу.</p>
+            {members.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-12 text-center flex flex-col items-center justify-center">
+                <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                  <Users className="w-8 h-8 text-slate-300" />
                 </div>
-              ) : (
-                members.map((m, i) => {
-                  const rConfig = roleConfig[m.org_role] || roleConfig.teacher;
-                  return (
-                    <motion.div
-                      key={m.id || m.user_id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-slate-50/50 transition-colors gap-4"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${rConfig.color} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
-                          {(m.first_name || m.email || "?")[0].toUpperCase()}
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-900 flex items-center gap-2">
-                            {m.full_name || `${m.last_name || ""} ${m.first_name || ""}`.trim() || "Без имени"}
-                            {m.org_role === "owner" && <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Вы</span>}
-                          </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <Mail className="w-3.5 h-3.5 text-slate-400" />
-                            <p className="text-sm font-medium text-slate-500">{m.email}</p>
+                <h3 className="text-slate-900 font-semibold mb-1">Пока только вы</h3>
+                <p className="text-slate-500 text-sm max-w-sm">Пригласите преподавателей и администраторов, чтобы начать совместную работу.</p>
+              </div>
+            ) : (
+              ["owner", "admin", "teacher"].map((roleKey) => {
+                const groupMembers = members.filter((m) => m.org_role === roleKey);
+                if (groupMembers.length === 0) return null;
+                const rConfig = roleConfig[roleKey];
+                return (
+                  <div key={roleKey}>
+                    <div className="flex items-center gap-2 mb-3 px-1">
+                      <rConfig.icon className="w-4 h-4 text-slate-400" />
+                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                        {rConfig.pluralLabel} ({groupMembers.length})
+                      </h3>
+                    </div>
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden divide-y divide-slate-100">
+                      {groupMembers.map((m, i) => (
+                        <motion.div
+                          key={m.id || m.user_id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: i * 0.05 }}
+                          className="group flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-slate-50/50 transition-colors gap-4"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${rConfig.color} flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0`}>
+                              {(m.first_name || m.email || "?")[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 flex items-center gap-2">
+                                {m.full_name || `${m.last_name || ""} ${m.first_name || ""}`.trim() || "Без имени"}
+                                {m.org_role === "owner" && <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Вы</span>}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Mail className="w-3.5 h-3.5 text-slate-400" />
+                                <p className="text-sm font-medium text-slate-500">{m.email}</p>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 sm:ml-auto">
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border ${rConfig.badge}`}>
-                          <rConfig.icon className="w-3.5 h-3.5" />
-                          {rConfig.label}
-                        </div>
-                        {m.org_role !== "owner" ? (
-                          <button
-                            onClick={() => handleRemoveMember(m.id || m.user_id)}
-                            className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100"
-                            title="Удалить сотрудника"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <div className="w-8" /> // Spacer for alignment
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })
-              )}
-            </div>
+                          <div className="flex items-center gap-4 sm:ml-auto">
+                            {m.org_role !== "owner" ? (
+                              <button
+                                onClick={() => handleRemoveMember(m.id || m.user_id)}
+                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100"
+                                title="Удалить сотрудника"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <div className="w-8" /> // Spacer for alignment
+                            )}
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </motion.div>
         ) : (
           <motion.div

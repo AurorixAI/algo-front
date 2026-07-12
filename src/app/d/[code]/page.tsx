@@ -4,7 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { TestBackground } from "@/components/ui/test-background";
 import { TestHeader } from "@/components/ui/test-header";
 import { QuestionCard } from "@/components/ui/question-card";
@@ -20,8 +19,6 @@ import {
   AlertTriangle,
   Home,
   Send,
-  User,
-  Shield,
   AlertCircle,
 } from "lucide-react";
 import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
@@ -51,7 +48,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
   // Invite info (org, class, student)
   const [inviteInfo, setInviteInfo] = useState<any>(null);
-  const [studentName, setStudentName] = useState("");
   const [confirmError, setConfirmError] = useState("");
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -73,24 +69,17 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     })();
   }, [code]);
 
-  // Confirm student name
-  const handleConfirmName = async () => {
-    if (!studentName.trim()) return;
+  // Confirm — the code itself already uniquely identifies the student
+  // (assigned 1:1 at invite creation), so this is just "yes, this is me",
+  // not an identity check. No typing required.
+  const handleConfirm = async () => {
     setConfirmLoading(true);
     setConfirmError("");
     try {
-      const parts = studentName.trim().split(/\s+/);
-      const firstName = parts[0] || "";
-      const lastName = parts.slice(1).join(" ") || "";
-      await diagnosticInviteApi.confirm(code, firstName, lastName);
-      // Refresh invite info
-      try {
-        const updatedInfo = await diagnosticInviteApi.getInfo(code);
-        setInviteInfo(updatedInfo);
-      } catch {}
+      await diagnosticInviteApi.confirm(code);
       setPhase("welcome");
     } catch (err: any) {
-      setConfirmError(err?.message || "Имя не совпадает. Проверьте написание.");
+      setConfirmError(err?.message || "Не удалось подтвердить. Попробуйте ещё раз.");
     } finally {
       setConfirmLoading(false);
     }
@@ -264,17 +253,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                 </motion.div>
 
                 <GlassCard variant="elevated" className="p-8">
-                  {inviteInfo && (
-                    <div className="text-center mb-6">
-                      <p className="text-sm text-slate-500">Организация</p>
-                      <p className="font-medium text-slate-900">{inviteInfo.org_name || "—"}</p>
-                      <p className="text-sm text-primary-600 mt-1">{inviteInfo.class_level} класс</p>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2 p-3 mb-4 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 text-sm">
-                    <Shield className="w-4 h-4 flex-shrink-0" />
-                    <span>Подтвердите своё имя для начала</span>
+                  <div className="text-center mb-6">
+                    <p className="text-2xl font-bold text-slate-900">
+                      {inviteInfo?.student_first_name} {inviteInfo?.student_last_name}
+                    </p>
+                    <p className="text-sm text-primary-600 mt-1">
+                      {inviteInfo?.class_level} класс
+                      {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
+                    </p>
                   </div>
 
                   {confirmError && (
@@ -284,25 +270,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     </div>
                   )}
 
-                  <Input
-                    label="Ваше имя"
-                    placeholder="Имя или Имя Фамилия"
-                    icon={<User className="w-4 h-4" />}
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleConfirmName()}
-                    autoFocus
-                  />
-
                   <Button
-                    onClick={handleConfirmName}
+                    onClick={handleConfirm}
                     loading={confirmLoading}
-                    disabled={!studentName.trim()}
-                    className="w-full mt-4"
+                    className="w-full"
                     size="lg"
                     icon={<ArrowRight className="w-4 h-4" />}
                   >
-                    Подтвердить
+                    Да, это я
                   </Button>
                 </GlassCard>
               </div>

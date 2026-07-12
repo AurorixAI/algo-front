@@ -85,9 +85,7 @@ export default function AdminGroupDetailPage() {
 
   useEffect(() => { if (groupId) load(); }, [load]);
 
-  const teachers = members.filter((m: any) =>
-    ["teacher", "admin", "owner"].includes(m.org_role)
-  ).map((m: any) => ({
+  const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
     id: m.user_id || m.id,
     name: m.full_name || `${m.first_name || ""} ${m.last_name || ""}`.trim(),
   }));

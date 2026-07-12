@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
-import { Users, Search, Brain, GraduationCap, ArrowRight, Folder } from "lucide-react";
+import { Users, Search, Brain, GraduationCap, Folder } from "lucide-react";
 import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
@@ -15,16 +15,25 @@ interface StudentInfo {
   full_name?: string;
   class_level: number;
   status: string;
-  group_id?: string;
+  group_id?: string | null;
   student_phone?: string;
   comment?: string;
   created_at: string | null;
 }
 
+type StatusKey = "new" | "diagnosed" | "active" | "archived";
+
+const STATUS_TABS: { key: StatusKey; label: string }[] = [
+  { key: "new", label: "Новые" },
+  { key: "diagnosed", label: "Прошли диагностику" },
+  { key: "active", label: "Приняты" },
+  { key: "archived", label: "Архив" },
+];
+
 const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
   new:        { label: "Новый",           color: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-400" },
   diagnosed:  { label: "Диагностирован",  color: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-400" },
-  active:     { label: "Активный",        color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400" },
+  active:     { label: "Принят",          color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400" },
   archived:   { label: "Архив",           color: "bg-slate-50 text-slate-500 border-slate-200",    dot: "bg-slate-400" },
 };
 
@@ -36,16 +45,19 @@ export default function AdminStudentsPage() {
   const [filterGroup, setFilterGroup] = useState<string>("");
   const [teachers, setTeachers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<StatusKey>("active");
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const loadStudents = async () => {
+  const loadAll = async () => {
     try {
-      const data = await orgApi.listStudents({
-        search: search || undefined,
-        teacher_id: filterTeacher || undefined,
-        group_id: filterGroup || undefined,
-        exclude_status: "new,diagnosed",
-      });
-      setStudents(Array.isArray(data) ? data : (data as any)?.items || []);
+      const [studentsData, membersData, groupsData] = await Promise.all([
+        orgApi.listStudents({ search: search || undefined }),
+        orgApi.listMembers(),
+        orgApi.listGroups(),
+      ]);
+      setStudents(Array.isArray(studentsData) ? studentsData : (studentsData as any)?.items || []);
+      setTeachers(Array.isArray(membersData) ? membersData.filter((m: any) => m.org_role === "teacher") : []);
+      setGroups(Array.isArray(groupsData) ? groupsData : (groupsData as any)?.items || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -53,21 +65,54 @@ export default function AdminStudentsPage() {
     }
   };
 
-  const loadFilters = async () => {
+  useEffect(() => { loadAll(); }, [search]);
+
+  const groupsById = useMemo(() => {
+    const map: Record<string, any> = {};
+    groups.forEach((g) => { map[g.id] = g; });
+    return map;
+  }, [groups]);
+
+  // Teacher → group is a client-side filter (the API doesn't support it) —
+  // resolve it via which groups belong to the selected teacher.
+  const groupIdsForTeacher = useMemo(() => {
+    if (!filterTeacher) return null;
+    return new Set(groups.filter((g) => g.teacher_id === filterTeacher).map((g) => g.id));
+  }, [groups, filterTeacher]);
+
+  const filteredBySelection = useMemo(() => {
+    return students.filter((s) => {
+      if (filterGroup) return s.group_id === filterGroup;
+      if (groupIdsForTeacher) return s.group_id != null && groupIdsForTeacher.has(s.group_id);
+      return true;
+    });
+  }, [students, filterGroup, groupIdsForTeacher]);
+
+  const countsByStatus = useMemo(() => {
+    const counts: Record<StatusKey, number> = { new: 0, diagnosed: 0, active: 0, archived: 0 };
+    filteredBySelection.forEach((s) => {
+      const key = (s.status as StatusKey) in counts ? (s.status as StatusKey) : "new";
+      counts[key]++;
+    });
+    return counts;
+  }, [filteredBySelection]);
+
+  const visibleStudents = useMemo(
+    () => filteredBySelection.filter((s) => s.status === activeTab),
+    [filteredBySelection, activeTab]
+  );
+
+  const handleStatusChange = async (studentId: string, newStatus: string) => {
+    setUpdatingId(studentId);
     try {
-      const [membersData, groupsData] = await Promise.all([
-        orgApi.listMembers(),
-        orgApi.listGroups()
-      ]);
-      setTeachers(Array.isArray(membersData) ? membersData.filter((m: any) => m.role === "teacher" || m.role === "owner") : []);
-      setGroups(Array.isArray(groupsData) ? groupsData : (groupsData as any)?.items || []);
+      await orgApi.updateStudent(studentId, { status: newStatus });
+      setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s)));
     } catch (e) {
       console.error(e);
+    } finally {
+      setUpdatingId(null);
     }
   };
-
-  useEffect(() => { loadFilters(); }, []);
-  useEffect(() => { loadStudents(); }, [search, filterTeacher, filterGroup]);
 
   if (loading) {
     return (
@@ -77,6 +122,8 @@ export default function AdminStudentsPage() {
     );
   }
 
+  const totalCount = filteredBySelection.length;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -84,8 +131,8 @@ export default function AdminStudentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Ученики</h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            {students.length > 0
-              ? `${students.length} ${students.length === 1 ? "ученик" : students.length < 5 ? "ученика" : "учеников"}`
+            {totalCount > 0
+              ? `${totalCount} ${totalCount === 1 ? "ученик" : totalCount < 5 ? "ученика" : "учеников"}`
               : "Ученики появляются после прохождения диагностики"}
           </p>
         </div>
@@ -102,8 +149,8 @@ export default function AdminStudentsPage() {
             className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
           />
         </div>
-        
-        <CascadingFilter 
+
+        <CascadingFilter
           teachers={teachers}
           groups={groups}
           value={{ teacherId: filterTeacher, groupId: filterGroup }}
@@ -114,10 +161,25 @@ export default function AdminStudentsPage() {
         />
       </div>
 
+      {/* Status tabs — explicit separation: new / diagnosed / accepted / archived */}
+      <div className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-fit">
+        {STATUS_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
+              activeTab === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+            }`}
+          >
+            {tab.label} ({countsByStatus[tab.key]})
+          </button>
+        ))}
+      </div>
+
       {/* Content Area */}
       {filterTeacher && !filterGroup ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.filter(g => g.teacher_id === filterTeacher).length === 0 ? (
+          {groups.filter((g) => g.teacher_id === filterTeacher).length === 0 ? (
             <div className="col-span-full bg-white rounded-2xl border border-slate-100 p-16 text-center">
               <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
                 <Folder className="w-8 h-8 text-slate-300" />
@@ -126,22 +188,23 @@ export default function AdminStudentsPage() {
               <p className="text-slate-500 text-sm">Вы можете создать группы в разделе управления расписанием.</p>
             </div>
           ) : (
-            groups.filter(g => g.teacher_id === filterTeacher).map((g, i) => (
+            groups.filter((g) => g.teacher_id === filterTeacher).map((g, i) => (
               <div key={g.id} onClick={() => setFilterGroup(g.id)}>
                 <GroupCard group={g} href="" index={i} />
               </div>
             ))
           )}
         </div>
-      ) : students.length === 0 ? (
+      ) : visibleStudents.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8 text-primary-400" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Пока нет учеников</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Пусто в этой вкладке</h3>
           <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
-            Ученики появятся здесь автоматически после прохождения диагностики. 
-            Создайте диагностику и отправьте ссылку ученику.
+            {activeTab === "new"
+              ? "Новые ученики появятся здесь после self-onboarding или ручного добавления."
+              : "Ученики появятся здесь автоматически после прохождения диагностики."}
           </p>
           <Link
             href="/admin/diagnostics"
@@ -157,43 +220,74 @@ export default function AdminStudentsPage() {
               <tr className="bg-slate-50/80 text-left text-xs text-slate-500 uppercase tracking-wider">
                 <th className="px-6 py-3 font-medium">Ученик</th>
                 <th className="px-6 py-3 font-medium">Класс</th>
+                <th className="px-6 py-3 font-medium">Группа</th>
                 <th className="px-6 py-3 font-medium">Статус</th>
                 <th className="px-6 py-3 font-medium">Телефон</th>
                 <th className="px-6 py-3 font-medium">Дата</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {students.map((s, i) => {
-                const st = statusLabels[s.status] || statusLabels.new;
-                return (
-                  <motion.tr key={s.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }} className="hover:bg-slate-50/50">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0">
-                          {(s.first_name?.[0] || "").toUpperCase()}
+              <AnimatePresence mode="popLayout" initial={false}>
+                {visibleStudents.map((s, i) => {
+                  const st = statusLabels[s.status] || statusLabels.new;
+                  const group = s.group_id ? groupsById[s.group_id] : null;
+                  return (
+                    <motion.tr
+                      key={s.id}
+                      layout
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ delay: i * 0.02 }}
+                      className="hover:bg-slate-50/50"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0">
+                            {(s.first_name?.[0] || "").toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-medium text-slate-900 text-sm">{s.full_name || `${s.last_name} ${s.first_name}`}</p>
+                            {s.comment && <p className="text-xs text-slate-400 truncate max-w-[200px]">{s.comment}</p>}
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-slate-900 text-sm">{s.full_name || `${s.last_name} ${s.first_name}`}</p>
-                          {s.comment && <p className="text-xs text-slate-400 truncate max-w-[200px]">{s.comment}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600">{s.class_level} класс</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${st.color}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${st.dot}`} />
-                        {st.label}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">{s.student_phone || "—"}</td>
-                    <td className="px-6 py-4 text-xs text-slate-400">
-                      {s.created_at ? new Date(s.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}
-                    </td>
-                  </motion.tr>
-                );
-              })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-slate-600">{s.class_level} класс</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        {group ? (
+                          <span className="text-sm text-slate-600">{group.name}</span>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">Без группы</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <select
+                          value={s.status}
+                          disabled={updatingId === s.id}
+                          onChange={(e) => handleStatusChange(s.id, e.target.value)}
+                          className={`text-xs font-medium border rounded-full pl-2.5 pr-6 py-1 appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait ${st.color}`}
+                          style={{
+                            backgroundImage:
+                              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "right 6px center",
+                          }}
+                        >
+                          {STATUS_TABS.map((t) => (
+                            <option key={t.key} value={t.key}>{statusLabels[t.key].label}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500">{s.student_phone || "—"}</td>
+                      <td className="px-6 py-4 text-xs text-slate-400">
+                        {s.created_at ? new Date(s.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                      </td>
+                    </motion.tr>
+                  );
+                })}
+              </AnimatePresence>
             </tbody>
           </table>
         </div>

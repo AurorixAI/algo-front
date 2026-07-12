@@ -32,7 +32,7 @@ export function AuthGuard({
   forbiddenPath = "/",
 }: AuthGuardProps) {
   const router = useRouter();
-  const { user, token, isAuthenticated, refreshProfile } = useAuthStore();
+  const { refreshProfile } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
 
@@ -40,23 +40,21 @@ export function AuthGuard({
 
   useEffect(() => {
     async function checkAuth() {
-      // No token AND not authenticated → redirect to login
-      if (!token && !isAuthenticated) {
+      // Always ask the server via the httpOnly-cookie-backed /auth/me —
+      // never gate on the zustand-persisted `user`/`isAuthenticated` first.
+      // After a full page reload (e.g. window.location.href on login),
+      // zustand's persist middleware rehydrates from localStorage
+      // asynchronously, so those fields can still be at their default
+      // (false/null) the instant this effect runs — gating on them here
+      // was bouncing a freshly-logged-in user straight back to /login
+      // before refreshProfile() ever got a chance to run.
+      try {
+        await refreshProfile();
+      } catch {
         router.replace(loginPath);
         return;
       }
 
-      // If we don't have user data yet, try to refresh profile (cookies handle auth)
-      if (!user) {
-        try {
-          await refreshProfile();
-        } catch {
-          router.replace(loginPath);
-          return;
-        }
-      }
-
-      // Get fresh user from store after potential refresh
       const currentUser = useAuthStore.getState().user;
 
       if (!currentUser) {
@@ -80,7 +78,7 @@ export function AuthGuard({
 
     checkAuth();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isAuthenticated, user, rolesKey, loginPath, forbiddenPath, router, refreshProfile]);
+  }, [rolesKey, loginPath, forbiddenPath, router, refreshProfile]);
 
   if (isChecking && !isAuthorized) {
     return (

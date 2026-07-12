@@ -62,9 +62,9 @@ export default function OwnerGroupsPage() {
     }
   };
 
-  // Teachers and admins for group assignment
+  // Only teachers can be assigned to a group — not admins/owner
   const teachers = members.filter((m: any) =>
-    ["teacher", "admin", "owner"].includes(m.org_role)
+    m.org_role === "teacher"
   ).map((m: any) => ({
     id: m.user_id || m.id,
     first_name: m.first_name || m.full_name?.split(" ")[0] || "",

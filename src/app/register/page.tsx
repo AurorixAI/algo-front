@@ -66,22 +66,11 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
       });
-      const user = useAuthStore.getState().user;
-      if (user) {
-        // Auto-login: redirect based on role
-        const role = user.role || user.org_role;
-        if (role === "owner") {
-          router.push("/owner/dashboard");
-        } else if (role === "admin") {
-          router.push("/admin/diagnostics");
-        } else {
-          router.push("/teacher/diagnostic");
-        }
-        return;
-      } else {
-        setSuccess(true);
-        setStep(3);
-      }
+      // apply() only ever creates a pending application — it never issues
+      // tokens or logs anyone in (an admin must approve, then the owner
+      // activates via the emailed link). Always show the pending screen.
+      setSuccess(true);
+      setStep(3);
     } catch {
       // Error handled by store
     }
@@ -240,7 +229,7 @@ export default function RegisterPage() {
                     <div className="w-14 h-14 mx-auto mb-3 rounded-2xl bg-blue-50 flex items-center justify-center">
                       <UserCircle className="w-7 h-7 text-blue-600" />
                     </div>
-                    <h3 className="text-lg font-bold text-slate-900">Администратор</h3>
+                    <h3 className="text-lg font-bold text-slate-900">Владелец</h3>
                     <p className="text-sm text-slate-500">Данные владельца аккаунта</p>
                   </div>
 

@@ -26,7 +26,7 @@ interface ApiOptions {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public code?: string) {
     super(message);
     this.name = "ApiError";
   }
@@ -92,12 +92,16 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({ detail: "Unknown error" }));
     let message = "Request failed";
+    let code: string | undefined;
     if (typeof error.detail === "string") {
       message = error.detail;
     } else if (Array.isArray(error.detail)) {
       message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
+    } else if (error.detail && typeof error.detail === "object") {
+      message = error.detail.message || message;
+      code = error.detail.code;
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, code);
   }
 
   return response.json();
@@ -336,6 +340,12 @@ export const authApi = {
       noAuth: true,
     }),
 
+  getInviteInfo: (code: string) =>
+    api<{ org_name: string; org_role: string; email: string | null }>(
+      `/auth/invite/${code}`,
+      { noAuth: true }
+    ),
+
   acceptInvite: (data: {
     code: string;
     email: string;
@@ -373,12 +383,6 @@ export const authApi = {
 
   logout: () =>
     api<{ message: string }>("/auth/logout", { method: "POST" }),
-
-  devLogin: (role: string) =>
-    api<AuthResponse>(`/auth/dev-login?role=${role}`, {
-      method: "POST",
-      noAuth: true,
-    }),
 };
 
 // ============================================================================
@@ -450,7 +454,8 @@ export const orgApi = {
   updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; status: string }>) =>
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
   archiveGroup: (id: string) =>
-    api<GroupInfo>(`/auth/org/groups/${id}/archive`, { method: "POST" }),
+    // No dedicated /archive route — the PUT endpoint already accepts status.
+    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "archived" } }),
   addStudentToGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
@@ -501,10 +506,9 @@ export const orgApi = {
 export const diagnosticInviteApi = {
   getInfo: (code: string) =>
     api<any>(`/auth/diagnostic/${code}`, { noAuth: true }),
-  confirm: (code: string, first_name: string, last_name: string) =>
+  confirm: (code: string) =>
     api<any>(`/auth/diagnostic/${code}/confirm`, {
       method: "POST",
-      body: { first_name, last_name },
       noAuth: true,
     }),
   start: (code: string) =>

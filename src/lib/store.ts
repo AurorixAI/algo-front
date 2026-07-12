@@ -12,6 +12,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  errorCode: string | null;
 
   // Actions
   login: (email: string, password: string) => Promise<void>;
@@ -35,7 +36,6 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   updateUser: (updates: Partial<AuthUser>) => void;
-  devLogin: (role: string) => Promise<void>;
   clearError: () => void;
   setFromTokens: (user: AuthUser, accessToken: string, refreshToken: string, org?: OrgInfo | null) => void;
 }
@@ -50,9 +50,10 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      errorCode: null,
 
       login: async (email, password) => {
-        set({ isLoading: true, error: null });
+        set({ isLoading: true, error: null, errorCode: null });
         try {
           const response = await authApi.login(email, password);
           set({
@@ -63,11 +64,13 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
             error: null,
+            errorCode: null,
           });
         } catch (err: any) {
           set({
             isLoading: false,
             error: err.message || "Ошибка авторизации",
+            errorCode: err.code || null,
           });
           throw err;
         }
@@ -133,7 +136,7 @@ export const useAuthStore = create<AuthState>()(
       refreshProfile: async () => {
         try {
           const user = await authApi.me();
-          set({ user });
+          set({ user, isAuthenticated: true });
         } catch {
           set({
             user: null,
@@ -150,29 +153,7 @@ export const useAuthStore = create<AuthState>()(
           user: state.user ? { ...state.user, ...updates } : null,
         })),
 
-      devLogin: async (role) => {
-        set({ isLoading: true, error: null });
-        try {
-          const response = await authApi.devLogin(role);
-          set({
-            user: response.user,
-            org: response.org,
-            token: response.tokens.access_token,
-            refreshToken: response.tokens.refresh_token,
-            isAuthenticated: true,
-            isLoading: false,
-            error: null,
-          });
-        } catch (err: any) {
-          set({
-            isLoading: false,
-            error: err.message || "Ошибка dev-login",
-          });
-          throw err;
-        }
-      },
-
-      clearError: () => set({ error: null }),
+      clearError: () => set({ error: null, errorCode: null }),
 
       setFromTokens: (user, accessToken, refreshToken, org = null) => {
         set({

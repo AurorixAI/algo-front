@@ -34,15 +34,11 @@ export default function InviteAcceptPage() {
   useEffect(() => {
     (async () => {
       try {
-        // Try to get invite info from the API
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1"}/auth/invite/${code}`);
-        if (res.ok) {
-          setInviteInfo(await res.json());
-        } else {
-          setLoadError("Приглашение не найдено или истекло");
-        }
+        const info = await authApi.getInviteInfo(code);
+        setInviteInfo(info);
+        if (info.email) setEmail(info.email);
       } catch {
-        setLoadError("Не удалось загрузить приглашение");
+        setLoadError("Приглашение не найдено или истекло");
       } finally {
         setLoadingInfo(false);
       }
@@ -73,9 +69,11 @@ export default function InviteAcceptPage() {
       const user = useAuthStore.getState().user;
       if (user) {
         const role = user.org_role || user.role;
-        if (role === "owner") router.push("/owner/dashboard");
-        else if (role === "admin") router.push("/admin/dashboard");
-        else router.push("/teacher/dashboard");
+        // Hard navigation — guarantees a fresh request that middleware
+        // evaluates with the just-set cookie (see login page for why).
+        if (role === "owner") window.location.href = "/owner/dashboard";
+        else if (role === "admin") window.location.href = "/admin/diagnostics";
+        else window.location.href = "/teacher/dashboard";
       }
     } catch {
       // Error in store
@@ -130,7 +128,7 @@ export default function InviteAcceptPage() {
               <div>
                 <p className="font-medium text-slate-900">{inviteInfo.org_name}</p>
                 <p className="text-sm text-primary-600">
-                  Роль: {inviteInfo.role === "admin" ? "Администратор" : "Учитель"}
+                  Роль: {inviteInfo.org_role === "admin" ? "Администратор" : "Учитель"}
                 </p>
               </div>
             </div>
