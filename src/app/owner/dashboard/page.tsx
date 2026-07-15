@@ -5,11 +5,12 @@ import { motion } from "framer-motion";
 import { orgApi, analyticsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import {
-  Users, GraduationCap, Brain, TrendingUp,
-  Settings, Activity, Calendar, MapPin, Building,
-  TrendingDown, AlertCircle, Trophy, Clock, Video, Shield
+  Users, GraduationCap, Brain,
+  Activity, Calendar, MapPin, Building,
+  AlertCircle, Trophy, Clock, Video, Shield
 } from "lucide-react";
 import Link from "next/link";
+import { FeatureLock } from "@/components/ui/feature-lock";
 
 interface OrgStats {
   total_students: number;
@@ -81,30 +82,21 @@ export default function OwnerDashboard() {
   const topGroups = sortedGroups.slice(0, 3);
   const riskGroups = sortedGroups.slice().reverse().slice(0, 3).filter(g => (g.avg_theta || 0) < 0.5); // Highlight those struggling
 
-  // 4 Core KPIs
+  // 4 Core KPIs — real values only. No trend/delta shown: there is no
+  // historical snapshot to compute a real "+12%"-style change against, and
+  // a fabricated one would misrepresent real business data.
   const statCards = [
-    { label: "Всего учеников", value: stats?.total_students || 0, trend: "+12%", isPositive: true, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
-    { label: "Сотрудников", value: stats?.total_members || 0, trend: "0", isPositive: true, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, trend: "+24%", isPositive: true, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
-    { 
-      label: "Средний уровень (θ)", 
-      value: globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2), 
-      trend: "+0.15", 
-      isPositive: true, 
-      icon: Activity, 
-      color: globalTheta >= 0.5 ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500", 
-      bg: globalTheta >= 0.5 ? "bg-emerald-50" : "bg-rose-50", 
-      iconColor: globalTheta >= 0.5 ? "text-emerald-600" : "text-rose-600" 
+    { label: "Всего учеников", value: stats?.total_students || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
+    { label: "Сотрудников", value: stats?.total_members || 0, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
+    { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
+    {
+      label: "Средний уровень (θ)",
+      value: globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2),
+      icon: Activity,
+      color: globalTheta >= 0.5 ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500",
+      bg: globalTheta >= 0.5 ? "bg-emerald-50" : "bg-rose-50",
+      iconColor: globalTheta >= 0.5 ? "text-emerald-600" : "text-rose-600"
     },
-  ];
-
-  // Mock Live Classes Data (Realistic presentation)
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes().toString().padStart(2, "0");
-  const liveClasses = [
-    { id: 1, groupName: "Python Pro (10 класс)", teacher: "Анна Смирнова", time: `${currentHour}:00 - ${currentHour + 1}:30`, type: "online", students: 12 },
-    { id: 2, groupName: "Математика База (9 класс)", teacher: "Иван Петров", time: `${currentHour}:15 - ${currentHour + 1}:45`, type: "offline", students: 8 },
-    { id: 3, groupName: "Олимпиадная инфа (11 класс)", teacher: "Елена Коваль", time: `${currentHour - 1}:30 - ${currentHour}:50`, type: "offline", students: 5 },
   ];
 
   return (
@@ -185,10 +177,6 @@ export default function OwnerDashboard() {
                   <div className={`w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5`}>
                     <card.icon className={`w-5 h-5 text-slate-200 group-hover:text-white transition-colors`} />
                   </div>
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md ${card.isPositive ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/20" : "bg-rose-500/20 text-rose-400 border border-rose-500/20"}`}>
-                    {card.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {card.trend}
-                  </span>
                 </div>
                 <div>
                   <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
@@ -201,10 +189,11 @@ export default function OwnerDashboard() {
         </div>
       </motion.div>
 
-      {/* Smart Lists (Top & At-Risk) */}
+      {/* Smart Lists (Top & At-Risk) — real data from analyticsApi.orgOverview(),
+          no reason to hide this behind a "coming soon" lock. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
         {/* Top Performers */}
-        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full">
+        <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full w-full">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-emerald-50 flex items-center justify-center">
               <Trophy className="w-6 h-6 text-emerald-600" />
@@ -214,7 +203,7 @@ export default function OwnerDashboard() {
               <p className="text-sm font-medium text-slate-500">Группы с высшим средним баллом</p>
             </div>
           </div>
-          
+
           <div className="space-y-4 flex-1">
             {topGroups.length > 0 ? topGroups.map((g, i) => (
               <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/30 hover:border-emerald-100 transition-colors">
@@ -243,7 +232,7 @@ export default function OwnerDashboard() {
         </motion.div>
 
         {/* At-Risk Groups */}
-        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full">
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="bg-white rounded-[1.5rem] p-6 lg:p-8 border border-slate-200/60 shadow-sm flex flex-col h-full w-full">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center">
               <AlertCircle className="w-6 h-6 text-rose-600" />
@@ -253,7 +242,7 @@ export default function OwnerDashboard() {
               <p className="text-sm font-medium text-slate-500">Группы, требующие внимания</p>
             </div>
           </div>
-          
+
           <div className="space-y-4 flex-1">
             {riskGroups.length > 0 ? riskGroups.map((g) => (
               <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 hover:border-rose-200 transition-colors">
@@ -279,63 +268,38 @@ export default function OwnerDashboard() {
         </motion.div>
       </div>
 
-      {/* Full-width Live Classes Board */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm flex flex-col overflow-hidden">
-        <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-              <span className="relative flex h-3.5 w-3.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+      {/* Full-width Live Classes Board — no lesson/schedule module exists yet,
+          so this stays locked with an honest empty state (no invented names). */}
+      <FeatureLock
+        title="Уроки сейчас"
+        description="Интерактивная панель мониторинга уроков в реальном времени появится в следующем обновлении."
+      >
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm flex flex-col overflow-hidden w-full">
+          <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
+                <span className="relative flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                </span>
+                Уроки сейчас
+              </h3>
+              <p className="text-sm font-medium text-slate-500 mt-1">Актуальное расписание занятий в реальном времени</p>
+            </div>
+            <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+              <Clock className="w-5 h-5 text-slate-400" />
+              <span className="text-xl font-bold font-mono text-slate-900 tracking-tight">
+                {now.getHours()}:{now.getMinutes().toString().padStart(2, "0")}
               </span>
-              Уроки сейчас
-            </h3>
-            <p className="text-sm font-medium text-slate-500 mt-1">Актуальное расписание занятий в реальном времени</p>
+            </div>
           </div>
-          <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-            <Clock className="w-5 h-5 text-slate-400" />
-            <span className="text-xl font-bold font-mono text-slate-900 tracking-tight">{currentHour}:{currentMinute}</span>
+
+          <div className="p-10 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30">
+            <Video className="w-8 h-8 mb-2 opacity-40" />
+            <p className="text-sm">Модуль отслеживания уроков в реальном времени в разработке</p>
           </div>
-        </div>
-        
-        <div className="p-6 md:p-8 bg-slate-50/30">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {liveClasses.map((lesson) => (
-              <div key={lesson.id} className="bg-white border border-slate-200 hover:border-primary-300 rounded-[1.25rem] p-6 shadow-sm hover:shadow-md transition-all group">
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex flex-col gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-1 rounded-lg w-fit">
-                      <Clock className="w-3.5 h-3.5" />
-                      {lesson.time}
-                    </span>
-                    {lesson.type === "online" ? (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg w-fit border border-indigo-100/50">
-                        <Video className="w-3.5 h-3.5" /> Онлайн
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 bg-amber-50 px-2.5 py-1 rounded-lg w-fit border border-amber-100/50">
-                        <Building className="w-3.5 h-3.5" /> Офлайн
-                      </span>
-                    )}
-                  </div>
-                  <div className="w-10 h-10 rounded-full bg-primary-50 border border-primary-100 flex items-center justify-center shadow-inner shrink-0">
-                    <span className="font-bold text-primary-700">{lesson.teacher.charAt(0)}</span>
-                  </div>
-                </div>
-                
-                <h4 className="text-lg font-bold text-slate-900 mb-2 group-hover:text-primary-600 transition-colors line-clamp-1">{lesson.groupName}</h4>
-                
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-100">
-                  <p className="text-sm font-medium text-slate-600 truncate">{lesson.teacher}</p>
-                  <p className="text-sm font-bold text-slate-900 flex items-center gap-1.5 shrink-0 bg-slate-50 px-2 py-1 rounded-md border border-slate-200/50">
-                    <Users className="w-4 h-4 text-slate-400" /> {lesson.students}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </FeatureLock>
     </div>
   );
 }

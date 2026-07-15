@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
+import { FeatureLock } from "@/components/ui/feature-lock";
 
 interface DiagnosticInvite {
   id: string;
@@ -135,12 +136,18 @@ export default function AdminDiagnosticsPage() {
             Создавайте диагностики, отслеживайте результаты и зачисляйте учеников
           </p>
         </div>
-        <Link
-          href="/admin/students/new"
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+        <FeatureLock
+          variant="inline"
+          title="Новая диагностика"
+          description="Создание новых диагностик временно недоступно и будет открыто в ближайшем обновлении."
         >
-          <Plus className="w-4 h-4" /> Новая диагностика
-        </Link>
+          <Link
+            href="/admin/students/new"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+          >
+            <Plus className="w-4 h-4" /> Новая диагностика
+          </Link>
+        </FeatureLock>
       </div>
 
       {/* Stats cards */}

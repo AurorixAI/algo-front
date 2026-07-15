@@ -3,43 +3,36 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
+import { GroupInfo } from "@/lib/api";
 import {
   Users, GraduationCap, Calendar as CalendarIcon,
-  Clock, MapPin, Video, FileText, Activity, BookOpen,
+  FileText,
   ArrowRight,
-  TrendingUp,
   Award,
   Plus
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi } from "@/lib/api";
-
-// --- MOCK DATA ---
-const mockSchedule = [
-  { id: "1", time: "14:00 - 16:00", title: "Группа Python-Dev", subtitle: "8-9 класс", type: "group", location: "Аудитория 3", color: "indigo" },
-  { id: "2", time: "16:30 - 18:00", title: "Группа Olymps-Math", subtitle: "10-11 класс", type: "group", location: "Аудитория 1", color: "blue" },
-  { id: "3", time: "18:15 - 19:15", title: "Индивидуальное занятие", subtitle: "Арслан И.", type: "individual", location: "Онлайн", color: "amber" },
-];
-
-const colorMap = {
-  blue: "bg-blue-50 text-blue-700 border-blue-200",
-  indigo: "bg-indigo-50 text-indigo-700 border-indigo-200",
-  amber: "bg-amber-50 text-amber-700 border-amber-200",
-};
+import { FeatureLock } from "@/components/ui/feature-lock";
 
 export default function TeacherDashboardPage() {
   const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ groups: 0, students: 0 });
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
 
   useEffect(() => {
     async function load() {
+      if (!user?.id) return;
       try {
-        const groups = await orgApi.listGroups();
-        // Just mock some basic stats
+        // Scoped to this teacher only — matches /teacher/groups. Without
+        // teacher_id this used to count every group in the org, showing
+        // numbers that disagreed with the teacher's own groups list.
+        const fetchedGroups = await orgApi.listGroups({ teacher_id: user.id });
+        setGroups(Array.isArray(fetchedGroups) ? fetchedGroups : []);
         setStats({
-          groups: groups.length,
-          students: groups.reduce((acc, g) => acc + g.student_count, 0),
+          groups: fetchedGroups.length,
+          students: fetchedGroups.reduce((acc: number, g: GroupInfo) => acc + g.student_count, 0),
         });
       } catch (err) {
         console.error("Failed to load teacher stats:", err);
@@ -48,7 +41,7 @@ export default function TeacherDashboardPage() {
       }
     }
     load();
-  }, []);
+  }, [user?.id]);
 
   const now = new Date();
   const greeting = now.getHours() < 12 ? "Доброе утро" : now.getHours() < 18 ? "Добрый день" : "Добрый вечер";
@@ -57,8 +50,10 @@ export default function TeacherDashboardPage() {
   const statCards = [
     { label: "Мои группы", value: stats.groups || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
     { label: "Мои ученики", value: stats.students || 0, icon: GraduationCap, color: "from-emerald-400 to-emerald-600", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
-    { label: "Уроков сегодня", value: mockSchedule.length, icon: CalendarIcon, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Проверено работ", value: "12", icon: Award, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
+    // No lesson-schedule or grading module exists yet — show "—" rather
+    // than inventing a specific number.
+    { label: "Уроков сегодня", value: "—", icon: CalendarIcon, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
+    { label: "Проверено работ", value: "—", icon: Award, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
   ];
 
   if (loading) {
@@ -84,40 +79,62 @@ export default function TeacherDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/teacher/exams/new"
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
+          <FeatureLock
+            variant="inline"
+            title="Создать экзамен"
+            description="Генерация контрольных работ временно недоступна и появится в следующем обновлении."
           >
-            <FileText className="w-4 h-4" />
-            Создать экзамен
-          </Link>
+            <Link
+              href="/teacher/exams/new"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm animate-pulse"
+            >
+              <FileText className="w-4 h-4" />
+              Создать экзамен
+            </Link>
+          </FeatureLock>
         </div>
       </div>
 
       {/* 4 Core KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((s, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05, duration: 0.3 }}
-            className="bg-white rounded-2xl p-5 border border-slate-100 hover:shadow-lg transition-all duration-300 relative overflow-hidden group"
-          >
-            <div className={`absolute -right-6 -top-6 w-24 h-24 bg-gradient-to-br ${s.color} rounded-full opacity-5 group-hover:scale-150 transition-transform duration-500`} />
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
-                <s.icon className={`w-6 h-6 ${s.iconColor}`} />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-slate-500">{s.label}</p>
-                <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-2xl font-bold text-slate-900">{s.value}</span>
+        {statCards.map((s, i) => {
+          const cardContent = (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.3 }}
+              className="bg-white rounded-2xl p-5 border border-slate-100 hover:shadow-lg transition-all duration-300 relative overflow-hidden group w-full h-full"
+            >
+              <div className={`absolute -right-6 -top-6 w-24 h-24 bg-gradient-to-br ${s.color} rounded-full opacity-5 group-hover:scale-150 transition-transform duration-500`} />
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+                  <s.icon className={`w-6 h-6 ${s.iconColor}`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-500">{s.label}</p>
+                  <div className="flex items-baseline gap-2 mt-0.5">
+                    <span className="text-2xl font-bold text-slate-900">{s.value}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
+            </motion.div>
+          );
+
+          if (i >= 2) {
+            return (
+              <FeatureLock
+                key={i}
+                variant="inline"
+                title={s.label}
+                description="Эта метрика временно рассчитывается на основе демонстрационных данных."
+                className="w-full h-full"
+              >
+                {cardContent}
+              </FeatureLock>
+            );
+          }
+          return <div key={i} className="w-full h-full">{cardContent}</div>;
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -138,72 +155,72 @@ export default function TeacherDashboardPage() {
               </Link>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center gap-4 cursor-pointer">
-                <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
-                  10A
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Olymps-Math</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">15 учеников • Уровень: Выше</p>
-                </div>
+            {groups.filter(g => g.status === "active").length === 0 ? (
+              <div className="text-center py-8 text-slate-400 text-sm">
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                Нет активных групп
               </div>
-              <div className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition-colors flex items-center gap-4 cursor-pointer">
-                <div className="w-12 h-12 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
-                  9B
-                </div>
-                <div>
-                  <h3 className="font-semibold text-slate-900">Python-Dev</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">12 учеников • Уровень: Норма</p>
-                </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {groups.filter(g => g.status === "active").slice(0, 4).map((group) => {
+                  const colors = [
+                    { bg: "bg-blue-100", text: "text-blue-600" },
+                    { bg: "bg-indigo-100", text: "text-indigo-600" },
+                    { bg: "bg-emerald-100", text: "text-emerald-600" },
+                    { bg: "bg-amber-100", text: "text-amber-600" },
+                  ];
+                  const colorIdx = group.name.charCodeAt(0) % colors.length;
+                  const c = colors[colorIdx];
+                  const badge = group.class_level ? `${group.class_level}кл` : "—";
+
+                  return (
+                    <Link
+                      key={group.id}
+                      href={`/teacher/groups/${group.id}`}
+                      className="p-4 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 hover:border-primary-200 transition-all flex items-center gap-4 group/card"
+                    >
+                      <div className={`w-12 h-12 rounded-xl ${c.bg} flex items-center justify-center ${c.text} font-bold text-sm shrink-0`}>
+                        {badge}
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="font-semibold text-slate-900 truncate group-hover/card:text-primary-600 transition-colors">{group.name}</h3>
+                        <p className="text-xs text-slate-500 mt-0.5">{group.student_count} учеников</p>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Right Column (Schedule Widget) */}
         <div className="space-y-8">
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">
-                Расписание на сегодня
-              </h2>
-              <Link href="/teacher/schedule" className="text-sm font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1">
-                Календарь
-              </Link>
-            </div>
+          <FeatureLock
+            title="Расписание на сегодня"
+            description="Панель расписания и интерактивный календарь находятся в разработке."
+          >
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 w-full">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-slate-900">
+                  Расписание на сегодня
+                </h2>
+                <Link href="/teacher/schedule" className="text-sm font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1">
+                  Календарь
+                </Link>
+              </div>
 
-            <div className="space-y-4">
-              {mockSchedule.map((item) => (
-                <div key={item.id} className="relative pl-6 py-2 group">
-                  {/* Timeline line */}
-                  <div className="absolute left-[11px] top-4 bottom-[-16px] w-[2px] bg-slate-100 group-last:hidden" />
-                  {/* Timeline dot */}
-                  <div className={`absolute left-[6px] top-[14px] w-3 h-3 rounded-full border-2 border-white shadow-sm z-10 ${item.color === "blue" ? "bg-blue-500" : item.color === "indigo" ? "bg-indigo-500" : "bg-amber-500"}`} />
-                  
-                  <div className={`p-4 rounded-2xl border ${colorMap[item.color as keyof typeof colorMap]} transition-colors`}>
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 bg-white/60 rounded-md">
-                        <Clock className="w-3.5 h-3.5" />
-                        {item.time}
-                      </div>
-                    </div>
-                    <h3 className="font-bold text-sm">{item.title}</h3>
-                    <p className="text-xs font-medium opacity-80 mt-0.5">{item.subtitle}</p>
-                    <div className="flex items-center gap-1.5 text-xs font-medium mt-3 opacity-70">
-                      <MapPin className="w-3.5 h-3.5" />
-                      {item.location}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+              <div className="text-center py-8 text-slate-400 text-sm">
+                <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                Модуль расписания в разработке
+              </div>
 
-            <button className="w-full mt-6 py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-500 font-medium text-sm hover:border-slate-300 hover:text-slate-700 transition-colors flex items-center justify-center gap-2">
-              <Plus className="w-4 h-4" />
-              Добавить событие
-            </button>
-          </div>
+              <button disabled className="w-full mt-6 py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 font-medium text-sm cursor-not-allowed flex items-center justify-center gap-2 opacity-60">
+                <Plus className="w-4 h-4" />
+                Добавить событие
+              </button>
+            </div>
+          </FeatureLock>
         </div>
 
       </div>

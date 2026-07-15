@@ -5,7 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, BarChart2, Settings,
-  GraduationCap, Loader2, Edit2, Check, X, Calendar, Clock
+  GraduationCap, Loader2, Edit2, Check, X
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats } from "@/lib/api";
@@ -122,16 +122,6 @@ export default function TeacherGroupDetailPage() {
                 {group.description && (
                   <p className="text-xs text-slate-400 mt-1">{group.description}</p>
                 )}
-                <div className="flex items-center gap-2 mt-3">
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg text-xs font-semibold border border-violet-100">
-                    <Calendar className="w-3.5 h-3.5" />
-                    Вторник, Четверг
-                  </div>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-semibold border border-blue-100">
-                    <Clock className="w-3.5 h-3.5" />
-                    18:00 - 19:30
-                  </div>
-                </div>
               </div>
             </div>
 

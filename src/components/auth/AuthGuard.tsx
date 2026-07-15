@@ -62,6 +62,13 @@ export function AuthGuard({
         return;
       }
 
+      // Imported teacher accounts start with a temporary password and must
+      // set their own before doing anything else.
+      if (currentUser.must_change_password) {
+        router.replace("/change-password");
+        return;
+      }
+
       // Check role if allowedRoles specified (check both role and org_role)
       if (allowedRoles.length > 0) {
         const hasRole = allowedRoles.includes(currentUser.role as UserRole) ||

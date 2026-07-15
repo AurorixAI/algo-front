@@ -7,6 +7,7 @@ import { Users, Search, Brain, GraduationCap, Folder } from "lucide-react";
 import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
+import { ImportButton } from "@/components/import/import-button";
 
 interface StudentInfo {
   id: string;
@@ -136,6 +137,7 @@ export default function AdminStudentsPage() {
               : "Ученики появляются после прохождения диагностики"}
           </p>
         </div>
+        <ImportButton variant="solid" onImported={loadAll} />
       </div>
 
       {/* Filters */}

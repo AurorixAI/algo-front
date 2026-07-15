@@ -9,6 +9,7 @@ import {
 import { orgApi, GroupInfo } from "@/lib/api";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { ImportButton } from "@/components/import/import-button";
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 
@@ -109,13 +110,16 @@ export default function OwnerGroupsPage() {
           <h1 className="text-2xl font-bold text-slate-900">Группы</h1>
           <p className="text-slate-500 text-sm mt-0.5">Управление учебными группами организации</p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Новая группа
-        </button>
+        <div className="flex items-center gap-3">
+          <ImportButton onImported={loadData} />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Новая группа
+          </button>
+        </div>
       </div>
 
 

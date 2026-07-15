@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { ImportButton } from "@/components/import/import-button";
 
 type StatusFilter = "active" | "waiting" | "archived";
 
@@ -80,12 +81,15 @@ export default function AdminGroupsPage() {
             Управление учебными группами и составом учеников
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
-        >
-          <Plus className="w-4 h-4" /> Новая группа
-        </button>
+        <div className="flex items-center gap-3">
+          <ImportButton onImported={loadData} />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+          >
+            <Plus className="w-4 h-4" /> Новая группа
+          </button>
+        </div>
       </div>
 
 

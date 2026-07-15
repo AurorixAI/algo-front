@@ -68,7 +68,7 @@ export function Sidebar() {
   ];
 
   const teacherNav: NavItem[] = [
-    { href: "/teacher/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
+    { href: "/teacher/dashboard", label: "Панель управления", icon: LayoutDashboard },
     { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
     { href: "/teacher/exams", label: "Экзамены", icon: FileText },
     { href: "/teacher/groups", label: "Мои группы", icon: Users },
@@ -109,7 +109,7 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-slate-100 gap-3 overflow-hidden">
+      <Link href={rawRole === "owner" ? "/owner/dashboard" : role === "admin" ? "/admin/dashboard" : "/teacher/dashboard"} className="h-16 flex items-center px-4 border-b border-slate-100 gap-3 overflow-hidden hover:bg-slate-50 transition-colors">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-md shadow-primary-600/20">
           ∫
         </div>
@@ -119,7 +119,7 @@ export function Sidebar() {
             <p className="text-[10px] text-slate-400 truncate">{orgName}</p>
           </div>
         )}
-      </div>
+      </Link>
 
       {/* Navigation */}
       <nav className="flex-1 py-3 px-2 overflow-x-hidden overflow-y-auto">

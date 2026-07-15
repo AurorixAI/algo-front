@@ -206,6 +206,7 @@ export interface AuthUser {
   language: string;
   is_active: boolean;
   is_verified: boolean;
+  must_change_password?: boolean;
   created_at: string | null;
 }
 
@@ -497,7 +498,79 @@ export const orgApi = {
   updateAttendance: async (groupId: string, lessonId: string, records: AttendanceRecord[]): Promise<{ success: boolean }> => {
     return { success: true };
   },
+
+  // ── Bulk import (xlsx) ────────────────────────────────────────────────
+  downloadImportTemplate: async (): Promise<Blob> => {
+    const res = await fetch(`${AUTH_API_V1}/auth/org/import/template`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) throw new ApiError(res.status, "Не удалось скачать шаблон");
+    return res.blob();
+  },
+  importPreview: (file: File) => uploadImport<ImportPreviewResult>("/auth/org/import/preview", file),
+  importCommit: (file: File) => uploadImport<ImportCommitResult>("/auth/org/import/commit", file),
 };
+
+// ── Import types + multipart helper ─────────────────────────────────────────
+export interface ImportIssue {
+  sheet: string;
+  row: number;
+  field?: string | null;
+  level: "error" | "warning";
+  message: string;
+}
+
+export interface ImportCounts {
+  teachers_new: number;
+  teachers_existing: number;
+  groups_new: number;
+  groups_existing: number;
+  students_new: number;
+  students_existing: number;
+}
+
+export interface ImportPreviewResult {
+  ok: boolean;
+  counts: ImportCounts;
+  issues: ImportIssue[];
+  teachers_preview: Array<{ name: string; email: string; role: string; action: string }>;
+  groups_preview: Array<{ name: string; class_level: number | null; teacher_email: string; action: string }>;
+  students_preview: Array<{ name: string; class_level: number; phone: string | null; group: string; action: string }>;
+}
+
+export interface TeacherCredential {
+  full_name: string;
+  email: string;
+  role: string;
+  temp_password: string;
+}
+
+export interface ImportCommitResult {
+  ok: boolean;
+  counts: ImportCounts;
+  issues: ImportIssue[];
+  credentials: TeacherCredential[];
+}
+
+async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  // No Content-Type header — the browser sets the multipart boundary itself.
+  const res = await fetch(`${AUTH_API_V1}${endpoint}`, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    body: form,
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
+  if (!res.ok) {
+    throw new ApiError(res.status, data?.detail || "Ошибка импорта");
+  }
+  return data as T;
+}
 
 // ============================================================================
 // DIAGNOSTIC INVITE API (public - no auth)
