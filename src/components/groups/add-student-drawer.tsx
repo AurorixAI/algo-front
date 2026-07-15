@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, StudentInGroup } from "@/lib/api";
@@ -32,6 +33,11 @@ export function AddStudentDrawer({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -94,7 +100,7 @@ export function AddStudentDrawer({
     new: "Новый", diagnosed: "Диагностирован", active: "Активный", archived: "Архив",
   };
 
-  return (
+  const drawerContent = (
     <AnimatePresence>
       {open && (
         <>
@@ -102,7 +108,7 @@ export function AddStudentDrawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/20 z-40"
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50"
             onClick={onClose}
           />
           <motion.div
@@ -110,7 +116,7 @@ export function AddStudentDrawer({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 400, damping: 35 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-[60] flex flex-col"
           >
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100">
@@ -204,4 +210,6 @@ export function AddStudentDrawer({
       )}
     </AnimatePresence>
   );
+
+  return mounted ? createPortal(drawerContent, document.body) : null;
 }
