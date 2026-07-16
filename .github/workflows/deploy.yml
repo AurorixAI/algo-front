@@ -1,0 +1,66 @@
+name: Deploy
+
+# Push to main -> build -> deploy to the staging server (algolab.me).
+# Deploy only runs if the build job passes, so a broken push never reaches prod.
+
+on:
+  push:
+    branches: [main]
+
+env:
+  SERVER_HOST: 91.99.183.252
+  SERVER_USER: algo
+  REPO_DIR: algo-front
+  COMPOSE_SERVICE: frontend
+  CONTAINER_NAME: algo-staging-frontend
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up deploy key
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Pull + rebuild on server
+        run: |
+          ssh -i ~/.ssh/deploy_key "$SERVER_USER@$SERVER_HOST" "
+            set -e
+            cd ~/algo/$REPO_DIR && git pull origin main
+            cd ~/algo && make staging-redeploy SERVICE=$COMPOSE_SERVICE
+          "
+
+      - name: Verify site responds
+        run: |
+          for i in $(seq 1 12); do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" https://algolab.me/)
+            if [ "$CODE" = "200" ]; then echo "Site is up (200)"; exit 0; fi
+            sleep 5
+          done
+          echo "Site did not come back healthy (last code: $CODE)" >&2
+          exit 1
