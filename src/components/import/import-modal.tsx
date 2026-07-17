@@ -353,13 +353,13 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
           {errors.map((iss, i) => (
             <div key={`e${i}`} className="flex items-start gap-2 p-2.5 text-xs bg-red-50/40">
               <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-red-500" />
-              <span className="text-slate-600"><b className="text-slate-800">{iss.sheet}</b> стр. {iss.row}{iss.field ? ` · ${iss.field}` : ""}: {iss.message}</span>
+              <span className="text-slate-600"><b className="text-slate-800">{iss.sheet}</b> строка {iss.row}{iss.field ? ` · ${iss.field}` : ""}: {iss.message}</span>
             </div>
           ))}
           {warnings.map((iss, i) => (
             <div key={`w${i}`} className="flex items-start gap-2 p-2.5 text-xs bg-amber-50/40">
               <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span className="text-slate-600"><b className="text-slate-800">{iss.sheet}</b> стр. {iss.row}{iss.field ? ` · ${iss.field}` : ""}: {iss.message}</span>
+              <span className="text-slate-600"><b className="text-slate-800">{iss.sheet}</b> строка {iss.row}{iss.field ? ` · ${iss.field}` : ""}: {iss.message}</span>
             </div>
           ))}
         </div>
