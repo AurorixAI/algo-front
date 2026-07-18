@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
   X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
-  Loader2, Users, GraduationCap, UserSquare2, Copy, Check, ArrowRight, ArrowLeft,
+  Loader2, GraduationCap, UserSquare2, Check, ArrowRight, ArrowLeft,
 } from "lucide-react";
 import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
@@ -267,7 +267,7 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, onDownloa
           <Download className="w-5 h-5 text-primary-600 mt-0.5 shrink-0" />
           <div>
             <p className="text-sm font-semibold text-slate-800">Шаг 1 — скачайте шаблон</p>
-            <p className="text-xs text-slate-500 mt-0.5">Три вкладки: Учителя, Группы, Ученики. Заполните и загрузите обратно.</p>
+            <p className="text-xs text-slate-500 mt-0.5">Две вкладки: Группы и Ученики. Заполните и загрузите обратно.</p>
           </div>
         </div>
         <button onClick={onDownloadTemplate} className="shrink-0 px-4 py-2 bg-white border border-primary-200 text-primary-700 rounded-xl text-sm font-semibold hover:bg-primary-50 transition-colors">
@@ -335,7 +335,6 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
       <div className="flex gap-3">
         <CountPill icon={<UserSquare2 className="w-3.5 h-3.5" />} label="Ученики" created={c.students_new} existing={c.students_existing} />
         <CountPill icon={<GraduationCap className="w-3.5 h-3.5" />} label="Группы" created={c.groups_new} existing={c.groups_existing} />
-        <CountPill icon={<Users className="w-3.5 h-3.5" />} label="Учителя" created={c.teachers_new} existing={c.teachers_existing} />
       </div>
 
       {preview.ok ? (
@@ -365,38 +364,13 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
         </div>
       )}
 
-      {c.teachers_new > 0 && (
-        <p className="text-xs text-slate-400">
-          Для {c.teachers_new} новых учителей будут созданы аккаунты с временными паролями — вы получите их на следующем шаге.
-        </p>
-      )}
     </div>
   );
 }
 
-// ── Step 3: done + credentials ──────────────────────────────────────────────
+// ── Step 3: done ──────────────────────────────────────────────────────────────
 function DoneStep({ result }: { result: ImportCommitResult }) {
-  const [copied, setCopied] = useState(false);
   const c = result.counts;
-  const creds = result.credentials;
-
-  const copyAll = () => {
-    const text = creds.map(x => `${x.full_name}\t${x.email}\t${x.temp_password}\t${x.role}`).join("\n");
-    navigator.clipboard.writeText("ФИО\tEmail\tВременный пароль\tРоль\n" + text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  };
-
-  const downloadCsv = () => {
-    const rows = [["ФИО", "Email", "Временный пароль", "Роль"], ...creds.map(x => [x.full_name, x.email, x.temp_password, x.role])];
-    const csv = rows.map(r => r.map(v => `"${(v || "").replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "algo_teacher_logins.csv";
-    document.body.appendChild(a); a.click(); a.remove();
-    URL.revokeObjectURL(url);
-  };
 
   return (
     <div className="space-y-4">
@@ -405,53 +379,10 @@ function DoneStep({ result }: { result: ImportCommitResult }) {
         <div>
           <p className="text-sm font-bold text-emerald-800">Импорт выполнен</p>
           <p className="text-xs text-emerald-700 mt-0.5">
-            Добавлено: {c.students_new} учеников, {c.groups_new} групп, {c.teachers_new} учителей.
+            Добавлено: {c.students_new} учеников, {c.groups_new} групп.
           </p>
         </div>
       </div>
-
-      {creds.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="text-sm font-semibold text-slate-800">Логины учителей</p>
-              <p className="text-xs text-amber-600">⚠ Пароли показываются один раз — сохраните их сейчас.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button onClick={copyAll} className="px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 rounded-lg flex items-center gap-1.5 transition-colors">
-                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? "Скопировано" : "Копировать"}
-              </button>
-              <button onClick={downloadCsv} className="px-3 py-1.5 text-xs font-medium bg-primary-100 text-primary-700 hover:bg-primary-200 rounded-lg flex items-center gap-1.5 transition-colors">
-                <Download className="w-3.5 h-3.5" /> CSV
-              </button>
-            </div>
-          </div>
-          <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-100">
-            <table className="w-full text-xs">
-              <thead className="bg-slate-50 text-slate-500 sticky top-0">
-                <tr>
-                  <th className="text-left font-medium px-3 py-2">ФИО</th>
-                  <th className="text-left font-medium px-3 py-2">Email</th>
-                  <th className="text-left font-medium px-3 py-2">Пароль</th>
-                  <th className="text-left font-medium px-3 py-2">Роль</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {creds.map((x, i) => (
-                  <tr key={i} className="hover:bg-slate-50/50">
-                    <td className="px-3 py-2 text-slate-700">{x.full_name}</td>
-                    <td className="px-3 py-2 text-slate-500">{x.email}</td>
-                    <td className="px-3 py-2 font-mono text-slate-800">{x.temp_password}</td>
-                    <td className="px-3 py-2 text-slate-500">{x.role === "admin" ? "Админ" : "Учитель"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="text-xs text-slate-400 mt-2">Учителя войдут по email и временному паролю, затем система попросит сменить пароль.</p>
-        </div>
-      )}
     </div>
   );
 }
