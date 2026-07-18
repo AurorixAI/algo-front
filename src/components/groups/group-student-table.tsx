@@ -96,6 +96,9 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-100">
             <Th col="name" label="Ученик" />
+            <th className="px-4 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
+              ID
+            </th>
             <Th col="class_level" label="Класс" />
             <Th col="status" label="Статус" />
             <Th col="last_theta" label="Уровень" />
@@ -132,6 +135,17 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
                       )}
                     </div>
                   </div>
+                </td>
+
+                {/* Display ID — публичный ID ученика (AL15-001) */}
+                <td className="px-4 py-3">
+                  {s.display_id ? (
+                    <span className="inline-flex px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium tracking-tight">
+                      {s.display_id}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-slate-300" title="ID выдаётся при зачислении">—</span>
+                  )}
                 </td>
 
                 {/* Class */}

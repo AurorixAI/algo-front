@@ -263,6 +263,7 @@ export interface StudentInGroup {
   full_name: string;
   class_level: number;
   status: string;
+  display_id: string | null;   // публичный ID вида "AL15-001" (null пока не зачислен)
   student_phone: string | null;
   joined_at: string | null;
   last_theta: number | null;
