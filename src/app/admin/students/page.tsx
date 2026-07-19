@@ -22,22 +22,6 @@ interface StudentInfo {
   created_at: string | null;
 }
 
-type StatusKey = "new" | "diagnosed" | "active" | "archived";
-
-const STATUS_TABS: { key: StatusKey; label: string }[] = [
-  { key: "new", label: "Новые" },
-  { key: "diagnosed", label: "Прошли диагностику" },
-  { key: "active", label: "Приняты" },
-  { key: "archived", label: "Архив" },
-];
-
-const statusLabels: Record<string, { label: string; color: string; dot: string }> = {
-  new:        { label: "Новый",           color: "bg-blue-50 text-blue-700 border-blue-200",       dot: "bg-blue-400" },
-  diagnosed:  { label: "Диагностирован",  color: "bg-amber-50 text-amber-700 border-amber-200",   dot: "bg-amber-400" },
-  active:     { label: "Принят",          color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400" },
-  archived:   { label: "Архив",           color: "bg-slate-50 text-slate-500 border-slate-200",    dot: "bg-slate-400" },
-};
-
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -46,8 +30,6 @@ export default function AdminStudentsPage() {
   const [filterGroup, setFilterGroup] = useState<string>("");
   const [teachers, setTeachers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<StatusKey>("active");
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   const loadAll = async () => {
     try {
@@ -88,32 +70,6 @@ export default function AdminStudentsPage() {
       return true;
     });
   }, [students, filterGroup, groupIdsForTeacher]);
-
-  const countsByStatus = useMemo(() => {
-    const counts: Record<StatusKey, number> = { new: 0, diagnosed: 0, active: 0, archived: 0 };
-    filteredBySelection.forEach((s) => {
-      const key = (s.status as StatusKey) in counts ? (s.status as StatusKey) : "new";
-      counts[key]++;
-    });
-    return counts;
-  }, [filteredBySelection]);
-
-  const visibleStudents = useMemo(
-    () => filteredBySelection.filter((s) => s.status === activeTab),
-    [filteredBySelection, activeTab]
-  );
-
-  const handleStatusChange = async (studentId: string, newStatus: string) => {
-    setUpdatingId(studentId);
-    try {
-      await orgApi.updateStudent(studentId, { status: newStatus });
-      setStudents((prev) => prev.map((s) => (s.id === studentId ? { ...s, status: newStatus } : s)));
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
 
   if (loading) {
     return (
@@ -163,21 +119,6 @@ export default function AdminStudentsPage() {
         />
       </div>
 
-      {/* Status tabs — explicit separation: new / diagnosed / accepted / archived */}
-      <div className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-fit">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-semibold rounded-xl transition-all whitespace-nowrap ${
-              activeTab === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {tab.label} ({countsByStatus[tab.key]})
-          </button>
-        ))}
-      </div>
-
       {/* Content Area */}
       {filterTeacher && !filterGroup ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -197,16 +138,14 @@ export default function AdminStudentsPage() {
             ))
           )}
         </div>
-      ) : visibleStudents.length === 0 ? (
+      ) : filteredBySelection.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8 text-primary-400" />
           </div>
-          <h3 className="text-lg font-semibold text-slate-900 mb-2">Пусто в этой вкладке</h3>
+          <h3 className="text-lg font-semibold text-slate-900 mb-2">Ученики не найдены</h3>
           <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
-            {activeTab === "new"
-              ? "Новые ученики появятся здесь после self-onboarding или ручного добавления."
-              : "Ученики появятся здесь автоматически после прохождения диагностики."}
+            Ученики появятся здесь автоматически после прохождения диагностики или ручного добавления.
           </p>
           <Link
             href="/admin/diagnostics"
@@ -223,15 +162,13 @@ export default function AdminStudentsPage() {
                 <th className="px-6 py-3 font-medium">Ученик</th>
                 <th className="px-6 py-3 font-medium">Класс</th>
                 <th className="px-6 py-3 font-medium">Группа</th>
-                <th className="px-6 py-3 font-medium">Статус</th>
                 <th className="px-6 py-3 font-medium">Телефон</th>
                 <th className="px-6 py-3 font-medium">Дата</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               <AnimatePresence mode="popLayout" initial={false}>
-                {visibleStudents.map((s, i) => {
-                  const st = statusLabels[s.status] || statusLabels.new;
+                {filteredBySelection.map((s, i) => {
                   const group = s.group_id ? groupsById[s.group_id] : null;
                   return (
                     <motion.tr
@@ -263,24 +200,6 @@ export default function AdminStudentsPage() {
                         ) : (
                           <span className="text-xs text-slate-400 italic">Без группы</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <select
-                          value={s.status}
-                          disabled={updatingId === s.id}
-                          onChange={(e) => handleStatusChange(s.id, e.target.value)}
-                          className={`text-xs font-medium border rounded-full pl-2.5 pr-6 py-1 appearance-none cursor-pointer disabled:opacity-50 disabled:cursor-wait ${st.color}`}
-                          style={{
-                            backgroundImage:
-                              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
-                            backgroundRepeat: "no-repeat",
-                            backgroundPosition: "right 6px center",
-                          }}
-                        >
-                          {STATUS_TABS.map((t) => (
-                            <option key={t.key} value={t.key}>{statusLabels[t.key].label}</option>
-                          ))}
-                        </select>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-500">{s.student_phone || "—"}</td>
                       <td className="px-6 py-4 text-xs text-slate-400">
