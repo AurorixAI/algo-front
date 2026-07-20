@@ -209,6 +209,28 @@ export default function OwnerGroupDetailPage() {
                   </div>
                 </div>
 
+                {/* Teacher Selection */}
+                <div className="col-span-2 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                    Преподаватель группы
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={editState.teacher_id}
+                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
+                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
+                    >
+                      <option value="">— Не назначен</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+
                 {/* Class Level */}
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
@@ -229,8 +251,6 @@ export default function OwnerGroupDetailPage() {
                       <ChevronDown className="w-4 h-4" />
                     </div>
                   </div>
-
-
                 </div>
 
                 {/* Max Students */}
@@ -255,28 +275,6 @@ export default function OwnerGroupDetailPage() {
                     <Info className="w-3.5 h-3.5 text-primary-400 shrink-0" />
                     <span>Сейчас в группе: <strong className="text-slate-700">{group.student_count}</strong> учеников · мин. {group.student_count || 1}</span>
                   </p>
-                </div>
-
-                {/* Teacher Selection */}
-                <div className="col-span-2 space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                    Преподаватель группы
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={editState.teacher_id}
-                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
-                    >
-                      <option value="">— Не назначен</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
                 </div>
 
                 {/* Description */}
