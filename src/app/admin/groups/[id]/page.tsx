@@ -4,14 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users, BarChart2,
+  ArrowLeft, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
   Archive, Settings2, Lock, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
-import { AddStudentDrawer } from "@/components/groups/add-student-drawer";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { AttendanceJournal } from "@/components/groups/attendance-journal";
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
@@ -39,7 +38,6 @@ export default function AdminGroupDetailPage() {
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDrawer, setShowAddDrawer] = useState(false);
 
   const tab = (searchParams?.get("tab") as Tab) || "students";
   const setTab = (newTab: Tab) => {
@@ -375,15 +373,6 @@ export default function AdminGroupDetailPage() {
                 Состав группы
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
-              {group.status === "active" && (
-                <button
-                  onClick={() => setShowAddDrawer(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-primary-50 text-primary-700 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors border border-primary-100"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Добавить учеников
-                </button>
-              )}
             </div>
             <GroupStudentTable
               students={group.students}
@@ -425,20 +414,6 @@ export default function AdminGroupDetailPage() {
           </motion.div>
         )}
       </div>
-
-      {/* Add student drawer */}
-      <AddStudentDrawer
-        open={showAddDrawer}
-        groupId={groupId}
-        groupClassLevel={group.class_level}
-        existingStudentIds={existingIds}
-        onClose={() => setShowAddDrawer(false)}
-        onAdded={() => {
-          setShowAddDrawer(false);
-          load();
-          showToast("Ученики добавлены");
-        }}
-      />
 
       {/* Toast */}
       <AnimatePresence>
