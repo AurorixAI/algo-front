@@ -168,9 +168,6 @@ export default function OwnerGroupDetailPage() {
         )}
       </div>
 
-      {/* Вывеска: расширенные модули группы откроются после этапов подключения */}
-      <PhaseLockBanner />
-
       {/* Group header card */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}

@@ -99,9 +99,6 @@ export default function TeacherGroupDetailPage() {
         <span className="text-slate-900 font-medium">{group.name}</span>
       </div>
 
-      {/* Вывеска: расширенные модули группы откроются после этапов подключения */}
-      <PhaseLockBanner />
-
       {/* Group header */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
