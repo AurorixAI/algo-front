@@ -5,20 +5,7 @@ import { motion } from "framer-motion";
 import { Trash2, ExternalLink, ChevronUp, ChevronDown, GraduationCap } from "lucide-react";
 import { StudentInGroup } from "@/lib/api";
 
-const LEVEL_CONFIG = {
-  below_grade: { label: "Ниже нормы", color: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-400" },
-  at_grade:    { label: "На уровне",  color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-400" },
-  above_grade: { label: "Выше нормы", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-} as const;
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  new:       { label: "Новый",          color: "bg-blue-50 text-blue-700" },
-  diagnosed: { label: "Диагностирован", color: "bg-amber-50 text-amber-700" },
-  active:    { label: "Активный",       color: "bg-emerald-50 text-emerald-700" },
-  archived:  { label: "Архив",          color: "bg-slate-100 text-slate-500" },
-};
-
-type SortKey = "name" | "class_level" | "last_theta" | "joined_at" | "status";
+type SortKey = "name" | "class_level" | "joined_at";
 
 interface GroupStudentTableProps {
   students: StudentInGroup[];
@@ -42,9 +29,7 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
     switch (sortKey) {
       case "name": valA = `${a.last_name} ${a.first_name}`; valB = `${b.last_name} ${b.first_name}`; break;
       case "class_level": valA = a.class_level; valB = b.class_level; break;
-      case "last_theta": valA = a.last_theta ?? -999; valB = b.last_theta ?? -999; break;
       case "joined_at": valA = a.joined_at ?? ""; valB = b.joined_at ?? ""; break;
-      case "status": valA = a.status; valB = b.status; break;
     }
     if (valA < valB) return sortAsc ? -1 : 1;
     if (valA > valB) return sortAsc ? 1 : -1;
@@ -100,8 +85,6 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
               ID
             </th>
             <Th col="class_level" label="Класс" />
-            <Th col="status" label="Статус" />
-            <Th col="last_theta" label="Уровень" />
             <Th col="joined_at" label="В группе с" />
             <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
               Действия
@@ -110,8 +93,6 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
         </thead>
         <tbody className="divide-y divide-slate-50">
           {sorted.map((s, i) => {
-            const status = STATUS_CONFIG[s.status] || STATUS_CONFIG.new;
-            const level = s.last_level ? LEVEL_CONFIG[s.last_level] : null;
             const isRemoving = removingId === s.id;
 
             return (
@@ -150,30 +131,6 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
 
                 {/* Class */}
                 <td className="px-4 py-3 text-sm text-slate-600">{s.class_level} класс</td>
-
-                {/* Status */}
-                <td className="px-4 py-3">
-                  <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
-                    {status.label}
-                  </span>
-                </td>
-
-                {/* Level */}
-                <td className="px-4 py-3">
-                  {level ? (
-                    <div>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${level.color}`}>
-                        <span className={`w-1.5 h-1.5 rounded-full ${level.dot}`} />
-                        {level.label}
-                      </span>
-                      {s.last_theta !== null && (
-                        <p className="text-xs text-slate-400 mt-0.5">θ = {s.last_theta.toFixed(2)}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400">Не диагностирован</span>
-                  )}
-                </td>
 
                 {/* Joined at */}
                 <td className="px-4 py-3 text-xs text-slate-400">
