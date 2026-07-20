@@ -86,7 +86,7 @@ export function GroupStudentTable({ students, onRemove, onViewProfile, canRemove
               ID Ученика
             </th>
             <Th col="class_level" label="Класс" className="min-w-[100px]" />
-            <Th col="phone" label="Контактный телефон" className="min-w-[180px]" />
+            <Th col="phone" label="Телефон" className="min-w-[150px]" />
             <Th col="joined_at" label="Дата зачисления" className="min-w-[160px]" />
             <th className="px-6 py-3.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap min-w-[120px] pr-8">
               Действия
