@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2
+  Archive, Settings2, Lock, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
@@ -385,19 +385,35 @@ export default function OwnerGroupDetailPage() {
         )}
 
         {tab === "analytics" && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            {stats ? (
-              <GroupStatsPanel stats={stats} />
-            ) : (
-              <div className="flex items-center justify-center py-12 text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-            )}
-          </div>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
+          </motion.div>
         )}
 
         {tab === "attendance" && (
-          <AttendanceJournal groupId={groupId} students={group.students} />
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Журнал посещаемости</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
+          </motion.div>
         )}
       </div>
 
