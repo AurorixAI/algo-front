@@ -4,21 +4,84 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Settings, Building2, Save, CheckCircle, Shield, Key } from "lucide-react";
+import { Settings, Building2, Save, CheckCircle, Shield, Key, LucideIcon } from "lucide-react";
+
+interface SettingsSectionProps {
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  children: React.ReactNode;
+  onSave: () => void;
+  saving: boolean;
+  saved: boolean;
+  saveText?: string;
+  disabledSave?: boolean;
+}
+
+function SettingsSection({
+  title, description, icon: Icon, children,
+  onSave, saving, saved, saveText = "Сохранить", disabledSave = false
+}: SettingsSectionProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="flex flex-col lg:flex-row gap-8 py-8 border-b border-slate-200 last:border-0"
+    >
+      <div className="lg:w-1/3 shrink-0">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
+            <Icon className="w-5 h-5 text-slate-600" />
+          </div>
+          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+        </div>
+        <p className="text-sm text-slate-500 leading-relaxed ml-[52px]">{description}</p>
+      </div>
+
+      <div className="lg:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 sm:p-8">
+        <div className="space-y-6">
+          {children}
+
+          <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-end">
+            <button
+              onClick={onSave}
+              disabled={saving || disabledSave || saved}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all ${
+                saved
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-slate-900 text-white hover:bg-slate-800 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              }`}
+            >
+              {saving ? (
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : saved ? (
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+              ) : null}
+              {saved ? "Сохранено" : saving ? "Сохранение..." : saveText}
+            </button>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+const inputClasses = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium text-slate-900";
+const labelClasses = "block text-sm font-semibold text-slate-700 mb-1.5";
 
 export default function OwnerSettingsPage() {
   const { org, user } = useAuthStore();
-  
+
   // Forms
   const [orgForm, setOrgForm] = useState({ name: "", city: "", phone: "" });
   const [profileForm, setProfileForm] = useState({ first_name: "", last_name: "", language: "ru" });
   const [passwordForm, setPasswordForm] = useState({ old_password: "", new_password: "", confirm: "" });
-  
+
   // Loading States
   const [savingOrg, setSavingOrg] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  
+
   // Success States
   const [savedOrg, setSavedOrg] = useState(false);
   const [savedProfile, setSavedProfile] = useState(false);
@@ -32,7 +95,10 @@ export default function OwnerSettingsPage() {
   const handleSaveOrg = async () => {
     setSavingOrg(true);
     try {
-      await orgApi.update(orgForm);
+      const updated = await orgApi.update(orgForm);
+      useAuthStore.setState((state) => ({
+        org: { ...state.org, ...(updated ?? orgForm) },
+      }));
       setSavedOrg(true);
       setTimeout(() => setSavedOrg(false), 3000);
     } catch (e: any) {
@@ -45,7 +111,10 @@ export default function OwnerSettingsPage() {
   const handleSaveProfile = async () => {
     setSavingProfile(true);
     try {
-      await authApi.updateProfile(profileForm);
+      const updated = await authApi.updateProfile(profileForm);
+      useAuthStore.setState((state) => ({
+        user: { ...state.user, ...(updated ?? profileForm) },
+      }));
       setSavedProfile(true);
       setTimeout(() => setSavedProfile(false), 3000);
     } catch (e: any) {
@@ -78,56 +147,6 @@ export default function OwnerSettingsPage() {
     }
   };
 
-  // Section Component
-  const SettingsSection = ({ 
-    title, description, icon: Icon, children, 
-    onSave, saving, saved, saveText = "Сохранить", disabledSave = false 
-  }: any) => (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col lg:flex-row gap-8 py-8 border-b border-slate-200 last:border-0"
-    >
-      <div className="lg:w-1/3 shrink-0">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
-            <Icon className="w-5 h-5 text-slate-600" />
-          </div>
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
-        </div>
-        <p className="text-sm text-slate-500 leading-relaxed ml-[52px]">{description}</p>
-      </div>
-      
-      <div className="lg:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 sm:p-8">
-        <div className="space-y-6">
-          {children}
-          
-          <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-end">
-            <button
-              onClick={onSave}
-              disabled={saving || disabledSave || saved}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-all ${
-                saved 
-                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200" 
-                  : "bg-slate-900 text-white hover:bg-slate-800 shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              }`}
-            >
-              {saving ? (
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : saved ? (
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-              ) : null}
-              {saved ? "Сохранено" : saving ? "Сохранение..." : saveText}
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  const inputClasses = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium text-slate-900";
-  const labelClasses = "block text-sm font-semibold text-slate-700 mb-1.5";
-
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-12">
       <div className="mb-8">
@@ -136,7 +155,7 @@ export default function OwnerSettingsPage() {
       </div>
 
       <div className="bg-white/50 rounded-3xl p-2 sm:p-6 lg:p-8 border border-slate-200/50 shadow-sm">
-        
+
         {/* Organization Section */}
         <SettingsSection
           title="Организация"
@@ -261,15 +280,15 @@ export default function OwnerSettingsPage() {
                 />
               </div>
             </div>
-            
+
             {/* Password Message */}
             {passwordMsg && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
-                  passwordMsg.type === 'success' 
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100" 
+                  passwordMsg.type === 'success'
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
                     : "bg-rose-50 text-rose-700 border border-rose-100"
                 }`}
               >
