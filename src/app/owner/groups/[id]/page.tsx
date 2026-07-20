@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2, Lock, Sparkles
+  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
@@ -178,86 +178,170 @@ export default function OwnerGroupDetailPage() {
         <div className="p-6">
           {editing ? (
             /* ── Edit form ── */
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
-                  <Edit2 className="w-5 h-5 text-primary-500" />
+            <div className="space-y-5">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white flex items-center justify-center shadow-sm">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-slate-900 text-base">Редактирование группы</h2>
+                    <p className="text-xs text-slate-500">Изменение названия, преподавателя и лимитов мест</p>
+                  </div>
                 </div>
-                <h2 className="font-semibold text-slate-900">Редактировать группу</h2>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Название</label>
-                  <input
-                    value={editState.name}
-                    onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                    autoFocus
-                  />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Group Name */}
+                <div className="col-span-2 space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Название группы <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <GraduationCap className="w-4 h-4" />
+                    </div>
+                    <input
+                      value={editState.name}
+                      onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="например, 9-А Математика (Профиль)"
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900"
+                      autoFocus
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Класс</label>
-                  <select
-                    value={editState.class_level}
-                    onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  >
-                    <option value="">Без класса</option>
+
+                {/* Class Level */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Класс обучения
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <select
+                      value={editState.class_level}
+                      onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
+                    >
+                      <option value="">Без указания класса</option>
+                      {CLASS_LEVELS.map((n) => (
+                        <option key={n} value={n}>{n} класс</option>
+                      ))}
+                    </select>
+                  </div>
+                  {/* Quick Class Chips */}
+                  <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
+                    <span className="text-[10px] text-slate-400 font-medium shrink-0">Быстрый выбор:</span>
                     {CLASS_LEVELS.map((n) => (
-                      <option key={n} value={n}>{n} класс</option>
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setEditState((s) => ({ ...s, class_level: String(n) }))}
+                        className={`px-2 py-0.5 rounded-md text-[11px] font-medium transition-all ${
+                          editState.class_level === String(n)
+                            ? "bg-primary-600 text-white shadow-xs"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                        }`}
+                      >
+                        {n} кл
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Макс. учеников</label>
-                  <input
-                    type="number" min={1} max={200}
-                    value={editState.max_students}
-                    onChange={(e) => setEditState((s) => ({ ...s, max_students: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  />
+
+                {/* Max Students */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Максимум учеников
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="number"
+                      min={Math.max(1, group.student_count)}
+                      max={200}
+                      value={editState.max_students}
+                      onChange={(e) => setEditState((s) => ({ ...s, max_students: e.target.value }))}
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 flex items-center gap-1 pt-0.5">
+                    <Info className="w-3.5 h-3.5 text-primary-500 shrink-0" />
+                    <span>В группе сейчас: <strong className="text-slate-900">{group.student_count}</strong> учеников (мин. {group.student_count || 1})</span>
+                  </p>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Учитель</label>
-                  <select
-                    value={editState.teacher_id}
-                    onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  >
-                    <option value="">Не назначен</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+
+                {/* Teacher Selection */}
+                <div className="col-span-2 space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Преподаватель группы
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                      <UserCheck className="w-4 h-4" />
+                    </div>
+                    <select
+                      value={editState.teacher_id}
+                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
+                    >
+                      <option value="">Не назначен (Учитель отсутствует)</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name} {t.email ? `(${t.email})` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Описание</label>
-                  <textarea
-                    value={editState.description}
-                    onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
-                    rows={2}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
-                  />
+
+                {/* Description */}
+                <div className="col-span-2 space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                    Описание группы
+                  </label>
+                  <div className="relative">
+                    <div className="absolute top-3 left-3.5 text-slate-400 pointer-events-none">
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <textarea
+                      value={editState.description}
+                      onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
+                      rows={2}
+                      placeholder="Дополнительная информация о группе, расписании или целях обучения..."
+                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all resize-none text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  onClick={handleSave}
-                  disabled={!editState.name.trim() || saving}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {saving ? "Сохранение…" : "Сохранить"}
-                </button>
-                <button
-                  onClick={() => { setEditing(false); }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-slate-600 hover:text-slate-900 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Отмена
-                </button>
+              {/* Form Action Buttons */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSave}
+                    disabled={!editState.name.trim() || saving || Number(editState.max_students) < group.student_count}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-600/20 cursor-pointer"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {saving ? "Сохранение…" : "Сохранить изменения"}
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="flex items-center gap-1.5 px-5 py-2.5 text-slate-600 hover:text-slate-900 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                    Отмена
+                  </button>
+                </div>
+
+                {Number(editState.max_students) < group.student_count && (
+                  <p className="text-xs text-red-500 font-medium">
+                    Лимит не может быть меньше {group.student_count} учеников
+                  </p>
+                )}
               </div>
             </div>
           ) : (
