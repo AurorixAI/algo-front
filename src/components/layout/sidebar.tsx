@@ -43,14 +43,17 @@ interface NavItem {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, org, logout } = useAuthStore();
   const { collapsed, toggle } = useSidebarStore();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
   const rawRole = user?.role || user?.org_role || "teacher";
   const role = rawRole === "owner" ? "admin" : rawRole;
-  const orgName = user?.org_name || "ALGO";
+  // Читаем из org-стора (обновляется сразу через useAuthStore.setState в
+  // настройках), а не из user.org_name — то поле выставляется только при
+  // логине и не отражает изменения названия организации на лету.
+  const orgName = org?.name || user?.org_name || "ALGO";
 
   const adminNav: NavItem[] = [
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
