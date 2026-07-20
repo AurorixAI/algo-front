@@ -139,7 +139,7 @@ export default function AdminDiagnosticsPage() {
         <FeatureLock
           variant="inline"
           title="Новая диагностика"
-          description="Создание новых диагностик временно недоступно и будет открыто в ближайшем обновлении."
+          description="Доступно после базовой настройки"
         >
           <Link
             href="/admin/students/new"

@@ -6,8 +6,8 @@ import { FileText } from "lucide-react";
 export default function ExamSessionsPage() {
   return (
     <ComingSoon
-      title="Экзамены в разработке"
-      description="Результаты прохождения контрольных работ учениками будут доступны в следующем обновлении."
+      title="Экзамены"
+      description="Результаты прохождения контрольных работ учениками откроются после завершения этапов подключения центра."
       icon={FileText}
       color="primary"
     />

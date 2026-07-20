@@ -7,7 +7,7 @@ export default function NewStudentPage() {
   return (
     <ComingSoon
       title="Новая диагностика"
-      description="Регистрация учеников и запуск диагностических тестов будут доступны в ближайшем обновлении."
+      description="Регистрация учеников и запуск диагностических тестов откроются после завершения этапов подключения центра."
       icon={Brain}
       color="primary"
       features={[

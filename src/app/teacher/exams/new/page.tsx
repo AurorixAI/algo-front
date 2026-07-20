@@ -7,7 +7,7 @@ export default function NewExamPage() {
   return (
     <ComingSoon
       title="Создать экзамен"
-      description="Генерация контрольных работ и быстрых проверок будет доступна в следующем обновлении."
+      description="Генерация контрольных работ и быстрых проверок откроется после завершения этапов подключения центра."
       icon={FileText}
       color="primary"
       features={[

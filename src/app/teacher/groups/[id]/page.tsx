@@ -14,6 +14,7 @@ import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { AddStudentDrawer } from "@/components/groups/add-student-drawer";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { AttendanceJournal } from "@/components/groups/attendance-journal";
+import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { BookOpen } from "lucide-react";
 
 type Tab = "students" | "analytics" | "attendance";
@@ -97,6 +98,9 @@ export default function TeacherGroupDetailPage() {
         <span>/</span>
         <span className="text-slate-900 font-medium">{group.name}</span>
       </div>
+
+      {/* Вывеска: расширенные модули группы откроются после этапов подключения */}
+      <PhaseLockBanner />
 
       {/* Group header */}
       <motion.div

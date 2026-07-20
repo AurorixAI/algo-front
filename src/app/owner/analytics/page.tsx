@@ -7,7 +7,7 @@ export default function OwnerAnalyticsPage() {
   return (
     <ComingSoon
       title="Аналитика организации"
-      description="Этот раздел находится в разработке и будет доступен в следующем обновлении."
+      description="Модуль откроется после завершения 1-2 этапа подключения центра."
       icon={BarChart3}
       color="purple"
       features={[

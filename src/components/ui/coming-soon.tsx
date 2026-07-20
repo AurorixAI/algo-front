@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { Clock, Sparkles, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { type LucideIcon } from "lucide-react";
+import { LOCK_COPY } from "@/lib/lock-copy";
 
 interface ComingSoonProps {
   title: string;
@@ -65,7 +66,7 @@ export function ComingSoon({ title, description, icon: Icon, features = [], colo
           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium mb-6"
         >
           <Clock className="w-3.5 h-3.5" />
-          В разработке
+          {LOCK_COPY.badge}
         </motion.div>
 
         {/* Icon */}

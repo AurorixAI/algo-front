@@ -7,7 +7,7 @@ export default function TeacherSchedulePage() {
   return (
     <ComingSoon
       title="Расписание занятий"
-      description="Интерактивный календарь и планирование уроков находятся на стадии разработки."
+      description="Интерактивный календарь и планирование уроков откроются после завершения этапов подключения центра."
       icon={Calendar}
       color="purple"
       features={[

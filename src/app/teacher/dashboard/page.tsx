@@ -82,7 +82,7 @@ export default function TeacherDashboardPage() {
           <FeatureLock
             variant="inline"
             title="Создать экзамен"
-            description="Генерация контрольных работ временно недоступна и появится в следующем обновлении."
+            description="Доступно после базовой настройки"
           >
             <Link
               href="/teacher/exams/new"
@@ -126,7 +126,7 @@ export default function TeacherDashboardPage() {
                 key={i}
                 variant="inline"
                 title={s.label}
-                description="Эта метрика временно рассчитывается на основе демонстрационных данных."
+                description="Ожидает завершения этапов подключения"
                 className="w-full h-full"
               >
                 {cardContent}
@@ -198,21 +198,23 @@ export default function TeacherDashboardPage() {
         <div className="space-y-8">
           <FeatureLock
             title="Расписание на сегодня"
-            description="Панель расписания и интерактивный календарь находятся в разработке."
+            description="Модуль откроется после завершения 1-2 этапа подключения центра."
           >
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 w-full">
-              <div className="flex items-center justify-between mb-6">
+              {/* pr-24 резервирует место под бейдж «Скоро» (absolute top-4 right-4),
+                  чтобы ссылка «Календарь» не перекрывалась им */}
+              <div className="flex items-center justify-between gap-3 mb-6 pr-24">
                 <h2 className="text-xl font-bold text-slate-900">
                   Расписание на сегодня
                 </h2>
-                <Link href="/teacher/schedule" className="text-sm font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1">
+                <Link href="/teacher/schedule" className="text-sm font-medium text-violet-600 hover:text-violet-700 flex items-center gap-1 shrink-0">
                   Календарь
                 </Link>
               </div>
 
               <div className="text-center py-8 text-slate-400 text-sm">
                 <CalendarIcon className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                Модуль расписания в разработке
+                Откроется после этапов подключения
               </div>
 
               <button disabled className="w-full mt-6 py-2.5 rounded-xl border-2 border-dashed border-slate-200 text-slate-400 font-medium text-sm cursor-not-allowed flex items-center justify-center gap-2 opacity-60">

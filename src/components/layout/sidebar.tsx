@@ -19,6 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LOCK_COPY } from "@/lib/lock-copy";
 import { useAuthStore } from "@/lib/store";
 import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
@@ -169,7 +170,7 @@ export function Sidebar() {
               {!collapsed && (
                 <>
                   <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">
-                    В разработке
+                    После подключения
                   </span>
                   <div className="flex-1 border-t border-dashed border-slate-200" />
                 </>
@@ -190,14 +191,14 @@ export function Sidebar() {
                   "flex items-center gap-3 rounded-xl text-sm font-medium transition-all relative cursor-default opacity-50 text-slate-400",
                   collapsed ? "justify-center py-2" : "px-3 py-2"
                 )}
-                title={collapsed ? item.label + " (скоро)" : undefined}
+                title={collapsed ? `${item.label} · ${LOCK_COPY.tooltip}` : undefined}
               >
                 <Icon className="w-5 h-5 shrink-0 text-slate-300" />
                 {!collapsed && (
                   <>
                     <span className="truncate">{item.label}</span>
                     <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-300 shrink-0">
-                      скоро
+                      {LOCK_COPY.badge}
                     </span>
                   </>
                 )}

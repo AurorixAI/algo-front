@@ -272,10 +272,10 @@ export default function OwnerDashboard() {
           so this stays locked with an honest empty state (no invented names). */}
       <FeatureLock
         title="Уроки сейчас"
-        description="Интерактивная панель мониторинга уроков в реальном времени появится в следующем обновлении."
+        description="Модуль откроется после завершения 1-2 этапа подключения центра."
       >
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm flex flex-col overflow-hidden w-full">
-          <div className="p-6 md:p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-6 md:p-8 md:pr-28 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
                 <span className="relative flex h-3.5 w-3.5">
@@ -296,7 +296,7 @@ export default function OwnerDashboard() {
 
           <div className="p-10 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30">
             <Video className="w-8 h-8 mb-2 opacity-40" />
-            <p className="text-sm">Модуль отслеживания уроков в реальном времени в разработке</p>
+            <p className="text-sm">Откроется после этапов подключения</p>
           </div>
         </motion.div>
       </FeatureLock>

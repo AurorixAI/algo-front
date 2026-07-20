@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Clock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LOCK_COPY } from "@/lib/lock-copy";
 
 interface FeatureLockProps {
   children: React.ReactNode;
@@ -14,24 +16,158 @@ interface FeatureLockProps {
   className?: string;
 }
 
+interface TooltipPos {
+  top: number;
+  left: number;
+  /** Смещение «носика» тултипа относительно его левого края. */
+  arrowLeft: number;
+  placement: "top" | "bottom";
+}
+
+const TOOLTIP_WIDTH = 256; // w-64
+const VIEWPORT_PADDING = 8;
+const ANCHOR_GAP = 8;
+
+// Избегаем предупреждения useLayoutEffect при SSR.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+/**
+ * Тултип, который рендерится в портале (position: fixed) и сам вычисляет
+ * своё положение относительно триггера и краёв экрана. За счёт портала он
+ * не обрезается родительскими контейнерами с overflow-hidden, а clamp по
+ * ширине/высоте не даёт ему выйти за границы вьюпорта.
+ */
+function ViewportTooltip({
+  show,
+  anchorRef,
+  title,
+  description,
+}: {
+  show: boolean;
+  anchorRef: React.RefObject<HTMLElement>;
+  title: string;
+  description: string;
+}) {
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+  const [pos, setPos] = useState<TooltipPos | null>(null);
+
+  useEffect(() => setMounted(true), []);
+
+  useIsomorphicLayoutEffect(() => {
+    // Пока скрыт — не пересчитываем и сохраняем последнюю позицию,
+    // чтобы анимация закрытия проигрывалась на месте, а не улетала за экран.
+    if (!show) return;
+
+    const compute = () => {
+      const anchor = anchorRef.current;
+      const tip = tipRef.current;
+      if (!anchor || !tip) return;
+
+      const a = anchor.getBoundingClientRect();
+      const t = tip.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      const centerX = a.left + a.width / 2;
+      // Горизонтальный clamp — тултип всегда остаётся внутри экрана.
+      let left = centerX - t.width / 2;
+      left = Math.max(VIEWPORT_PADDING, Math.min(left, vw - t.width - VIEWPORT_PADDING));
+
+      // По умолчанию над триггером; если сверху не хватает места — снизу.
+      let placement: "top" | "bottom" = "top";
+      let top = a.top - ANCHOR_GAP - t.height;
+      if (top < VIEWPORT_PADDING) {
+        placement = "bottom";
+        top = a.bottom + ANCHOR_GAP;
+        if (top + t.height > vh - VIEWPORT_PADDING) {
+          top = Math.max(VIEWPORT_PADDING, vh - t.height - VIEWPORT_PADDING);
+        }
+      }
+
+      const arrowLeft = Math.max(12, Math.min(centerX - left, t.width - 12));
+      setPos({ top, left, arrowLeft, placement });
+    };
+
+    compute();
+    window.addEventListener("scroll", compute, true);
+    window.addEventListener("resize", compute);
+    return () => {
+      window.removeEventListener("scroll", compute, true);
+      window.removeEventListener("resize", compute);
+    };
+  }, [show, anchorRef, title, description]);
+
+  if (!mounted) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          ref={tipRef}
+          initial={{ opacity: 0, y: 6, scale: 0.96 }}
+          animate={{ opacity: pos ? 1 : 0, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 6, scale: 0.96 }}
+          transition={{ duration: 0.15 }}
+          role="tooltip"
+          style={{
+            position: "fixed",
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            width: TOOLTIP_WIDTH,
+          }}
+          className="z-[9999] bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl p-3 shadow-xl pointer-events-none border border-white/10"
+        >
+          <div className="flex gap-2 items-start">
+            <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-slate-100 text-left">{title}</p>
+              <p className="text-slate-300 mt-0.5 leading-relaxed text-left">{description}</p>
+            </div>
+          </div>
+          {/* Носик — направлен к триггеру в зависимости от placement */}
+          {pos && (
+            <div
+              className={cn(
+                "absolute border-4 border-transparent",
+                pos.placement === "top"
+                  ? "top-full border-t-slate-900/95"
+                  : "bottom-full border-b-slate-900/95"
+              )}
+              style={{ left: pos.arrowLeft, transform: "translateX(-50%)" }}
+            />
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body
+  );
+}
+
 export function FeatureLock({
   children,
   enabled = true,
-  title = "Функция в разработке",
-  description = "Этот раздел находится в активной разработке и будет доступен в ближайшем обновлении.",
+  title = "Скоро доступно",
+  description,
   variant = "block",
   className,
 }: FeatureLockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   if (!enabled) return <>{children}</>;
 
   const showOverlay = isHovered || isFocused;
+  // Разные дефолты для маленьких тултипов и больших оверлеев.
+  const resolvedDescription =
+    description ?? (variant === "inline" ? LOCK_COPY.tooltip : LOCK_COPY.screen);
 
   if (variant === "inline") {
     return (
       <div
+        ref={wrapperRef}
         className={cn("relative inline-block group", className)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -39,7 +175,7 @@ export function FeatureLock({
         onBlur={() => setIsFocused(false)}
         tabIndex={0}
         role="region"
-        aria-label={`${title}: ${description}`}
+        aria-label={`${title}: ${resolvedDescription}`}
       >
         {/* Child wrapper - disabled interactions */}
         <div className="pointer-events-none select-none opacity-60 filter saturate-50 cursor-not-allowed">
@@ -51,27 +187,13 @@ export function FeatureLock({
           <Lock className="w-2.5 h-2.5" />
         </div>
 
-        {/* Tooltip */}
-        <AnimatePresence>
-          {showOverlay && (
-            <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-64 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl p-3 shadow-xl z-50 pointer-events-none border border-white/10"
-            >
-              <div className="flex gap-2 items-start">
-                <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-slate-100 text-left">{title}</p>
-                  <p className="text-slate-300 mt-0.5 leading-relaxed text-left">{description}</p>
-                </div>
-              </div>
-              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900/95" />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Viewport-aware tooltip (в портале, не обрезается родителем) */}
+        <ViewportTooltip
+          show={showOverlay}
+          anchorRef={wrapperRef}
+          title={title}
+          description={resolvedDescription}
+        />
       </div>
     );
   }
@@ -86,7 +208,7 @@ export function FeatureLock({
       onBlur={() => setIsFocused(false)}
       tabIndex={0}
       role="region"
-      aria-label={`${title}: ${description}`}
+      aria-label={`${title}: ${resolvedDescription}`}
     >
       {/* Child Container with blur effect */}
       <div
@@ -100,9 +222,9 @@ export function FeatureLock({
       </div>
 
       {/* Static/Normal state Badge in corner */}
-      <div className="absolute top-4 right-4 bg-slate-100/80 backdrop-blur-md text-slate-500 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-200/50 flex items-center gap-1.5 shadow-sm group-hover:opacity-0 transition-opacity duration-300 pointer-events-none">
+      <div className="absolute top-4 right-4 bg-slate-100/80 backdrop-blur-md text-slate-500 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-200/50 flex items-center gap-1.5 shadow-sm group-hover:opacity-0 transition-opacity duration-300 pointer-events-none z-30">
         <Lock className="w-3.5 h-3.5 text-amber-500" />
-        <span>Скоро</span>
+        <span>{LOCK_COPY.badge}</span>
       </div>
 
       {/* Frosted/Blur Overlay */}
@@ -127,11 +249,11 @@ export function FeatureLock({
               </div>
               <div>
                 <h4 className="text-sm font-bold text-slate-800">{title}</h4>
-                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{description}</p>
+                <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{resolvedDescription}</p>
               </div>
               <div className="text-[10px] font-semibold text-slate-400 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-500" />
-                <span>Будет доступно в будущем обновлении</span>
+                <span>{LOCK_COPY.hint}</span>
               </div>
             </motion.div>
           </motion.div>
