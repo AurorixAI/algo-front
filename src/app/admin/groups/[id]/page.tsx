@@ -13,7 +13,7 @@ import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { AttendanceJournal } from "@/components/groups/attendance-journal";
-import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
+import { Select } from "@/components/ui/select";
 import { BookOpen } from "lucide-react";
 
 type Tab = "students" | "analytics" | "attendance" | "settings";
@@ -210,47 +210,31 @@ export default function AdminGroupDetailPage() {
                 </div>
 
                 {/* Teacher Selection */}
-                <div className="col-span-2 space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                    Преподаватель группы
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={editState.teacher_id}
-                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
-                    >
-                      <option value="">— Не назначен</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
+                <div className="col-span-2">
+                  <Select
+                    label="Преподаватель группы"
+                    placeholder="— Не назначен (Учитель отсутствует)"
+                    value={editState.teacher_id}
+                    onChange={(val) => setEditState((s) => ({ ...s, teacher_id: val }))}
+                    options={[
+                      { value: "", label: "— Не назначен (Учитель отсутствует)" },
+                      ...teachers.map((t) => ({ value: t.id, label: t.name })),
+                    ]}
+                  />
                 </div>
 
                 {/* Class Level */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
-                    Класс обучения
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={editState.class_level}
-                      onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
-                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
-                    >
-                      <option value="">Без указания класса</option>
-                      {CLASS_LEVELS.map((n) => (
-                        <option key={n} value={n}>{n} класс</option>
-                      ))}
-                    </select>
-                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                      <ChevronDown className="w-4 h-4" />
-                    </div>
-                  </div>
+                <div>
+                  <Select
+                    label="Класс обучения"
+                    placeholder="Без указания класса"
+                    value={editState.class_level}
+                    onChange={(val) => setEditState((s) => ({ ...s, class_level: val }))}
+                    options={[
+                      { value: "", label: "Без указания класса" },
+                      ...CLASS_LEVELS.map((n) => ({ value: String(n), label: `${n} класс` })),
+                    ]}
+                  />
                 </div>
 
                 {/* Max Students */}
