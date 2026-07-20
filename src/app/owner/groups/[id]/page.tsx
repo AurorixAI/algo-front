@@ -216,21 +216,16 @@ export default function OwnerGroupDetailPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Класс обучения
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <select
-                      value={editState.class_level}
-                      onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
-                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
-                    >
-                      <option value="">Без указания класса</option>
-                      {CLASS_LEVELS.map((n) => (
-                        <option key={n} value={n}>{n} класс</option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    value={editState.class_level}
+                    onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
+                  >
+                    <option value="">Без указания класса</option>
+                    {CLASS_LEVELS.map((n) => (
+                      <option key={n} value={n}>{n} класс</option>
+                    ))}
+                  </select>
                   {/* Quick Class Chips */}
                   <div className="flex items-center gap-1.5 pt-1 overflow-x-auto">
                     <span className="text-[10px] text-slate-400 font-medium shrink-0">Быстрый выбор:</span>
@@ -280,21 +275,16 @@ export default function OwnerGroupDetailPage() {
                   <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
                     Преподаватель группы
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                      <UserCheck className="w-4 h-4" />
-                    </div>
-                    <select
-                      value={editState.teacher_id}
-                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                      className="w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
-                    >
-                      <option value="">Не назначен (Учитель отсутствует)</option>
-                      {teachers.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name} {t.email ? `(${t.email})` : ""}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <select
+                    value={editState.teacher_id}
+                    onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 outline-none transition-all font-medium text-slate-900 bg-white cursor-pointer"
+                  >
+                    <option value="">Не назначен (Учитель отсутствует)</option>
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Description */}
