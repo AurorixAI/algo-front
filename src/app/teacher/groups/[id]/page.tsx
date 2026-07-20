@@ -249,6 +249,7 @@ export default function TeacherGroupDetailPage() {
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
               <span>Доступ к разделу временно ограничен</span>
+            </div>
           </motion.div>
         )}
       </motion.div>
