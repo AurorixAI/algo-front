@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info
+  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
@@ -214,34 +214,22 @@ export default function AdminGroupDetailPage() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Класс обучения
                   </label>
-                  <select
-                    value={editState.class_level}
-                    onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer"
-                  >
-                    <option value="">Без указания класса</option>
-                    {CLASS_LEVELS.map((n) => (
-                      <option key={n} value={n}>{n} класс</option>
-                    ))}
-                  </select>
-                  {/* Quick Class Chips */}
-                  <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
-                    <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider shrink-0">Быстро:</span>
-                    {CLASS_LEVELS.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setEditState((s) => ({ ...s, class_level: String(n) }))}
-                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
-                          editState.class_level === String(n)
-                            ? "bg-primary-600 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    ))}
+                  <div className="relative">
+                    <select
+                      value={editState.class_level}
+                      onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
+                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
+                    >
+                      <option value="">Без указания класса</option>
+                      {CLASS_LEVELS.map((n) => (
+                        <option key={n} value={n}>{n} класс</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
                   </div>
+
                 </div>
 
                 {/* Max Students */}
@@ -273,16 +261,21 @@ export default function AdminGroupDetailPage() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Преподаватель группы
                   </label>
-                  <select
-                    value={editState.teacher_id}
-                    onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer"
-                  >
-                    <option value="">— Не назначен</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={editState.teacher_id}
+                      onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
+                      className="w-full px-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all cursor-pointer appearance-none"
+                    >
+                      <option value="">— Не назначен</option>
+                      {teachers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Description */}
@@ -290,18 +283,13 @@ export default function AdminGroupDetailPage() {
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Описание группы
                   </label>
-                  <div className="relative">
-                    <div className="absolute top-3.5 left-4 text-slate-400 pointer-events-none">
-                      <FileText className="w-4 h-4" />
-                    </div>
-                    <textarea
-                      value={editState.description}
-                      onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
-                      rows={3}
-                      placeholder="Дополнительная информация о группе, расписании или целях обучения..."
-                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all resize-none"
-                    />
-                  </div>
+                  <textarea
+                    value={editState.description}
+                    onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
+                    rows={2}
+                    placeholder="Дополнительная информация о группе, расписании или целях обучения..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all resize-none"
+                  />
                 </div>
               </div>
 

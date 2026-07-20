@@ -1,0 +1,29 @@
+# ==============================================================================
+# ALGO Frontend — DEV режим с горячей перезагрузкой (Hot Reload)
+# Запуск: docker compose -f docker-compose.dev.yml up
+# Изменения в src/ подхватываются СРАЗУ без пересборки образа
+# ==============================================================================
+
+services:
+  frontend-dev:
+    image: node:20-alpine
+    container_name: algo-frontend-dev
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      - NEXT_PUBLIC_AUTH_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_EXAM_API_URL=http://localhost:8003
+      - NEXT_PUBLIC_DIAG_API_URL=http://localhost:8002
+      # Watchpack polling для корректного hot-reload внутри Docker
+      - WATCHPACK_POLLING=true
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      # Монтируем исходники напрямую — изменения видны мгновенно
+      - .:/app
+      # node_modules остаётся внутри контейнера (не заменяется хостовым)
+      - /app/node_modules
+    command: sh -c "npm install --legacy-peer-deps && npm run dev"
+    restart: unless-stopped
