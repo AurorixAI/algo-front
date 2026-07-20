@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown
+  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
@@ -115,10 +115,22 @@ export default function OwnerGroupDetailPage() {
     if (!confirm(`Архивировать группу «${group.name}»? Ученики останутся в системе.`)) return;
     try {
       await orgApi.archiveGroup(group.id);
-      showToast("Группа архивирована");
-      setTimeout(() => router.push("/owner/groups"), 1000);
+      setGroup((prev) => prev ? { ...prev, status: "archived" } : null);
+      showToast("Группа перемещена в архив");
     } catch (e: any) {
-      showToast(e.message || "Ошибка", "error");
+      showToast(e.message || "Ошибка архивации", "error");
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!group) return;
+    if (!confirm(`Восстановить группу «${group.name}» из архива?`)) return;
+    try {
+      await orgApi.unarchiveGroup(group.id);
+      setGroup((prev) => prev ? { ...prev, status: "active" } : null);
+      showToast("Группа восстановлена из архива");
+    } catch (e: any) {
+      showToast(e.message || "Ошибка восстановления", "error");
     }
   };
 
@@ -326,7 +338,16 @@ export default function OwnerGroupDetailPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {group.status === "active" && (
+                  {group.status === "archived" ? (
+                    <button
+                      onClick={handleUnarchive}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-xs cursor-pointer"
+                      title="Восстановить группу из архива"
+                    >
+                      <RotateCcw className="w-4 h-4 text-emerald-600" />
+                      Восстановить из архива
+                    </button>
+                  ) : (
                     <>
                       <button
                         onClick={() => setEditing(true)}
