@@ -18,7 +18,7 @@ interface SelectProps {
   options: SelectOption[];
   placeholder?: string;
   value?: string;
-  onChange?: (value: string) => void;
+  onChange?: (e: any) => void;
   className?: string;
   buttonClassName?: string;
 }
@@ -49,7 +49,10 @@ export function Select({
   }, []);
 
   const handleSelect = (val: string) => {
-    onChange?.(val);
+    // Pass standard event object { target: { value: val } } for backward compatibility
+    // with inputs like onChange={(e) => setValue(e.target.value)}
+    const event = { target: { value: val } };
+    onChange?.(event);
     setOpen(false);
   };
 
