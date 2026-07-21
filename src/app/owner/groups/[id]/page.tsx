@@ -227,7 +227,7 @@ export default function OwnerGroupDetailPage() {
                     label="Преподаватель группы"
                     placeholder="— Не назначен (Учитель отсутствует)"
                     value={editState.teacher_id}
-                    onChange={(val) => setEditState((s) => ({ ...s, teacher_id: val }))}
+                    onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
                     options={[
                       { value: "", label: "— Не назначен (Учитель отсутствует)" },
                       ...teachers.map((t) => ({ value: t.id, label: t.name })),
@@ -241,7 +241,7 @@ export default function OwnerGroupDetailPage() {
                     label="Класс обучения"
                     placeholder="Без указания класса"
                     value={editState.class_level}
-                    onChange={(val) => setEditState((s) => ({ ...s, class_level: val }))}
+                    onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
                     options={[
                       { value: "", label: "Без указания класса" },
                       ...CLASS_LEVELS.map((n) => ({ value: String(n), label: `${n} класс` })),
