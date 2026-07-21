@@ -4,14 +4,13 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users, BarChart2, Settings,
-  GraduationCap, Loader2, Edit2, Check, X
+  ArrowLeft, Users, BarChart2, Settings,
+  GraduationCap, Loader2, Edit2, Check, X, Lock, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
-import { AddStudentDrawer } from "@/components/groups/add-student-drawer";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { AttendanceJournal } from "@/components/groups/attendance-journal";
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
@@ -29,7 +28,6 @@ export default function TeacherGroupDetailPage() {
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showAddDrawer, setShowAddDrawer] = useState(false);
 
   const tab = (searchParams?.get("tab") as Tab) || "students";
   const setTab = (newTab: Tab) => {
@@ -98,9 +96,6 @@ export default function TeacherGroupDetailPage() {
         <span>/</span>
         <span className="text-slate-900 font-medium">{group.name}</span>
       </div>
-
-      {/* Вывеска: расширенные модули группы откроются после этапов подключения */}
-      <PhaseLockBanner />
 
       {/* Group header */}
       <motion.div
@@ -216,13 +211,6 @@ export default function TeacherGroupDetailPage() {
                 Состав группы
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
-              <button
-                onClick={() => setShowAddDrawer(true)}
-                className="flex items-center gap-1.5 px-4 py-2 bg-primary-50 text-primary-700 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors border border-primary-100"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                Добавить
-              </button>
             </div>
 
             <GroupStudentTable
@@ -234,34 +222,37 @@ export default function TeacherGroupDetailPage() {
         )}
 
         {tab === "analytics" && (
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            {stats ? (
-              <GroupStatsPanel stats={stats} />
-            ) : (
-              <div className="flex items-center justify-center py-12 text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-            )}
-          </div>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
+          </motion.div>
         )}
 
         {tab === "attendance" && (
-          <AttendanceJournal groupId={groupId} students={group.students} />
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Журнал посещаемости</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
+          </motion.div>
         )}
       </motion.div>
-
-      {/* Add student drawer */}
-      <AddStudentDrawer
-        open={showAddDrawer}
-        groupId={groupId}
-        groupClassLevel={group.class_level}
-        existingStudentIds={existingIds}
-        onClose={() => setShowAddDrawer(false)}
-        onAdded={() => {
-          setShowAddDrawer(false);
-          load();
-        }}
-      />
     </div>
   );
 }

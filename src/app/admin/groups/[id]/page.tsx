@@ -4,17 +4,16 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users, BarChart2,
+  ArrowLeft, Users, BarChart2,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2
+  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
-import { AddStudentDrawer } from "@/components/groups/add-student-drawer";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { AttendanceJournal } from "@/components/groups/attendance-journal";
-import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
+import { Select } from "@/components/ui/select";
 import { BookOpen } from "lucide-react";
 
 type Tab = "students" | "analytics" | "attendance" | "settings";
@@ -39,7 +38,6 @@ export default function AdminGroupDetailPage() {
   const [stats, setStats] = useState<GroupStats | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddDrawer, setShowAddDrawer] = useState(false);
 
   const tab = (searchParams?.get("tab") as Tab) || "students";
   const setTab = (newTab: Tab) => {
@@ -117,10 +115,22 @@ export default function AdminGroupDetailPage() {
     if (!confirm(`Архивировать группу «${group.name}»? Ученики останутся в системе.`)) return;
     try {
       await orgApi.archiveGroup(group.id);
-      showToast("Группа архивирована");
-      setTimeout(() => router.push("/admin/groups"), 1000);
+      setGroup((prev) => prev ? { ...prev, status: "archived" } : null);
+      showToast("Группа перемещена в архив");
     } catch (e: any) {
-      showToast(e.message || "Ошибка", "error");
+      showToast(e.message || "Ошибка архивации", "error");
+    }
+  };
+
+  const handleUnarchive = async () => {
+    if (!group) return;
+    if (!confirm(`Восстановить группу «${group.name}» из архива?`)) return;
+    try {
+      await orgApi.unarchiveGroup(group.id);
+      setGroup((prev) => prev ? { ...prev, status: "active" } : null);
+      showToast("Группа восстановлена из архива");
+    } catch (e: any) {
+      showToast(e.message || "Ошибка восстановления", "error");
     }
   };
 
@@ -170,9 +180,6 @@ export default function AdminGroupDetailPage() {
         )}
       </div>
 
-      {/* Вывеска: расширенные модули группы откроются после этапов подключения */}
-      <PhaseLockBanner />
-
       {/* Group header card */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -183,86 +190,130 @@ export default function AdminGroupDetailPage() {
         <div className="p-6">
           {editing ? (
             /* ── Edit form ── */
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
-                  <Edit2 className="w-5 h-5 text-primary-500" />
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                  <Edit2 className="w-5 h-5" />
                 </div>
-                <h2 className="font-semibold text-slate-900">Редактировать группу</h2>
+                <div>
+                  <h2 className="font-bold text-slate-900 text-base">Редактирование группы</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Изменение названия, преподавателя и лимитов мест</p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-5">
+                {/* Group Name */}
+                <div className="col-span-2 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                    Название группы <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                      <GraduationCap className="w-4.5 h-4.5" />
+                    </div>
+                    <input
+                      value={editState.name}
+                      onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                      placeholder="например, 9-А Математика (Профиль)"
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all"
+                      autoFocus
+                    />
+                  </div>
+                </div>
+
+                {/* Teacher Selection */}
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Название</label>
-                  <input
-                    value={editState.name}
-                    onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Класс</label>
-                  <select
-                    value={editState.class_level}
-                    onChange={(e) => setEditState((s) => ({ ...s, class_level: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  >
-                    <option value="">Без класса</option>
-                    {CLASS_LEVELS.map((n) => (
-                      <option key={n} value={n}>{n} класс</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Макс. учеников</label>
-                  <input
-                    type="number" min={1} max={200}
-                    value={editState.max_students}
-                    onChange={(e) => setEditState((s) => ({ ...s, max_students: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Учитель</label>
-                  <select
+                  <Select
+                    label="Преподаватель группы"
+                    placeholder="— Не назначен (Учитель отсутствует)"
                     value={editState.teacher_id}
-                    onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  >
-                    <option value="">Не назначен</option>
-                    {teachers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </select>
+                    onChange={(val) => setEditState((s) => ({ ...s, teacher_id: val }))}
+                    options={[
+                      { value: "", label: "— Не назначен (Учитель отсутствует)" },
+                      ...teachers.map((t) => ({ value: t.id, label: t.name })),
+                    ]}
+                  />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Описание</label>
+
+                {/* Class Level */}
+                <div>
+                  <Select
+                    label="Класс обучения"
+                    placeholder="Без указания класса"
+                    value={editState.class_level}
+                    onChange={(val) => setEditState((s) => ({ ...s, class_level: val }))}
+                    options={[
+                      { value: "", label: "Без указания класса" },
+                      ...CLASS_LEVELS.map((n) => ({ value: String(n), label: `${n} класс` })),
+                    ]}
+                  />
+                </div>
+
+                {/* Max Students */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                    Максимум учеников
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
+                      <Users className="w-4 h-4" />
+                    </div>
+                    <input
+                      type="number"
+                      min={Math.max(1, group.student_count)}
+                      max={200}
+                      value={editState.max_students}
+                      onChange={(e) => setEditState((s) => ({ ...s, max_students: e.target.value }))}
+                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all"
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <Info className="w-3.5 h-3.5 text-primary-400 shrink-0" />
+                    <span>Сейчас в группе: <strong className="text-slate-700">{group.student_count}</strong> учеников · мин. {group.student_count || 1}</span>
+                  </p>
+                </div>
+
+                {/* Description */}
+                <div className="col-span-2 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                    Описание группы
+                  </label>
                   <textarea
                     value={editState.description}
                     onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
                     rows={2}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 outline-none resize-none"
+                    placeholder="Дополнительная информация о группе, расписании или целях обучения..."
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all resize-none"
                   />
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  onClick={handleSave}
-                  disabled={!editState.name.trim() || saving}
-                  className="flex items-center gap-1.5 px-5 py-2 bg-primary-600 text-white rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                  {saving ? "Сохранение…" : "Сохранить"}
-                </button>
-                <button
-                  onClick={() => { setEditing(false); }}
-                  className="flex items-center gap-1.5 px-4 py-2 text-slate-600 hover:text-slate-900 rounded-xl text-sm font-medium hover:bg-slate-50 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                  Отмена
-                </button>
+              {/* Form Action Buttons */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleSave}
+                    disabled={!editState.name.trim() || saving || Number(editState.max_students) < group.student_count}
+                    className="flex items-center gap-2 px-7 py-3 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                    {saving ? "Сохранение…" : "Сохранить изменения"}
+                  </button>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="flex items-center gap-1.5 px-5 py-3 text-slate-500 hover:text-slate-800 rounded-xl text-sm font-medium hover:bg-slate-100 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Отмена
+                  </button>
+                </div>
+
+                {Number(editState.max_students) < group.student_count && (
+                  <p className="text-xs text-red-500 font-medium flex items-center gap-1">
+                    <Info className="w-3.5 h-3.5" />
+                    Лимит не может быть меньше {group.student_count} учеников
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -287,7 +338,16 @@ export default function AdminGroupDetailPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                  {group.status === "active" && (
+                  {group.status === "archived" ? (
+                    <button
+                      onClick={handleUnarchive}
+                      className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-xs cursor-pointer"
+                      title="Восстановить группу из архива"
+                    >
+                      <RotateCcw className="w-4 h-4 text-emerald-600" />
+                      Восстановить из архива
+                    </button>
+                  ) : (
                     <>
                       <button
                         onClick={() => setEditing(true)}
@@ -378,15 +438,6 @@ export default function AdminGroupDetailPage() {
                 Состав группы
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
-              {group.status === "active" && (
-                <button
-                  onClick={() => setShowAddDrawer(true)}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-primary-50 text-primary-700 rounded-xl text-sm font-medium hover:bg-primary-100 transition-colors border border-primary-100"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  Добавить учеников
-                </button>
-              )}
             </div>
             <GroupStudentTable
               students={group.students}
@@ -397,35 +448,37 @@ export default function AdminGroupDetailPage() {
         )}
 
         {tab === "analytics" && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
-            {stats ? (
-              <GroupStatsPanel stats={stats} />
-            ) : (
-              <div className="flex items-center justify-center py-12 text-slate-400">
-                <Loader2 className="w-5 h-5 animate-spin" />
-              </div>
-            )}
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
           </motion.div>
         )}
 
         {tab === "attendance" && (
-          <AttendanceJournal groupId={groupId} students={group.students} />
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
+              <Lock className="w-6 h-6 animate-pulse" />
+            </div>
+            <div className="max-w-md space-y-1.5">
+              <h3 className="text-base font-semibold text-slate-900">Журнал посещаемости</h3>
+              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>Доступ к разделу временно ограничен</span>
+            </div>
+          </motion.div>
         )}
       </div>
-
-      {/* Add student drawer */}
-      <AddStudentDrawer
-        open={showAddDrawer}
-        groupId={groupId}
-        groupClassLevel={group.class_level}
-        existingStudentIds={existingIds}
-        onClose={() => setShowAddDrawer(false)}
-        onAdded={() => {
-          setShowAddDrawer(false);
-          load();
-          showToast("Ученики добавлены");
-        }}
-      />
 
       {/* Toast */}
       <AnimatePresence>

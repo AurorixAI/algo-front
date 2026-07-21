@@ -458,6 +458,8 @@ export const orgApi = {
   archiveGroup: (id: string) =>
     // No dedicated /archive route — the PUT endpoint already accepts status.
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "archived" } }),
+  unarchiveGroup: (id: string) =>
+    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "active" } }),
   addStudentToGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
