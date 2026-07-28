@@ -80,6 +80,7 @@ export default function TeacherDashboardPage() {
         </div>
         <div className="flex items-center gap-3">
           <FeatureLock
+            enabled={false}
             variant="inline"
             title="Создать экзамен"
             description="Доступно после базовой настройки"

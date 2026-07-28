@@ -137,6 +137,7 @@ export default function AdminDiagnosticsPage() {
           </p>
         </div>
         <FeatureLock
+          enabled={false}
           variant="inline"
           title="Новая диагностика"
           description="Доступно после базовой настройки"
