@@ -16,6 +16,7 @@ import {
   Check,
 } from "lucide-react";
 import { examsApi, type ExamSummary } from "@/lib/api";
+import { FeatureLock } from "@/components/ui/feature-lock";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   draft: {
@@ -90,19 +91,23 @@ export default function TeacherExamsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Экзамены</h1>
-          <p className="text-slate-500 mt-1">{exams.length} экзаменов</p>
+    <FeatureLock
+      title="Экзамены"
+      description="Модуль откроется после завершения 1-2 этапа подключения центра."
+    >
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Экзамены</h1>
+            <p className="text-slate-500 mt-1">{exams.length} экзаменов</p>
+          </div>
+          <Link
+            href="/teacher/exams/new"
+            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Создать экзамен
+          </Link>
         </div>
-        <Link
-          href="/teacher/exams/new"
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors"
-        >
-          <Plus className="w-4 h-4" /> Создать экзамен
-        </Link>
-      </div>
 
       {exams.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-100">
@@ -179,6 +184,7 @@ export default function TeacherExamsPage() {
         </div>
       )}
     </div>
+    </FeatureLock>
   );
 }
 

@@ -8,6 +8,7 @@ import {
   Users, Copy, Check, ExternalLink, Eye,
 } from "lucide-react";
 import Link from "next/link";
+import { FeatureLock } from "@/components/ui/feature-lock";
 
 type ExamInfo = ExamSummary;
 
@@ -75,22 +76,26 @@ export default function AdminExamsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Экзамены</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Управление экзаменами, вариантами и результатами
-          </p>
+    <FeatureLock
+      title="Экзамены"
+      description="Модуль откроется после завершения 1-2 этапа подключения центра."
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Экзамены</h1>
+            <p className="text-slate-500 text-sm mt-0.5">
+              Управление экзаменами, вариантами и результатами
+            </p>
+          </div>
+          <Link
+            href="/teacher/exams/new"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+          >
+            <Plus className="w-4 h-4" /> Создать экзамен
+          </Link>
         </div>
-        <Link
-          href="/teacher/exams/new"
-          className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
-        >
-          <Plus className="w-4 h-4" /> Создать экзамен
-        </Link>
-      </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-4 gap-4">
@@ -241,5 +246,6 @@ export default function AdminExamsPage() {
         </div>
       )}
     </div>
+    </FeatureLock>
   );
 }

@@ -127,29 +127,33 @@ export default function AdminDiagnosticsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Диагностика</h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            Создавайте диагностики, отслеживайте результаты и зачисляйте учеников
-          </p>
-        </div>
-        <FeatureLock
-          enabled={false}
-          variant="inline"
-          title="Новая диагностика"
-          description="Доступно после базовой настройки"
-        >
-          <Link
-            href="/admin/students/new"
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+    <FeatureLock
+      title="Диагностика"
+      description="Модуль откроется после завершения 1-2 этапа подключения центра."
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Диагностика</h1>
+            <p className="text-slate-500 text-sm mt-0.5">
+              Создавайте диагностики, отслеживайте результаты и зачисляйте учеников
+            </p>
+          </div>
+          <FeatureLock
+            variant="inline"
+            title="Новая диагностика"
+            description="Доступно после базовой настройки"
           >
-            <Plus className="w-4 h-4" /> Новая диагностика
-          </Link>
-        </FeatureLock>
-      </div>
+            <Link
+              href="/admin/students/new"
+              className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20"
+            >
+              <Plus className="w-4 h-4" /> Новая диагностика
+            </Link>
+          </FeatureLock>
+        </div>
+
 
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -336,5 +340,6 @@ export default function AdminDiagnosticsPage() {
       )}
 
     </div>
+    </FeatureLock>
   );
 }
