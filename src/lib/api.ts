@@ -692,6 +692,16 @@ export const diagnosticApi = {
 
   getReport: (sessionId: string) =>
     diagServiceApi<DiagReport>(`/diagnostic/sessions/${sessionId}/report`),
+
+  /** Check if an unfinished session exists for this invite code.
+   *  Returns null (via 404) when no active session found.
+   */
+  getActiveSession: (inviteCode: string) =>
+    diagServiceApi<{
+      session_id: string;
+      items_answered: number;
+      current_task: DiagTaskOut;
+    }>(`/diagnostic/sessions/active?invite_code=${encodeURIComponent(inviteCode)}`),
 };
 
 // ============================================================================

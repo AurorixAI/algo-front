@@ -72,13 +72,18 @@ export default function DiagnosticReportPage() {
         }
         setInvite(found);
 
+        // Always attempt to load report+skill-map if student_id is present.
+        // If student_id is null (invite not yet claimed), we still show the
+        // invite meta (name, code, class) with a clear "not yet completed" state.
         if (found.student_id) {
           const [rep, sm, studentData] = await Promise.all([
             analyticsApi.studentReport(found.student_id).catch(() => null),
             analyticsApi.studentSkillMap(found.student_id).catch(() => null),
             orgApi.getStudent(found.student_id).catch(() => null),
           ]);
-          setReport(rep);
+          // studentReport returns {report: null} when no data yet — unwrap it
+          const reportData = rep && "report" in rep && rep.report === null ? null : rep;
+          setReport(reportData);
           setSkillMap(sm);
           if (studentData) {
             found.student_status = studentData.status;
@@ -102,19 +107,31 @@ export default function DiagnosticReportPage() {
 
   if (!invite) return null;
 
+  // ── Pending / not-yet-completed state ──────────────────────────────────────
+  // Show invite metadata always; report data shown only when available.
+  const hasDiagnosticData = !!report && report.report !== null;
+  const isPendingCompletion = !invite.student_id || invite.status !== "completed";
+
   const theta = report?.overall_theta ?? invite.result?.theta ?? 0;
   const accuracy = report?.accuracy ?? invite.result?.accuracy ?? 0;
-  const ci = report?.confidence_interval ?? [-0.5, 0.5];
+  const ci = report?.confidence_interval ?? null;
   const topicBreakdown = report?.topic_breakdown ?? {};
   const weakSkills: string[] = report?.weak_skills ?? [];
   const skillNames: Record<string, string> = report?.skill_names ?? {};
   const distractorErrors = report?.distractor_errors ?? [];
+  const itemsTotal = report?.items_total ?? invite.result?.total_questions ?? null;
+  const correctCount = invite.result?.correct_answers ?? null;
 
-  const chartData = Object.entries(topicBreakdown).map(([id, v]: [string, any]) => ({
-    name: (v.name ?? id).slice(0, 20),
-    mastery: Math.round((v.alpha ?? 0.5) * 100),
-    id,
-  }));
+  // Only show topics that were actually tested (have alpha set explicitly)
+  // alpha=undefined means the topic was never visited during this session
+  const chartData = Object.entries(topicBreakdown)
+    .filter(([, v]: [string, any]) => v.alpha !== undefined && v.alpha !== null)
+    .map(([id, v]: [string, any]) => ({
+      name: (v.name_ru ?? v.name ?? id).replace(/^G\d+_T0?(\d+)$/, 'Тема $1'),
+      mastery: Math.round(Math.max(0, Math.min(100, (v.alpha ?? 0) * 100))),
+      id,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 
   const levelLabel =
     theta >= 1 ? "Выше программы" : theta >= -0.5 ? "Соответствует программе" : "Ниже программы";
@@ -159,7 +176,31 @@ export default function DiagnosticReportPage() {
         }}
       />
 
-      {/* KPI cards */}
+      {/* Empty state — invite exists but diagnostic not completed yet */}
+      {isPendingCompletion && (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
+          <XCircle className="w-10 h-10 text-slate-300" />
+          <p className="text-slate-600 font-medium">Диагностика ещё не пройдена</p>
+          <p className="text-sm text-slate-400">
+            Ученик <span className="font-semibold">{invite.student_name}</span> ещё не завершил тест
+            по ссылке с кодом <span className="font-mono font-semibold">{invite.code}</span>.
+          </p>
+        </div>
+      )}
+
+      {/* Report not yet generated — student completed but Gemini hasn't run */}
+      {!isPendingCompletion && !hasDiagnosticData && (
+        <div className="flex flex-col items-center justify-center gap-3 py-10 bg-amber-50 rounded-2xl border border-amber-100 text-center">
+          <AlertTriangle className="w-8 h-8 text-amber-400" />
+          <p className="text-amber-800 font-medium">Отчёт ещё не сгенерирован</p>
+          <p className="text-sm text-amber-600">
+            Диагностика завершена, но аналитический отчёт ещё формируется. Обновите страницу через минуту.
+          </p>
+        </div>
+      )}
+
+      {/* KPI cards — only when report data is available */}
+      {!isPendingCompletion && (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { label: "Theta (θ)", value: theta.toFixed(2), icon: Brain, color: "text-primary-600" },
@@ -172,7 +213,11 @@ export default function DiagnosticReportPage() {
           },
           {
             label: "Вопросов",
-            value: `${invite.result?.correct_answers ?? "—"}/${invite.result?.total_questions ?? report?.items_total ?? "—"}`,
+            value: correctCount !== null && itemsTotal !== null
+              ? `${correctCount}/${itemsTotal}`
+              : itemsTotal !== null
+              ? `${itemsTotal}`
+              : "—",
             icon: CheckCircle2,
             color: "text-violet-600",
           },
@@ -189,34 +234,55 @@ export default function DiagnosticReportPage() {
           </motion.div>
         ))}
       </div>
+      )}
 
+      {!isPendingCompletion && ci && (
       <p className="text-xs text-slate-400">
-        Доверительный интервал θ: [{ci[0]?.toFixed(2)}, {ci[1]?.toFixed(2)}]
+        Доверительный интервал θ: [{ci[0]?.toFixed(2)};{" "}{ci[1]?.toFixed(2)}]
       </p>
+      )}
 
-      {/* Skill map chart */}
+      {/* Topic mastery chart — only shown when at least one topic was tested */}
       {chartData.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-primary-600" />
             Мастерство по темам
           </h2>
+          <p className="text-xs text-slate-400 mb-4">
+            Показаны только темы, охваченные диагностикой ({chartData.length} из {Object.keys(topicBreakdown).length})
+          </p>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 16 }}>
+              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 40 }}>
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v: number) => [`${v}%`, "Мастерство"]} />
+                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
+                <Tooltip
+                  formatter={(v: number) => [`${v}%`, "Мастерство"]}
+                  labelFormatter={(label) => label}
+                />
                 <Bar dataKey="mastery" radius={[0, 4, 4, 0]}>
-                  {chartData.map((entry, i) => (
+                  {chartData.map((entry) => (
                     <Cell
                       key={entry.id}
-                      fill={entry.mastery >= 75 ? "#10b981" : entry.mastery >= 50 ? "#f59e0b" : "#ef4444"}
+                      fill={
+                        entry.mastery >= 75
+                          ? "#10b981"
+                          : entry.mastery >= 50
+                          ? "#f59e0b"
+                          : "#ef4444"
+                      }
                     />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          {/* Legend */}
+          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" />≥75% освоено</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />50–74% частично</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />&lt;50% пробел</span>
           </div>
         </div>
       )}
@@ -293,28 +359,48 @@ export default function DiagnosticReportPage() {
       {/* Skill map list from API */}
       {skillMap?.skills?.length > 0 && (
         <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <h2 className="text-lg font-semibold mb-4">Карта навыков</h2>
+          <h2 className="text-lg font-semibold mb-1">Карта навыков</h2>
+          <p className="text-xs text-slate-400 mb-4">Результаты по каждому протестированному навыку</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {skillMap.skills.map((s: any) => (
-              <div
-                key={s.skill_id}
-                className="flex items-center justify-between p-3 rounded-lg bg-slate-50"
-              >
-                <span className="text-sm font-medium">{s.skill_name}</span>
-                <span
-                  className={`text-xs font-bold px-2 py-1 rounded-full ${
-                    s.level === "strong"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : s.level === "medium"
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
+            {skillMap.skills.map((s: any) => {
+              const pct = Math.round(Math.max(0, Math.min(100, (s.mastery ?? 0) * 100)));
+              const levelCfg =
+                s.level === "strong"
+                  ? { label: "Освоено", cls: "bg-emerald-100 text-emerald-700" }
+                  : s.level === "medium"
+                  ? { label: "Частично", cls: "bg-amber-100 text-amber-700" }
+                  : { label: "Пробел", cls: "bg-red-100 text-red-700" };
+              return (
+                <div
+                  key={s.skill_id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50 gap-3"
                 >
-                  {Math.round((s.mastery ?? 0) * 100)}%
-                </span>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{s.skill_name || s.skill_id}</p>
+                    {/* Progress bar */}
+                    <div className="mt-1 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className={`text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap ${levelCfg.cls}`}>
+                    {levelCfg.label}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+        </div>
+      )}
+
+      {/* Empty skill map state — data not yet available */}
+      {(!skillMap || !skillMap.skills?.length) && !isPendingCompletion && hasDiagnosticData && (
+        <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-6 text-center">
+          <p className="text-sm text-slate-500">Детальная карта навыков будет доступна после обработки данных</p>
         </div>
       )}
     </div>

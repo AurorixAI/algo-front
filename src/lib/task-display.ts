@@ -51,15 +51,21 @@ export function pickTaskDisplayText(opts: {
     part = part.split(/;\s*(?=\d+[\\).])/)[0].replace(/^\d+[\\).]\s*/, "").trim();
   }
 
-  part = part.replace(/^Решите\s+уравнени[ея]:\s*/i, "").trim();
-
-  if (/=/.test(part) && !part.startsWith("$")) {
-    return `Решите уравнение: ${wrapBareMath(part)}`;
+  // Extract and preserve question prompt prefix ("Решите систему уравнений:", "Решите уравнение:", etc.)
+  let prefix = "";
+  const prefixMatch = part.match(/^((?:Решите\s+(?:систему\s+)?уравнени[а-я]*|Найдите|Вычислите|Упростите|Сократите|Определите|Сравните)[^:]*:\s*)/i);
+  if (prefixMatch) {
+    prefix = prefixMatch[1].trim();
+    part = part.slice(prefixMatch[0].length).trim();
+  } else if (text) {
+    const textPrefixMatch = text.match(/^((?:Решите\s+(?:систему\s+)?уравнени[а-я]*|Найдите|Вычислите|Упростите|Сократите|Определите|Сравните)[^:]*:\s*)/i);
+    if (textPrefixMatch) {
+      prefix = textPrefixMatch[1].trim();
+    }
   }
 
-  if (/^(Найдите|Вычислите|Упростите|Сократите|Определите|Сравните)/i.test(part)) {
-    const m = part.match(/^([А-Яа-яЁё\s]+:?\s*)(.+)$/);
-    if (m) return `${m[1].trim()} ${wrapBareMath(m[2])}`;
+  if (prefix) {
+    return `${prefix} ${wrapBareMath(part)}`;
   }
 
   return wrapBareMath(part);

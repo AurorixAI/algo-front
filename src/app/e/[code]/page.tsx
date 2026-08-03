@@ -414,6 +414,7 @@ export default function ExamPage() {
                       question_text: task.text,
                       question_latex: task.question_latex,
                     })}
+                    block
                   />
                   {task.image_url && (
                     <div className="mt-6 flex justify-center">

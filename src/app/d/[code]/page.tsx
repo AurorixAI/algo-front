@@ -27,7 +27,7 @@ import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickTaskDisplayText } from "@/lib/task-display";
 
-type Phase = "loading" | "confirm" | "welcome" | "testing" | "analyzing" | "results" | "error";
+type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "analyzing" | "results" | "error";
 
 /** Format elapsed time */
 function formatTime(ms: number): string {
@@ -51,7 +51,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [confirmError, setConfirmError] = useState("");
   const [confirmLoading, setConfirmLoading] = useState(false);
 
-  // On mount: check invite status — show confirm form or welcome
+  // Active session for resume flow
+  const [activeSession, setActiveSession] = useState<{
+    session_id: string;
+    items_answered: number;
+    current_task: DiagTaskOut;
+  } | null>(null);
+
+  // On mount: check invite status — show confirm form, resume, or welcome
   useEffect(() => {
     (async () => {
       try {
@@ -59,11 +66,26 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         setInviteInfo(info);
         if (info.status === "pending") {
           setPhase("confirm");
-        } else {
-          setPhase("welcome");
+          return;
         }
+        // Check if there's an active unfinished session to resume
+        try {
+          const active = await diagnosticApi.getActiveSession(code);
+          if (active?.session_id) {
+            setActiveSession(active);
+            diagStore.startSession(
+              String(active.session_id),
+              active.current_task.phase,
+              active.current_task,
+            );
+            setPhase("resume");
+            return;
+          }
+        } catch {
+          // 404 = no active session, proceed to welcome
+        }
+        setPhase("welcome");
       } catch {
-        // Code invalid or expired — show welcome, error will appear on start
         setPhase("welcome");
       }
     })();
@@ -284,6 +306,74 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
             </motion.div>
           )}
 
+          {/* ══════════════════════ RESUME ══════════════════════ */}
+          {phase === "resume" && activeSession && (
+            <motion.div
+              key="resume"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex-1 flex items-center justify-center p-4"
+            >
+              <div className="w-full max-w-sm">
+                <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-40" />
+
+                  <div className="text-center mb-6">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
+                    >
+                      <Clock className="w-8 h-8 text-white" />
+                    </motion.div>
+                    <h1 className="text-xl font-bold text-slate-900 mb-1">Незавершённая диагностика</h1>
+                    <p className="text-slate-500 text-sm">
+                      Вы остановились на вопросе{" "}
+                      <span className="font-bold text-slate-900">{activeSession.items_answered + 1}</span>
+                      {" "}из{" "}
+                      <span className="font-bold text-slate-900">25</span>
+                    </p>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="mb-6">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+                      <span>Прогресс</span>
+                      <span>{Math.round((activeSession.items_answered / 25) * 100)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.round((activeSession.items_answered / 25) * 100)}%` }}
+                        transition={{ duration: 0.6, delay: 0.3 }}
+                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      sessionStartRef.current = Date.now();
+                      questionStartRef.current = Date.now();
+                      setPhase("testing");
+                    }}
+                    size="lg"
+                    className="w-full"
+                    icon={<ArrowRight className="w-5 h-5" />}
+                  >
+                    Продолжить с вопроса {activeSession.items_answered + 1}
+                  </Button>
+
+                  <p className="text-xs text-center text-slate-400 mt-4">
+                    Код: <span className="font-mono font-medium">{code}</span>
+                  </p>
+                </GlassCard>
+              </div>
+            </motion.div>
+          )}
+
           {/* ══════════════════════ WELCOME ══════════════════════ */}
           {phase === "welcome" && (
             <motion.div
@@ -379,6 +469,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                         question_text: currentTask.question_text,
                         question_latex: currentTask.question_latex,
                       })}
+                      block
                     />
                     {currentTask.question_image_url && (
                       <div className="mt-6 flex justify-center">

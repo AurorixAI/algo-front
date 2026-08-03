@@ -70,13 +70,36 @@ function wrapIdentifierPowerSegments(s: string): string {
   );
 }
 
+/**
+ * LaTeX commands that require wrapping in $…$ for KaTeX.
+ * Covers structural commands (\frac, \sqrt), text mode (\text),
+ * trig/log functions, Greek letters, set/interval notation, and more.
+ */
+const BARE_LATEX_COMMANDS = [
+  "\\frac",
+  "\\sqrt",
+] as const;
+
+/**
+ * Regex that detects any bare LaTeX command suffix that should trigger
+ * full-string wrapping (i.e. the entire value is a math expression).
+ */
+const LATEX_COMMAND_RE =
+  /\\(?:text|cos|sin|tan|cot|sec|csc|log|ln|lim|exp|max|min|sup|inf|det|deg|arg|left|right|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|sum|prod|int|oint|nabla|partial|infty|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|in|notin|subset|supset|cup|cap|emptyset|forall|exists|neg|wedge|vee|to|Rightarrow|Leftrightarrow|mathbb|mathbf|mathrm|overline|underline|hat|vec|dot|ddot|tilde|bar)(?![a-zA-Z])/;
+
 /** Wrap bare LaTeX commands in $…$ for KaTeX (supports nested braces). */
 export function wrapBareMath(text: string): string {
-  let s = text.replace(/\\\\/g, "\n").trim();
+  let s = text.trim();
   if (!s) return s;
+  // Already wrapped — return as-is
   if (/\$[^$]+\$/.test(s)) return s;
 
-  const commands = ["\\frac", "\\sqrt"];
+  // If the whole string is a known LaTeX expression, wrap entirely
+  if (LATEX_COMMAND_RE.test(s)) {
+    return `$${normalizeMathExponents(s)}$`;
+  }
+
+  const commands = Array.from(BARE_LATEX_COMMANDS);
   let out = "";
   let i = 0;
   while (i < s.length) {
@@ -127,8 +150,15 @@ export function pickAnswerDisplayText(
   if (latex) return latex;
   const a = (answer || "").trim();
   if (!a) return "";
+  // Already contains KaTeX delimiters
   if (/\$/.test(a)) return a;
-  if (/[=±√\^\\]/.test(a) || /x\s*=/.test(a) || /\\frac|\\sqrt/.test(a)) {
+  // Detect any LaTeX content: backslash commands, math operators, Greek letters
+  if (
+    /[=±√\^]/.test(a) ||
+    /x\s*=/.test(a) ||
+    LATEX_COMMAND_RE.test(a) ||
+    /\\(?:frac|sqrt)/.test(a)
+  ) {
     return wrapBareMath(a);
   }
   return a;

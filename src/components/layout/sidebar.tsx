@@ -58,7 +58,7 @@ export function Sidebar() {
 
   const adminNav: NavItem[] = [
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
-    { href: "/admin/diagnostics", label: "Диагностика", icon: Search, comingSoon: true },
+    { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },

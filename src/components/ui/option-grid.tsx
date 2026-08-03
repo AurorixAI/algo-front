@@ -44,6 +44,19 @@ export function OptionGrid({
     setPending(null);
   }, [resetKey]);
 
+  /**
+   * Use a single-column layout when any option text is long (> 80 chars).
+   * Long LaTeX formulas and multi-line math break the 2-column grid:
+   * options get clipped and require scroll in the mobile viewport.
+   */
+  const useSingleCol = useMemo(
+    () =>
+      options.some(
+        (o) => (o.contentLatex || o.content || "").length > 80,
+      ),
+    [options],
+  );
+
   function handleClick(answerValue: string) {
     if (disabled) return;
 
@@ -56,7 +69,12 @@ export function OptionGrid({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 w-full">
+    <div
+      className={cn(
+        "grid gap-3 md:gap-4 w-full",
+        useSingleCol ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2",
+      )}
+    >
       {options.map((opt) => {
         const isConfirmed = selected === opt.key;
         const isPending = pending === opt.key;
@@ -69,7 +87,7 @@ export function OptionGrid({
             onClick={() => handleClick(opt.key)}
             disabled={disabled}
             className={cn(
-              "group glass-option rounded-2xl p-4 md:p-5 flex items-center gap-4 md:gap-5 text-left relative overflow-hidden cursor-pointer",
+              "group glass-option rounded-2xl p-4 md:p-5 flex items-center gap-4 md:gap-5 text-left relative cursor-pointer",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none",
               isActive && "selected !border-primary-500 !bg-white !shadow-[0_8px_24px_rgba(37,99,235,0.2)]",
             )}
@@ -88,7 +106,7 @@ export function OptionGrid({
             <MathRenderer
               text={pickOptionDisplayText(opt.content, opt.contentLatex)}
               className={cn(
-                "flex-1 min-w-0 font-sans text-base md:text-lg transition-colors pointer-events-none",
+                "flex-1 min-w-0 font-sans text-base md:text-lg transition-colors pointer-events-none break-words",
                 isActive ? "text-slate-900" : "text-slate-700 group-hover:text-slate-900",
               )}
             />
