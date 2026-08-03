@@ -625,17 +625,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.7 }}
-                    className="grid grid-cols-2 gap-3 mb-6"
+                    className="mb-6"
                   >
                     <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <p className="text-2xl font-bold text-slate-900">{result.items_total}</p>
-                      <p className="text-xs text-slate-500">Вопросов</p>
-                    </div>
-                    <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
                       <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
-                      <p className="text-xs text-slate-500">Время</p>
+                      <p className="text-xs text-slate-500">Затраченное время</p>
                     </div>
                   </motion.div>
+
 
                   {/* Info card — what happens next */}
                   <motion.div

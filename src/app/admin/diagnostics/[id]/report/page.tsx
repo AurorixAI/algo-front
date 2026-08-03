@@ -201,16 +201,10 @@ export default function DiagnosticReportPage() {
 
       {/* KPI cards — only when report data is available */}
       {!isPendingCompletion && (
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {[
           { label: "Theta (θ)", value: theta.toFixed(2), icon: Brain, color: "text-primary-600" },
           { label: "Уровень", value: levelLabel, icon: TrendingUp, color: "text-emerald-600" },
-          {
-            label: "Успешность",
-            value: `${Math.round(accuracy * 100)}%`,
-            icon: Target,
-            color: "text-blue-600",
-          },
         ].map((kpi) => (
           <motion.div
             key={kpi.label}
