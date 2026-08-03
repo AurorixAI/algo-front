@@ -127,7 +127,7 @@ export default function DiagnosticReportPage() {
   const chartData = Object.entries(topicBreakdown)
     .filter(([, v]: [string, any]) => v.alpha !== undefined && v.alpha !== null)
     .map(([id, v]: [string, any]) => ({
-      name: (v.name_ru ?? v.name ?? id).replace(/^G\d+_T0?(\d+)$/, 'Тема $1'),
+      name: v.name_ru ?? v.name ?? id,
       mastery: Math.round(Math.max(0, Math.min(100, (v.alpha ?? 0) * 100))),
       id,
     }))
@@ -201,7 +201,7 @@ export default function DiagnosticReportPage() {
 
       {/* KPI cards — only when report data is available */}
       {!isPendingCompletion && (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Theta (θ)", value: theta.toFixed(2), icon: Brain, color: "text-primary-600" },
           { label: "Уровень", value: levelLabel, icon: TrendingUp, color: "text-emerald-600" },
@@ -210,16 +210,6 @@ export default function DiagnosticReportPage() {
             value: `${Math.round(accuracy * 100)}%`,
             icon: Target,
             color: "text-blue-600",
-          },
-          {
-            label: "Вопросов",
-            value: correctCount !== null && itemsTotal !== null
-              ? `${correctCount}/${itemsTotal}`
-              : itemsTotal !== null
-              ? `${itemsTotal}`
-              : "—",
-            icon: CheckCircle2,
-            color: "text-violet-600",
           },
         ].map((kpi) => (
           <motion.div
@@ -235,6 +225,7 @@ export default function DiagnosticReportPage() {
         ))}
       </div>
       )}
+
 
       {!isPendingCompletion && ci && (
       <p className="text-xs text-slate-400">
