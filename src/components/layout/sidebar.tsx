@@ -58,7 +58,7 @@ export function Sidebar() {
 
   const adminNav: NavItem[] = [
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
-    { href: "/admin/diagnostics", label: "Диагностика", icon: Search, comingSoon: true },
+    { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
@@ -74,7 +74,7 @@ export function Sidebar() {
   const teacherNav: NavItem[] = [
     { href: "/teacher/dashboard", label: "Панель управления", icon: LayoutDashboard },
     { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
-    { href: "/teacher/exams", label: "Экзамены", icon: FileText, comingSoon: true },
+    { href: "/teacher/exams", label: "Экзамены", icon: FileText },
     { href: "/teacher/groups", label: "Мои группы", icon: Users },
     { href: "/teacher/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
     { href: "/teacher/library", label: "Библиотека", icon: BookOpen, comingSoon: true },

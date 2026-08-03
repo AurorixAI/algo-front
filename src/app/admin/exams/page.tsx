@@ -8,7 +8,6 @@ import {
   Users, Copy, Check, ExternalLink, Eye,
 } from "lucide-react";
 import Link from "next/link";
-import { FeatureLock } from "@/components/ui/feature-lock";
 
 type ExamInfo = ExamSummary;
 
@@ -76,11 +75,7 @@ export default function AdminExamsPage() {
   }
 
   return (
-    <FeatureLock
-      title="Экзамены"
-      description="Модуль откроется после завершения 1-2 этапа подключения центра."
-    >
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -246,6 +241,5 @@ export default function AdminExamsPage() {
         </div>
       )}
     </div>
-    </FeatureLock>
   );
 }

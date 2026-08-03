@@ -10,6 +10,6 @@ import { useRouter } from "next/navigation";
  */
 export default function TeacherDiagnosticRedirect() {
   const router = useRouter();
-  useEffect(() => { router.replace("/teacher/dashboard"); }, [router]);
+  useEffect(() => { router.replace("/teacher/exams"); }, [router]);
   return null;
 }

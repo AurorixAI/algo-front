@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { Users, Search, Brain, GraduationCap, Folder } from "lucide-react";
 import Link from "next/link";
-import { FeatureLock } from "@/components/ui/feature-lock";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
@@ -148,14 +147,12 @@ export default function AdminStudentsPage() {
           <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
             Ученики появятся здесь автоматически после прохождения диагностики или ручного добавления.
           </p>
-          <FeatureLock variant="inline" title="Перейти к диагностике">
-            <Link
-              href="/admin/diagnostics"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium"
-            >
-              <Brain className="w-4 h-4" /> Перейти к диагностике
-            </Link>
-          </FeatureLock>
+          <Link
+            href="/admin/diagnostics"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium"
+          >
+            <Brain className="w-4 h-4" /> Перейти к диагностике
+          </Link>
         </div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

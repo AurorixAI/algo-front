@@ -18,7 +18,7 @@ const ROLE_OPTIONS = [
 
 const ROLE_DASHBOARD: Record<string, string> = {
   owner: "/owner/dashboard",
-  admin: "/admin/students",
+  admin: "/admin/diagnostics",
   teacher: "/teacher/dashboard",
 };
 
@@ -60,7 +60,7 @@ export default function LoginPage() {
       // Hard navigation (not router.push) — guarantees a fresh request that
       // the middleware evaluates with the just-set cookie, bypassing any
       // client router cache entirely.
-      window.location.href = ROLE_DASHBOARD[actualRole || ""] || "/admin/students";
+      window.location.href = ROLE_DASHBOARD[actualRole || ""] || "/admin/diagnostics";
     } catch {
       // Error already set in store
     }

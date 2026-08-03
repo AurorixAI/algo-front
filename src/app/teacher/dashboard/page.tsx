@@ -79,19 +79,13 @@ export default function TeacherDashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <FeatureLock
-            variant="inline"
-            title="Создать экзамен"
-            description="Доступно после базовой настройки"
+          <Link
+            href="/teacher/exams/new"
+            className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
           >
-            <Link
-              href="/teacher/exams/new"
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors font-medium shadow-sm shadow-primary-600/20 text-sm"
-            >
-              <FileText className="w-4 h-4" />
-              Создать экзамен
-            </Link>
-          </FeatureLock>
+            <FileText className="w-4 h-4" />
+            Создать экзамен
+          </Link>
         </div>
       </div>
 

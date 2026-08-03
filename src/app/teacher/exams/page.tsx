@@ -16,7 +16,6 @@ import {
   Check,
 } from "lucide-react";
 import { examsApi, type ExamSummary } from "@/lib/api";
-import { FeatureLock } from "@/components/ui/feature-lock";
 
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   draft: {
@@ -91,11 +90,7 @@ export default function TeacherExamsPage() {
   }
 
   return (
-    <FeatureLock
-      title="Экзамены"
-      description="Модуль откроется после завершения 1-2 этапа подключения центра."
-    >
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">Экзамены</h1>
@@ -184,7 +179,6 @@ export default function TeacherExamsPage() {
         </div>
       )}
     </div>
-    </FeatureLock>
   );
 }
 

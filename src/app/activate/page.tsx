@@ -65,7 +65,7 @@ function ActivationContent() {
     if (status !== "success") return;
 
     if (countdown <= 0) {
-      router.push("/admin/students");
+      router.push("/admin/diagnostics");
       return;
     }
 
@@ -115,7 +115,7 @@ function ActivationContent() {
           </div>
 
           <Button
-            onClick={() => router.push("/admin/students")}
+            onClick={() => router.push("/admin/diagnostics")}
             className="w-full mt-4"
             size="lg"
             icon={<ArrowRight className="w-4 h-4" />}

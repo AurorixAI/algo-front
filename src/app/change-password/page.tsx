@@ -9,7 +9,7 @@ import { authApi } from "@/lib/api";
 
 const ROLE_DASHBOARD: Record<string, string> = {
   owner: "/owner/dashboard",
-  admin: "/admin/students",
+  admin: "/admin/diagnostics",
   teacher: "/teacher/dashboard",
 };
 
