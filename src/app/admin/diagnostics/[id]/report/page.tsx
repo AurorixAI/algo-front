@@ -206,7 +206,7 @@ export default function DiagnosticReportPage() {
           { label: "Theta (θ)", value: theta.toFixed(2), icon: Brain, color: "text-primary-600" },
           { label: "Уровень", value: levelLabel, icon: TrendingUp, color: "text-emerald-600" },
           {
-            label: "Точность",
+            label: "Успешность",
             value: `${Math.round(accuracy * 100)}%`,
             icon: Target,
             color: "text-blue-600",
