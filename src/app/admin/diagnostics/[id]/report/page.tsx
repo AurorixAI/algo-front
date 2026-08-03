@@ -126,12 +126,21 @@ export default function DiagnosticReportPage() {
   // alpha=undefined means the topic was never visited during this session
   const chartData = Object.entries(topicBreakdown)
     .filter(([, v]: [string, any]) => v.alpha !== undefined && v.alpha !== null)
-    .map(([id, v]: [string, any]) => ({
-      name: v.name_ru ?? v.name ?? id,
-      mastery: Math.round(Math.max(0, Math.min(100, (v.alpha ?? 0) * 100))),
-      id,
-    }))
+    .map(([id, v]: [string, any]) => {
+      const rawPct =
+        v.mastery_pct !== undefined
+          ? v.mastery_pct
+          : v.mastery !== undefined
+          ? v.mastery * 100
+          : (0.5 + (v.alpha ?? 0) / 4.0) * 100;
+      return {
+        name: v.name_ru ?? v.name ?? id,
+        mastery: Math.round(Math.max(0, Math.min(100, rawPct))),
+        id,
+      };
+    })
     .sort((a, b) => a.id.localeCompare(b.id));
+
 
   const levelLabel =
     theta >= 1 ? "Выше программы" : theta >= -0.5 ? "Соответствует программе" : "Ниже программы";
