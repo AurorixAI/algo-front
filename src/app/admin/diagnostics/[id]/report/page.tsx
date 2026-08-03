@@ -236,47 +236,63 @@ export default function DiagnosticReportPage() {
       </p>
       )}
 
-      {/* Topic mastery chart — only shown when at least one topic was tested */}
+      {/* Topic mastery — executive progress card list (zero text truncation) */}
       {chartData.length > 0 && (
-        <div className="bg-white rounded-2xl border border-slate-100 p-6">
-          <h2 className="text-lg font-semibold text-slate-900 mb-1 flex items-center gap-2">
-            <BookOpen className="w-5 h-5 text-primary-600" />
-            Мастерство по темам
-          </h2>
-          <p className="text-xs text-slate-400 mb-4">
-            Показаны только темы, охваченные диагностикой ({chartData.length} из {Object.keys(topicBreakdown).length})
-          </p>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 40 }}>
-                <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(v: number) => [`${v}%`, "Мастерство"]}
-                  labelFormatter={(label) => label}
-                />
-                <Bar dataKey="mastery" radius={[0, 4, 4, 0]}>
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={entry.id}
-                      fill={
-                        entry.mastery >= 75
-                          ? "#10b981"
-                          : entry.mastery >= 50
-                          ? "#f59e0b"
-                          : "#ef4444"
-                      }
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-primary-600" />
+                Мастерство по темам
+              </h2>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Охвачено тем: {chartData.length} из {Object.keys(topicBreakdown).length}
+              </p>
+            </div>
+            {/* Legend */}
+            <div className="flex items-center gap-4 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 self-start sm:self-auto">
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />≥75% освоено</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-amber-500" />50–74% частично</span>
+              <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500" />&lt;50% пробел</span>
+            </div>
           </div>
-          {/* Legend */}
-          <div className="flex items-center gap-4 mt-3 text-xs text-slate-500">
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-emerald-500 inline-block" />≥75% освоено</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-amber-500 inline-block" />50–74% частично</span>
-            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-red-500 inline-block" />&lt;50% пробел</span>
+
+          <div className="space-y-3">
+            {chartData.map((t) => {
+              const statusCfg =
+                t.mastery >= 75
+                  ? { label: "Освоено", bg: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "from-emerald-500 to-teal-500" }
+                  : t.mastery >= 50
+                  ? { label: "Частично", bg: "bg-amber-50 text-amber-700 border-amber-200", bar: "from-amber-500 to-orange-500" }
+                  : { label: "Пробел", bg: "bg-red-50 text-red-700 border-red-200", bar: "from-red-500 to-rose-500" };
+
+              return (
+                <div key={t.id} className="p-4 rounded-xl bg-slate-50/80 border border-slate-100 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <span className="font-semibold text-slate-900 text-sm leading-snug break-words flex-1">
+                      {t.name}
+                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${statusCfg.bg}`}>
+                        {statusCfg.label}
+                      </span>
+                      <span className="text-sm font-bold text-slate-800 tabular-nums">
+                        {t.mastery}%
+                      </span>
+                    </div>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="h-2.5 w-full bg-slate-200/80 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${t.mastery}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      className={`h-full rounded-full bg-gradient-to-r ${statusCfg.bar}`}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -357,32 +373,38 @@ export default function DiagnosticReportPage() {
           <p className="text-xs text-slate-400 mb-4">Результаты по каждому протестированному навыку</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {skillMap.skills.map((s: any) => {
-              const pct = Math.round(Math.max(0, Math.min(100, (s.mastery ?? 0) * 100)));
+              const masteryVal =
+                s.mastery !== undefined
+                  ? s.mastery
+                  : s.mastery_pct !== undefined
+                  ? s.mastery_pct / 100
+                  : 0;
+              const pct = Math.round(Math.max(0, Math.min(100, masteryVal * 100)));
               const levelCfg =
-                s.level === "strong"
-                  ? { label: "Освоено", cls: "bg-emerald-100 text-emerald-700" }
-                  : s.level === "medium"
-                  ? { label: "Частично", cls: "bg-amber-100 text-amber-700" }
-                  : { label: "Пробел", cls: "bg-red-100 text-red-700" };
+                s.level === "strong" || pct >= 75
+                  ? { label: "Освоено", cls: "bg-emerald-100 text-emerald-700", bar: "bg-emerald-500" }
+                  : s.level === "medium" || pct >= 50
+                  ? { label: "Частично", cls: "bg-amber-100 text-amber-700", bar: "bg-amber-500" }
+                  : { label: "Пробел", cls: "bg-red-100 text-red-700", bar: "bg-red-500" };
               return (
                 <div
-                  key={s.skill_id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-slate-50 gap-3"
+                  key={s.skill_id || s.name}
+                  className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 gap-3 border border-slate-100"
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{s.skill_name || s.skill_id}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900 leading-snug break-words">
+                      {s.skill_name || s.name || s.skill_id}
+                    </p>
                     {/* Progress bar */}
-                    <div className="mt-1 h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                    <div className="mt-2 h-1.5 w-full bg-slate-200/80 rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full transition-all ${
-                          pct >= 75 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-500"
-                        }`}
+                        className={`h-full rounded-full transition-all ${levelCfg.bar}`}
                         style={{ width: `${pct}%` }}
                       />
                     </div>
                   </div>
-                  <span className={`text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap ${levelCfg.cls}`}>
-                    {levelCfg.label}
+                  <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 ${levelCfg.cls}`}>
+                    {pct}% · {levelCfg.label}
                   </span>
                 </div>
               );
