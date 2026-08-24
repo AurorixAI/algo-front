@@ -5,9 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
-import { examsApi } from "@/lib/api";
+import { examsApi, orgApi, type Group } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 import QRCode from "qrcode.react";
+import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
+import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import {
   ArrowLeft,
   Check,
@@ -27,6 +30,12 @@ import {
   AlertTriangle,
   Zap,
   Eye,
+  EyeOff,
+  Activity,
+  ArrowRight,
+  Bookmark,
+  X,
+  Plus,
 } from "lucide-react";
 
 // ─── Types ───
@@ -35,7 +44,9 @@ interface DistractorMeta {
   value: string;
   value_latex?: string | null;
   error_type: string;
-  explanation: string;
+  explanation?: string | null;
+  error_logic?: string | null;
+  error_logic_latex?: string | null;
   plausibility: number;
 }
 
@@ -69,6 +80,9 @@ interface DraftData {
   total_time_minutes: number;
   variants_count: number;
   tasks_per_variant: number;
+  group_id?: string | null;
+  group_name?: string | null;
+  class_level?: number | null;
   settings: Record<string, any>;
   skills_covered: string[];
   variants: DraftVariant[];
@@ -86,13 +100,13 @@ interface Alternative {
 
 // ─── Difficulty badge colors ───
 const diffColors: Record<string, string> = {
-  A: "bg-green-100 text-green-700",
-  B: "bg-amber-100 text-amber-700",
-  C: "bg-red-100 text-red-700",
+  A: "bg-emerald-50 text-emerald-700 border border-emerald-200/80",
+  B: "bg-amber-50 text-amber-700 border border-amber-200/80",
+  C: "bg-rose-50 text-rose-700 border border-rose-200/80",
 };
 
-import { MathText } from "@/components/ui/math-renderer";
-import { pickAnswerDisplayText } from "@/lib/task-display";
+import { MathRenderer } from "@/components/ui/math-renderer";
+import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 
 // ============================================================================
 // MAIN COMPONENT
@@ -113,9 +127,15 @@ export default function ExamDraftPage() {
   const [replacingTaskId, setReplacingTaskId] = useState<string | null>(null);
   const [alternatives, setAlternatives] = useState<Alternative[]>([]);
   const [loadingAlts, setLoadingAlts] = useState(false);
-  const [publishing, setPublishing] = useState(false);
   const [publishResult, setPublishResult] = useState<{ access_code: string; url: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showAnswers, setShowAnswers] = useState(false);
+
+  // Group assignment state
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
 
   // Load draft
   useEffect(() => {
@@ -134,7 +154,29 @@ export default function ExamDraftPage() {
       })
       .catch((err) => setError(err.message || "Ошибка загрузки"))
       .finally(() => setLoading(false));
+
+    orgApi.listGroups().then((res) => setGroups(Array.isArray(res) ? res : [])).catch(() => {});
   }, [examId]);
+
+  // ─── Background Scroll Lock When Modal Is Open ────────────────────────────
+  useEffect(() => {
+    if (showAssignModal || showScheduleModal) {
+      const originalBodyOverflow = document.body.style.overflow;
+      const originalHtmlOverflow = document.documentElement.style.overflow;
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalBodyOverflow;
+        document.documentElement.style.overflow = originalHtmlOverflow;
+      };
+    }
+  }, [showAssignModal, showScheduleModal]);
+
+  useEffect(() => {
+    if (publishResult) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [publishResult]);
 
   // Current variant
   const currentVariant = useMemo(
@@ -202,26 +244,66 @@ export default function ExamDraftPage() {
     }
   };
 
-  const handlePublish = async () => {
-    setPublishing(true);
+  const handleAssignGroup = async (group: Group) => {
+    setAssignLoading(true);
     try {
-      const result = await examsApi.publish(examId);
-      setPublishResult(result);
-      // Update draft status
-      setDraft((prev) => (prev ? { ...prev, status: "active" } : prev));
+      await examsApi.assign(examId, {
+        group_id: group.id,
+        group_name: group.name,
+        class_level: group.class_level || undefined,
+        publish: false,
+      });
+      const data = await examsApi.getDraft(examId);
+      setDraft(data);
+      setShowAssignModal(false);
     } catch (err: any) {
-      alert(err.message || "Ошибка публикации");
+      alert("Не удалось привязать группу: " + (err.message || ""));
     } finally {
-      setPublishing(false);
+      setAssignLoading(false);
     }
+  };
+
+  const handlePublish = async () => {
+    setShowScheduleModal(true);
+  };
+
+  const getExamUrl = (accessCode: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://algo.uz";
+    return `${origin}/e/${accessCode}`;
+  };
+
+  const getExamDisplayUrl = (accessCode: string) => {
+    const host = typeof window !== "undefined" ? window.location.host : "algo.uz";
+    return `${host}/e/${accessCode}`;
   };
 
   const handleCopy = () => {
     if (publishResult?.access_code) {
-      navigator.clipboard.writeText(`https://algo.uz/e/${publishResult.access_code}`);
+      navigator.clipboard.writeText(getExamUrl(publishResult.access_code));
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleShare = async () => {
+    if (!publishResult?.access_code) return;
+    const url = getExamUrl(publishResult.access_code);
+    const shareData = {
+      title: draft?.title || "Экзамен ALGO",
+      text: `Ссылка на экзамен: ${url}`,
+      url,
+    };
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        // If the user cancelled/closed the native share sheet, do not fallback to copy!
+        return;
+      }
+    }
+    // Only copy if Web Share API is completely unavailable in the browser
+    handleCopy();
   };
 
   const toggleSection = (name: string) => {
@@ -261,70 +343,124 @@ export default function ExamDraftPage() {
   // ─── Published result ───
 
   if (publishResult) {
+    const formatVariants = (n: number) => {
+      if (n % 10 === 1 && n % 100 !== 11) return `${n} вариант`;
+      if ([2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100)) return `${n} варианта`;
+      return `${n} вариантов`;
+    };
+
     return (
-      <div className="max-w-3xl mx-auto py-8">
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-          <GlassCard className="p-8 text-center" glow>
+      <div className="min-h-[calc(100vh-100px)] flex items-center justify-center py-2 sm:py-4 px-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="w-full max-w-md"
+        >
+          <GlassCard className="p-5 sm:p-6 text-center space-y-3.5 shadow-2xl border border-slate-200/90 rounded-3xl bg-white/95 backdrop-blur-xl">
+            {/* Top Success Badge */}
             <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="w-20 h-20 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center"
+              initial={{ scale: 0, rotate: -20 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 18 }}
+              className="w-11 h-11 mx-auto rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center shadow-md shadow-emerald-500/20"
             >
-              <Sparkles className="w-10 h-10 text-green-600" />
+              <Sparkles className="w-5 h-5" />
             </motion.div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Экзамен опубликован!</h2>
-            <p className="text-slate-500 mb-8">
-              {draft.variants_count} вариант{draft.variants_count > 1 ? "ов" : ""} по{" "}
-              {draft.tasks_per_variant} заданий
-            </p>
 
-            <div className="inline-block p-6 bg-white rounded-2xl shadow-lg mb-6">
-              <QRCode
-                value={`https://algo.uz/e/${publishResult.access_code}`}
-                size={180}
-                level="M"
-                includeMargin
-              />
-              <p className="mt-3 font-mono text-lg font-bold text-slate-900">
-                algo.uz/e/{publishResult.access_code}
+            {/* Title & Group */}
+            <div className="space-y-1">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
+                Экзамен опубликован!
+              </h2>
+              <p className="text-xs text-slate-500">
+                Ученики могут начать прохождение по коду или QR
               </p>
+              {draft.group_name && (
+                <div className="pt-0.5">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200/80 text-indigo-700 text-xs font-semibold rounded-full shadow-2xs">
+                    <Users className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Для группы: {draft.group_name}</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="grid grid-cols-3 gap-4 max-w-md mx-auto mb-8">
-              <div className="p-3 bg-slate-50 rounded-xl">
-                <p className="text-2xl font-bold text-slate-900">{draft.variants_count}</p>
-                <p className="text-xs text-slate-500">вариантов</p>
+            {/* QR Code Container */}
+            <div className="p-3.5 bg-gradient-to-b from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-sm max-w-[210px] mx-auto flex flex-col items-center">
+              <div className="p-2 bg-white rounded-xl shadow-xs border border-slate-100">
+                <QRCode
+                  value={getExamUrl(publishResult.access_code)}
+                  size={135}
+                  level="M"
+                  includeMargin={false}
+                />
               </div>
-              <div className="p-3 bg-slate-50 rounded-xl">
-                <p className="text-2xl font-bold text-slate-900">{totalTasks}</p>
-                <p className="text-xs text-slate-500">заданий</p>
-              </div>
-              <div className="p-3 bg-slate-50 rounded-xl">
-                <p className="text-2xl font-bold text-slate-900">{draft.total_time_minutes}</p>
-                <p className="text-xs text-slate-500">минут</p>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-3 justify-center">
-              <Button
-                icon={copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                variant="secondary"
+              <button
+                type="button"
                 onClick={handleCopy}
+                title="Нажмите, чтобы скопировать ссылку"
+                className="mt-2.5 w-full flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-primary-400 hover:bg-primary-50/30 transition-all font-mono text-[11px] font-semibold text-slate-700 group cursor-pointer shadow-2xs"
               >
-                {copied ? "Скопировано!" : "Копировать ссылку"}
-              </Button>
-              <Button icon={<Share2 className="w-4 h-4" />} variant="secondary">
-                Отправить ученикам
-              </Button>
-              <Link href={`/e/${publishResult.access_code}`}>
-                <Button icon={<Users className="w-4 h-4" />}>Открыть экзамен</Button>
-              </Link>
+                <span className="truncate">{getExamDisplayUrl(publishResult.access_code)}</span>
+                <span className="shrink-0 text-slate-400 group-hover:text-primary-600 transition-colors">
+                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" /> : <Copy className="w-3.5 h-3.5" />}
+                </span>
+              </button>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-slate-100">
-              <Link href="/teacher/exams">
-                <Button variant="ghost">К списку экзаменов</Button>
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto">
+              <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Варианты</div>
+                <p className="text-base font-extrabold text-slate-900 leading-tight">{draft.variants_count}</p>
+                <p className="text-[10px] text-slate-500 leading-none">{formatVariants(draft.variants_count).split(" ")[1]}</p>
+              </div>
+              <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Задания</div>
+                <p className="text-base font-extrabold text-slate-900 leading-tight">{totalTasks}</p>
+                <p className="text-[10px] text-slate-500 leading-none">в варианте</p>
+              </div>
+              <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Время</div>
+                <p className="text-base font-extrabold text-slate-900 leading-tight">{draft.total_time_minutes}</p>
+                <p className="text-[10px] text-slate-500 leading-none">минут</p>
+              </div>
+            </div>
+
+            {/* Action buttons (Copy & Share) */}
+            <div className="grid grid-cols-2 gap-2.5 max-w-sm mx-auto">
+              <Button
+                onClick={handleCopy}
+                size="sm"
+                variant={copied ? "primary" : "secondary"}
+                className={`w-full justify-center ${copied ? "bg-emerald-600 hover:bg-emerald-700 text-white" : ""}`}
+                icon={copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              >
+                {copied ? "Скопировано!" : "Копировать"}
+              </Button>
+              <Button
+                onClick={handleShare}
+                size="sm"
+                variant="secondary"
+                className="w-full justify-center"
+                icon={<Share2 className="w-3.5 h-3.5" />}
+              >
+                Поделиться
+              </Button>
+            </div>
+
+            {/* Bottom Navigation Buttons */}
+            <div className="pt-3 border-t border-slate-100/90 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Link href="/teacher/exams" className="w-full">
+                <Button size="sm" variant="ghost" className="w-full justify-center text-slate-600 hover:text-slate-900" icon={<ArrowLeft className="w-3.5 h-3.5" />}>
+                  Все экзамены
+                </Button>
+              </Link>
+              <Link href={`/teacher/exams/${examId}/sessions`} className="w-full">
+                <Button size="sm" variant="primary" className="w-full justify-center shadow-md shadow-primary-500/20" icon={<Activity className="w-3.5 h-3.5" />}>
+                  Мониторинг сдачи
+                </Button>
               </Link>
             </div>
           </GlassCard>
@@ -338,7 +474,7 @@ export default function ExamDraftPage() {
   return (
     <div className="w-full max-w-[1400px] mx-auto py-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <Link href="/teacher/exams">
             <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
@@ -346,11 +482,18 @@ export default function ExamDraftPage() {
             </Button>
           </Link>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-xl font-bold text-slate-900">{draft.title}</h1>
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
-                Черновик
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200/80">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                {!draft.group_id ? "Шаблон (без группы)" : "Черновик"}
               </span>
+              {draft.group_name && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                  <Users className="w-3.5 h-3.5 text-indigo-500" />
+                  {draft.group_name}
+                </span>
+              )}
             </div>
             <p className="text-sm text-slate-500 mt-0.5">
               {draft.variants_count} вариант{draft.variants_count > 1 ? "ов" : ""} · {totalTasks}{" "}
@@ -358,41 +501,77 @@ export default function ExamDraftPage() {
             </p>
           </div>
         </div>
-        <Button
-          onClick={handlePublish}
-          loading={publishing}
-          icon={<Send className="w-4 h-4" />}
-        >
-          Опубликовать
-        </Button>
+        <div className="flex items-center gap-2">
+          {!draft.group_id ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => router.push(`/teacher/exams/${examId}`)}
+                icon={<Bookmark className="w-4 h-4 text-slate-600" />}
+              >
+                Сохранить в библиотеку
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setShowAssignModal(true)}
+                icon={<Users className="w-4 h-4" />}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              >
+                Привязать группу
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => router.push(`/teacher/exams/${examId}`)}
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              Перейти к экзамену
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats bar */}
       <GlassCard className="p-4 mb-6">
-        <div className="flex items-center gap-6 flex-wrap">
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-slate-500">Сложность:</span>
-            <div className="flex gap-1.5">
-              {(["A", "B", "C"] as const).map((d) => (
-                <span key={d} className={`px-2 py-0.5 rounded text-xs font-medium ${diffColors[d]}`}>
-                  {d}: {diffDist[d] || 0}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-500">Сложность:</span>
+              <div className="flex gap-1.5">
+                {(["A", "B", "C"] as const).map((d) => (
+                  <span key={d} className={`px-2 py-0.5 rounded-md text-xs font-medium ${diffColors[d]}`}>
+                    {d}: {diffDist[d] || 0}
+                  </span>
+                ))}
+              </div>
+              {Object.values(diffDist).reduce((a, b) => a + b, 0) === totalTasks && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                  <Check className="w-3 h-3" /> 100% OK
                 </span>
-              ))}
+              )}
             </div>
-            {Object.values(diffDist).reduce((a, b) => a + b, 0) === totalTasks && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                100% OK
-              </span>
-            )}
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Clock className="w-4 h-4" />
+              {draft.total_time_minutes} мин
+            </div>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Layers className="w-4 h-4" />
+              {sections.length} секций
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Clock className="w-4 h-4" />
-            {draft.total_time_minutes} мин
-          </div>
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Layers className="w-4 h-4" />
-            {sections.length} секций
-          </div>
+
+          <button
+            onClick={() => setShowAnswers(!showAnswers)}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+              showAnswers
+                ? "bg-primary-50 text-primary-700 border-primary-200 shadow-xs"
+                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            {showAnswers ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            {showAnswers ? "Скрыть ответы" : "Показать ответы"}
+          </button>
         </div>
       </GlassCard>
 
@@ -473,7 +652,19 @@ export default function ExamDraftPage() {
                               </span>
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-slate-800 leading-relaxed">
-                                  <MathText text={task.question_text} />
+                                  <MathRenderer
+                                    text={pickTaskDisplayText({
+                                      task_id: task.task_id,
+                                      question_text: task.question_text,
+                                      question_latex: task.question_latex,
+                                    })}
+                                    className="break-words whitespace-pre-wrap"
+                                  />
+                                  {task.question_image_url && (
+                                    <div className="mt-2">
+                                      <TaskFigureDrawer imageUrl={task.question_image_url} />
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -501,23 +692,43 @@ export default function ExamDraftPage() {
                             </div>
                           </div>
 
-                          {/* Answer + Distractors */}
-                          <div className="ml-10 mt-2 flex flex-wrap gap-2">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-green-50 text-green-700 border border-green-200 max-w-full">
-                              <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
-                              <MathText text={pickAnswerDisplayText(task.correct_answer, task.correct_answer_latex)} className="text-xs" />
-                            </span>
-                            {task.distractor_meta?.map((dm, i) => (
-                              <span
-                                key={i}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-red-50 text-red-600 border border-red-100 max-w-full"
-                                title={dm.explanation}
+                          {/* Answer + Distractors (shown only when showAnswers is enabled) */}
+                          <AnimatePresence>
+                            {showAnswers && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="ml-10 mt-2.5 flex flex-wrap items-center gap-2 overflow-hidden"
                               >
-                                <XCircle className="w-3 h-3 flex-shrink-0" />
-                                <MathText text={pickAnswerDisplayText(dm.value, dm.value_latex)} className="text-xs" />
-                              </span>
-                            ))}
-                          </div>
+                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
+                                  <span className="text-xs font-semibold text-emerald-800">Правильный ответ:</span>
+                                  <MathRenderer
+                                    text={pickAnswerDisplayText(task.correct_answer, task.correct_answer_latex)}
+                                    className="text-sm sm:text-base font-medium text-emerald-950 break-words whitespace-pre-wrap"
+                                  />
+                                </span>
+                                {task.distractor_meta?.map((dm, i) => {
+                                  const distExplanation = pickDistractorExplanation(dm);
+                                  return (
+                                    <span
+                                      key={i}
+                                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-slate-50 text-slate-800 border border-slate-200/80 max-w-full hover:bg-slate-100/70 transition-colors shadow-2xs"
+                                      title={distExplanation ? `Дистрактор: ${distExplanation}` : undefined}
+                                    >
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
+                                      <span className="text-[11px] font-semibold text-slate-500">#{i + 1}</span>
+                                      <MathRenderer
+                                        text={pickAnswerDisplayText(dm.value, dm.value_latex)}
+                                        className="text-sm sm:text-base font-medium text-slate-900 break-words whitespace-pre-wrap"
+                                      />
+                                    </span>
+                                  );
+                                })}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
 
                           {/* Alternatives panel */}
                           <AnimatePresence>
@@ -574,15 +785,19 @@ export default function ExamDraftPage() {
                                           className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-primary-300 hover:bg-primary-50/30 transition-all group"
                                         >
                                           <div className="flex items-start justify-between gap-2">
-                                            <p className="text-xs text-slate-700 flex-1 line-clamp-2">
-                                              {alt.question_text}
-                                            </p>
+                                            <div className="text-sm text-slate-800 flex-1 py-1">
+                                              <MathRenderer
+                                                text={pickTaskDisplayText({
+                                                  task_id: alt.task_id,
+                                                  question_text: alt.question_text,
+                                                  question_latex: alt.question_latex,
+                                                })}
+                                                className="block text-sm text-slate-800 break-words whitespace-pre-wrap leading-relaxed"
+                                              />
+                                            </div>
                                             <div className="flex items-center gap-1.5 flex-shrink-0">
-                                              <span className={`px-1 py-0.5 rounded text-[10px] font-bold ${diffColors[alt.difficulty] || "bg-slate-100"}`}>
+                                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${diffColors[alt.difficulty] || "bg-slate-100"}`}>
                                                 {alt.difficulty}
-                                              </span>
-                                              <span className="text-[10px] text-green-600">
-                                                = {alt.correct_answer}
                                               </span>
                                             </div>
                                           </div>
@@ -605,26 +820,152 @@ export default function ExamDraftPage() {
         })}
       </div>
 
-      {/* Bottom publish bar */}
+      {/* Bottom action bar */}
       <div className="mt-8 flex items-center justify-between">
         <Link href="/teacher/exams">
           <Button variant="ghost" icon={<ArrowLeft className="w-4 h-4" />}>
-            К списку
+            К списку экзаменов
           </Button>
         </Link>
-        <div className="flex gap-3">
-          <Button variant="secondary" icon={<Eye className="w-4 h-4" />}>
-            Предпросмотр
-          </Button>
-          <Button
-            onClick={handlePublish}
-            loading={publishing}
-            icon={<Send className="w-4 h-4" />}
-          >
-            Опубликовать экзамен
-          </Button>
+        <div className="flex items-center gap-3">
+          {!draft.group_id ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => router.push(`/teacher/exams/${examId}`)}
+                icon={<Bookmark className="w-4 h-4 text-slate-600" />}
+              >
+                Сохранить в библиотеку
+              </Button>
+              <Button
+                variant="primary"
+                onClick={() => setShowAssignModal(true)}
+                icon={<Users className="w-4 h-4" />}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+              >
+                Привязать группу
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              onClick={() => router.push(`/teacher/exams/${examId}`)}
+              icon={<ArrowRight className="w-4 h-4" />}
+            >
+              Перейти к экзамену
+            </Button>
+          )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {showScheduleModal && draft && (
+          <ScheduleExamModal
+            examTitle={draft.title}
+            groups={groups}
+            initialGroupId={draft.group_id}
+            onClose={() => setShowScheduleModal(false)}
+            onSubmit={async ({ group, occurrence }) => {
+              const result = await examsApi.publish(examId, {
+                group_id: group.id,
+                lesson_id: occurrence.id,
+                lesson_date: occurrence.occurrenceDate,
+              });
+              setPublishResult(result);
+              setDraft((previous) => previous ? {
+                ...previous,
+                status: result.status,
+                group_id: result.group_id || group.id,
+                group_name: result.group_name || group.name,
+              } : previous);
+              setShowScheduleModal(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Group Assignment Modal */}
+      <AnimatePresence>
+        {showAssignModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-slate-950/60 backdrop-blur-md"
+              onClick={() => setShowAssignModal(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 10 }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              className="relative z-10 bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 border border-slate-200"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                  <Users className="w-5 h-5 text-indigo-600" />
+                  Привязать экзамен к группе
+                </h3>
+                <button
+                  onClick={() => setShowAssignModal(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <p className="text-sm text-slate-500 mb-4">
+                Выберите группу (класс), для которой предназначен этот экзамен:
+              </p>
+
+              {groups.length === 0 ? (
+                <div className="p-4 text-center text-sm text-slate-500 bg-slate-50 rounded-xl border border-slate-200 mb-4">
+                  Нет доступных групп. Создайте группу в разделе «Школа».
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-60 overflow-y-auto mb-6 pr-1 overscroll-contain">
+                  {groups.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => handleAssignGroup(g)}
+                      disabled={assignLoading}
+                      className={cn(
+                        "w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between cursor-pointer",
+                        draft?.group_id === g.id
+                          ? "border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900"
+                          : "border-slate-200 hover:border-indigo-300 hover:bg-slate-50 text-slate-800"
+                      )}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-sm">
+                          {g.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="text-sm font-semibold">{g.name}</div>
+                          <div className="text-xs text-slate-400">
+                            {g.student_count || 0} учеников {g.class_level ? `· ${g.class_level} класс` : ""}
+                          </div>
+                        </div>
+                      </div>
+                      {draft?.group_id === g.id && (
+                        <Check className="w-4 h-4 text-indigo-600" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" onClick={() => setShowAssignModal(false)}>
+                  Отмена
+                </Button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

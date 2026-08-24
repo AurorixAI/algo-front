@@ -119,7 +119,7 @@ export default function NewStudentPage() {
     : "#";
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className={`mx-auto transition-all duration-300 ${step === 2 ? "max-w-4xl" : "max-w-2xl"}`}>
       <h1 className="text-2xl font-bold text-slate-900 mb-2">Новый ученик</h1>
       <p className="text-slate-500 mb-6">Регистрация и запуск диагностики</p>
           {/* Back button */}
@@ -233,72 +233,76 @@ export default function NewStudentPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
             >
-              <GlassCard variant="elevated" className="p-8">
-                <div className="text-center mb-6">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-green-100 flex items-center justify-center">
-                    <Check className="w-8 h-8 text-green-600" />
+              <GlassCard variant="elevated" className="p-6 sm:p-8 md:p-10 shadow-xl border border-slate-200/80">
+                <div className="text-center mb-8">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shadow-xs">
+                    <Check className="w-8 h-8 text-emerald-600" />
                   </div>
-                  <h2 className="text-xl font-semibold text-slate-900">Диагностика готова!</h2>
-                  <p className="text-sm text-slate-500">
-                    Ученик: <span className="font-medium text-slate-700">{formData.name}</span> ({formData.grade} класс)
+                  <h2 className="text-2xl font-bold text-slate-900 mb-1">Диагностика готова!</h2>
+                  <p className="text-sm sm:text-base text-slate-500">
+                    Ученик: <span className="font-semibold text-slate-800">{formData.name}</span> ({formData.grade} класс)
                   </p>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-8 items-center justify-center mb-8">
+                <div className="flex flex-col md:flex-row gap-6 lg:gap-8 items-center md:items-stretch justify-center mb-8 p-6 sm:p-7 bg-slate-50/70 rounded-2xl border border-slate-200/70">
                   {/* QR Code */}
-                  <div className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
-                    <QRCode value={diagnosticLink} size={160} />
+                  <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col items-center justify-center shrink-0">
+                    <QRCode value={diagnosticLink} size={168} />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-3">QR-код ссылки</span>
                   </div>
 
-                  {/* Link */}
-                  <div className="flex-1 space-y-4">
+                  {/* Link & Actions */}
+                  <div className="flex-1 w-full min-w-0 space-y-4 flex flex-col justify-center">
                     <div>
-                      <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
+                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                         Ссылка для прохождения
                       </label>
-                      <div className="flex gap-2">
-                        <div className="flex-1 px-4 py-3 bg-slate-50 rounded-xl border border-slate-200 text-sm font-mono text-slate-700 truncate">
+                      <div className="flex flex-col sm:flex-row gap-2.5">
+                        <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 text-sm font-mono text-slate-700 truncate select-all shadow-2xs flex items-center">
                           {diagnosticLink}
                         </div>
                         <Button
                           variant="secondary"
                           onClick={handleCopy}
-                          icon={copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                          className="shrink-0 h-[46px] px-5 font-semibold"
+                          icon={copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                         >
                           {copied ? "Скопировано" : "Копировать"}
                         </Button>
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
-                      <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                        <Button variant="secondary" className="w-full" icon={<Send className="w-4 h-4" />}>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className="w-full">
+                        <Button variant="secondary" className="w-full h-11 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/60 hover:text-emerald-700 transition-colors" icon={<Send className="w-4 h-4 text-emerald-600" />}>
                           WhatsApp
                         </Button>
                       </a>
-                      <a href={telegramUrl} target="_blank" rel="noopener noreferrer" className="flex-1">
-                        <Button variant="secondary" className="w-full" icon={<Send className="w-4 h-4" />}>
+                      <a href={telegramUrl} target="_blank" rel="noopener noreferrer" className="w-full">
+                        <Button variant="secondary" className="w-full h-11 border-slate-200 hover:border-sky-300 hover:bg-sky-50/60 hover:text-sky-700 transition-colors" icon={<Send className="w-4 h-4 text-sky-500" />}>
                           Telegram
                         </Button>
                       </a>
                     </div>
 
-                    <p className="text-xs text-slate-500">
-                      ⏱️ Код действителен 7 дней • 1 попытка
+                    <p className="text-xs text-slate-500 flex items-center gap-1.5 pt-1 font-medium">
+                      <span>⏱️</span>
+                      <span>Код действителен 7 дней • 1 попытка</span>
                     </p>
                   </div>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <Button
                     variant="secondary"
                     onClick={handleReset}
-                    className="flex-1"
+                    size="lg"
+                    className="flex-1 font-medium"
                   >
                     Добавить ещё
                   </Button>
                   <Link href="/admin/diagnostics" className="flex-1">
-                    <Button className="w-full">
+                    <Button size="lg" className="w-full font-medium">
                       К диагностикам
                     </Button>
                   </Link>

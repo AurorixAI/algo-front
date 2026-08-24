@@ -1,7 +1,10 @@
 export interface DistractorMeta {
   value: string;
+  value_latex?: string | null;
   error_type: string;
   explanation: string;
+  error_logic?: string | null;
+  error_logic_latex?: string | null;
   plausibility: number;
 }
 

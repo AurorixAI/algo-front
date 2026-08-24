@@ -1,167 +1,277 @@
-/**
- * Math display helpers — KaTeX-ready strings for MathRenderer.
- * Prefer server-provided `*_latex` fields; fallback wraps bare LaTeX locally.
- */
+const BARE_LATEX_COMMANDS = new Set([
+  "\\frac", "\\dfrac", "\\sqrt", "\\sin", "\\cos", "\\tg", "\\ctg",
+  "\\log", "\\ln", "\\lim", "\\alpha", "\\beta", "\\gamma", "\\pi",
+  "\\infty", "\\Delta", "\\Sigma", "\\Omega", "\\theta", "\\int",
+  "\\sum", "\\prod", "\\pm", "\\mp", "\\neq", "\\geq", "\\leq",
+  "\\approx", "\\equiv", "\\to", "\\Rightarrow", "\\in", "\\cup",
+  "\\cap", "\\emptyset", "\\vec", "\\hat", "\\overline", "\\underline"
+]);
 
-/** Extract `\frac{…}{…}` / `\sqrt{…}` with balanced braces. */
-export function extractBracedCommand(
-  s: string,
-  start: number,
-  command: string,
-): { text: string; end: number } | null {
-  if (!s.startsWith(command, start)) return null;
-  let i = start + command.length;
-  const readGroup = (): string | null => {
-    if (s[i] !== "{") return null;
-    let depth = 0;
-    const begin = i;
-    for (; i < s.length; i++) {
-      if (s[i] === "{") depth++;
-      else if (s[i] === "}") {
-        depth--;
-        if (depth === 0) {
-          i++;
-          return s.slice(begin, i);
-        }
-      }
-    }
-    return null;
-  };
-  const g1 = readGroup();
-  if (!g1) return null;
-  const g2 = command === "\\frac" ? readGroup() : "";
-  if (command === "\\frac" && !g2) return null;
-  return { text: command + g1 + (g2 || ""), end: i };
+const TWO_ARG_COMMANDS = new Set([
+  "\\dfrac", "\\frac", "\\tfrac", "\\cfrac", "\\binom", "\\stackrel", "\\overset", "\\underset"
+]);
+
+const LATEX_COMMAND_RE = /\\[a-zA-Z]+|[\^_]/;
+const CYRILLIC_RE = /[а-яА-ЯёЁ]/;
+
+function looksLikeMathExpr(s: string): boolean {
+  if (CYRILLIC_RE.test(s)) return false;
+  return /^[0-9a-zA-Z\s\+\-\*\/\=\(\)\[\]\{\}\.,\^]+$/.test(s) && /[\+\-\*\/\=\^\[\]\{\}]/.test(s);
+}
+
+function cleanLatexSpacing(s: string): string {
+  return s
+    .replace(/\\,/g, " ")
+    .replace(/\\;/g, " ")
+    .replace(/\\!/g, "")
+    .replace(/\\quad/g, " ")
+    .replace(/\\qquad/g, " ");
+}
+
+function normalizeSqrtNotation(s: string): string {
+  return s
+    .replace(/\bsqrt\(([^()]+)\)/g, "\\sqrt{$1}")
+    .replace(/√\(([^()]+)\)/g, "\\sqrt{$1}")
+    .replace(/√(\d+(?:\.\d+)?)/g, "\\sqrt{$1}");
+}
+
+function convertMathFunctions(s: string): string {
+  return s.replace(/(?<!\\)\b(sin|cos|tg|ctg|arcsin|arccos|arctg|arcctg|log|ln|lim)(?=\s|\(|\_|\^)/g, "\\$1");
+}
+
+function unicodeToLatex(s: string): string {
+  return s
+    .replace(/≤/g, "\\leq ")
+    .replace(/≥/g, "\\geq ")
+    .replace(/≠/g, "\\neq ")
+    .replace(/≈/g, "\\approx ")
+    .replace(/∞/g, "\\infty ")
+    .replace(/π/g, "\\pi ")
+    .replace(/(\b\d+|\b[a-zA-Z]|\\[a-zA-Z]+)\s*°/g, "$1^{\\circ}")
+    .replace(/°/g, "^{\\circ}")
+    .replace(/×/g, "\\times ")
+    .replace(/·/g, "\\cdot ")
+    .replace(/÷/g, "\\div ")
+    .replace(/±/g, "\\pm ")
+    .replace(/∓/g, "\\mp ");
+}
+
+export function fixSpacingAroundMath(s: string): string {
+  s = s.replace(/(\d+)([а-яА-ЯёЁ]+)/g, "$1 $2");
+  s = s.replace(/([а-яА-ЯёЁ]+)(\d+)/g, "$1 $2");
+  s = s.replace(/([.,!?:;])([а-яА-ЯёЁ])/g, "$1 $2");
+  return s;
 }
 
 export function normalizeMathExponents(s: string): string {
-  return s
-    .replace(/\^(\d+)/g, "^{$1}")
-    .replace(/\^([a-zA-Z])/g, "^{$1}");
+  let res = s
+    .replace(/\^(-?\d+)/g, "^{$1}")
+    .replace(/\^([a-zA-Z])/g, "^{$1}")
+    .replace(/\^\(([^()]+)\)/g, "^{$1}");
+
+  res = res.replace(/(\|[^|]+\||[a-zA-Z0-9_\-]+)\s*\/\s*([a-zA-Z0-9_\-]+)/g, "\\dfrac{$1}{$2}");
+  res = res.replace(/\(([^\(\)]+)\)\s*\/\s*\(([^\(\)]+)\)/g, "\\dfrac{$1}{$2}");
+  res = res.replace(/\(([^\(\)]+)\)\s*\/\s*([a-zA-Z0-9_\-]+)/g, "\\dfrac{$1}{$2}");
+  res = res.replace(/([a-zA-Z0-9_\-]+)\s*\/\s*\(([^\(\)]+)\)/g, "\\dfrac{$1}{$2}");
+
+  return res;
 }
 
-function wrapMathSegment(expr: string): string {
-  return `$${normalizeMathExponents(expr.trim())}$`;
+function hasComplexLatex(s: string): boolean {
+  return /\\(?:left|right|begin|end|frac|dfrac|sum|prod|int|oint|binom|stackrel|overset|underset)(?![a-zA-Z])/.test(s);
 }
 
 function hasCyrillicProse(s: string): boolean {
-  return /[а-яё]{5,}/i.test(s);
+  return /[а-яА-ЯёЁ]{2,}/.test(s) || /[а-яА-ЯёЁ]\s+[а-яА-ЯёЁ]/.test(s);
 }
 
-function looksLikeMathExpr(s: string): boolean {
-  const t = s.trim();
-  if (!t || hasCyrillicProse(t)) return false;
-  return /[\^=±√\\]|[a-zA-Z]\s*[\d(]|\([^)]+\)\s*\^|\d\s*[a-zA-Z]|[+\-·*/]\s*[\d(a-zA-Z]/.test(
-    t,
-  );
-}
+function extractMathChunk(s: string, startIdx: number): { text: string; end: number } | null {
+  const m = s.slice(startIdx).match(/^\\[a-zA-Z]+/);
+  if (!m) return null;
+  const cmd = m[0];
+  let i = startIdx + cmd.length;
+  
+  const targetBraces = TWO_ARG_COMMANDS.has(cmd) ? 2 : 1;
+  let bracesFound = 0;
+  let bracesCurrent = 0;
 
-function wrapParenPowerSegments(s: string): string {
-  return s.replace(
-    /(\(\s*[^()]+?\s*\)\s*\^(?:\{[^}]+\}|\d+|[a-zA-Z]))/g,
-    (m) => (m.includes("$") ? m : wrapMathSegment(m)),
-  );
-}
-
-function wrapIdentifierPowerSegments(s: string): string {
-  return s.replace(
-    /(?<![$\\w])([a-zA-Z][\w.,]*\s*\^(?:\{[^}]+\}|\d+|[a-zA-Z])|[\d.,]+\s*\^(?:\{[^}]+\}|\d+))/g,
-    (m) => (m.includes("$") ? m : wrapMathSegment(m)),
-  );
-}
-
-/**
- * LaTeX commands that require wrapping in $…$ for KaTeX.
- * Covers structural commands (\frac, \sqrt), text mode (\text),
- * trig/log functions, Greek letters, set/interval notation, and more.
- */
-const BARE_LATEX_COMMANDS = [
-  "\\frac",
-  "\\sqrt",
-] as const;
-
-/**
- * Regex that detects any bare LaTeX command suffix that should trigger
- * full-string wrapping (i.e. the entire value is a math expression).
- */
-const LATEX_COMMAND_RE =
-  /\\(?:text|cos|sin|tan|cot|sec|csc|log|ln|lim|exp|max|min|sup|inf|det|deg|arg|left|right|alpha|beta|gamma|delta|epsilon|zeta|eta|theta|iota|kappa|lambda|mu|nu|xi|pi|rho|sigma|tau|upsilon|phi|chi|psi|omega|Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Upsilon|Phi|Psi|Omega|sum|prod|int|oint|nabla|partial|infty|cdot|times|div|pm|mp|leq|geq|neq|approx|equiv|in|notin|subset|supset|cup|cap|emptyset|forall|exists|neg|wedge|vee|to|Rightarrow|Leftrightarrow|mathbb|mathbf|mathrm|overline|underline|hat|vec|dot|ddot|tilde|bar)(?![a-zA-Z])/;
-
-/** Wrap bare LaTeX commands in $…$ for KaTeX (supports nested braces). */
-export function wrapBareMath(text: string): string {
-  let s = text.trim();
-  if (!s) return s;
-  // Already wrapped — return as-is
-  if (/\$[^$]+\$/.test(s)) return s;
-
-  // If the whole string is a known LaTeX expression, wrap entirely
-  if (LATEX_COMMAND_RE.test(s)) {
-    return `$${normalizeMathExponents(s)}$`;
-  }
-
-  const commands = Array.from(BARE_LATEX_COMMANDS);
-  let out = "";
-  let i = 0;
   while (i < s.length) {
-    let matched = false;
-    for (const cmd of commands) {
-      const chunk = extractBracedCommand(s, i, cmd);
-      if (chunk) {
-        out += `$${chunk.text}$`;
-        i = chunk.end;
-        matched = true;
-        break;
+    const char = s[i];
+    if (char === '{') {
+      bracesCurrent++;
+    } else if (char === '}') {
+      bracesCurrent--;
+      if (bracesCurrent === 0) {
+        bracesFound++;
+        if (bracesFound >= targetBraces) {
+          i++;
+          break;
+        }
       }
+    } else if (bracesCurrent === 0 && bracesFound === 0) {
+      if (/[а-яА-ЯёЁ]/.test(char)) break;
+      if (s.slice(i).match(/^\s*,\s*[а-яА-ЯёЁ]/)) break;
+      if (s.slice(i).match(/^\s+и\s+/)) break;
     }
-    if (matched) continue;
-
-    const eqMatch = s
-      .slice(i)
-      .match(
-        /^([\d.,]*\s*[a-zA-Z]?(?:\^\{?[^}\s]+)?(?:\s*[\+\-·\*\/]\s*[\d.,a-zA-Z^{}\(\)\\sqrt\s]+)+\s*=\s*[\d.,a-zA-Z^{}\(\)\\sqrt\s+\-]+)/,
-      );
-    if (eqMatch) {
-      const eq = eqMatch[1];
-      out += `$${normalizeMathExponents(eq.replace(/,\s*(\d)/g, ".$1"))}$`;
-      i += eq.length;
-      continue;
-    }
-
-    out += s[i];
     i++;
   }
-  s = out;
 
-  s = wrapParenPowerSegments(s);
-  s = wrapIdentifierPowerSegments(s);
-
-  if (!/\$/.test(s) && looksLikeMathExpr(s)) {
-    return wrapMathSegment(s);
+  const trailingMatch = s.slice(i).match(/^(\s*(?:[+*/=<>≤≥\-]|\\leqslant|\\geqslant|\\neq|\\leq|\\geq|\\cdot|\\times)\s*[a-zA-Z0-9_^()+*/\-]+)+/);
+  if (trailingMatch) {
+    i += trailingMatch[0].length;
   }
 
-  return s;
+  return { text: s.slice(startIdx, i).trim(), end: i };
+}
+
+export function insertSpacesAroundInlineMath(s: string): string {
+  return s
+    .replace(/(\$[^$]+\$)([а-яА-ЯёЁ])/g, "$1 $2")
+    .replace(/([а-яА-ЯёЁ])(\$[^$]+\$)/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Wraps bare LaTeX in a mixed prose string with $...$ delimiters.
+ * Handles:
+ *  1. Already has $...$ → just fix spacing
+ *  2. Comma-separated "f(x) = val" lists mixed with Russian words
+ *  3. Prefix sentence + math body
+ *  4. General mixed prose
+ */
+function wrapBareLatexInProse(s: string): string {
+  s = normalizeSqrtNotation(s);
+
+  // Already has $...$ → just fix spacing
+  if (/\$[^$]+\$/.test(s)) {
+    return insertSpacesAroundInlineMath(s);
+  }
+
+  // Clean up common typos
+  s = s.replace(/,\\f/g, ", f").replace(/\\f\s*\\left/g, "\\left");
+
+  // ── Case 1: Comma-separated f(x)=val list with embedded Russian words ──────
+  // Detect pattern: contains multiple "f(...)=..." groups separated by commas
+  // e.g. "f(-2)=-1,\ f(-1)=-1,\ f(0) не определено ,\ f(5)=1,..."
+  if (/\bf\s*\(/.test(s) || /\\left|\\dfrac|\\frac|\\neq|\\leq|\\geq/.test(s)) {
+    // Split on comma followed by space/backslash
+    const segments = s.split(/,\s*\\?\s*/);
+    if (segments.length >= 2) {
+      const wrapped = segments.map(seg => {
+        seg = seg.trim();
+        if (!seg) return "";
+        // Check if this segment has Cyrillic
+        if (CYRILLIC_RE.test(seg)) {
+          // Split on Cyrillic words to wrap math portions
+          // e.g. "f(0) не определено" → "$f(0)$ не определено"
+          const mathCyrillic = seg.match(/^(.+?)\s+([а-яА-ЯёЁ].*)$/);
+          if (mathCyrillic) {
+            const mathPart = mathCyrillic[1].trim();
+            const ruPart = mathCyrillic[2].trim();
+            return `$${normalizeMathExponents(mathPart)}$ ${ruPart}`;
+          }
+          return seg;
+        }
+        // Pure math segment → wrap in $...$
+        return `$${normalizeMathExponents(seg)}$`;
+      });
+      return wrapped.filter(Boolean).join(", ");
+    }
+  }
+
+  // ── Case 2: Prefix sentence + math body ──────────────────────────────────
+  const prefixMatch = s.match(/^((?:Решите(?:\s+систему)?(?:\s+уравнени[а-я]*)?|Найдите|Вычислите|Упростите|Сократите|Определите|Сравните|Докажите|Представьте|Укажите|Известно|Постройте)[^:]*:\s*)(.*)/i);
+  if (prefixMatch) {
+    const pref = prefixMatch[1].trim();
+    const body = prefixMatch[2].trim();
+    if (body) {
+      if (body.startsWith("$") && body.endsWith("$")) {
+        return `${pref} ${body}`;
+      }
+      return `${pref} $${normalizeMathExponents(body)}$`;
+    }
+  }
+
+  s = s.replace(/(\b\d+\^{\\circ}|\b[a-zA-Z]+\^{\\circ})/g, " $$1$ ");
+
+  // ── Case 3: General prose — split on known Russian separator words ─────────
+  const parts = s.split(/(\s+—\s+|\s+\b(?:неверно|функция|следовательно|получаем|так как|равна|уравнение|решением|при|стремится|модуль|дроби|определено|является)\b)/i);
+  const newParts: string[] = [];
+
+  for (const p of parts) {
+    const pStr = p.trim();
+    if (!pStr) continue;
+    if (/[а-яА-ЯёЁ—]/.test(pStr)) {
+      newParts.push(pStr);
+    } else {
+      const m = pStr.replace(/\$/g, "");
+      if (m.length >= 1 && !["(", ")", "[", "]", ";", ","].includes(m)) {
+        newParts.push(` $${normalizeMathExponents(m)}$ `);
+      } else {
+        newParts.push(pStr);
+      }
+    }
+  }
+
+  return insertSpacesAroundInlineMath(newParts.join(" "));
+}
+
+function wrapGenericMathSegments(s: string): string {
+  if (/\$[^$]+\$/.test(s)) {
+    return insertSpacesAroundInlineMath(s);
+  }
+
+  const parts = s.split(/([а-яА-ЯёЁ]+)/);
+  const wrapped = parts.map((part) => {
+    if (!part) return part;
+    if (CYRILLIC_RE.test(part)) return part;
+
+    const leading = part.match(/^[\s,;:.!?–—-]*/)?.[0] || "";
+    const trailing = part.match(/[\s,;:.!?–—-]*$/)?.[0] || "";
+    const core = part.slice(leading.length, part.length - trailing.length).trim();
+    if (!core) return part;
+
+    const normalizedCore = normalizeSqrtNotation(core);
+
+    const mathy =
+      LATEX_COMMAND_RE.test(normalizedCore) ||
+      /[\^_=±√\\<>≤≥]|[a-zA-Z]\s*[\d(]|\([^)]+\)\s*\^|\d\s*[a-zA-Z]|[+\-·*/]\s*[\d(a-zA-Z]/.test(normalizedCore);
+
+    if (!mathy) return part;
+
+    return `${leading}$${normalizeMathExponents(cleanLatexSpacing(unicodeToLatex(normalizedCore)))}$${trailing}`;
+  });
+
+  return insertSpacesAroundInlineMath(wrapped.join(""));
+}
+
+export function prepareMathDisplay(text: string): string {
+  return wrapBareMath(text);
+}
+
+
+export function wrapBareMath(text: string): string {
+  const s = normalizeSqrtNotation(text.trim());
+  if (!s) return s;
+
+  const proseWrapped = wrapBareLatexInProse(s);
+  if (/\$[^$]+\$/.test(proseWrapped)) {
+    return proseWrapped;
+  }
+
+  return wrapGenericMathSegments(proseWrapped);
 }
 
 export function pickAnswerDisplayText(
   answer: string,
   answerLatex?: string | null,
 ): string {
-  const latex = (answerLatex || "").trim();
-  if (latex) return latex;
-  const a = (answer || "").trim();
-  if (!a) return "";
-  // Already contains KaTeX delimiters
-  if (/\$/.test(a)) return a;
-  // Detect any LaTeX content: backslash commands, math operators, Greek letters
-  if (
-    /[=±√\^]/.test(a) ||
-    /x\s*=/.test(a) ||
-    LATEX_COMMAND_RE.test(a) ||
-    /\\(?:frac|sqrt)/.test(a)
-  ) {
-    return wrapBareMath(a);
-  }
-  return a;
+  // Content-service owns mathematical normalization.  A client-side rewrite
+  // can change the meaning of a value (for example a fraction or decimal), so
+  // the UI renders the stored display projection verbatim and only falls back
+  // to raw text when legacy data is incomplete.
+  return (answerLatex || answer || "").trim();
 }
 
 export function pickOptionDisplayText(

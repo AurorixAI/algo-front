@@ -8,21 +8,25 @@ function demoApiV1(): string {
 
 const AUTH_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8000"}/api/v1`;
+  : `${process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8000"}/api/v1`;
 
 const EXAM_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_EXAM_API_URL ?? "http://localhost:8003"}/api/v1`;
+  : `${process.env.NEXT_PUBLIC_EXAM_API_URL || "http://localhost:8003"}/api/v1`;
 
 const DIAG_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_DIAG_API_URL ?? "http://localhost:8002"}/api/v1`;
+  : `${process.env.NEXT_PUBLIC_DIAG_API_URL || "http://localhost:8002"}/api/v1`;
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
   token?: string;
   noAuth?: boolean;
+  /** Opaque, per-attempt capability for public student exam actions. */
+  sessionToken?: string;
+  /** Unpredictable diagnostic invite used only by the public student flow. */
+  inviteCode?: string;
 }
 
 class ApiError extends Error {
@@ -56,13 +60,18 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     headers["Authorization"] = `Bearer ${authToken}`;
   }
 
-  const response = await fetch(`${AUTH_API_V1}${endpoint}`, {
-    method,
-    headers,
-    credentials: "include",
-    cache: "no-store",
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${AUTH_API_V1}${endpoint}`, {
+      method,
+      headers,
+      credentials: "include",
+      cache: "no-store",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
 
   // Handle 401: token expired
   if (response.status === 401 && !noAuth) {
@@ -90,14 +99,14 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    let message = "Request failed";
+    const error = await response.json().catch(() => null);
+    let message = "Сервис временно недоступен. Повторите попытку.";
     let code: string | undefined;
-    if (typeof error.detail === "string") {
+    if (typeof error?.detail === "string") {
       message = error.detail;
-    } else if (Array.isArray(error.detail)) {
+    } else if (Array.isArray(error?.detail)) {
       message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
-    } else if (error.detail && typeof error.detail === "object") {
+    } else if (error?.detail && typeof error.detail === "object") {
       message = error.detail.message || message;
       code = error.detail.code;
     }
@@ -134,25 +143,33 @@ async function tryRefreshToken(): Promise<string | null> {
  * since most exam endpoints are public or handled by exam-service internally).
  */
 async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body } = options;
+  const { method = "GET", body, sessionToken } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  if (sessionToken) {
+    headers["X-Exam-Session-Token"] = sessionToken;
+  }
 
-  const response = await fetch(`${EXAM_API_V1}${endpoint}`, {
-    method,
-    headers,
-    credentials: "include",
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${EXAM_API_V1}${endpoint}`, {
+      method,
+      headers,
+      credentials: "include",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    let message = "Request failed";
-    if (typeof error.detail === "string") {
+    const error = await response.json().catch(() => null);
+    let message = "Сервис временно недоступен. Повторите попытку.";
+    if (typeof error?.detail === "string") {
       message = error.detail;
-    } else if (Array.isArray(error.detail)) {
+    } else if (Array.isArray(error?.detail)) {
       message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
     }
     throw new ApiError(response.status, message);
@@ -162,25 +179,33 @@ async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T
 }
 
 async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body } = options;
+  const { method = "GET", body, inviteCode } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  if (inviteCode) {
+    headers["X-Diagnostic-Invite-Code"] = inviteCode;
+  }
 
-  const response = await fetch(`${DIAG_API_V1}${endpoint}`, {
-    method,
-    headers,
-    credentials: "include",
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${DIAG_API_V1}${endpoint}`, {
+      method,
+      headers,
+      credentials: "include",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Unknown error" }));
-    let message = "Request failed";
-    if (typeof error.detail === "string") {
+    const error = await response.json().catch(() => null);
+    let message = "Сервис временно недоступен. Повторите попытку.";
+    if (typeof error?.detail === "string") {
       message = error.detail;
-    } else if (typeof error.detail === "object" && error.detail !== null) {
+    } else if (typeof error?.detail === "object" && error.detail !== null) {
       message = (error.detail as any).message || JSON.stringify(error.detail);
     }
     throw new ApiError(response.status, message);
@@ -250,10 +275,51 @@ export interface GroupInfo {
   teacher_id: string | null;
   teacher_name: string | null;
   description: string | null;
+  schedule?: Array<{
+    id?: string;
+    dayOfWeek?: number;
+    day_of_week?: number;
+    startTime?: string;
+    start_time?: string;
+    endTime?: string;
+    end_time?: string;
+    room?: string;
+    format?: "offline" | "online";
+    subject?: string;
+    color?: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
+    topic?: string;
+  }> | null;
   status: string;
   max_students: number;
   student_count: number;
+  students_count?: number;
   created_at: string | null;
+}
+
+export type Group = GroupInfo;
+
+export interface LessonEvent {
+  id: string;
+  groupId: string;
+  groupName: string;
+  classLevel: number;
+  subject: string;
+  dayOfWeek: number; // 1 (Mon) .. 7 (Sun)
+  startTime: string; // "14:00"
+  endTime: string; // "15:30"
+  room: string;
+  format: "offline" | "online";
+  color: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
+  topic?: string;
+}
+
+export interface ScheduleOccurrence extends LessonEvent {
+  occurrenceDate: string;
+  isRescheduled: boolean;
+  originalStartTime?: string | null;
+  originalEndTime?: string | null;
+  originalRoom?: string | null;
+  rescheduleReason?: string | null;
 }
 
 export interface StudentInGroup {
@@ -292,12 +358,26 @@ export interface GroupStats {
 }
 
 export type AttendanceStatus = "present" | "absent" | "excused" | "late";
+export type LessonAttendanceStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 
 export interface Lesson {
   id: string;
+  instanceKey?: string;
   date: string; // YYYY-MM-DD
   topic?: string;
   start_time?: string;
+  startTime?: string;
+  endTime?: string;
+  status?: LessonAttendanceStatus;
+  /** One-off transfer of this concrete date; the raw schedule remains unchanged. */
+  isRescheduled?: boolean;
+  /** Current resolved location/format of this concrete lesson occurrence. */
+  room?: string | null;
+  format?: "offline" | "online";
+  originalStartTime?: string | null;
+  originalEndTime?: string | null;
+  originalRoom?: string | null;
+  rescheduleReason?: string | null;
 }
 
 export interface AttendanceRecord {
@@ -306,8 +386,152 @@ export interface AttendanceRecord {
 }
 
 export interface GroupAttendance {
+  groupId?: string;
+  month?: string | null;
   lessons: Lesson[];
-  records: Record<string, Record<string, AttendanceStatus>>; // lesson_id -> student_id -> status
+  records: Record<string, Record<string, AttendanceStatus>>; // instance_key -> student_id -> status
+  statuses?: Record<string, LessonAttendanceStatus>; // instance_key -> status
+  cancellationReasons?: Record<string, string>; // instance_key -> teacher-provided reason
+  /** Roster frozen when the concrete lesson was started. */
+  rosterStudentIds?: Record<string, string[]>;
+  /** Transferred-out students with attendance in the selected period. */
+  historicalStudents?: Array<{
+    id: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    full_name?: string | null;
+    class_level?: number | null;
+    display_id?: string | null;
+    left_at?: string | null;
+    transferred_to_group_name?: string | null;
+  }>;
+  /** Entry into the currently opened group during the selected period. */
+  membershipEvents?: Array<{
+    student_id: string;
+    kind: "transferred";
+    joined_at: string | null;
+    source_group_name?: string | null;
+  }>;
+  /** Shown only until the current group teacher opens the initial report. */
+  diagnosticReportNotices?: Array<{
+    student_id: string;
+    invite_id: string;
+    completed_at?: string | null;
+  }>;
+}
+
+export interface AttendancePeriod {
+  month?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface StudentProfile {
+  student: {
+    id: string;
+    org_id: string;
+    first_name: string;
+    last_name: string;
+    full_name: string;
+    class_level: number;
+    group_id: string | null;
+    student_number?: string | null;
+    display_id: string | null;
+    sequence_number?: number | null;
+    student_phone: string | null;
+    comment: string | null;
+    status: string;
+    created_at: string | null;
+  };
+  group: {
+    id: string;
+    name: string;
+    class_level: number;
+    teacher_id: string | null;
+    teacher_name: string | null;
+    description?: string | null;
+  } | null;
+  group_history: Array<{
+    group_id: string;
+    group_name: string;
+    class_level?: number | null;
+    is_active: boolean;
+    joined_at: string | null;
+    left_at: string | null;
+  }>;
+  diagnostics: Array<{
+    invite_id: string;
+    code: string;
+    class_level: number;
+    diagnostic_type: string;
+    status: string;
+    created_at: string | null;
+    started_at: string | null;
+    completed_at: string | null;
+    result?: {
+      id: string;
+      theta?: number | null;
+      accuracy?: number | null;
+      recommended_level?: string | null;
+      total_questions?: number | null;
+      correct_answers?: number | null;
+      duration_seconds?: number | null;
+      diagnosed_at?: string | null;
+      recommended_load?: string | null;
+      identified_gaps?: any[];
+    } | null;
+  }>;
+  diagnostic_results: Array<any>;
+  exams?: Array<{
+    id: string;
+    exam_id: string;
+    exam_title?: string;
+    score?: number;
+    max_score?: number;
+    correct_count?: number;
+    total_tasks?: number;
+    time_spent_seconds?: number;
+    status?: string;
+    submitted_at?: string | null;
+    started_at?: string | null;
+  }>;
+}
+
+export interface StudentAttendanceSummary {
+  student_id: string;
+  period: { month: string; date_from: string; date_to: string };
+  totals: {
+    total_lessons: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    not_marked: number;
+    attended: number;
+    attendance_rate: number | null;
+  };
+  groups: Array<{
+    group_id: string;
+    group_name: string;
+    class_level: number | null;
+    teacher_name: string | null;
+    total_lessons: number;
+    present: number;
+    late: number;
+    absent: number;
+    excused: number;
+    not_marked: number;
+    attendance_rate: number | null;
+  }>;
+  lessons: Array<{
+    lesson_id: string | null;
+    date: string;
+    topic: string;
+    group_id: string;
+    group_name: string;
+    status: AttendanceStatus | "not_marked";
+    attendance_status: LessonAttendanceStatus;
+  }>;
 }
 
 export const authApi = {
@@ -416,11 +640,12 @@ export const orgApi = {
   // Students
   createStudent: (data: { first_name: string; last_name: string; class_level: number; student_phone: string; comment?: string }) =>
     api<any>("/auth/org/students", { method: "POST", body: data }),
-  listStudents: (params?: { class_level?: number; group_id?: string; teacher_id?: string; status?: string; exclude_status?: string; search?: string }) => {
+  listStudents: (params?: { class_level?: number; group_id?: string; teacher_id?: string; has_group?: boolean; status?: string; exclude_status?: string; search?: string }) => {
     const query = new URLSearchParams();
     if (params?.class_level) query.set("class_level", String(params.class_level));
     if (params?.group_id) query.set("group_id", params.group_id);
     if (params?.teacher_id) query.set("teacher_id", params.teacher_id);
+    if (params?.has_group !== undefined) query.set("has_group", String(params.has_group));
     if (params?.status) query.set("status", params.status);
     if (params?.exclude_status) query.set("exclude_status", params.exclude_status);
     if (params?.search) query.set("search", params.search);
@@ -428,6 +653,11 @@ export const orgApi = {
     return api<any[]>(`/auth/org/students${qs ? `?${qs}` : ""}`);
   },
   getStudent: (id: string) => api<any>(`/auth/org/students/${id}`),
+  getStudentProfile: (id: string) => api<StudentProfile>(`/auth/org/students/${id}/profile`),
+  getStudentAttendanceSummary: (id: string, month?: string) =>
+    api<StudentAttendanceSummary>(
+      `/auth/org/students/${id}/attendance${month ? `?month=${encodeURIComponent(month)}` : ""}`
+    ),
   updateStudent: (id: string, data: any) =>
     api<any>(`/auth/org/students/${id}`, { method: "PUT", body: data }),
 
@@ -436,10 +666,37 @@ export const orgApi = {
     api<any>("/auth/org/diagnostics", { method: "POST", body: data }),
   createQuickDiagnostic: (data: { first_name: string; last_name: string; class_level: number }) =>
     api<any>("/auth/org/diagnostics/quick", { method: "POST", body: data }),
-  listDiagnostics: (status?: string) => {
-    const qs = status ? `?status=${status}` : "";
-    return api<any[]>(`/auth/org/diagnostics${qs}`);
+  listDiagnostics: async (status?: string) => {
+    const pageSize = 100;
+    const allItems: any[] = [];
+    let offset = 0;
+
+    while (true) {
+      const query = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        include_meta: "true",
+      });
+      if (status) query.set("status", status);
+
+      const response = await api<
+        { items: any[]; total: number; limit: number; offset: number } | any[]
+      >(`/auth/org/diagnostics?${query.toString()}`);
+
+      // During a rolling update the auth-service can briefly still expose
+      // the former array response. Do not break the admin queue in that case.
+      if (Array.isArray(response)) return response;
+
+      const pageItems = Array.isArray(response.items) ? response.items : [];
+      allItems.push(...pageItems);
+      offset += pageItems.length;
+
+      if (offset >= response.total || pageItems.length === 0) return allItems;
+    }
   },
+  getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${id}`),
+  acknowledgeDiagnosticReport: (id: string) =>
+    api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${id}/acknowledge-report`, { method: "POST" }),
 
   // Groups
   createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number }) =>
@@ -461,7 +718,13 @@ export const orgApi = {
   unarchiveGroup: (id: string) =>
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "active" } }),
   addStudentToGroup: (groupId: string, studentId: string) =>
-    api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
+    api<{
+      student_id: string;
+      group_id: string;
+      status: "added" | "unchanged";
+      reason?: "already_in_target_group";
+      display_id?: string | null;
+    }>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
   bulkAddStudents: (groupId: string, studentIds: string[]) =>
@@ -470,37 +733,70 @@ export const orgApi = {
       { method: "POST", body: { student_ids: studentIds } }
     ),
 
-  // Attendance (MOCK for now)
-  getGroupAttendance: async (groupId: string, month: string): Promise<GroupAttendance> => {
-    // Return mock data for demonstration
-    const d = new Date(month + "-01");
-    const year = d.getFullYear();
-    const m = d.getMonth();
-    const lessons: Lesson[] = [];
-    // Generate lessons for the month (Mon/Fri pattern as requested)
-    for (let day = 1; day <= 28; day++) {
-      const date = new Date(year, m, day);
-      if (date.getDay() === 1 || date.getDay() === 5) {
-        const yyyy = date.getFullYear();
-        const mm = String(date.getMonth() + 1).padStart(2, "0");
-        const dd = String(date.getDate()).padStart(2, "0");
-        const dateStr = `${yyyy}-${mm}-${dd}`;
+  // ── Schedule ──────────────────────────────────────────────────────────
+  getSchedule: (teacherId?: string) =>
+    api<LessonEvent[]>(`/auth/org/schedule${teacherId ? `?teacher_id=${teacherId}` : ""}`),
+  getScheduleOccurrences: (period: { dateFrom: string; dateTo: string }, teacherId?: string) => {
+    const query = new URLSearchParams({ date_from: period.dateFrom, date_to: period.dateTo });
+    if (teacherId) query.set("teacher_id", teacherId);
+    return api<ScheduleOccurrence[]>(`/auth/org/schedule/occurrences?${query.toString()}`);
+  },
+  createLesson: (data: Omit<LessonEvent, "id" | "groupName" | "classLevel">) =>
+    api<LessonEvent>(`/auth/org/schedule/lessons`, { method: "POST", body: data }),
+  updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
+    api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}`, { method: "PUT", body: data }),
+  rescheduleLessonOccurrence: (
+    lessonId: string,
+    data: {
+      lessonDate: string;
+      startTime?: string;
+      endTime?: string;
+      room?: string;
+      format?: "offline" | "online";
+      topic?: string;
+      reason: string;
+    },
+  ) => api<ScheduleOccurrence>(`/auth/org/schedule/lessons/${lessonId}/reschedule`, { method: "POST", body: data }),
+  reviseRecurringLesson: (
+    lessonId: string,
+    data: Partial<LessonEvent> & { effectiveFrom: string; reason: string },
+  ) => api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}/recurrence`, { method: "PUT", body: data }),
+  deleteLesson: (lessonId: string) =>
+    api<{ ok: boolean }>(`/auth/org/schedule/lessons/${lessonId}`, { method: "DELETE" }),
 
-        lessons.push({
-          id: `lesson_${dateStr}`,
-          date: dateStr,
-          topic: "Тема урока",
-        });
-      }
+  // ── Attendance ────────────────────────────────────────────────────────
+  getGroupAttendance: (groupId: string, period?: string | AttendancePeriod) => {
+    const params = new URLSearchParams();
+    if (typeof period === "string") {
+      params.set("month", period);
+    } else if (period?.dateFrom && period?.dateTo) {
+      params.set("date_from", period.dateFrom);
+      params.set("date_to", period.dateTo);
+    } else if (period?.month) {
+      params.set("month", period.month);
     }
-    return {
-      lessons,
-      records: {},
-    };
+    const query = params.toString();
+    return api<GroupAttendance>(`/auth/org/groups/${groupId}/attendance${query ? `?${query}` : ""}`);
   },
-  updateAttendance: async (groupId: string, lessonId: string, records: AttendanceRecord[]): Promise<{ success: boolean }> => {
-    return { success: true };
-  },
+  saveGroupAttendance: (
+    groupId: string,
+    data: {
+      lessonDate: string;
+      lessonId: string;
+      topic?: string;
+      status?: Exclude<LessonAttendanceStatus, "scheduled">;
+      records: Record<string, AttendanceStatus>;
+      correctionReason?: string;
+      cancellationReason?: string;
+    }
+  ) =>
+    api<{ ok: boolean; saved: boolean }>(`/auth/org/groups/${groupId}/attendance`, { method: "POST", body: data }),
+
+  startGroupAttendance: (
+    groupId: string,
+    data: { lessonDate: string; lessonId: string; topic?: string },
+  ) =>
+    api<{ ok: boolean; started: boolean }>(`/auth/org/groups/${groupId}/attendance/start`, { method: "POST", body: data }),
 
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
@@ -587,11 +883,6 @@ export const diagnosticInviteApi = {
       method: "POST",
       noAuth: true,
     }),
-  start: (code: string) =>
-    api<any>(`/auth/diagnostic/${code}/start`, {
-      method: "POST",
-      noAuth: true,
-    }),
 };
 
 // ============================================================================
@@ -606,8 +897,11 @@ export const analyticsApi = {
     diagApi<any>(`/analytics/students/${studentId}/skill-map`),
   studentTimeline: (studentId: string) =>
     diagApi<any>(`/analytics/students/${studentId}/timeline`),
-  studentReport: (studentId: string) =>
-    diagApi<any>(`/analytics/students/${studentId}/report`),
+  studentReport: (studentId: string, sessionId?: string | null) => {
+    const query = new URLSearchParams({ _t: String(Date.now()) });
+    if (sessionId) query.set("session_id", sessionId);
+    return diagApi<any>(`/analytics/students/${studentId}/report?${query.toString()}`);
+  },
 
   // Group analytics — передаём student_ids списком
   groupOverview: (studentIds: string[]) =>
@@ -667,6 +961,14 @@ export interface DiagReport {
   weak_skills: string[];
   recommended_start: string | null;
   items_total: number;
+  has_full_report?: boolean;
+  report_json?: Record<string, any>;
+  report_generation?: {
+    status: "pending" | "generating" | "ready" | "failed" | string;
+    stage?: string | null;
+    attempts?: number;
+    is_current_schema?: boolean;
+  };
 }
 
 export const diagnosticApi = {
@@ -684,14 +986,17 @@ export const diagnosticApi = {
   submitAnswer: (
     sessionId: string,
     data: { task_id: string; student_answer: string; time_ms?: number },
+    inviteCode: string,
   ) =>
     diagServiceApi<DiagAnswerResult>(
       `/diagnostic/sessions/${sessionId}/answer`,
-      { method: "POST", body: data },
+      { method: "POST", body: data, inviteCode },
     ),
 
-  getReport: (sessionId: string) =>
-    diagServiceApi<DiagReport>(`/diagnostic/sessions/${sessionId}/report`),
+  getReport: (sessionId: string, inviteCode: string) =>
+    diagServiceApi<DiagReport>(
+      `/diagnostic/sessions/${sessionId}/report?invite_code=${encodeURIComponent(inviteCode)}`,
+    ),
 
   /** Check if an unfinished session exists for this invite code.
    *  Returns null (via 404) when no active session found.
@@ -701,6 +1006,7 @@ export const diagnosticApi = {
       session_id: string;
       items_answered: number;
       current_task: DiagTaskOut;
+      total_time_ms?: number;
     }>(`/diagnostic/sessions/active?invite_code=${encodeURIComponent(inviteCode)}`),
 };
 
@@ -718,8 +1024,91 @@ export interface ExamSummary {
   tasks_per_variant: number;
   tasks_count?: number;
   variants_count: number;
+  total_time_minutes?: number;
   sessions_count?: number;
+  total_sessions?: number;
+  group_id?: string | null;
+  group_name?: string | null;
+  class_level?: number | null;
+  teacher_name?: string | null;
+  scheduled_lesson_id?: string | null;
+  scheduled_lesson_date?: string | null;
+  is_pinned?: boolean;
+  source_exam_id?: string | null;
+  skills_covered?: string[];
+  recent_events?: Array<{
+    type: string;
+    at: string;
+    lesson_id?: string | null;
+    lesson_date?: string | null;
+    previous_lesson_id?: string | null;
+    previous_lesson_date?: string | null;
+    group_id?: string | null;
+    group_name?: string | null;
+    reason?: string | null;
+    details?: Record<string, unknown>;
+  }>;
   created_at: string;
+}
+
+export type AdminExamMonitorState = "all" | "active" | "lobby" | "closed" | "changes";
+
+export interface AdminExamMonitorResponse {
+  items: ExamSummary[];
+  total: number;
+  limit: number;
+  offset: number;
+  period_from?: string | null;
+  period_to?: string | null;
+  counts: Record<AdminExamMonitorState, number>;
+}
+
+export interface AdminExamView extends ExamSummary {
+  answer_key_available: boolean;
+  lifecycle_events: NonNullable<ExamSummary["recent_events"]>;
+  variants: Array<{
+    variant_id: string;
+    variant_number: number;
+    total_points: number;
+    tasks: Array<{
+      task_id: string;
+      skill_id: string;
+      skill_name: string;
+      difficulty: string;
+      question_text: string;
+      question_latex?: string | null;
+      question_image_url?: string | null;
+      answer_type: string;
+      answer_options?: string[] | null;
+      correct_answer?: string | null;
+      correct_answer_latex?: string | null;
+      distractor_meta?: Array<{
+        value: string;
+        value_latex?: string | null;
+        error_type?: string;
+        explanation?: string | null;
+        error_logic?: string | null;
+        error_logic_latex?: string | null;
+      }> | null;
+    }>;
+  }>;
+}
+
+/** Operational snapshot for active or recently completed live exams. */
+export interface LiveExamDashboardSummary {
+  exam_id: string;
+  title: string;
+  status: "lobby" | "active" | "closed";
+  group_id?: string | null;
+  group_name?: string | null;
+  scheduled_lesson_id?: string | null;
+  scheduled_lesson_date?: string | null;
+  total_time_seconds: number;
+  time_remaining_seconds: number;
+  connected_count: number;
+  solving_count: number;
+  submitted_count: number;
+  started_at?: string | null;
 }
 
 export interface PublishExamResult {
@@ -729,6 +1118,9 @@ export interface PublishExamResult {
   access_code: string;
   tasks_per_variant: number;
   variants_count: number;
+  group_id?: string | null;
+  group_name?: string | null;
+  class_level?: number | null;
   created_at: string;
   url: string;
 }
@@ -740,7 +1132,10 @@ export const examsApi = {
     title: string;
     textbook_id?: string;
     skill_ids?: string[];
-    paragraph_ids?: string[];
+    paragraph_ids?: (string | number)[];
+    group_id?: string;
+    group_name?: string;
+    class_level?: number;
     tasks_count?: number;
     difficulty_distribution?: Record<string, number>;
     time_minutes?: number;
@@ -749,14 +1144,82 @@ export const examsApi = {
     shuffle_tasks?: boolean;
     shuffle_options?: boolean;
     mc_mode?: string;
+    teacher_name?: string;
   }) =>
-    examApi<{ exam_id: string; access_code?: string; status: string; tasks_count: number; variants_count: number; skills_covered: string[] }>(
+    examApi<{ exam_id: string; access_code?: string; status: string; tasks_count: number; variants_count: number; group_id?: string; group_name?: string; class_level?: number; skills_covered: string[] }>(
       "/exams/generate",
       { method: "POST", body: data },
     ),
 
-  /** List all exams (teacher view) */
-  list: () => examApi<ExamSummary[]>("/exams"),
+  /** List all exams (teacher view, with optional filters) */
+  list: (opts?: { groupId?: string; unassigned?: boolean; status?: string; includeArchived?: boolean }) => {
+    const params = new URLSearchParams();
+    if (opts?.groupId) params.set("group_id", opts.groupId);
+    if (opts?.unassigned) params.set("unassigned", "true");
+    if (opts?.status) params.set("status", opts.status);
+    if (opts?.includeArchived) params.set("include_archived", "true");
+    const qs = params.toString();
+    return examApi<ExamSummary[]>(qs ? `/exams?${qs}` : "/exams");
+  },
+
+  /**
+   * Full organisation catalog for the admin console. The teacher library
+   * intentionally stays limited and scoped; admin KPIs must not silently
+   * omit older exams.
+   */
+  listAllForAdmin: async () => {
+    const pageSize = 100;
+    const allItems: ExamSummary[] = [];
+    let offset = 0;
+
+    while (true) {
+      const params = new URLSearchParams({
+        limit: String(pageSize),
+        offset: String(offset),
+        include_meta: "true",
+      });
+      const response = await examApi<
+        { items: ExamSummary[]; total: number; limit: number; offset: number } | ExamSummary[]
+      >(`/exams?${params.toString()}`);
+
+      // Tolerate a short rolling-deployment window while a previous service
+      // version still exposes the original array response.
+      if (Array.isArray(response)) return response;
+
+      const pageItems = Array.isArray(response.items) ? response.items : [];
+      allItems.push(...pageItems);
+      offset += pageItems.length;
+      if (offset >= response.total || pageItems.length === 0) return allItems;
+    }
+  },
+
+  /** Authoritative, paginated history for the organisation admin monitor. */
+  getAdminMonitor: (opts: {
+    state: AdminExamMonitorState;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const params = new URLSearchParams({
+      state: opts.state,
+      limit: String(opts.limit ?? 50),
+      offset: String(opts.offset ?? 0),
+    });
+    if (opts.dateFrom) params.set("date_from", opts.dateFrom);
+    if (opts.dateTo) params.set("date_to", opts.dateTo);
+    return examApi<AdminExamMonitorResponse>(`/admin/exams/monitor?${params.toString()}`);
+  },
+
+  /** Teacher-profile visual data for an administrator, without any controls or access code. */
+  getAdminView: (examId: string) => examApi<AdminExamView>(`/admin/exams/${examId}/view`),
+
+  /** Read-only exam metadata. Safe for the admin monitoring surface. */
+  getSummary: (examId: string) => examApi<ExamSummary>(`/exams/${examId}`),
+
+  /** Compact server-authoritative state for Dashboard live exam cards. */
+  getLiveDashboardSummary: () =>
+    examApi<LiveExamDashboardSummary[]>("/exams/live-summary"),
 
   /** Full draft with tasks & correct answers (teacher only) */
   getDraft: (examId: string) =>
@@ -764,9 +1227,15 @@ export const examsApi = {
       exam_id: string;
       title: string;
       status: string;
+      access_code?: string | null;
       total_time_minutes: number;
       variants_count: number;
       tasks_per_variant: number;
+      group_id?: string | null;
+      group_name?: string | null;
+      class_level?: number | null;
+      scheduled_lesson_id?: string | null;
+      scheduled_lesson_date?: string | null;
       settings: Record<string, any>;
       skills_covered: string[];
       created_at: string;
@@ -790,7 +1259,9 @@ export const examsApi = {
             value: string;
             value_latex?: string | null;
             error_type: string;
-            explanation: string;
+            explanation?: string | null;
+            error_logic?: string | null;
+            error_logic_latex?: string | null;
             plausibility: number;
           }> | null;
           is_template_generated: boolean;
@@ -810,17 +1281,17 @@ export const examsApi = {
     }>>(`/exams/${examId}/draft/alternatives?variant_number=${variantNumber}&task_id=${taskId}`),
 
   /** Replace a task in a draft variant */
-  replaceTask: (examId: string, data: { variant_number: number; task_id: string }) =>
+  replaceTask: (examId: string, data: { variant_number: number; task_id: string; old_task_id?: string; new_task_id?: string }) =>
     examApi<{ status: string; new_task: any }>(`/exams/${examId}/draft/replace-task`, {
       method: "POST",
       body: data,
     }),
 
-  /** Publish draft → active, returns access_code + url */
-  publish: (examId: string, data?: { teacher_name?: string; subject?: string }) =>
+  /** Schedule a draft for one concrete lesson and open its lobby. */
+  publish: (examId: string, data: { lesson_id: string; lesson_date: string; teacher_name?: string; subject?: string; group_id?: string; group_name?: string; class_level?: number }) =>
     examApi<PublishExamResult>(`/exams/${examId}/publish`, {
       method: "POST",
-      body: data ?? {},
+      body: data,
     }),
 
   /** Close an active exam */
@@ -833,6 +1304,39 @@ export const examsApi = {
   /** Get analytics for an exam (teacher) */
   getAnalytics: (examId: string) => examApi<any>(`/exams/${examId}/analytics`),
 
+  /** Get cached narrative report for an exam (teacher) */
+  getReport: (examId: string) => examApi<any>(`/exams/${examId}/report`),
+
+  /** Generate on-demand LLM narrative report for an exam (teacher) */
+  generateReport: (examId: string, force = true) =>
+    examApi<any>(`/exams/${examId}/report?force=${force}`, { method: "POST" }),
+
+  /** Toggle is_pinned (Library favourite) */
+  pin: (examId: string) =>
+    examApi<{ exam_id: string; is_pinned: boolean }>(`/exams/${examId}/pin`, { method: "POST" }),
+
+  /** Clone a template, optionally binding it to a new group */
+  clone: (examId: string, data?: { title?: string; group_id?: string; group_name?: string; class_level?: number }) =>
+    examApi<{ exam_id: string; title: string; status: string; source_exam_id: string; group_id?: string | null; group_name?: string | null }>(
+      `/exams/${examId}/clone`,
+      { method: "POST", body: data ?? {} },
+    ),
+
+  /** Assign a draft to a group; publishing additionally requires one lesson occurrence. */
+  assign: (examId: string, data: { group_id: string; group_name?: string; class_level?: number; teacher_name?: string; subject?: string; publish?: boolean; lesson_id?: string; lesson_date?: string }) =>
+    examApi<{ exam_id: string; status: string; group_id: string; group_name?: string | null; access_code?: string | null; scheduled_lesson_id?: string | null; scheduled_lesson_date?: string | null; url?: string | null }>(
+      `/exams/${examId}/assign`,
+      { method: "POST", body: data },
+    ),
+
+  /** Delete an exam (soft archive by default, or permanent) */
+  delete: (examId: string, permanent: boolean = false) =>
+    examApi<{ ok: boolean; action: string; id: string }>(`/exams/${examId}?permanent=${permanent}`, { method: "DELETE" }),
+
+  /** Restore an archived exam */
+  restore: (examId: string) =>
+    examApi<{ ok: boolean; action: string; id: string; status: string }>(`/exams/${examId}/restore`, { method: "POST" }),
+
   // ── Student: public (no auth) ────────────────────────────────────────────
 
   /** Exam info by access code — shown on lobby screen */
@@ -842,18 +1346,59 @@ export const examsApi = {
       title: string;
       subject: string;
       teacher_name: string | null;
+      group_id?: string | null;
+      group_name?: string | null;
+      class_level?: number | null;
       total_time_minutes: number;
       tasks_per_variant: number;
       variants_count: number;
       status: string;
+      time_remaining_seconds?: number | null;
+      started_at?: string | null;
     }>(`/exams/by-code/${code}`),
 
-  /** Start exam session — returns tasks without correct answers */
-  startSession: (code: string, data: { student_name: string; class_level: number }) =>
+  /** Fast student roster check before starting exam */
+  checkStudent: (
+    code: string,
+    params: string | { identifier?: string; student_id?: string; student_name?: string }
+  ) => {
+    const body = typeof params === "string" ? { identifier: params } : params;
+    return examApi<{
+      enrolled: boolean;
+      group_required: boolean;
+      group_name?: string | null;
+      student?: {
+        id?: string;
+        first_name?: string;
+        last_name?: string;
+        full_name?: string;
+        display_id?: string;
+        class_level?: number;
+      } | null;
+      already_submitted?: boolean;
+      session_id?: string | null;
+      message?: string | null;
+    }>(`/exams/by-code/${code}/check-student`, {
+      method: "POST",
+      body,
+    });
+  },
+
+  /** Start exam session or enter waiting lobby */
+  startSession: (
+    code: string,
+    data: { student_name: string; class_level?: number; student_id?: string; display_id?: string }
+  ) =>
     examApi<{
       session_id: string;
       variant_number: number;
       time_minutes: number;
+      time_remaining_seconds?: number | null;
+      status: "waiting" | "in_progress" | "submitted";
+      session_token?: string;
+      already_submitted?: boolean;
+      saved_answers?: Record<string, string>;
+      message?: string | null;
       tasks: Array<{
         task_id: string;
         text: string;
@@ -867,8 +1412,113 @@ export const examsApi = {
       }>;
     }>(`/exams/by-code/${code}/start`, { method: "POST", body: data }),
 
+  /** Auto-save student progress in real-time */
+  saveProgress: (
+    sessionId: string,
+    data: { answers: Record<string, string>; time_spent_seconds?: number },
+    sessionToken: string,
+  ) =>
+    examApi<{ ok: boolean; answered_count: number }>(`/exam-sessions/${sessionId}/progress`, {
+      method: "POST",
+      body: data,
+      sessionToken,
+    }),
+
+  /** Poll session status for students waiting in lobby */
+  getSessionStatus: (code: string, sessionId: string, sessionToken: string) =>
+    examApi<{
+      status: "waiting" | "in_progress" | "kicked" | "closed" | "submitted";
+      exam_status?: string;
+      variant_number?: number;
+      time_minutes?: number;
+      time_remaining_seconds?: number | null;
+      saved_answers?: Record<string, string>;
+      already_submitted?: boolean;
+      message?: string;
+      tasks?: Array<{
+        task_id: string;
+        text: string;
+        question_latex?: string | null;
+        options: string[];
+        options_latex?: string[] | null;
+        image_url?: string;
+        difficulty: string;
+        skill_name: string;
+        answer_type?: string;
+      }>;
+    }>(`/exams/by-code/${code}/session-status/${sessionId}`, { sessionToken }),
+
+  /** Teacher: bind a concrete lesson and open the lobby. */
+  openLobby: (examId: string, data: { lesson_id: string; lesson_date: string }) =>
+    examApi<{ status: string; access_code: string; url: string }>(`/exams/${examId}/open-lobby`, {
+      method: "POST",
+      body: data,
+    }),
+
+  /** Linked exam state used before a teacher cancels a lesson. */
+  getLessonBinding: (data: { groupId: string; lessonId: string; lessonDate: string }) => {
+    const params = new URLSearchParams({
+      group_id: data.groupId,
+      lesson_id: data.lessonId,
+      lesson_date: data.lessonDate,
+    });
+    return examApi<{
+      attached: boolean;
+      can_cancel: boolean;
+      exam: { id: string; title: string; status: string } | null;
+      message: string | null;
+    }>(`/exams/lesson-binding?${params.toString()}`);
+  },
+
+  /** Teacher: Synchronously start exam from lobby */
+  startLive: (examId: string) =>
+    examApi<{ status: string; started_count: number }>(`/exams/${examId}/start-live`, {
+      method: "POST",
+    }),
+
+  /** Teacher: Get live lobby status and connected students */
+  getLobbyStatus: (examId: string) =>
+    examApi<{
+      exam_id: string;
+      title: string;
+      access_code: string;
+      status: string;
+      group_id?: string | null;
+      group_name?: string | null;
+      total_time_minutes: number;
+      total_time_seconds?: number;
+      time_remaining_seconds?: number;
+      time_elapsed_seconds?: number;
+      tasks_per_variant: number;
+      connected_count: number;
+      students: Array<{
+        session_id: string;
+        student_id?: string | null;
+        display_id?: string | null;
+        student_name: string;
+        status: "waiting" | "in_progress" | "submitted";
+        variant_number: number;
+        answered_count: number;
+        total_tasks: number;
+        score: number;
+        max_score: number;
+        started_at?: string | null;
+        submitted_at?: string | null;
+      }>;
+    }>(`/exams/${examId}/lobby-status`),
+
+  /** Teacher: Kick / remove student from lobby */
+  kickStudent: (examId: string, sessionId: string) =>
+    examApi<{ ok: boolean; kicked_session_id: string }>(`/exams/${examId}/sessions/${sessionId}`, {
+      method: "DELETE",
+    }),
+
   /** Submit answers — called with session_id, not code */
-  submit: (sessionId: string, data: { answers: Record<string, string>; time_spent_seconds: number }) =>
+  submit: (
+    sessionId: string,
+    data: { answers: Record<string, string>; time_spent_seconds: number },
+    sessionToken: string,
+  ) =>
     examApi<{
       session_id: string;
       score: number;
@@ -877,10 +1527,10 @@ export const examsApi = {
       answered_count: number;
       total_tasks: number;
       percentage: number;
-    }>(`/exam-sessions/${sessionId}/submit`, { method: "POST", body: data }),
+    }>(`/exam-sessions/${sessionId}/submit`, { method: "POST", body: data, sessionToken }),
 
   /** Detailed session results (shown after submission) */
-  getResult: (sessionId: string) =>
+  getResult: (sessionId: string, sessionToken: string) =>
     examApi<{
       session_id: string;
       exam_title: string;
@@ -905,7 +1555,7 @@ export const examsApi = {
         is_correct: boolean;
         skill_name: string;
       }>;
-    }>(`/exam-sessions/${sessionId}/results`),
+    }>(`/exam-sessions/${sessionId}/results`, { sessionToken }),
 };
 
 // ============================================================================

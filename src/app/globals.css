@@ -1,8 +1,8 @@
+@import 'katex/dist/katex.min.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import 'katex/dist/katex.min.css';
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif:ital,wght@0,400;0,700;1,400&display=swap');
 
@@ -75,14 +75,94 @@ body {
   box-shadow: 0 8px 24px rgba(37, 99, 235, 0.2);
 }
 
-/* Math font styling */
+/* Math font sizing & fraction alignment */
 .math-renderer .katex {
-  font-size: 1.05em;
+  font-size: 1.1em !important;
+  line-height: 1.25;
+  display: inline;
+  margin-right: 0.1em;
+  margin-left: 0.04em;
+  vertical-align: -0.06em;
+}
+
+/* Ensure scripts and fractions inside exponents never shrink into microscopic unreadable text */
+.math-renderer .katex .sizing.reset-size6.size1,
+.math-renderer .katex .sizing.reset-size5.size1,
+.math-renderer .katex .sizing.reset-size4.size1,
+.math-renderer .katex .sizing.reset-size3.size1,
+.math-renderer .katex .sizing.reset-size2.size1,
+.math-renderer .katex .sizing.reset-size1.size1 {
+  font-size: 0.72em !important;
+}
+
+.math-renderer .katex .sizing.reset-size6.size2,
+.math-renderer .katex .sizing.reset-size5.size2,
+.math-renderer .katex .sizing.reset-size4.size2,
+.math-renderer .katex .sizing.reset-size3.size2 {
+  font-size: 0.82em !important;
+}
+
+.math-renderer .katex .sizing.reset-size6.size3,
+.math-renderer .katex .sizing.reset-size5.size3,
+.math-renderer .katex .sizing.reset-size4.size3 {
+  font-size: 0.86em !important;
+}
+
+/* Fractions in inline math keep numerators and denominators legible */
+.math-renderer .katex .mfrac .vlist-t .vlist-r .vlist > span {
+  font-size: 0.9em;
+}
+
+.math-renderer .katex-html {
+  white-space: normal;
+}
+
+.math-renderer .katex-html > .base {
+  white-space: nowrap;
+  display: inline-block;
+  margin-right: 0.04em;
+}
+
+.math-renderer .katex-display .katex {
+  font-size: 1.18em !important;
+  margin-right: 0;
+  margin-left: 0;
+  vertical-align: baseline;
+  display: block;
+}
+
+.math-renderer .katex-error,
+.katex-error {
+  color: inherit !important;
+  background: transparent !important;
+}
+
+.math-renderer .katex .mfrac .frac-line {
+  border-bottom-width: 1.25px !important;
 }
 
 .math-renderer .katex-display {
-  margin: 0.5em 0;
+  margin: 0.4em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
+
+.math-renderer .katex-display::-webkit-scrollbar,
+.math-renderer::-webkit-scrollbar,
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+
 
 .font-math,
 .math-display {

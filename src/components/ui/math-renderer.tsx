@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import katex from "katex";
-import { wrapBareMath } from "@/lib/math-display";
+import { cn } from "../../lib/utils";
 
 interface MathRendererProps {
   text: string;
@@ -10,127 +10,267 @@ interface MathRendererProps {
   block?: boolean;
 }
 
-function renderSegment(segment: string, display: boolean): string {
-  try {
-    return katex.renderToString(segment, {
-      throwOnError: false,
-      displayMode: display,
-      output: "html",
-      strict: "ignore",
-    });
-  } catch {
-    return segment;
-  }
-}
-
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
-    .replace(/\\,/g, " ")
-    .replace(/\\;/g, " ")
-    .replace(/\\!/g, "")
-    .replace(/\\quad/g, " ")
-    .replace(/\\qquad/g, " ")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 }
 
-/**
- * Renders a single $…$ LaTeX block that mixes \text{} and math.
- * Splits on \text{…} boundaries so the text portions are regular
- * HTML (word-wrappable) while actual math renders via KaTeX inline.
- */
-function renderMixedLatexBlock(inner: string): string {
-  const parts: string[] = [];
-  const textRe = /\\text\{([^}]*)\}/g;
-  let last = 0;
-  let m: RegExpExecArray | null;
+function cleanLatexForKatex(latex: string): string {
+  if (!latex) return "";
 
-  while ((m = textRe.exec(inner)) !== null) {
-    // Math fragment before this \text{…}
-    if (m.index > last) {
-      const mathFrag = inner.slice(last, m.index).trim();
-      if (mathFrag) parts.push(renderSegment(mathFrag, false));
-    }
-    // Text fragment — rendered as plain escaped HTML
-    parts.push(escapeHtml(m[1]));
-    last = m.index + m[0].length;
-  }
+  let s = latex
+    .replace(/\\\\([a-zA-Z]+)/g, "\\$1")
+    .replace(/\\cdot([a-zA-BD-Z])/g, "\\cdot $1")
+    .replace(/\\times([a-zA-Z])/g, "\\times $1")
+    .replace(/\\dots([a-zA-Z])/g, "\\dots $1")
+    .replace(/\\(le|leq)\s*slant\b/g, "\\leqslant")
+    .replace(/\\(ge|geq)\s*slant\b/g, "\\geqslant")
+    .replace(/\\le\s+ft\b/g, "\\left")
+    .replace(/\\le\s+q\b/g, "\\leq")
+    .replace(/\\ge\s+q\b/g, "\\geq")
+    .replace(/\\ne\s+q\b/g, "\\neq")
+    .replace(/\\ne\s+g\b/g, "\\neg")
+    .replace(/\\pm\s+od\b/g, "\\pmod");
 
-  // Trailing math after last \text{…}
-  if (last < inner.length) {
-    const mathFrag = inner.slice(last).trim();
-    if (mathFrag) parts.push(renderSegment(mathFrag, false));
-  }
-
-  return parts.join("");
-}
-
-/**
- * Converts bare Cyrillic text inside a LaTeX $…$ block into \text{…}.
- * In raw LaTeX without \text{}, KaTeX treats Cyrillic characters as math
- * variables, ignores spaces, and squishes all words together.
- */
-function normalizeLatexInner(inner: string): string {
-  if (!/[а-яА-ЯёЁ]/.test(inner)) return inner;
-  return inner.replace(
-    /(?:\\text\{[^}]*\}|([а-яА-ЯёЁ][а-яА-ЯёЁ\s.,!?:;–—\-]*[а-яА-ЯёЁа-яА-ЯёЁ.,!?:;–—\-]?))/g,
-    (match, bareCyr) => {
-      if (bareCyr) {
-        return `\\text{${bareCyr}}`;
+  // Fix \dfrac inside superscripts (^) and subscripts (_) where \dfrac forces \displaystyle and breaks exponent alignment
+  // e.g. x^{\dfrac{5}{6}} -> x^{\frac{5}{6}}
+  const out: string[] = [];
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === "^" || s[i] === "_") {
+      out.push(s[i]);
+      i++;
+      if (i < s.length && s[i] === "{") {
+        out.push("{");
+        i++;
+        let depth = 1;
+        while (i < s.length && depth > 0) {
+          if (s.startsWith("\\dfrac", i)) {
+            out.push("\\frac");
+            i += 6;
+          } else if (s[i] === "{") {
+            depth++;
+            out.push("{");
+            i++;
+          } else if (s[i] === "}") {
+            depth--;
+            out.push("}");
+            i++;
+          } else {
+            out.push(s[i]);
+            i++;
+          }
+        }
+      } else if (s.startsWith("\\dfrac", i)) {
+        out.push("\\frac");
+        i += 6;
       }
-      return match;
-    },
-  );
+      continue;
+    } else {
+      out.push(s[i]);
+      i++;
+    }
+  }
+  return out.join("");
 }
 
-function renderMathText(text: string, allowLineBreaks = false): string {
-  // Normalize double $$ display math delimiters to single $
-  let cleaned = text.replace(/\$\$/g, "$");
-  // Trim outer duplicate $ if wrapped twice
-  cleaned = cleaned.replace(/^\$\s*(\$[^$]+\$)\s*\$$/, "$1");
+function katexRender(latex: string, displayMode: boolean): string {
+  try {
+    const cleaned = cleanLatexForKatex(latex.trim());
+    return katex.renderToString(cleaned, {
+      throwOnError: false,
+      displayMode,
+      output: "html",
+      strict: "ignore",
+      trust: false,
+    });
+  } catch (e) {
+    return escapeHtml(latex);
+  }
+}
 
-  const prepared = /\$/.test(cleaned) ? cleaned : wrapBareMath(cleaned);
-  const parts: string[] = [];
-  let last = 0;
+export interface Token {
+  type: "text" | "inline" | "display";
+  content: string;
+}
 
-  const newlineReplace = allowLineBreaks
-    ? (s: string) => escapeHtml(s).replace(/\n/g, "<br/>")
-    : (s: string) => escapeHtml(s).replace(/\n/g, " ");
+function isStandaloneMath(tokens: Token[]): boolean {
+  const nonEmpty = tokens.filter((token) => !(token.type === "text" && token.content.trim() === ""));
+  return nonEmpty.length === 1 && nonEmpty[0].type === "display";
+}
 
-  // Multi-line $…$ match (handles entire string being one math block)
-  const re = /\$([^$]+?)\$/g;
-  let m: RegExpExecArray | null;
+const MATH_COMMANDS =
+  "log|lg|ln|frac|dfrac|cfrac|sqrt|sin|cos|tan|cot|arcsin|arccos|arctan|" +
+  "lim|sum|prod|int|pm|mp|cdot|times|div|alpha|beta|gamma|delta|epsilon|" +
+  "theta|lambda|mu|pi|rho|sigma|tau|phi|varphi|chi|psi|omega|" +
+  "Gamma|Delta|Theta|Lambda|Xi|Pi|Sigma|Phi|Psi|Omega|infty|" +
+  "cup|cap|in|notin|subset|subseteq|supset|supseteq|" +
+  "leq|geq|neq|approx|equiv|forall|exists|partial|nabla|" +
+  "rightarrow|Rightarrow|leftarrow|Leftarrow|leftrightarrow|Leftrightarrow|" +
+  "vec|hat|bar|tilde|dot|ddot|" +
+  "text|mathbf|mathit|mathrm|mathbb|mathcal";
 
-  while ((m = re.exec(prepared)) !== null) {
-    if (m.index > last) {
-      parts.push(newlineReplace(prepared.slice(last, m.index)));
-    }
-    let inner = m[1].trim();
-    inner = normalizeLatexInner(inner);
-    // If the block mixes \text{} and math, split it into readable segments
-    if (/\\text\{/.test(inner)) {
-      parts.push(renderMixedLatexBlock(inner));
+const BARE_LATEX_REGEX = new RegExp(
+  "\\\\{1,2}(?:" + MATH_COMMANDS + ")" +
+  "(?:" +
+    "(?:_|\\^)(?:\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|[a-zA-Z0-9]+)|" +
+    "\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}|" +
+    "\\([^()]*\\)" +
+  ")*",
+  "g"
+);
+
+function cleanNestedDollars(text: string): string {
+  if (!text) return "";
+  let out = "";
+  let depth = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === "{") {
+      depth++;
+      out += c;
+    } else if (c === "}") {
+      depth = Math.max(0, depth - 1);
+      out += c;
+    } else if (c === "$" && depth > 0) {
+      continue;
     } else {
-      parts.push(renderSegment(inner, false));
+      out += c;
     }
-    last = m.index + m[0].length;
+  }
+  for (let step = 0; step < 3; step++) {
+    out = out.replace(/(\\[a-zA-Z]+(?:_[a-zA-Z0-9]+|_{[^{}]*})?\s*\([^\)]*?)\$([^\$\n]+?)\$([^\)]*?\))/g, "$1$2$3");
+  }
+  return out;
+}
+
+export function tokenize(rawS: string): Token[] {
+  const s = cleanNestedDollars(rawS || "");
+  if (!s) return [];
+
+  // If the entire string is pure LaTeX without delimiters (e.g. "\frac{\sqrt{3}}{2}" or "7^{\log_5 x^2}")
+  if (!s.includes("$") && !s.includes("\\[") && !s.includes("\\(")) {
+    const hasCyrillic = /[\u0400-\u04FF]/.test(s);
+    const hasLatex = /\\{1,2}[a-zA-Z]+|\^\{|_\{|\^[0-9a-zA-Z]|_[0-9a-zA-Z]/.test(s);
+    if (!hasCyrillic && hasLatex) {
+      return [{ type: "inline", content: s.trim() }];
+    }
+    if (/^\s*\\{1,2}[a-zA-Z]/.test(s)) {
+      return [{ type: "inline", content: s.trim() }];
+    }
   }
 
-  if (last < prepared.length) {
-    parts.push(newlineReplace(prepared.slice(last)));
-  }
+  const tokens: Token[] = [];
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith("\\[", i)) {
+      const end = s.indexOf("\\]", i + 2);
+      if (end !== -1) {
+        tokens.push({ type: "display", content: s.slice(i + 2, end) });
+        i = end + 2;
+        continue;
+      }
+    }
+    if (s.startsWith("\\(", i)) {
+      const end = s.indexOf("\\)", i + 2);
+      if (end !== -1) {
+        tokens.push({ type: "inline", content: s.slice(i + 2, end) });
+        i = end + 2;
+        continue;
+      }
+    }
+    if (s.startsWith("$$", i)) {
+      const end = s.indexOf("$$", i + 2);
+      if (end !== -1) {
+        tokens.push({ type: "display", content: s.slice(i + 2, end) });
+        i = end + 2;
+        continue;
+      }
+    }
+    if (s[i] === "$") {
+      const end = s.indexOf("$", i + 1);
+      if (end !== -1) {
+        tokens.push({ type: "inline", content: s.slice(i + 1, end) });
+        i = end + 1;
+        continue;
+      } else {
+        const remaining = s.slice(i + 1).trim();
+        if (/[\\[\]{}^_+\-=]/.test(remaining)) {
+          tokens.push({ type: "inline", content: remaining });
+          break;
+        }
+        tokens.push({ type: "text", content: "$" });
+        i++;
+        continue;
+      }
+    }
 
+    const searchSlice = s.slice(i);
+    const nextMathRel = searchSlice.slice(1).search(/\$|\\[\[(]/);
+    const textEnd = nextMathRel === -1 ? s.length : i + 1 + nextMathRel;
+    const textSegment = s.slice(i, textEnd);
+
+    // Extract any bare LaTeX expressions within plain text segment
+    BARE_LATEX_REGEX.lastIndex = 0;
+    let pos = 0;
+    let match: RegExpExecArray | null;
+    while ((match = BARE_LATEX_REGEX.exec(textSegment)) !== null) {
+      if (match.index > pos) {
+        tokens.push({ type: "text", content: textSegment.slice(pos, match.index) });
+      }
+      tokens.push({ type: "inline", content: match[0] });
+      pos = BARE_LATEX_REGEX.lastIndex;
+      if (match[0].length === 0) {
+        BARE_LATEX_REGEX.lastIndex++;
+      }
+    }
+    if (pos < textSegment.length) {
+      tokens.push({ type: "text", content: textSegment.slice(pos) });
+    }
+
+    i = Math.max(i + 1, textEnd);
+  }
+  return tokens;
+}
+
+export function renderMathText(text: string, allowLineBreaks = false): string {
+  const s = text.trim();
+  if (!s) return "";
+
+  const tokens = tokenize(s);
+  const parts: string[] = [];
+
+  for (let idx = 0; idx < tokens.length; idx++) {
+    const token = tokens[idx];
+    if (token.type === "text") {
+      const escaped = escapeHtml(token.content);
+      parts.push(allowLineBreaks ? escaped.replace(/\n/g, "<br/>") : escaped.replace(/\n/g, " "));
+    } else {
+      const isDisplay = allowLineBreaks && token.type === "display";
+      parts.push(katexRender(token.content, isDisplay));
+    }
+  }
   return parts.join("");
 }
 
 export function MathRenderer({ text, className = "", block = false }: MathRendererProps) {
   const html = useMemo(() => renderMathText(text, block), [text, block]);
+  const standalone = useMemo(() => isStandaloneMath(tokenize(text.trim())), [text]);
   const Tag = block ? "div" : "span";
-
   return (
     <Tag
-      className={`math-renderer leading-relaxed [&_.katex]:text-[1.05em] ${block ? "block" : ""} ${className}`}
+      className={cn(
+        "math-renderer leading-relaxed antialiased no-scrollbar",
+        "[&_.katex]:text-[1.06em] [&_.katex]:font-normal",
+        block
+          ? (standalone
+              ? "block mx-auto w-fit max-w-full text-center [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden"
+              : "block [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden")
+          : "inline [&_.katex]:inline",
+        className
+      )}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
