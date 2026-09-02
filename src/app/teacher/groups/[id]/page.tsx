@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, BarChart2, Settings,
-  GraduationCap, Loader2, Edit2, Check, X, Lock, Sparkles,
-  BookOpen, FileText, Plus, Copy, BarChart3, ChevronRight, AlertCircle, Clock, CheckCircle, CheckCircle2, XCircle,
+  ArrowLeft, Users, Settings,
+  GraduationCap, Loader2, Edit2, Check, X,
+  BookOpen, FileText, Plus, Copy, ChevronRight, AlertCircle, Clock, CheckCircle, CheckCircle2, XCircle,
   Library, PlayCircle, Search, Radio, Archive, Calendar as CalendarIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -20,7 +20,7 @@ import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
-type Tab = "students" | "exams" | "attendance" | "analytics";
+type Tab = "students" | "exams" | "attendance";
 type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
 
 function parseExamStatusFilter(value: string | null): ExamStatusFilter {
@@ -125,7 +125,10 @@ export default function TeacherGroupDetailPage() {
     });
   }, [groupExams, examFilter, examSearch]);
 
-  const tab = (searchParams?.get("tab") as Tab) || "students";
+  const requestedTab = searchParams?.get("tab");
+  const tab: Tab = requestedTab === "exams" || requestedTab === "attendance" || requestedTab === "students"
+    ? requestedTab
+    : "students";
   const setTab = (newTab: Tab) => {
     const next = new URLSearchParams(searchParams?.toString());
     next.set("tab", newTab);
@@ -380,7 +383,6 @@ export default function TeacherGroupDetailPage() {
             { key: "students", label: "Ученики", icon: Users, count: group.students?.length },
             { key: "exams", label: "Экзамены", icon: FileText, count: groupExams.length },
             { key: "attendance", label: "Посещаемость", icon: BookOpen },
-            { key: "analytics", label: "Аналитика", icon: BarChart3 },
           ].map((t) => {
             const Icon = t.icon;
             const isActive = tab === t.key;
@@ -886,21 +888,6 @@ export default function TeacherGroupDetailPage() {
           />
         )}
 
-        {tab === "analytics" && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
-              <Lock className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="max-w-md space-y-1.5">
-              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Доступ к разделу временно ограничен</span>
-            </div>
-          </motion.div>
-        )}
       </motion.div>
 
       {printScheduleTarget && (

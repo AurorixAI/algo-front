@@ -4,9 +4,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, BarChart2, CalendarDays,
+  ArrowLeft, Users, CalendarDays,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown, RotateCcw
+  Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
@@ -17,7 +17,7 @@ import { GroupScheduleOverview } from "@/components/groups/group-schedule-overvi
 import { Select } from "@/components/ui/select";
 import { BookOpen } from "lucide-react";
 
-type Tab = "students" | "schedule" | "attendance" | "analytics";
+type Tab = "students" | "schedule" | "attendance";
 
 interface EditState {
   name: string;
@@ -40,7 +40,10 @@ export default function AdminGroupDetailPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const tab = (searchParams?.get("tab") as Tab) || "students";
+  const requestedTab = searchParams?.get("tab");
+  const tab: Tab = requestedTab === "schedule" || requestedTab === "attendance" || requestedTab === "students"
+    ? requestedTab
+    : "students";
   const setTab = (newTab: Tab) => {
     router.replace(`?tab=${newTab}`, { scroll: false });
   };
@@ -379,7 +382,6 @@ export default function AdminGroupDetailPage() {
           { key: "students",  label: "Ученики",   Icon: Users    },
           { key: "schedule", label: "Расписание", Icon: CalendarDays },
           { key: "attendance", label: "Посещаемость", Icon: BookOpen },
-          { key: "analytics", label: "Аналитика",  Icon: BarChart2},
         ] as const).map(({ key, label, Icon }) => (
           <button
             key={key}
@@ -417,22 +419,6 @@ export default function AdminGroupDetailPage() {
         {tab === "schedule" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupScheduleOverview groupId={groupId} />
-          </motion.div>
-        )}
-
-        {tab === "analytics" && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
-              <Lock className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="max-w-md space-y-1.5">
-              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Доступ к разделу временно ограничен</span>
-            </div>
           </motion.div>
         )}
 
