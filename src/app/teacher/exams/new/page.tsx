@@ -8,6 +8,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, type SelectOption } from "@/components/ui/select";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import {
   textbookApi,
   examsApi,
@@ -36,9 +37,7 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  Shield,
   Zap,
-  Minus,
   Users,
   Globe,
   Printer,
@@ -63,14 +62,10 @@ interface ExamConfig {
   selectedTopics: Set<string>;
   selectedSections: Set<string>;
   subjectFilter: "all" | "algebra" | "geometry";
-  variantsCount: number;
   questionsCount: number;
   duration: number;
   difficulty: { easy: number; medium: number; hard: number };
   mode: ExamMode;
-  shuffleQuestions: boolean;
-  shuffleAnswers: boolean;
-  showResults: boolean;
 }
 
 // ─── Helper: collect all L4 leaf descendant ids beneath a node ───
@@ -336,7 +331,6 @@ export default function NewExamPage() {
   const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>(1);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generateVariants, setGenerateVariants] = useState(false);
 
   const [groups, setGroups] = useState<Group[]>([]);
   const [loadingGroups, setLoadingGroups] = useState(false);
@@ -351,14 +345,10 @@ export default function NewExamPage() {
     selectedTopics: new Set(),
     selectedSections: new Set(),
     subjectFilter: "all",
-    variantsCount: 2,
     questionsCount: 8,
     duration: 45,
     difficulty: { easy: 30, medium: 50, hard: 20 },
     mode: "online",
-    shuffleQuestions: true,
-    shuffleAnswers: true,
-    showResults: false,
   });
 
   // Load teacher groups and check searchParams
@@ -416,6 +406,9 @@ export default function NewExamPage() {
   const [apiSkillTree, setApiSkillTree] = useState<SkillTreeNode[]>([]);
   const [selectedTextbookId, setSelectedTextbookId] = useState<string>("");
   const [loadingAPI, setLoadingAPI] = useState(false);
+  const [sourceCatalogError, setSourceCatalogError] = useState<string | null>(null);
+  const [tocLoadError, setTocLoadError] = useState<string | null>(null);
+  const [catalogRefreshNonce, setCatalogRefreshNonce] = useState(0);
 
   // Fetch textbooks when class changes
   useEffect(() => {
@@ -423,21 +416,31 @@ export default function NewExamPage() {
     const grade = parseInt(config.classId);
     if (isNaN(grade)) return;
     
-    setLoadingAPI(true);
-    Promise.all([
-      textbookApi.list({ class_level: grade }).catch(() => []),
-      textbookApi.skillTree(grade).catch(() => []),
-    ]).then(([books, skills]) => {
-      setApiTextbooks(books);
-      setApiSkillTree(skills);
-      // Auto-expand only L1 nodes
-      const autoExpand = new Set<string>();
-      for (const l1 of skills) {
-        autoExpand.add(l1.id);
+    let cancelled = false;
+    async function loadSourceCatalog() {
+      setLoadingAPI(true);
+      setSourceCatalogError(null);
+      try {
+        const [books, skills] = await Promise.all([
+          textbookApi.list({ class_level: grade }),
+          textbookApi.skillTree(grade),
+        ]);
+        if (cancelled) return;
+        setApiTextbooks(books);
+        setApiSkillTree(skills);
+        // Auto-expand only L1 nodes
+        const autoExpand = new Set<string>();
+        for (const l1 of skills) autoExpand.add(l1.id);
+        setExpandedNodes(autoExpand);
+      } catch (error) {
+        if (!cancelled) setSourceCatalogError(getDataLoadErrorMessage(error));
+      } finally {
+        if (!cancelled) setLoadingAPI(false);
       }
-      setExpandedNodes(autoExpand);
-    }).finally(() => setLoadingAPI(false));
-  }, [config.classId]);
+    }
+    void loadSourceCatalog();
+    return () => { cancelled = true; };
+  }, [catalogRefreshNonce, config.classId]);
 
   // Fetch TOC when textbook selected
   useEffect(() => {
@@ -445,12 +448,22 @@ export default function NewExamPage() {
       setApiTOC([]);
       return;
     }
-    setLoadingAPI(true);
-    textbookApi.toc(selectedTextbookId)
-      .then(setApiTOC)
-      .catch(() => setApiTOC([]))
-      .finally(() => setLoadingAPI(false));
-  }, [selectedTextbookId]);
+    let cancelled = false;
+    async function loadToc() {
+      setLoadingAPI(true);
+      setTocLoadError(null);
+      try {
+        const toc = await textbookApi.toc(selectedTextbookId);
+        if (!cancelled) setApiTOC(toc);
+      } catch (error) {
+        if (!cancelled) setTocLoadError(getDataLoadErrorMessage(error));
+      } finally {
+        if (!cancelled) setLoadingAPI(false);
+      }
+    }
+    void loadToc();
+    return () => { cancelled = true; };
+  }, [catalogRefreshNonce, selectedTextbookId]);
 
   const stepperRef = useRef<HTMLDivElement>(null);
 
@@ -540,12 +553,15 @@ export default function NewExamPage() {
         group_name: config.groupName || undefined,
         class_level: config.classId ? parseInt(config.classId) : undefined,
         tasks_count: config.questionsCount,
+        difficulty_distribution: config.difficulty,
         time_minutes: config.duration,
-        variants_count: generateVariants ? config.variantsCount : 1,
-        shuffle_tasks: config.shuffleQuestions,
-        shuffle_options: config.shuffleAnswers,
-        generate_variants: generateVariants,
+        // Tasks remain in the prepared section order.  Choice options are
+        // shuffled only for online students and remain stable after reconnect.
+        // In online delivery this is an invariant: each student receives a
+        // personal, reconnect-stable order of the same answer options.
+        shuffle_options: config.mode === "online",
         mc_mode: "auto",
+        delivery_mode: config.mode === "print" ? "print" : "online",
         teacher_name: teacherName || undefined,
       });
       // Redirect to draft page for preview/edit
@@ -566,7 +582,7 @@ export default function NewExamPage() {
         if (config.sourceType === "topics") return config.selectedTopics.size > 0;
         if (config.sourceType === "textbook") return config.selectedSections.size > 0;
         return true;
-      case 3: return config.questionsCount > 0 && config.variantsCount > 0;
+      case 3: return config.questionsCount > 0;
       case 4: return true;
       default: return false;
     }
@@ -688,6 +704,16 @@ export default function NewExamPage() {
                     ))}
                   </div>
 
+                  {(sourceCatalogError || tocLoadError) && (
+                    <DataLoadError
+                      compact
+                      title="Источник заданий не обновлён"
+                      message={`${sourceCatalogError || tocLoadError} Показаны последние успешно загруженные данные.`}
+                      onRetry={() => setCatalogRefreshNonce((current) => current + 1)}
+                      className="mb-5"
+                    />
+                  )}
+
                   {config.sourceType === "topics" && (
                     <div>
                       <div className="flex items-center justify-between mb-3">
@@ -707,6 +733,10 @@ export default function NewExamPage() {
                         <div className="flex items-center justify-center py-12 text-slate-400">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                           Загрузка программы...
+                        </div>
+                      ) : sourceCatalogError && apiSkillTree.length === 0 ? (
+                        <div className="text-center py-12 text-rose-600">
+                          Программа временно недоступна. Повторите загрузку выше.
                         </div>
                       ) : apiSkillTree.length === 0 ? (
                         <div className="text-center py-12 text-slate-400">
@@ -739,6 +769,10 @@ export default function NewExamPage() {
                           <div className="flex items-center justify-center py-12 text-slate-400">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                             Загрузка учебников...
+                          </div>
+                        ) : sourceCatalogError && filteredTextbooks.length === 0 ? (
+                          <div className="text-center py-12 text-rose-600">
+                            Учебники временно недоступны. Повторите загрузку выше.
                           </div>
                         ) : filteredTextbooks.length === 0 ? (
                           <div className="text-center py-12 text-slate-400">
@@ -780,6 +814,10 @@ export default function NewExamPage() {
                             <div className="flex items-center justify-center py-8 text-slate-400">
                               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mr-3" />
                               Загрузка оглавления...
+                            </div>
+                          ) : tocLoadError && apiTOC.length === 0 ? (
+                            <div className="text-center py-8 text-rose-600">
+                              Оглавление временно недоступно. Повторите загрузку выше.
                             </div>
                           ) : (
                             <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-xl p-4 bg-white
@@ -930,81 +968,29 @@ export default function NewExamPage() {
                     </h3>
 
                     <div className="space-y-3">
-                      {[
-                        { key: "shuffleQuestions", label: "Перемешивать вопросы", desc: "Случайный порядок заданий для каждого ученика" },
-                        { key: "shuffleAnswers", label: "Перемешивать варианты ответов", desc: "Случайный порядок вариантов A/B/C/D" },
-                        { key: "showResults", label: "Показать результат ученику", desc: "Ученик увидит оценку сразу после окончания" },
-                      ].map((opt) => (
-                        <label key={opt.key} className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={config[opt.key as keyof ExamConfig] as boolean}
-                            onChange={(e) => setConfig({ ...config, [opt.key]: e.target.checked })}
-                            className="w-4 h-4 mt-0.5 rounded text-primary-600 focus:ring-primary-500"
-                          />
+                      {config.mode === "online" && (
+                        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <Shuffle className="w-4 h-4 text-emerald-600" />
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-slate-700 block">{opt.label}</span>
-                            <span className="text-xs text-slate-400">{opt.desc}</span>
+                            <h4 className="text-sm font-semibold text-slate-900">Перемешивание вариантов ответов включено</h4>
+                            <p className="text-xs text-slate-500 mt-0.5">У каждого ученика свой, но неизменный при повторном входе порядок вариантов A/B/C/D</p>
                           </div>
-                        </label>
-                      ))}
-                    </div>
-                  </GlassCard>
-
-                  {/* ── Section: Anti-Cheat ── */}
-                  <GlassCard className={`p-6 border-2 transition-all ${generateVariants ? "border-primary-400 bg-primary-50/30" : "border-transparent"}`}>
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        generateVariants ? "bg-primary-100" : "bg-slate-100"
-                      }`}>
-                        <Shield className={`w-5 h-5 ${generateVariants ? "text-primary-600" : "text-slate-400"}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-sm font-semibold text-slate-900">Anti-Cheat режим</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Генерация уникальных вариантов с разными числами в задачах</p>
-                          </div>
-                          <button
-                            onClick={() => setGenerateVariants(!generateVariants)}
-                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                              generateVariants ? "bg-primary-500" : "bg-slate-300"
-                            }`}
-                          >
-                            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                              generateVariants ? "translate-x-[22px]" : "translate-x-0.5"
-                            }`} />
-                          </button>
                         </div>
+                      )}
 
-                        {/* Variant counter */}
-                        <AnimatePresence>
-                          {generateVariants && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-200/60">
-                                <span className="text-sm text-slate-600">Кол-во вариантов:</span>
-                                <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-                                  <button onClick={() => setConfig({ ...config, variantsCount: Math.max(2, config.variantsCount - 1) })}
-                                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-sm flex items-center justify-center transition-all text-slate-600">
-                                    <Minus className="w-4 h-4" />
-                                  </button>
-                                  <span className="w-10 text-center font-bold text-slate-900 text-lg">{config.variantsCount}</span>
-                                  <button onClick={() => setConfig({ ...config, variantsCount: Math.min(10, config.variantsCount + 1) })}
-                                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-sm flex items-center justify-center transition-all text-slate-600">
-                                    <Plus className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                <span className="text-xs text-slate-400">Те же задачи, другие числа</span>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                      {config.mode === "print" && (
+                        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <FileCheck2 className="w-4 h-4 text-slate-500" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-900">Порядок вариантов ответа</h4>
+                            <p className="text-xs leading-relaxed text-slate-500 mt-0.5">Фиксируется один раз и одинаково отображается в бланке и ключе преподавателя.</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </GlassCard>
                 </div>
@@ -1048,15 +1034,18 @@ export default function NewExamPage() {
                         title: "Гибрид",
                         desc: "Печатные задания + быстрый ввод ответов через телефон",
                         features: ["Офлайн решение", "Быстрая оцифровка", "Электронная статистика"],
+                        comingSoon: true,
                       },
                     ].map((mode) => {
-                      const isSelected = config.mode === mode.id;
+                      const isUnavailable = Boolean(mode.comingSoon);
+                      const isSelected = !isUnavailable && config.mode === mode.id;
                       return (
                         <button
                           key={mode.id}
                           type="button"
-                          onClick={() => setConfig({ ...config, mode: mode.id as ExamMode })}
-                          className={`relative h-full min-h-[210px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 flex flex-col group ${
+                          disabled={isUnavailable}
+                          onClick={() => !isUnavailable && setConfig({ ...config, mode: mode.id as ExamMode })}
+                          className={`relative h-full min-h-[210px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 flex flex-col group ${isUnavailable ? "cursor-not-allowed opacity-65" : ""} ${
                             isSelected
                               ? "border-primary-500 bg-gradient-to-b from-primary-50/60 via-white to-white ring-2 ring-primary-500/20 shadow-md shadow-primary-500/10"
                               : "border-slate-200/80 hover:border-slate-300 bg-white/80 hover:bg-white"
@@ -1075,6 +1064,12 @@ export default function NewExamPage() {
 
                           <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1">{mode.title}</h3>
                           <p className="text-xs sm:text-sm text-slate-500 mb-3.5 leading-relaxed flex-1">{mode.desc}</p>
+
+                          {isUnavailable && (
+                            <span className="mb-3 inline-flex w-fit rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+                              Скоро
+                            </span>
+                          )}
 
                           <div className="pt-3 border-t border-slate-100/90 space-y-1.5">
                             {mode.features.map((f, i) => (
@@ -1176,17 +1171,17 @@ export default function NewExamPage() {
                         {/* Variants */}
                         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Варианты</span>
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Вариант</span>
                             <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
                               <Layers className="w-3.5 h-3.5" />
                             </div>
                           </div>
                           <div>
                             <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
-                              {generateVariants ? config.variantsCount : 1} <span className="text-xs font-medium text-slate-500">вар.</span>
+                              1 <span className="text-xs font-medium text-slate-500">вар.</span>
                             </div>
                             <div className="text-[11px] text-slate-400 mt-0.5">
-                              {generateVariants ? "Уникальные копии" : "1 вариант"}
+                              Один вариант
                             </div>
                           </div>
                         </div>
@@ -1238,22 +1233,21 @@ export default function NewExamPage() {
                       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-slate-400 font-medium">Опции:</span>
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium ${
-                            config.shuffleQuestions ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60" : "bg-slate-100 text-slate-400"
-                          }`}>
-                            <Shuffle className="w-3 h-3" />
-                            Перемешивать задачи: {config.shuffleQuestions ? "Вкл" : "Выкл"}
-                          </span>
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium ${
-                            config.shuffleAnswers ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60" : "bg-slate-100 text-slate-400"
-                          }`}>
-                            <Shuffle className="w-3 h-3" />
-                            Перемешивать ответы: {config.shuffleAnswers ? "Вкл" : "Выкл"}
-                          </span>
+                          {config.mode === "online" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              <Shuffle className="w-3 h-3" />
+                              Варианты ответов: перемешиваются
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-500">
+                              <FileCheck2 className="w-3 h-3" />
+                              PDF: порядок ответов зафиксирован
+                            </span>
+                          )}
                         </div>
 
                         <div className="text-slate-400 text-[11px]">
-                          ⚡ Варианты формируются алгоритмом ALGO
+                          ⚡ Экзамен формируется алгоритмом ALGO
                         </div>
                       </div>
                     </div>

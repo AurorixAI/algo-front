@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import {
   examsApi,
   orgApi,
@@ -11,6 +13,7 @@ import {
   type GroupInfo,
   type LessonAttendanceStatus,
   type LiveExamDashboardSummary,
+  type OpenAttendanceAction,
   type ScheduleOccurrence,
   type StudentInGroup,
 } from "@/lib/api";
@@ -41,6 +44,7 @@ import {
   TimerReset,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -64,14 +68,42 @@ interface LessonSummary {
   room: string;
   format: "offline" | "online";
   topic?: string;
+  /** The actual date for an unresolved historical lesson instance. */
+  occurrenceDate?: string;
 }
 
 type LessonAction = {
   lesson: LessonSummary;
   label: string;
   description: string;
+  /** Compact copy for the single primary dashboard card. */
+  cardLabel?: string;
+  cardDescription?: string;
   tone: "rose" | "amber" | "emerald";
+  /** Past occurrence without a journal; requires an explicit reconciliation. */
+  actionType?: OpenAttendanceAction["actionType"];
+  sourceAction?: OpenAttendanceAction;
+  markedCount?: number;
+  rosterCount?: number;
+  remainingCount?: number;
 };
+
+function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary {
+  return {
+    id: action.lessonId,
+    groupId: action.groupId,
+    groupName: action.groupName,
+    classLevel: action.classLevel,
+    subject: action.subject,
+    dayOfWeek: new Date(`${action.lessonDate}T12:00:00`).getDay() || 7,
+    startTime: action.startTime,
+    endTime: action.endTime,
+    room: action.room || "",
+    format: action.format === "online" ? "online" : "offline",
+    topic: action.topic || undefined,
+    occurrenceDate: action.lessonDate,
+  };
+}
 
 function addCalendarDays(isoDate: string, days: number) {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -88,6 +120,19 @@ function formatCountdown(seconds: number) {
   return hours > 0
     ? `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`
     : `${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+}
+
+function formatExamQueueCount(count: number) {
+  const remainder100 = count % 100;
+  const remainder10 = count % 10;
+  const word = remainder100 >= 11 && remainder100 <= 14
+    ? "экзаменов"
+    : remainder10 === 1
+      ? "экзамен"
+      : remainder10 >= 2 && remainder10 <= 4
+        ? "экзамена"
+        : "экзаменов";
+  return `${count} ${word}`;
 }
 
 function getLessonTimeStatus(
@@ -173,6 +218,7 @@ function getLessonTimeStatus(
 }
 
 export default function TeacherDashboardPage() {
+  const router = useRouter();
   const { user } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -183,10 +229,20 @@ export default function TeacherDashboardPage() {
   const [lessonAttendanceMap, setLessonAttendanceMap] = useState<Record<string, boolean>>({});
   const [completedLessonsMap, setCompletedLessonsMap] = useState<Record<string, boolean>>({});
   const [lessonStatusMap, setLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
+  const [openAttendanceActions, setOpenAttendanceActions] = useState<OpenAttendanceAction[]>([]);
+  const [openAttendanceActionsAvailable, setOpenAttendanceActionsAvailable] = useState<boolean | null>(null);
+  const [isActionCenterOpen, setIsActionCenterOpen] = useState(false);
+  const [missedLessonAction, setMissedLessonAction] = useState<OpenAttendanceAction | null>(null);
+  const [isCancellingMissedLesson, setIsCancellingMissedLesson] = useState(false);
+  const [missedLessonCancellationReason, setMissedLessonCancellationReason] = useState("");
+  const [missedLessonError, setMissedLessonError] = useState<string | null>(null);
+  const [isResolvingMissedLesson, setIsResolvingMissedLesson] = useState(false);
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
   const [liveExamSnapshotAt, setLiveExamSnapshotAt] = useState<number | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [dashboardRefreshNonce, setDashboardRefreshNonce] = useState(0);
   const [liveExamError, setLiveExamError] = useState<string | null>(null);
+  const [isExamQueueOpen, setIsExamQueueOpen] = useState(false);
 
   // Selected lesson modal on dashboard
   const [activeLesson, setActiveLesson] = useState<LessonSummary | null>(null);
@@ -197,10 +253,18 @@ export default function TeacherDashboardPage() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
+  const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [lessonExamBinding, setLessonExamBinding] = useState<{
+    loading: boolean;
+    attached: boolean;
+    canCancel: boolean;
+    examTitle?: string;
+    message?: string | null;
+  } | null>(null);
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
   const [clockTick, setClockTick] = useState(0);
   const [liveExamTick, setLiveExamTick] = useState(0);
@@ -250,28 +314,56 @@ export default function TeacherDashboardPage() {
     return () => window.clearInterval(countdownTimer);
   }, [liveExams]);
 
-  // Lock background scroll when modal is open
+  // The lesson dialog is portalled to <body>. Lock both scrolling roots and
+  // preserve the current position, otherwise Safari/Chrome can still scroll
+  // the background behind an inner, scrollable modal.
   useEffect(() => {
-    if (activeLesson) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
+    if (!activeLesson && !isActionCenterOpen && !missedLessonAction && !isExamQueueOpen) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const scrollY = window.scrollY;
+    const scrollbarWidth = window.innerWidth - html.clientWidth;
+    const originalHtmlOverflow = html.style.overflow;
+    const originalBodyOverflow = body.style.overflow;
+    const originalBodyPosition = body.style.position;
+    const originalBodyTop = body.style.top;
+    const originalBodyWidth = body.style.width;
+    const originalBodyPaddingRight = body.style.paddingRight;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    if (scrollbarWidth > 0) {
+      body.style.paddingRight = `${scrollbarWidth}px`;
     }
+
     return () => {
-      document.body.style.overflow = "unset";
+      html.style.overflow = originalHtmlOverflow;
+      body.style.overflow = originalBodyOverflow;
+      body.style.position = originalBodyPosition;
+      body.style.top = originalBodyTop;
+      body.style.width = originalBodyWidth;
+      body.style.paddingRight = originalBodyPaddingRight;
+      window.scrollTo(0, scrollY);
     };
-  }, [activeLesson]);
+  }, [activeLesson, isActionCenterOpen, isExamQueueOpen, missedLessonAction]);
 
   // Escape key handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        setActiveLesson(null);
+        if (isExamQueueOpen) setIsExamQueueOpen(false);
+        else if (missedLessonAction) setMissedLessonAction(null);
+        else if (isActionCenterOpen) setIsActionCenterOpen(false);
+        else setActiveLesson(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction]);
 
   const todayDayOfWeek = businessDayOfWeek();
 
@@ -281,13 +373,18 @@ export default function TeacherDashboardPage() {
       setDashboardError(null);
       try {
         const todayStr = businessDate;
+        // Keep a short history only for the operational exam panel: a missed
+        // delivery must name its real lesson time, not just an opaque date.
+        // Group-focus cards still filter this list to current/future lessons.
+        const examContextStart = addCalendarDays(todayStr, -30);
         const weekEnd = addCalendarDays(todayStr, 6);
-        const [groupsResult, todayResult, weekResult] = await Promise.allSettled([
+        const [groupsResult, todayResult, weekResult, openActionsResult] = await Promise.allSettled([
           orgApi.listGroups({ teacher_id: user.id }),
           // Concrete occurrences make one-off transfers and cancellations
           // visible at their actual time rather than at the recurring slot.
           orgApi.getScheduleOccurrences({ dateFrom: todayStr, dateTo: todayStr }, user.id),
-          orgApi.getScheduleOccurrences({ dateFrom: todayStr, dateTo: weekEnd }, user.id),
+          orgApi.getScheduleOccurrences({ dateFrom: examContextStart, dateTo: weekEnd }, user.id),
+          orgApi.getOpenAttendanceActions(),
         ]);
 
         const unavailable: string[] = [];
@@ -318,8 +415,15 @@ export default function TeacherDashboardPage() {
           unavailable.push("ближайшие занятия групп");
         }
 
-        if (unavailable.length > 0) {
-          setDashboardError(`Не удалось загрузить: ${unavailable.join(", ")}. Обновите страницу и повторите попытку.`);
+        if (openActionsResult.status === "fulfilled") {
+          setOpenAttendanceActions(openActionsResult.value);
+          setOpenAttendanceActionsAvailable(true);
+        } else {
+          // Do not imply that all lessons are closed when the operational
+          // source is temporarily unavailable. Preserve the last verified
+          // action queue and mark the aggregate as unknown.
+          setOpenAttendanceActionsAvailable(false);
+          unavailable.push("открытые уроки");
         }
 
         // Fetch attendance map and completed status for today's lessons
@@ -327,47 +431,52 @@ export default function TeacherDashboardPage() {
         const compMap: Record<string, boolean> = {};
         const statusMap: Record<string, LessonAttendanceStatus> = {};
 
-        await Promise.all(
+        const attendanceResults = await Promise.allSettled(
           loadedToday.map(async (les) => {
             if (!les || !les.groupId) return;
-            try {
-              const att = await orgApi.getGroupAttendance(les.groupId, {
-                dateFrom: todayStr,
-                dateTo: todayStr,
-              });
-              const lessonKey = `${todayStr}_${les.id}`;
-              if (att?.records) {
-                const rec = att.records[lessonKey];
-                if (rec && Object.keys(rec).length > 0) {
-                  attMap[les.id] = true;
-                }
+            const att = await orgApi.getGroupAttendance(les.groupId, {
+              dateFrom: todayStr,
+              dateTo: todayStr,
+            });
+            const lessonKey = `${todayStr}_${les.id}`;
+            if (att?.records) {
+              const rec = att.records[lessonKey];
+              if (rec && Object.keys(rec).length > 0) {
+                attMap[les.id] = true;
               }
-              if (att?.statuses) {
-                const st = att.statuses[lessonKey];
-                if (st) statusMap[les.id] = st;
-                if (st === "completed") {
-                  compMap[les.id] = true;
-                } else if (st === "in_progress") {
-                  compMap[les.id] = false;
-                }
+            }
+            if (att?.statuses) {
+              const st = att.statuses[lessonKey];
+              if (st) statusMap[les.id] = st;
+              if (st === "completed") {
+                compMap[les.id] = true;
+              } else if (st === "in_progress") {
+                compMap[les.id] = false;
               }
-            } catch {
-              // ignore
             }
           })
         );
-        setLessonAttendanceMap(attMap);
-        setCompletedLessonsMap(compMap);
-        setLessonStatusMap(statusMap);
+
+        if (attendanceResults.every((result) => result.status === "fulfilled")) {
+          setLessonAttendanceMap(attMap);
+          setCompletedLessonsMap(compMap);
+          setLessonStatusMap(statusMap);
+        } else {
+          unavailable.push("статусы посещаемости");
+        }
+
+        if (unavailable.length > 0) {
+          setDashboardError(`Не удалось загрузить: ${unavailable.join(", ")}. Повторите попытку.`);
+        }
       } catch (err) {
         console.error("Failed to load teacher stats:", err);
-        setDashboardError("Не удалось загрузить рабочую сводку. Данные не были изменены.");
+        setDashboardError(getDataLoadErrorMessage(err));
       } finally {
         setLoading(false);
       }
     }
     load();
-  }, [user?.id, businessDate]);
+  }, [user?.id, businessDate, dashboardRefreshNonce]);
 
   // A modal belongs to one concrete calendar day. Do not let yesterday's
   // lesson remain actionable after the organisation clock crossed midnight.
@@ -380,29 +489,73 @@ export default function TeacherDashboardPage() {
     if (!activeLesson || !activeLesson.groupId) {
       setIsMarkingAttendance(false);
       setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
       setAttendance({});
       setAttendanceError(null);
       setActiveInstanceStatus("scheduled");
       setActiveCancellationReason(null);
+      setIsCancellingLesson(false);
+      setCancellationReason("");
+      setLessonExamBinding(null);
       return;
     }
     setLoadingStudents(true);
     setIsMarkingAttendance(false);
     setIsAttendanceSaved(false);
+    setIsAttendanceDirty(false);
     setAttendanceError(null);
-    const todayStr = businessDate;
-    const lessonKey = `${todayStr}_${activeLesson.id}`;
+    setIsCancellingLesson(false);
+    setCancellationReason("");
+    setLessonExamBinding(null);
+    setGroupStudents([]);
+    setAttendance({});
+    const lessonDate = activeLesson.occurrenceDate || businessDate;
+    const isTodayLesson = lessonDate === businessDate;
+    const lessonKey = `${lessonDate}_${activeLesson.id}`;
 
     Promise.all([
-      orgApi.getGroup(activeLesson.groupId).catch(() => null),
+      orgApi.getGroup(activeLesson.groupId),
       orgApi.getGroupAttendance(activeLesson.groupId, {
-        dateFrom: todayStr,
-        dateTo: todayStr,
-      }).catch(() => null),
+        dateFrom: lessonDate,
+        dateTo: lessonDate,
+      }),
     ])
       .then(([g, att]) => {
         if (g?.students) {
-          setGroupStudents(g.students);
+          // Attendance belongs to the roster frozen when the lesson was
+          // started. In the rare case of a later transfer, do not let the
+          // current group roster add/remove people from this open lesson.
+          const hasFrozenRoster = Boolean(
+            att?.rosterStudentIds
+            && Object.prototype.hasOwnProperty.call(att.rosterStudentIds, lessonKey),
+          );
+          const frozenRosterIds = att?.rosterStudentIds?.[lessonKey] || [];
+          if (hasFrozenRoster) {
+            const currentById = new Map(g.students.map((student) => [student.id, student]));
+            const historicalById = new Map((att?.historicalStudents || []).map((student) => [
+              student.id,
+              {
+                id: student.id,
+                first_name: student.first_name || "",
+                last_name: student.last_name || "",
+                full_name: student.full_name || "Ученик",
+                class_level: student.class_level || 0,
+                status: "active",
+                display_id: student.display_id || null,
+                student_phone: null,
+                joined_at: null,
+                last_theta: null,
+                last_level: null,
+                last_diagnosed_at: null,
+              } satisfies StudentInGroup,
+            ]));
+            setGroupStudents(frozenRosterIds.flatMap((studentId) => {
+              const student = currentById.get(studentId) || historicalById.get(studentId);
+              return student ? [student] : [];
+            }));
+          } else {
+            setGroupStudents(g.students);
+          }
         } else {
           setGroupStudents([]);
         }
@@ -410,7 +563,9 @@ export default function TeacherDashboardPage() {
         const status = att?.statuses?.[lessonKey] || "scheduled";
         setActiveInstanceStatus(status);
         setActiveCancellationReason(att?.cancellationReasons?.[lessonKey] || null);
-        setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: status }));
+        if (isTodayLesson) {
+          setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: status }));
+        }
 
         if (status === "cancelled") {
           setAttendance({});
@@ -420,7 +575,9 @@ export default function TeacherDashboardPage() {
           if (Object.keys(lessonRecords).length > 0) {
             setAttendance(lessonRecords as any);
             setIsAttendanceSaved(true);
-            setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
+            if (isTodayLesson) {
+              setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
+            }
           } else {
             setAttendance({});
             setIsAttendanceSaved(false);
@@ -430,35 +587,77 @@ export default function TeacherDashboardPage() {
           setIsAttendanceSaved(false);
         }
       })
+      .catch((error) => {
+        setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
+      })
       .finally(() => setLoadingStudents(false));
   }, [activeLesson, businessDate]);
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
-    setAttendance((prev) => ({ ...prev, [studentId]: status }));
+    setAttendance((prev) => {
+      // A second click on the selected status means "not decided yet".
+      // It must remove the key, because the API stores a full snapshot.
+      if (prev[studentId] === status) {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      }
+      return { ...prev, [studentId]: status };
+    });
+    setIsAttendanceDirty(true);
     setAttendanceError(null);
   };
 
-  const handleMarkAllPresent = () => {
-    const allPresent: Record<string, AttendanceStatus> = {};
-    groupStudents.forEach((st) => {
-      allPresent[st.id] = "present";
-    });
-    setAttendance(allPresent);
-    setAttendanceError(null);
-  };
+  // A forgotten earlier lesson may still be started after its planned end,
+  // but never after this teacher has already started a later lesson. This
+  // keeps actual teaching time and attendance chronology auditable.
+  const getSubsequentStartedLesson = useCallback(
+    (lesson: Pick<LessonSummary, "id" | "groupId" | "endTime">): LessonSummary | null => {
+      const [endHour, endMinute] = (lesson.endTime || "00:00").split(":").map(Number);
+      const endMinutes = (endHour || 0) * 60 + (endMinute || 0);
+      const lessonTeacherId = groups.find((group) => group.id === lesson.groupId)?.teacher_id;
+      if (!lessonTeacherId) return null;
+
+      return [...todayLessons]
+        .filter((candidate) => {
+          if (candidate.id === lesson.id) return false;
+          const candidateTeacherId = groups.find((group) => group.id === candidate.groupId)?.teacher_id;
+          if (candidateTeacherId !== lessonTeacherId) return false;
+          const status = lessonStatusMap[candidate.id]
+            || (completedLessonsMap[candidate.id] ? "completed" : "scheduled");
+          if (status !== "in_progress" && status !== "completed") return false;
+          const [startHour, startMinute] = (candidate.startTime || "00:00").split(":").map(Number);
+          return (startHour || 0) * 60 + (startMinute || 0) >= endMinutes;
+        })
+        .sort((left, right) => (left.startTime || "").localeCompare(right.startTime || ""))[0] || null;
+    },
+    [todayLessons, lessonStatusMap, completedLessonsMap, groups],
+  );
 
   const handleStartLesson = async () => {
     if (!activeLesson || activeInstanceStatus !== "scheduled") return;
+
+    const subsequentLesson = getSubsequentStartedLesson(activeLesson);
+    if (subsequentLesson) {
+      setAttendanceError(
+        `Нельзя начать этот урок: после его планового окончания уже был начат урок «${subsequentLesson.groupName}» (${subsequentLesson.startTime}—${subsequentLesson.endTime}). Отмените пропущенное занятие с причиной.`,
+      );
+      return;
+    }
+
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
       await orgApi.startGroupAttendance(activeLesson.groupId, {
-        lessonDate: formatBusinessDate(),
+        lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
       });
       setActiveInstanceStatus("in_progress");
-      setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
+      if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
+        setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
+      }
+      void orgApi.getOpenAttendanceActions().then(setOpenAttendanceActions).catch(() => undefined);
       setIsMarkingAttendance(true);
     } catch (err) {
       console.error("Failed to start lesson:", err);
@@ -469,6 +668,74 @@ export default function TeacherDashboardPage() {
       );
     } finally {
       setSavingAttendance(false);
+    }
+  };
+
+  const handleReconcileMissedLesson = async () => {
+    if (!missedLessonAction) return;
+    setMissedLessonError(null);
+    setIsResolvingMissedLesson(true);
+    try {
+      await orgApi.reconcileMissedGroupAttendance(missedLessonAction.groupId, {
+        lessonDate: missedLessonAction.lessonDate,
+        lessonId: missedLessonAction.lessonId,
+        topic: missedLessonAction.topic || undefined,
+      });
+      const lesson = lessonFromAttendanceAction(missedLessonAction);
+      const refreshedActions = await orgApi.getOpenAttendanceActions();
+      setOpenAttendanceActions(refreshedActions);
+      setOpenAttendanceActionsAvailable(true);
+      setMissedLessonAction(null);
+      setIsCancellingMissedLesson(false);
+      // The next dialog is a historical attendance journal, not a delayed
+      // start. The API keeps started_at empty and records reconciliation.
+      setActiveLesson(lesson);
+    } catch (err) {
+      console.error("Failed to reconcile missed lesson:", err);
+      setMissedLessonError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Не удалось открыть журнал пропущенного урока. Данные не изменены.",
+      );
+    } finally {
+      setIsResolvingMissedLesson(false);
+    }
+  };
+
+  const handleCancelMissedLesson = async () => {
+    if (!missedLessonAction) return;
+    const reason = missedLessonCancellationReason.trim();
+    if (reason.length < 3) {
+      setMissedLessonError("Укажите причину отмены — не менее 3 символов.");
+      return;
+    }
+    setMissedLessonError(null);
+    setIsResolvingMissedLesson(true);
+    try {
+      await orgApi.cancelMissedGroupAttendance(missedLessonAction.groupId, {
+        lessonDate: missedLessonAction.lessonDate,
+        lessonId: missedLessonAction.lessonId,
+        cancellationReason: reason,
+      });
+      setOpenAttendanceActions((previous) => previous.filter((action) => !(
+        action.actionType === "missed"
+        && action.groupId === missedLessonAction.groupId
+        && action.lessonId === missedLessonAction.lessonId
+        && action.lessonDate === missedLessonAction.lessonDate
+      )));
+      setMissedLessonAction(null);
+      setIsCancellingMissedLesson(false);
+      setMissedLessonCancellationReason("");
+      setDashboardRefreshNonce((value) => value + 1);
+    } catch (err) {
+      console.error("Failed to cancel missed lesson:", err);
+      setMissedLessonError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Не удалось отменить пропущенный урок. Данные не изменены.",
+      );
+    } finally {
+      setIsResolvingMissedLesson(false);
     }
   };
 
@@ -483,27 +750,38 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    // Validation: All students must be marked
-    const unmarked = groupStudents.filter((st) => !attendance[st.id]);
-    if (unmarked.length > 0) {
-      setAttendanceError(`Необходимо отметить всех учеников. Не отмечено: ${unmarked.length} из ${groupStudents.length}`);
-      return;
-    }
     setAttendanceError(null);
 
     setSavingAttendance(true);
     try {
       await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: formatBusinessDate(),
+        lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "in_progress",
         records: attendance,
       });
       setIsAttendanceSaved(true);
-      setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
+      setIsAttendanceDirty(false);
+      if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
+        setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
+      }
       setActiveInstanceStatus("in_progress");
-      setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
+      if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
+        setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
+      }
+      const activeDate = activeLesson.occurrenceDate || businessDate;
+      setOpenAttendanceActions((previous) => previous.map((action) => {
+        if (action.groupId !== activeLesson.groupId || action.lessonId !== activeLesson.id || action.lessonDate !== activeDate) return action;
+        const rosterCount = groupStudents.length || action.rosterCount;
+        const markedCount = Object.keys(attendance).length;
+        return {
+          ...action,
+          markedCount,
+          rosterCount,
+          remainingCount: Math.max(rosterCount - markedCount, 0),
+        };
+      }));
       setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to save attendance:", err);
@@ -520,11 +798,13 @@ export default function TeacherDashboardPage() {
   const handleFinishLesson = async () => {
     if (!activeLesson) return;
 
-    // Check attendance completeness: all students must be marked and attendance saved
+    // A frozen empty roster is a valid historical fact. There are no records to
+    // save in that case, so it must not prevent closing the lesson.
     const hasSaved = isAttendanceSaved || !!lessonAttendanceMap[activeLesson.id];
     const unmarked = groupStudents.filter((st) => !attendance[st.id]);
+    const hasStudentsToMark = groupStudents.length > 0;
 
-    if (!hasSaved || unmarked.length > 0) {
+    if (hasStudentsToMark && (!hasSaved || unmarked.length > 0)) {
       setAttendanceError(
         `Невозможно завершить урок: сначала необходимо полностью отметить всех учеников (${groupStudents.length - unmarked.length} из ${groupStudents.length} отмечено) и сохранить отметки.`
       );
@@ -536,14 +816,19 @@ export default function TeacherDashboardPage() {
     setSavingAttendance(true);
     try {
       await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: formatBusinessDate(),
+        lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "completed",
         records: attendance,
       });
-      setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
-      setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
+      if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
+        setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
+        setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
+      }
+      setOpenAttendanceActions((previous) => previous.filter(
+        (action) => !(action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === (activeLesson.occurrenceDate || businessDate)),
+      ));
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
@@ -555,6 +840,7 @@ export default function TeacherDashboardPage() {
 
   const handleCancelLesson = async () => {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled") return;
+    if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     if (reason.length < 3) {
       setAttendanceError("Укажите понятную причину отмены урока.");
@@ -564,7 +850,7 @@ export default function TeacherDashboardPage() {
     setSavingAttendance(true);
     try {
       await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: formatBusinessDate(),
+        lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "cancelled",
@@ -573,13 +859,20 @@ export default function TeacherDashboardPage() {
       });
       setActiveInstanceStatus("cancelled");
       setActiveCancellationReason(reason);
-      setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
-      setLessonAttendanceMap((previous) => ({ ...previous, [activeLesson.id]: false }));
-      setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: false }));
+      if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
+        setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
+        setLessonAttendanceMap((previous) => ({ ...previous, [activeLesson.id]: false }));
+        setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: false }));
+      }
+      setOpenAttendanceActions((previous) => previous.filter(
+        (action) => !(action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === (activeLesson.occurrenceDate || businessDate)),
+      ));
       setAttendance({});
       setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
       setIsMarkingAttendance(false);
       setIsCancellingLesson(false);
+      setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
       setAttendanceError("Не удалось отменить урок. Данные не изменены.");
@@ -588,32 +881,70 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  const openCancelLessonPanel = async () => {
+    if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled") return;
+    setAttendanceError(null);
+    setLessonExamBinding({ loading: true, attached: false, canCancel: false });
+    setIsCancellingLesson(true);
+
+    try {
+      const binding = await examsApi.getLessonBinding({
+        groupId: activeLesson.groupId,
+        lessonId: activeLesson.id,
+        lessonDate: activeLesson.occurrenceDate || businessDate,
+      });
+      setLessonExamBinding({
+        loading: false,
+        attached: binding.attached,
+        canCancel: binding.can_cancel,
+        examTitle: binding.exam?.title,
+        message: binding.message,
+      });
+    } catch (err) {
+      console.error("Failed to check exam binding before lesson cancellation:", err);
+      setLessonExamBinding({
+        loading: false,
+        attached: false,
+        canCancel: false,
+        message: "Не удалось проверить связанный экзамен. Для безопасности отмена сейчас недоступна.",
+      });
+    }
+  };
+
   const sortedTodayLessons = useMemo(() => {
     return [...todayLessons].sort((a, b) => {
       const isAttA = !!lessonAttendanceMap[a.id];
-      const isFinA = lessonStatusMap[a.id] === "completed" || !!completedLessonsMap[a.id];
+      const lifecycleA = lessonStatusMap[a.id] || (completedLessonsMap[a.id] ? "completed" : "scheduled");
+      const isFinA = lifecycleA === "completed";
       const statusA = getLessonTimeStatus(a, todayDayOfWeek, isAttA, isFinA);
 
       const isAttB = !!lessonAttendanceMap[b.id];
-      const isFinB = lessonStatusMap[b.id] === "completed" || !!completedLessonsMap[b.id];
+      const lifecycleB = lessonStatusMap[b.id] || (completedLessonsMap[b.id] ? "completed" : "scheduled");
+      const isFinB = lifecycleB === "completed";
       const statusB = getLessonTimeStatus(b, todayDayOfWeek, isAttB, isFinB);
 
-      const rank = (st: typeof statusA) => {
-        if (st.type === "live") return 0;
-        if (st.type === "upcoming") return 1;
-        return 2;
+      const rank = (lesson: LessonSummary, lifecycle: LessonAttendanceStatus | "scheduled", timing: typeof statusA) => {
+        if (lifecycle === "in_progress") return 0;
+        if (lifecycle === "scheduled" && getSubsequentStartedLesson(lesson)) return 3;
+        if (timing.type === "live") return 1;
+        if (timing.type === "upcoming") return 2;
+        return 4;
       };
 
-      const rankA = rank(statusA);
-      const rankB = rank(statusB);
+      const rankA = rank(a, lifecycleA, statusA);
+      const rankB = rank(b, lifecycleB, statusB);
       if (rankA !== rankB) return rankA - rankB;
       return (a.startTime || "").localeCompare(b.startTime || "");
     });
-  }, [todayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, clockTick]);
+  }, [todayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, clockTick, getSubsequentStartedLesson]);
 
   const canFinishLesson = useMemo(() => {
     if (!activeLesson || !activeLesson.endTime) return false;
     if (activeInstanceStatus !== "in_progress") return false;
+    // A persisted lesson from an earlier date is already past its planned
+    // end. It may be safely completed after the remaining attendance is
+    // filled, regardless of today's weekday.
+    if (activeLesson.occurrenceDate && activeLesson.occurrenceDate < businessDate) return true;
     if (activeLesson.dayOfWeek !== todayDayOfWeek) return false;
 
     const curMin = businessTimeMinutes();
@@ -624,9 +955,9 @@ export default function TeacherDashboardPage() {
 
     // Can be finished in the final 15 minutes of lesson or ANYTIME after end time!
     return curMin >= startMinutes && curMin >= endMinutes - 15;
-  }, [activeLesson, activeInstanceStatus, todayDayOfWeek]);
+  }, [activeLesson, activeInstanceStatus, todayDayOfWeek, businessDate]);
 
-  const lessonActions = useMemo<LessonAction[]>(() => {
+  const scheduledLessonActions = useMemo<LessonAction[]>(() => {
     return sortedTodayLessons.flatMap<LessonAction>((lesson) => {
       const instanceStatus = lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled");
       if (instanceStatus === "completed" || instanceStatus === "cancelled") return [];
@@ -640,37 +971,69 @@ export default function TeacherDashboardPage() {
       if (timing.type !== "live") return [];
 
       if (instanceStatus === "scheduled") {
+        // A lesson whose time has passed is returned by the operational API
+        // as a separate "missed" action. Do not offer a misleading delayed
+        // start locally or duplicate the reconciliation card.
+        if (timing.isPastEndTime) return [];
+        if (getSubsequentStartedLesson(lesson)) return [];
         return [{
           lesson,
-          label: timing.isPastEndTime ? "Урок не был начат" : "Начните урок",
-          description: timing.isPastEndTime
-            ? `Время ${lesson.startTime} — ${lesson.endTime} уже прошло. Зафиксируйте фактическое начало или отмените занятие.`
-            : `${lesson.groupName} · ${lesson.startTime} — ${lesson.endTime}`,
-          tone: timing.isPastEndTime ? "rose" : "emerald",
+          label: "Начните урок",
+          description: `${lesson.groupName} · ${lesson.startTime} — ${lesson.endTime}`,
+          tone: "emerald",
         }];
       }
 
-      if (!lessonAttendanceMap[lesson.id]) {
-        return [{
-          lesson,
-          label: "Отметьте посещаемость",
-          description: `${lesson.groupName} · урок уже начат, отметки ещё не сохранены.`,
-          tone: "amber",
-        }];
-      }
-
-      if (timing.isPastEndTime) {
-        return [{
-          lesson,
-          label: "Завершите урок",
-          description: `${lesson.groupName} · посещаемость сохранена, нужно зафиксировать окончание.`,
-          tone: "amber",
-        }];
-      }
-
+      // In-progress lessons come from the persisted open-actions endpoint.
+      // It includes partial attendance and historical instances, while this
+      // list only describes an actionable scheduled lesson for today.
       return [];
     });
-  }, [sortedTodayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek]);
+  }, [sortedTodayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, getSubsequentStartedLesson]);
+
+  const openLessonActions = useMemo<LessonAction[]>(() => (
+    openAttendanceActions.map((action) => {
+      const isMissed = action.actionType === "missed";
+      const isHistorical = action.lessonDate < businessDate;
+      const hasNoRoster = !isMissed && action.rosterCount === 0;
+      const lesson = lessonFromAttendanceAction(action);
+      const progress = hasNoRoster
+        ? "На дату занятия в составе группы не было учеников — отметки не требуются."
+        : action.rosterCount > 0
+        ? `Отмечено ${action.markedCount} из ${action.rosterCount}${action.remainingCount > 0 ? ` · осталось ${action.remainingCount}` : ""}.`
+        : "Проверьте и завершите журнал занятия.";
+      return {
+        lesson,
+        actionType: action.actionType,
+        sourceAction: action,
+        // The dashboard is only an entry point. The reason and the
+        // attendance rules belong in the lesson detail, not in its headline.
+        cardLabel: hasNoRoster ? "Требует действия" : undefined,
+        cardDescription: hasNoRoster
+          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })}`
+          : undefined,
+        label: isMissed
+          ? "Разобрать пропущенный урок"
+          : hasNoRoster ? "Завершите урок без отметок"
+            : action.remainingCount > 0 ? "Завершите посещаемость" : "Завершите урок",
+        description: isMissed
+          ? `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · урок не был начат. Укажите, состоялся ли он.`
+          : `${action.groupName} · ${formatIsoDateLabel(action.lessonDate, { weekday: "short", day: "numeric", month: "short" })} · ${progress}`,
+        tone: isMissed || isHistorical ? "rose" : "amber",
+        markedCount: action.markedCount,
+        rosterCount: action.rosterCount,
+        remainingCount: action.remainingCount,
+      };
+    })
+  ), [openAttendanceActions, businessDate]);
+
+  const lessonActions = useMemo<LessonAction[]>(() => (
+    [...openLessonActions, ...scheduledLessonActions].sort((left, right) => {
+      const leftDate = left.lesson.occurrenceDate || businessDate;
+      const rightDate = right.lesson.occurrenceDate || businessDate;
+      return `${leftDate}T${left.lesson.startTime}`.localeCompare(`${rightDate}T${right.lesson.startTime}`);
+    })
+  ), [openLessonActions, scheduledLessonActions, businessDate]);
 
   const groupFocus = useMemo(() => {
     const nowMinutes = businessTimeMinutes();
@@ -712,14 +1075,64 @@ export default function TeacherDashboardPage() {
 
   const primaryLessonAction = lessonActions[0] || null;
   // A lobby is preparation, not an ongoing exam. It must not displace a
-  // lesson in the teacher's "next action" card. The live panel shows only
-  // running exams and their recently finalised result.
-  const operationalExams = liveExamView.filter((exam) => exam.status !== "lobby");
-  const activeExamAction = operationalExams.find((exam) => exam.status === "active") || null;
-  // A running exam is an operational responsibility even when attendance for
-  // the linked lesson is already complete.  It takes precedence over the
-  // neutral "all clear" state, but never over a real overdue lesson action.
-  const actionCount = lessonActions.length + (activeExamAction ? 1 : 0);
+  // lesson in the teacher's main "next action" card, but it does belong in
+  // the separate exam module when it is scheduled, upcoming or overdue.
+  const activeExamAction = liveExamView.find((exam) => exam.status === "active") || null;
+  const dashboardExamRows = useMemo(() => {
+    const priority = {
+      active: 0,
+      needs_resolution: 1,
+      today: 2,
+      upcoming: 3,
+      closed: 4,
+    } as const;
+
+    return liveExamView
+      .map((exam) => {
+        const lesson = weekLessons.find((candidate) =>
+          candidate.id === exam.scheduled_lesson_id
+          && candidate.occurrenceDate === exam.scheduled_lesson_date
+          && candidate.groupId === exam.group_id,
+        );
+        const scheduledDate = exam.scheduled_lesson_date || "";
+        const state = exam.status === "active"
+          ? "active"
+          : exam.status === "closed"
+            ? "closed"
+            : scheduledDate < businessDate
+              ? "needs_resolution"
+              : scheduledDate === businessDate
+                ? "today"
+                : "upcoming";
+        const lessonLabel = lesson
+          ? `${formatIsoDateLabel(lesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · ${lesson.startTime}–${lesson.endTime}`
+          : scheduledDate
+            ? formatIsoDateLabel(scheduledDate, { weekday: "short", day: "numeric", month: "short" })
+            : "Занятие не выбрано";
+
+        return { ...exam, state, lessonLabel, priority: priority[state] };
+      })
+      .sort((left, right) => {
+        if (left.priority !== right.priority) return left.priority - right.priority;
+        // Reconciliation is time-sensitive.  Showing the most recent missed
+        // delivery first prevents older lobby records from hiding a prepared
+        // paper package that still needs a teacher decision.
+        if (left.state === "needs_resolution" && right.state === "needs_resolution") {
+          return `${right.scheduled_lesson_date || ""}_${right.title}`.localeCompare(
+            `${left.scheduled_lesson_date || ""}_${left.title}`,
+          );
+        }
+        return `${left.scheduled_lesson_date || "9999-12-31"}_${left.title}`.localeCompare(
+          `${right.scheduled_lesson_date || "9999-12-31"}_${right.title}`,
+        );
+      })
+  }, [businessDate, liveExamView, weekLessons]);
+  const featuredDashboardExam = dashboardExamRows[0] || null;
+  const additionalDashboardExamCount = Math.max(0, dashboardExamRows.length - 1);
+  // "Требуют действия" is a finite queue of attendance/lesson closures.
+  // An ongoing exam has its own live block and must not create a hidden item
+  // in this action centre.
+  const actionCount = dashboardError || openAttendanceActionsAvailable === false ? null : lessonActions.length;
 
   const currentBusinessHour = Math.floor(businessTimeMinutes() / 60);
   const greeting = currentBusinessHour < 12 ? "Доброе утро" : currentBusinessHour < 18 ? "Добрый день" : "Добрый вечер";
@@ -729,7 +1142,7 @@ export default function TeacherDashboardPage() {
     { label: "Мои группы", value: stats.groups || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
     { label: "Мои ученики", value: stats.students || 0, icon: GraduationCap, color: "from-emerald-400 to-emerald-600", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
     { label: "Уроков сегодня", value: todayLessons.length, icon: CalendarIcon, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Требуют действия", value: actionCount, icon: ClipboardCheck, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
+    { label: "Требуют действия", value: actionCount ?? "—", icon: ClipboardCheck, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600", onClick: actionCount !== null && actionCount > 0 ? () => setIsActionCenterOpen(true) : undefined },
   ];
 
   const activeLessonStatus = useMemo(() => {
@@ -741,6 +1154,13 @@ export default function TeacherDashboardPage() {
       activeInstanceStatus === "completed"
     );
   }, [activeLesson, todayDayOfWeek, isAttendanceSaved, lessonAttendanceMap, activeInstanceStatus]);
+
+  const activeSubsequentLesson = useMemo(
+    () => activeLesson && activeInstanceStatus === "scheduled"
+      ? getSubsequentStartedLesson(activeLesson)
+      : null,
+    [activeLesson, activeInstanceStatus, getSubsequentStartedLesson],
+  );
 
   if (loading) {
     return (
@@ -772,10 +1192,12 @@ export default function TeacherDashboardPage() {
       </div>
 
       {dashboardError && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900 flex items-start gap-2.5">
-          <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-amber-700" />
-          <span>{dashboardError}</span>
-        </div>
+        <DataLoadError
+          compact
+          title="Рабочая сводка не обновлена"
+          message={`${dashboardError} Показаны последние успешно загруженные данные.`}
+          onRetry={() => setDashboardRefreshNonce((current) => current + 1)}
+        />
       )}
 
       {/* KPI Stats Grid */}
@@ -786,8 +1208,16 @@ export default function TeacherDashboardPage() {
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: i * 0.05 }}
-            className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs relative overflow-hidden group hover:border-slate-200 transition-all"
+            className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-xs relative overflow-hidden group hover:border-slate-200 transition-all ${s.onClick ? "cursor-pointer focus-within:ring-2 focus-within:ring-amber-300" : ""}`}
           >
+            {s.onClick && (
+              <button
+                type="button"
+                onClick={s.onClick}
+                aria-label="Открыть список уроков, требующих действия"
+                className="absolute inset-0 z-10 rounded-3xl outline-none"
+              />
+            )}
             <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-slate-50 opacity-60 pointer-events-none group-hover:scale-110 transition-transform" />
             <div className="flex items-center gap-4">
               <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
@@ -819,11 +1249,15 @@ export default function TeacherDashboardPage() {
                 <div className="min-w-0">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Ближайшее действие</p>
                   <h2 className="mt-1 text-xl font-bold text-slate-900">
-                    {primaryLessonAction?.label || (activeExamAction ? "Сейчас проводится экзамен" : "На сегодня всё закрыто")}
+                    {primaryLessonAction?.cardLabel || primaryLessonAction?.label || (activeExamAction
+                      ? activeExamAction.delivery_mode === "print"
+                        ? "Сейчас проводится печатный экзамен"
+                        : "Сейчас проводится экзамен"
+                      : "На сегодня всё закрыто")}
                   </h2>
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {primaryLessonAction?.description || (activeExamAction
-                      ? `${activeExamAction.title}${activeExamAction.group_name ? ` · ${activeExamAction.group_name}` : ""}. Осталось ${formatCountdown(activeExamAction.displayRemainingSeconds)}.`
+                    {primaryLessonAction?.cardDescription || primaryLessonAction?.description || (activeExamAction
+                      ? `${activeExamAction.title}${activeExamAction.group_name ? ` · ${activeExamAction.group_name}` : ""}.${activeExamAction.delivery_mode === "print" ? " Проводится на бумаге." : ""} Осталось ${formatCountdown(activeExamAction.displayRemainingSeconds)}.`
                       : "Нет незавершённых уроков или отметок, требующих вашего внимания.")}
                   </p>
                 </div>
@@ -915,9 +1349,9 @@ export default function TeacherDashboardPage() {
               <div>
                 <h2 className="flex items-center gap-2 text-xl font-bold text-slate-900">
                   <Radio className="h-5 w-5 text-primary-600" />
-                  Экзамен сейчас
+                  Экзамены
                 </h2>
-                <p className="mt-1 text-xs leading-5 text-slate-500">Оперативный статус — без аналитических оценок.</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">Ближайшие проведения и ситуации, требующие решения.</p>
               </div>
               <Link href="/teacher/exams" className="shrink-0 text-xs font-bold text-primary-600 hover:text-primary-700">
                 Все экзамены
@@ -928,31 +1362,63 @@ export default function TeacherDashboardPage() {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium leading-5 text-amber-900">
                 {liveExamError}
               </div>
-            ) : operationalExams.length === 0 ? (
+            ) : !featuredDashboardExam ? (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
                 <FileCheck2 className="mx-auto mb-2 h-7 w-7 opacity-40" />
-                Сейчас нет идущих экзаменов
+                Нет экзаменов, требующих внимания
               </div>
             ) : (
               <div className="space-y-3">
-                {operationalExams.slice(0, 2).map((exam) => {
+                {[featuredDashboardExam].map((exam) => {
                   const isActive = exam.status === "active";
-                  const isLobby = exam.status === "lobby";
                   const isClosed = exam.status === "closed";
+                  const isPrint = exam.delivery_mode === "print";
+                  const isPrintReady = isPrint && exam.status === "print_ready";
+                  const needsResolution = exam.state === "needs_resolution";
+                  const isScheduled = exam.state === "today" || exam.state === "upcoming";
                   const isNearDeadline = isActive && exam.displayRemainingSeconds > 0 && exam.displayRemainingSeconds <= 5 * 60;
                   const timerReachedZero = isActive && exam.displayRemainingSeconds === 0;
+                  const stateLabel = isClosed
+                    ? "Завершён"
+                    : needsResolution
+                      ? "Нужно действие"
+                      : isActive
+                        ? timerReachedZero
+                          ? "Подтверждаем"
+                          : isNearDeadline
+                            ? "Скоро конец"
+                            : isPrint
+                              ? "На бумаге"
+                              : "Идёт"
+                        : isPrintReady
+                          ? "Комплект готов"
+                        : exam.state === "today"
+                          ? "Сегодня"
+                          : "Запланирован";
 
                   return (
                     <div
                       key={exam.exam_id}
-                      className={`rounded-2xl border p-4 ${
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Открыть экзамен «${exam.title}»`}
+                      onClick={() => router.push(`/teacher/exams/${exam.exam_id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          router.push(`/teacher/exams/${exam.exam_id}`);
+                        }
+                      }}
+                      className={`cursor-pointer rounded-2xl border p-4 transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${
                         isClosed
                           ? "border-emerald-200 bg-emerald-50/60"
-                          : isNearDeadline || timerReachedZero
+                          : needsResolution || isNearDeadline || timerReachedZero
                           ? "border-amber-200 bg-amber-50/70"
                           : isActive
                           ? "border-primary-200 bg-primary-50/50"
-                          : "border-violet-200 bg-violet-50/50"
+                          : isScheduled
+                            ? "border-violet-200 bg-violet-50/50"
+                            : "border-slate-200 bg-slate-50/70"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -963,54 +1429,87 @@ export default function TeacherDashboardPage() {
                         <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
                           isClosed
                             ? "bg-emerald-100 text-emerald-800"
-                            : isNearDeadline || timerReachedZero
+                            : needsResolution || isNearDeadline || timerReachedZero
                             ? "bg-amber-100 text-amber-800"
                             : isActive
                             ? "bg-primary-100 text-primary-700"
-                            : "bg-violet-100 text-violet-700"
+                            : isScheduled
+                              ? "bg-violet-100 text-violet-700"
+                              : "bg-slate-100 text-slate-700"
                         }`}>
-                          {isClosed ? "Завершён" : timerReachedZero ? "Подтверждаем" : isNearDeadline ? "Скоро конец" : isActive ? "Идёт" : "Ожидание"}
+                          {stateLabel}
                         </span>
                       </div>
 
-                      <div className="mt-4 flex items-end justify-between gap-3">
+                      <p className="mt-1 truncate text-xs text-slate-500">{exam.lessonLabel}</p>
+
+                      <div className="mt-4">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-500">
-                            {isClosed ? "Итог" : isLobby ? "Старт экзамена" : timerReachedZero ? "Время истекло" : "До завершения"}
+                            {isClosed ? "Итог" : needsResolution ? "Занятие прошло" : isScheduled ? "Следующее действие" : timerReachedZero ? "Время истекло" : "До завершения"}
                           </p>
-                          <p className={`mt-1 flex items-center gap-1.5 text-lg font-bold tabular-nums ${
-                            isClosed ? "text-emerald-800" : isNearDeadline || timerReachedZero ? "text-amber-900" : "text-slate-900"
+                          <p className={`mt-1 flex items-center gap-1.5 ${needsResolution ? "whitespace-nowrap text-sm" : "text-base"} font-bold tabular-nums ${
+                            isClosed ? "text-emerald-800" : needsResolution || isNearDeadline || timerReachedZero ? "text-amber-900" : "text-slate-900"
                           }`}>
-                            {isClosed ? <CheckCircle2 className="h-4 w-4" /> : <TimerReset className="h-4 w-4" />}
-                            {isClosed ? "Экзамен завершён" : isLobby ? `Лимит ${formatCountdown(exam.total_time_seconds)}` : timerReachedZero ? "Ожидаем сервер" : formatCountdown(exam.displayRemainingSeconds)}
+                            {isClosed ? <CheckCircle2 className="h-4 w-4" /> : needsResolution ? <AlertCircle className="h-4 w-4" /> : <TimerReset className="h-4 w-4" />}
+                            {isClosed
+                              ? "Экзамен завершён"
+                              : needsResolution
+                                ? isPrintReady
+                                  ? "Проведение не подтверждено"
+                                  : "Экзамен не проведён"
+                                : isScheduled
+                                  ? isPrint
+                                    ? "Комплект готов к выдаче"
+                                    : "Доступ после начала урока"
+                                  : timerReachedZero
+                                    ? "Ожидаем сервер"
+                                    : formatCountdown(exam.displayRemainingSeconds)}
                           </p>
                         </div>
-                        <Link href={`/teacher/exams/${exam.exam_id}`} className="text-xs font-bold text-primary-700 hover:text-primary-800">
-                          Открыть
-                        </Link>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 divide-x divide-slate-200/80 rounded-xl border border-white/80 bg-white/75 py-2.5 text-center">
-                        <div className="px-1">
-                          <p className="text-base font-bold text-slate-900">{exam.connected_count}</p>
-                          <p className="mt-0.5 text-[10px] font-medium text-slate-500">Подключились</p>
+                      {isPrint && isActive && (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl border border-primary-100 bg-white/75 px-3 py-2.5 text-xs leading-5 text-slate-600">
+                          <FileCheck2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
+                          <p><span className="font-bold text-primary-800">Проведение на бумаге.</span> Завершите экзамен после сбора работ.</p>
                         </div>
-                        <div className="px-1">
-                          <p className="text-base font-bold text-slate-900">{exam.solving_count}</p>
-                          <p className="mt-0.5 text-[10px] font-medium text-slate-500">Решают</p>
+                      )}
+
+                      {!isPrint && (isActive || isClosed) && (
+                        <div className="mt-4 grid grid-cols-3 divide-x divide-slate-200/80 rounded-xl border border-white/80 bg-white/75 py-2.5 text-center">
+                          <div className="px-1">
+                            <p className="text-base font-bold text-slate-900">{exam.connected_count}</p>
+                            <p className="mt-0.5 text-[10px] font-medium text-slate-500">Подключились</p>
+                          </div>
+                          <div className="px-1">
+                            <p className="text-base font-bold text-slate-900">{exam.solving_count}</p>
+                            <p className="mt-0.5 text-[10px] font-medium text-slate-500">Решают</p>
+                          </div>
+                          <div className="px-1">
+                            <p className="text-base font-bold text-slate-900">{exam.submitted_count}</p>
+                            <p className="mt-0.5 text-[10px] font-medium text-slate-500">Сдали</p>
+                          </div>
                         </div>
-                        <div className="px-1">
-                          <p className="text-base font-bold text-slate-900">{exam.submitted_count}</p>
-                          <p className="mt-0.5 text-[10px] font-medium text-slate-500">Сдали</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
-                {operationalExams.length > 2 && (
-                  <Link href="/teacher/exams" className="block text-center text-xs font-bold text-primary-600 hover:text-primary-700">
-                    Ещё экзаменов: {operationalExams.length - 2}
-                  </Link>
+
+                {additionalDashboardExamCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsExamQueueOpen(true)}
+                    className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 text-sm transition-colors hover:border-primary-200 hover:bg-primary-50/60"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800">В очереди ещё {formatExamQueueCount(additionalDashboardExamCount)}</p>
+                      <p className="mt-0.5 text-left text-xs leading-5 text-slate-500">Посмотрите причины и выберите следующий экзамен.</p>
+                    </div>
+                    <span className="inline-flex shrink-0 items-center gap-1 text-xs font-bold text-primary-700 group-hover:text-primary-800">
+                      Открыть <ArrowRight className="h-4 w-4" />
+                    </span>
+                  </button>
                 )}
               </div>
             )}
@@ -1036,6 +1535,7 @@ export default function TeacherDashboardPage() {
                   const instanceStatus = lessonStatusMap[l.id] || (completedLessonsMap[l.id] ? "completed" : "scheduled");
                   const isFinished = instanceStatus === "completed";
                   const isCancelled = instanceStatus === "cancelled";
+                  const subsequentLesson = instanceStatus === "scheduled" ? getSubsequentStartedLesson(l) : null;
                   const status = getLessonTimeStatus(l, todayDayOfWeek, isAttSaved, isFinished);
 
                   return (
@@ -1045,6 +1545,8 @@ export default function TeacherDashboardPage() {
                       className={`p-3.5 rounded-2xl border transition-all block group cursor-pointer ${
                         isCancelled
                           ? "bg-slate-50 border-slate-200/70 opacity-75 hover:opacity-100 border-l-4 border-l-slate-400"
+                          : subsequentLesson
+                          ? "bg-white border-rose-300 shadow-sm border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
                           : status.type === "live"
                           ? status.isPastEndTime && !isAttSaved
                             ? "bg-white border-rose-300 shadow-sm border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
@@ -1073,7 +1575,12 @@ export default function TeacherDashboardPage() {
                               <CheckCircle2 className="w-3 h-3 text-slate-400" />
                               Завершён
                             </span>
-                          ) : status.type === "live" ? (
+                          ) : subsequentLesson ? (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs">
+                              <AlertCircle className="w-3 h-3 text-rose-600" />
+                              Урок не начат
+                            </span>
+                          ) : instanceStatus === "in_progress" ? (
                             status.isPastEndTime ? (
                               isAttSaved ? (
                                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
@@ -1086,13 +1593,20 @@ export default function TeacherDashboardPage() {
                                   Отметьте посещаемость
                                 </span>
                               )
-                            ) : isAttSaved ? (
+                            ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                                 </span>
                                 Идёт урок
+                              </span>
+                            )
+                          ) : status.type === "live" ? (
+                            status.isPastEndTime ? (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Урок не начат
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
@@ -1148,6 +1662,358 @@ export default function TeacherDashboardPage() {
 
       </div>
 
+      {/* EXAM QUEUE: all operational exams behind the featured dashboard card. */}
+      {mounted && typeof document !== "undefined" && isExamQueueOpen &&
+        createPortal(
+          <AnimatePresence>
+            <div
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setIsExamQueueOpen(false);
+              }}
+              className="fixed left-0 top-0 z-[99998] flex items-center justify-center overflow-hidden overscroll-contain bg-slate-950/60 p-4 backdrop-blur-md"
+              style={{ width: "100dvw", height: "100dvh" }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="exam-queue-title"
+                className="flex max-h-[min(720px,calc(100dvh-2rem))] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-700">Оперативный контроль</p>
+                    <h2 id="exam-queue-title" className="mt-1 text-xl font-bold text-slate-900">Очередь экзаменов</h2>
+                    <p className="mt-1 text-sm leading-5 text-slate-500">Все ближайшие проведения и экзамены, для которых нужно принять решение.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsExamQueueOpen(false)}
+                    aria-label="Закрыть очередь экзаменов"
+                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-6 py-5 sm:px-7">
+                  {dashboardExamRows.map((exam) => {
+                    const isActive = exam.status === "active";
+                    const isClosed = exam.status === "closed";
+                    const isPrint = exam.delivery_mode === "print";
+                    const needsResolution = exam.state === "needs_resolution";
+                    const isScheduled = exam.state === "today" || exam.state === "upcoming";
+                    const statusLabel = isClosed
+                      ? "Завершён"
+                      : needsResolution
+                        ? "Нужно действие"
+                        : isActive
+                          ? isPrint ? "На бумаге" : "Идёт"
+                          : isPrint
+                            ? "Комплект готов"
+                            : exam.state === "today" ? "Сегодня" : "Запланирован";
+                    const description = needsResolution
+                      ? isPrint
+                        ? "Урок уже прошёл, а проведение по печатному комплекту не подтверждено. Перенесите или отмените экзамен."
+                        : "Урок уже прошёл, но экзамен не был запущен. Перенесите или отмените проведение."
+                      : isActive
+                        ? isPrint
+                          ? "Печатный экзамен проводится в аудитории. Завершите его после сбора работ."
+                          : `Экзамен идёт. До завершения ${formatCountdown(exam.displayRemainingSeconds)}.`
+                        : isClosed
+                          ? "Экзамен завершён; результаты доступны в карточке экзамена."
+                          : isPrint
+                            ? "Печатный комплект готов к выдаче в день занятия."
+                            : "Экзамен станет доступен после начала назначенного урока.";
+                    const tone = needsResolution
+                      ? "border-amber-200 bg-amber-50/55 hover:border-amber-300"
+                      : isActive
+                        ? "border-primary-200 bg-primary-50/55 hover:border-primary-300"
+                        : isClosed
+                          ? "border-emerald-200 bg-emerald-50/55 hover:border-emerald-300"
+                          : "border-violet-200 bg-violet-50/55 hover:border-violet-300";
+
+                    return (
+                      <Link
+                        key={exam.exam_id}
+                        href={`/teacher/exams/${exam.exam_id}`}
+                        onClick={() => setIsExamQueueOpen(false)}
+                        className={`block rounded-2xl border p-4 transition-all hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${tone}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${needsResolution ? "bg-amber-100 text-amber-700" : isActive ? "bg-primary-100 text-primary-700" : isClosed ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-violet-700"}`}>
+                            {isPrint ? <FileCheck2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-slate-900">{exam.title}</p>
+                                <p className="mt-0.5 truncate text-xs text-slate-600">{exam.group_name || "Группа не указана"} · {exam.lessonLabel}</p>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                                {isPrint && <span className="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold text-primary-700">Печать</span>}
+                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${needsResolution ? "bg-amber-100 text-amber-800" : isActive ? "bg-primary-100 text-primary-700" : isClosed ? "bg-emerald-100 text-emerald-800" : "bg-violet-100 text-violet-700"}`}>{statusLabel}</span>
+                              </div>
+                            </div>
+                            <p className="mt-2 text-sm leading-5 text-slate-700">{description}</p>
+                          </div>
+                          <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-slate-400" />
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
+                  <button type="button" onClick={() => setIsExamQueueOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white">
+                    Закрыть
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {/* ACTION CENTRE: unfinished journals and never-started past lessons. */}
+      {mounted && typeof document !== "undefined" && isActionCenterOpen &&
+        createPortal(
+          <AnimatePresence>
+            <div
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setIsActionCenterOpen(false);
+              }}
+              className="fixed left-0 top-0 z-[99998] flex items-center justify-center overflow-hidden overscroll-contain bg-slate-950/60 p-4 backdrop-blur-md"
+              style={{ width: "100dvw", height: "100dvh" }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="action-centre-title"
+                className="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Оперативный контроль</p>
+                    <h2 id="action-centre-title" className="mt-1 text-xl font-bold text-slate-900">Требуют действия</h2>
+                    <p className="mt-1 text-sm leading-5 text-slate-500">Здесь собраны незавершённые журналы и пропущенные уроки, по которым нужно принять явное решение.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsActionCenterOpen(false)}
+                    aria-label="Закрыть"
+                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="max-h-[60vh] space-y-3 overflow-y-auto px-6 py-5 sm:px-7">
+                  {lessonActions.map((action) => {
+                    const isMissed = action.actionType === "missed";
+                    const isHistorical = (action.lesson.occurrenceDate || businessDate) < businessDate;
+                    return (
+                      <button
+                        key={`${action.lesson.occurrenceDate || businessDate}_${action.lesson.groupId}_${action.lesson.id}`}
+                        type="button"
+                        onClick={() => {
+                          setIsActionCenterOpen(false);
+                          if (isMissed && action.sourceAction) {
+                            setMissedLessonError(null);
+                            setIsCancellingMissedLesson(false);
+                            setMissedLessonCancellationReason("");
+                            setMissedLessonAction(action.sourceAction);
+                          } else {
+                            setActiveLesson(action.lesson);
+                          }
+                        }}
+                        className={`w-full rounded-2xl border p-4 text-left transition-all hover:shadow-sm ${
+                          isMissed || isHistorical ? "border-rose-200 bg-rose-50/45 hover:border-rose-300" : "border-amber-200 bg-amber-50/45 hover:border-amber-300"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
+                            <ClipboardCheck className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-bold text-slate-900">{action.lesson.groupName}</p>
+                                <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                                  {formatIsoDateLabel(action.lesson.occurrenceDate || businessDate, { weekday: "long", day: "numeric", month: "long" })} · {action.lesson.startTime} — {action.lesson.endTime}
+                                </p>
+                              </div>
+                              <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
+                                {isMissed ? "Не начат" : isHistorical ? "Просрочено" : "Открыт урок"}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm font-semibold text-slate-800">{action.label}</p>
+                            {action.rosterCount !== undefined && action.rosterCount > 0 && (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Отмечено {action.markedCount} из {action.rosterCount}{action.remainingCount ? ` · осталось ${action.remainingCount}` : " · можно завершить урок"}
+                              </p>
+                            )}
+                            {action.rosterCount === 0 && action.actionType !== "missed" && (
+                              <p className="mt-1 text-xs text-slate-600">На дату урока учеников в составе не было.</p>
+                            )}
+                          </div>
+                          <ArrowRight className="mt-2 h-4 w-4 shrink-0 text-slate-400" />
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
+                  <button type="button" onClick={() => setIsActionCenterOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white">
+                    Закрыть
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
+      {/* Explicit resolution for a past occurrence with no attendance row. */}
+      {mounted && typeof document !== "undefined" && missedLessonAction &&
+        createPortal(
+          <AnimatePresence>
+            <div
+              onClick={(event) => {
+                if (event.target === event.currentTarget && !isResolvingMissedLesson) {
+                  setMissedLessonAction(null);
+                }
+              }}
+              className="fixed left-0 top-0 z-[100000] flex items-center justify-center overflow-hidden overscroll-contain bg-slate-950/60 p-4 backdrop-blur-md"
+              style={{ width: "100dvw", height: "100dvh" }}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="missed-lesson-title"
+                className="w-full max-w-xl overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-rose-700">Требует разбора</p>
+                    <h2 id="missed-lesson-title" className="mt-1 text-xl font-bold text-slate-900">Пропущенный урок</h2>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isResolvingMissedLesson}
+                    onClick={() => setMissedLessonAction(null)}
+                    aria-label="Закрыть"
+                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-4 px-6 py-5 sm:px-7">
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4">
+                    <p className="text-sm font-bold text-slate-900">{missedLessonAction.groupName}</p>
+                    <p className="mt-1 text-xs font-semibold text-rose-800">
+                      {formatIsoDateLabel(missedLessonAction.lessonDate, { weekday: "long", day: "numeric", month: "long" })} · {missedLessonAction.startTime} — {missedLessonAction.endTime}
+                    </p>
+                    {missedLessonAction.topic && (
+                      <p className="mt-2 text-sm text-slate-700">{missedLessonAction.topic}</p>
+                    )}
+                  </div>
+                  <p className="text-sm leading-6 text-slate-600">
+                    Урок не был начат в системе. Мы не подставляем посещаемость и не создаём время начала задним числом — выберите фактический исход.
+                  </p>
+                  {missedLessonError && (
+                    <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800">
+                      {missedLessonError}
+                    </p>
+                  )}
+
+                  {!isCancellingMissedLesson ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        disabled={isResolvingMissedLesson}
+                        onClick={handleReconcileMissedLesson}
+                        className="rounded-2xl bg-emerald-600 px-4 py-3 text-left text-sm font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block">Оформить проведённый урок</span>
+                        <span className="mt-1 block text-xs font-medium text-emerald-100">Откроется журнал посещаемости за эту дату</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isResolvingMissedLesson}
+                        onClick={() => {
+                          setMissedLessonError(null);
+                          setIsCancellingMissedLesson(true);
+                        }}
+                        className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="block">Отменить урок</span>
+                        <span className="mt-1 block text-xs font-medium text-rose-600">Причина обязательно сохранится в журнале</span>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                      <div>
+                        <p className="text-sm font-bold text-rose-900">Причина отмены</p>
+                        <p className="mt-1 text-xs leading-5 text-rose-700">Это действие останется в аудите и закроет урок без отметок посещаемости.</p>
+                      </div>
+                      <textarea
+                        value={missedLessonCancellationReason}
+                        onChange={(event) => setMissedLessonCancellationReason(event.target.value)}
+                        maxLength={500}
+                        rows={3}
+                        autoFocus
+                        placeholder="Например: урок не состоялся по болезни преподавателя"
+                        className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          disabled={isResolvingMissedLesson}
+                          onClick={() => {
+                            setIsCancellingMissedLesson(false);
+                            setMissedLessonCancellationReason("");
+                            setMissedLessonError(null);
+                          }}
+                          className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-50"
+                        >
+                          Назад
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isResolvingMissedLesson || missedLessonCancellationReason.trim().length < 3}
+                          onClick={handleCancelMissedLesson}
+                          className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {isResolvingMissedLesson ? "Сохранение…" : "Подтвердить отмену"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
+                  <button
+                    type="button"
+                    disabled={isResolvingMissedLesson}
+                    onClick={() => setMissedLessonAction(null)}
+                    className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Разобрать позже
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </AnimatePresence>,
+          document.body,
+        )}
+
       {/* MODAL: LESSON DETAILS & ATTENDANCE ON DASHBOARD */}
       {mounted && typeof document !== "undefined" && activeLesson &&
         createPortal(
@@ -1156,7 +2022,8 @@ export default function TeacherDashboardPage() {
               onClick={(e) => {
                 if (e.target === e.currentTarget) setActiveLesson(null);
               }}
-              className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-md transition-all"
+              className="fixed left-0 top-0 z-[99999] flex items-center justify-center overflow-hidden overscroll-contain p-4 sm:p-6 bg-slate-950/60 backdrop-blur-md transition-all"
+              style={{ width: "100dvw", height: "100dvh" }}
             >
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -1168,7 +2035,9 @@ export default function TeacherDashboardPage() {
                 <div className="flex items-start justify-between gap-3 mb-5">
                   <div>
                     <span className="text-xs font-bold text-primary-600 uppercase tracking-wider">
-                      {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name || "День урока"} · {activeLesson.startTime} — {activeLesson.endTime}
+                      {activeLesson.occurrenceDate
+                        ? formatIsoDateLabel(activeLesson.occurrenceDate, { weekday: "long", day: "numeric", month: "long" })
+                        : DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name || "День урока"} · {activeLesson.startTime} — {activeLesson.endTime}
                     </span>
                     <div className="flex items-center gap-2.5 mt-1">
                       <h3 className="text-xl sm:text-2xl font-bold text-slate-900">
@@ -1208,7 +2077,9 @@ export default function TeacherDashboardPage() {
                     </div>
                   ) : groupStudents.length === 0 ? (
                     <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 border border-slate-100">
-                      В этой группе пока нет добавленных учеников
+                      {activeLesson.occurrenceDate && activeLesson.occurrenceDate < businessDate
+                        ? "На дату этого урока в группе не было зачисленных учеников. Урок можно завершить без отметок."
+                        : "В этой группе пока нет добавленных учеников"}
                     </div>
                   ) : !isMarkingAttendance ? (
                     /* STEP 1: Overview & Status Banner */
@@ -1235,6 +2106,19 @@ export default function TeacherDashboardPage() {
                             <p className="text-xs text-slate-600 mt-0.5">Отметки зафиксированы. Для изменения нужен контролируемый административный доступ.</p>
                           </div>
                         </div>
+                      ) : isAttendanceDirty ? (
+                        <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                              <AlertCircle className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-amber-950">Есть несохранённые изменения</p>
+                              <p className="text-xs text-amber-800 mt-0.5 font-medium">Отмечено: {Object.keys(attendance).length} из {groupStudents.length}. Сохраните отметки, чтобы они появились в журнале.</p>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setIsMarkingAttendance(true)} className="px-3 py-1.5 text-xs font-semibold text-amber-900 bg-white border border-amber-200 hover:bg-amber-50 rounded-xl transition-colors shrink-0 shadow-2xs">Продолжить отметку</button>
+                        </div>
                       ) : isAttendanceSaved && Object.keys(attendance).length > 0 ? (
                         /* Saved attendance status card */
                         <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1245,11 +2129,13 @@ export default function TeacherDashboardPage() {
                             <div>
                               <div className="flex items-center gap-2">
                                 <p className="text-xs font-bold text-emerald-900">
-                                  {activeLesson && activeLesson.dayOfWeek === todayDayOfWeek && activeLessonStatus?.type === "live"
-                                    ? "Идёт урок · Посещаемость отмечена"
-                                    : "Посещаемость отмечена"}
+                                  {Object.keys(attendance).length === groupStudents.length
+                                    ? activeLesson && (activeLesson.occurrenceDate || businessDate) === businessDate && activeLesson.dayOfWeek === todayDayOfWeek && activeLessonStatus?.type === "live"
+                                      ? "Идёт урок · Посещаемость отмечена"
+                                      : "Посещаемость отмечена"
+                                    : `Сохранено: ${Object.keys(attendance).length} из ${groupStudents.length}`}
                                 </p>
-                                {activeLesson && activeLesson.dayOfWeek === todayDayOfWeek && activeLessonStatus?.type === "live" && (
+                                {activeLesson && (activeLesson.occurrenceDate || businessDate) === businessDate && activeLesson.dayOfWeek === todayDayOfWeek && activeLessonStatus?.type === "live" && (
                                   <span className="relative flex h-2 w-2">
                                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -1257,10 +2143,7 @@ export default function TeacherDashboardPage() {
                                 )}
                               </div>
                               <p className="text-xs text-emerald-700 mt-0.5 font-medium">
-                                Присутствовали: {Object.values(attendance).filter((s) => s === "present").length} ·{" "}
-                                Опоздали: {Object.values(attendance).filter((s) => s === "late").length} ·{" "}
-                                Н/Б: {Object.values(attendance).filter((s) => s === "absent").length} ·{" "}
-                                Ув.: {Object.values(attendance).filter((s) => s === "excused").length}
+                                {formatAttendanceSummary(attendance, groupStudents.length)}
                               </p>
                             </div>
                           </div>
@@ -1269,7 +2152,7 @@ export default function TeacherDashboardPage() {
                             onClick={() => setIsMarkingAttendance(true)}
                             className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-xl transition-colors shrink-0 shadow-2xs"
                           >
-                            Изменить отметки
+                            {Object.keys(attendance).length < groupStudents.length ? "Продолжить отметку" : "Изменить отметки"}
                           </button>
                         </div>
                       ) : activeInstanceStatus === "in_progress" ? (
@@ -1290,6 +2173,18 @@ export default function TeacherDashboardPage() {
                           >
                             Заполнить посещаемость
                           </button>
+                        </div>
+                      ) : activeSubsequentLesson ? (
+                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex items-start gap-3.5">
+                          <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                            <AlertCircle className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-rose-950">Урок больше нельзя начать</p>
+                            <p className="text-xs text-rose-800 mt-0.5">
+                              После его планового окончания уже был начат урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Чтобы не исказить журнал, отметки за это занятие недоступны — отмените его с причиной.
+                            </p>
+                          </div>
                         </div>
                       ) : activeLessonStatus?.type === "upcoming" ? (
                         /* TODAY UPCOMING LESSON: Cannot start yet */
@@ -1385,13 +2280,6 @@ export default function TeacherDashboardPage() {
                             </span>
                           )}
                         </div>
-                        <button
-                          type="button"
-                          onClick={handleMarkAllPresent}
-                          className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline"
-                        >
-                          Отметить всех присутствующими
-                        </button>
                       </div>
 
                       {attendanceError && (
@@ -1432,6 +2320,7 @@ export default function TeacherDashboardPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(st.id, "present")}
+                                  title={status === "present" ? "Снять отметку «Был»" : "Отметить «Был»"}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "present"
                                       ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
@@ -1443,6 +2332,7 @@ export default function TeacherDashboardPage() {
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(st.id, "late")}
+                                  title={status === "late" ? "Снять отметку «Опоздал»" : "Отметить «Опоздал»"}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "late"
                                       ? "bg-amber-500 text-white border-amber-500 shadow-xs"
@@ -1454,6 +2344,7 @@ export default function TeacherDashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "absent")}
+                                title={status === "absent" ? "Снять отметку «Н/Б»" : "Отметить «Н/Б»"}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "absent"
                                       ? "bg-rose-600 text-white border-rose-600 shadow-xs"
@@ -1465,6 +2356,7 @@ export default function TeacherDashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "excused")}
+                                title={status === "excused" ? "Снять отметку «Уважительная причина»" : "Отметить «Уважительная причина»"}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "excused"
                                     ? "bg-sky-600 text-white border-sky-600 shadow-xs"
@@ -1500,55 +2392,50 @@ export default function TeacherDashboardPage() {
                   )}
                 </div>
 
-                {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isMarkingAttendance && (
-                  <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                    {!isCancellingLesson ? (
+                {isCancellingLesson && activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isMarkingAttendance && (
+                  <div className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                    <div>
+                      <p className="text-sm font-bold text-rose-900">Отменить урок</p>
+                      <p className="mt-0.5 text-xs text-rose-700">Отметки этого занятия будут очищены, а причина и прежнее состояние сохранятся в аудите.</p>
+                    </div>
+                    {lessonExamBinding?.loading && (
+                      <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">Проверяем связанный экзамен…</p>
+                    )}
+                    {!lessonExamBinding?.loading && lessonExamBinding?.attached && lessonExamBinding.canCancel && (
+                      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-900">Экзамен «{lessonExamBinding.examTitle}» вернётся в черновик, а код доступа будет закрыт.</p>
+                    )}
+                    {!lessonExamBinding?.loading && lessonExamBinding && !lessonExamBinding.canCancel && (
+                      <p className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium leading-5 text-rose-800">{lessonExamBinding.message || "Отмена недоступна."}</p>
+                    )}
+                    <textarea
+                      value={cancellationReason}
+                      onChange={(event) => setCancellationReason(event.target.value)}
+                      maxLength={500}
+                      rows={3}
+                      placeholder="Причина отмены (обязательно)"
+                      className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
+                    />
+                    <div className="flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => {
-                          setIsCancellingLesson(true);
-                          setAttendanceError(null);
+                          setIsCancellingLesson(false);
+                          setCancellationReason("");
+                          setLessonExamBinding(null);
                         }}
-                        className="text-xs font-semibold text-slate-600 hover:text-slate-900"
+                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
                       >
-                        Отменить этот экземпляр урока
+                        Не отменять
                       </button>
-                    ) : (
-                      <div className="space-y-3">
-                        <div>
-                          <p className="text-xs font-bold text-slate-900">Отмена урока</p>
-                          <p className="mt-0.5 text-xs text-slate-500">Причина сохранится в журнале. Отменённый урок нельзя открыть повторно.</p>
-                        </div>
-                        <textarea
-                          value={cancellationReason}
-                          onChange={(event) => setCancellationReason(event.target.value)}
-                          maxLength={500}
-                          rows={3}
-                          placeholder="Например: занятие перенесено по просьбе группы"
-                          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsCancellingLesson(false);
-                              setCancellationReason("");
-                            }}
-                            className="rounded-xl px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                          >
-                            Не отменять
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelLesson}
-                            disabled={savingAttendance || cancellationReason.trim().length < 3}
-                            className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {savingAttendance ? "Сохранение..." : "Подтвердить отмену"}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={handleCancelLesson}
+                        disabled={savingAttendance || !lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel || cancellationReason.trim().length < 3}
+                        className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {savingAttendance ? "Сохранение..." : "Подтвердить отмену"}
+                      </button>
+                    </div>
                   </div>
                 )}
 
@@ -1563,6 +2450,16 @@ export default function TeacherDashboardPage() {
                   </Link>
 
                   <div className="flex items-center gap-2">
+                    {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && (
+                      <button
+                        type="button"
+                        onClick={openCancelLessonPanel}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        Отменить урок
+                      </button>
+                    )}
                     {canFinishLesson ? (
                       <button
                         type="button"
@@ -1570,7 +2467,7 @@ export default function TeacherDashboardPage() {
                         className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors shadow-2xs"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />
-                        Завершить урок
+                        {groupStudents.length === 0 ? "Завершить без отметок" : "Завершить урок"}
                       </button>
                     ) : isAttendanceSaved ? (
                       <button

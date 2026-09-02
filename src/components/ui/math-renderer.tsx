@@ -79,7 +79,7 @@ function cleanLatexForKatex(latex: string): string {
 function katexRender(latex: string, displayMode: boolean): string {
   try {
     const cleaned = cleanLatexForKatex(latex.trim());
-    return katex.renderToString(cleaned, {
+    return katex.renderToString(wrapBareCyrillicInMath(cleaned), {
       throwOnError: false,
       displayMode,
       output: "html",
@@ -89,6 +89,27 @@ function katexRender(latex: string, displayMode: boolean): string {
   } catch (e) {
     return escapeHtml(latex);
   }
+}
+
+// KaTeX math mode silently swallows spaces between Cyrillic letters, gluing
+// prose words together ("функция возрастает" → "функциявозрастает"). Runs of
+// bare Cyrillic inside a formula are therefore promoted to \text{...}, where
+// spaces are preserved. Existing \text{...} blocks are copied verbatim.
+function wrapBareCyrillicInMath(latex: string): string {
+  if (!/[А-Яа-яЁё]/.test(latex)) return latex;
+
+  const wrapRuns = (chunk: string): string =>
+    chunk.replace(/[А-Яа-яЁё][А-Яа-яЁё\s.,;:!?()«»"'\-−]*/g, (run) => `\\text{${run}}`);
+
+  const textBlock = /\\(?:text|mathrm|mathbf|mathit|mathsf|mathtt|mathcal|operatorname|textbf|textit)\{[^{}]*\}/g;
+  let out = "";
+  let cursor = 0;
+  for (const match of latex.matchAll(textBlock)) {
+    out += wrapRuns(latex.slice(cursor, match.index)) + match[0];
+    cursor = match.index + match[0].length;
+  }
+  out += wrapRuns(latex.slice(cursor));
+  return out;
 }
 
 export interface Token {

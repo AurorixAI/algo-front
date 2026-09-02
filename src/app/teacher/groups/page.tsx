@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Plus, GraduationCap, Filter, LayoutGrid, List } from "lucide-react";
 import { orgApi, GroupInfo } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 
 
@@ -14,25 +15,30 @@ export default function TeacherGroupsPage() {
   const { user } = useAuthStore();
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [showCreate, setShowCreate] = useState(false);
 
-  const loadGroups = async () => {
+  const loadGroups = useCallback(async () => {
+    if (!user?.id) return;
     setLoading(true);
+    setLoadError(null);
     try {
       // Teacher sees only their groups — pass teacher_id filter
-      const data = await orgApi.listGroups(
-        user?.id ? { teacher_id: user.id } : {}
-      );
+      const data = await orgApi.listGroups({ teacher_id: user.id });
       setGroups(Array.isArray(data) ? data : []);
-    } catch {
-      setGroups([]);
+    } catch (error) {
+      // Keep a previously confirmed list on screen. An offline request must
+      // never look identical to a teacher having no groups.
+      setLoadError(getDataLoadErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
-  useEffect(() => { loadGroups(); }, []);
+  useEffect(() => {
+    if (user?.id) void loadGroups();
+  }, [loadGroups, user?.id]);
 
 
 
@@ -62,7 +68,24 @@ export default function TeacherGroupsPage() {
             <div key={i} className="h-48 bg-white rounded-2xl border border-slate-100 animate-pulse" />
           ))}
         </div>
-      ) : groups.length === 0 ? (
+      ) : loadError && groups.length === 0 ? (
+        <DataLoadError
+          title="Не удалось загрузить группы"
+          message={loadError}
+          onRetry={loadGroups}
+        />
+      ) : (
+        <>
+          {loadError && (
+            <DataLoadError
+              compact
+              title="Список групп может быть неактуален"
+              message={`${loadError} Показаны последние успешно загруженные данные.`}
+              onRetry={loadGroups}
+              className="mb-5"
+            />
+          )}
+          {groups.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -85,7 +108,7 @@ export default function TeacherGroupsPage() {
             Создать первую группу
           </button>
         </motion.div>
-      ) : (
+          ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.map((group, i) => (
             <GroupCard
@@ -96,13 +119,15 @@ export default function TeacherGroupsPage() {
             />
           ))}
         </div>
+          )}
+        </>
       )}
       </div>
 
       <GroupCreateModal
         open={showCreate}
         teachers={[]}
-        defaultTeacherId={user?.id}
+        selfAssignTeacher
         onClose={() => setShowCreate(false)}
         onCreated={(g) => {
           setGroups((prev) => [g, ...prev]);

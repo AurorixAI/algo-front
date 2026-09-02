@@ -1,16 +1,17 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
-import { examsApi, orgApi, type Group } from "@/lib/api";
+import { examsApi, orgApi, type Group, type PrintExamLayout, type PrintTaskLayout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import QRCode from "qrcode.react";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import {
   ArrowLeft,
   Check,
@@ -33,9 +34,14 @@ import {
   EyeOff,
   Activity,
   ArrowRight,
-  Bookmark,
   X,
   Plus,
+  Printer,
+  MoreVertical,
+  Edit3,
+  Archive,
+  Pin,
+  PinOff,
 } from "lucide-react";
 
 // ─── Types ───
@@ -83,7 +89,9 @@ interface DraftData {
   group_id?: string | null;
   group_name?: string | null;
   class_level?: number | null;
+  is_pinned?: boolean;
   settings: Record<string, any>;
+  delivery_mode: "online" | "print";
   skills_covered: string[];
   variants: DraftVariant[];
   created_at: string;
@@ -96,6 +104,44 @@ interface Alternative {
   difficulty: string;
   correct_answer: string;
   answer_type: string;
+}
+
+// ─── Print-only presentation helpers ───────────────────────────────────────
+// These settings deliberately describe only the paper. They never alter the
+// authored task, its answer, distractors, or explanatory metadata.
+function printableChoiceValues(task: DraftTask): string[] {
+  const candidates = Array.isArray(task.answer_options) && task.answer_options.length > 0
+    ? task.answer_options
+    : (task.distractor_meta || []).map((item) => item.value);
+  const values = [...candidates];
+  if (task.correct_answer && !values.includes(task.correct_answer)) {
+    values.unshift(task.correct_answer);
+  }
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
+
+function canRenderPrintChoice(task: DraftTask): boolean {
+  const count = printableChoiceValues(task).length;
+  return count >= 2 && count <= 6;
+}
+
+function defaultPrintTaskLayout(task: DraftTask): PrintTaskLayout {
+  return canRenderPrintChoice(task)
+    ? { response_kind: "choice", answer_location: "answer_sheet", answer_lines: 0, work_lines: 0 }
+    : { response_kind: "open", answer_location: "answer_sheet", answer_lines: 2, work_lines: 6 };
+}
+
+function defaultPrintLayout(variants: DraftVariant[]): PrintExamLayout {
+  return {
+    schema_version: 1,
+    answer_sheet_enabled: true,
+    variants: Object.fromEntries(
+      variants.map((variant) => [
+        String(variant.variant_number),
+        Object.fromEntries(variant.tasks.map((task) => [task.task_id, defaultPrintTaskLayout(task)])),
+      ]),
+    ),
+  };
 }
 
 // ─── Difficulty badge colors ───
@@ -115,7 +161,14 @@ import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation }
 export default function ExamDraftPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const examId = params.id as string;
+  const requestedReturnTo = searchParams.get("return_to");
+  const returnTo = requestedReturnTo && requestedReturnTo.startsWith("/teacher/") && !requestedReturnTo.startsWith("//")
+    ? requestedReturnTo
+    : null;
+  const backHref = returnTo || "/teacher/exams?status=draft";
+  const examHubHref = `/teacher/exams/${examId}${returnTo ? `?return_to=${encodeURIComponent(returnTo)}` : ""}`;
 
   const [draft, setDraft] = useState<DraftData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -131,11 +184,48 @@ export default function ExamDraftPage() {
   const [copied, setCopied] = useState(false);
   const [showAnswers, setShowAnswers] = useState(false);
 
+  // Print-mode state is independent from the authored variant.  It is saved
+  // only to the print-layout endpoint and is not used for online delivery.
+  const [printLayout, setPrintLayout] = useState<PrintExamLayout | null>(null);
+  const [printSaveState, setPrintSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [printPreviewing, setPrintPreviewing] = useState<"student" | "teacher-key" | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
+  // Serialised layout at the moment of the last successful save (or hydration).
+  // The autosave effect compares against it, so merely opening the draft never
+  // triggers a write and a server canonicalisation never causes a save loop.
+  const lastSavedLayoutJson = useRef<string | null>(null);
+
   // Group assignment state
   const [groups, setGroups] = useState<Group[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [assignLoading, setAssignLoading] = useState(false);
+
+  const hydrateDraft = useCallback((data: DraftData) => {
+    setDraft(data);
+    setActiveVariant((previous) =>
+      data.variants.some((variant) => variant.variant_number === previous)
+        ? previous
+        : data.variants[0]?.variant_number || 1,
+    );
+
+    const firstVariant = data.variants.find((variant) => variant.variant_number === 1) || data.variants[0];
+    if (firstVariant) {
+      setExpandedSections(new Set(firstVariant.tasks.map((task) => task.skill_name || task.skill_id)));
+    }
+
+    if (data.delivery_mode === "print") {
+      const savedLayout = data.settings?.print_layout as PrintExamLayout | undefined;
+      const layout = savedLayout || defaultPrintLayout(data.variants);
+      lastSavedLayoutJson.current = JSON.stringify(layout);
+      setPrintLayout(layout);
+    } else {
+      lastSavedLayoutJson.current = null;
+      setPrintLayout(null);
+    }
+  }, []);
 
   // Load draft
   useEffect(() => {
@@ -144,19 +234,13 @@ export default function ExamDraftPage() {
     examsApi
       .getDraft(examId)
       .then((data) => {
-        setDraft(data);
-        // Auto-expand all sections
-        const variant = data.variants.find((v) => v.variant_number === 1);
-        if (variant) {
-          const skills = new Set(variant.tasks.map((t) => t.skill_name || t.skill_id));
-          setExpandedSections(skills);
-        }
+        hydrateDraft(data);
       })
       .catch((err) => setError(err.message || "Ошибка загрузки"))
       .finally(() => setLoading(false));
 
     orgApi.listGroups().then((res) => setGroups(Array.isArray(res) ? res : [])).catch(() => {});
-  }, [examId]);
+  }, [examId, hydrateDraft]);
 
   // ─── Background Scroll Lock When Modal Is Open ────────────────────────────
   useEffect(() => {
@@ -207,6 +291,7 @@ export default function ExamDraftPage() {
   }, [currentVariant]);
 
   const totalTasks = currentVariant?.tasks.length || 0;
+  const isPrintDraft = draft?.delivery_mode === "print";
 
   // ─── Handlers ───
 
@@ -234,9 +319,28 @@ export default function ExamDraftPage() {
         variant_number: activeVariant,
         task_id: taskId,
       });
-      // Reload draft
       const data = await examsApi.getDraft(examId);
-      setDraft(data);
+      hydrateDraft(data);
+      setReplacingTaskId(null);
+      setAlternatives([]);
+    } catch (err: any) {
+      alert(err.message || "Ошибка замены");
+    }
+  };
+
+  const handleSelectedReplace = async (oldTaskId: string, newTaskId: string) => {
+    try {
+      // Passing new_task_id is essential: without it the API deliberately
+      // performs a random quick replacement. This is the exact selection made
+      // by the teacher in the alternatives panel.
+      await examsApi.replaceTask(examId, {
+        variant_number: activeVariant,
+        task_id: oldTaskId,
+        old_task_id: oldTaskId,
+        new_task_id: newTaskId,
+      });
+      const data = await examsApi.getDraft(examId);
+      hydrateDraft(data);
       setReplacingTaskId(null);
       setAlternatives([]);
     } catch (err: any) {
@@ -254,7 +358,7 @@ export default function ExamDraftPage() {
         publish: false,
       });
       const data = await examsApi.getDraft(examId);
-      setDraft(data);
+      hydrateDraft(data);
       setShowAssignModal(false);
     } catch (err: any) {
       alert("Не удалось привязать группу: " + (err.message || ""));
@@ -265,6 +369,121 @@ export default function ExamDraftPage() {
 
   const handlePublish = async () => {
     setShowScheduleModal(true);
+  };
+
+  const handleRename = async (title: string) => {
+    const result = await examsApi.rename(examId, title);
+    setDraft((previous) => previous ? { ...previous, title: result.title } : previous);
+  };
+
+  const handleClone = async () => {
+    try {
+      const result = await examsApi.clone(examId);
+      router.push(`/teacher/exams/${result.exam_id}/draft?return_to=${encodeURIComponent(backHref)}`);
+    } catch (err: any) {
+      alert("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."));
+    }
+  };
+
+  const handlePin = async () => {
+    try {
+      const result = await examsApi.pin(examId);
+      setDraft((previous) => previous ? { ...previous, is_pinned: result.is_pinned } : previous);
+    } catch (err: any) {
+      alert("Не удалось изменить закрепление: " + (err?.message || "Повторите попытку."));
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!confirm("Перенести этот экзамен в архив? Его можно будет восстановить в разделе «Архив».")) return;
+    try {
+      await examsApi.delete(examId, false);
+      router.push(backHref);
+    } catch (err: any) {
+      alert("Не удалось перенести экзамен в архив: " + (err?.message || "Повторите попытку."));
+    }
+  };
+
+  const getTaskPrintLayout = (task: DraftTask): PrintTaskLayout => {
+    const saved = printLayout?.variants?.[String(activeVariant)]?.[task.task_id];
+    return saved || defaultPrintTaskLayout(task);
+  };
+
+  // Only the response kind is a teacher choice. The answer sheet location and
+  // the fixed 2/6 workspace geometry are package standards the API enforces,
+  // so the UI mirrors them instead of collecting manual line counts.
+  const updatePrintTaskLayout = (task: DraftTask, response_kind: PrintTaskLayout["response_kind"]) => {
+    if (!draft || draft.delivery_mode !== "print") return;
+    setPrintLayout((previous) => {
+      const base = previous || defaultPrintLayout(draft.variants);
+      const variantKey = String(activeVariant);
+      const next: PrintTaskLayout = response_kind === "choice"
+        ? { response_kind: "choice", answer_location: "answer_sheet", answer_lines: 0, work_lines: 0 }
+        : { response_kind: "open", answer_location: "answer_sheet", answer_lines: 2, work_lines: 6 };
+
+      return {
+        ...base,
+        variants: {
+          ...base.variants,
+          [variantKey]: {
+            ...(base.variants[variantKey] || {}),
+            [task.task_id]: next,
+          },
+        },
+      };
+    });
+  };
+
+  // Autosave: every layout change persists shortly after it happens, so the
+  // teacher never has to remember a save button before previewing or closing.
+  useEffect(() => {
+    if (!printLayout || !isPrintDraft) return;
+    const serialized = JSON.stringify(printLayout);
+    if (serialized === lastSavedLayoutJson.current) return;
+    setPrintSaveState("saving");
+    const timer = window.setTimeout(() => {
+      examsApi
+        .updatePrintLayout(examId, printLayout)
+        .then((result) => {
+          lastSavedLayoutJson.current = JSON.stringify(result.layout);
+          setPrintLayout(result.layout);
+          setPrintSaveState("saved");
+        })
+        .catch((err: any) => {
+          setPrintError(err.message || "Не удалось сохранить настройки печати");
+          setPrintSaveState("error");
+        });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [printLayout, examId, isPrintDraft]);
+
+  const openPrintPreview = async (kind: "student" | "teacher-key") => {
+    if (!printLayout || printPreviewing) return;
+    // Opening a blank window synchronously keeps a user-initiated preview from
+    // being blocked by browsers while the current paper layout is saved.
+    const previewWindow = window.open("", "_blank");
+    if (!previewWindow) {
+      setPrintError("Браузер заблокировал окно предпросмотра. Разрешите всплывающие окна для ALGO.");
+      return;
+    }
+
+    setPrintPreviewing(kind);
+    setPrintError(null);
+    try {
+      const saved = await examsApi.updatePrintLayout(examId, printLayout);
+      setPrintLayout(saved.layout);
+      const blob = kind === "student"
+        ? await examsApi.previewStudentPrintPdf(examId, activeVariant)
+        : await examsApi.previewTeacherPrintKey(examId, activeVariant);
+      const url = URL.createObjectURL(blob);
+      previewWindow.location.href = url;
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err: any) {
+      previewWindow.close();
+      setPrintError(err.message || "Не удалось сформировать предпросмотр печатного комплекта");
+    } finally {
+      setPrintPreviewing(null);
+    }
   };
 
   const getExamUrl = (accessCode: string) => {
@@ -333,7 +552,7 @@ export default function ExamDraftPage() {
       <div className="w-full max-w-[1400px] mx-auto py-12 text-center">
         <XCircle className="w-12 h-12 text-red-400 mx-auto mb-3" />
         <p className="text-slate-600">{error || "Экзамен не найден"}</p>
-        <Link href="/teacher/exams">
+        <Link href={backHref}>
           <Button variant="ghost" className="mt-4">К списку экзаменов</Button>
         </Link>
       </div>
@@ -452,7 +671,7 @@ export default function ExamDraftPage() {
 
             {/* Bottom Navigation Buttons */}
             <div className="pt-3 border-t border-slate-100/90 grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Link href="/teacher/exams" className="w-full">
+              <Link href={backHref} className="w-full">
                 <Button size="sm" variant="ghost" className="w-full justify-center text-slate-600 hover:text-slate-900" icon={<ArrowLeft className="w-3.5 h-3.5" />}>
                   Все экзамены
                 </Button>
@@ -476,7 +695,7 @@ export default function ExamDraftPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/teacher/exams">
+          <Link href={backHref}>
             <Button variant="ghost" size="sm" icon={<ArrowLeft className="w-4 h-4" />}>
               Назад
             </Button>
@@ -503,32 +722,94 @@ export default function ExamDraftPage() {
         </div>
         <div className="flex items-center gap-2">
           {!draft.group_id ? (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => router.push(`/teacher/exams/${examId}`)}
-                icon={<Bookmark className="w-4 h-4 text-slate-600" />}
-              >
-                Сохранить в библиотеку
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setShowAssignModal(true)}
-                icon={<Users className="w-4 h-4" />}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
-              >
-                Привязать группу
-              </Button>
-            </>
+            <Button
+              variant="primary"
+              onClick={() => isPrintDraft ? setShowScheduleModal(true) : setShowAssignModal(true)}
+              icon={isPrintDraft ? <FileText className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            >
+              {isPrintDraft ? "Подготовить печатный комплект" : "Привязать группу"}
+            </Button>
           ) : (
             <Button
               variant="primary"
-              onClick={() => router.push(`/teacher/exams/${examId}`)}
-              icon={<ArrowRight className="w-4 h-4" />}
+              onClick={handlePublish}
+              icon={isPrintDraft ? <FileText className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
             >
-              Перейти к экзамену
+              {isPrintDraft ? "Подготовить печатный комплект" : "Назначить занятие"}
             </Button>
           )}
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="Действия с экзаменом"
+              aria-expanded={headerMenuOpen}
+              onClick={() => setHeaderMenuOpen((open) => !open)}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+            {headerMenuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Закрыть меню действий"
+                  className="fixed inset-0 z-30 cursor-default"
+                  onClick={() => setHeaderMenuOpen(false)}
+                />
+                <div className="absolute right-0 top-full z-40 mt-1.5 w-52 space-y-0.5 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1.5 text-xs shadow-xl shadow-slate-900/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      setShowRenameModal(true);
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-semibold text-slate-700 transition-colors hover:bg-primary-50 hover:text-primary-700"
+                  >
+                    <Edit3 className="h-4 w-4 text-primary-500" />
+                    Изменить название
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      handleClone();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    <Copy className="h-4 w-4 text-slate-400" />
+                    Создать копию (клон)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      handlePin();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                  >
+                    {draft.is_pinned ? (
+                      <><PinOff className="h-4 w-4 text-amber-500" />Открепить</>
+                    ) : (
+                      <><Pin className="h-4 w-4 text-amber-500" />Закрепить вверху</>
+                    )}
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHeaderMenuOpen(false);
+                      handleArchive();
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-medium text-amber-600 transition-colors hover:bg-amber-50"
+                  >
+                    <Archive className="h-4 w-4 text-amber-500" />
+                    В архив
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -574,6 +855,29 @@ export default function ExamDraftPage() {
           </button>
         </div>
       </GlassCard>
+
+      {/* Print configuration is intentionally available only in a print draft.
+          Online and hybrid drafts keep the original common editor unchanged. */}
+      {isPrintDraft && printLayout && (
+        <GlassCard className="p-4 mb-6 border-indigo-100">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Printer className="w-4 h-4" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">Настройки печатного бланка</h2>
+              <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+                Выберите формат ответа для каждого задания. Бланк печатается по стандарту: место для решения — в клетку, ответ — в листе ответов. Настройки сохраняются автоматически и меняют только PDF, не редактируя исходные задания, ответы или дистракторы.
+              </p>
+            </div>
+          </div>
+          {printError && (
+            <p role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+              {printError}
+            </p>
+          )}
+        </GlassCard>
+      )}
 
       {/* Variant tabs (if multiple) */}
       {draft.variants_count > 1 && (
@@ -636,6 +940,8 @@ export default function ExamDraftPage() {
                           .slice(0, sIdx)
                           .reduce((sum, s) => sum + s.tasks.length, 0) + tIdx;
                       const isReplacing = replacingTaskId === task.task_id;
+                      const taskLayout = isPrintDraft ? getTaskPrintLayout(task) : null;
+                      const canUseChoices = canRenderPrintChoice(task);
 
                       return (
                         <div
@@ -701,12 +1007,12 @@ export default function ExamDraftPage() {
                                 exit={{ opacity: 0, height: 0 }}
                                 className="ml-10 mt-2.5 flex flex-wrap items-center gap-2 overflow-hidden"
                               >
-                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
+                                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
                                   <span className="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" />
-                                  <span className="text-xs font-semibold text-emerald-800">Правильный ответ:</span>
+                                  <span className="text-xs text-emerald-800">Правильный ответ:</span>
                                   <MathRenderer
                                     text={pickAnswerDisplayText(task.correct_answer, task.correct_answer_latex)}
-                                    className="text-sm sm:text-base font-medium text-emerald-950 break-words whitespace-pre-wrap"
+                                    className="text-sm text-emerald-950 break-words whitespace-pre-wrap"
                                   />
                                 </span>
                                 {task.distractor_meta?.map((dm, i) => {
@@ -718,10 +1024,10 @@ export default function ExamDraftPage() {
                                       title={distExplanation ? `Дистрактор: ${distExplanation}` : undefined}
                                     >
                                       <span className="w-1.5 h-1.5 rounded-full bg-rose-400 flex-shrink-0" />
-                                      <span className="text-[11px] font-semibold text-slate-500">#{i + 1}</span>
+                                      <span className="text-[11px] text-slate-500">#{i + 1}</span>
                                       <MathRenderer
                                         text={pickAnswerDisplayText(dm.value, dm.value_latex)}
-                                        className="text-sm sm:text-base font-medium text-slate-900 break-words whitespace-pre-wrap"
+                                        className="text-sm text-slate-900 break-words whitespace-pre-wrap"
                                       />
                                     </span>
                                   );
@@ -729,6 +1035,50 @@ export default function ExamDraftPage() {
                               </motion.div>
                             )}
                           </AnimatePresence>
+
+                          {isPrintDraft && taskLayout && (
+                            <div className="ml-10 mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-indigo-100 bg-indigo-50/30 px-3 py-2.5">
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-700">Формат ответа</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  Открытые задания печатаются с местом для решения в клетку; все ответы — в листе ответов.
+                                </p>
+                              </div>
+                              <div className="ml-auto inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+                                  <button
+                                    type="button"
+                                    disabled={!canUseChoices}
+                                    onClick={() => updatePrintTaskLayout(task, "choice")}
+                                    className={cn(
+                                      "rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45",
+                                      taskLayout.response_kind === "choice"
+                                        ? "bg-primary-600 text-white"
+                                        : "text-slate-600 hover:bg-slate-100",
+                                    )}
+                                  >
+                                    Тестовое
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updatePrintTaskLayout(task, "open")}
+                                    className={cn(
+                                      "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                                      taskLayout.response_kind === "open"
+                                        ? "bg-primary-600 text-white"
+                                        : "text-slate-600 hover:bg-slate-100",
+                                    )}
+                                  >
+                                    Открытое
+                                  </button>
+                              </div>
+
+                              {!canUseChoices && (
+                                <p className="w-full text-[11px] text-amber-700">
+                                  Тестовый формат недоступен: для печати нужно от 2 до 6 вариантов ответа.
+                                </p>
+                              )}
+                            </div>
+                          )}
 
                           {/* Alternatives panel */}
                           <AnimatePresence>
@@ -767,21 +1117,7 @@ export default function ExamDraftPage() {
                                       {alternatives.map((alt) => (
                                         <button
                                           key={alt.task_id}
-                                          onClick={async () => {
-                                            // Replace with this specific task
-                                            try {
-                                              await examsApi.replaceTask(examId, {
-                                                variant_number: activeVariant,
-                                                task_id: task.task_id,
-                                              });
-                                              const data = await examsApi.getDraft(examId);
-                                              setDraft(data);
-                                              setReplacingTaskId(null);
-                                              setAlternatives([]);
-                                            } catch (err: any) {
-                                              alert(err.message || "Ошибка замены");
-                                            }
-                                          }}
+                                          onClick={() => handleSelectedReplace(task.task_id, alt.task_id)}
                                           className="w-full text-left p-2.5 rounded-lg border border-slate-100 hover:border-primary-300 hover:bg-primary-50/30 transition-all group"
                                         >
                                           <div className="flex items-start justify-between gap-2">
@@ -822,38 +1158,58 @@ export default function ExamDraftPage() {
 
       {/* Bottom action bar */}
       <div className="mt-8 flex items-center justify-between">
-        <Link href="/teacher/exams">
+        <Link href={backHref}>
           <Button variant="ghost" icon={<ArrowLeft className="w-4 h-4" />}>
             К списку экзаменов
           </Button>
         </Link>
         <div className="flex items-center gap-3">
-          {!draft.group_id ? (
+          {isPrintDraft ? (
             <>
+              <span
+                className="inline-flex items-center gap-1.5 text-xs text-slate-400"
+                aria-live="polite"
+              >
+                {printSaveState === "saving" && (
+                  <>
+                    <span className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-500" />
+                    Сохранение…
+                  </>
+                )}
+                {printSaveState === "saved" && (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-500" />
+                    Настройки сохранены
+                  </>
+                )}
+                {printSaveState === "error" && (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                    Ошибка сохранения
+                  </>
+                )}
+              </span>
               <Button
                 variant="secondary"
-                onClick={() => router.push(`/teacher/exams/${examId}`)}
-                icon={<Bookmark className="w-4 h-4 text-slate-600" />}
+                onClick={() => void openPrintPreview("teacher-key")}
+                loading={printPreviewing === "teacher-key"}
+                icon={<Eye className="w-4 h-4" />}
               >
-                Сохранить в библиотеку
+                Ключ преподавателя
               </Button>
               <Button
                 variant="primary"
-                onClick={() => setShowAssignModal(true)}
-                icon={<Users className="w-4 h-4" />}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+                onClick={() => void openPrintPreview("student")}
+                loading={printPreviewing === "student"}
+                icon={<Printer className="w-4 h-4" />}
               >
-                Привязать группу
+                Предпросмотр бланка
               </Button>
             </>
           ) : (
-            <Button
-              variant="primary"
-              onClick={() => router.push(`/teacher/exams/${examId}`)}
-              icon={<ArrowRight className="w-4 h-4" />}
-            >
-              Перейти к экзамену
-            </Button>
+            <p className="text-xs text-slate-400">
+              Сохранение в библиотеку и привязка к группе доступны в шапке черновика.
+            </p>
           )}
         </div>
       </div>
@@ -864,8 +1220,26 @@ export default function ExamDraftPage() {
             examTitle={draft.title}
             groups={groups}
             initialGroupId={draft.group_id}
+            deliveryMode={draft.delivery_mode}
             onClose={() => setShowScheduleModal(false)}
             onSubmit={async ({ group, occurrence }) => {
+              if (draft.delivery_mode === "print") {
+                // Flush the editable layout before creating its immutable print
+                // snapshot, even when the autosave debounce has not fired yet.
+                if (printLayout) {
+                  const saved = await examsApi.updatePrintLayout(examId, printLayout);
+                  setPrintLayout(saved.layout);
+                }
+                await examsApi.preparePrintPackage(examId, {
+                  group_id: group.id,
+                  lesson_id: occurrence.id,
+                  lesson_date: occurrence.occurrenceDate,
+                });
+                setShowScheduleModal(false);
+                router.push(examHubHref);
+                return;
+              }
+
               const result = await examsApi.publish(examId, {
                 group_id: group.id,
                 lesson_id: occurrence.id,
@@ -883,6 +1257,15 @@ export default function ExamDraftPage() {
           />
         )}
       </AnimatePresence>
+
+      {draft && (
+        <RenameExamModal
+          open={showRenameModal}
+          currentTitle={draft.title}
+          onClose={() => setShowRenameModal(false)}
+          onSave={handleRename}
+        />
+      )}
 
       {/* Group Assignment Modal */}
       <AnimatePresence>

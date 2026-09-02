@@ -8,7 +8,6 @@ import {
   GraduationCap,
   FileText,
   BarChart3,
-  BookOpen,
   Settings,
   LogOut,
   ChevronLeft,
@@ -77,8 +76,6 @@ export function Sidebar() {
     { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
     { href: "/teacher/exams", label: "Экзамены", icon: FileText },
     { href: "/teacher/groups", label: "Мои группы", icon: Users },
-    { href: "/teacher/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
-    { href: "/teacher/library", label: "Библиотека", icon: BookOpen, comingSoon: true },
   ];
 
   const navItems = rawRole === "owner" ? ownerNav : role === "admin" ? adminNav : teacherNav;

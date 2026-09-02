@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import {
@@ -26,6 +26,7 @@ import {
   GraduationCap,
   Sparkles,
   MoreVertical,
+  Pencil,
   Trash2,
   Radio,
   Archive,
@@ -33,6 +34,8 @@ import {
 } from "lucide-react";
 import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -64,6 +67,13 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
     text: "text-emerald-700",
     dot: "bg-emerald-400",
   },
+  print_ready: {
+    label: "Комплект готов",
+    icon: <FileText className="w-3 h-3" />,
+    gradient: "from-violet-50 to-indigo-50",
+    text: "text-violet-700",
+    dot: "bg-violet-500",
+  },
   closed: {
     label: "Завершён",
     icon: <XCircle className="w-3 h-3" />,
@@ -93,10 +103,11 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Success Modal (after assign) ─────────────────────────────────────────────
 interface SuccessModalProps {
   result: { access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string };
+  returnHref: string;
   onClose: () => void;
 }
 
-function SuccessAssignModal({ result, onClose }: SuccessModalProps) {
+function SuccessAssignModal({ result, returnHref, onClose }: SuccessModalProps) {
   const [copied, setCopied] = useState(false);
   const fullUrl = typeof window !== "undefined" && result.access_code
     ? `${window.location.origin}/e/${result.access_code}`
@@ -153,7 +164,7 @@ function SuccessAssignModal({ result, onClose }: SuccessModalProps) {
             Закрыть
           </button>
           <Link
-            href={`/teacher/exams/${result.exam_id}`}
+            href={`/teacher/exams/${result.exam_id}?return_to=${encodeURIComponent(returnHref)}`}
             className="flex-1 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-primary-600 to-violet-600 hover:from-primary-700 hover:to-violet-700 rounded-xl shadow-md transition-all flex items-center justify-center gap-1.5"
           >
             В Hub экзамена
@@ -168,9 +179,11 @@ function SuccessAssignModal({ result, onClose }: SuccessModalProps) {
 // ─── Exam Card ────────────────────────────────────────────────────────────────
 interface ExamCardProps {
   exam: ExamSummary;
+  returnHref: string;
   onPin: (id: string) => void;
   onAssign: (exam: ExamSummary) => void;
   onClone: (id: string) => void;
+  onRename: (id: string, title: string) => Promise<void>;
   onArchive: (id: string) => void;
   onRestore: (id: string) => void;
   onDeletePermanently: (id: string) => void;
@@ -180,9 +193,11 @@ interface ExamCardProps {
 
 function ExamCard({
   exam,
+  returnHref,
   onPin,
   onAssign,
   onClone,
+  onRename,
   onArchive,
   onRestore,
   onDeletePermanently,
@@ -190,6 +205,7 @@ function ExamCard({
   onCopyCode,
 }: ExamCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
   const effectiveStatus = exam.status === "archived"
     ? "archived"
     : (!exam.group_id && (exam.status === "active" || exam.status === "lobby"))
@@ -197,12 +213,23 @@ function ExamCard({
     : exam.status;
   const isDraft = effectiveStatus === "draft" || effectiveStatus === "variants_ready";
   const isActive = effectiveStatus === "active";
+  const isPrintReady = effectiveStatus === "print_ready";
   const isLobby = effectiveStatus === "lobby";
   const isClosed = effectiveStatus === "closed";
   const isArchived = effectiveStatus === "archived";
   const canAssignGroup = !exam.group_id && isDraft;
+  const canRename = exam.status === "draft" || exam.status === "variants_ready";
+  // Drafts always reopen in the shared draft editor.  The read-only/live exam
+  // page is reserved for an exam that has already left the draft stage.
+  const returnTo = encodeURIComponent(returnHref);
+  const examHref = isArchived
+    ? "#"
+    : isDraft
+      ? `/teacher/exams/${exam.exam_id}/draft?return_to=${returnTo}`
+      : `/teacher/exams/${exam.exam_id}?return_to=${returnTo}`;
 
   return (
+    <>
     <motion.div
       layout
       initial={{ opacity: 0, y: 10 }}
@@ -217,7 +244,7 @@ function ExamCard({
         </div>
       )}
 
-      <Link href={isArchived ? "#" : `/teacher/exams/${exam.exam_id}`} className={`block p-5 ${isArchived ? "cursor-default opacity-85" : ""}`}>
+      <Link href={examHref} className={`block p-5 ${isArchived ? "cursor-default opacity-85" : ""}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           {/* Left info */}
           <div className="flex items-start sm:items-center gap-4 min-w-0">
@@ -228,6 +255,8 @@ function ExamCard({
                   ? "bg-slate-100 border border-slate-200 text-slate-400"
                   : isActive
                   ? "bg-emerald-50 border border-emerald-100 text-emerald-600"
+                  : isPrintReady
+                  ? "bg-violet-50 border border-violet-100 text-violet-600"
                   : isLobby
                   ? "bg-amber-50 border border-amber-100 text-amber-600 animate-pulse"
                   : isDraft
@@ -342,6 +371,21 @@ function ExamCard({
 
                     {!isArchived && (
                       <>
+                        {canRename && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setMenuOpen(false);
+                              setShowRenameModal(true);
+                            }}
+                            className="w-full text-left px-3.5 py-2 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                          >
+                            <Pencil className="w-4 h-4 text-primary-500" />
+                            Изменить название
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={(e) => {
@@ -444,15 +488,37 @@ function ExamCard({
         </div>
       </Link>
     </motion.div>
+    <RenameExamModal
+      open={showRenameModal}
+      currentTitle={exam.title}
+      onClose={() => setShowRenameModal(false)}
+      onSave={(title) => onRename(exam.exam_id, title)}
+    />
+    </>
   );
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 type StatusTab = "active" | "lobby" | "draft" | "closed" | "archived";
 
+function parseStatusTab(value: string | null): StatusTab {
+  return value === "lobby" || value === "draft" || value === "closed" || value === "archived" || value === "active"
+    ? value
+    : "active";
+}
+
+function libraryHref(status: StatusTab, query: string): string {
+  const params = new URLSearchParams();
+  if (status !== "active") params.set("status", status);
+  if (query.trim()) params.set("q", query.trim());
+  const serialized = params.toString();
+  return serialized ? `/teacher/exams?${serialized}` : "/teacher/exams";
+}
+
 export default function TeacherExamsPage() {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [exams, setExams] = useState<ExamSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
@@ -460,9 +526,10 @@ export default function TeacherExamsPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   // The first screen must surface work that is happening now. Drafts remain
   // one tap away, while active exams are the teacher's immediate priority.
-  const [statusTab, setStatusTab] = useState<StatusTab>("active");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [statusTab, setStatusTab] = useState<StatusTab>(() => parseStatusTab(searchParams.get("status")));
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") || "");
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [groupsLoadError, setGroupsLoadError] = useState<string | null>(null);
 
   // Modals
   const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
@@ -471,6 +538,7 @@ export default function TeacherExamsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
+    setGroupsLoadError(null);
     try {
       const [examsResult, groupsResult] = await Promise.allSettled([
         examsApi.list({ includeArchived: true }),
@@ -479,10 +547,14 @@ export default function TeacherExamsPage() {
       if (examsResult.status === "fulfilled") {
         setExams(Array.isArray(examsResult.value) ? examsResult.value : []);
       } else {
-        setExams([]);
-        setLoadError(examsResult.reason?.message || "Не удалось загрузить библиотеку экзаменов");
+        // Never replace the library with an empty state after a failed retry.
+        setLoadError(getDataLoadErrorMessage(examsResult.reason));
       }
-      setGroups(groupsResult.status === "fulfilled" && Array.isArray(groupsResult.value) ? groupsResult.value : []);
+      if (groupsResult.status === "fulfilled") {
+        setGroups(Array.isArray(groupsResult.value) ? groupsResult.value : []);
+      } else {
+        setGroupsLoadError(getDataLoadErrorMessage(groupsResult.reason));
+      }
     } finally {
       setLoading(false);
     }
@@ -492,6 +564,23 @@ export default function TeacherExamsPage() {
     if (pathname !== "/teacher/exams") return;
     loadData();
   }, [pathname, loadData]);
+
+  // The visible filter belongs to the page URL. This prevents a return from a
+  // draft or an exam hub from silently resetting the teacher to "Текущие".
+  useEffect(() => {
+    const nextStatus = parseStatusTab(searchParams.get("status"));
+    const nextQuery = searchParams.get("q") || "";
+    setStatusTab((current) => current === nextStatus ? current : nextStatus);
+    setSearchQuery((current) => current === nextQuery ? current : nextQuery);
+  }, [searchParams]);
+
+  const updateLibraryState = (nextStatus: StatusTab, nextQuery: string) => {
+    setStatusTab(nextStatus);
+    setSearchQuery(nextQuery);
+    router.replace(libraryHref(nextStatus, nextQuery), { scroll: false });
+  };
+
+  const currentLibraryHref = libraryHref(statusTab, searchQuery);
 
   const handleCopyCode = (exam: ExamSummary, e: React.MouseEvent) => {
     e.preventDefault();
@@ -515,8 +604,20 @@ export default function TeacherExamsPage() {
   const handleClone = async (examId: string) => {
     try {
       const res = await examsApi.clone(examId);
-      router.push(`/teacher/exams/${res.exam_id}`);
-    } catch {}
+      // A clone is always an editable draft (even when it has copied
+      // variants), so keep it in the common draft editor rather than opening
+      // the read-only/live exam screen.
+      router.push(`/teacher/exams/${res.exam_id}/draft?return_to=${encodeURIComponent(currentLibraryHref)}`);
+    } catch (err: any) {
+      alert("Не удалось создать копию экзамена: " + (err?.message || "Повторите попытку."));
+    }
+  };
+
+  const handleRename = async (examId: string, title: string) => {
+    const result = await examsApi.rename(examId, title);
+    setExams((prev) => prev.map((exam) => (
+      exam.exam_id === examId ? { ...exam, title: result.title } : exam
+    )));
   };
 
   const handleArchive = async (examId: string) => {
@@ -563,7 +664,7 @@ export default function TeacherExamsPage() {
       active: exams.filter((e) => {
         if (e.status === "archived") return false;
         const eff = (!e.group_id && (e.status === "active" || e.status === "lobby")) ? "draft" : e.status;
-        return eff === "active";
+        return eff === "active" || eff === "print_ready";
       }).length,
       lobby: exams.filter((e) => {
         if (e.status === "archived") return false;
@@ -584,7 +685,7 @@ export default function TeacherExamsPage() {
   const filteredExams = useMemo(() => {
     let list = exams.filter((ex) => {
       const eff = ex.status === "archived" ? "archived" : (!ex.group_id && (ex.status === "active" || ex.status === "lobby")) ? "draft" : ex.status;
-      if (statusTab === "active" && eff !== "active") return false;
+      if (statusTab === "active" && eff !== "active" && eff !== "print_ready") return false;
       if (statusTab === "lobby" && eff !== "lobby") return false;
       if (statusTab === "draft" && eff !== "draft" && eff !== "variants_ready") return false;
       if (statusTab === "closed" && eff !== "closed") return false;
@@ -630,7 +731,7 @@ export default function TeacherExamsPage() {
       {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Идёт экзамен", value: counts.active, color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
+          { label: "Текущие", value: counts.active, color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
           { label: "В лобби", value: counts.lobby, color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
           { label: "Черновики", value: counts.draft, color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
           { label: "Завершены", value: counts.closed, color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
@@ -653,7 +754,7 @@ export default function TeacherExamsPage() {
         <div className="flex items-center gap-1 p-1 bg-slate-100/70 rounded-xl overflow-x-auto">
           {(["active", "lobby", "draft", "closed", "archived"] as StatusTab[]).map((tab) => {
             const labels: Record<StatusTab, string> = {
-              active: "Активные",
+              active: "Текущие",
               lobby: "Лобби",
               draft: "Черновики",
               closed: "Завершённые",
@@ -662,7 +763,7 @@ export default function TeacherExamsPage() {
             return (
               <button
                 key={tab}
-                onClick={() => setStatusTab(tab)}
+                onClick={() => updateLibraryState(tab, searchQuery)}
                 className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
                   statusTab === tab
                     ? "bg-white text-slate-900 shadow-sm"
@@ -689,7 +790,7 @@ export default function TeacherExamsPage() {
             type="text"
             placeholder="Поиск..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => updateLibraryState(statusTab, e.target.value)}
             className="w-full h-9 pl-9 pr-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-xs placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
           />
         </div>
@@ -701,18 +802,8 @@ export default function TeacherExamsPage() {
           <div className="w-6 h-6 border-2 border-primary-300 border-t-primary-600 rounded-full animate-spin" />
           Загрузка библиотеки...
         </div>
-      ) : loadError ? (
-        <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-center">
-          <p className="font-semibold text-rose-800">Не удалось загрузить экзамены</p>
-          <p className="mt-1 text-sm text-rose-700">{loadError}</p>
-          <button
-            type="button"
-            onClick={loadData}
-            className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-700 shadow-sm ring-1 ring-rose-200 transition-colors hover:bg-rose-100"
-          >
-            Повторить
-          </button>
-        </div>
+      ) : loadError && exams.length === 0 ? (
+        <DataLoadError title="Не удалось загрузить экзамены" message={loadError} onRetry={loadData} />
       ) : filteredExams.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
@@ -751,9 +842,11 @@ export default function TeacherExamsPage() {
               <ExamCard
                 key={ex.exam_id}
                 exam={ex}
+                returnHref={currentLibraryHref}
                 onPin={handlePin}
                 onAssign={setAssignTarget}
                 onClone={handleClone}
+                onRename={handleRename}
                 onArchive={handleArchive}
                 onRestore={handleRestore}
                 onDeletePermanently={handleDeletePermanently}
@@ -765,6 +858,16 @@ export default function TeacherExamsPage() {
         </AnimatePresence>
       )}
 
+      {(loadError || groupsLoadError) && exams.length > 0 && (
+        <DataLoadError
+          compact
+          title={loadError ? "Библиотека экзаменов не обновлена" : "Список групп не обновлён"}
+          message={`${loadError || groupsLoadError} Показаны последние успешно загруженные данные.`}
+          onRetry={loadData}
+          className="mt-5"
+        />
+      )}
+
       {/* Scheduling is explicit: a public lobby always belongs to one lesson. */}
       <AnimatePresence>
         {assignTarget && (
@@ -772,8 +875,20 @@ export default function TeacherExamsPage() {
             examTitle={assignTarget.title}
             groups={groups}
             initialGroupId={assignTarget.group_id}
+            deliveryMode={assignTarget.delivery_mode}
             onClose={() => setAssignTarget(null)}
             onSubmit={async ({ group, occurrence }) => {
+              if (assignTarget.delivery_mode === "print") {
+                await examsApi.preparePrintPackage(assignTarget.exam_id, {
+                  group_id: group.id,
+                  lesson_id: occurrence.id,
+                  lesson_date: occurrence.occurrenceDate,
+                });
+                setAssignTarget(null);
+                router.push(`/teacher/exams/${assignTarget.exam_id}?return_to=${encodeURIComponent(currentLibraryHref)}`);
+                return;
+              }
+
               const result = await examsApi.assign(assignTarget.exam_id, {
                 group_id: group.id,
                 publish: true,
@@ -787,6 +902,7 @@ export default function TeacherExamsPage() {
         {assignResult && (
           <SuccessAssignModal
             result={assignResult}
+            returnHref={currentLibraryHref}
             onClose={() => setAssignResult(null)}
           />
         )}

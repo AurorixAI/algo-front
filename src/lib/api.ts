@@ -178,6 +178,72 @@ async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T
   return response.json();
 }
 
+/** Download an authenticated, staff-only print artifact without exposing it through a public exam URL. */
+async function downloadExamPrintPdf(
+  examId: string,
+  kind: "student" | "teacher-key",
+  variantNumber: number,
+): Promise<void> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`,
+      { credentials: "include", cache: "no-store" },
+    );
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    const message = typeof error?.detail === "string"
+      ? error.detail
+      : "Не удалось сформировать печатный файл. Повторите попытку.";
+    throw new ApiError(response.status, message);
+  }
+
+  const file = await response.blob();
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${kind === "teacher-key" ? "algo-key" : "algo-exam"}-${examId}-v${variantNumber}.pdf`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * Load a staff-only draft PDF for the embedded preview.  Unlike the download
+ * endpoint this does not require an assigned lesson and never creates a
+ * printable package, public code, lobby, or student session.
+ */
+async function previewExamPrintPdf(
+  examId: string,
+  kind: "student" | "teacher-key",
+  variantNumber: number,
+): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(
+      `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`,
+      { credentials: "include", cache: "no-store" },
+    );
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => null);
+    const message = typeof error?.detail === "string"
+      ? error.detail
+      : "Не удалось сформировать предпросмотр печатного бланка. Повторите попытку.";
+    throw new ApiError(response.status, message);
+  }
+
+  return response.blob();
+}
+
 async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { method = "GET", body, inviteCode } = options;
 
@@ -316,10 +382,38 @@ export interface LessonEvent {
 export interface ScheduleOccurrence extends LessonEvent {
   occurrenceDate: string;
   isRescheduled: boolean;
+  /** A concrete lesson added for one calendar date, not a recurring slot. */
+  isOneOff?: boolean;
   originalStartTime?: string | null;
   originalEndTime?: string | null;
   originalRoom?: string | null;
   rescheduleReason?: string | null;
+}
+
+export interface RecurringLessonEndExamImpact {
+  examId: string;
+  title: string;
+  lessonDate: string;
+  deliveryMode: "online" | "print" | "hybrid" | string;
+  status: string;
+  canRelease: boolean;
+  blockerReason?: string | null;
+}
+
+export interface RecurringLessonEndImpact {
+  groupId: string;
+  lessonId: string;
+  effectiveFrom: string;
+  affectedExamCount: number;
+  releasableExamCount: number;
+  blockedExamCount: number;
+  canEnd: boolean;
+  exams: RecurringLessonEndExamImpact[];
+}
+
+export interface EndRecurringLessonResult extends RecurringLessonEndImpact {
+  ended: boolean;
+  releasedExamIds: string[];
 }
 
 export interface StudentInGroup {
@@ -418,6 +512,26 @@ export interface GroupAttendance {
     invite_id: string;
     completed_at?: string | null;
   }>;
+}
+
+/** A concrete lesson that needs a teacher's explicit operational decision. */
+export interface OpenAttendanceAction {
+  /** A real open journal, or a past occurrence that was never started. */
+  actionType: "in_progress" | "missed";
+  groupId: string;
+  groupName: string;
+  classLevel: number;
+  lessonId: string;
+  lessonDate: string;
+  subject: string;
+  startTime: string;
+  endTime: string;
+  room?: string | null;
+  format?: "offline" | "online" | string;
+  topic?: string | null;
+  markedCount: number;
+  rosterCount: number;
+  remainingCount: number;
 }
 
 export interface AttendancePeriod {
@@ -743,6 +857,16 @@ export const orgApi = {
   },
   createLesson: (data: Omit<LessonEvent, "id" | "groupName" | "classLevel">) =>
     api<LessonEvent>(`/auth/org/schedule/lessons`, { method: "POST", body: data }),
+  createOneOffLesson: (data: {
+    groupId: string;
+    lessonDate: string;
+    startTime: string;
+    endTime: string;
+    room?: string;
+    format?: "offline" | "online";
+    color?: LessonEvent["color"];
+    topic?: string;
+  }) => api<ScheduleOccurrence>(`/auth/org/schedule/occurrences`, { method: "POST", body: data }),
   updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
     api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}`, { method: "PUT", body: data }),
   rescheduleLessonOccurrence: (
@@ -761,10 +885,23 @@ export const orgApi = {
     lessonId: string,
     data: Partial<LessonEvent> & { effectiveFrom: string; reason: string },
   ) => api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}/recurrence`, { method: "PUT", body: data }),
-  deleteLesson: (lessonId: string) =>
-    api<{ ok: boolean }>(`/auth/org/schedule/lessons/${lessonId}`, { method: "DELETE" }),
+  getRecurringLessonEndImpact: (lessonId: string, effectiveFrom: string) => {
+    const query = new URLSearchParams({ effective_from: effectiveFrom });
+    return api<RecurringLessonEndImpact>(
+      `/auth/org/schedule/lessons/${lessonId}/recurrence/end-impact?${query.toString()}`,
+    );
+  },
+  endRecurringLesson: (
+    lessonId: string,
+    data: { effectiveFrom: string; reason: string; releaseAffectedExams: boolean },
+  ) => api<EndRecurringLessonResult>(
+    `/auth/org/schedule/lessons/${lessonId}/recurrence/end`,
+    { method: "POST", body: data },
+  ),
 
   // ── Attendance ────────────────────────────────────────────────────────
+  getOpenAttendanceActions: () =>
+    api<OpenAttendanceAction[]>("/auth/org/attendance/open-actions"),
   getGroupAttendance: (groupId: string, period?: string | AttendancePeriod) => {
     const params = new URLSearchParams();
     if (typeof period === "string") {
@@ -797,6 +934,18 @@ export const orgApi = {
     data: { lessonDate: string; lessonId: string; topic?: string },
   ) =>
     api<{ ok: boolean; started: boolean }>(`/auth/org/groups/${groupId}/attendance/start`, { method: "POST", body: data }),
+
+  reconcileMissedGroupAttendance: (
+    groupId: string,
+    data: { lessonDate: string; lessonId: string; topic?: string },
+  ) =>
+    api<{ ok: boolean; reconciled: boolean }>(`/auth/org/groups/${groupId}/attendance/reconcile`, { method: "POST", body: data }),
+
+  cancelMissedGroupAttendance: (
+    groupId: string,
+    data: { lessonDate: string; lessonId: string; cancellationReason: string },
+  ) =>
+    api<{ ok: boolean; cancelled: boolean }>(`/auth/org/groups/${groupId}/attendance/reconcile/cancel`, { method: "POST", body: data }),
 
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
@@ -1020,6 +1169,8 @@ export interface ExamSummary {
   exam_id: string;
   title: string;
   status: string;
+  /** Delivery controls the assignment lifecycle: print packages never open a lobby. */
+  delivery_mode: "online" | "print";
   access_code: string | null;
   tasks_per_variant: number;
   tasks_count?: number;
@@ -1098,7 +1249,8 @@ export interface AdminExamView extends ExamSummary {
 export interface LiveExamDashboardSummary {
   exam_id: string;
   title: string;
-  status: "lobby" | "active" | "closed";
+  status: "lobby" | "print_ready" | "active" | "closed";
+  delivery_mode: "online" | "print" | "hybrid";
   group_id?: string | null;
   group_name?: string | null;
   scheduled_lesson_id?: string | null;
@@ -1125,6 +1277,33 @@ export interface PublishExamResult {
   url: string;
 }
 
+/**
+ * Presentation settings for a single task in a printed exam.  They are
+ * intentionally independent from the original task record: changing a paper
+ * layout must never rewrite a task, its answer, or its distractors.
+ */
+export interface PrintTaskLayout {
+  response_kind: "choice" | "open";
+  answer_location: "inline" | "answer_sheet";
+  answer_lines: number;
+  work_lines: number;
+}
+
+export interface PrintExamLayout {
+  schema_version: number;
+  answer_sheet_enabled: boolean;
+  variants: Record<string, Record<string, PrintTaskLayout>>;
+}
+
+export interface PrintPackageMetadata {
+  id?: string;
+  version: number;
+  status: "ready" | "released" | "completed" | "voided";
+  created_at?: string | null;
+  released_at?: string | null;
+  snapshot_sha256?: string;
+}
+
 export const examsApi = {
   // ── Teacher: create / manage ─────────────────────────────────────────────
 
@@ -1141,10 +1320,10 @@ export const examsApi = {
     time_minutes?: number;
     variants_count?: number;
     generate_variants?: boolean;
-    shuffle_tasks?: boolean;
     shuffle_options?: boolean;
     mc_mode?: string;
     teacher_name?: string;
+    delivery_mode?: "online" | "print";
   }) =>
     examApi<{ exam_id: string; access_code?: string; status: string; tasks_count: number; variants_count: number; group_id?: string; group_name?: string; class_level?: number; skills_covered: string[] }>(
       "/exams/generate",
@@ -1221,6 +1400,15 @@ export const examsApi = {
   getLiveDashboardSummary: () =>
     examApi<LiveExamDashboardSummary[]>("/exams/live-summary"),
 
+  /** Revoke an unstarted concrete lesson delivery without mutating task history. */
+  cancelDelivery: (examId: string, data: { reason: string }) =>
+    examApi<{
+      exam_id: string;
+      status: "draft" | "variants_ready";
+      delivery_mode: "online" | "print" | "hybrid";
+      requires_clone_for_print: boolean;
+    }>(`/exams/${examId}/delivery/cancel`, { method: "POST", body: data }),
+
   /** Full draft with tasks & correct answers (teacher only) */
   getDraft: (examId: string) =>
     examApi<{
@@ -1237,6 +1425,8 @@ export const examsApi = {
       scheduled_lesson_id?: string | null;
       scheduled_lesson_date?: string | null;
       settings: Record<string, any>;
+      delivery_mode: "online" | "print";
+      print_package?: PrintPackageMetadata | null;
       skills_covered: string[];
       created_at: string;
       variants: Array<{
@@ -1268,6 +1458,49 @@ export const examsApi = {
         }>;
       }>;
     }>(`/exams/${examId}/draft`),
+
+  /** Persist the paper-only answer/work-space layout before it is frozen. */
+  updatePrintLayout: (examId: string, layout: PrintExamLayout) =>
+    examApi<{ exam_id: string; layout: PrintExamLayout }>(`/exams/${examId}/print-layout`, {
+      method: "PUT",
+      body: { layout },
+    }),
+
+  /** Freeze a staff-only printable package for one concrete lesson. */
+  preparePrintPackage: (examId: string, data: { group_id: string; lesson_id: string; lesson_date: string }) =>
+    examApi<{
+      exam_id: string;
+      status: "print_ready";
+      group_id: string;
+      group_name?: string | null;
+      scheduled_lesson_id: string;
+      scheduled_lesson_date: string;
+      print_package: PrintPackageMetadata;
+    }>(`/exams/${examId}/print-package/prepare`, { method: "POST", body: data }),
+
+  /** Mark a scheduled paper exam as physically handed out/in progress. */
+  startPrintPackage: (examId: string) =>
+    examApi<{ exam_id: string; status: "active"; print_package: PrintPackageMetadata }>(
+      `/exams/${examId}/print-package/start`,
+      { method: "POST" },
+    ),
+
+  getPrintPackage: (examId: string) =>
+    examApi<{ exam_id: string; status: string; print_package: PrintPackageMetadata }>(
+      `/exams/${examId}/print-package`,
+    ),
+
+  downloadStudentPrintPdf: (examId: string, variantNumber = 1) =>
+    downloadExamPrintPdf(examId, "student", variantNumber),
+
+  downloadTeacherPrintKey: (examId: string, variantNumber = 1) =>
+    downloadExamPrintPdf(examId, "teacher-key", variantNumber),
+
+  previewStudentPrintPdf: (examId: string, variantNumber = 1) =>
+    previewExamPrintPdf(examId, "student", variantNumber),
+
+  previewTeacherPrintKey: (examId: string, variantNumber = 1) =>
+    previewExamPrintPdf(examId, "teacher-key", variantNumber),
 
   /** Get alternative tasks for replacing one task in a draft variant */
   getAlternatives: (examId: string, variantNumber: number, taskId: string) =>
@@ -1321,6 +1554,13 @@ export const examsApi = {
       `/exams/${examId}/clone`,
       { method: "POST", body: data ?? {} },
     ),
+
+  /** Rename an editable draft. Prepared and conducted runs stay immutable. */
+  rename: (examId: string, title: string) =>
+    examApi<{ exam_id: string; title: string; status: string }>(`/exams/${examId}/title`, {
+      method: "PATCH",
+      body: { title },
+    }),
 
   /** Assign a draft to a group; publishing additionally requires one lesson occurrence. */
   assign: (examId: string, data: { group_id: string; group_name?: string; class_level?: number; teacher_name?: string; subject?: string; publish?: boolean; lesson_id?: string; lesson_date?: string }) =>

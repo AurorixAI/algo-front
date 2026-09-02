@@ -4,7 +4,9 @@ import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
-import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
+import { formatAttendanceSummary } from "@/lib/attendance-summary";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel } from "@/lib/business-time";
 import Link from "next/link";
 import {
@@ -18,15 +20,16 @@ import {
   ChevronRight,
   ChevronDown,
   BookOpen,
-  Trash2,
   Check,
   Sparkles,
+  ArrowLeft,
   ArrowRight,
   X,
   GraduationCap,
   CheckCircle2,
   AlertCircle,
   Edit2,
+  MoreHorizontal,
   Play,
   CheckCheck,
   Radio,
@@ -81,7 +84,37 @@ const DAYS = [
   { id: 7, name: "Воскресенье", short: "Вс" },
 ];
 
+function russianPlural(count: number, one: string, few: string, many: string) {
+  const absolute = Math.abs(count) % 100;
+  const lastDigit = absolute % 10;
+
+  if (absolute > 10 && absolute < 20) return many;
+  if (lastDigit === 1) return one;
+  if (lastDigit >= 2 && lastDigit <= 4) return few;
+  return many;
+}
+
+function classCountLabel(count: number) {
+  return `${count} ${russianPlural(count, "занятие", "занятия", "занятий")}`;
+}
+
+function completedLessonsProgressLabel(completed: number, total: number) {
+  const absolute = Math.abs(total) % 100;
+  const isSingularGenitive = absolute % 10 === 1 && absolute !== 11;
+  return `Завершено: ${completed} из ${total} ${isSingularGenitive ? "урока" : "уроков"}`;
+}
+
 type LessonOccurrence = ScheduleOccurrence;
+
+type ScheduleEditSnapshot = {
+  day: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+  format: "offline" | "online";
+  topic: string;
+  color: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
+};
 
 function getLessonTimeStatus(
   lesson?: { startTime?: string; endTime?: string; dayOfWeek?: number } | null,
@@ -182,6 +215,10 @@ export default function TeacherSchedulePage() {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all");
   const [isGroupFilterOpen, setIsGroupFilterOpen] = useState(false);
   const groupFilterRef = useRef<HTMLDivElement>(null);
+  const [isRecurringActionsOpen, setIsRecurringActionsOpen] = useState(false);
+  const recurringActionsButtonRef = useRef<HTMLButtonElement>(null);
+  const recurringActionsMenuRef = useRef<HTMLDivElement>(null);
+  const [recurringActionsPosition, setRecurringActionsPosition] = useState<{ top: number; left: number } | null>(null);
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
   const [weekOffset, setWeekOffset] = useState(0);
   const [lessonAttendanceMap, setLessonAttendanceMap] = useState<Record<string, boolean>>({});
@@ -189,6 +226,11 @@ export default function TeacherSchedulePage() {
   const [lessonStatusMap, setLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
   const [weekLessonStatusMap, setWeekLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [weekLoadError, setWeekLoadError] = useState<string | null>(null);
+  const [weekRefreshNonce, setWeekRefreshNonce] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [loadedScheduleDate, setLoadedScheduleDate] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -207,6 +249,33 @@ export default function TeacherSchedulePage() {
     }
   }, [isGroupFilterOpen]);
 
+  // The destructive recurrence action lives in a compact overflow menu, so
+  // it never competes visually with the primary schedule action. It must also
+  // close when a teacher simply continues working elsewhere in the dialog.
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      const target = e.target as Node;
+      if (
+        recurringActionsButtonRef.current &&
+        !recurringActionsButtonRef.current.contains(target) &&
+        !recurringActionsMenuRef.current?.contains(target)
+      ) {
+        setIsRecurringActionsOpen(false);
+      }
+    }
+    if (isRecurringActionsOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [isRecurringActionsOpen]);
+
+  useEffect(() => {
+    if (!isRecurringActionsOpen) return;
+    const closeMenu = () => setIsRecurringActionsOpen(false);
+    window.addEventListener("resize", closeMenu);
+    return () => window.removeEventListener("resize", closeMenu);
+  }, [isRecurringActionsOpen]);
+
   // Selected lesson modal
   const [activeLesson, setActiveLesson] = useState<LessonOccurrence | null>(null);
   const [activeLessonView, setActiveLessonView] = useState<"today" | "week">("today");
@@ -217,6 +286,7 @@ export default function TeacherSchedulePage() {
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
+  const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
@@ -238,6 +308,8 @@ export default function TeacherSchedulePage() {
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
   const [clockTick, setClockTick] = useState(0);
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
+  const [liveExamError, setLiveExamError] = useState<string | null>(null);
+  const [liveExamRefreshNonce, setLiveExamRefreshNonce] = useState(0);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -246,7 +318,7 @@ export default function TeacherSchedulePage() {
       setBusinessDate((previous) => previous === currentDate ? previous : currentDate);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [liveExamRefreshNonce]);
 
   // Schedule and dashboard intentionally use the same authoritative live
   // source. A prepared lobby is excluded; only an exam already running can
@@ -256,9 +328,14 @@ export default function TeacherSchedulePage() {
     const refresh = async () => {
       try {
         const items = await examsApi.getLiveDashboardSummary();
-        if (!cancelled) setLiveExams(Array.isArray(items) ? items : []);
-      } catch {
-        if (!cancelled) setLiveExams([]);
+        if (!cancelled) {
+          setLiveExams(Array.isArray(items) ? items : []);
+          setLiveExamError(null);
+        }
+      } catch (error) {
+        // Keep the last verified exam state visible rather than claiming that
+        // no examination is running while the operational API is offline.
+        if (!cancelled) setLiveExamError(getDataLoadErrorMessage(error));
       }
     };
     void refresh();
@@ -269,10 +346,11 @@ export default function TeacherSchedulePage() {
   // Add lesson modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newGroupId, setNewGroupId] = useState("");
+  const [newLessonScope, setNewLessonScope] = useState<"one_off" | "recurring">("one_off");
+  const [newLessonDate, setNewLessonDate] = useState(formatBusinessDate());
   const [newDay, setNewDay] = useState(1);
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("11:30");
-  const [newSubject, setNewSubject] = useState("Математика");
   const [newRoom, setNewRoom] = useState("Кабинет 204");
   const [newFormat, setNewFormat] = useState<"offline" | "online">("offline");
   const [newTopic, setNewTopic] = useState("");
@@ -284,97 +362,123 @@ export default function TeacherSchedulePage() {
   const [editDay, setEditDay] = useState(1);
   const [editStartTime, setEditStartTime] = useState("10:00");
   const [editEndTime, setEditEndTime] = useState("11:30");
-  const [editSubject, setEditSubject] = useState("Математика");
   const [editRoom, setEditRoom] = useState("Кабинет 204");
   const [editFormat, setEditFormat] = useState<"offline" | "online">("offline");
   const [editTopic, setEditTopic] = useState("");
   const [editColor, setEditColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
   const [editEffectiveFrom, setEditEffectiveFrom] = useState("");
   const [editReason, setEditReason] = useState("");
+  // Keep a normalised, immutable form snapshot. Schedule occurrences come from
+  // a server resolver and must not be used as a live form baseline.
+  const [editSnapshot, setEditSnapshot] = useState<ScheduleEditSnapshot | null>(null);
+
+  // Stopping a recurrence is intentionally independent from editing its
+  // fields. It has a separate preflight because future exam deliveries may
+  // need an explicit return to draft before the schedule can stop.
+  const [isEndRecurringModalOpen, setIsEndRecurringModalOpen] = useState(false);
+  const [endingRecurringLesson, setEndingRecurringLesson] = useState<LessonOccurrence | null>(null);
+  const [endRecurringEffectiveFrom, setEndRecurringEffectiveFrom] = useState("");
+  const [endRecurringReason, setEndRecurringReason] = useState("");
+  const [endRecurringImpact, setEndRecurringImpact] = useState<RecurringLessonEndImpact | null>(null);
+  const [isLoadingEndRecurringImpact, setIsLoadingEndRecurringImpact] = useState(false);
+  const [isEndingRecurring, setIsEndingRecurring] = useState(false);
+  const [releaseAffectedExams, setReleaseAffectedExams] = useState(false);
+  const [endRecurringError, setEndRecurringError] = useState<string | null>(null);
 
   // Load only the organisation's approved schedule. A teacher must never fall
   // back to all groups or generate a fictitious lesson plan in the browser.
   const loadData = useCallback(async () => {
+    if (!user?.id) return;
+    setIsRefreshing(true);
+    setLoadError(null);
     try {
       const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-      const fetchedGroups = isOrgManager
-        ? await orgApi.listGroups().catch(() => [])
-        : user?.id
-          ? await orgApi.listGroups({ teacher_id: user.id }).catch(() => [])
-          : [];
-      setGroups(fetchedGroups);
-      if (fetchedGroups.length > 0 && !newGroupId) {
-        setNewGroupId(fetchedGroups[0].id);
-      }
-
       const todayStr = businessDate;
-      const [loadedLessons, loadedTodayOccurrences] = await Promise.all([
-        orgApi.getSchedule(isOrgManager ? undefined : user?.id).catch(() => []),
+      // Treat the schedule snapshot as an atomic read. If one authoritative
+      // source fails, do not mix a fresh group list with stale lessons, or
+      // substitute a failed source with an empty one.
+      const [fetchedGroups, loadedLessons, loadedTodayOccurrences] = await Promise.all([
+        isOrgManager ? orgApi.listGroups() : orgApi.listGroups({ teacher_id: user.id }),
+        orgApi.getSchedule(isOrgManager ? undefined : user.id),
         orgApi.getScheduleOccurrences(
           { dateFrom: todayStr, dateTo: todayStr },
-          isOrgManager ? undefined : user?.id,
-        ).catch(() => []),
+          isOrgManager ? undefined : user.id,
+        ),
       ]);
-      setLessons(loadedLessons);
-      setTodayOccurrences(loadedTodayOccurrences);
 
       // Attendance is always tied to the concrete occurrence (date + lesson).
       const attMap: Record<string, boolean> = {};
-
       const compMap: Record<string, boolean> = {};
       const statusMap: Record<string, LessonAttendanceStatus> = {};
+
+      // A failed attendance journal must not make an in-progress lesson look
+      // like an untouched one. Finish every read before committing the
+      // snapshot to screen state.
       await Promise.all(
         loadedTodayOccurrences.map(async (les: LessonOccurrence) => {
-            if (!les || !les.groupId) return;
-            try {
-              const att = await orgApi.getGroupAttendance(les.groupId, {
-                dateFrom: todayStr,
-                dateTo: todayStr,
-              });
-              const lessonKey = `${todayStr}_${les.id}`;
-              if (att?.records) {
-                const rec = att.records[lessonKey];
-                if (rec && Object.keys(rec).length > 0) {
-                  attMap[les.id] = true;
-                }
-              }
-              if (att?.statuses) {
-                const st = att.statuses[lessonKey];
-                if (st) statusMap[les.id] = st;
-                if (st === "completed") {
-                  compMap[les.id] = true;
-                } else if (st === "in_progress") {
-                  compMap[les.id] = false;
-                }
-              }
-            } catch {
-              // ignore
+          if (!les || !les.groupId) return;
+          const att = await orgApi.getGroupAttendance(les.groupId, {
+            dateFrom: todayStr,
+            dateTo: todayStr,
+          });
+          const lessonKey = `${todayStr}_${les.id}`;
+          if (att?.records) {
+            const rec = att.records[lessonKey];
+            if (rec && Object.keys(rec).length > 0) {
+              attMap[les.id] = true;
             }
-          })
+          }
+          if (att?.statuses) {
+            const st = att.statuses[lessonKey];
+            if (st) statusMap[les.id] = st;
+            if (st === "completed") {
+              compMap[les.id] = true;
+            } else if (st === "in_progress") {
+              compMap[les.id] = false;
+            }
+          }
+        })
       );
+
+      setGroups(fetchedGroups);
+      setNewGroupId((current) => current || fetchedGroups[0]?.id || "");
+      setLessons(loadedLessons);
+      setTodayOccurrences(loadedTodayOccurrences);
       setLessonAttendanceMap(attMap);
       setCompletedLessonsMap(compMap);
       setLessonStatusMap(statusMap);
+      setLoadedScheduleDate(todayStr);
+      return true;
     } catch (err) {
       console.error("Failed to load schedule:", err);
+      setLoadError(getDataLoadErrorMessage(err));
+      return false;
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  }, [user?.id, user?.org_role, user?.role, newGroupId, businessDate]);
+  }, [user?.id, user?.org_role, user?.role, businessDate]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
+
+  const scheduleDataUnavailable = Boolean(loadError || weekLoadError) || loadedScheduleDate !== businessDate;
 
   // An open lesson modal is bound to a date + lesson instance. Once the
   // business date changes, reload the new day and close the stale instance.
   useEffect(() => {
     setActiveLesson(null);
+    setIsRecurringActionsOpen(false);
   }, [businessDate]);
+
+  useEffect(() => {
+    setIsRecurringActionsOpen(false);
+  }, [activeLesson]);
 
   // ─── Background Scroll Lock When Any Modal Is Open ───
   useEffect(() => {
-    const isAnyModalOpen = isAddModalOpen || isEditModalOpen || !!activeLesson;
+    const isAnyModalOpen = isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || !!activeLesson;
     if (isAnyModalOpen) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       const originalBodyOverflow = document.body.style.overflow;
@@ -392,39 +496,52 @@ export default function TeacherSchedulePage() {
         document.body.style.paddingRight = originalPaddingRight;
       };
     }
-  }, [isAddModalOpen, isEditModalOpen, activeLesson]);
+  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, activeLesson]);
 
   // ─── Close Modal on Escape Key ───
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (isRecurringActionsOpen) {
+          setIsRecurringActionsOpen(false);
+          return;
+        }
         if (isAddModalOpen) setIsAddModalOpen(false);
         if (isEditModalOpen) setIsEditModalOpen(false);
+        if (isEndRecurringModalOpen) {
+          closeEndRecurringModal();
+          return;
+        }
         if (activeLesson) setActiveLesson(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isEditModalOpen, activeLesson]);
-
-  const saveLessons = useCallback((updated: LessonEvent[]) => setLessons(updated), []);
+  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, activeLesson, isRecurringActionsOpen]);
 
   // Conflict detection helper
   const getConflictingLesson = useCallback(
     (dayOfWeek: number, startTime: string, endTime: string, excludeId?: string) => {
       return lessons.find((l) => {
         if (excludeId && l.id === excludeId) return false;
-        if (l.dayOfWeek !== Number(dayOfWeek)) return false;
+        if (l.dayOfWeek !== dayOfWeek) return false;
         return startTime < l.endTime && endTime > l.startTime;
       });
     },
-    [lessons]
+    [lessons],
   );
 
   // Add conflict check (overlapping lessons)
   const addConflict = useMemo(() => {
+    if (newLessonScope === "one_off") {
+      return weekOccurrences.find((lesson) =>
+        lesson.occurrenceDate === newLessonDate
+        && newStartTime < lesson.endTime
+        && newEndTime > lesson.startTime,
+      );
+    }
     return getConflictingLesson(newDay, newStartTime, newEndTime);
-  }, [getConflictingLesson, newDay, newStartTime, newEndTime]);
+  }, [getConflictingLesson, newDay, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
 
   // Edit conflict check (overlapping lessons)
   const editConflict = useMemo(() => {
@@ -432,12 +549,50 @@ export default function TeacherSchedulePage() {
     return getConflictingLesson(editDay, editStartTime, editEndTime, editingLesson.id);
   }, [getConflictingLesson, editDay, editStartTime, editEndTime, editingLesson]);
 
+  // The backend rightly rejects a versioned update without any actual
+  // difference. Compare the draft with the normalised snapshot created when
+  // the dialog opens, rather than with a server-resolved occurrence object.
+  // Every editable parameter (including colour) is therefore a valid change.
+  const hasEditChanges = Boolean(editSnapshot && (
+    Number(editDay) !== editSnapshot.day
+    || editStartTime !== editSnapshot.startTime
+    || editEndTime !== editSnapshot.endTime
+    || editRoom.trim() !== editSnapshot.room.trim()
+    || editFormat !== editSnapshot.format
+    || editColor !== editSnapshot.color
+    || editTopic.trim() !== editSnapshot.topic.trim()
+  ));
+
+  // A short free-text reason is useful when a teacher has additional context,
+  // but it must never prevent a valid timetable change.  The API still
+  // receives an auditable reason even when the teacher leaves the field blank.
+  const automaticEditReason = useMemo(() => {
+    if (!editSnapshot) return "Изменено постоянное расписание";
+
+    const changedFields: string[] = [];
+    if (Number(editDay) !== editSnapshot.day) changedFields.push("день недели");
+    if (editStartTime !== editSnapshot.startTime || editEndTime !== editSnapshot.endTime) {
+      changedFields.push("время занятия");
+    }
+    if (editRoom.trim() !== editSnapshot.room.trim()) changedFields.push("аудиторию");
+    if (editFormat !== editSnapshot.format) changedFields.push("формат проведения");
+    if (editTopic.trim() !== editSnapshot.topic.trim()) changedFields.push("тему занятия");
+    if (editColor !== editSnapshot.color) changedFields.push("цветовую метку");
+
+    return changedFields.length > 0
+      ? `Изменены: ${changedFields.join(", ")}`
+      : "Изменено постоянное расписание";
+  }, [editColor, editDay, editEndTime, editFormat, editRoom, editSnapshot, editStartTime, editTopic]);
+
   // Current real day of week: 1=Mon .. 7=Sun
   const todayDayOfWeek = businessDayOfWeek();
 
   // Check if adding lesson on today with time in the past
   const addPastTimeConflict = useMemo(() => {
-    if (Number(newDay) !== todayDayOfWeek) return null;
+    const isToday = newLessonScope === "one_off"
+      ? newLessonDate === formatBusinessDate()
+      : Number(newDay) === todayDayOfWeek;
+    if (!isToday) return null;
     const curMin = businessTimeMinutes();
     const [startH, startM] = (newStartTime || "00:00").split(":").map(Number);
     const startMinutes = (startH || 0) * 60 + (startM || 0);
@@ -447,7 +602,7 @@ export default function TeacherSchedulePage() {
       return `Нельзя назначить урок на прошедшее время сегодняшнего дня (текущее время: ${curTimeStr})`;
     }
     return null;
-  }, [newDay, newStartTime, todayDayOfWeek]);
+  }, [newDay, newLessonDate, newLessonScope, newStartTime, todayDayOfWeek]);
 
   const filteredWeekLessons = useMemo(() => {
     return weekOccurrences.filter((l) => {
@@ -464,22 +619,26 @@ export default function TeacherSchedulePage() {
 
     return list.sort((a, b) => {
       const isAttA = !!lessonAttendanceMap[a.id];
-      const isFinA = !!completedLessonsMap[a.id];
+      const lifecycleA = lessonStatusMap[a.id] || (completedLessonsMap[a.id] ? "completed" : "scheduled");
+      const isFinA = lifecycleA === "completed";
       const statusA = getLessonTimeStatus(a, todayDayOfWeek, isAttA, isFinA);
 
       const isAttB = !!lessonAttendanceMap[b.id];
-      const isFinB = !!completedLessonsMap[b.id];
+      const lifecycleB = lessonStatusMap[b.id] || (completedLessonsMap[b.id] ? "completed" : "scheduled");
+      const isFinB = lifecycleB === "completed";
       const statusB = getLessonTimeStatus(b, todayDayOfWeek, isAttB, isFinB);
 
-      // Rank: 0 = live (active), 1 = upcoming, 2 = completed (pushed to end)
-      const rank = (st: typeof statusA) => {
-        if (st.type === "live") return 0;
-        if (st.type === "upcoming") return 1;
-        return 2;
+      // A real started lesson always leads the list. A scheduled slot becomes
+      // actionable only after its time starts, never merely from wall-clock time.
+      const rank = (lifecycle: LessonAttendanceStatus | "scheduled", timing: typeof statusA) => {
+        if (lifecycle === "in_progress") return 0;
+        if (timing.type === "live") return 1;
+        if (timing.type === "upcoming") return 2;
+        return 3;
       };
 
-      const rankA = rank(statusA);
-      const rankB = rank(statusB);
+      const rankA = rank(lifecycleA, statusA);
+      const rankB = rank(lifecycleB, statusB);
 
       if (rankA !== rankB) {
         return rankA - rankB;
@@ -487,7 +646,7 @@ export default function TeacherSchedulePage() {
 
       return (a.startTime || "").localeCompare(b.startTime || "");
     });
-  }, [todayOccurrences, selectedGroupFilter, todayDayOfWeek, lessonAttendanceMap, completedLessonsMap, clockTick]);
+  }, [todayOccurrences, selectedGroupFilter, todayDayOfWeek, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, clockTick]);
 
   // Switch view mode and reset filter to all groups
   const switchViewMode = (mode: "week" | "today") => {
@@ -500,19 +659,24 @@ export default function TeacherSchedulePage() {
   };
 
   const openLesson = useCallback((lesson: LessonOccurrence, view: "today" | "week") => {
+    if (scheduleDataUnavailable) {
+      setScheduleError("Расписание пока не подтверждено сервером. Сначала повторите загрузку.");
+      return;
+    }
     setActiveLesson(lesson);
     setActiveLessonView(view);
     setActiveLessonStatus("scheduled");
     setIsCancellingLesson(false);
     setIsReschedulingLesson(false);
     setCancellationReason("");
-  }, []);
+  }, [scheduleDataUnavailable]);
 
   // Load students and attendance for active lesson
   useEffect(() => {
     if (!activeLesson) {
       setIsMarkingAttendance(false);
       setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
       setAttendance({});
       setAttendanceError(null);
       setActiveLessonStatus("scheduled");
@@ -522,15 +686,18 @@ export default function TeacherSchedulePage() {
     setLoadingStudents(true);
     setIsMarkingAttendance(false);
     setIsAttendanceSaved(false);
+    setIsAttendanceDirty(false);
     setAttendanceError(null);
+    setGroupStudents([]);
+    setAttendance({});
     const occurrenceDate = activeLesson.occurrenceDate;
     const lessonKey = `${occurrenceDate}_${activeLesson.id}`;
     Promise.all([
-      orgApi.getGroup(activeLesson.groupId).catch(() => null),
+      orgApi.getGroup(activeLesson.groupId),
       orgApi.getGroupAttendance(activeLesson.groupId, {
         dateFrom: occurrenceDate,
         dateTo: occurrenceDate,
-      }).catch(() => null),
+      }),
     ])
       .then(([g, att]) => {
         if (g?.students) {
@@ -563,25 +730,65 @@ export default function TeacherSchedulePage() {
           setIsAttendanceSaved(false);
         }
       })
+      .catch((error) => {
+        setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
+      })
       .finally(() => setLoadingStudents(false));
   }, [activeLesson]);
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
-    setAttendance((prev) => ({ ...prev, [studentId]: status }));
+    setAttendance((prev) => {
+      // A second click on the selected status means "not decided yet".
+      // It must remove the key, because the API stores a full snapshot.
+      if (prev[studentId] === status) {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      }
+      return { ...prev, [studentId]: status };
+    });
+    setIsAttendanceDirty(true);
     setAttendanceError(null);
   };
 
-  const handleMarkAllPresent = () => {
-    const allPresent: Record<string, AttendanceStatus> = {};
-    groupStudents.forEach((st) => {
-      allPresent[st.id] = "present";
-    });
-    setAttendance(allPresent);
-    setAttendanceError(null);
-  };
+  // A forgotten earlier lesson may still be started after its planned end,
+  // but never after this teacher has already started a later lesson. This
+  // keeps actual teaching time and attendance chronology auditable.
+  const getSubsequentStartedLesson = useCallback(
+    (lesson: Pick<LessonOccurrence, "id" | "groupId" | "endTime">): LessonOccurrence | null => {
+      const [endHour, endMinute] = (lesson.endTime || "00:00").split(":").map(Number);
+      const endMinutes = (endHour || 0) * 60 + (endMinute || 0);
+      const lessonTeacherId = groups.find((group) => group.id === lesson.groupId)?.teacher_id;
+      if (!lessonTeacherId) return null;
+
+      return [...todayOccurrences]
+        .filter((candidate) => {
+          if (candidate.id === lesson.id) return false;
+          const candidateTeacherId = groups.find((group) => group.id === candidate.groupId)?.teacher_id;
+          if (candidateTeacherId !== lessonTeacherId) return false;
+          const status = lessonStatusMap[candidate.id]
+            || (completedLessonsMap[candidate.id] ? "completed" : "scheduled");
+          if (status !== "in_progress" && status !== "completed") return false;
+          const [startHour, startMinute] = (candidate.startTime || "00:00").split(":").map(Number);
+          return (startHour || 0) * 60 + (startMinute || 0) >= endMinutes;
+        })
+        .sort((left, right) => (left.startTime || "").localeCompare(right.startTime || ""))[0] || null;
+    },
+    [todayOccurrences, lessonStatusMap, completedLessonsMap, groups],
+  );
 
   const handleStartLesson = async () => {
     if (!activeLesson || activeLessonStatus !== "scheduled") return;
+
+    const subsequentLesson = activeLesson.occurrenceDate === formatBusinessDate()
+      ? getSubsequentStartedLesson(activeLesson)
+      : null;
+    if (subsequentLesson) {
+      setAttendanceError(
+        `Нельзя начать этот урок: после его планового окончания уже был начат урок «${subsequentLesson.groupName}» (${subsequentLesson.startTime}—${subsequentLesson.endTime}). Отмените пропущенное занятие с причиной.`,
+      );
+      return;
+    }
 
     setAttendanceError(null);
     setSavingAttendance(true);
@@ -623,12 +830,6 @@ export default function TeacherSchedulePage() {
       return;
     }
 
-    // Validation: All students must be marked
-    const unmarked = groupStudents.filter((st) => !attendance[st.id]);
-    if (unmarked.length > 0) {
-      setAttendanceError(`Необходимо отметить всех учеников. Не отмечено: ${unmarked.length} из ${groupStudents.length}`);
-      return;
-    }
     setAttendanceError(null);
 
     setSavingAttendance(true);
@@ -641,6 +842,7 @@ export default function TeacherSchedulePage() {
         records: attendance,
       });
       setIsAttendanceSaved(true);
+      setIsAttendanceDirty(false);
       setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
       setActiveLessonStatus("in_progress");
       setWeekLessonStatusMap((previous) => ({
@@ -705,6 +907,7 @@ export default function TeacherSchedulePage() {
 
   const handleCancelLesson = async () => {
     if (!activeLesson || activeLessonStatus === "completed" || activeLessonStatus === "cancelled") return;
+    if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     if (reason.length < 3) {
       setAttendanceError("Укажите понятную причину отмены урока.");
@@ -733,8 +936,10 @@ export default function TeacherSchedulePage() {
       setActiveCancellationReason(reason);
       setAttendance({});
       setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
       setIsMarkingAttendance(false);
       setIsCancellingLesson(false);
+      setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
       setAttendanceError("Не удалось отменить урок. Данные не изменены.");
@@ -834,7 +1039,9 @@ export default function TeacherSchedulePage() {
 
   // Week mode never rewrites the displayed occurrence. It opens a versioned
   // recurring change whose effect starts on a future date selected by teacher.
-  const canReviseRecurringSchedule = Boolean(activeLesson && activeLessonView === "week");
+  const canReviseRecurringSchedule = Boolean(
+    activeLesson && activeLessonView === "week" && !activeLesson.isOneOff,
+  );
 
   const canFinishLesson = useMemo(() => {
     if (!activeLesson || !activeLesson.endTime) return false;
@@ -865,12 +1072,29 @@ export default function TeacherSchedulePage() {
       )
     : null;
 
+  const activeSubsequentLesson = useMemo(
+    () => activeLesson && activeLessonIsToday && activeLessonStatus === "scheduled"
+      ? getSubsequentStartedLesson(activeLesson)
+      : null,
+    [activeLesson, activeLessonIsToday, activeLessonStatus, getSubsequentStartedLesson],
+  );
+
   // Add lesson handler
   const handleAddLesson = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (
+      newLessonScope === "one_off"
+      && (newLessonDate < formatBusinessDate() || newLessonDate < weekPeriod.start || newLessonDate > weekPeriod.end)
+    ) {
+      setScheduleError("Для разового занятия выберите будущую дату из открытой недели расписания.");
+      return;
+    }
     const group = groups.find((g) => g.id === newGroupId);
     const groupName = group ? group.name : "Группа";
     const classLevel = group?.class_level || 5;
+    const oneOffDay = newLessonScope === "one_off"
+      ? (new Date(`${newLessonDate}T12:00:00`).getDay() || 7)
+      : Number(newDay);
 
     const tempId = `lesson-${Date.now()}`;
     const newLesson: LessonEvent = {
@@ -878,8 +1102,11 @@ export default function TeacherSchedulePage() {
       groupId: newGroupId || (groups[0]?.id ?? "custom-group"),
       groupName: groupName,
       classLevel,
-      subject: newSubject || "Математика",
-      dayOfWeek: Number(newDay),
+      // ALGO currently schedules mathematics groups only.  Keep the stored
+      // subject deterministic instead of showing an artificial choice in the
+      // create-lesson form.
+      subject: "Математика",
+      dayOfWeek: oneOffDay,
       startTime: newStartTime,
       endTime: newEndTime,
       room: newRoom,
@@ -890,20 +1117,49 @@ export default function TeacherSchedulePage() {
 
     try {
       setScheduleError(null);
-      const created = await orgApi.createLesson({
-        groupId: newLesson.groupId,
-        dayOfWeek: newLesson.dayOfWeek,
-        startTime: newLesson.startTime,
-        endTime: newLesson.endTime,
-        subject: newLesson.subject,
-        room: newLesson.room,
-        format: newLesson.format,
-        color: newLesson.color,
-        topic: newLesson.topic,
-      });
+      const created = newLessonScope === "one_off"
+        ? await orgApi.createOneOffLesson({
+            groupId: newLesson.groupId,
+            lessonDate: newLessonDate,
+            startTime: newLesson.startTime,
+            endTime: newLesson.endTime,
+            room: newLesson.room,
+            format: newLesson.format,
+            color: newLesson.color,
+            topic: newLesson.topic,
+          })
+        : await orgApi.createLesson({
+            groupId: newLesson.groupId,
+            dayOfWeek: newLesson.dayOfWeek,
+            startTime: newLesson.startTime,
+            endTime: newLesson.endTime,
+            subject: newLesson.subject,
+            room: newLesson.room,
+            format: newLesson.format,
+            color: newLesson.color,
+            topic: newLesson.topic,
+          });
       if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
 
-      saveLessons([...lessons, { ...newLesson, id: created.id }]);
+      // Reload the canonical schedule after either operation. A one-off is
+      // intentionally absent from the recurring template, so optimistic
+      // browser state would otherwise make it look permanent.
+      const reloaded = await loadData();
+      if (!reloaded) {
+        setIsAddModalOpen(false);
+        setNewTopic("");
+        return;
+      }
+      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
+      try {
+        const refreshedWeek = await orgApi.getScheduleOccurrences(
+          { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
+          isOrgManager ? undefined : user?.id,
+        );
+        setWeekOccurrences(refreshedWeek);
+      } catch (error) {
+        setWeekLoadError(getDataLoadErrorMessage(error));
+      }
       setIsAddModalOpen(false);
       setNewTopic("");
     } catch (err) {
@@ -916,6 +1172,8 @@ export default function TeacherSchedulePage() {
   const openAddModal = (targetDay?: number) => {
     const day = targetDay !== undefined ? targetDay : (todayDayOfWeek || 1);
     setNewDay(day);
+    setNewLessonScope("one_off");
+    setNewLessonDate(businessWeekdayDate(day, weekOffset));
 
     const dayLessons = lessons.filter((l) => l.dayOfWeek === day);
     if (dayLessons.length > 0) {
@@ -983,28 +1241,91 @@ export default function TeacherSchedulePage() {
 
   // Open Edit Modal
   const openEditModal = (lesson: LessonOccurrence) => {
+    if (lesson.isOneOff) return;
+    const snapshot: ScheduleEditSnapshot = {
+      day: Number(lesson.dayOfWeek),
+      startTime: lesson.startTime,
+      endTime: lesson.endTime,
+      room: lesson.room || "Кабинет 204",
+      format: lesson.format || "offline",
+      topic: lesson.topic || "",
+      color: lesson.color || "blue",
+    };
     setEditingLesson(lesson);
-    setEditDay(lesson.dayOfWeek);
-    setEditStartTime(lesson.startTime);
-    setEditEndTime(lesson.endTime);
-    setEditSubject(lesson.subject || "Математика");
-    setEditRoom(lesson.room || "Кабинет 204");
-    setEditFormat(lesson.format || "offline");
-    setEditTopic(lesson.topic || "");
-    setEditColor(lesson.color || "blue");
+    setEditSnapshot(snapshot);
+    setEditDay(snapshot.day);
+    setEditStartTime(snapshot.startTime);
+    setEditEndTime(snapshot.endTime);
+    setEditRoom(snapshot.room);
+    setEditFormat(snapshot.format);
+    setEditTopic(snapshot.topic);
+    setEditColor(snapshot.color);
     setEditEffectiveFrom(nextBusinessDate());
     setEditReason("");
     setIsEditModalOpen(true);
     setActiveLesson(null);
   };
 
+  const closeEndRecurringModal = (force = false) => {
+    if (isEndingRecurring && !force) return;
+    setIsEndRecurringModalOpen(false);
+    setEndingRecurringLesson(null);
+    setEndRecurringImpact(null);
+    setEndRecurringError(null);
+    setReleaseAffectedExams(false);
+  };
+
+  const openEndRecurringModal = (lesson: LessonOccurrence) => {
+    if (lesson.isOneOff) return;
+    setEndingRecurringLesson(lesson);
+    setEndRecurringEffectiveFrom(nextBusinessDate());
+    setEndRecurringReason("");
+    setEndRecurringImpact(null);
+    setEndRecurringError(null);
+    setReleaseAffectedExams(false);
+    setIsEndRecurringModalOpen(true);
+    setIsEditModalOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isEndRecurringModalOpen || !endingRecurringLesson || !endRecurringEffectiveFrom) return;
+    if (endRecurringEffectiveFrom <= formatBusinessDate()) {
+      setEndRecurringImpact(null);
+      setEndRecurringError("Выберите будущую дату прекращения занятий.");
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoadingEndRecurringImpact(true);
+    setEndRecurringError(null);
+    setEndRecurringImpact(null);
+    setReleaseAffectedExams(false);
+    void orgApi.getRecurringLessonEndImpact(endingRecurringLesson.id, endRecurringEffectiveFrom)
+      .then((impact) => {
+        if (!cancelled) setEndRecurringImpact(impact);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setEndRecurringError(
+            error instanceof Error && error.message
+              ? error.message
+              : "Не удалось проверить связанные экзамены. Для безопасности прекращение сейчас недоступно.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingEndRecurringImpact(false);
+      });
+    return () => { cancelled = true; };
+  }, [isEndRecurringModalOpen, endingRecurringLesson, endRecurringEffectiveFrom]);
+
   // Update lesson handler
   const handleUpdateLesson = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingLesson) return;
-    const reason = editReason.trim();
-    if (reason.length < 3) {
-      setScheduleError("Укажите понятную причину изменения расписания.");
+    const reason = editReason.trim() || automaticEditReason;
+    if (!hasEditChanges) {
+      setScheduleError("Измените хотя бы один параметр расписания.");
       return;
     }
     if (!editEffectiveFrom || editEffectiveFrom <= formatBusinessDate()) {
@@ -1020,7 +1341,6 @@ export default function TeacherSchedulePage() {
         dayOfWeek: Number(editDay),
         startTime: editStartTime,
         endTime: editEndTime,
-        subject: editSubject,
         room: editRoom,
         format: editFormat,
         color: editColor,
@@ -1028,32 +1348,79 @@ export default function TeacherSchedulePage() {
       });
       // A recurring change has an effective date. Reload server-resolved data
       // instead of optimistically rewriting the old schedule template.
-      await loadData();
+      const reloaded = await loadData();
+      if (!reloaded) {
+        setIsEditModalOpen(false);
+        setEditingLesson(null);
+        setEditSnapshot(null);
+        return;
+      }
       const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-      const refreshedWeek = await orgApi.getScheduleOccurrences(
-        { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-        isOrgManager ? undefined : user?.id,
-      );
-      setWeekOccurrences(refreshedWeek);
+      try {
+        const refreshedWeek = await orgApi.getScheduleOccurrences(
+          { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
+          isOrgManager ? undefined : user?.id,
+        );
+        setWeekOccurrences(refreshedWeek);
+      } catch (error) {
+        setWeekLoadError(getDataLoadErrorMessage(error));
+      }
       setIsEditModalOpen(false);
       setEditingLesson(null);
+      setEditSnapshot(null);
     } catch (err) {
       console.error("Failed to revise recurring lesson on backend:", err);
       setScheduleError("Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку.");
     }
   };
 
-  const handleDeleteLesson = async (id: string) => {
+  const handleEndRecurringLesson = async () => {
+    if (!endingRecurringLesson || !endRecurringImpact) return;
+    const reason = endRecurringReason.trim();
+    if (reason.length < 3) {
+      setEndRecurringError("Укажите понятную причину прекращения регулярных занятий.");
+      return;
+    }
+    if (!endRecurringImpact.canEnd) {
+      setEndRecurringError("Сначала завершите или разберите экзамены, которые уже нельзя вернуть в черновик.");
+      return;
+    }
+    if (endRecurringImpact.affectedExamCount > 0 && !releaseAffectedExams) {
+      setEndRecurringError("Подтвердите, что затронутые экзамены будут возвращены в черновики.");
+      return;
+    }
+
+    setIsEndingRecurring(true);
+    setEndRecurringError(null);
     try {
-      setScheduleError(null);
-      await orgApi.deleteLesson(id);
-      saveLessons(lessons.filter((l) => l.id !== id));
-      if (activeLesson?.id === id) {
-        setActiveLesson(null);
+      await orgApi.endRecurringLesson(endingRecurringLesson.id, {
+        effectiveFrom: endRecurringEffectiveFrom,
+        reason,
+        releaseAffectedExams,
+      });
+      // Recurrences are resolved on the server. Do not locally hide a card:
+      // reload both canonical schedule reads after the operation succeeded.
+      const reloaded = await loadData();
+      if (!reloaded) return;
+      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
+      try {
+        const refreshedWeek = await orgApi.getScheduleOccurrences(
+          { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
+          isOrgManager ? undefined : user?.id,
+        );
+        setWeekOccurrences(refreshedWeek);
+      } catch (error) {
+        setWeekLoadError(getDataLoadErrorMessage(error));
       }
-    } catch (err) {
-      console.error("Failed to delete lesson on backend:", err);
-      setScheduleError("Не удалось удалить урок. Расписание не изменено — повторите попытку.");
+      closeEndRecurringModal(true);
+    } catch (error) {
+      setEndRecurringError(
+        error instanceof Error && error.message
+          ? error.message
+          : "Не удалось прекратить регулярные занятия. Расписание не изменено.",
+      );
+    } finally {
+      setIsEndingRecurring(false);
     }
   };
 
@@ -1069,13 +1436,13 @@ export default function TeacherSchedulePage() {
     let isCurrent = true;
 
     async function loadWeekSummary() {
+      setWeekLoadError(null);
       try {
         const occurrences = await orgApi.getScheduleOccurrences(
           { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
           isOrgManager ? undefined : currentUserId,
         );
         if (!isCurrent) return;
-        setWeekOccurrences(occurrences);
 
         // One journal request per group gives an authoritative weekly status
         // for all its lessons, rather than trying to infer completion from a
@@ -1087,15 +1454,19 @@ export default function TeacherSchedulePage() {
             const attendanceData = await orgApi.getGroupAttendance(groupId, {
               dateFrom: weekPeriod.start,
               dateTo: weekPeriod.end,
-            }).catch(() => null);
+            });
             Object.assign(weeklyStatuses, attendanceData?.statuses || {});
           }),
         );
-        if (isCurrent) setWeekLessonStatusMap(weeklyStatuses);
-      } catch {
         if (isCurrent) {
-          setWeekOccurrences([]);
-          setWeekLessonStatusMap({});
+          setWeekOccurrences(occurrences);
+          setWeekLessonStatusMap(weeklyStatuses);
+        }
+      } catch (error) {
+        if (isCurrent) {
+          // Do not turn a failed weekly read into a blank calendar. Preserve
+          // the last confirmed week and make the stale state explicit.
+          setWeekLoadError(getDataLoadErrorMessage(error));
         }
       }
     }
@@ -1104,7 +1475,7 @@ export default function TeacherSchedulePage() {
     return () => {
       isCurrent = false;
     };
-  }, [user?.id, user?.org_role, user?.role, weekPeriod.end, weekPeriod.start]);
+  }, [user?.id, user?.org_role, user?.role, weekPeriod.end, weekPeriod.start, weekRefreshNonce]);
 
   // Date range for week view
   const weekRangeText = useMemo(() => {
@@ -1259,23 +1630,16 @@ export default function TeacherSchedulePage() {
     [liveExams],
   );
 
-  const weekKpiDescription = weekKpi.needsCompletion > 0 || weekKpi.notStarted > 0
-    ? [
-        weekKpi.needsCompletion > 0 ? `завершить: ${weekKpi.needsCompletion}` : null,
-        weekKpi.notStarted > 0 ? `не начаты: ${weekKpi.notStarted}` : null,
-      ].filter(Boolean).join(" · ")
-    : weekKpi.planned === 0
-      ? "Занятий не запланировано"
-      : `${weekKpi.completed} завершено · ${weekKpi.remaining} впереди${weekKpi.cancelled ? ` · отменено ${weekKpi.cancelled}` : ""}`;
+  const weekKpiDescription = weekKpi.planned === 0
+    ? "На эту неделю уроков нет"
+    : weekKpi.completed === weekKpi.planned
+      ? "План недели выполнен"
+      : completedLessonsProgressLabel(weekKpi.completed, weekKpi.planned);
   const todayKpiDescription = todayKpi.planned === 0
     ? "На сегодня занятий нет"
-    : [
-        todayKpi.needsCompletion > 0 ? `завершить: ${todayKpi.needsCompletion}` : null,
-        todayKpi.notStarted > 0 ? `не начаты: ${todayKpi.notStarted}` : null,
-        todayKpi.live > 0 ? `идёт: ${todayKpi.live}` : null,
-        todayKpi.upcoming > 0 ? `впереди: ${todayKpi.upcoming}` : null,
-        todayKpi.completed > 0 ? `завершено: ${todayKpi.completed}` : null,
-      ].filter(Boolean).join(" · ");
+    : todayKpi.completed === todayKpi.planned
+      ? "На сегодня все уроки завершены"
+      : completedLessonsProgressLabel(todayKpi.completed, todayKpi.planned);
   const attendanceKpiDescription = todayKpi.planned === 0
     ? "Нет занятий для отметки"
     : todayKpi.attendanceNeeded > 0
@@ -1310,6 +1674,19 @@ export default function TeacherSchedulePage() {
     );
   }
 
+  if (loadError && loadedScheduleDate !== businessDate) {
+    return (
+      <div className="mx-auto max-w-2xl pt-12">
+        <DataLoadError
+          title="Не удалось загрузить расписание"
+          message={loadError}
+          onRetry={loadData}
+          isRetrying={isRefreshing}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 w-full max-w-[1600px] mx-auto pb-16">
       {/* Header */}
@@ -1325,11 +1702,13 @@ export default function TeacherSchedulePage() {
 
         {/* Add lesson button */}
         <button
+          type="button"
+          disabled={scheduleDataUnavailable}
           onClick={() => {
             setViewMode("week");
             openAddModal();
           }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm shadow-primary-600/25 transition-all self-start sm:self-auto"
+          className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm shadow-primary-600/25 transition-all self-start sm:self-auto disabled:cursor-not-allowed disabled:opacity-55"
         >
           <Plus className="w-4 h-4" />
           <span>Добавить в расписание</span>
@@ -1343,6 +1722,34 @@ export default function TeacherSchedulePage() {
         </div>
       )}
 
+      {loadError && (
+        <DataLoadError
+          compact
+          title="Расписание не обновлено"
+          message={`${loadError} Показаны последние успешно загруженные данные; изменения временно недоступны.`}
+          onRetry={loadData}
+          isRetrying={isRefreshing}
+        />
+      )}
+
+      {weekLoadError && (
+        <DataLoadError
+          compact
+          title="Неделя не обновлена"
+          message={`${weekLoadError} Показаны последние успешно загруженные данные недели.`}
+          onRetry={() => setWeekRefreshNonce((current) => current + 1)}
+        />
+      )}
+
+      {liveExamError && (
+        <DataLoadError
+          compact
+          title="Не удалось обновить состояние экзаменов"
+          message={`${liveExamError} Показано последнее подтверждённое состояние.`}
+          onRetry={() => setLiveExamRefreshNonce((current) => current + 1)}
+        />
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs min-h-[128px] flex items-start gap-4">
@@ -1353,9 +1760,9 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">План недели</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {weekKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">уроков</span>
+              <span className="text-xs font-medium text-slate-400 ml-1.5">{russianPlural(weekKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
-            <p className={`text-xs mt-1.5 leading-5 ${weekKpi.needsCompletion > 0 || weekKpi.notStarted > 0 ? "text-rose-600 font-semibold" : "text-slate-500"}`}>
+            <p className={`text-xs mt-1.5 leading-5 ${weekKpi.planned > 0 && weekKpi.completed === weekKpi.planned ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {weekKpiDescription}
             </p>
           </div>
@@ -1369,9 +1776,9 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">Сегодня</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {todayKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">уроков</span>
+              <span className="text-xs font-medium text-slate-400 ml-1.5">{russianPlural(todayKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
-            <p className={`text-xs mt-1.5 leading-5 ${todayKpi.needsCompletion > 0 || todayKpi.notStarted > 0 ? "text-rose-600 font-semibold" : "text-slate-500"}`}>
+            <p className={`text-xs mt-1.5 leading-5 ${todayKpi.planned > 0 && todayKpi.completed === todayKpi.planned ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {todayKpiDescription}
             </p>
           </div>
@@ -1415,9 +1822,10 @@ export default function TeacherSchedulePage() {
                 {nextAction.label}
               </p>
               {nextAction.lesson.topic && (
-                <p className="text-xs mt-0.5 leading-5 opacity-75 break-words">
-                  {nextAction.lesson.topic}
-                </p>
+                <div className="mt-1.5 flex min-w-0 items-start gap-1.5 text-xs leading-5 opacity-75">
+                  <span className="shrink-0 font-semibold">Тема:</span>
+                  <span className="min-w-0 line-clamp-2 break-words">{nextAction.lesson.topic}</span>
+                </div>
               )}
             </div>
           </button>
@@ -1763,7 +2171,7 @@ export default function TeacherSchedulePage() {
                   {formatBusinessDateLabel({ day: "numeric", month: "long" })}
                 </h2>
                 <p className="text-primary-100 text-sm mt-1">
-                  Всего запланировано {todayKpi.planned} занятий
+                  Всего запланировано {classCountLabel(todayKpi.planned)}
                 </p>
               </div>
               <button
@@ -1788,6 +2196,7 @@ export default function TeacherSchedulePage() {
               {todayLessons.map((l) => {
                 const isAttSaved = !!lessonAttendanceMap[l.id];
                 const lessonStatus = lessonStatusMap[l.id] || (completedLessonsMap[l.id] ? "completed" : "scheduled");
+                const subsequentLesson = lessonStatus === "scheduled" ? getSubsequentStartedLesson(l) : null;
                 const status = getLessonTimeStatus(l, todayDayOfWeek, isAttSaved, lessonStatus === "completed");
                 const colorStyle = COLOR_CLASSES[l.color] || COLOR_CLASSES.blue;
 
@@ -1798,8 +2207,10 @@ export default function TeacherSchedulePage() {
                     className={`rounded-2xl p-5 border transition-all cursor-pointer group flex flex-col justify-between ${
                       lessonStatus === "cancelled"
                         ? "bg-slate-50 border-slate-200/60 opacity-75 border-l-4 border-l-slate-400"
-                        : lessonStatus === "completed"
+                      : lessonStatus === "completed"
                         ? "bg-slate-50/70 border-slate-200/60 opacity-75 hover:opacity-100 hover:bg-white hover:shadow-xs border-l-4 border-l-slate-300"
+                        : subsequentLesson
+                        ? "bg-white border-rose-300 shadow-md border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
                         : status.type === "live"
                         ? status.isPastEndTime && !isAttSaved
                           ? "bg-white border-rose-300 shadow-md border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
@@ -1838,7 +2249,9 @@ export default function TeacherSchedulePage() {
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200"><X className="w-3 h-3" />Отменён</span>
                           ) : lessonStatus === "completed" ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-2xs"><CheckCircle2 className="w-3 h-3 text-slate-400" />Завершён</span>
-                          ) : status.type === "live" ? (
+                          ) : subsequentLesson ? (
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-200/80 shadow-2xs"><AlertCircle className="w-3 h-3 text-rose-600" />Урок не начат</span>
+                          ) : lessonStatus === "in_progress" ? (
                             status.isPastEndTime ? (
                               isAttSaved ? (
                                 <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
@@ -1851,13 +2264,20 @@ export default function TeacherSchedulePage() {
                                   Отметьте посещаемость
                                 </span>
                               )
-                            ) : isAttSaved ? (
+                            ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-2xs">
                                 <span className="relative flex h-1.5 w-1.5">
                                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                   <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                                 </span>
                                 Идёт урок
+                              </span>
+                            )
+                          ) : status.type === "live" ? (
+                            status.isPastEndTime ? (
+                              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                Урок не начат
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-xs group-hover:from-emerald-700 group-hover:to-teal-700 transition-all">
@@ -1901,7 +2321,15 @@ export default function TeacherSchedulePage() {
                         )}
                       </span>
                       <span className="text-primary-600 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
-                        {lessonStatus === "cancelled" ? "Причина отмены" : status.type === "live" && !isAttSaved ? "Начать урок" : "Детали"} <ArrowRight className="w-3.5 h-3.5" />
+                        {lessonStatus === "cancelled"
+                          ? "Причина отмены"
+                          : subsequentLesson
+                          ? "Отменить урок"
+                          : lessonStatus === "in_progress" && !isAttSaved
+                          ? "Отметить посещаемость"
+                          : lessonStatus === "scheduled" && status.type === "live"
+                          ? "Начать урок"
+                          : "Детали"} <ArrowRight className="w-3.5 h-3.5" />
                       </span>
                     </div>
                   </div>
@@ -1926,7 +2354,7 @@ export default function TeacherSchedulePage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-x-hidden overflow-y-auto"
             >
               {/* Modal Header */}
               <div className="flex items-start justify-between gap-3 mb-5">
@@ -2029,6 +2457,14 @@ export default function TeacherSchedulePage() {
                           Доступно в {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.short} в {activeLesson.startTime}
                         </button>
                       </div>
+                    ) : isAttendanceDirty ? (
+                      <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0"><AlertCircle className="w-5 h-5" /></div>
+                          <div><p className="text-xs font-bold text-amber-950">Есть несохранённые изменения</p><p className="text-xs text-amber-800 mt-0.5 font-medium">Отмечено: {Object.keys(attendance).length} из {groupStudents.length}. Сохраните отметки, чтобы они появились в журнале.</p></div>
+                        </div>
+                        <button type="button" onClick={() => setIsMarkingAttendance(true)} className="px-3 py-1.5 text-xs font-semibold text-amber-900 bg-white border border-amber-200 hover:bg-amber-50 rounded-xl transition-colors shrink-0 shadow-2xs">Продолжить отметку</button>
+                      </div>
                     ) : activeLessonStatus === "in_progress" && isAttendanceSaved && Object.keys(attendance).length > 0 ? (
                       /* Saved attendance status card */
                       <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2039,9 +2475,11 @@ export default function TeacherSchedulePage() {
                           <div>
                             <div className="flex items-center gap-2">
                               <p className="text-xs font-bold text-emerald-900">
-                                {activeLessonIsToday && activeTimeStatus?.type === "live"
-                                  ? "Идёт урок · Посещаемость отмечена"
-                                  : "Посещаемость отмечена"}
+                                {Object.keys(attendance).length === groupStudents.length
+                                  ? activeLessonIsToday && activeTimeStatus?.type === "live"
+                                    ? "Идёт урок · Посещаемость отмечена"
+                                    : "Посещаемость отмечена"
+                                  : `Сохранено: ${Object.keys(attendance).length} из ${groupStudents.length}`}
                               </p>
                               {activeLessonIsToday && activeTimeStatus?.type === "live" && (
                                 <span className="relative flex h-2 w-2">
@@ -2051,10 +2489,7 @@ export default function TeacherSchedulePage() {
                               )}
                             </div>
                             <p className="text-xs text-emerald-700 mt-0.5 font-medium">
-                              Присутствовали: {Object.values(attendance).filter((s) => s === "present").length} ·{" "}
-                              Опоздали: {Object.values(attendance).filter((s) => s === "late").length} ·{" "}
-                              Н/Б: {Object.values(attendance).filter((s) => s === "absent").length} ·{" "}
-                              Ув.: {Object.values(attendance).filter((s) => s === "excused").length}
+                              {formatAttendanceSummary(attendance, groupStudents.length)}
                             </p>
                           </div>
                         </div>
@@ -2063,13 +2498,37 @@ export default function TeacherSchedulePage() {
                           onClick={() => setIsMarkingAttendance(true)}
                           className="px-3 py-1.5 text-xs font-semibold text-emerald-800 bg-white border border-emerald-200 hover:bg-emerald-50 rounded-xl transition-colors shrink-0 shadow-2xs"
                         >
-                          Изменить отметки
+                          {Object.keys(attendance).length < groupStudents.length ? "Продолжить отметку" : "Изменить отметки"}
                         </button>
                       </div>
-                    ) : activeLessonStatus === "in_progress" ? (
-                      <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                        <div className="flex items-center gap-3.5"><div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><Play className="w-5 h-5 fill-current" /></div><div><p className="text-sm font-bold text-slate-900">Урок начат</p><p className="text-xs text-emerald-700 mt-0.5">Экземпляр урока сохранён. Заполните отметки, когда будете готовы.</p></div></div>
-                        <button type="button" onClick={() => setIsMarkingAttendance(true)} className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold">Отметить посещаемость</button>
+                            ) : activeLessonStatus === "in_progress" ? (
+                                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                    <div className="flex items-center gap-3.5">
+                                        <div className="w-11 h-11 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                                            <Play className="w-5 h-5 fill-current" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-slate-900">Урок начат</p>
+                                            <p className="text-xs text-emerald-700 mt-0.5 font-medium">
+                                                Заполните и сохраните отметки учеников, затем завершите урок.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsMarkingAttendance(true)}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs whitespace-nowrap"
+                                    >
+                                        Заполнить посещаемость
+                                    </button>
+                                </div>
+                    ) : activeSubsequentLesson ? (
+                      <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex items-start gap-3.5">
+                        <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0"><AlertCircle className="w-5 h-5" /></div>
+                        <div>
+                          <p className="text-sm font-bold text-rose-950">Урок больше нельзя начать</p>
+                          <p className="text-xs text-rose-800 mt-0.5">После его планового окончания уже был начат урок «{activeSubsequentLesson.groupName}» ({activeSubsequentLesson.startTime}—{activeSubsequentLesson.endTime}). Чтобы не исказить журнал, отметки за это занятие недоступны — отмените его с причиной.</p>
+                        </div>
                       </div>
                     ) : activeLessonIsPast ? (
                       /* A past occurrence which was never started cannot be
@@ -2186,13 +2645,6 @@ export default function TeacherSchedulePage() {
                           </span>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleMarkAllPresent}
-                        className="text-[11px] font-semibold text-primary-600 hover:text-primary-700 hover:underline"
-                      >
-                        Отметить всех присутствующими
-                      </button>
                     </div>
 
                     {attendanceError && (
@@ -2233,6 +2685,7 @@ export default function TeacherSchedulePage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "present")}
+                                title={status === "present" ? "Снять отметку «Был»" : "Отметить «Был»"}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "present"
                                     ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
@@ -2244,6 +2697,7 @@ export default function TeacherSchedulePage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "late")}
+                                title={status === "late" ? "Снять отметку «Опоздал»" : "Отметить «Опоздал»"}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "late"
                                     ? "bg-amber-500 text-white border-amber-500 shadow-xs"
@@ -2255,6 +2709,7 @@ export default function TeacherSchedulePage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "absent")}
+                                title={status === "absent" ? "Снять отметку «Н/Б»" : "Отметить «Н/Б»"}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "absent"
                                     ? "bg-rose-600 text-white border-rose-600 shadow-xs"
@@ -2266,6 +2721,7 @@ export default function TeacherSchedulePage() {
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "excused")}
+                                title={status === "excused" ? "Снять отметку «Уважительная причина»" : "Отметить «Уважительная причина»"}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "excused"
                                     ? "bg-sky-600 text-white border-sky-600 shadow-xs"
@@ -2319,7 +2775,7 @@ export default function TeacherSchedulePage() {
                   <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} maxLength={500} rows={3} placeholder="Причина отмены (обязательно)" className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400" />
                   <div className="flex justify-end gap-2">
                     <button type="button" onClick={() => { setIsCancellingLesson(false); setCancellationReason(""); setLessonExamBinding(null); }} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg">Не отменять</button>
-                    <button type="button" onClick={handleCancelLesson} disabled={savingAttendance || !lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel} className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg">Подтвердить отмену</button>
+                    <button type="button" onClick={handleCancelLesson} disabled={savingAttendance || !lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel || cancellationReason.trim().length < 3} className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg">Подтвердить отмену</button>
                   </div>
                 </div>
               )}
@@ -2363,8 +2819,8 @@ export default function TeacherSchedulePage() {
               )}
 
               {/* Actions footer */}
-              <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2">
                   {canRescheduleToday ? (
                     <button
                       type="button"
@@ -2377,9 +2833,10 @@ export default function TeacherSchedulePage() {
                     <button
                       type="button"
                       onClick={() => openEditModal(activeLesson)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
+                      className="inline-flex min-w-0 items-center gap-1.5 rounded-xl bg-primary-50 px-3.5 py-2 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-100"
                     >
-                      <Edit2 className="w-3.5 h-3.5" /> Изменить постоянное расписание
+                      <Edit2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Изменить постоянное расписание</span>
                     </button>
                   ) : (
                     <Link
@@ -2390,14 +2847,32 @@ export default function TeacherSchedulePage() {
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
                   )}
+
+                  {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson)) && (
+                    <div className="shrink-0">
+                      <button
+                        type="button"
+                        ref={recurringActionsButtonRef}
+                        onClick={(event) => {
+                          const buttonRect = event.currentTarget.getBoundingClientRect();
+                          const menuWidth = 256;
+                          setRecurringActionsPosition({
+                            top: Math.round(buttonRect.bottom + 8),
+                            left: Math.max(16, Math.min(Math.round(buttonRect.left), window.innerWidth - menuWidth - 16)),
+                          });
+                          setIsRecurringActionsOpen((isOpen) => !isOpen);
+                        }}
+                        aria-label="Дополнительные действия с уроком"
+                        aria-expanded={isRecurringActionsOpen}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
-                    <button type="button" onClick={openCancelLessonPanel} className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-colors">
-                      <X className="w-3.5 h-3.5" /> Отменить урок
-                    </button>
-                  )}
+                <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
                   {canFinishLesson ? (
                     <button
                       type="button"
@@ -2431,6 +2906,58 @@ export default function TeacherSchedulePage() {
         </AnimatePresence>,
         document.body
       )}
+
+      {/* This menu is portalled out of the scrollable lesson dialog.  It can
+          therefore open downward without creating horizontal scrollbars or
+          being clipped by the modal's own overflow boundary. */}
+      {mounted && typeof document !== "undefined" && activeLesson && isRecurringActionsOpen && recurringActionsPosition &&
+        createPortal(
+          <div
+            ref={recurringActionsMenuRef}
+            role="menu"
+            style={{ top: recurringActionsPosition.top, left: recurringActionsPosition.left }}
+            className="fixed z-[100001] w-64 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
+          >
+            {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsRecurringActionsOpen(false);
+                  openCancelLessonPanel();
+                }}
+                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-rose-700 transition-colors hover:bg-rose-50"
+              >
+                <X className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block font-semibold">Отменить этот урок</span>
+                  <span className="mt-0.5 block leading-relaxed text-rose-600/80">Только выбранная дата; потребуется причина.</span>
+                </span>
+              </button>
+            )}
+            {canReviseRecurringSchedule && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
+              <div className="mx-2 my-1 border-t border-slate-100" />
+            )}
+            {canReviseRecurringSchedule && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsRecurringActionsOpen(false);
+                  openEndRecurringModal(activeLesson);
+                }}
+                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-rose-700 transition-colors hover:bg-rose-50"
+              >
+                <X className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <span className="block font-semibold">Прекратить регулярные занятия</span>
+                  <span className="mt-0.5 block leading-relaxed text-rose-600/80">Будущие уроки остановятся с выбранной даты.</span>
+                </span>
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
 
       {/* MODAL: ADD LESSON */}
       {mounted &&
@@ -2492,41 +3019,70 @@ export default function TeacherSchedulePage() {
                   </select>
                 </div>
 
-                {/* Day of Week */}
-                <div className="grid grid-cols-2 gap-3">
+                <fieldset>
+                  <legend className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Как добавить занятие
+                  </legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewLessonScope("one_off");
+                        setNewLessonDate(businessWeekdayDate(newDay, weekOffset));
+                      }}
+                      className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-colors ${
+                        newLessonScope === "one_off"
+                          ? "border-primary-500 bg-primary-50 text-primary-800 ring-1 ring-primary-200"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="block font-bold">Только на этой неделе</span>
+                      <span className="mt-0.5 block text-[11px] opacity-75">Разовое занятие</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewLessonScope("recurring")}
+                      className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-colors ${
+                        newLessonScope === "recurring"
+                          ? "border-primary-500 bg-primary-50 text-primary-800 ring-1 ring-primary-200"
+                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span className="block font-bold">На постоянной основе</span>
+                      <span className="mt-0.5 block text-[11px] opacity-75">Повторяется еженедельно</span>
+                    </button>
+                  </div>
+                </fieldset>
+
+                {newLessonScope === "one_off" ? (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      День недели
-                    </label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
+                    <input
+                      type="date"
+                      value={newLessonDate}
+                      min={formatBusinessDate()}
+                      max={weekPeriod.end}
+                      onChange={(e) => setNewLessonDate(e.target.value)}
+                      required
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500">Занятие появится только на выбранную дату и не изменит следующие недели.</p>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
                     <select
                       value={newDay}
                       onChange={(e) => handleAddDayChange(Number(e.target.value))}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     >
                       {DAYS.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
+                        <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
                     </select>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
                   </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Предмет
-                    </label>
-                    <select
-                      value={newSubject}
-                      onChange={(e) => setNewSubject(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      <option value="Математика">Математика</option>
-                      <option value="Алгебра">Алгебра</option>
-                      <option value="Геометрия">Геометрия</option>
-                      <option value="Олимпиадная математика">Олимпиадная математика</option>
-                    </select>
-                  </div>
-                </div>
+                )}
 
                 {/* Time range */}
                 <div className="grid grid-cols-2 gap-3">
@@ -2600,22 +3156,6 @@ export default function TeacherSchedulePage() {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Причина изменения
-                  </label>
-                  <textarea
-                    value={editReason}
-                    onChange={(e) => setEditReason(e.target.value)}
-                    required
-                    minLength={3}
-                    maxLength={500}
-                    rows={2}
-                    placeholder="Например: постоянная смена аудитории"
-                    className="w-full resize-none px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  />
-                </div>
-
                 {/* Color tag */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -2675,6 +3215,161 @@ export default function TeacherSchedulePage() {
       </AnimatePresence>,
       document.body
     )}
+
+      {/* MODAL: END RECURRING LESSON */}
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
+            {isEndRecurringModalOpen && endingRecurringLesson && (
+              <div
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) closeEndRecurringModal();
+                }}
+                className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md"
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                  className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl ring-1 ring-black/5 sm:p-7"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="end-recurring-title"
+                >
+                  <div className="mb-5 flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-rose-500">Постоянное расписание</p>
+                      <h3 id="end-recurring-title" className="mt-1 text-lg font-bold text-slate-950">Прекратить занятия</h3>
+                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                        Прошедшие уроки, посещаемость и журнал останутся без изменений. Новые экземпляры этого занятия перестанут появляться с выбранной даты.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => closeEndRecurringModal()}
+                      disabled={isEndingRecurring}
+                      aria-label="Закрыть"
+                      className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">{endingRecurringLesson.groupName}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {DAYS.find((day) => day.id === Number(endingRecurringLesson.dayOfWeek))?.name ?? "Регулярное занятие"} · {endingRecurringLesson.startTime}—{endingRecurringLesson.endTime}
+                    </p>
+                  </div>
+
+                  <div className="space-y-4">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Прекратить с даты
+                      <input
+                        type="date"
+                        value={endRecurringEffectiveFrom}
+                        min={nextBusinessDate()}
+                        onChange={(event) => setEndRecurringEffectiveFrom(event.target.value)}
+                        disabled={isEndingRecurring}
+                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      />
+                    </label>
+
+                    <label className="block text-xs font-semibold text-slate-700">
+                      Причина
+                      <textarea
+                        value={endRecurringReason}
+                        onChange={(event) => setEndRecurringReason(event.target.value)}
+                        maxLength={500}
+                        rows={2}
+                        disabled={isEndingRecurring}
+                        placeholder="Например: группа закончила курс"
+                        className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                      />
+                    </label>
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
+                      <p className="text-sm font-bold text-slate-900">Проверка будущих экзаменов</p>
+                      {isLoadingEndRecurringImpact ? (
+                        <p className="mt-2 text-xs text-slate-500">Проверяем привязанные экзамены…</p>
+                      ) : endRecurringImpact ? (
+                        <div className="mt-2 space-y-3">
+                          {endRecurringImpact.affectedExamCount === 0 ? (
+                            <p className="text-xs leading-relaxed text-emerald-700">Связанных будущих экзаменов нет. Расписание можно безопасно прекратить.</p>
+                          ) : (
+                            <>
+                              <p className="text-xs leading-relaxed text-slate-600">
+                                Найдено: {endRecurringImpact.affectedExamCount}. {endRecurringImpact.canEnd
+                                  ? "После подтверждения они вернутся в черновики, а доступы и печатные комплекты будут закрыты."
+                                  : "Есть экзамены, которые уже нельзя безопасно вернуть в черновики."}
+                              </p>
+                              <div className="max-h-32 space-y-2 overflow-y-auto pr-1">
+                                {endRecurringImpact.exams.map((exam) => (
+                                  <div key={exam.examId} className={`rounded-xl border px-3 py-2 ${exam.canRelease ? "border-slate-200 bg-white" : "border-rose-200 bg-rose-50"}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-xs font-semibold text-slate-800">{exam.title}</p>
+                                        <p className="mt-0.5 text-[11px] text-slate-500">{formatIsoDateLabel(exam.lessonDate, { day: "numeric", month: "long", year: "numeric" })} · {exam.deliveryMode === "print" ? "Печатный" : "Онлайн"}</p>
+                                      </div>
+                                      <span className={`shrink-0 text-[11px] font-semibold ${exam.canRelease ? "text-emerald-700" : "text-rose-700"}`}>
+                                        {exam.canRelease ? "Вернётся в черновик" : exam.blockerReason ?? "Требует разбора"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {endRecurringImpact.canEnd && (
+                                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
+                                  <input
+                                    type="checkbox"
+                                    checked={releaseAffectedExams}
+                                    onChange={(event) => setReleaseAffectedExams(event.target.checked)}
+                                    disabled={isEndingRecurring}
+                                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                  />
+                                  <span>Подтверждаю возврат затронутых экзаменов в черновики.</span>
+                                </label>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-slate-500">Выберите будущую дату, чтобы проверить последствия.</p>
+                      )}
+                    </div>
+
+                    {endRecurringError && (
+                      <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
+                        {endRecurringError}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => closeEndRecurringModal()}
+                      disabled={isEndingRecurring}
+                      className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                    >
+                      <ArrowLeft className="h-3.5 w-3.5" />
+                      Назад
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEndRecurringLesson}
+                      disabled={isEndingRecurring || isLoadingEndRecurringImpact || !endRecurringImpact || !endRecurringImpact.canEnd || endRecurringReason.trim().length < 3 || (endRecurringImpact.affectedExamCount > 0 && !releaseAffectedExams)}
+                      className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isEndingRecurring ? "Прекращаем…" : "Прекратить занятия"}
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
 
       {/* MODAL: EDIT LESSON */}
       {mounted &&
@@ -2737,40 +3432,17 @@ export default function TeacherSchedulePage() {
                   </div>
                 </div>
 
-                {/* Day of Week */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      День недели
-                    </label>
-                    <select
-                      value={editDay}
-                      onChange={(e) => setEditDay(Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      {DAYS.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Предмет
-                    </label>
-                    <select
-                      value={editSubject}
-                      onChange={(e) => setEditSubject(e.target.value)}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      <option value="Математика">Математика</option>
-                      <option value="Алгебра">Алгебра</option>
-                      <option value="Геометрия">Геометрия</option>
-                      <option value="Олимпиадная математика">Олимпиадная математика</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
+                  <select
+                    value={editDay}
+                    onChange={(e) => setEditDay(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Time range */}
@@ -2845,6 +3517,23 @@ export default function TeacherSchedulePage() {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
+                  </label>
+                  <textarea
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    maxLength={500}
+                    rows={2}
+                    placeholder="Например: постоянная смена аудитории"
+                    className="w-full resize-none px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                  />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Если оставить поле пустым, система автоматически зафиксирует изменённые параметры.
+                  </p>
+                </div>
+
                 {/* Color tag */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -2880,6 +3569,9 @@ export default function TeacherSchedulePage() {
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  {!hasEditChanges && (
+                    <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsEditModalOpen(false)}
@@ -2889,7 +3581,7 @@ export default function TeacherSchedulePage() {
                   </button>
                   <button
                     type="submit"
-                    disabled={!!editConflict || editReason.trim().length < 3 || !editEffectiveFrom}
+                    disabled={!!editConflict || !hasEditChanges || !editEffectiveFrom}
                     className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
                   >
                     Изменить расписание

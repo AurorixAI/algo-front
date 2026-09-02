@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import ReactDOM from "react-dom";
+import { createPortal } from "react-dom";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -11,9 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
-import { examsApi, orgApi, type Group } from "@/lib/api";
+import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { examsApi, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -37,7 +40,6 @@ import {
   Flame,
   ExternalLink,
   ChevronRight,
-  ChevronDown,
   Bookmark,
   Shuffle,
   Eye,
@@ -58,6 +60,7 @@ import {
   Loader2,
   FileBarChart2,
   Info,
+  CalendarDays,
 } from "lucide-react";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
@@ -110,6 +113,8 @@ interface ExamDetail {
   class_level?: number | null;
   scheduled_lesson_id?: string | null;
   scheduled_lesson_date?: string | null;
+  delivery_mode: "online" | "print";
+  print_package?: PrintPackageMetadata | null;
   is_pinned?: boolean;
   variants: DraftVariant[];
   created_at: string;
@@ -139,11 +144,59 @@ interface Alternative {
   answer_type: string;
 }
 
+interface TaskSection {
+  name: string;
+  tasks: DraftTask[];
+}
+
 const diffColors: Record<string, string> = {
   A: "bg-emerald-50 text-emerald-700 border-emerald-200",
   B: "bg-amber-50 text-amber-700 border-amber-200",
   C: "bg-rose-50 text-rose-700 border-rose-200",
 };
+
+/**
+ * Keep the operational task view in the same canonical order as the draft
+ * editor and printed package: sections appear by their first task, and every
+ * following task of that section stays with it.  The persisted array remains
+ * a source list; it must never become a competing display numbering.
+ */
+function groupTasksIntoSections(tasks: DraftTask[]): TaskSection[] {
+  const groups = new Map<string, DraftTask[]>();
+  for (const task of tasks) {
+    const name = task.skill_name || task.skill_id || "Без категории";
+    const group = groups.get(name);
+    if (group) group.push(task);
+    else groups.set(name, [task]);
+  }
+  return Array.from(groups, ([name, sectionTasks]) => ({ name, tasks: sectionTasks }));
+}
+
+function taskCountLabel(count: number): string {
+  const lastTwoDigits = count % 100;
+  const lastDigit = count % 10;
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 14) return "заданий";
+  if (lastDigit === 1) return "задание";
+  if (lastDigit >= 2 && lastDigit <= 4) return "задания";
+  return "заданий";
+}
+
+function formatBoundLessonLabel(
+  lessonDate?: string | null,
+  occurrence?: ScheduleOccurrence | null,
+): string | null {
+  if (!lessonDate) return null;
+  const date = formatIsoDateLabel(lessonDate, {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+  });
+  return occurrence ? `${date} · ${occurrence.startTime}–${occurrence.endTime}` : date;
+}
+
+function safeTeacherReturnPath(value: string | null): string | null {
+  return value && value.startsWith("/teacher/") && !value.startsWith("//") ? value : null;
+}
 
 export default function ExamHubPage() {
   const params = useParams();
@@ -154,6 +207,7 @@ export default function ExamHubPage() {
   // Group context for intelligent back navigation
   const fromGroup = searchParams.get("from_group");
   const fromName = searchParams.get("from_name");
+  const returnTo = safeTeacherReturnPath(searchParams.get("return_to"));
 
   // State
   const [activeTab, setActiveTab] = useState<"lobby" | "tasks" | "analytics">("lobby");
@@ -171,7 +225,6 @@ export default function ExamHubPage() {
 
   // Tasks & Variants Tab State
   const [selectedVariant, setSelectedVariant] = useState(1);
-  const [expandedTask, setExpandedTask] = useState<string | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<DraftTask | null>(null);
   const [alternatives, setAlternatives] = useState<Alternative[]>([]);
   const [altLoading, setAltLoading] = useState(false);
@@ -186,17 +239,27 @@ export default function ExamHubPage() {
   const [report, setReport] = useState<any | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
+  const [analyticsLoadError, setAnalyticsLoadError] = useState<string | null>(null);
+  const [isRetryingAnalytics, setIsRetryingAnalytics] = useState(false);
   const [reportStep, setReportStep] = useState<0 | 1 | 2 | 3>(0); // 0=idle, 1-3=generating steps
   const [studentActionMenu, setStudentActionMenu] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const menuBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const analyticsRequestIdRef = useRef(0);
 
   // Group Assignment & Quick Actions State
   const [groups, setGroups] = useState<Group[]>([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showDeliveryDecisionModal, setShowDeliveryDecisionModal] = useState(false);
+  const [showDeliveryCancellation, setShowDeliveryCancellation] = useState(false);
+  const [returnToDeliveryDecision, setReturnToDeliveryDecision] = useState(false);
+  const [deliveryCancellationReason, setDeliveryCancellationReason] = useState("");
+  const [deliveryCancellationError, setDeliveryCancellationError] = useState<string | null>(null);
   const [assignLoading, setAssignLoading] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [boundLesson, setBoundLesson] = useState<ScheduleOccurrence | null>(null);
 
   // ─── Fetch Initial Data ───────────────────────────────────────────────────
   const fetchExam = async () => {
@@ -222,9 +285,45 @@ export default function ExamHubPage() {
     orgApi.listGroups().then((res) => setGroups(Array.isArray(res) ? res : [])).catch(() => {});
   }, [examId]);
 
+  // A scheduled lesson is a concrete occurrence, not merely a group.  Read
+  // its current time and room from the schedule so a reschedule is reflected
+  // in the exam card without changing the immutable exam binding.
+  useEffect(() => {
+    let cancelled = false;
+    const groupId = exam?.group_id;
+    const lessonId = exam?.scheduled_lesson_id;
+    const lessonDate = exam?.scheduled_lesson_date;
+    if (!groupId || !lessonId || !lessonDate) {
+      setBoundLesson(null);
+      return;
+    }
+
+    orgApi.getScheduleOccurrences({ dateFrom: lessonDate, dateTo: lessonDate })
+      .then((items) => {
+        if (cancelled) return;
+        const occurrence = (Array.isArray(items) ? items : []).find(
+          (item) => item.id === lessonId && item.groupId === groupId && item.occurrenceDate === lessonDate,
+        );
+        setBoundLesson(occurrence || null);
+      })
+      .catch(() => {
+        if (!cancelled) setBoundLesson(null);
+      });
+
+    return () => { cancelled = true; };
+  }, [exam?.group_id, exam?.scheduled_lesson_id, exam?.scheduled_lesson_date]);
+
   // ─── Live Polling for Lobby & Active Exam ──────────────────────────────────
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
+
+    // Бумажный экзамен не имеет публичного лобби или веб-сессий учеников.
+    // Не опрашиваем online-маршрут: это исключает ложные статусы и лишние запросы.
+    if (exam?.delivery_mode === "print") {
+      setLobbyStudents([]);
+      setTimeRemaining(null);
+      return;
+    }
 
     const pollStatus = async () => {
       try {
@@ -254,7 +353,7 @@ export default function ExamHubPage() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [examId, exam?.status]);
+  }, [examId, exam?.status, exam?.delivery_mode]);
 
   // ─── Local 1-second Countdown Ticker ──────────────────────────────────────
   useEffect(() => {
@@ -275,7 +374,9 @@ export default function ExamHubPage() {
 
   // ─── Background Scroll Lock When Any Modal Is Open ────────────────────────
   useEffect(() => {
-    const isAnyModalOpen = Boolean(replaceTarget || showQrModal || showAssignModal || showScheduleModal);
+    const isAnyModalOpen = Boolean(
+      replaceTarget || showQrModal || showAssignModal || showScheduleModal || showDeliveryDecisionModal,
+    );
     if (isAnyModalOpen) {
       const originalBodyOverflow = document.body.style.overflow;
       const originalHtmlOverflow = document.documentElement.style.overflow;
@@ -286,22 +387,82 @@ export default function ExamHubPage() {
         document.documentElement.style.overflow = originalHtmlOverflow;
       };
     }
-  }, [replaceTarget, showQrModal, showAssignModal, showScheduleModal]);
+  }, [replaceTarget, showQrModal, showAssignModal, showScheduleModal, showDeliveryDecisionModal]);
 
   // ─── Load Analytics on Tab Switch ─────────────────────────────────────────
-  useEffect(() => {
-    if (activeTab === "analytics") {
-      Promise.all([
-        examsApi.getSessions(examId).catch(() => []),
-        examsApi.getAnalytics(examId).catch(() => null),
-        examsApi.getReport(examId).catch(() => null),
-      ]).then(([sData, aData, rData]) => {
-        setSessions(Array.isArray(sData) ? sData : []);
-        setAnalytics(aData);
-        setReport(rData);
-      });
+  // A printed exam has no web answer sessions. It therefore must not request
+  // or expose online analytics before a separate manual-marking workflow exists.
+  const loadAnalytics = useCallback(async (isManualRetry = false) => {
+    if (activeTab !== "analytics" || exam?.delivery_mode === "print") return;
+
+    // A new request invalidates all previous responses. This is especially
+    // important when a teacher clicks «Повторить» while the first request is
+    // still completing: an old failure must not overwrite new data.
+    const requestId = analyticsRequestIdRef.current + 1;
+    analyticsRequestIdRef.current = requestId;
+    setAnalyticsLoadError(null);
+    setReportError(null);
+    if (isManualRetry) setIsRetryingAnalytics(true);
+
+    try {
+      // A report is optional and exists only after an exam is finished. Its
+      // expected 404 must not make valid results look like a failed refresh.
+      const [sData, aData] = await Promise.all([
+        examsApi.getSessions(examId),
+        examsApi.getAnalytics(examId),
+      ]);
+      if (analyticsRequestIdRef.current !== requestId) return;
+
+      const nextSessions = Array.isArray(sData) ? sData : [];
+      setSessions(nextSessions);
+      setAnalytics(aData);
+      setReport(null);
+
+      const canHaveReport = ["closed", "archived"].includes(exam?.status || "")
+        && nextSessions.some((session) => session.status === "submitted");
+      if (!canHaveReport) return;
+
+      try {
+        const reportData = await examsApi.getReport(examId);
+        if (analyticsRequestIdRef.current === requestId) setReport(reportData);
+      } catch (reportLoadError: any) {
+        // A 404 only means that the optional narrative report has not yet
+        // been generated. It is not an error in sessions or analytics.
+        if (analyticsRequestIdRef.current === requestId && reportLoadError?.status !== 404) {
+          setReportError(getDataLoadErrorMessage(reportLoadError));
+        }
+      }
+    } catch (error) {
+      if (analyticsRequestIdRef.current === requestId) {
+        setAnalyticsLoadError(getDataLoadErrorMessage(error));
+      }
+    } finally {
+      if (analyticsRequestIdRef.current === requestId) {
+        setIsRetryingAnalytics(false);
+      }
     }
-  }, [activeTab, examId]);
+  }, [activeTab, exam?.delivery_mode, exam?.status, examId]);
+
+  useEffect(() => {
+    void loadAnalytics();
+    return () => {
+      // Do not let a request from a previous tab or exam update this screen.
+      analyticsRequestIdRef.current += 1;
+    };
+  }, [loadAnalytics]);
+
+  const handleRetryAnalytics = useCallback(() => {
+    void loadAnalytics(true);
+  }, [loadAnalytics]);
+
+  // Guard against a stale client state after an exam is prepared for print.
+  // The only operational tabs for this delivery mode are the print package and
+  // its fixed tasks/variants.
+  useEffect(() => {
+    if (exam?.delivery_mode === "print" && activeTab === "analytics") {
+      setActiveTab("lobby");
+    }
+  }, [activeTab, exam?.delivery_mode]);
 
   // ─── Handlers ─────────────────────────────────────────────────────────────
 
@@ -326,10 +487,15 @@ export default function ExamHubPage() {
   const handleClone = async () => {
     try {
       const res = await examsApi.clone(examId);
-      router.push(`/teacher/exams/${res.exam_id}`);
+      router.push(`/teacher/exams/${res.exam_id}/draft?return_to=${encodeURIComponent(backHref)}`);
     } catch (err: any) {
       alert("Не удалось скопировать экзамен: " + (err.message || ""));
     }
+  };
+
+  const handleRename = async (title: string) => {
+    const result = await examsApi.rename(examId, title);
+    setExam((previous) => previous ? { ...previous, title: result.title } : previous);
   };
 
   const handlePin = async () => {
@@ -372,11 +538,60 @@ export default function ExamHubPage() {
     setShowScheduleModal(true);
   };
 
+  const closeDeliveryDecisionModal = () => {
+    if (actionLoading) return;
+    setShowDeliveryDecisionModal(false);
+    setShowDeliveryCancellation(false);
+    setReturnToDeliveryDecision(false);
+    setDeliveryCancellationError(null);
+    setDeliveryCancellationReason("");
+  };
+
+  const handleCancelDelivery = async () => {
+    const reason = deliveryCancellationReason.trim();
+    if (reason.length < 3) {
+      setDeliveryCancellationError("Укажите короткую причину отмены проведения.");
+      return;
+    }
+    setActionLoading(true);
+    setDeliveryCancellationError(null);
+    try {
+      const result = await examsApi.cancelDelivery(examId, { reason });
+      setExam((previous) => previous ? {
+        ...previous,
+        status: result.status,
+        access_code: null,
+        scheduled_lesson_id: null,
+        scheduled_lesson_date: null,
+        print_package: previous.print_package
+          ? { ...previous.print_package, status: "voided" }
+          : previous.print_package,
+      } : previous);
+      setShowDeliveryCancellation(false);
+      setShowDeliveryDecisionModal(false);
+      setDeliveryCancellationReason("");
+      setActiveTab("lobby");
+    } catch (err: any) {
+      setDeliveryCancellationError(err.message || "Не удалось отменить проведение экзамена");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleStartLive = async () => {
     setActionLoading(true);
     try {
-      await examsApi.startLive(examId);
-      setExam((prev) => (prev ? { ...prev, status: "active" } : null));
+      if (exam?.delivery_mode === "print") {
+        const result = await examsApi.startPrintPackage(examId);
+        setExam((prev) => (prev ? {
+          ...prev,
+          status: result.status,
+          print_package: result.print_package,
+        } : null));
+      } else {
+        await examsApi.startLive(examId);
+        setExam((prev) => (prev ? { ...prev, status: "active" } : null));
+      }
     } catch (err: any) {
       alert("Ошибка при запуске экзамена: " + (err.message || ""));
     } finally {
@@ -530,14 +745,28 @@ export default function ExamHubPage() {
     return exam.variants.find((v) => v.variant_number === selectedVariant) || exam.variants[0];
   }, [exam, selectedVariant]);
 
+  // This is intentionally shared in behaviour with the draft editor and the
+  // PDF package builder.  A task number is a visible identity, so it cannot
+  // depend on whether the teacher is looking at a flat card list or a PDF.
+  const currentVariantSections = useMemo(
+    () => groupTasksIntoSections(currentVariantData?.tasks || []),
+    [currentVariantData]
+  );
+
   const hasOpenDistractors = useMemo(
     () => Object.values(showDistractors).some(Boolean),
     [showDistractors]
   );
 
   // Back link URL and Label
-  const backHref = fromGroup ? `/teacher/groups/${fromGroup}?tab=exams` : "/teacher/exams";
-  const backLabel = fromName ? `Назад в группу «${fromName}»` : fromGroup ? "Назад в группу" : "В библиотеку экзаменов";
+  const backHref = returnTo || (fromGroup ? `/teacher/groups/${fromGroup}?tab=exams` : "/teacher/exams");
+  const backLabel = returnTo?.startsWith("/teacher/groups/")
+    ? (fromName ? `Назад в группу «${fromName}»` : "Назад в группу")
+    : fromName
+    ? `Назад в группу «${fromName}»`
+    : fromGroup
+    ? "Назад в группу"
+    : "В библиотеку экзаменов";
 
   if (loading) {
     return (
@@ -577,6 +806,17 @@ export default function ExamHubPage() {
     : 0;
 
   const isDraft = !exam?.group_id || exam?.status === "draft" || exam?.status === "variants_ready";
+  const canRename = exam.status === "draft" || exam.status === "variants_ready";
+  const isPrintDelivery = exam.delivery_mode === "print";
+  const hasVoidedPrintPackage = exam.print_package?.status === "voided";
+  const hasUsablePrintPackage = Boolean(exam.print_package && !hasVoidedPrintPackage);
+  const isPastUnstartedDelivery = Boolean(
+    exam.scheduled_lesson_date
+    && ["lobby", "print_ready"].includes(exam.status)
+    && exam.scheduled_lesson_date < formatBusinessDate(),
+  );
+  const boundLessonLabel = formatBoundLessonLabel(exam.scheduled_lesson_date, boundLesson);
+  const boundLessonRoom = boundLesson && (boundLesson.format === "online" ? "Онлайн" : boundLesson.room || "Кабинет не указан");
 
   return (
     <div className="w-full max-w-[1400px] mx-auto space-y-6">
@@ -603,6 +843,7 @@ export default function ExamHubPage() {
               "h-1.5 w-full",
               (!exam.group_id || exam.status === "draft") && "bg-gradient-to-r from-slate-400 via-slate-500 to-slate-600",
               exam.group_id && exam.status === "variants_ready" && "bg-gradient-to-r from-blue-500 via-indigo-500 to-primary-600",
+              exam.status === "print_ready" && "bg-gradient-to-r from-violet-500 via-purple-500 to-primary-600",
               exam.group_id && exam.status === "lobby" && "bg-amber-400",
               exam.group_id && exam.status === "active" && "bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-600",
               exam.status === "closed" && "bg-gradient-to-r from-rose-400 via-pink-500 to-rose-600"
@@ -620,7 +861,7 @@ export default function ExamHubPage() {
 
               <div className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight leading-tight">
+                  <h1 className="text-xl sm:text-[1.7rem] font-medium text-slate-800 tracking-[-0.02em] leading-snug">
                     {exam.title}
                   </h1>
                   {exam.is_pinned && (
@@ -640,16 +881,16 @@ export default function ExamHubPage() {
                     isDraft ? (
                       <button
                         type="button"
-                        onClick={() => setShowAssignModal(true)}
+                        onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
                         title="Нажмите, чтобы сменить группу"
-                        className="px-3 py-1 rounded-xl font-bold bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 border border-indigo-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
+                        className="px-3 py-1 rounded-xl font-medium bg-indigo-50 hover:bg-indigo-100/80 text-indigo-600 border border-indigo-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <Users className="w-3.5 h-3.5" />
                         {exam.group_name}
                         <Edit3 className="w-3 h-3 opacity-60 ml-0.5" />
                       </button>
                     ) : (
-                      <span className="px-3 py-1 rounded-xl font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80 flex items-center gap-1.5">
+                      <span className="px-3 py-1 rounded-xl font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/80 flex items-center gap-1.5">
                         <Users className="w-3.5 h-3.5" />
                         {exam.group_name}
                       </span>
@@ -657,7 +898,7 @@ export default function ExamHubPage() {
                   ) : isDraft ? (
                     <button
                       type="button"
-                      onClick={() => setShowAssignModal(true)}
+                      onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
                       className="px-3 py-1 rounded-xl font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 flex items-center gap-1.5 transition-colors cursor-pointer"
                     >
                       <Users className="w-3.5 h-3.5" />
@@ -665,45 +906,56 @@ export default function ExamHubPage() {
                     </button>
                   ) : null}
 
-                  {/* Status badge */}
-                  <span
-                    className={cn(
-                      "px-3 py-1 rounded-xl font-bold flex items-center gap-1.5 border",
-                      (!exam.group_id || exam.status === "draft") && "bg-slate-100 text-slate-700 border-slate-200",
-                      exam.group_id && exam.status === "variants_ready" && "bg-blue-50 text-blue-700 border-blue-200",
-                      exam.group_id && exam.status === "lobby" && "bg-amber-50 text-amber-900 border-amber-200",
-                      exam.group_id && exam.status === "active" && "bg-emerald-50 text-emerald-800 border-emerald-200",
-                      exam.status === "closed" && "bg-rose-50 text-rose-800 border-rose-200"
-                    )}
-                  >
+                  {boundLessonLabel && (
                     <span
-                      className={cn(
-                        "w-2 h-2 rounded-full shrink-0",
-                        (!exam.group_id || exam.status === "draft") && "bg-slate-500",
-                        exam.group_id && exam.status === "variants_ready" && "bg-blue-500",
-                        exam.group_id && exam.status === "lobby" && "bg-amber-500 animate-pulse",
-                        exam.group_id && exam.status === "active" && "bg-emerald-500 animate-ping",
-                        exam.status === "closed" && "bg-rose-500"
-                      )}
-                    />
-                    {!exam.group_id
-                      ? "Шаблон (без группы)"
-                      : exam.status === "draft"
-                      ? "Черновик"
-                      : exam.status === "variants_ready"
-                      ? "Готов к запуску"
-                      : exam.status === "lobby"
-                      ? "В комнате ожидания (Лобби)"
-                      : exam.status === "active"
-                      ? "Идёт экзамен (Активен)"
-                      : "Завершён"}
-                  </span>
+                      title={boundLessonRoom ? `Занятие: ${boundLessonLabel} · ${boundLessonRoom}` : `Занятие: ${boundLessonLabel}`}
+                      className="px-3 py-1 rounded-xl font-medium bg-violet-50 text-violet-700 border border-violet-200/80 flex items-center gap-1.5"
+                    >
+                      <CalendarDays className="w-3.5 h-3.5" />
+                      На урок: {boundLessonLabel}
+                    </span>
+                  )}
 
-                  {/* Variants & Tasks count */}
-                  <span className="px-3 py-1 rounded-xl font-medium bg-slate-100/90 text-slate-600 border border-slate-200/70 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-slate-400" />
-                    {exam.variants?.length || 1} вар. · {exam.tasks_per_variant || exam.variants?.[0]?.tasks?.length || 0} зад.
-                  </span>
+                  {/* Operational status and task counts stay in the online
+                      header.  A print package has its dedicated workspace
+                      below, so duplicating those controls here is noise. */}
+                  {!isPrintDelivery && (
+                    <>
+                      <span
+                        className={cn(
+                          "px-3 py-1 rounded-xl font-medium flex items-center gap-1.5 border",
+                          (!exam.group_id || exam.status === "draft") && "bg-slate-100 text-slate-700 border-slate-200",
+                          exam.group_id && exam.status === "variants_ready" && "bg-blue-50 text-blue-700 border-blue-200",
+                          exam.group_id && exam.status === "lobby" && "bg-amber-50 text-amber-900 border-amber-200",
+                          exam.group_id && exam.status === "active" && "bg-emerald-50 text-emerald-800 border-emerald-200",
+                          exam.status === "closed" && "bg-rose-50 text-rose-800 border-rose-200"
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            "w-2 h-2 rounded-full shrink-0",
+                            (!exam.group_id || exam.status === "draft") && "bg-slate-500",
+                            exam.group_id && exam.status === "variants_ready" && "bg-blue-500",
+                            exam.group_id && exam.status === "lobby" && "bg-amber-500 animate-pulse",
+                            exam.group_id && exam.status === "active" && "bg-emerald-500 animate-ping",
+                            exam.status === "closed" && "bg-rose-500"
+                          )}
+                        />
+                        {!exam.group_id
+                          ? "Шаблон (без группы)"
+                          : exam.status === "draft"
+                          ? "Черновик"
+                          : exam.status === "variants_ready"
+                          ? "Готов к запуску"
+                          : exam.status === "lobby"
+                          ? "В комнате ожидания (Лобби)"
+                          : exam.status === "active"
+                          ? "Идёт экзамен (Активен)"
+                          : "Завершён"}
+                      </span>
+
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -714,15 +966,15 @@ export default function ExamHubPage() {
                 <Button
                   variant="primary"
                   size="md"
-                  onClick={() => setShowAssignModal(true)}
-                  icon={<Users className="w-4 h-4" />}
+                  onClick={() => isPrintDelivery && hasVoidedPrintPackage ? handleClone() : isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
+                  icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Users className="w-4 h-4" />}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-sm"
                 >
-                  Привязать группу
+                  {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию" : isPrintDelivery ? "Подготовить печатный комплект" : "Привязать группу"}
                 </Button>
               ) : (
                 <>
-                  {exam.access_code && ["lobby", "active"].includes(exam.status) && (
+                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
                     <Button
                       variant="secondary"
                       size="md"
@@ -744,7 +996,7 @@ export default function ExamHubPage() {
                     </Button>
                   )}
 
-                  {exam.status === "lobby" && (
+                  {exam.status === "lobby" && !isPastUnstartedDelivery && (
                     <Button
                       variant="primary"
                       size="md"
@@ -766,7 +1018,20 @@ export default function ExamHubPage() {
                       icon={<StopCircle className="w-4 h-4 text-rose-600" />}
                       className="text-rose-700 hover:bg-rose-50 border-rose-200 font-bold"
                     >
-                      Завершить экзамен
+                      {isPrintDelivery ? "Завершить экзамен на бумаге" : "Завершить экзамен"}
+                    </Button>
+                  )}
+
+                  {isPrintDelivery && exam.status === "print_ready" && !isPastUnstartedDelivery && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      loading={actionLoading}
+                      onClick={handleStartLive}
+                      icon={<Play className="w-4 h-4 fill-white" />}
+                      className="shadow-md shadow-primary-500/20 font-bold"
+                    >
+                      Начать на бумаге
                     </Button>
                   )}
 
@@ -775,11 +1040,11 @@ export default function ExamHubPage() {
                       variant="primary"
                       size="md"
                       loading={actionLoading}
-                      onClick={handleOpenLobby}
-                      icon={<Radio className="w-4 h-4" />}
+                      onClick={isPrintDelivery && hasVoidedPrintPackage ? handleClone : handleOpenLobby}
+                      icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Radio className="w-4 h-4" />}
                       className="shadow-md shadow-primary-500/20 font-bold"
                     >
-                      Открыть лобби
+                      {isPrintDelivery && hasVoidedPrintPackage ? "Создать копию для занятия" : isPrintDelivery ? "Подготовить печатный комплект" : "Открыть лобби"}
                     </Button>
                   )}
                 </>
@@ -808,26 +1073,56 @@ export default function ExamHubPage() {
                           type="button"
                           onClick={() => {
                             setHeaderMenuOpen(false);
-                            setShowAssignModal(true);
+                            if (isPrintDelivery) {
+                              if (hasVoidedPrintPackage) {
+                                handleClone();
+                              } else {
+                                setShowScheduleModal(true);
+                              }
+                            } else {
+                              setShowAssignModal(true);
+                            }
                           }}
                           className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
                         >
-                          <Users className="w-4 h-4 text-indigo-500" />
-                          {exam.group_id ? "Сменить группу" : "Привязать к группе"}
+                          {isPrintDelivery ? <FileText className="w-4 h-4 text-indigo-500" /> : <Users className="w-4 h-4 text-indigo-500" />}
+                          {isPrintDelivery
+                            ? hasVoidedPrintPackage
+                              ? "Создать копию для занятия"
+                              : "Подготовить печатный комплект"
+                            : exam.group_id
+                            ? "Сменить группу"
+                            : "Привязать к группе"}
                         </button>
                       )}
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setHeaderMenuOpen(false);
-                          handleClone();
-                        }}
-                        className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium flex items-center gap-2.5 transition-colors cursor-pointer"
-                      >
-                        <Copy className="w-4 h-4 text-slate-400" />
-                        Создать копию (клон)
-                      </button>
+                      {canRename && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setShowRenameModal(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Edit3 className="w-4 h-4 text-primary-500" />
+                          Изменить название
+                        </button>
+                      )}
+
+                      {exam.status !== "archived" && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            handleClone();
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-slate-50 hover:text-slate-900 font-medium flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Copy className="w-4 h-4 text-slate-400" />
+                          Создать копию (клон)
+                        </button>
+                      )}
 
                       <button
                         type="button"
@@ -899,6 +1194,42 @@ export default function ExamHubPage() {
         </div>
       </motion.div>
 
+      {isPastUnstartedDelivery && (
+        <section className="overflow-hidden rounded-3xl border border-amber-200 bg-amber-50/70 p-5 shadow-2xs">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 flex-1 gap-3.5">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-amber-950">Проведение не состоялось</p>
+                <p className="mt-1 max-w-none text-[15px] leading-6 text-amber-900/85">
+                  {isPrintDelivery
+                    ? "Назначенное занятие уже прошло. Печатный комплект нельзя переназначить: сначала аннулируйте его, затем создайте копию экзамена для нового урока."
+                    : "Назначенное занятие уже прошло, а экзамен не был запущен. Перенесите его на конкретный следующий урок — старый код доступа будет закрыт и создан новый — либо отмените проведение."}
+                </p>
+              </div>
+            </div>
+            <div className="shrink-0 self-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeliveryCancellation(false);
+                  setReturnToDeliveryDecision(false);
+                  setDeliveryCancellationError(null);
+                  setDeliveryCancellationReason("");
+                  setShowDeliveryDecisionModal(true);
+                }}
+                aria-haspopup="dialog"
+                className="inline-flex items-center justify-center rounded-xl border border-amber-300 bg-white px-4 py-2 text-xs font-semibold text-amber-900 shadow-sm transition-colors hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2"
+              >
+                Принять решение
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* ─── Centered Navigation Tabs Bar (Outside Header Card) ─── */}
       <div className="flex items-center justify-center">
         <div className="flex items-center gap-1.5 sm:gap-2 bg-slate-100/90 rounded-2xl p-1.5 border border-slate-200/60 shadow-2xs overflow-x-auto max-w-full">
@@ -912,8 +1243,8 @@ export default function ExamHubPage() {
             )}
           >
             <Radio className={cn("w-4 h-4", activeTab === "lobby" ? "text-primary-600" : "text-slate-400")} />
-            <span>Лобби / Live Комната</span>
-            {totalConnected > 0 && (
+            <span>{isPrintDelivery ? "Печатный комплект" : "Лобби / Live Комната"}</span>
+            {!isPrintDelivery && totalConnected > 0 && (
               <span className="px-2 py-0.5 rounded-full text-xs bg-primary-100 text-primary-700 font-extrabold">
                 {totalConnected}
               </span>
@@ -933,23 +1264,25 @@ export default function ExamHubPage() {
             <span>Задания и Варианты</span>
           </button>
 
-          <button
-            onClick={() => setActiveTab("analytics")}
-            className={cn(
-              "flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
-              activeTab === "analytics"
-                ? "bg-white text-slate-900 shadow-xs"
-                : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
-            )}
-          >
-            <BarChart3 className={cn("w-4 h-4", activeTab === "analytics" ? "text-primary-600" : "text-slate-400")} />
-            <span>Результаты и Аналитика</span>
-            {submittedCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-bold">
-                {submittedCount} сдали
-              </span>
-            )}
-          </button>
+          {!isPrintDelivery && (
+            <button
+              onClick={() => setActiveTab("analytics")}
+              className={cn(
+                "flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer whitespace-nowrap",
+                activeTab === "analytics"
+                  ? "bg-white text-slate-900 shadow-xs"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              )}
+            >
+              <BarChart3 className={cn("w-4 h-4", activeTab === "analytics" ? "text-primary-600" : "text-slate-400")} />
+              <span>Результаты и Аналитика</span>
+              {submittedCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-800 font-bold">
+                  {submittedCount} сдали
+                </span>
+              )}
+            </button>
+          )}
         </div>
       </div>
 
@@ -957,6 +1290,108 @@ export default function ExamHubPage() {
       {/* TAB 1: KAHOOT-STYLE LIVE LOBBY & CLASSROOM SCREEN */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {activeTab === "lobby" && (
+        isPrintDelivery ? (
+          <div className="space-y-6">
+            <div className="relative overflow-hidden rounded-3xl border border-violet-200/80 bg-gradient-to-br from-violet-50 via-white to-indigo-50 p-6 md:p-8 shadow-2xs">
+              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-violet-200/30 blur-2xl pointer-events-none" />
+              <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-start gap-4 max-w-2xl">
+                  <div className="w-14 h-14 shrink-0 rounded-2xl bg-violet-600 text-white shadow-md shadow-violet-500/25 flex items-center justify-center">
+                    <FileText className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Печатный комплект</p>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
+                      {exam.status === "print_ready"
+                        ? "Бланки и ключ готовы к занятию"
+                        : exam.status === "active"
+                        ? "Экзамен проводится на бумаге"
+                        : exam.status === "closed"
+                        ? "Печатный экзамен завершён"
+                        : hasVoidedPrintPackage
+                        ? "Печатный комплект аннулирован"
+                        : "Сначала подготовьте комплект для конкретного занятия"}
+                    </h2>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600">
+                      Закрытые задания выводятся с вариантами и единым листом ответов для отметок. Для открытых заданий в бланке фиксируются отдельные поля ответа и место для решения.
+                    </p>
+                  </div>
+                </div>
+
+                {hasUsablePrintPackage ? (
+                  <div className="flex flex-wrap gap-2.5 shrink-0">
+                    <Button
+                      variant="primary"
+                      icon={<Download className="w-4 h-4" />}
+                      onClick={() => examsApi.downloadStudentPrintPdf(examId, 1)}
+                      className="font-bold shadow-sm shadow-primary-500/20"
+                    >
+                      Скачать бланк PDF
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      icon={<FileText className="w-4 h-4" />}
+                      onClick={() => examsApi.downloadTeacherPrintKey(examId, 1)}
+                    >
+                      Ключ преподавателя
+                    </Button>
+                  </div>
+                ) : hasVoidedPrintPackage ? (
+                  <Button
+                    variant="primary"
+                    icon={<Copy className="w-4 h-4" />}
+                    onClick={handleClone}
+                    className="font-bold shadow-sm shadow-primary-500/20 shrink-0"
+                  >
+                    Создать копию для занятия
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    icon={<FileText className="w-4 h-4" />}
+                    onClick={handleOpenLobby}
+                    className="font-bold shadow-sm shadow-primary-500/20 shrink-0"
+                  >
+                    Выбрать занятие
+                  </Button>
+                )}
+              </div>
+
+              {hasUsablePrintPackage && exam.print_package?.snapshot_sha256 && (
+                <div className="relative mt-6 border-t border-violet-200/70 pt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  Содержимое зафиксировано в версии {exam.print_package.version}; изменения исходных заданий на комплект не влияют.
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Формат</p>
+                <p className="mt-2 text-base font-bold text-slate-900">Бумажный экзамен</p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">Без ссылок, лобби и веб-сессий учеников.</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Привязка</p>
+                <p className="mt-2 text-base font-bold text-slate-900">{exam.group_name || "Группа не выбрана"}</p>
+                {boundLessonLabel ? (
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Урок: {boundLessonLabel}{boundLessonRoom ? ` · ${boundLessonRoom}` : ""}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">Комплект выпускается только для одного фактического занятия.</p>
+                )}
+              </div>
+              <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Статус</p>
+                <p className="mt-2 text-base font-bold text-slate-900">
+                  {exam.status === "print_ready" ? "Готов к печати" : exam.status === "active" ? "В проведении" : exam.status === "closed" ? "Завершён" : "Требует подготовки"}
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-slate-500">Запуск и завершение фиксируют фактическое проведение урока.</p>
+              </div>
+            </div>
+          </div>
+        ) : (
         <div className="space-y-6">
           {!exam.group_id && (
             <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200/90 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
@@ -974,11 +1409,11 @@ export default function ExamHubPage() {
               <Button
                 size="sm"
                 variant="primary"
-                onClick={() => setShowAssignModal(true)}
-                icon={<Users className="w-4 h-4" />}
+                onClick={() => isPrintDelivery ? setShowScheduleModal(true) : setShowAssignModal(true)}
+                icon={isPrintDelivery ? <FileText className="w-4 h-4" /> : <Users className="w-4 h-4" />}
                 className="shrink-0 font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
               >
-                Привязать к группе
+                {isPrintDelivery ? "Подготовить печатный комплект" : "Привязать к группе"}
               </Button>
             </div>
           )}
@@ -1172,6 +1607,7 @@ export default function ExamHubPage() {
             )}
           </div>
         </div>
+        )
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════ */}
@@ -1235,146 +1671,161 @@ export default function ExamHubPage() {
           </div>
 
           {/* Tasks List for Selected Variant */}
-          {currentVariantData?.tasks && currentVariantData.tasks.length > 0 ? (
+          {currentVariantSections.length > 0 ? (
             <div className="space-y-4">
-              {currentVariantData.tasks.map((t, idx) => {
-                const isExpanded = expandedTask === t.task_id;
-                const showDist = showDistractors[t.task_id] ?? false;
+              {currentVariantSections.map((section, sectionIndex) => {
+                const ordinalOffset = currentVariantSections
+                  .slice(0, sectionIndex)
+                  .reduce((sum, previous) => sum + previous.tasks.length, 0);
 
                 return (
-                  <GlassCard key={t.task_id || idx} variant="default" className="p-5 md:p-6 transition-all hover:border-slate-300">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="w-8 h-8 rounded-xl bg-slate-100 font-extrabold text-xs text-slate-700 flex items-center justify-center shrink-0">
-                          #{idx + 1}
-                        </span>
-                        <div>
-                          <span
-                            className={cn(
-                              "px-2 py-0.5 rounded-md text-[11px] font-bold mr-2",
-                              diffColors[t.difficulty] || diffColors.B
-                            )}
-                          >
-                            Уровень {t.difficulty}
-                          </span>
-                          <span className="text-xs font-medium text-slate-500">{t.skill_name || "Математика"}</span>
-                        </div>
+                  <section key={section.name} className="space-y-3">
+                    <div className="flex items-end justify-between gap-4 px-1 pt-2 border-b border-slate-200 pb-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-bold tracking-[0.16em] text-primary-600 uppercase">
+                          Раздел {String(sectionIndex + 1).padStart(2, "0")}
+                        </p>
+                        <h3 className="mt-1 text-base font-bold text-slate-900 truncate">{section.name}</h3>
                       </div>
-
-                      {/* Replace task action */}
-                      <Button
-                        variant={isDraft ? "secondary" : "ghost"}
-                        size="sm"
-                        onClick={() => handleOpenReplace(t)}
-                        icon={<Shuffle className="w-3.5 h-3.5" />}
-                        className={!isDraft ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80" : ""}
-                      >
-                        {isDraft ? "Заменить задачу" : "Альтернативы"}
-                      </Button>
+                      <span className="text-xs font-semibold text-slate-400 shrink-0">
+                        {section.tasks.length} {taskCountLabel(section.tasks.length)}
+                      </span>
                     </div>
 
-                    {/* Task Content */}
-                    <div className="my-4 text-slate-900 leading-relaxed text-base">
-                      <MathRenderer text={pickTaskDisplayText(t)} />
-                    </div>
+                    {section.tasks.map((t, taskIndex) => {
+                      const showDist = showDistractors[t.task_id] ?? false;
+                      const taskOrdinal = ordinalOffset + taskIndex + 1;
 
-                    {/* Optional Figure Drawer */}
-                    {t.question_image_url && (
-                      <div className="my-3 max-w-sm rounded-xl overflow-hidden border border-slate-200">
-                        <img src={t.question_image_url} alt="Задание" className="w-full object-contain max-h-56" />
-                      </div>
-                    )}
-
-                    {/* Correct Answer (shown when showAnswers toggle is active) */}
-                    <AnimatePresence>
-                      {showAnswers && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="my-3 overflow-hidden"
-                        >
-                          <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
-                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
-                            <span className="text-xs font-semibold text-emerald-800">Правильный ответ:</span>
-                            <span className="text-sm sm:text-base font-medium text-emerald-950">
-                              <MathRenderer text={pickAnswerDisplayText(t.correct_answer, t.correct_answer_latex)} />
-                            </span>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* Distractors & Pedagogical Rationale Toggle */}
-                    {t.distractor_meta && t.distractor_meta.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-slate-100">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setShowDistractors((prev) => ({
-                              ...prev,
-                              [t.task_id]: !prev[t.task_id],
-                            }))
-                          }
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100/70 px-2.5 py-1.5 rounded-lg border border-indigo-200/60 transition-colors cursor-pointer"
-                        >
-                          {showDist ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          <span>{showDist ? "Скрыть анализ дистракторов" : `Анализ типичных ошибок (${t.distractor_meta.length})`}</span>
-                        </button>
-
-                        <AnimatePresence>
-                          {showDist && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="mt-3 overflow-hidden"
-                            >
-                              <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
-                                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 text-xs font-semibold text-slate-500">
-                                  <span>Типичные ошибки и логика учеников</span>
-                                  <span>{t.distractor_meta.length} вар.</span>
-                                </div>
-
-                                {t.distractor_meta.map((dm, dIdx) => (
-                                  <div
-                                    key={dIdx}
-                                    className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5"
-                                  >
-                                    {/* Top: Distractor Value & Error Tag */}
-                                    <div className="flex flex-wrap items-start justify-between gap-2">
-                                      <div className="flex items-start gap-2.5 flex-1 min-w-0">
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-700 text-xs font-semibold shrink-0 mt-0.5">
-                                          Вариант #{dIdx + 1}
-                                        </span>
-                                        <div className="text-sm sm:text-base font-medium text-slate-900 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
-                                          <MathRenderer text={pickAnswerDisplayText(dm.value, dm.value_latex)} />
-                                        </div>
-                                      </div>
-
-                                      {dm.error_type && !dm.error_type.startsWith("ai_") && dm.error_type !== "common_mistake" && (
-                                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-medium shrink-0 mt-0.5">
-                                          {formatErrorType(dm.error_type)}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Bottom: Explanation */}
-                                    {pickDistractorExplanation(dm) && (
-                                      <div className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50/60 p-3 rounded-xl border border-slate-100/90">
-                                        <span className="font-semibold text-slate-900">Причина ошибки: </span>
-                                        <MathRenderer text={pickDistractorExplanation(dm)} className="inline text-slate-700 text-xs sm:text-sm" />
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                      return (
+                        <GlassCard key={t.task_id || taskOrdinal} variant="default" className="p-5 md:p-6 transition-all hover:border-slate-300">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <span className="w-8 h-8 rounded-xl bg-slate-100 font-extrabold text-xs text-slate-700 flex items-center justify-center shrink-0">
+                                #{taskOrdinal}
+                              </span>
+                              <div>
+                                <span
+                                  className={cn(
+                                    "px-2 py-0.5 rounded-md text-[11px] font-bold mr-2",
+                                    diffColors[t.difficulty] || diffColors.B
+                                  )}
+                                >
+                                  Уровень {t.difficulty}
+                                </span>
+                                <span className="text-xs font-medium text-slate-500">{t.skill_name || "Математика"}</span>
                               </div>
-                            </motion.div>
+                            </div>
+
+                            <Button
+                              variant={isDraft ? "secondary" : "ghost"}
+                              size="sm"
+                              onClick={() => handleOpenReplace(t)}
+                              icon={<Shuffle className="w-3.5 h-3.5" />}
+                              className={!isDraft ? "text-slate-600 hover:text-slate-900 hover:bg-slate-100/80" : ""}
+                            >
+                              {isDraft ? "Заменить задачу" : "Альтернативы"}
+                            </Button>
+                          </div>
+
+                          <div className="my-4 text-slate-900 leading-relaxed text-base">
+                            <MathRenderer text={pickTaskDisplayText(t)} />
+                          </div>
+
+                          {t.question_image_url && (
+                            <div className="my-3 max-w-sm rounded-xl overflow-hidden border border-slate-200">
+                              <img src={t.question_image_url} alt="Задание" className="w-full object-contain max-h-56" />
+                            </div>
                           )}
-                        </AnimatePresence>
-                      </div>
-                    )}
-                  </GlassCard>
+
+                          <AnimatePresence>
+                            {showAnswers && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: "auto" }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="my-3 overflow-hidden"
+                              >
+                                <div className="inline-flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-900 border border-emerald-200/80 shadow-2xs max-w-full">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                                  <span className="text-xs font-semibold text-emerald-800">Правильный ответ:</span>
+                                  <span className="text-sm sm:text-base font-medium text-emerald-950">
+                                    <MathRenderer text={pickAnswerDisplayText(t.correct_answer, t.correct_answer_latex)} />
+                                  </span>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+
+                          {t.distractor_meta && t.distractor_meta.length > 0 && (
+                            <div className="mt-3 pt-3 border-t border-slate-100">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setShowDistractors((prev) => ({
+                                    ...prev,
+                                    [t.task_id]: !prev[t.task_id],
+                                  }))
+                                }
+                                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50/70 hover:bg-indigo-100/70 px-2.5 py-1.5 rounded-lg border border-indigo-200/60 transition-colors cursor-pointer"
+                              >
+                                {showDist ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                                <span>{showDist ? "Скрыть анализ дистракторов" : `Анализ типичных ошибок (${t.distractor_meta.length})`}</span>
+                              </button>
+
+                              <AnimatePresence>
+                                {showDist && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="mt-3 overflow-hidden"
+                                  >
+                                    <div className="bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5">
+                                      <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 text-xs font-semibold text-slate-500">
+                                        <span>Типичные ошибки и логика учеников</span>
+                                        <span>{t.distractor_meta.length} вар.</span>
+                                      </div>
+
+                                      {t.distractor_meta.map((dm, dIdx) => (
+                                        <div
+                                          key={dIdx}
+                                          className="bg-white p-3.5 rounded-xl border border-slate-200/90 shadow-2xs space-y-2.5"
+                                        >
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-700 text-xs font-semibold shrink-0 mt-0.5">
+                                                Вариант #{dIdx + 1}
+                                              </span>
+                                              <div className="text-sm sm:text-base font-medium text-slate-900 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
+                                                <MathRenderer text={pickAnswerDisplayText(dm.value, dm.value_latex)} />
+                                              </div>
+                                            </div>
+
+                                            {dm.error_type && !dm.error_type.startsWith("ai_") && dm.error_type !== "common_mistake" && (
+                                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200/70 text-amber-800 text-xs font-medium shrink-0 mt-0.5">
+                                                {formatErrorType(dm.error_type)}
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {pickDistractorExplanation(dm) && (
+                                            <div className="text-xs sm:text-sm text-slate-700 leading-relaxed bg-slate-50/60 p-3 rounded-xl border border-slate-100/90">
+                                              <span className="font-semibold text-slate-900">Причина ошибки: </span>
+                                              <MathRenderer text={pickDistractorExplanation(dm)} className="inline text-slate-700 text-xs sm:text-sm" />
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          )}
+                        </GlassCard>
+                      );
+                    })}
+                  </section>
                 );
               })}
             </div>
@@ -1389,8 +1840,18 @@ export default function ExamHubPage() {
       {/* ═══════════════════════════════════════════════════════════════════════ */}
       {/* TAB 3: RESULTS, SESSIONS & LLM NARRATIVE REPORT */}
       {/* ═══════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "analytics" && (
+      {!isPrintDelivery && activeTab === "analytics" && (
         <div className="space-y-6">
+          {analyticsLoadError && (
+            <DataLoadError
+              compact
+              title="Результаты экзамена не обновлены"
+              message={`${analyticsLoadError} Показаны последние успешно загруженные данные.`}
+              onRetry={handleRetryAnalytics}
+              isRetrying={isRetryingAnalytics}
+            />
+          )}
+
           {/* Summary KPIs */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <GlassCard variant="panel" className="p-5 text-center">
@@ -1651,7 +2112,7 @@ export default function ExamHubPage() {
       )}
 
       {/* ─── Student Action Menu Portal (renders outside table overflow) ─── */}
-      {studentActionMenu && menuAnchor && typeof document !== "undefined" && ReactDOM.createPortal(
+      {studentActionMenu && menuAnchor && typeof document !== "undefined" && createPortal(
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: -4 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -1846,14 +2307,216 @@ export default function ExamHubPage() {
         )}
       </AnimatePresence>
 
+      {/* ─── Resolution modal for an expired, unstarted delivery ───────────── */}
+      {showDeliveryDecisionModal && typeof document !== "undefined" && createPortal(
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[210] flex h-[100dvh] w-screen items-center justify-center overflow-y-auto p-4 sm:p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delivery-decision-title"
+          >
+            <button
+              type="button"
+              aria-label="Закрыть окно"
+              className="absolute inset-0 h-full w-full bg-slate-950/60 backdrop-blur-sm"
+              onClick={closeDeliveryDecisionModal}
+              disabled={actionLoading}
+            />
+            <motion.section
+              initial={{ opacity: 0, scale: 0.97, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 12 }}
+              transition={{ type: "spring", stiffness: 380, damping: 30 }}
+              className="relative z-10 my-auto w-full max-w-2xl overflow-hidden rounded-[28px] bg-white shadow-[0_32px_100px_rgba(15,23,42,0.35)] ring-1 ring-black/5"
+            >
+              <header className="relative overflow-hidden bg-gradient-to-br from-amber-500 via-amber-500 to-orange-500 px-6 py-6 text-white sm:px-7 sm:py-7">
+                <div className="pointer-events-none absolute -right-12 -top-14 h-40 w-40 rounded-full bg-white/15 blur-2xl" />
+                <button
+                  type="button"
+                  onClick={closeDeliveryDecisionModal}
+                  disabled={actionLoading}
+                  className="absolute right-5 top-5 z-20 rounded-xl p-2 text-white/85 transition-colors hover:bg-white/15 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Закрыть"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                <div className="relative flex items-center gap-3.5 pr-10">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 shadow-inner">
+                    {showDeliveryCancellation ? <X className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold tracking-wide text-white/70">
+                      {showDeliveryCancellation ? "ОТМЕНА ПРОВЕДЕНИЯ" : "ТРЕБУЕТСЯ РЕШЕНИЕ"}
+                    </p>
+                    <h2 id="delivery-decision-title" className="mt-1 truncate text-lg font-bold tracking-tight">
+                      {showDeliveryCancellation
+                        ? (isPrintDelivery ? "Аннулировать печатный комплект" : "Отменить экзамен")
+                        : "Как поступить с экзаменом?"}
+                    </h2>
+                  </div>
+                </div>
+              </header>
+
+              <div className="bg-gradient-to-b from-slate-50/80 via-white to-white p-6 sm:p-7">
+                {showDeliveryCancellation ? (
+                  <div className="space-y-5">
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                      <p className="text-sm font-semibold text-amber-950">Укажите причину отмены</p>
+                      <p className="mt-1 text-sm leading-6 text-amber-900/80">
+                        {isPrintDelivery
+                          ? "Комплект будет аннулирован. Чтобы провести этот экзамен в другой день, создайте его копию и назначьте на новое занятие."
+                          : "Доступ в лобби будет закрыт, а экзамен вернётся в черновики без привязки к группе и занятию."}
+                      </p>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600" htmlFor="delivery-cancellation-reason">
+                        Причина
+                      </label>
+                      <textarea
+                        id="delivery-cancellation-reason"
+                        value={deliveryCancellationReason}
+                        onChange={(event) => setDeliveryCancellationReason(event.target.value)}
+                        maxLength={500}
+                        rows={3}
+                        placeholder="Например: урок отменён, экзамен проведём на следующем занятии"
+                        className="mt-2 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 outline-none transition-colors placeholder:text-slate-400 focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+                      />
+                      {deliveryCancellationError && (
+                        <p className="mt-2 text-xs font-medium text-rose-700">{deliveryCancellationError}</p>
+                      )}
+                    </div>
+                    <footer className="flex flex-col-reverse gap-2 rounded-2xl bg-slate-50 p-2.5 sm:flex-row sm:items-center sm:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDeliveryCancellation(false);
+                          setDeliveryCancellationError(null);
+                          setDeliveryCancellationReason("");
+                        }}
+                        disabled={actionLoading}
+                        className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-white hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Назад к выбору
+                      </button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        loading={actionLoading}
+                        onClick={handleCancelDelivery}
+                        icon={<X className="h-4 w-4" />}
+                        className="px-4 py-2.5"
+                      >
+                        {isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
+                      </Button>
+                    </footer>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    <p className="max-w-xl text-sm leading-6 text-slate-600">
+                      Выберите, что сделать с экзаменом, который не был проведён в назначенное занятие.
+                    </p>
+                    <div className={cn("grid gap-3", isPrintDelivery ? "grid-cols-1" : "sm:grid-cols-2")}>
+                      {!isPrintDelivery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setReturnToDeliveryDecision(true);
+                            setShowDeliveryDecisionModal(false);
+                            setShowScheduleModal(true);
+                          }}
+                          className="group rounded-2xl border border-primary-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
+                        >
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-50 text-primary-700 transition-colors group-hover:bg-primary-100">
+                            <CalendarDays className="h-5 w-5" />
+                          </span>
+                          <p className="mt-3 text-sm font-semibold text-slate-900">Перенести экзамен</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            Выберите новое занятие. Прежний код закроется, а для нового урока будет создан новый.
+                          </p>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeliveryCancellationError(null);
+                          setShowDeliveryCancellation(true);
+                        }}
+                        className="group rounded-2xl border border-rose-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-rose-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
+                      >
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-700 transition-colors group-hover:bg-rose-100">
+                          <X className="h-5 w-5" />
+                        </span>
+                        <p className="mt-3 text-sm font-semibold text-slate-900">
+                          {isPrintDelivery ? "Аннулировать комплект" : "Отменить экзамен"}
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          {isPrintDelivery
+                            ? "Укажите причину. После этого можно создать копию для другого занятия."
+                            : "Укажите причину. Доступ закроется, а экзамен вернётся в черновики."}
+                        </p>
+                      </button>
+                    </div>
+                    <div className="flex justify-end border-t border-slate-100 pt-4">
+                      <button
+                        type="button"
+                        onClick={closeDeliveryDecisionModal}
+                        className="rounded-xl px-4 py-2.5 text-xs font-bold text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
+                      >
+                        Не сейчас
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.section>
+          </motion.div>,
+          document.body,
+        )}
+
       <AnimatePresence>
         {showScheduleModal && exam && (
           <ScheduleExamModal
             examTitle={exam.title}
             groups={groups}
             initialGroupId={exam.group_id}
-            onClose={() => setShowScheduleModal(false)}
+            deliveryMode={exam.delivery_mode}
+            intent={isPastUnstartedDelivery && !isPrintDelivery ? "reschedule" : "schedule"}
+            onClose={() => {
+              setShowScheduleModal(false);
+              if (returnToDeliveryDecision) {
+                setReturnToDeliveryDecision(false);
+                setShowDeliveryCancellation(false);
+                setDeliveryCancellationError(null);
+                setShowDeliveryDecisionModal(true);
+              }
+            }}
             onSubmit={async ({ group, occurrence }) => {
+              if (exam.delivery_mode === "print") {
+                const result = await examsApi.preparePrintPackage(examId, {
+                  group_id: group.id,
+                  lesson_id: occurrence.id,
+                  lesson_date: occurrence.occurrenceDate,
+                });
+                setExam((previous) => previous ? {
+                  ...previous,
+                  status: result.status,
+                  group_id: result.group_id,
+                  group_name: result.group_name || group.name,
+                  scheduled_lesson_id: result.scheduled_lesson_id,
+                  scheduled_lesson_date: result.scheduled_lesson_date,
+                  print_package: result.print_package,
+                } : previous);
+                setReturnToDeliveryDecision(false);
+                setShowScheduleModal(false);
+                setActiveTab("lobby");
+                return;
+              }
+
               const result = await examsApi.assign(examId, {
                 group_id: group.id,
                 publish: true,
@@ -1869,12 +2532,20 @@ export default function ExamHubPage() {
                 scheduled_lesson_id: result.scheduled_lesson_id,
                 scheduled_lesson_date: result.scheduled_lesson_date,
               } : previous);
+              setReturnToDeliveryDecision(false);
               setShowScheduleModal(false);
               setActiveTab("lobby");
             }}
           />
         )}
       </AnimatePresence>
+
+      <RenameExamModal
+        open={showRenameModal}
+        currentTitle={exam.title}
+        onClose={() => setShowRenameModal(false)}
+        onSave={handleRename}
+      />
 
       {/* ─── Assign / Switch Group Modal ─── */}
       <AnimatePresence>

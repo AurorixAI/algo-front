@@ -254,7 +254,9 @@ export default function ExamReportPage() {
 
       const [examData, sessionsData] = await Promise.all([
         examsApi.getDraft(examId),
-        examsApi.getSessions(examId).catch(() => []),
+        // A missing sessions response is not the same thing as zero attempts.
+        // Let the page show its existing retryable error state instead.
+        examsApi.getSessions(examId),
       ]);
       setExam(examData);
       setSessions(sessionsData || []);

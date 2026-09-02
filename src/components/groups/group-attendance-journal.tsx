@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
 import {
   AlertCircle,
@@ -33,6 +33,12 @@ interface GroupAttendanceJournalProps {
 }
 
 type ViewMode = "week" | "month";
+type AttendanceMenuPlacement = "up" | "down";
+type OpenAttendanceCell = {
+  studentId: string;
+  lessonKey: string;
+  placement: AttendanceMenuPlacement;
+};
 type MembershipEvent = NonNullable<GroupAttendance["membershipEvents"]>[number];
 type DiagnosticReportNotice = NonNullable<GroupAttendance["diagnosticReportNotices"]>[number];
 type AttendanceJournalStudent = StudentInGroup & {
@@ -172,8 +178,10 @@ export function GroupAttendanceJournal({
   const [localRecords, setLocalRecords] = useState<Record<string, Record<string, AttendanceStatus>>>({});
   const [loading, setLoading] = useState(true);
   const [savingLessonKey, setSavingLessonKey] = useState<string | null>(null);
-  const [openCell, setOpenCell] = useState<{ studentId: string; lessonKey: string } | null>(null);
+  const [openCell, setOpenCell] = useState<OpenAttendanceCell | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const journalScrollRef = useRef<HTMLDivElement | null>(null);
+  const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
   const today = formatBusinessDate();
   const period = useMemo(() => {
@@ -222,6 +230,26 @@ export function GroupAttendanceJournal({
   useEffect(() => {
     void loadAttendance();
   }, [loadAttendance]);
+
+  useEffect(() => {
+    if (!openCell) return;
+
+    const closeWhenClickedOutside = (event: PointerEvent) => {
+      if (!openCellContainerRef.current?.contains(event.target as Node)) {
+        setOpenCell(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpenCell(null);
+    };
+
+    document.addEventListener("pointerdown", closeWhenClickedOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickedOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [openCell]);
 
   const lessons = useMemo(
     () => attendanceData?.lessons || [],
@@ -293,6 +321,34 @@ export function GroupAttendanceJournal({
       return next;
     });
   };
+
+  const toggleAttendanceMenu = useCallback(
+    (
+      event: ReactMouseEvent<HTMLButtonElement>,
+      studentId: string,
+      lessonKey: string,
+      isOpen: boolean,
+    ) => {
+      if (isOpen) {
+        setOpenCell(null);
+        return;
+      }
+
+      // The journal is often taller than the viewport.  Opening toward the
+      // larger visible side prevents the lower rows from being clipped by the
+      // journal container and avoids an unnecessary page scroll.
+      const triggerRect = event.currentTarget.getBoundingClientRect();
+      const journalRect = journalScrollRef.current?.getBoundingClientRect();
+      const visibleTop = Math.max(0, journalRect?.top ?? 0);
+      const visibleBottom = Math.min(window.innerHeight, journalRect?.bottom ?? window.innerHeight);
+      const roomAbove = triggerRect.top - visibleTop;
+      const roomBelow = visibleBottom - triggerRect.bottom;
+      const placement: AttendanceMenuPlacement = roomAbove >= roomBelow ? "up" : "down";
+
+      setOpenCell({ studentId, lessonKey, placement });
+    },
+    [],
+  );
 
   const handleSelectStatus = async (
     status: AttendanceStatus | "",
@@ -408,7 +464,7 @@ export function GroupAttendanceJournal({
         ) : lessons.length === 0 ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-slate-500"><CalendarDays className="h-10 w-10 text-slate-300" /><p className="font-semibold text-slate-800">Нет занятий в выбранном периоде</p><p className="max-w-sm text-sm">Журнал показывает только занятия из утверждённого расписания группы.</p></div>
         ) : (
-          <div className="overflow-x-auto">
+          <div ref={journalScrollRef} className="overflow-x-auto">
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -457,7 +513,7 @@ export function GroupAttendanceJournal({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {activeStudents.map((student, index) => {
+                {activeStudents.map((student) => {
                   const fullName = `${student.last_name || ""} ${student.first_name || ""}`.trim() || student.full_name || "Ученик";
                   const membershipEvent = student.membershipEvent;
                   const studentProfileHref = studentProfileBasePath ? `${studentProfileBasePath}/${student.id}` : null;
@@ -538,12 +594,14 @@ export function GroupAttendanceJournal({
                               : "Режим просмотра";
 
                         return (
-                          <td key={key} className="relative border-r border-slate-100 p-2 text-center">
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className="relative border-r border-slate-100 p-2 text-center">
                             {wasInLesson ? <button
                               type="button"
                               disabled={locked}
-                              onClick={() => setOpenCell(isOpen ? null : { studentId: student.id, lessonKey: key })}
+                              onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
                               title={locked ? lockedTitle : "Выбрать отметку"}
+                              aria-expanded={isOpen}
+                              aria-controls={isOpen ? `attendance-menu-${student.id}-${key}` : undefined}
                               className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"} ${locked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                             >
                               {option ? (
@@ -557,18 +615,22 @@ export function GroupAttendanceJournal({
                             )}
                             {isOpen && !locked && (
                               <div
-                                className={`absolute left-1/2 z-30 w-48 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${index >= activeStudents.length - 2 ? "bottom-full mb-2" : "top-full mt-2"}`}
+                                id={`attendance-menu-${student.id}-${key}`}
+                                role="menu"
+                                className={`absolute left-1/2 z-30 w-56 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${openCell.placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
                               >
                                 {STATUS_OPTIONS.map((item) => (
                                   <button
                                     key={item.value}
                                     type="button"
                                     onClick={() => void handleSelectStatus(item.value, student, lesson)}
-                                    className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                    role="menuitemradio"
+                                    aria-checked={value === item.value}
+                                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
                                   >
-                                    <span className="flex items-center gap-2">
-                                      <span className={`h-2 w-2 rounded-full ${item.dotClassName}`} />
-                                      {item.label}
+                                    <span className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                                      <span className={`h-2 w-2 shrink-0 rounded-full ${item.dotClassName}`} />
+                                      <span>{item.label}</span>
                                     </span>
                                     {value === item.value && <Check className="h-3.5 w-3.5 text-primary-600" />}
                                   </button>

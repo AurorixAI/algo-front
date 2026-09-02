@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -17,9 +17,17 @@ import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
+import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 type Tab = "students" | "exams" | "attendance" | "analytics";
 type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
+
+function parseExamStatusFilter(value: string | null): ExamStatusFilter {
+  return value === "lobby" || value === "draft" || value === "closed" || value === "archived" || value === "active"
+    ? value
+    : "active";
+}
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "Пн" },
@@ -56,6 +64,7 @@ export default function TeacherGroupDetailPage() {
   const [groupLessons, setGroupLessons] = useState<ScheduleLesson[]>([]);
   const [loadingExams, setLoadingExams] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [modalState, setModalState] = useState<"none" | "chooser" | "library" | "success">("none");
   const [librarySearch, setLibrarySearch] = useState("");
@@ -65,10 +74,11 @@ export default function TeacherGroupDetailPage() {
     title: string;
     group_name: string;
   } | null>(null);
+  const [printScheduleTarget, setPrintScheduleTarget] = useState<ExamSummary | null>(null);
 
   // Group Exams Filter & Search
-  const [examFilter, setExamFilter] = useState<ExamStatusFilter>("active");
-  const [examSearch, setExamSearch] = useState("");
+  const [examFilter, setExamFilter] = useState<ExamStatusFilter>(() => parseExamStatusFilter(searchParams?.get("exam_status") || null));
+  const [examSearch, setExamSearch] = useState(() => searchParams?.get("exam_q") || "");
 
   // Counts for Group Exams (Hook must be top-level before early returns)
   const examCounts = useMemo(() => {
@@ -83,7 +93,7 @@ export default function TeacherGroupDetailPage() {
     groupExams.forEach((ex) => {
       if (ex.status === "archived") {
         counts.archived++;
-      } else if (ex.status === "active") {
+      } else if (ex.status === "active" || ex.status === "print_ready") {
         counts.active++;
       } else if (ex.status === "lobby") {
         counts.lobby++;
@@ -99,7 +109,7 @@ export default function TeacherGroupDetailPage() {
   // Filtered Group Exams (Hook must be top-level before early returns)
   const filteredGroupExams = useMemo(() => {
     return groupExams.filter((ex) => {
-      if (examFilter === "active" && ex.status !== "active") return false;
+      if (examFilter === "active" && ex.status !== "active" && ex.status !== "print_ready") return false;
       if (examFilter === "lobby" && ex.status !== "lobby") return false;
       if (examFilter === "draft" && (ex.status !== "draft" && ex.status !== "variants_ready")) return false;
       if (examFilter === "closed" && ex.status !== "closed") return false;
@@ -117,8 +127,37 @@ export default function TeacherGroupDetailPage() {
 
   const tab = (searchParams?.get("tab") as Tab) || "students";
   const setTab = (newTab: Tab) => {
-    router.replace(`?tab=${newTab}`, { scroll: false });
+    const next = new URLSearchParams(searchParams?.toString());
+    next.set("tab", newTab);
+    router.replace(`?${next.toString()}`, { scroll: false });
   };
+
+  useEffect(() => {
+    const nextFilter = parseExamStatusFilter(searchParams?.get("exam_status") || null);
+    const nextSearch = searchParams?.get("exam_q") || "";
+    setExamFilter((current) => current === nextFilter ? current : nextFilter);
+    setExamSearch((current) => current === nextSearch ? current : nextSearch);
+  }, [searchParams]);
+
+  const updateExamListState = (nextFilter: ExamStatusFilter, nextSearch: string) => {
+    setExamFilter(nextFilter);
+    setExamSearch(nextSearch);
+    const next = new URLSearchParams(searchParams?.toString());
+    next.set("tab", "exams");
+    if (nextFilter === "active") next.delete("exam_status");
+    else next.set("exam_status", nextFilter);
+    if (nextSearch.trim()) next.set("exam_q", nextSearch.trim());
+    else next.delete("exam_q");
+    router.replace(`?${next.toString()}`, { scroll: false });
+  };
+
+  const groupExamReturnHref = (() => {
+    const params = new URLSearchParams();
+    params.set("tab", "exams");
+    if (examFilter !== "active") params.set("exam_status", examFilter);
+    if (examSearch.trim()) params.set("exam_q", examSearch.trim());
+    return `/teacher/groups/${groupId}?${params.toString()}`;
+  })();
 
   // Group schedule lessons by identical time and location (e.g. Пн, Ср 09:00 - 10:30)
   const groupedSchedule = useMemo(() => {
@@ -168,49 +207,41 @@ export default function TeacherGroupDetailPage() {
 
   const canEdit = user?.org_role === "admin" || user?.org_role === "owner" || user?.role === "owner";
 
-  const load = async (isInitial = false) => {
+  const load = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
+    setLoadError(null);
     try {
-      const [g, s, ex, allEx] = await Promise.all([
+      // The group card is an operational screen. All visible aggregate data
+      // comes from the server in one confirmed snapshot; localStorage cannot
+      // replace it after an API failure.
+      const [g, s, ex, allEx, lessons] = await Promise.all([
         orgApi.getGroup(groupId),
-        orgApi.getGroupStats(groupId).catch(() => null),
-        examsApi.list({ groupId, includeArchived: true }).catch(() => []),
-        examsApi.list({ unassigned: true }).catch(() => []),
+        orgApi.getGroupStats(groupId),
+        examsApi.list({ groupId, includeArchived: true }),
+        examsApi.list({ unassigned: true }),
+        user?.id ? orgApi.getSchedule(user.id) : Promise.resolve([]),
       ]);
       setGroup(g);
       setStats(s);
       setGroupExams(Array.isArray(ex) ? ex : []);
       setAllExams(Array.isArray(allEx) ? allEx : []);
 
-      // Load actual schedule lessons for this group
-      let lessons: ScheduleLesson[] = [];
-      if (user?.id) {
-        const serverLessons = await orgApi.getSchedule(user.id).catch(() => []);
-        if (serverLessons && serverLessons.length > 0) {
-          lessons = serverLessons;
-        } else {
-          const storageKey = `algo_teacher_schedule_${user.id}`;
-          const saved = localStorage.getItem(storageKey);
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved);
-              if (Array.isArray(parsed)) lessons = parsed;
-            } catch {}
-          }
-        }
-      }
       const matchedLessons = lessons
         .filter((l) => l.groupId === groupId)
         .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime));
       setGroupLessons(matchedLessons);
-    } catch {
-      if (isInitial) router.back();
+    } catch (error) {
+      // Keep the last verified snapshot if this is a retry. On the first
+      // visit, surface the outage rather than redirecting the teacher away.
+      setLoadError(getDataLoadErrorMessage(error));
     } finally {
       if (isInitial) setLoading(false);
     }
-  };
+  }, [groupId, user?.id]);
 
-  useEffect(() => { if (groupId) load(true); }, [groupId]);
+  useEffect(() => {
+    if (groupId) void load(true);
+  }, [groupId, load]);
 
   // ─── Background Scroll Lock When Any Modal Is Open (Prevent Layout Shift) ───
   useEffect(() => {
@@ -256,7 +287,17 @@ export default function TeacherGroupDetailPage() {
     );
   }
 
-  if (!group) return null;
+  if (!group) {
+    return (
+      <div className="mx-auto max-w-2xl pt-12">
+        <DataLoadError
+          title="Не удалось загрузить группу"
+          message={loadError || "Группа пока недоступна. Повторите попытку."}
+          onRetry={() => load(true)}
+        />
+      </div>
+    );
+  }
 
   const existingIds = new Set(group.students.map((s) => s.id));
 
@@ -271,6 +312,15 @@ export default function TeacherGroupDetailPage() {
         <span>/</span>
         <span className="text-slate-900 font-medium">{group.name}</span>
       </div>
+
+      {loadError && (
+        <DataLoadError
+          compact
+          title="Данные группы могут быть неактуальны"
+          message={`${loadError} Показаны последние успешно загруженные данные.`}
+          onRetry={() => load()}
+        />
+      )}
 
       {/* ── Hero Group Card ─────────────────────────────────────────────── */}
       <motion.div
@@ -514,6 +564,13 @@ export default function TeacherGroupDetailPage() {
                                   disabled={assigningId === exam.exam_id}
                                   onClick={async () => {
                                     if (!group) return;
+                                    // A paper exam must be frozen for an exact lesson;
+                                    // it cannot use the legacy group-only assignment.
+                                    if (exam.delivery_mode === "print") {
+                                      setModalState("none");
+                                      setPrintScheduleTarget(exam);
+                                      return;
+                                    }
                                     setAssigningId(exam.exam_id);
                                     try {
                                       let targetId = exam.exam_id;
@@ -644,7 +701,7 @@ export default function TeacherGroupDetailPage() {
               {/* Status pills */}
               <div className="flex items-center gap-1 p-1 bg-slate-100/80 rounded-xl overflow-x-auto scrollbar-none">
                 {([
-                  { key: "active", label: "Активные" },
+                  { key: "active", label: "Текущие" },
                   { key: "lobby", label: "Лобби" },
                   { key: "draft", label: "Черновики" },
                   { key: "closed", label: "Завершённые" },
@@ -655,7 +712,7 @@ export default function TeacherGroupDetailPage() {
                   return (
                     <button
                       key={f.key}
-                      onClick={() => setExamFilter(f.key)}
+                      onClick={() => updateExamListState(f.key, examSearch)}
                       className={cn(
                         "px-3.5 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer",
                         isActive
@@ -686,7 +743,7 @@ export default function TeacherGroupDetailPage() {
                   type="text"
                   placeholder="Поиск по экзаменам..."
                   value={examSearch}
-                  onChange={(e) => setExamSearch(e.target.value)}
+                  onChange={(e) => updateExamListState(examFilter, e.target.value)}
                   className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400 transition-all"
                 />
               </div>
@@ -716,7 +773,7 @@ export default function TeacherGroupDetailPage() {
                 </p>
                 {examSearch && (
                   <button
-                    onClick={() => setExamSearch("")}
+                    onClick={() => updateExamListState(examFilter, "")}
                     className="inline-flex items-center gap-1.5 mt-3 px-3.5 py-1.5 text-xs font-medium text-primary-600 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors cursor-pointer"
                   >
                     Сбросить поиск
@@ -728,7 +785,7 @@ export default function TeacherGroupDetailPage() {
                 {filteredGroupExams.map((ex) => (
                   <Link
                     key={ex.exam_id}
-                    href={`/teacher/exams/${ex.exam_id}?from_group=${groupId}&from_name=${encodeURIComponent(group.name)}`}
+                    href={`/teacher/exams/${ex.exam_id}?from_group=${groupId}&from_name=${encodeURIComponent(group.name)}&return_to=${encodeURIComponent(groupExamReturnHref)}`}
                     className="group/exam bg-white hover:bg-slate-50/70 rounded-2xl p-5 border border-slate-100 shadow-2xs hover:shadow-sm hover:border-primary-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all block cursor-pointer"
                   >
                     <div className="flex items-center gap-3.5 min-w-0">
@@ -742,6 +799,8 @@ export default function TeacherGroupDetailPage() {
                             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
                               ex.status === "active"
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : ex.status === "print_ready"
+                                ? "bg-violet-50 text-violet-700 border border-violet-200"
                                 : ex.status === "lobby"
                                 ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
                                 : ex.status === "draft" || ex.status === "variants_ready"
@@ -755,6 +814,8 @@ export default function TeacherGroupDetailPage() {
                           >
                             {ex.status === "active"
                               ? "Идёт экзамен"
+                              : ex.status === "print_ready"
+                              ? "Комплект готов"
                               : ex.status === "lobby"
                               ? "Лобби"
                               : ex.status === "draft" || ex.status === "variants_ready"
@@ -841,6 +902,31 @@ export default function TeacherGroupDetailPage() {
           </motion.div>
         )}
       </motion.div>
+
+      {printScheduleTarget && (
+        <ScheduleExamModal
+          examTitle={printScheduleTarget.title}
+          groups={[group]}
+          initialGroupId={groupId}
+          deliveryMode="print"
+          onClose={() => setPrintScheduleTarget(null)}
+          onSubmit={async ({ group: selectedGroup, occurrence }) => {
+            await examsApi.preparePrintPackage(printScheduleTarget.exam_id, {
+              group_id: selectedGroup.id,
+              lesson_id: occurrence.id,
+              lesson_date: occurrence.occurrenceDate,
+            });
+            setPrintScheduleTarget(null);
+            setAssignedInfo({
+              exam_id: printScheduleTarget.exam_id,
+              title: printScheduleTarget.title,
+              group_name: selectedGroup.name,
+            });
+            setModalState("success");
+            void load(false);
+          }}
+        />
+      )}
     </div>
   );
 }

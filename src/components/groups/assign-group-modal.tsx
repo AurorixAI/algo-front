@@ -18,6 +18,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { orgApi } from "@/lib/api";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 export interface GroupInfo {
   id: string;
@@ -71,6 +72,8 @@ export function AssignGroupModal({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [assignedSuccessGroup, setAssignedSuccessGroup] = useState<GroupInfo | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -97,18 +100,21 @@ export function AssignGroupModal({
   // Load groups & teachers when opened
   useEffect(() => {
     if (open) {
+      let cancelled = false;
       setLoading(true);
       setSelectedGroupId(null);
       setAssignedSuccessGroup(null);
       setAssignmentError(null);
+      setLoadError(null);
       setSearch("");
       setSelectedTeacherId("");
 
       Promise.all([
-        orgApi.listGroups().catch(() => []),
-        orgApi.listMembers().catch(() => []),
+        orgApi.listGroups(),
+        orgApi.listMembers(),
       ])
         .then(([groupsData, membersData]) => {
+          if (cancelled) return;
           const rawGroups: GroupInfo[] = Array.isArray(groupsData)
             ? groupsData
             : (groupsData as any)?.items || [];
@@ -125,10 +131,16 @@ export function AssignGroupModal({
             }));
           setTeachers(teacherList);
         })
-        .catch(console.error)
-        .finally(() => setLoading(false));
+        .catch((error) => {
+          if (!cancelled) setLoadError(getDataLoadErrorMessage(error));
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+
+      return () => { cancelled = true; };
     }
-  }, [open]);
+  }, [open, reloadNonce]);
 
   const currentGroup = useMemo(
     () => groups.find((group) => group.id === currentGroupId) || null,
@@ -397,6 +409,15 @@ export function AssignGroupModal({
                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                   <Loader2 className="w-8 h-8 text-primary-500 animate-spin mb-3" />
                   <p className="text-xs font-medium text-slate-500">Загрузка доступных групп...</p>
+                </div>
+              ) : loadError ? (
+                <div className="flex h-full items-center justify-center px-3">
+                  <DataLoadError
+                    compact
+                    title="Не удалось загрузить группы"
+                    message={loadError}
+                    onRetry={() => setReloadNonce((current) => current + 1)}
+                  />
                 </div>
               ) : filteredGroups.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full px-4 text-center">

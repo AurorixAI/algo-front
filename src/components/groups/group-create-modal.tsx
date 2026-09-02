@@ -11,16 +11,16 @@ interface GroupCreateModalProps {
   teachers: { id: string; first_name: string; last_name: string; org_role: string }[];
   onClose: () => void;
   onCreated: (group: GroupInfo) => void;
-  defaultTeacherId?: string;
+  selfAssignTeacher?: boolean;
 }
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 
-export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTeacherId }: GroupCreateModalProps) {
+export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssignTeacher = false }: GroupCreateModalProps) {
   const [form, setForm] = useState({
     name: "",
     class_level: 9,
-    teacher_id: defaultTeacherId || "",
+    teacher_id: "",
     description: "",
     max_students: 30,
   });
@@ -37,7 +37,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTe
       setForm({
         name: "",
         class_level: 9,
-        teacher_id: defaultTeacherId || "",
+        teacher_id: "",
         description: "",
         max_students: 30,
       });
@@ -53,7 +53,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTe
       document.body.style.overflow = "unset";
       document.documentElement.style.overflow = "unset";
     };
-  }, [open, defaultTeacherId]);
+  }, [open]);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
@@ -63,7 +63,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTe
       const group = await orgApi.createGroup({
         name: form.name.trim(),
         class_level: form.class_level || undefined,
-        teacher_id: form.teacher_id || defaultTeacherId || undefined,
+        ...(selfAssignTeacher ? {} : { teacher_id: form.teacher_id || undefined }),
         description: form.description.trim() || undefined,
         max_students: form.max_students,
       });
@@ -171,9 +171,9 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTe
                       <input
                         type="number"
                         min={1}
-                        max={200}
+                        max={100}
                         value={form.max_students}
-                        onChange={(e) => setForm({ ...form, max_students: Math.max(1, Number(e.target.value)) })}
+                        onChange={(e) => setForm({ ...form, max_students: Math.min(100, Math.max(1, Number(e.target.value))) })}
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none"
                       />
                     </div>
@@ -181,7 +181,12 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, defaultTe
                 </div>
 
                 {/* Teacher */}
-                {teachers.length > 0 && (
+                {selfAssignTeacher ? (
+                  <div className="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-800">Преподаватель: вы</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Группа будет закреплена за вами сразу после создания.</p>
+                  </div>
+                ) : teachers.length > 0 && (
                   <div>
                     <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Учитель
