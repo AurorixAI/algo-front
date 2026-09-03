@@ -390,6 +390,24 @@ export interface ScheduleOccurrence extends LessonEvent {
   rescheduleReason?: string | null;
 }
 
+/** Server-verified attendance state for a concrete lesson on the dashboard. */
+export interface TeacherDashboardLessonAttendanceState {
+  lessonId: string;
+  groupId: string;
+  status: LessonAttendanceStatus | null;
+  hasSavedRecords: boolean;
+}
+
+/** One consistent teacher-only operational dashboard snapshot. */
+export interface TeacherDashboardSummary {
+  businessDate: string;
+  groups: GroupInfo[];
+  todayLessons: ScheduleOccurrence[];
+  scheduleWindow: ScheduleOccurrence[];
+  openAttendanceActions: OpenAttendanceAction[];
+  attendanceStates: TeacherDashboardLessonAttendanceState[];
+}
+
 export interface RecurringLessonEndExamImpact {
   examId: string;
   title: string;
@@ -898,6 +916,12 @@ export const orgApi = {
     `/auth/org/schedule/lessons/${lessonId}/recurrence/end`,
     { method: "POST", body: data },
   ),
+
+  /** Replaces one attendance read per lesson on the teacher dashboard. */
+  getTeacherDashboardSummary: (businessDate: string) => {
+    const params = new URLSearchParams({ business_date: businessDate });
+    return api<TeacherDashboardSummary>(`/auth/org/teacher/dashboard/summary?${params.toString()}`);
+  },
 
   // ── Attendance ────────────────────────────────────────────────────────
   getOpenAttendanceActions: () =>

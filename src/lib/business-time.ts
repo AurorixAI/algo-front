@@ -66,6 +66,22 @@ export function businessTimeMinutes(value = new Date()): number {
   return hour * 60 + minute;
 }
 
+/**
+ * Compact, non-wrapping duration for operational UI.
+ *
+ * Keeping the unit together with its number avoids a card splitting
+ * “4 ч” or “26 мин” across two lines on narrow screens.
+ */
+export function formatMinutesUntil(value: number): string {
+  const minutes = Math.max(0, Math.round(value));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+
+  if (hours === 0) return `${minutes}\u00a0мин`;
+  if (remainder === 0) return `${hours}\u00a0ч`;
+  return `${hours}\u00a0ч ${remainder}\u00a0мин`;
+}
+
 export function businessDayOfWeek(value = new Date()): number {
   const { year, month, day } = businessParts(value);
   const utcDay = new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay();

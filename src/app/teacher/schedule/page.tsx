@@ -7,7 +7,7 @@ import { useAuthStore } from "@/lib/store";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
 import {
   Calendar as CalendarIcon,
@@ -229,6 +229,7 @@ export default function TeacherSchedulePage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [weekLoadError, setWeekLoadError] = useState<string | null>(null);
   const [weekRefreshNonce, setWeekRefreshNonce] = useState(0);
+  const [isWeekPlanOpen, setIsWeekPlanOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadedScheduleDate, setLoadedScheduleDate] = useState<string | null>(null);
 
@@ -310,6 +311,7 @@ export default function TeacherSchedulePage() {
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
   const [liveExamError, setLiveExamError] = useState<string | null>(null);
   const [liveExamRefreshNonce, setLiveExamRefreshNonce] = useState(0);
+  const [isLiveExamRefreshing, setIsLiveExamRefreshing] = useState(false);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -318,14 +320,15 @@ export default function TeacherSchedulePage() {
       setBusinessDate((previous) => previous === currentDate ? previous : currentDate);
     }, 30_000);
     return () => window.clearInterval(timer);
-  }, [liveExamRefreshNonce]);
+  }, []);
 
   // Schedule and dashboard intentionally use the same authoritative live
   // source. A prepared lobby is excluded; only an exam already running can
   // replace the neutral "nothing to do" state.
   useEffect(() => {
     let cancelled = false;
-    const refresh = async () => {
+    const refresh = async (isManualRetry = false) => {
+      if (isManualRetry) setIsLiveExamRefreshing(true);
       try {
         const items = await examsApi.getLiveDashboardSummary();
         if (!cancelled) {
@@ -336,12 +339,14 @@ export default function TeacherSchedulePage() {
         // Keep the last verified exam state visible rather than claiming that
         // no examination is running while the operational API is offline.
         if (!cancelled) setLiveExamError(getDataLoadErrorMessage(error));
+      } finally {
+        if (!cancelled && isManualRetry) setIsLiveExamRefreshing(false);
       }
     };
-    void refresh();
+    void refresh(liveExamRefreshNonce > 0);
     const timer = window.setInterval(() => { void refresh(); }, 15_000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, []);
+  }, [liveExamRefreshNonce]);
 
   // Add lesson modal
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -478,7 +483,7 @@ export default function TeacherSchedulePage() {
 
   // ─── Background Scroll Lock When Any Modal Is Open ───
   useEffect(() => {
-    const isAnyModalOpen = isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || !!activeLesson;
+    const isAnyModalOpen = isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || isWeekPlanOpen || !!activeLesson;
     if (isAnyModalOpen) {
       const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
       const originalBodyOverflow = document.body.style.overflow;
@@ -496,7 +501,7 @@ export default function TeacherSchedulePage() {
         document.body.style.paddingRight = originalPaddingRight;
       };
     }
-  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, activeLesson]);
+  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson]);
 
   // ─── Close Modal on Escape Key ───
   useEffect(() => {
@@ -512,12 +517,16 @@ export default function TeacherSchedulePage() {
           closeEndRecurringModal();
           return;
         }
+        if (isWeekPlanOpen) {
+          setIsWeekPlanOpen(false);
+          return;
+        }
         if (activeLesson) setActiveLesson(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, activeLesson, isRecurringActionsOpen]);
+  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen]);
 
   // Conflict detection helper
   const getConflictingLesson = useCallback(
@@ -1543,7 +1552,11 @@ export default function TeacherSchedulePage() {
   }, [todayOccurrences, lessonStatusMap, completedLessonsMap, lessonAttendanceMap, todayDayOfWeek, clockTick]);
 
   const weekKpi = useMemo(() => {
-    let planned = 0;
+    // A cancelled occurrence is still part of the weekly plan: it occupied a
+    // real calendar slot and must remain visible in reporting. It is resolved
+    // differently from a completed lesson, not silently removed from the
+    // denominator.
+    const planned = weekOccurrences.length;
     let completed = 0;
     let cancelled = 0;
     let needsCompletion = 0;
@@ -1558,7 +1571,6 @@ export default function TeacherSchedulePage() {
         cancelled += 1;
         continue;
       }
-      planned += 1;
       if (status === "completed") {
         completed += 1;
       } else if (lesson.occurrenceDate < businessDate) {
@@ -1571,10 +1583,39 @@ export default function TeacherSchedulePage() {
       planned,
       completed,
       cancelled,
+      completionTarget: Math.max(planned - cancelled, 0),
       needsCompletion,
       notStarted,
-      remaining: Math.max(planned - completed, 0),
+      remaining: Math.max(planned - completed - cancelled, 0),
     };
+  }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate]);
+
+  const weekPlanRows = useMemo(() => {
+    return weekOccurrences
+      .map((lesson) => {
+        const key = `${lesson.occurrenceDate}_${lesson.id}`;
+        const lifecycle = weekLessonStatusMap[key]
+          || (lesson.occurrenceDate === businessDate ? lessonStatusMap[lesson.id] : undefined)
+          || "scheduled";
+
+        if (lifecycle === "completed") {
+          return { lesson, lifecycle, label: "Проведён", tone: "emerald" as const };
+        }
+        if (lifecycle === "cancelled") {
+          return { lesson, lifecycle, label: "Отменён", tone: "slate" as const };
+        }
+        if (lifecycle === "in_progress") {
+          return { lesson, lifecycle, label: "Идёт", tone: "blue" as const };
+        }
+        if (lesson.occurrenceDate < businessDate) {
+          return { lesson, lifecycle, label: "Не начат", tone: "amber" as const };
+        }
+        return { lesson, lifecycle, label: "Запланирован", tone: "violet" as const };
+      })
+      .sort((left, right) => (
+        `${left.lesson.occurrenceDate}_${left.lesson.startTime}_${left.lesson.groupName}`
+          .localeCompare(`${right.lesson.occurrenceDate}_${right.lesson.startTime}_${right.lesson.groupName}`)
+      ));
   }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate]);
 
   const nextAction = useMemo(() => {
@@ -1621,7 +1662,7 @@ export default function TeacherSchedulePage() {
     if (readyToStart) return { ...readyToStart, label: "Начать урок", tone: "blue" as const };
 
     const upcoming = withTime.find(({ time }) => time.type === "upcoming");
-    if (upcoming) return { ...upcoming, label: `Через ${upcoming.time.diffMinutes} мин`, tone: "amber" as const };
+    if (upcoming) return { ...upcoming, label: `Через ${formatMinutesUntil(upcoming.time.diffMinutes)}`, tone: "amber" as const };
     return null;
   }, [todayOccurrences, lessonStatusMap, completedLessonsMap, lessonAttendanceMap, todayDayOfWeek, clockTick]);
 
@@ -1632,9 +1673,11 @@ export default function TeacherSchedulePage() {
 
   const weekKpiDescription = weekKpi.planned === 0
     ? "На эту неделю уроков нет"
-    : weekKpi.completed === weekKpi.planned
-      ? "План недели выполнен"
-      : completedLessonsProgressLabel(weekKpi.completed, weekKpi.planned);
+    : weekKpi.completionTarget === 0
+      ? "Все занятия недели отменены"
+      : weekKpi.completed === weekKpi.completionTarget
+        ? "План недели выполнен"
+        : completedLessonsProgressLabel(weekKpi.completed, weekKpi.completionTarget);
   const todayKpiDescription = todayKpi.planned === 0
     ? "На сегодня занятий нет"
     : todayKpi.completed === todayKpi.planned
@@ -1747,12 +1790,19 @@ export default function TeacherSchedulePage() {
           title="Не удалось обновить состояние экзаменов"
           message={`${liveExamError} Показано последнее подтверждённое состояние.`}
           onRetry={() => setLiveExamRefreshNonce((current) => current + 1)}
+          isRetrying={isLiveExamRefreshing}
         />
       )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs min-h-[128px] flex items-start gap-4">
+        <button
+          type="button"
+          onClick={() => setIsWeekPlanOpen(true)}
+          aria-label="Открыть подробный план недели"
+          className="group min-h-[128px] rounded-2xl border border-slate-200/80 bg-white p-4 text-left shadow-xs transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 sm:p-5"
+        >
+          <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-600 flex items-center justify-center shrink-0">
             <CalendarIcon className="w-6 h-6" />
           </div>
@@ -1762,11 +1812,12 @@ export default function TeacherSchedulePage() {
               {weekKpi.planned}
               <span className="text-xs font-medium text-slate-400 ml-1.5">{russianPlural(weekKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
-            <p className={`text-xs mt-1.5 leading-5 ${weekKpi.planned > 0 && weekKpi.completed === weekKpi.planned ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
+            <p className={`text-xs mt-1.5 leading-5 ${weekKpi.completionTarget > 0 && weekKpi.completed === weekKpi.completionTarget ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {weekKpiDescription}
             </p>
           </div>
-        </div>
+          </div>
+        </button>
 
         <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs min-h-[128px] flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
@@ -2289,7 +2340,7 @@ export default function TeacherSchedulePage() {
                             status.diffMinutes <= 60 ? (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
                                 <Clock className="w-3 h-3 text-amber-600" />
-                                Через {status.diffMinutes} мин
+                                Через {formatMinutesUntil(status.diffMinutes)}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
@@ -2339,6 +2390,122 @@ export default function TeacherSchedulePage() {
           )}
         </div>
       )}
+
+      {/* MODAL: WEEK PLAN SUMMARY */}
+      {mounted && typeof document !== "undefined" && isWeekPlanOpen &&
+        createPortal(
+          <AnimatePresence>
+            <div
+              onClick={(event) => {
+                if (event.target === event.currentTarget) setIsWeekPlanOpen(false);
+              }}
+              className="fixed inset-0 z-[99998] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md sm:p-6"
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.97, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: 12 }}
+                className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-2xl ring-1 ring-black/5"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="week-plan-title"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 pb-5 pt-6 sm:px-7">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Расписание</p>
+                    <h2 id="week-plan-title" className="mt-1 text-xl font-bold text-slate-900">План недели</h2>
+                    <p className="mt-1 text-sm text-slate-500">{weekRangeText}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsWeekPlanOpen(false)}
+                    aria-label="Закрыть план недели"
+                    className="rounded-xl p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
+                  <div className="rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-slate-100">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">По плану</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900">{weekKpi.planned}</p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center ring-1 ring-emerald-100">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Проведено</p>
+                    <p className="mt-1 text-lg font-bold text-emerald-800">{weekKpi.completed}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-center ring-1 ring-slate-200">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Отменено</p>
+                    <p className="mt-1 text-lg font-bold text-slate-700">{weekKpi.cancelled}</p>
+                  </div>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 sm:px-7">
+                  {weekPlanRows.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-10 text-center">
+                      <CalendarIcon className="mx-auto mb-2 h-8 w-8 text-slate-300" />
+                      <p className="text-sm font-semibold text-slate-700">На эту неделю занятий нет</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {weekPlanRows.map((row) => {
+                        const statusClass = row.tone === "emerald"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : row.tone === "slate"
+                            ? "border-slate-200 bg-slate-100 text-slate-700"
+                            : row.tone === "blue"
+                              ? "border-blue-200 bg-blue-50 text-blue-800"
+                              : row.tone === "amber"
+                                ? "border-amber-200 bg-amber-50 text-amber-800"
+                                : "border-violet-200 bg-violet-50 text-violet-800";
+                        return (
+                          <button
+                            key={`${row.lesson.occurrenceDate}_${row.lesson.id}`}
+                            type="button"
+                            onClick={() => {
+                              setIsWeekPlanOpen(false);
+                              openLesson(row.lesson, "week");
+                            }}
+                            className="group flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+                          >
+                            <div className="min-w-[116px]">
+                              <p className="text-xs font-bold capitalize text-slate-800">
+                                {formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" })}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-500">{row.lesson.startTime} — {row.lesson.endTime}</p>
+                            </div>
+                            <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
+                              <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>
+                              <p className="mt-0.5 truncate text-xs text-slate-500">
+                                {row.lesson.classLevel} класс · {row.lesson.format === "online" ? "Онлайн" : row.lesson.room || "Аудитория не указана"}
+                              </p>
+                            </div>
+                            <span className={`inline-flex h-8 w-[132px] shrink-0 items-center justify-center rounded-full border px-3 text-xs font-medium ${statusClass}`}>
+                              {row.label}
+                            </span>
+                            <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-600" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
+                  <button
+                    type="button"
+                    onClick={() => setIsWeekPlanOpen(false)}
+                    className="rounded-xl bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-xs ring-1 ring-slate-200 transition-colors hover:bg-slate-100"
+                  >
+                    Закрыть
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          </AnimatePresence>,
+          document.body,
+        )}
 
       {/* MODAL: LESSON DETAILS & ATTENDANCE */}
       {mounted && typeof document !== "undefined" && activeLesson &&
@@ -2561,7 +2728,7 @@ export default function TeacherSchedulePage() {
                               Урок ещё не начался
                             </p>
                             <p className="text-xs text-amber-800 mt-0.5">
-                              Начало в {activeLesson.startTime} (через {activeTimeStatus.diffMinutes} мин). Начать урок и отметить посещаемость можно будет в {activeLesson.startTime}.
+                              Начало в {activeLesson.startTime} (через {formatMinutesUntil(activeTimeStatus.diffMinutes)}). Начать урок и отметить посещаемость можно будет в {activeLesson.startTime}.
                             </p>
                           </div>
                         </div>

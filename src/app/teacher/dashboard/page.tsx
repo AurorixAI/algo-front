@@ -23,6 +23,7 @@ import {
   formatBusinessDate,
   formatBusinessDateLabel,
   formatIsoDateLabel,
+  formatMinutesUntil,
 } from "@/lib/business-time";
 import {
   Users,
@@ -103,12 +104,6 @@ function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary
     topic: action.topic || undefined,
     occurrenceDate: action.lessonDate,
   };
-}
-
-function addCalendarDays(isoDate: string, days: number) {
-  const [year, month, day] = isoDate.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day + days, 12));
-  return date.toISOString().slice(0, 10);
 }
 
 function formatCountdown(seconds: number) {
@@ -231,6 +226,7 @@ export default function TeacherDashboardPage() {
   const [lessonStatusMap, setLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
   const [openAttendanceActions, setOpenAttendanceActions] = useState<OpenAttendanceAction[]>([]);
   const [openAttendanceActionsAvailable, setOpenAttendanceActionsAvailable] = useState<boolean | null>(null);
+  const [attendanceSnapshotAvailable, setAttendanceSnapshotAvailable] = useState<boolean | null>(null);
   const [isActionCenterOpen, setIsActionCenterOpen] = useState(false);
   const [missedLessonAction, setMissedLessonAction] = useState<OpenAttendanceAction | null>(null);
   const [isCancellingMissedLesson, setIsCancellingMissedLesson] = useState(false);
@@ -373,103 +369,44 @@ export default function TeacherDashboardPage() {
       setDashboardError(null);
       try {
         const todayStr = businessDate;
-        // Keep a short history only for the operational exam panel: a missed
-        // delivery must name its real lesson time, not just an opaque date.
-        // Group-focus cards still filter this list to current/future lessons.
-        const examContextStart = addCalendarDays(todayStr, -30);
-        const weekEnd = addCalendarDays(todayStr, 6);
-        const [groupsResult, todayResult, weekResult, openActionsResult] = await Promise.allSettled([
-          orgApi.listGroups({ teacher_id: user.id }),
-          // Concrete occurrences make one-off transfers and cancellations
-          // visible at their actual time rather than at the recurring slot.
-          orgApi.getScheduleOccurrences({ dateFrom: todayStr, dateTo: todayStr }, user.id),
-          orgApi.getScheduleOccurrences({ dateFrom: examContextStart, dateTo: weekEnd }, user.id),
-          orgApi.getOpenAttendanceActions(),
-        ]);
+        const summary = await orgApi.getTeacherDashboardSummary(todayStr);
+        // The server sends active groups only. Filtering at the UI boundary as
+        // well protects the KPI from a legacy or stale response.
+        const activeGroups = summary.groups.filter((group) => group.status === "active");
+        setGroups(activeGroups);
+        setStats({
+          groups: activeGroups.length,
+          students: activeGroups.reduce((acc: number, group: GroupInfo) => acc + (group.student_count || 0), 0),
+        });
 
-        const unavailable: string[] = [];
-        if (groupsResult.status === "fulfilled") {
-          const fetchedGroups = groupsResult.value;
-          setGroups(fetchedGroups);
-          setStats({
-            groups: fetchedGroups.length,
-            students: fetchedGroups.reduce((acc: number, group: GroupInfo) => acc + (group.student_count || 0), 0),
-          });
-        } else {
-          unavailable.push("группы");
-        }
-
-        let loadedToday: LessonSummary[] = [];
-        if (todayResult.status === "fulfilled") {
-          loadedToday = todayResult.value
+        setTodayLessons(
+          summary.todayLessons
             .filter((lesson) => lesson)
-            .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")) as LessonSummary[];
-          setTodayLessons(loadedToday);
-        } else {
-          unavailable.push("расписание на сегодня");
-        }
-
-        if (weekResult.status === "fulfilled") {
-          setWeekLessons(weekResult.value);
-        } else {
-          unavailable.push("ближайшие занятия групп");
-        }
-
-        if (openActionsResult.status === "fulfilled") {
-          setOpenAttendanceActions(openActionsResult.value);
-          setOpenAttendanceActionsAvailable(true);
-        } else {
-          // Do not imply that all lessons are closed when the operational
-          // source is temporarily unavailable. Preserve the last verified
-          // action queue and mark the aggregate as unknown.
-          setOpenAttendanceActionsAvailable(false);
-          unavailable.push("открытые уроки");
-        }
-
-        // Fetch attendance map and completed status for today's lessons
-        const attMap: Record<string, boolean> = {};
-        const compMap: Record<string, boolean> = {};
-        const statusMap: Record<string, LessonAttendanceStatus> = {};
-
-        const attendanceResults = await Promise.allSettled(
-          loadedToday.map(async (les) => {
-            if (!les || !les.groupId) return;
-            const att = await orgApi.getGroupAttendance(les.groupId, {
-              dateFrom: todayStr,
-              dateTo: todayStr,
-            });
-            const lessonKey = `${todayStr}_${les.id}`;
-            if (att?.records) {
-              const rec = att.records[lessonKey];
-              if (rec && Object.keys(rec).length > 0) {
-                attMap[les.id] = true;
-              }
-            }
-            if (att?.statuses) {
-              const st = att.statuses[lessonKey];
-              if (st) statusMap[les.id] = st;
-              if (st === "completed") {
-                compMap[les.id] = true;
-              } else if (st === "in_progress") {
-                compMap[les.id] = false;
-              }
-            }
-          })
+            .sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "")) as LessonSummary[],
         );
+        setWeekLessons(summary.scheduleWindow);
+        setOpenAttendanceActions(summary.openAttendanceActions);
+        setOpenAttendanceActionsAvailable(true);
 
-        if (attendanceResults.every((result) => result.status === "fulfilled")) {
-          setLessonAttendanceMap(attMap);
-          setCompletedLessonsMap(compMap);
-          setLessonStatusMap(statusMap);
-        } else {
-          unavailable.push("статусы посещаемости");
+        const attendanceMap: Record<string, boolean> = {};
+        const completedMap: Record<string, boolean> = {};
+        const statuses: Record<string, LessonAttendanceStatus> = {};
+        for (const state of summary.attendanceStates) {
+          if (state.hasSavedRecords) attendanceMap[state.lessonId] = true;
+          if (state.status) statuses[state.lessonId] = state.status;
+          if (state.status === "completed") completedMap[state.lessonId] = true;
+          if (state.status === "in_progress") completedMap[state.lessonId] = false;
         }
-
-        if (unavailable.length > 0) {
-          setDashboardError(`Не удалось загрузить: ${unavailable.join(", ")}. Повторите попытку.`);
-        }
+        setLessonAttendanceMap(attendanceMap);
+        setCompletedLessonsMap(completedMap);
+        setLessonStatusMap(statuses);
+        setAttendanceSnapshotAvailable(true);
       } catch (err) {
         console.error("Failed to load teacher stats:", err);
+        // Retain the last verified values. An absent response must not make
+        // an already started lesson look like a scheduled one.
+        setAttendanceSnapshotAvailable(false);
+        setOpenAttendanceActionsAvailable(false);
         setDashboardError(getDataLoadErrorMessage(err));
       } finally {
         setLoading(false);
@@ -1075,16 +1012,18 @@ export default function TeacherDashboardPage() {
 
   const primaryLessonAction = lessonActions[0] || null;
   // A lobby is preparation, not an ongoing exam. It must not displace a
-  // lesson in the teacher's main "next action" card, but it does belong in
-  // the separate exam module when it is scheduled, upcoming or overdue.
+  // lesson in the teacher's main "next action" card. Once its assigned
+  // lesson is in the past, the lobby is no longer usable for participants:
+  // it becomes a reconciliation item, not an "open lobby" card.
   const activeExamAction = liveExamView.find((exam) => exam.status === "active") || null;
   const dashboardExamRows = useMemo(() => {
     const priority = {
       active: 0,
-      needs_resolution: 1,
-      today: 2,
-      upcoming: 3,
-      closed: 4,
+      lobby: 1,
+      needs_resolution: 2,
+      today: 3,
+      upcoming: 4,
+      closed: 5,
     } as const;
 
     return liveExamView
@@ -1095,15 +1034,22 @@ export default function TeacherDashboardPage() {
           && candidate.groupId === exam.group_id,
         );
         const scheduledDate = exam.scheduled_lesson_date || "";
+        // The persisted lifecycle state remains `lobby` until the teacher
+        // transfers or cancels the exam. Its *operational* state, however,
+        // changes when the linked lesson day has passed. This mirrors the
+        // server-side public-lobby guard and prevents a dead access code from
+        // looking like a room where students can still join.
         const state = exam.status === "active"
           ? "active"
           : exam.status === "closed"
             ? "closed"
             : scheduledDate < businessDate
               ? "needs_resolution"
-              : scheduledDate === businessDate
-                ? "today"
-                : "upcoming";
+              : exam.status === "lobby"
+                ? "lobby"
+                : scheduledDate === businessDate
+                  ? "today"
+                  : "upcoming";
         const lessonLabel = lesson
           ? `${formatIsoDateLabel(lesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · ${lesson.startTime}–${lesson.endTime}`
           : scheduledDate
@@ -1375,6 +1321,7 @@ export default function TeacherDashboardPage() {
                   const isPrint = exam.delivery_mode === "print";
                   const isPrintReady = isPrint && exam.status === "print_ready";
                   const needsResolution = exam.state === "needs_resolution";
+                  const isLobby = exam.status === "lobby" && !needsResolution;
                   const isScheduled = exam.state === "today" || exam.state === "upcoming";
                   const isNearDeadline = isActive && exam.displayRemainingSeconds > 0 && exam.displayRemainingSeconds <= 5 * 60;
                   const timerReachedZero = isActive && exam.displayRemainingSeconds === 0;
@@ -1382,7 +1329,7 @@ export default function TeacherDashboardPage() {
                     ? "Завершён"
                     : needsResolution
                       ? "Нужно действие"
-                      : isActive
+                    : isActive
                         ? timerReachedZero
                           ? "Подтверждаем"
                           : isNearDeadline
@@ -1390,6 +1337,8 @@ export default function TeacherDashboardPage() {
                             : isPrint
                               ? "На бумаге"
                               : "Идёт"
+                        : isLobby
+                          ? "Лобби открыто"
                         : isPrintReady
                           ? "Комплект готов"
                         : exam.state === "today"
@@ -1416,6 +1365,8 @@ export default function TeacherDashboardPage() {
                           ? "border-amber-200 bg-amber-50/70"
                           : isActive
                           ? "border-primary-200 bg-primary-50/50"
+                          : isLobby
+                          ? "border-sky-200 bg-sky-50/50"
                           : isScheduled
                             ? "border-violet-200 bg-violet-50/50"
                             : "border-slate-200 bg-slate-50/70"
@@ -1433,6 +1384,8 @@ export default function TeacherDashboardPage() {
                             ? "bg-amber-100 text-amber-800"
                             : isActive
                             ? "bg-primary-100 text-primary-700"
+                            : isLobby
+                            ? "bg-sky-100 text-sky-800"
                             : isScheduled
                               ? "bg-violet-100 text-violet-700"
                               : "bg-slate-100 text-slate-700"
@@ -1446,7 +1399,7 @@ export default function TeacherDashboardPage() {
                       <div className="mt-4">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-500">
-                            {isClosed ? "Итог" : needsResolution ? "Занятие прошло" : isScheduled ? "Следующее действие" : timerReachedZero ? "Время истекло" : "До завершения"}
+                            {isClosed ? "Итог" : needsResolution ? "Занятие прошло" : isLobby ? "Комната ожидания" : isScheduled ? "Следующее действие" : timerReachedZero ? "Время истекло" : "До завершения"}
                           </p>
                           <p className={`mt-1 flex items-center gap-1.5 ${needsResolution ? "whitespace-nowrap text-sm" : "text-base"} font-bold tabular-nums ${
                             isClosed ? "text-emerald-800" : needsResolution || isNearDeadline || timerReachedZero ? "text-amber-900" : "text-slate-900"
@@ -1462,6 +1415,8 @@ export default function TeacherDashboardPage() {
                                   ? isPrint
                                     ? "Комплект готов к выдаче"
                                     : "Доступ после начала урока"
+                                  : isLobby
+                                    ? "Ожидаем участников"
                                   : timerReachedZero
                                     ? "Ожидаем сервер"
                                     : formatCountdown(exam.displayRemainingSeconds)}
@@ -1491,6 +1446,19 @@ export default function TeacherDashboardPage() {
                             <p className="mt-0.5 text-[10px] font-medium text-slate-500">Сдали</p>
                           </div>
                         </div>
+                      )}
+
+                      {isLobby && (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            router.push(`/teacher/exams/${exam.exam_id}`);
+                          }}
+                          className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs font-bold text-sky-800 transition-colors hover:bg-sky-50"
+                        >
+                          Открыть лобби <ArrowRight className="h-3.5 w-3.5" />
+                        </button>
                       )}
                     </div>
                   );
@@ -1533,6 +1501,7 @@ export default function TeacherDashboardPage() {
                 {sortedTodayLessons.map((l) => {
                   const isAttSaved = !!lessonAttendanceMap[l.id];
                   const instanceStatus = lessonStatusMap[l.id] || (completedLessonsMap[l.id] ? "completed" : "scheduled");
+                  const attendanceStatusUnknown = attendanceSnapshotAvailable === false;
                   const isFinished = instanceStatus === "completed";
                   const isCancelled = instanceStatus === "cancelled";
                   const subsequentLesson = instanceStatus === "scheduled" ? getSubsequentStartedLesson(l) : null;
@@ -1565,7 +1534,19 @@ export default function TeacherDashboardPage() {
                           {l.groupName}
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                          {isCancelled ? (
+                          {attendanceStatusUnknown ? (
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setDashboardRefreshNonce((current) => current + 1);
+                              }}
+                              className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-bold text-amber-800 shadow-2xs transition-colors hover:bg-amber-100"
+                            >
+                              <AlertCircle className="h-3 w-3 text-amber-600" />
+                              Статус не проверен · Повторить
+                            </button>
+                          ) : isCancelled ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-2xs">
                               <X className="w-3 h-3" />
                               Отменён
@@ -1618,7 +1599,7 @@ export default function TeacherDashboardPage() {
                             status.diffMinutes <= 60 ? (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200/80 shadow-2xs">
                                 <Clock className="w-3 h-3 text-amber-600" />
-                                Через {status.diffMinutes} мин
+                                Через {formatMinutesUntil(status.diffMinutes)}
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
@@ -1704,6 +1685,7 @@ export default function TeacherDashboardPage() {
                     const isClosed = exam.status === "closed";
                     const isPrint = exam.delivery_mode === "print";
                     const needsResolution = exam.state === "needs_resolution";
+                    const isLobby = exam.status === "lobby" && !needsResolution;
                     const isScheduled = exam.state === "today" || exam.state === "upcoming";
                     const statusLabel = isClosed
                       ? "Завершён"
@@ -1711,6 +1693,8 @@ export default function TeacherDashboardPage() {
                         ? "Нужно действие"
                         : isActive
                           ? isPrint ? "На бумаге" : "Идёт"
+                          : isLobby
+                            ? "Лобби открыто"
                           : isPrint
                             ? "Комплект готов"
                             : exam.state === "today" ? "Сегодня" : "Запланирован";
@@ -1722,6 +1706,8 @@ export default function TeacherDashboardPage() {
                         ? isPrint
                           ? "Печатный экзамен проводится в аудитории. Завершите его после сбора работ."
                           : `Экзамен идёт. До завершения ${formatCountdown(exam.displayRemainingSeconds)}.`
+                        : isLobby
+                          ? "Комната ожидания открыта. Ученики могут подключаться; откройте лобби для контроля."
                         : isClosed
                           ? "Экзамен завершён; результаты доступны в карточке экзамена."
                           : isPrint
@@ -1731,6 +1717,8 @@ export default function TeacherDashboardPage() {
                       ? "border-amber-200 bg-amber-50/55 hover:border-amber-300"
                       : isActive
                         ? "border-primary-200 bg-primary-50/55 hover:border-primary-300"
+                        : isLobby
+                          ? "border-sky-200 bg-sky-50/55 hover:border-sky-300"
                         : isClosed
                           ? "border-emerald-200 bg-emerald-50/55 hover:border-emerald-300"
                           : "border-violet-200 bg-violet-50/55 hover:border-violet-300";
@@ -1743,7 +1731,7 @@ export default function TeacherDashboardPage() {
                         className={`block rounded-2xl border p-4 transition-all hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 ${tone}`}
                       >
                         <div className="flex items-start gap-3">
-                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${needsResolution ? "bg-amber-100 text-amber-700" : isActive ? "bg-primary-100 text-primary-700" : isClosed ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-violet-700"}`}>
+                          <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${needsResolution ? "bg-amber-100 text-amber-700" : isActive ? "bg-primary-100 text-primary-700" : isLobby ? "bg-sky-100 text-sky-700" : isClosed ? "bg-emerald-100 text-emerald-700" : "bg-violet-100 text-violet-700"}`}>
                             {isPrint ? <FileCheck2 className="h-4 w-4" /> : <Radio className="h-4 w-4" />}
                           </div>
                           <div className="min-w-0 flex-1">
@@ -1754,7 +1742,7 @@ export default function TeacherDashboardPage() {
                               </div>
                               <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
                                 {isPrint && <span className="rounded-full bg-white/80 px-2 py-1 text-[10px] font-bold text-primary-700">Печать</span>}
-                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${needsResolution ? "bg-amber-100 text-amber-800" : isActive ? "bg-primary-100 text-primary-700" : isClosed ? "bg-emerald-100 text-emerald-800" : "bg-violet-100 text-violet-700"}`}>{statusLabel}</span>
+                                <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${needsResolution ? "bg-amber-100 text-amber-800" : isActive ? "bg-primary-100 text-primary-700" : isLobby ? "bg-sky-100 text-sky-800" : isClosed ? "bg-emerald-100 text-emerald-800" : "bg-violet-100 text-violet-700"}`}>{statusLabel}</span>
                               </div>
                             </div>
                             <p className="mt-2 text-sm leading-5 text-slate-700">{description}</p>
@@ -2198,7 +2186,7 @@ export default function TeacherDashboardPage() {
                                 Урок ещё не начался
                               </p>
                               <p className="text-xs text-amber-800 mt-0.5">
-                                Начало в {activeLesson.startTime} (через {activeLessonStatus.diffMinutes} мин). Начать урок и отметить посещаемость можно будет в {activeLesson.startTime}.
+                                Начало в {activeLesson.startTime} (через {formatMinutesUntil(activeLessonStatus.diffMinutes)}). Начать урок и отметить посещаемость можно будет в {activeLesson.startTime}.
                               </p>
                             </div>
                           </div>
