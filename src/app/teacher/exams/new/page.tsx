@@ -1,20 +1,24 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Select, type SelectOption } from "@/components/ui/select";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import {
   textbookApi,
   examsApi,
+  orgApi,
   type TextbookBrief,
   type TOCNode,
   type SkillTreeNode,
+  type Group,
 } from "@/lib/api";
+import { useAuthStore } from "@/lib/store";
 import QRCode from "qrcode.react";
 import {
   ArrowLeft,
@@ -33,9 +37,15 @@ import {
   ChevronRight,
   ChevronDown,
   Layers,
-  Shield,
   Zap,
-  Minus,
+  Users,
+  Globe,
+  Printer,
+  QrCode,
+  GraduationCap,
+  ListOrdered,
+  FileCheck2,
+  Shuffle,
 } from "lucide-react";
 
 type Step = 1 | 2 | 3 | 4 | 5;
@@ -45,19 +55,17 @@ type ExamMode = "online" | "print" | "hybrid";
 interface ExamConfig {
   name: string;
   classId: string;
+  groupId?: string;
+  groupName?: string;
   type: "control" | "diagnostic";
   sourceType: SourceType;
   selectedTopics: Set<string>;
   selectedSections: Set<string>;
   subjectFilter: "all" | "algebra" | "geometry";
-  variantsCount: number;
   questionsCount: number;
   duration: number;
   difficulty: { easy: number; medium: number; hard: number };
   mode: ExamMode;
-  shuffleQuestions: boolean;
-  shuffleAnswers: boolean;
-  showResults: boolean;
 }
 
 // ─── Helper: collect all L4 leaf descendant ids beneath a node ───
@@ -235,35 +243,81 @@ function SkillTreeAccordion({
   );
 }
 
+// ─── Recursive TOC helper ───
+function collectTOCLeafIds(node: TOCNode): string[] {
+  if (!node.children?.length) return [String(node.id)];
+  return node.children.flatMap(collectTOCLeafIds);
+}
+
 // ─── Recursive TOC renderer (textbook structure from API) ───
-function TOCTreeView({ nodes, selectedSections, onToggle, depth }: {
+function TOCTreeView({
+  nodes,
+  selectedSections,
+  onToggle,
+  onToggleGroup,
+  depth = 0,
+}: {
   nodes: TOCNode[];
   selectedSections: Set<string>;
   onToggle: (id: string, selected: boolean) => void;
-  depth: number;
+  onToggleGroup: (ids: string[], selected: boolean) => void;
+  depth?: number;
 }) {
   if (!nodes?.length) return null;
   return (
-    <div className={depth > 0 ? "ml-4 border-l border-slate-100 pl-3" : ""}>
+    <div className={depth > 0 ? "ml-4 border-l border-slate-100 pl-3 space-y-1 mt-1" : "space-y-1"}>
       {nodes.map((node) => {
-        const isSelected = selectedSections.has(String(node.id));
         const hasChildren = node.children && node.children.length > 0;
+        const leafIds = collectTOCLeafIds(node);
+        const selectedCount = leafIds.filter((id) => selectedSections.has(id)).length;
+        const isAllSelected = selectedCount === leafIds.length && leafIds.length > 0;
+        const isPartial = selectedCount > 0 && !isAllSelected;
+
+        const displayName = node.display_name || (node as any).title || "Раздел";
+        const displayNumber = node.display_number || (node as any).number;
+
         return (
           <div key={node.id} className="py-1">
-            <label className="flex items-center gap-2 cursor-pointer group">
+            <div className="flex items-center gap-2.5 group hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
               <input
                 type="checkbox"
-                checked={isSelected}
-                onChange={(e) => onToggle(String(node.id), e.target.checked)}
-                className="w-4 h-4 rounded text-primary-600"
+                checked={isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = isPartial;
+                }}
+                onChange={(e) => {
+                  if (hasChildren) {
+                    onToggleGroup(leafIds, e.target.checked);
+                  } else {
+                    onToggle(String(node.id), e.target.checked);
+                  }
+                }}
+                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 flex-shrink-0 cursor-pointer"
               />
-              <span className={`text-sm ${!hasChildren ? "text-slate-600" : "font-medium text-slate-800"} group-hover:text-primary-600 transition-colors`}>
-                {node.display_number ? `${node.display_number}. ` : ""}{node.display_name}
+              <span
+                className={`text-sm flex-1 ${
+                  !hasChildren
+                    ? "text-slate-700 font-normal"
+                    : "font-semibold text-slate-900"
+                } group-hover:text-primary-700 transition-colors`}
+              >
+                {displayNumber ? `${displayNumber}. ` : ""}
+                {displayName}
               </span>
-              {node.page_start && <span className="text-xs text-slate-300 ml-auto">с.{node.page_start}</span>}
-            </label>
+              {node.page_start && (
+                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md font-mono shrink-0">
+                  с. {node.page_start}{node.page_end ? `–${node.page_end}` : ""}
+                </span>
+              )}
+            </div>
             {hasChildren && (
-              <TOCTreeView nodes={node.children!} selectedSections={selectedSections} onToggle={onToggle} depth={depth + 1} />
+              <TOCTreeView
+                nodes={node.children!}
+                selectedSections={selectedSections}
+                onToggle={onToggle}
+                onToggleGroup={onToggleGroup}
+                depth={depth + 1}
+              />
             )}
           </div>
         );
@@ -274,27 +328,62 @@ function TOCTreeView({ nodes, selectedSections, onToggle, depth }: {
 
 export default function NewExamPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [step, setStep] = useState<Step>(1);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generateVariants, setGenerateVariants] = useState(false);
+
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(false);
 
   const [config, setConfig] = useState<ExamConfig>({
     name: "",
     classId: "",
+    groupId: undefined,
+    groupName: undefined,
     type: "control",
     sourceType: "topics",
     selectedTopics: new Set(),
     selectedSections: new Set(),
     subjectFilter: "all",
-    variantsCount: 2,
     questionsCount: 8,
     duration: 45,
     difficulty: { easy: 30, medium: 50, hard: 20 },
     mode: "online",
-    shuffleQuestions: true,
-    shuffleAnswers: true,
-    showResults: false,
   });
+
+  // Load teacher groups and check searchParams
+  useEffect(() => {
+    setLoadingGroups(true);
+    orgApi.listGroups()
+      .then((res) => {
+        const loadedGroups = res || [];
+        setGroups(loadedGroups);
+        const qGroupId = searchParams.get("group_id");
+        const qGroupName = searchParams.get("group_name");
+        
+        let selectedGroup = loadedGroups.find((g) => g.id === qGroupId);
+        if (!selectedGroup && loadedGroups.length === 1) {
+          selectedGroup = loadedGroups[0];
+        }
+
+        if (selectedGroup) {
+          setConfig((prev) => ({
+            ...prev,
+            groupId: selectedGroup.id,
+            groupName: selectedGroup.name,
+            classId: prev.classId || (selectedGroup.class_level ? String(selectedGroup.class_level) : prev.classId),
+          }));
+        } else if (qGroupId) {
+          setConfig((prev) => ({
+            ...prev,
+            groupId: qGroupId,
+            groupName: qGroupName || undefined,
+          }));
+        }
+      })
+      .catch((err) => console.error("Failed to load groups:", err))
+      .finally(() => setLoadingGroups(false));
+  }, [searchParams]);
 
   // Expandable accordion state for skill tree
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
@@ -317,6 +406,9 @@ export default function NewExamPage() {
   const [apiSkillTree, setApiSkillTree] = useState<SkillTreeNode[]>([]);
   const [selectedTextbookId, setSelectedTextbookId] = useState<string>("");
   const [loadingAPI, setLoadingAPI] = useState(false);
+  const [sourceCatalogError, setSourceCatalogError] = useState<string | null>(null);
+  const [tocLoadError, setTocLoadError] = useState<string | null>(null);
+  const [catalogRefreshNonce, setCatalogRefreshNonce] = useState(0);
 
   // Fetch textbooks when class changes
   useEffect(() => {
@@ -324,31 +416,88 @@ export default function NewExamPage() {
     const grade = parseInt(config.classId);
     if (isNaN(grade)) return;
     
-    setLoadingAPI(true);
-    Promise.all([
-      textbookApi.list({ class_level: grade }).catch(() => []),
-      textbookApi.skillTree(grade).catch(() => []),
-    ]).then(([books, skills]) => {
-      setApiTextbooks(books);
-      setApiSkillTree(skills);
-      // Auto-expand only L1 nodes
-      const autoExpand = new Set<string>();
-      for (const l1 of skills) {
-        autoExpand.add(l1.id);
+    let cancelled = false;
+    async function loadSourceCatalog() {
+      setLoadingAPI(true);
+      setSourceCatalogError(null);
+      try {
+        const [books, skills] = await Promise.all([
+          textbookApi.list({ class_level: grade }),
+          textbookApi.skillTree(grade),
+        ]);
+        if (cancelled) return;
+        setApiTextbooks(books);
+        setApiSkillTree(skills);
+        // Auto-expand only L1 nodes
+        const autoExpand = new Set<string>();
+        for (const l1 of skills) autoExpand.add(l1.id);
+        setExpandedNodes(autoExpand);
+      } catch (error) {
+        if (!cancelled) setSourceCatalogError(getDataLoadErrorMessage(error));
+      } finally {
+        if (!cancelled) setLoadingAPI(false);
       }
-      setExpandedNodes(autoExpand);
-    }).finally(() => setLoadingAPI(false));
-  }, [config.classId]);
+    }
+    void loadSourceCatalog();
+    return () => { cancelled = true; };
+  }, [catalogRefreshNonce, config.classId]);
 
   // Fetch TOC when textbook selected
   useEffect(() => {
-    if (!selectedTextbookId) return;
-    setLoadingAPI(true);
-    textbookApi.toc(selectedTextbookId)
-      .then(setApiTOC)
-      .catch(() => setApiTOC([]))
-      .finally(() => setLoadingAPI(false));
-  }, [selectedTextbookId]);
+    if (!selectedTextbookId) {
+      setApiTOC([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadToc() {
+      setLoadingAPI(true);
+      setTocLoadError(null);
+      try {
+        const toc = await textbookApi.toc(selectedTextbookId);
+        if (!cancelled) setApiTOC(toc);
+      } catch (error) {
+        if (!cancelled) setTocLoadError(getDataLoadErrorMessage(error));
+      } finally {
+        if (!cancelled) setLoadingAPI(false);
+      }
+    }
+    void loadToc();
+    return () => { cancelled = true; };
+  }, [catalogRefreshNonce, selectedTextbookId]);
+
+  const stepperRef = useRef<HTMLDivElement>(null);
+
+  // Smoothly align viewport so the step indicators bar is right at the top of the visible screen
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (stepperRef.current) {
+        const navbarHeight = 72; // Top navbar height
+        const topPadding = 16;
+        const elementTop = stepperRef.current.getBoundingClientRect().top;
+        const targetScrollY = window.pageYOffset + elementTop - navbarHeight - topPadding;
+        
+        window.scrollTo({
+          top: Math.max(0, targetScrollY),
+          behavior: "smooth",
+        });
+      }
+    }, 80);
+
+    return () => clearTimeout(timer);
+  }, [step]);
+
+  const groupOptions: SelectOption[] = useMemo(() => {
+    return groups.map((g) => ({
+      value: g.id,
+      label: g.name,
+      sublabel: g.students_count ? `${g.students_count} уч.` : (g.class_level ? `${g.class_level} класс` : undefined),
+      icon: <Users className="w-4 h-4 text-primary-600 shrink-0" />,
+    }));
+  }, [groups]);
+
+  const selectedGroup = useMemo(() => {
+    return groups.find((g) => g.id === config.groupId);
+  }, [groups, config.groupId]);
 
   const classes = [
     { value: "5", label: "5 класс" },
@@ -361,8 +510,8 @@ export default function NewExamPage() {
   ];
 
   const examTypes = [
-    { value: "control", label: "📋 Контрольная работа" },
-    { value: "diagnostic", label: "🔍 Быстрая проверка" },
+    { value: "control", label: "Контрольная работа", icon: <FileText className="w-4 h-4 text-amber-500 shrink-0" /> },
+    { value: "diagnostic", label: "Быстрая проверка (диагностика)", icon: <Target className="w-4 h-4 text-blue-500 shrink-0" /> },
   ];
 
   const filteredTextbooks = useMemo(() => {
@@ -382,21 +531,38 @@ export default function NewExamPage() {
     setConfig({ ...config, selectedSections: newSet });
   };
 
+  const handleSectionGroupToggle = (ids: string[], selected: boolean) => {
+    const newSet = new Set(config.selectedSections);
+    ids.forEach((id) => {
+      if (selected) newSet.add(id); else newSet.delete(id);
+    });
+    setConfig({ ...config, selectedSections: newSet });
+  };
+
   const handleGenerate = async () => {
     setIsGenerating(true);
     try {
+      const user = useAuthStore.getState().user;
+      const teacherName = user ? `${user.first_name || ""} ${user.last_name || ""}`.trim() : undefined;
       const result = await examsApi.generate({
         title: config.name || `Экзамен ${config.classId} класс`,
         textbook_id: selectedTextbookId || undefined,
         skill_ids: config.sourceType === "topics" ? Array.from(config.selectedTopics) : [],
-        paragraph_ids: config.sourceType === "textbook" ? Array.from(config.selectedSections) : [],
+        paragraph_ids: config.sourceType === "textbook" ? Array.from(config.selectedSections).map(Number) : [],
+        group_id: config.groupId || undefined,
+        group_name: config.groupName || undefined,
+        class_level: config.classId ? parseInt(config.classId) : undefined,
         tasks_count: config.questionsCount,
+        difficulty_distribution: config.difficulty,
         time_minutes: config.duration,
-        variants_count: generateVariants ? config.variantsCount : 1,
-        shuffle_tasks: config.shuffleQuestions,
-        shuffle_options: config.shuffleAnswers,
-        generate_variants: generateVariants,
+        // Tasks remain in the prepared section order.  Choice options are
+        // shuffled only for online students and remain stable after reconnect.
+        // In online delivery this is an invariant: each student receives a
+        // personal, reconnect-stable order of the same answer options.
+        shuffle_options: config.mode === "online",
         mc_mode: "auto",
+        delivery_mode: config.mode === "print" ? "print" : "online",
+        teacher_name: teacherName || undefined,
       });
       // Redirect to draft page for preview/edit
       const examId = result.exam_id || result.access_code;
@@ -411,12 +577,12 @@ export default function NewExamPage() {
 
   const canProceed = () => {
     switch (step) {
-      case 1: return config.name.trim() && config.classId;
+      case 1: return Boolean(config.name.trim() && config.classId); // groupId is optional — can save to Library
       case 2:
         if (config.sourceType === "topics") return config.selectedTopics.size > 0;
         if (config.sourceType === "textbook") return config.selectedSections.size > 0;
         return true;
-      case 3: return config.questionsCount > 0 && config.variantsCount > 0;
+      case 3: return config.questionsCount > 0;
       case 4: return true;
       default: return false;
     }
@@ -432,10 +598,10 @@ export default function NewExamPage() {
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-24">
       <h1 className="text-2xl font-bold text-slate-900 mb-1">Создать экзамен</h1>
-      <p className="text-slate-500 mb-10">Настройте параметры и сгенерируйте варианты</p>
+      <p className="text-slate-500 mb-6">Настройте параметры и сгенерируйте варианты</p>
 
       <div>
-          <div className="flex items-center justify-center gap-2 mt-4 mb-10">
+          <div ref={stepperRef} className="flex items-center justify-center gap-2 mt-2 mb-8 scroll-mt-24">
             {steps.map((s, i) => (
               <div key={s.num} className="flex items-center">
                 <motion.button
@@ -464,16 +630,59 @@ export default function NewExamPage() {
                       <FileText className="w-8 h-8 text-primary-600" />
                     </div>
                     <h2 className="text-xl font-semibold text-slate-900">Основная информация</h2>
-                    <p className="text-slate-500 text-sm">Название, класс и тип работы</p>
+                    <p className="text-slate-500 text-sm">Название, группа, класс программы и тип работы</p>
                   </div>
-                  <div className="space-y-7 max-w-md mx-auto">
-                    <Input label="Название" placeholder="Контрольная работа №3: Квадратные уравнения" value={config.name} onChange={(e) => setConfig({ ...config, name: e.target.value })} />
-                    <Select label="Класс" placeholder="Выберите класс" options={classes} value={config.classId} onChange={(e) => setConfig({ ...config, classId: e.target.value })} />
-                    <Select label="Тип работы" options={examTypes} value={config.type} onChange={(e) => setConfig({ ...config, type: e.target.value as ExamConfig["type"] })} />
+                  <div className="space-y-6 max-w-md mx-auto">
+                    <Input
+                      label="Название экзамена"
+                      placeholder="Контрольная работа №3: Квадратные уравнения"
+                      value={config.name}
+                      onChange={(e) => setConfig({ ...config, name: e.target.value })}
+                    />
+
+                    {/* Group Selection using custom Select */}
+                    <div className="space-y-1.5">
+                      <Select
+                        label="Группа — необязательно (можно назначить позже)"
+                        placeholder={loadingGroups ? "Загрузка групп..." : (groups.length === 0 ? "Нет доступных групп" : "Выбрать группу или оставить пустым...")}
+                        options={groupOptions}
+                        value={config.groupId || ""}
+                        onChange={(e) => {
+                          const gId = e.target.value;
+                          const found = groups.find((g) => g.id === gId);
+                          setConfig((prev) => ({
+                            ...prev,
+                            groupId: gId || undefined,
+                            groupName: found ? found.name : undefined,
+                            classId: prev.classId || (found?.class_level ? String(found.class_level) : prev.classId),
+                          }));
+                        }}
+                      />
+                      <p className="text-xs text-slate-500">
+                        {config.groupId
+                          ? `✅ Экзамен назначен группе «${config.groupName}» — будет опубликован для этой группы.`
+                          : "📚 Без группы — экзамен сохранится в вашу Библиотеку и вы сможете назначить его любой группе позже."}
+                      </p>
+                    </div>
+
+                    <Select
+                      label="Учебная программа / Класс"
+                      placeholder="Выберите класс для базы заданий"
+                      options={classes}
+                      value={config.classId}
+                      onChange={(e) => setConfig({ ...config, classId: e.target.value })}
+                    />
+                    <Select
+                      label="Тип работы"
+                      options={examTypes}
+                      value={config.type}
+                      onChange={(e) => setConfig({ ...config, type: e.target.value as ExamConfig["type"] })}
+                    />
                   </div>
                 </GlassCard>
               </motion.div>
             )}
+
 
             {step === 2 && (
               <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
@@ -495,6 +704,16 @@ export default function NewExamPage() {
                     ))}
                   </div>
 
+                  {(sourceCatalogError || tocLoadError) && (
+                    <DataLoadError
+                      compact
+                      title="Источник заданий не обновлён"
+                      message={`${sourceCatalogError || tocLoadError} Показаны последние успешно загруженные данные.`}
+                      onRetry={() => setCatalogRefreshNonce((current) => current + 1)}
+                      className="mb-5"
+                    />
+                  )}
+
                   {config.sourceType === "topics" && (
                     <div>
                       <div className="flex items-center justify-between mb-3">
@@ -514,6 +733,10 @@ export default function NewExamPage() {
                         <div className="flex items-center justify-center py-12 text-slate-400">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                           Загрузка программы...
+                        </div>
+                      ) : sourceCatalogError && apiSkillTree.length === 0 ? (
+                        <div className="text-center py-12 text-rose-600">
+                          Программа временно недоступна. Повторите загрузку выше.
                         </div>
                       ) : apiSkillTree.length === 0 ? (
                         <div className="text-center py-12 text-slate-400">
@@ -546,6 +769,10 @@ export default function NewExamPage() {
                           <div className="flex items-center justify-center py-12 text-slate-400">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500 mr-3" />
                             Загрузка учебников...
+                          </div>
+                        ) : sourceCatalogError && filteredTextbooks.length === 0 ? (
+                          <div className="text-center py-12 text-rose-600">
+                            Учебники временно недоступны. Повторите загрузку выше.
                           </div>
                         ) : filteredTextbooks.length === 0 ? (
                           <div className="text-center py-12 text-slate-400">
@@ -588,11 +815,21 @@ export default function NewExamPage() {
                               <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500 mr-3" />
                               Загрузка оглавления...
                             </div>
+                          ) : tocLoadError && apiTOC.length === 0 ? (
+                            <div className="text-center py-8 text-rose-600">
+                              Оглавление временно недоступно. Повторите загрузку выше.
+                            </div>
                           ) : (
                             <div className="max-h-[500px] overflow-y-auto border border-slate-200 rounded-xl p-4 bg-white
                               [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-300 [&::-webkit-scrollbar-thumb]:rounded-full
                               hover:[&::-webkit-scrollbar-thumb]:bg-slate-400">
-                              <TOCTreeView nodes={apiTOC} selectedSections={config.selectedSections} onToggle={handleSectionToggle} depth={0} />
+                              <TOCTreeView
+                                nodes={apiTOC}
+                                selectedSections={config.selectedSections}
+                                onToggle={handleSectionToggle}
+                                onToggleGroup={handleSectionGroupToggle}
+                                depth={0}
+                              />
                             </div>
                           )}
                         </div>
@@ -731,81 +968,29 @@ export default function NewExamPage() {
                     </h3>
 
                     <div className="space-y-3">
-                      {[
-                        { key: "shuffleQuestions", label: "Перемешивать вопросы", desc: "Случайный порядок заданий для каждого ученика" },
-                        { key: "shuffleAnswers", label: "Перемешивать варианты ответов", desc: "Случайный порядок вариантов A/B/C/D" },
-                        { key: "showResults", label: "Показать результат ученику", desc: "Ученик увидит оценку сразу после окончания" },
-                      ].map((opt) => (
-                        <label key={opt.key} className="flex items-start gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={config[opt.key as keyof ExamConfig] as boolean}
-                            onChange={(e) => setConfig({ ...config, [opt.key]: e.target.checked })}
-                            className="w-4 h-4 mt-0.5 rounded text-primary-600 focus:ring-primary-500"
-                          />
+                      {config.mode === "online" && (
+                        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/40 p-3.5">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                            <Shuffle className="w-4 h-4 text-emerald-600" />
+                          </div>
                           <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-slate-700 block">{opt.label}</span>
-                            <span className="text-xs text-slate-400">{opt.desc}</span>
+                            <h4 className="text-sm font-semibold text-slate-900">Перемешивание вариантов ответов включено</h4>
+                            <p className="text-xs text-slate-500 mt-0.5">У каждого ученика свой, но неизменный при повторном входе порядок вариантов A/B/C/D</p>
                           </div>
-                        </label>
-                      ))}
-                    </div>
-                  </GlassCard>
-
-                  {/* ── Section: Anti-Cheat ── */}
-                  <GlassCard className={`p-6 border-2 transition-all ${generateVariants ? "border-primary-400 bg-primary-50/30" : "border-transparent"}`}>
-                    <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        generateVariants ? "bg-primary-100" : "bg-slate-100"
-                      }`}>
-                        <Shield className={`w-5 h-5 ${generateVariants ? "text-primary-600" : "text-slate-400"}`} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-sm font-semibold text-slate-900">Anti-Cheat режим</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Генерация уникальных вариантов с разными числами в задачах</p>
-                          </div>
-                          <button
-                            onClick={() => setGenerateVariants(!generateVariants)}
-                            className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                              generateVariants ? "bg-primary-500" : "bg-slate-300"
-                            }`}
-                          >
-                            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                              generateVariants ? "translate-x-[22px]" : "translate-x-0.5"
-                            }`} />
-                          </button>
                         </div>
+                      )}
 
-                        {/* Variant counter */}
-                        <AnimatePresence>
-                          {generateVariants && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="flex items-center gap-3 mt-4 pt-4 border-t border-slate-200/60">
-                                <span className="text-sm text-slate-600">Кол-во вариантов:</span>
-                                <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
-                                  <button onClick={() => setConfig({ ...config, variantsCount: Math.max(2, config.variantsCount - 1) })}
-                                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-sm flex items-center justify-center transition-all text-slate-600">
-                                    <Minus className="w-4 h-4" />
-                                  </button>
-                                  <span className="w-10 text-center font-bold text-slate-900 text-lg">{config.variantsCount}</span>
-                                  <button onClick={() => setConfig({ ...config, variantsCount: Math.min(10, config.variantsCount + 1) })}
-                                    className="w-8 h-8 rounded-lg hover:bg-white hover:shadow-sm flex items-center justify-center transition-all text-slate-600">
-                                    <Plus className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                <span className="text-xs text-slate-400">Те же задачи, другие числа</span>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                      {config.mode === "print" && (
+                        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+                          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center flex-shrink-0">
+                            <FileCheck2 className="w-4 h-4 text-slate-500" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-slate-900">Порядок вариантов ответа</h4>
+                            <p className="text-xs leading-relaxed text-slate-500 mt-0.5">Фиксируется один раз и одинаково отображается в бланке и ключе преподавателя.</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </GlassCard>
                 </div>
@@ -814,84 +999,256 @@ export default function NewExamPage() {
 
             {step === 4 && (
               <motion.div key="step4" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}>
-                <GlassCard className="p-8 sm:p-10">
+                <GlassCard className="p-6 sm:p-10">
                   <div className="text-center mb-8">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-indigo-100 flex items-center justify-center">
-                      <Monitor className="w-8 h-8 text-indigo-600" />
+                    <div className="w-14 h-14 mx-auto mb-3.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shadow-xs">
+                      <Monitor className="w-7 h-7 text-indigo-600" />
                     </div>
-                    <h2 className="text-xl font-semibold text-slate-900">Способ проведения</h2>
-                    <p className="text-slate-500 text-sm">Как ученики будут проходить экзамен</p>
+                    <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Способ проведения</h2>
+                    <p className="text-slate-500 text-sm mt-1">Выберите формат и проверьте итоговые параметры экзамена</p>
                   </div>
 
+                  {/* Mode Selector Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto items-stretch">
                     {[
-                      { id: "online", emoji: "🖥️", title: "Онлайн", desc: "Ученики проходят на своих устройствах по QR-коду", features: ["Автопроверка", "Результаты сразу", "Антиплагиат"] },
-                      { id: "print", emoji: "🖨️", title: "Печать", desc: "PDF-варианты для печати + файл с ответами", features: ["Бланки ответов", "Ключи для учителя", "Критерии"] },
-                      { id: "hybrid", emoji: "🔄", title: "Гибрид", desc: "Печатные задания + онлайн ввод ответов", features: ["Офлайн решение", "Быстрая проверка", "Аналитика"] },
-                    ].map((mode) => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => setConfig({ ...config, mode: mode.id as ExamMode })}
-                        className={`h-full min-h-[220px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all flex flex-col ${
-                          config.mode === mode.id
-                            ? "border-primary-500 bg-primary-50 shadow-sm"
-                            : "border-slate-200 hover:border-slate-300 bg-white"
-                        }`}
-                      >
-                        <div className="text-3xl mb-3 flex-shrink-0">{mode.emoji}</div>
-                        <h3 className="font-semibold text-slate-900 mb-1 flex-shrink-0">{mode.title}</h3>
-                        <p className="text-sm text-slate-500 mb-3 leading-snug flex-1">{mode.desc}</p>
-                        <ul className="space-y-1 flex-shrink-0">
-                          {mode.features.map((f, i) => (
-                            <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
-                              <Check className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
-                              <span className="break-words">{f}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </button>
-                    ))}
+                      {
+                        id: "online",
+                        icon: <Monitor className="w-6 h-6 text-blue-600" />,
+                        iconBg: "bg-blue-50/90 text-blue-600",
+                        title: "Онлайн",
+                        desc: "Ученики проходят на своих устройствах по QR-коду или ссылке",
+                        features: ["Автопроверка результатов", "Мгновенная аналитика", "Защита от списывания"],
+                      },
+                      {
+                        id: "print",
+                        icon: <Printer className="w-6 h-6 text-slate-700" />,
+                        iconBg: "bg-slate-100/90 text-slate-700",
+                        title: "Печать",
+                        desc: "PDF-варианты для распечатки + отдельный файл с ответами",
+                        features: ["Бланки для учеников", "Ключи для учителя", "Критерии оценивания"],
+                      },
+                      {
+                        id: "hybrid",
+                        icon: <QrCode className="w-6 h-6 text-indigo-600" />,
+                        iconBg: "bg-indigo-50/90 text-indigo-600",
+                        title: "Гибрид",
+                        desc: "Печатные задания + быстрый ввод ответов через телефон",
+                        features: ["Офлайн решение", "Быстрая оцифровка", "Электронная статистика"],
+                        comingSoon: true,
+                      },
+                    ].map((mode) => {
+                      const isUnavailable = Boolean(mode.comingSoon);
+                      const isSelected = !isUnavailable && config.mode === mode.id;
+                      return (
+                        <button
+                          key={mode.id}
+                          type="button"
+                          disabled={isUnavailable}
+                          onClick={() => !isUnavailable && setConfig({ ...config, mode: mode.id as ExamMode })}
+                          className={`relative h-full min-h-[210px] p-5 sm:p-6 rounded-2xl border-2 text-left transition-all duration-200 flex flex-col group ${isUnavailable ? "cursor-not-allowed opacity-65" : ""} ${
+                            isSelected
+                              ? "border-primary-500 bg-gradient-to-b from-primary-50/60 via-white to-white ring-2 ring-primary-500/20 shadow-md shadow-primary-500/10"
+                              : "border-slate-200/80 hover:border-slate-300 bg-white/80 hover:bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-3.5">
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-transform duration-200 group-hover:scale-105 ${mode.iconBg}`}>
+                              {mode.icon}
+                            </div>
+                            <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                              isSelected ? "bg-primary-600 text-white" : "border-2 border-slate-300 group-hover:border-slate-400"
+                            }`}>
+                              {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                            </div>
+                          </div>
+
+                          <h3 className="font-bold text-slate-900 text-base sm:text-lg mb-1">{mode.title}</h3>
+                          <p className="text-xs sm:text-sm text-slate-500 mb-3.5 leading-relaxed flex-1">{mode.desc}</p>
+
+                          {isUnavailable && (
+                            <span className="mb-3 inline-flex w-fit rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[11px] font-semibold text-violet-700">
+                              Скоро
+                            </span>
+                          )}
+
+                          <div className="pt-3 border-t border-slate-100/90 space-y-1.5">
+                            {mode.features.map((f, i) => (
+                              <div key={i} className="text-xs text-slate-600 flex items-center gap-2">
+                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${isSelected ? "bg-primary-600" : "bg-slate-300"}`} />
+                                <span className="leading-tight">{f}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <div className="mt-8 p-5 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 max-w-4xl mx-auto overflow-hidden">
-                    <h3 className="font-medium text-slate-900 mb-4">📋 Итого</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
-                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Название</p>
-                        <p className="font-medium text-slate-900 break-words leading-snug">{config.name || "—"}</p>
+                  {/* Premium Summary Card */}
+                  <div className="mt-8 max-w-4xl mx-auto rounded-3xl bg-gradient-to-br from-white via-slate-50/60 to-primary-50/20 border border-slate-200/90 shadow-lg shadow-slate-900/5 overflow-hidden transition-all">
+                    {/* Header */}
+                    <div className="px-5 sm:px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-white/70 backdrop-blur-sm">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-xl bg-primary-100 flex items-center justify-center text-primary-600 shadow-xs">
+                          <FileCheck2 className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base">Сводка параметров экзамена</h3>
+                          <p className="text-xs text-slate-500">Проверьте данные перед созданием</p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Класс</p>
-                        <p className="font-medium text-slate-900">{config.classId ? `${config.classId} класс` : "—"}</p>
+
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200/80 shadow-xs">
+                          {config.mode === "online" && <Monitor className="w-3.5 h-3.5" />}
+                          {config.mode === "print" && <Printer className="w-3.5 h-3.5" />}
+                          {config.mode === "hybrid" && <QrCode className="w-3.5 h-3.5" />}
+                          {config.mode === "online" ? "Онлайн тестирование" : config.mode === "print" ? "Печатный экзамен" : "Гибридный формат"}
+                        </span>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Тип</p>
-                        <p className="font-medium text-slate-900">
-                          {config.type === "control" ? "Контрольная работа" : "Быстрая проверка"}
-                        </p>
+                    </div>
+
+                    <div className="p-5 sm:p-6 space-y-4">
+                      {/* Top Meta Bar (Title, Group, Class, Type) */}
+                      <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-primary-500/20 shrink-0">
+                            <FileText className="w-6 h-6" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Экзамен</span>
+                              <span className="inline-block w-1 h-1 rounded-full bg-slate-300" />
+                              <span className="text-xs font-medium text-slate-500">
+                                {config.type === "control" ? "Контрольная работа" : "Быстрая диагностика"}
+                              </span>
+                            </div>
+                            <h4 className="font-bold text-slate-900 text-base sm:text-lg truncate">
+                              {config.name || "Без названия"}
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* Badges / Chips */}
+                        <div className="flex flex-wrap items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                          {selectedGroup && (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100/90 text-slate-800 text-xs font-medium border border-slate-200/70">
+                              <Users className="w-3.5 h-3.5 text-primary-600" />
+                              <span className="font-semibold">{selectedGroup.name}</span>
+                              {selectedGroup.students_count ? (
+                                <span className="text-slate-400 text-[11px]">({selectedGroup.students_count} уч.)</span>
+                              ) : null}
+                            </div>
+                          )}
+
+                          {config.classId && (
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100/90 text-slate-800 text-xs font-medium border border-slate-200/70">
+                              <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>{config.classId} класс</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Время</p>
-                        <p className="font-medium text-slate-900">{config.duration} мин</p>
+
+                      {/* 4 Metric Cards Grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+                        {/* Time */}
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Время</span>
+                            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                              <Clock className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                              {config.duration} <span className="text-xs font-medium text-slate-500">мин</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">Лимит времени</div>
+                          </div>
+                        </div>
+
+                        {/* Variants */}
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Вариант</span>
+                            <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
+                              <Layers className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                              1 <span className="text-xs font-medium text-slate-500">вар.</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">
+                              Один вариант
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Questions */}
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Задания</span>
+                            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                              <ListOrdered className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                              {config.questionsCount} <span className="text-xs font-medium text-slate-500">задач</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5">В каждом варианте</div>
+                          </div>
+                        </div>
+
+                        {/* Source */}
+                        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Источник</span>
+                            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                              <BookOpen className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="font-extrabold text-slate-900 text-base sm:text-lg truncate">
+                              {config.sourceType === "topics"
+                                ? "По темам"
+                                : config.sourceType === "textbook"
+                                  ? "Учебник"
+                                  : "Свои"}
+                            </div>
+                            <div className="text-[11px] text-slate-400 mt-0.5 truncate">
+                              {config.sourceType === "topics"
+                                ? `${config.selectedTopics.size} навыков`
+                                : config.sourceType === "textbook"
+                                  ? `${config.selectedSections.size} параграфов`
+                                  : "Кастомные"}
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Вариантов</p>
-                        <p className="font-medium text-slate-900">{generateVariants ? config.variantsCount : 1}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Заданий в варианте</p>
-                        <p className="font-medium text-slate-900">{config.questionsCount}</p>
-                      </div>
-                      <div className="min-w-0 sm:col-span-2 lg:col-span-3">
-                        <p className="text-xs text-slate-500 uppercase tracking-wide mb-1">Источник</p>
-                        <p className="font-medium text-slate-900 break-words leading-snug">
-                          {config.sourceType === "topics"
-                            ? `По темам (${config.selectedTopics.size} навыков)`
-                            : config.sourceType === "textbook"
-                              ? `По учебнику (${config.selectedSections.size} параграфов)`
-                              : "Свои задания"}
-                        </p>
+
+                      {/* Bottom Options Row */}
+                      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-600">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-slate-400 font-medium">Опции:</span>
+                          {config.mode === "online" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                              <Shuffle className="w-3 h-3" />
+                              Варианты ответов: перемешиваются
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 bg-slate-50 font-medium text-slate-500">
+                              <FileCheck2 className="w-3 h-3" />
+                              PDF: порядок ответов зафиксирован
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-slate-400 text-[11px]">
+                          ⚡ Экзамен формируется алгоритмом ALGO
+                        </div>
                       </div>
                     </div>
                   </div>

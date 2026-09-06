@@ -4,19 +4,19 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users, BarChart2,
+  ArrowLeft, UserPlus, Users,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Settings2, Lock, Sparkles, UserCheck, FileText, Info, ChevronDown, RotateCcw
+  Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
-import { AttendanceJournal } from "@/components/groups/attendance-journal";
+import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { Select } from "@/components/ui/select";
 import { BookOpen } from "lucide-react";
 
-type Tab = "students" | "analytics" | "attendance" | "settings";
+type Tab = "students" | "attendance" | "settings";
 
 interface EditState {
   name: string;
@@ -39,7 +39,10 @@ export default function OwnerGroupDetailPage() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const tab = (searchParams?.get("tab") as Tab) || "students";
+  const requestedTab = searchParams?.get("tab");
+  const tab: Tab = requestedTab === "attendance" || requestedTab === "settings" || requestedTab === "students"
+    ? requestedTab
+    : "students";
   const setTab = (newTab: Tab) => {
     router.replace(`?tab=${newTab}`, { scroll: false });
   };
@@ -367,41 +370,6 @@ export default function OwnerGroupDetailPage() {
                   )}
                 </div>
               </div>
-
-              {/* Metrics */}
-              <div className="grid grid-cols-3 gap-4 mt-6 pt-5 border-t border-slate-50">
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-slate-900">{group.student_count}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Учеников</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-primary-600">{diagnosedCount}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Диагностировано</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-slate-900">
-                    {stats?.avg_theta != null ? stats.avg_theta.toFixed(2) : "—"}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-0.5">Средний θ</p>
-                </div>
-              </div>
-
-              {group.student_count > 0 && (
-                <div className="mt-4">
-                  <div className="flex justify-between text-xs text-slate-500 mb-1">
-                    <span>Прогресс диагностики</span>
-                    <span className="font-medium text-slate-700">{diagPct}%</span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${diagPct}%` }}
-                      transition={{ duration: 0.8, ease: "easeOut" }}
-                      className="h-full rounded-full bg-gradient-to-r from-primary-500 to-emerald-400"
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -411,7 +379,6 @@ export default function OwnerGroupDetailPage() {
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([
           { key: "students",  label: "Ученики",   Icon: Users    },
-          { key: "analytics", label: "Аналитика",  Icon: BarChart2},
           { key: "attendance", label: "Посещаемость", Icon: BookOpen },
         ] as const).map(({ key, label, Icon }) => (
           <button
@@ -446,35 +413,9 @@ export default function OwnerGroupDetailPage() {
           </motion.div>
         )}
 
-        {tab === "analytics" && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
-              <Lock className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="max-w-md space-y-1.5">
-              <h3 className="text-base font-semibold text-slate-900">Аналитика группы</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Доступ к разделу временно ограничен</span>
-            </div>
-          </motion.div>
-        )}
-
         {tab === "attendance" && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-12 text-center flex flex-col items-center justify-center space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-sm">
-              <Lock className="w-6 h-6 animate-pulse" />
-            </div>
-            <div className="max-w-md space-y-1.5">
-              <h3 className="text-base font-semibold text-slate-900">Журнал посещаемости</h3>
-              <p className="text-sm text-slate-500 leading-relaxed">Раздел откроется после завершения этапов подключения центра.</p>
-            </div>
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200/60 text-xs font-medium text-amber-800">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              <span>Доступ к разделу временно ограничен</span>
-            </div>
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <GroupAttendanceJournal groupId={groupId} students={group.students || []} canEdit={false} />
           </motion.div>
         )}
       </div>

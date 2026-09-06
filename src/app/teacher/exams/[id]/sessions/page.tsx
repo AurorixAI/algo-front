@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { examsApi } from "@/lib/api";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 interface SessionSummary {
   session_id: string;
@@ -55,8 +56,12 @@ export default function ExamSessionsPage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [examTitle, setExamTitle] = useState<string>("");
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshNonce, setRefreshNonce] = useState(0);
 
   useEffect(() => {
+    setLoading(true);
+    setLoadError(null);
     Promise.all([
       examsApi.getSessions(examId),
       examsApi.getDraft(examId).catch(() => null),
@@ -65,9 +70,9 @@ export default function ExamSessionsPage() {
         setSessions(Array.isArray(sData) ? sData : []);
         if (draft) setExamTitle(draft.title);
       })
-      .catch(console.error)
+      .catch((error) => setLoadError(getDataLoadErrorMessage(error)))
       .finally(() => setLoading(false));
-  }, [examId]);
+  }, [examId, refreshNonce]);
 
   const submitted = sessions.filter((s) => s.status === "submitted");
   const inProgress = sessions.filter((s) => s.status !== "submitted");
@@ -111,6 +116,18 @@ export default function ExamSessionsPage() {
     );
   }
 
+  if (loadError && sessions.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl pt-12">
+        <DataLoadError
+          title="Не удалось загрузить ответы студентов"
+          message={loadError}
+          onRetry={() => setRefreshNonce((current) => current + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -137,6 +154,15 @@ export default function ExamSessionsPage() {
           </button>
         )}
       </div>
+
+      {loadError && (
+        <DataLoadError
+          compact
+          title="Ответы студентов не обновлены"
+          message={`${loadError} Показаны последние успешно загруженные данные.`}
+          onRetry={() => setRefreshNonce((current) => current + 1)}
+        />
+      )}
 
       {/* Stats */}
       {sessions.length > 0 && (

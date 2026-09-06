@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { TestBackground } from "@/components/ui/test-background";
@@ -20,14 +21,44 @@ import {
   Home,
   Send,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickTaskDisplayText } from "@/lib/task-display";
+import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
-type Phase = "loading" | "confirm" | "welcome" | "testing" | "analyzing" | "results" | "error";
+type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "analyzing" | "results" | "error";
+
+const REPORT_STAGE = {
+  queued: {
+    title: "Ответы сохранены",
+    description: "Готовим структуру персонального отчёта.",
+    current: 0,
+  },
+  collecting_evidence: {
+    title: "Проверяем результаты",
+    description: "Сверяем ответы, навыки и зафиксированные ошибки.",
+    current: 1,
+  },
+  writing_methodical_conclusion: {
+    title: "Формируем заключение",
+    description: "Готовим методические рекомендации по результатам диагностики.",
+    current: 2,
+  },
+  retry_queued: {
+    title: "Повторно готовим отчёт",
+    description: "Ответы сохранены. Повторяем подготовку без потери данных.",
+    current: 1,
+  },
+  failed: {
+    title: "Результаты сохранены",
+    description: "Подробный отчёт будет подготовлен повторно специалистом учебного центра.",
+    current: 0,
+  },
+} as const;
 
 /** Format elapsed time */
 function formatTime(ms: number): string {
@@ -50,8 +81,30 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [inviteInfo, setInviteInfo] = useState<any>(null);
   const [confirmError, setConfirmError] = useState("");
   const [confirmLoading, setConfirmLoading] = useState(false);
+  // A consumed or unavailable invite is not recoverable by pressing the
+  // generic retry button.  Keeping this separate prevents the UI from
+  // offering a second attempt for a one-time diagnostic capability.
+  const [canRetry, setCanRetry] = useState(true);
 
-  // On mount: check invite status — show confirm form or welcome
+  // Active session for resume flow
+  const [activeSession, setActiveSession] = useState<{
+    session_id: string;
+    items_answered: number;
+    current_task: DiagTaskOut;
+    total_time_ms?: number;
+  } | null>(null);
+  const activeItemsMax = Math.max(
+    activeSession?.current_task.items_max ?? 0,
+    activeSession ? activeSession.items_answered + 1 : 0,
+  );
+
+  // Timer refs & elapsed state
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const initialElapsedMsRef = useRef<number>(0);
+  const questionStartRef = useRef<number>(Date.now());
+  const sessionStartRef = useRef<number>(Date.now());
+
+  // On mount: check invite status — show confirm form, resume, or welcome
   useEffect(() => {
     (async () => {
       try {
@@ -59,12 +112,55 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         setInviteInfo(info);
         if (info.status === "pending") {
           setPhase("confirm");
-        } else {
-          setPhase("welcome");
+          return;
         }
-      } catch {
-        // Code invalid or expired — show welcome, error will appear on start
+        if (info.status === "completed") {
+          setCanRetry(false);
+          setErrorMsg("Эта диагностика уже завершена. Повторное прохождение по данной ссылке недоступно.");
+          setPhase("error");
+          return;
+        }
+        if (info.status === "expired") {
+          setCanRetry(false);
+          setErrorMsg("Срок действия этой ссылки истёк. Обратитесь к учебному центру за новой диагностикой.");
+          setPhase("error");
+          return;
+        }
+        // Check if there's an active unfinished session to resume
+        try {
+          const active = await diagnosticApi.getActiveSession(code);
+          if (active?.session_id) {
+            setActiveSession(active);
+            initialElapsedMsRef.current = active.total_time_ms || 0;
+            setElapsedMs(active.total_time_ms || 0);
+            diagStore.startSession(
+              String(active.session_id),
+              active.current_task.phase,
+              active.current_task,
+              (active.items_answered ?? 0) + 1,
+            );
+            setPhase("resume");
+            return;
+          }
+        } catch (err: any) {
+          // A confirmed invite with no session can legitimately start.  An
+          // in-progress invite without recoverable state must never be shown
+          // as a fresh attempt, otherwise the next action ends in a 409 and
+          // suggests that the student may restart a consumed capability.
+          if (info.status === "in_progress") {
+            setCanRetry(false);
+            setErrorMsg(
+              "Диагностика уже начата, но её состояние временно недоступно. Не начинайте её заново — обратитесь к учебному центру."
+            );
+            setPhase("error");
+            return;
+          }
+        }
         setPhase("welcome");
+      } catch (err: any) {
+        setCanRetry(true);
+        setErrorMsg(err?.message || "Не удалось проверить ссылку диагностики. Проверьте подключение и попробуйте ещё раз.");
+        setPhase("error");
       }
     })();
   }, [code]);
@@ -89,17 +185,18 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<DiagReport | null>(null);
-  const [elapsedMs, setElapsedMs] = useState(0);
+  const reportPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Timer for current question
-  const questionStartRef = useRef<number>(Date.now());
-  const sessionStartRef = useRef<number>(Date.now());
+  useEffect(() => () => {
+    if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
+  }, []);
 
   // Elapsed time ticker
   useEffect(() => {
     if (phase !== "testing") return;
+    setElapsedMs(initialElapsedMsRef.current + (Date.now() - sessionStartRef.current));
     const interval = setInterval(() => {
-      setElapsedMs(Date.now() - sessionStartRef.current);
+      setElapsedMs(initialElapsedMsRef.current + (Date.now() - sessionStartRef.current));
     }, 1000);
     return () => clearInterval(interval);
   }, [phase]);
@@ -132,6 +229,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         response.first_task.phase,
         response.first_task,
       );
+      initialElapsedMsRef.current = 0;
+      setElapsedMs(0);
       questionStartRef.current = Date.now();
       sessionStartRef.current = Date.now();
     } catch (err: any) {
@@ -159,6 +258,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
           student_answer: submitted,
           time_ms: timeMs,
         },
+        code,
       );
 
       setAnswer("");
@@ -195,9 +295,18 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   /** Fetch final report from diagnostic-service */
   const fetchResult = async (sessionId: string) => {
     try {
-      const res = await diagnosticApi.getReport(sessionId);
+      const res = await diagnosticApi.getReport(sessionId, code);
       setResult(res);
-      setTimeout(() => setPhase("results"), 2000);
+      const generationStatus = res.report_generation?.status;
+      if (generationStatus === "ready" || generationStatus === "failed") {
+        reportPollTimerRef.current = setTimeout(() => setPhase("results"), 700);
+        return;
+      }
+
+      // The service stores the job before returning from the final answer.
+      // Poll only this completed session until its durable state becomes ready;
+      // no report data is lost if the page is refreshed in the meantime.
+      reportPollTimerRef.current = setTimeout(() => fetchResult(sessionId), 1800);
     } catch (err: any) {
       setErrorMsg(err.message || "Не удалось получить результат");
       setPhase("error");
@@ -213,11 +322,26 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
   const currentTask = diagStore.currentTask as DiagTaskOut | null;
 
+  const isWideTask = useMemo(() => {
+    if (!currentTask) return false;
+    const opts = currentTask.answer_options || [];
+    const optsL = currentTask.answer_options_latex || [];
+    const maxOptLen = Math.max(
+      0,
+      ...opts.map((o) => o?.length || 0),
+      ...optsL.map((o) => o?.length || 0),
+    );
+    const qLen =
+      (currentTask.question_text?.length || 0) +
+      (currentTask.question_latex?.length || 0);
+    return maxOptLen > 25 || qLen > 80;
+  }, [currentTask]);
+
   return (
-    <div className="h-screen w-full overflow-hidden relative bg-background-light text-slate-800 font-sans">
+    <div className="min-h-screen w-full relative bg-background-light text-slate-800 font-sans flex flex-col">
       <TestBackground />
 
-      <main className="relative z-10 w-full h-full flex flex-col">
+      <main className="relative z-10 w-full flex-1 flex flex-col">
         <AnimatePresence mode="wait">
 
           {/* ══════════════════════ LOADING ══════════════════════ */}
@@ -227,7 +351,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex-1 flex items-center justify-center"
+              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
             </motion.div>
@@ -240,7 +364,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex items-center justify-center p-4"
+              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
               <div className="w-full max-w-sm">
                 {/* Header */}
@@ -284,6 +408,89 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
             </motion.div>
           )}
 
+          {/* ══════════════════════ RESUME ══════════════════════ */}
+          {phase === "resume" && activeSession && (
+            <motion.div
+              key="resume"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
+            >
+              <div className="w-full max-w-sm">
+                <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
+                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-amber-500 to-transparent opacity-40" />
+
+                  <div className="text-center mb-6">
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30"
+                    >
+                      <Clock className="w-8 h-8 text-white" />
+                    </motion.div>
+                    <h1 className="text-xl font-bold text-slate-900 mb-1.5">Незавершённая диагностика</h1>
+                    <p className="text-slate-500 text-sm">
+                      Вы остановились на вопросе{" "}
+                      <span className="font-bold text-slate-900">{activeSession.items_answered + 1}</span>
+                      {" "}из{" "}
+                      <span className="font-bold text-slate-900">{activeItemsMax}</span>
+                    </p>
+                    {(activeSession.total_time_ms ?? 0) > 0 && (
+                      <p className="text-slate-500 text-xs mt-1.5">
+                        Время: <span className="font-semibold text-slate-700">{formatTime(activeSession.total_time_ms!)}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="mb-6">
+                    <div className="flex justify-between text-xs text-slate-400 mb-1.5">
+                      <span>Прогресс</span>
+                      <span>{Math.round((activeSession.items_answered / activeItemsMax) * 100)}%</span>
+                    </div>
+                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${Math.round((activeSession.items_answered / activeItemsMax) * 100)}%` }}
+                        transition={{ duration: 0.6, delay: 0.3 }}
+                        className="h-full bg-gradient-to-r from-amber-400 to-amber-600 rounded-full"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={() => {
+                      if (activeSession) {
+                        initialElapsedMsRef.current = activeSession.total_time_ms || 0;
+                        setElapsedMs(activeSession.total_time_ms || 0);
+                        sessionStartRef.current = Date.now();
+                        questionStartRef.current = Date.now();
+                        diagStore.startSession(
+                          String(activeSession.session_id),
+                          activeSession.current_task.phase,
+                          activeSession.current_task,
+                          (activeSession.items_answered ?? 0) + 1,
+                        );
+                      }
+                      setPhase("testing");
+                    }}
+                    size="lg"
+                    className="w-full"
+                    icon={<ArrowRight className="w-5 h-5" />}
+                  >
+                    Продолжить с вопроса {activeSession.items_answered + 1}
+                  </Button>
+
+                  <p className="text-xs text-center text-slate-400 mt-4">
+                    Код: <span className="font-mono font-medium">{code}</span>
+                  </p>
+                </GlassCard>
+              </div>
+            </motion.div>
+          )}
+
           {/* ══════════════════════ WELCOME ══════════════════════ */}
           {phase === "welcome" && (
             <motion.div
@@ -291,36 +498,36 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="flex-1 flex items-center justify-center p-4"
+              className="flex-1 flex items-center justify-center min-h-[calc(100vh-80px)] p-4"
             >
-              <div className="w-full max-w-md">
+              <div className="w-full max-w-sm">
                 <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-40" />
 
                   <div className="text-center mb-6">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
-                      <Brain className="w-8 h-8 text-primary-600" />
-                    </div>
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 200, delay: 0.1 }}
+                      className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-primary-500/30"
+                    >
+                      <Sparkles className="w-8 h-8 text-white" />
+                    </motion.div>
                     <h1 className="text-2xl font-bold text-slate-900 mb-1">
-                      Диагностика ALGO
+                      {inviteInfo?.student_first_name ? `Привет, ${inviteInfo.student_first_name}!` : "Диагностика"}
                     </h1>
-                    {inviteInfo && (
-                      <p className="text-sm text-primary-600 mt-1">
-                        {inviteInfo.class_level} класс · {inviteInfo.diagnostic_type === "initial" ? "Первичная" : "Повторная"} диагностика
-                      </p>
-                    )}
+                    <p className="text-slate-500 text-sm">
+                      {inviteInfo?.class_level ? `${inviteInfo.class_level} класс` : "Тестирование"}
+                      {inviteInfo?.org_name ? ` · ${inviteInfo.org_name}` : ""}
+                    </p>
                   </div>
-
-                  <p className="text-slate-500 text-sm text-center mb-6">
-                    Тест определит твой текущий уровень знаний по математике. Просто решай задачи — система подберёт вопросы под тебя.
-                  </p>
 
                   <div className="space-y-3 mb-6">
                     <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
                       <Clock className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-slate-900 text-sm">~15–20 минут</p>
-                        <p className="text-xs text-slate-500">Примерное время</p>
+                        <p className="font-medium text-slate-900 text-sm">~20 минут</p>
+                        <p className="text-xs text-slate-500">Без спешки, время не ограничено</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
@@ -358,16 +565,24 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="flex-1 flex flex-col"
+              className="flex-1 flex flex-col w-full"
             >
-              <TestHeader
-                mode="diagnostic"
-                timer={formatTime(elapsedMs)}
-              />
+              <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+                <TestHeader
+                  mode="diagnostic"
+                  timer={formatTime(elapsedMs)}
+                />
+              </div>
 
-              <div className="flex-1 w-full max-w-4xl mx-auto px-4 md:px-6 relative flex flex-col items-center justify-center overflow-y-auto">
-                <div className="w-full flex flex-col gap-6 md:gap-8 py-4">
-
+              <div className="w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-5rem)] p-4 md:p-6">
+                <div
+                  className={cn(
+                    "w-full mx-auto py-4 md:py-6 flex flex-col gap-6 md:gap-8 transition-all duration-300",
+                    isWideTask
+                      ? "max-w-7xl 2xl:max-w-[1440px] px-2 md:px-4"
+                      : "max-w-4xl",
+                  )}
+                >
                   {/* Question card — clean, no phase/difficulty badges */}
                   <QuestionCard
                     questionKey={currentTask.task_id}
@@ -379,13 +594,13 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                         question_text: currentTask.question_text,
                         question_latex: currentTask.question_latex,
                       })}
+                      block
                     />
                     {currentTask.question_image_url && (
-                      <div className="mt-6 flex justify-center">
-                        <img
-                          src={currentTask.question_image_url}
-                          alt="Иллюстрация"
-                          className="max-w-full max-h-48 rounded-xl border border-slate-200"
+                      <div className="mt-4 sm:mt-6 flex justify-center">
+                        <TaskFigureDrawer
+                          imageUrl={currentTask.question_image_url}
+                          inlinePreview={true}
                         />
                       </div>
                     )}
@@ -462,27 +677,43 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </div>
                 </div>
 
-                <h2 className="text-xl font-bold text-slate-900 mb-2">Обрабатываем ответы...</h2>
-                <p className="text-slate-500 mb-6">Подожди немного, это займёт пару секунд</p>
+                <h2 className="text-xl font-bold text-slate-900 mb-2">
+                  {REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.title || "Готовим отчёт"}
+                </h2>
+                <p className="text-slate-500 mb-6 max-w-sm">
+                  {REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.description || "Ответы сохранены. Обычно подготовка занимает до минуты."}
+                </p>
 
                 <div className="space-y-2">
                   {[
                     "Сохранение ответов",
                     "Анализ результатов",
                     "Формирование отчёта",
-                  ].map((step, i) => (
+                  ].map((step, i) => {
+                    const current = REPORT_STAGE[result?.report_generation?.stage as keyof typeof REPORT_STAGE]?.current ?? 0;
+                    const isDone = i < current;
+                    const isCurrent = i === current;
+                    return (
                     <motion.div
                       key={step}
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.4 }}
-                      className="flex items-center gap-2 justify-center text-sm text-slate-600"
+                      className={`flex items-center gap-2 justify-center text-sm ${isCurrent ? "font-semibold text-primary-700" : "text-slate-500"}`}
                     >
-                      <CheckCircle className="w-4 h-4 text-green-500" />
+                      {isDone ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      ) : isCurrent ? (
+                        <div className="w-4 h-4 rounded-full border-2 border-primary-600 border-t-transparent animate-spin" />
+                      ) : (
+                        <div className="w-4 h-4 rounded-full border-2 border-slate-200" />
+                      )}
                       {step}
                     </motion.div>
-                  ))}
+                    );
+                  })}
                 </div>
+                <p className="mt-5 text-xs text-slate-400">Можно не закрывать страницу — статус обновится автоматически.</p>
               </div>
             </motion.div>
           )}
@@ -534,17 +765,14 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.7 }}
-                    className="grid grid-cols-2 gap-3 mb-6"
+                    className="mb-6"
                   >
                     <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <p className="text-2xl font-bold text-slate-900">{result.items_total}</p>
-                      <p className="text-xs text-slate-500">Вопросов</p>
-                    </div>
-                    <div className="p-4 glass-option rounded-xl text-center !cursor-default !transform-none">
                       <p className="text-2xl font-bold text-slate-900">{formatTime(elapsedMs)}</p>
-                      <p className="text-xs text-slate-500">Время</p>
+                      <p className="text-xs text-slate-500">Затраченное время</p>
                     </div>
                   </motion.div>
+
 
                   {/* Info card — what happens next */}
                   <motion.div
@@ -612,17 +840,19 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </p>
 
                   <div className="space-y-3">
-                    <Button
-                      onClick={() => {
-                        setErrorMsg(null);
-                        setPhase("welcome");
-                        diagStore.reset();
-                      }}
-                      size="lg"
-                      className="w-full"
-                    >
-                      Попробовать снова
-                    </Button>
+                    {canRetry && (
+                      <Button
+                        onClick={() => {
+                          setErrorMsg(null);
+                          setPhase("loading");
+                          diagStore.reset();
+                        }}
+                        size="lg"
+                        className="w-full"
+                      >
+                        Повторить проверку ссылки
+                      </Button>
+                    )}
                     <Button
                       onClick={() => (window.location.href = "/login")}
                       size="lg"

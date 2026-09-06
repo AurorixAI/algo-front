@@ -1,22 +1,38 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
-import { ChevronUp, ChevronDown, GraduationCap } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ChevronUp, ChevronDown, GraduationCap, User, Check, Copy } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { StudentInGroup } from "@/lib/api";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 
 interface GroupStudentTableProps {
   students: StudentInGroup[];
+  studentBasePath?: string;
   onRemove?: (studentId: string) => void;
   onViewProfile?: (studentId: string) => void;
   canRemove?: boolean;
 }
 
-export function GroupStudentTable({ students }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath }: GroupStudentTableProps) {
+  const pathname = usePathname();
+  const isTeacher = pathname?.startsWith("/teacher");
+  const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
+
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyId = (displayId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(displayId);
+    setCopiedId(displayId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a);
@@ -115,22 +131,43 @@ export function GroupStudentTable({ students }: GroupStudentTableProps) {
               >
                 {/* Name */}
                 <td className="px-4 py-4 pl-6 align-middle">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50">
+                  <Link
+                    href={`${basePath}/${s.id}`}
+                    className="flex items-center gap-3 group/student hover:opacity-80 transition-opacity"
+                    title="Открыть профиль ученика"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50 group-hover/student:scale-105 transition-transform">
                       {(s.first_name?.[0] || "?").toUpperCase()}
                     </div>
-                    <span className="text-sm font-semibold text-slate-900 truncate">
+                    <span className="text-sm font-medium text-slate-700 group-hover/student:text-primary-600 transition-colors truncate">
                       {s.full_name || `${s.last_name} ${s.first_name}`}
                     </span>
-                  </div>
+                  </Link>
                 </td>
 
-                {/* Display ID — публичный ID ученика (AL15-001) */}
+                {/* Display ID — публичный ID ученика (AL-001) */}
                 <td className="px-4 py-4 align-middle whitespace-nowrap">
                   {s.display_id ? (
-                    <span className="inline-flex px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-xs font-mono font-medium border border-slate-200/60 tracking-tight">
-                      {s.display_id}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => handleCopyId(s.display_id!, e)}
+                      className={`group/id inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-mono font-medium border transition-all duration-200 cursor-pointer ${
+                        copiedId === s.display_id
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200/60"
+                      }`}
+                      title="Нажмите, чтобы скопировать ID ученика"
+                    >
+                      {/* Fixed icon slot to avoid layout shift */}
+                      <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0">
+                        {copiedId === s.display_id ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-600 animate-in zoom-in-50 duration-150" />
+                        ) : (
+                          <Copy className="w-3 h-3 text-slate-400 group-hover/id:text-slate-600 transition-colors" />
+                        )}
+                      </span>
+                      <span>{s.display_id}</span>
+                    </button>
                   ) : (
                     <span className="text-xs text-slate-300 font-mono">—</span>
                   )}

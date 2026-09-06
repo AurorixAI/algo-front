@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,16 +26,21 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Fingerprint,
+  Users,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickAnswerDisplayText, pickTaskDisplayText } from "@/lib/task-display";
+import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Phase = "loading" | "lobby" | "starting" | "exam" | "review" | "submitting" | "results" | "error";
+type Phase = "loading" | "lobby" | "waiting_room" | "starting" | "exam" | "review" | "submitting" | "results" | "error";
 
 interface Task {
   task_id: string;
@@ -52,10 +58,15 @@ interface ExamInfo {
   title: string;
   teacher_name: string | null;
   subject: string;
+  group_id?: string | null;
+  group_name?: string | null;
+  class_level?: number | null;
   total_time_minutes: number;
   tasks_per_variant: number;
   variants_count: number;
   status: string;
+  time_remaining_seconds?: number | null;
+  started_at?: string | null;
 }
 
 interface ExamResult {
@@ -92,24 +103,67 @@ export default function ExamPage() {
   // Phase & error
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string>("");
+  const [groupWarning, setGroupWarning] = useState<string | null>(null);
+
+  // Single attempt & confirmation modal
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [submittedSessionId, setSubmittedSessionId] = useState<string | null>(null);
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
 
   // Lobby
   const [examInfo, setExamInfo] = useState<ExamInfo | null>(null);
   const [studentName, setStudentName] = useState("");
-  const [classLevel, setClassLevel] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [confirmedStudent, setConfirmedStudent] = useState<{
+    name: string;
+    display_id?: string;
+  } | null>(null);
 
   // Exam session
   const [sessionId, setSessionId] = useState("");
+  const [sessionToken, setSessionToken] = useState("");
   const [variantNumber, setVariantNumber] = useState(1);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [timeLeft, setTimeLeft] = useState(0);
   const startTimeRef = useRef<number>(0);
+  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Results
   const [result, setResult] = useState<ExamResult | null>(null);
-  const [showDetailedResults, setShowDetailedResults] = useState(false);
+
+  // Live countdown ticker for late-join modal
+  const [liveRemainingSec, setLiveRemainingSec] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!examInfo) return;
+    if (examInfo.time_remaining_seconds !== undefined && examInfo.time_remaining_seconds !== null) {
+      setLiveRemainingSec(examInfo.time_remaining_seconds);
+    } else {
+      setLiveRemainingSec((examInfo.total_time_minutes || 45) * 60);
+    }
+  }, [examInfo]);
+
+  useEffect(() => {
+    if (liveRemainingSec === null || liveRemainingSec <= 0 || !showStartConfirm) return;
+    const timer = setInterval(() => {
+      setLiveRemainingSec((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [showStartConfirm, liveRemainingSec]);
+
+  // ── Prevent accidental page unload during active exam ────────────────────
+  useEffect(() => {
+    if (phase !== "exam") return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Вы уверены, что хотите закрыть страницу? Таймер экзамена продолжит идти!";
+      return e.returnValue;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [phase]);
 
   // ── Load exam info on mount ──────────────────────────────────────────────
   useEffect(() => {
@@ -117,8 +171,8 @@ export default function ExamPage() {
       try {
         const info = await examsApi.getByCode(code);
         setExamInfo(info);
-        if (info.status !== "active") {
-          setError("Этот экзамен уже закрыт");
+        if (info.status !== "active" && info.status !== "lobby") {
+          setError("Этот экзамен уже закрыт или недоступен");
           setPhase("error");
           return;
         }
@@ -131,6 +185,49 @@ export default function ExamPage() {
     };
     loadExamInfo();
   }, [code]);
+
+  // ── Polling in Waiting Room Phase ────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== "waiting_room" || !sessionId || !sessionToken) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const statusRes = await examsApi.getSessionStatus(code, sessionId, sessionToken);
+        if (statusRes.status === "in_progress" && statusRes.tasks && statusRes.tasks.length > 0) {
+          setTasks(statusRes.tasks);
+          if (statusRes.variant_number) setVariantNumber(statusRes.variant_number);
+          if (statusRes.saved_answers) setAnswers(statusRes.saved_answers);
+          const remSec =
+            statusRes.time_remaining_seconds !== undefined && statusRes.time_remaining_seconds !== null
+              ? statusRes.time_remaining_seconds
+              : (statusRes.time_minutes || examInfo?.total_time_minutes || 45) * 60;
+          setTimeLeft(remSec);
+          startTimeRef.current = Date.now();
+          setPhase("exam");
+        } else if (statusRes.status === "kicked") {
+          setPhase("error");
+          setError(statusRes.message || "Преподаватель удалил вас из сессии.");
+        } else if (statusRes.status === "submitted") {
+          setAlreadySubmitted(true);
+          try {
+            const detailed = await examsApi.getResult(sessionId, sessionToken);
+            setResult(detailed);
+            setPhase("results");
+          } catch {
+            setPhase("lobby");
+            setGroupWarning(statusRes.message || "Время экзамена истекло. Ответы отправлены.");
+          }
+        } else if (statusRes.status === "closed") {
+          setError(statusRes.message || "Экзамен завершён преподавателем до начала вашей попытки.");
+          setPhase("error");
+        }
+      } catch (e) {
+        console.error("Polling status error:", e);
+      }
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [phase, sessionId, sessionToken, code, examInfo]);
 
   // ── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -165,6 +262,21 @@ export default function ExamPage() {
   };
 
   const task = tasks[currentQuestion];
+  const isWideTask = useMemo(() => {
+    if (!task) return false;
+    const opts = task.options || [];
+    const optsL = task.options_latex || [];
+    const maxOptLen = Math.max(
+      0,
+      ...opts.map((o) => o?.length || 0),
+      ...optsL.map((o) => o?.length || 0),
+    );
+    const qLen =
+      (task.text?.length || 0) +
+      (task.question_latex?.length || 0);
+    return maxOptLen > 25 || qLen > 80;
+  }, [task]);
+
   const answeredCount = tasks.filter((t) => answers[t.task_id]?.trim()).length;
   const unansweredTasks = tasks.filter((t) => !answers[t.task_id]?.trim());
   const isAnswered = (taskId: string) => !!answers[taskId]?.trim();
@@ -172,21 +284,106 @@ export default function ExamPage() {
 
   // ── Handlers ─────────────────────────────────────────────────────────────
 
-  const handleStart = async () => {
-    if (!studentName.trim()) return;
+  const handleStartClick = async () => {
+    setGroupWarning(null);
+    setAlreadySubmitted(false);
+    const sName = studentName.trim();
+    const sId = studentId.trim();
+    if (!sName && !sId) return;
+
+    // Verify enrollment and single attempt before starting
+    if (examInfo?.group_id) {
+      try {
+        const check = await examsApi.checkStudent(code, {
+          student_id: sId || undefined,
+          student_name: sName || undefined,
+          identifier: sId || sName,
+        });
+
+        if (check.already_submitted) {
+          setAlreadySubmitted(true);
+          setSubmittedSessionId(check.session_id || null);
+          setGroupWarning(check.message || "Вы уже завершили этот экзамен. Повторная сдача заблокирована.");
+          return;
+        }
+
+        if (!check.enrolled) {
+          setGroupWarning(
+            check.message ||
+              `Введённые имя (ФИО) или Student ID не соответствуют ученику в группе «${examInfo.group_name || "данной группе"}». Пожалуйста, перепроверьте данные или обратитесь к преподавателю.`
+          );
+          return;
+        }
+
+        if (check.student?.full_name) {
+          setStudentName(check.student.full_name);
+        }
+        if (check.student?.display_id) {
+          setStudentId(check.student.display_id);
+          setConfirmedStudent({
+            name: check.student.full_name || sName,
+            display_id: check.student.display_id,
+          });
+        }
+      } catch (err: any) {
+        console.error("Check student error:", err);
+      }
+    }
+
+    // In lobby mode, join waiting room immediately; in active mode, show confirmation modal
+    if (examInfo?.status === "lobby") {
+      executeStartExam();
+    } else {
+      setShowStartConfirm(true);
+    }
+  };
+
+  const executeStartExam = async () => {
+    setShowStartConfirm(false);
     setPhase("starting");
     try {
-      const parsed = parseInt(classLevel) || 0;
+      const sName = studentName.trim();
+      const sId = studentId.trim();
+      const finalName = confirmedStudent?.name || sName;
+      const finalDisplayId = confirmedStudent?.display_id || sId || undefined;
+
       const res = await examsApi.startSession(code, {
-        student_name: studentName.trim(),
-        class_level: parsed,
+        student_name: finalName,
+        student_id: sId || undefined,
+        display_id: finalDisplayId,
       });
+
+      if (res.already_submitted) {
+        setAlreadySubmitted(true);
+        setSubmittedSessionId(res.session_id || null);
+        setPhase("lobby");
+        setGroupWarning(res.message || "Вы уже завершили этот экзамен. Повторная сдача недоступна.");
+        return;
+      }
+
       setSessionId(res.session_id);
+      if (!res.session_token) {
+        throw new Error("Сервер не выдал ключ доступа к попытке. Начните экзамен заново.");
+      }
+      setSessionToken(res.session_token);
       setVariantNumber(res.variant_number);
-      setTasks(res.tasks);
-      setTimeLeft(res.time_minutes * 60);
-      startTimeRef.current = Date.now();
-      setPhase("exam");
+
+      if (res.saved_answers) {
+        setAnswers(res.saved_answers);
+      }
+
+      if (res.status === "waiting") {
+        setPhase("waiting_room");
+      } else {
+        setTasks(res.tasks);
+        const remSec =
+          res.time_remaining_seconds !== undefined && res.time_remaining_seconds !== null
+            ? res.time_remaining_seconds
+            : res.time_minutes * 60;
+        setTimeLeft(remSec);
+        startTimeRef.current = Date.now() - (res.time_minutes * 60 - remSec) * 1000;
+        setPhase("exam");
+      }
     } catch (err: any) {
       console.error("Failed to start exam:", err);
       setError(err.message || "Не удалось начать экзамен");
@@ -195,10 +392,25 @@ export default function ExamPage() {
   };
 
   const handleAnswer = (taskId: string, answer: string) => {
-    setAnswers((prev) => ({ ...prev, [taskId]: answer }));
-  };
+    const newAnswers = { ...answers, [taskId]: answer };
+    setAnswers(newAnswers);
 
-  const toggleFlag = () => {};
+    // Debounced real-time progress sync to server
+    if (sessionId && sessionToken) {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      autoSaveTimerRef.current = setTimeout(() => {
+        const timeSpent = startTimeRef.current > 0 ? Math.floor((Date.now() - startTimeRef.current) / 1000) : 0;
+        examsApi.saveProgress(
+          sessionId,
+          {
+            answers: newAnswers,
+            time_spent_seconds: timeSpent,
+          },
+          sessionToken,
+        ).catch((err) => console.warn("Auto-save progress failed:", err));
+      }, 300);
+    }
+  };
 
   const handleFinish = () => {
     if (unansweredTasks.length > 0) {
@@ -209,18 +421,25 @@ export default function ExamPage() {
   };
 
   const handleSubmit = async () => {
-    if (phase === "submitting") return; // prevent double submit
+    if (phase === "submitting") return;
     setPhase("submitting");
     try {
       const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      const submitResult = await examsApi.submit(sessionId, {
-        answers,
-        time_spent_seconds: timeSpent,
-      });
+      if (!sessionToken) {
+        throw new Error("Ключ доступа к попытке не найден. Обновите страницу и войдите снова.");
+      }
+      const submitResult = await examsApi.submit(
+        sessionId,
+        {
+          answers,
+          time_spent_seconds: timeSpent,
+        },
+        sessionToken,
+      );
 
       // Try to get detailed results
       try {
-        const detailed = await examsApi.getResult(sessionId);
+        const detailed = await examsApi.getResult(sessionId, sessionToken);
         setResult(detailed);
       } catch {
         // Fallback to submit response data
@@ -242,6 +461,19 @@ export default function ExamPage() {
       setPhase("results");
     } catch (err: any) {
       console.error("Submit failed:", err);
+      // The authoritative server timer may close and grade the attempt a
+      // moment before this browser submits.  In that case the result already
+      // exists; show it instead of presenting a misleading save error.
+      if (err?.status === 410 && sessionId && sessionToken) {
+        try {
+          const detailed = await examsApi.getResult(sessionId, sessionToken);
+          setResult(detailed);
+          setPhase("results");
+          return;
+        } catch {
+          // Fall through to a clear final-state message below.
+        }
+      }
       setError(err.message || "Ошибка отправки ответов. Попробуйте ещё раз.");
       setPhase("error");
     }
@@ -260,25 +492,34 @@ export default function ExamPage() {
         <div className="relative z-10 h-full flex items-center justify-center">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
-            <p className="text-slate-500">Загрузка экзамена...</p>
+            <p className="text-slate-500 font-medium">Загрузка экзамена...</p>
           </motion.div>
         </div>
       </div>
     );
   }
 
-  // Error
+  // Error / Closed screen
   if (phase === "error") {
+    const isClosed = ["закрыт", "истекло", "завершён"].some((marker) =>
+      error.toLowerCase().includes(marker)
+    );
     return (
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
         <TestBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-4">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
-            <GlassCard variant="panel" className="p-8 md:p-12 text-center">
-              <div className="w-16 h-16 mx-auto mb-6 rounded-2xl bg-red-100 flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-red-600" />
+            <GlassCard variant="panel" className="p-8 md:p-12 text-center" glow>
+              <div
+                className={`w-16 h-16 mx-auto mb-6 rounded-2xl flex items-center justify-center ${
+                  isClosed ? "bg-amber-100 text-amber-600" : "bg-red-100 text-red-600"
+                }`}
+              >
+                {isClosed ? <Clock className="w-8 h-8 text-amber-600" /> : <AlertCircle className="w-8 h-8 text-red-600" />}
               </div>
-              <h2 className="text-xl font-bold text-slate-900 mb-2">Ошибка</h2>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">
+                {isClosed ? "Экзамен завершён" : "Ошибка"}
+              </h2>
               <p className="text-slate-500 mb-6">{error}</p>
               <Link href="/login">
                 <Button className="w-full" icon={<Home className="w-4 h-4" />}>
@@ -293,87 +534,330 @@ export default function ExamPage() {
   }
 
   return (
-    <div className="h-screen w-full overflow-hidden relative bg-background-light text-slate-800 font-sans">
+    <div className="min-h-screen w-full relative bg-background-light flex flex-col">
       <TestBackground />
 
-      <main className="relative z-10 w-full h-full flex flex-col">
+      <main className="relative z-10 w-full flex-1 flex flex-col">
 
         {/* ═══════════════ LOBBY ═══════════════ */}
         {(phase === "lobby" || phase === "starting") && examInfo && (
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div className="flex-1 flex items-center justify-center p-4 py-8">
             <motion.div
-              initial={{ opacity: 0, scale: 0.92 }}
+              initial={{ opacity: 0, scale: 0.94 }}
               animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.6, ease: [0.34, 1.56, 0.64, 1] }}
+              transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
               className="w-full max-w-md"
             >
-              <GlassCard variant="panel" className="p-8 md:p-10 relative overflow-hidden" glow>
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary-500 to-transparent opacity-40" />
+              <GlassCard variant="panel" className="p-7 md:p-9 relative overflow-hidden" glow>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary-500 via-indigo-500 to-primary-500 opacity-70" />
 
-                <div className="text-center mb-8">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
-                    <BookOpen className="w-8 h-8 text-primary-600" />
-                  </div>
+                {/* Exam Title */}
+                <div className="text-center mb-6">
                   <h1 className="text-2xl font-bold text-slate-900 mb-1">{examInfo.title}</h1>
-                  <span className="uppercase tracking-[0.2em] text-[10px] font-bold text-slate-400">
-                    {examInfo.subject || "Математика"}
-                  </span>
                 </div>
+
+                {/* Group Banner if bound */}
+                {examInfo.group_name && (
+                  <div className="flex items-center gap-3 p-3 bg-indigo-50/90 border border-indigo-200/90 rounded-2xl mb-5 text-left shadow-2xs">
+                    <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10.5px] font-bold uppercase tracking-wider text-indigo-500">Экзамен для группы</p>
+                      <p className="text-sm font-bold text-indigo-950 truncate">«{examInfo.group_name}»</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Already Submitted Banner */}
+                {alreadySubmitted && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-emerald-50/95 border border-emerald-300 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-xs"
+                  >
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-emerald-950">Экзамен уже сдан</p>
+                      <p className="text-xs text-emerald-800 leading-relaxed">
+                        Вы уже завершили данный экзамен. Согласно регламенту, повторное прохождение заблокировано.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Warning Banner if verification failed and not submitted */}
+                {groupWarning && !alreadySubmitted && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 bg-amber-50/90 border border-amber-300/80 rounded-2xl mb-5 text-left flex items-start gap-3 shadow-xs"
+                  >
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-xs font-bold text-amber-900">Доступ ограничен группой</p>
+                      <p className="text-xs text-amber-800 leading-relaxed">{groupWarning}</p>
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Info grid */}
-                <div className="space-y-3 mb-6">
-                  <div className="flex items-center justify-between p-3 glass-option rounded-xl !cursor-default !transform-none">
-                    <span className="text-sm text-slate-500">Код экзамена</span>
-                    <span className="font-mono font-bold text-primary-600">{code}</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 glass-option rounded-xl !cursor-default !transform-none">
-                    <span className="text-sm text-slate-500">Учитель</span>
-                    <span className="font-medium text-slate-900">{examInfo.teacher_name || "—"}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <Clock className="w-5 h-5 mx-auto mb-1 text-amber-500" />
-                      <p className="text-lg font-bold text-slate-900">{examInfo.total_time_minutes}</p>
-                      <p className="text-xs text-slate-500">минут</p>
+                <div className="space-y-2.5 mb-5">
+                  {examInfo.teacher_name && (
+                    <div className="flex items-center justify-between p-2.5 px-3.5 glass-option rounded-xl !cursor-default !transform-none">
+                      <span className="text-xs text-slate-500">Преподаватель</span>
+                      <span className="font-semibold text-xs text-slate-900">{examInfo.teacher_name}</span>
                     </div>
-                    <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none">
-                      <BookOpen className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                      <p className="text-lg font-bold text-slate-900">{examInfo.tasks_per_variant}</p>
-                      <p className="text-xs text-slate-500">вопросов</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="p-2.5 glass-option rounded-xl text-center !cursor-default !transform-none">
+                      <Clock className="w-4 h-4 mx-auto mb-0.5 text-amber-500" />
+                      <p className="text-base font-bold text-slate-900">{examInfo.total_time_minutes}</p>
+                      <p className="text-[11px] text-slate-500">минут</p>
+                    </div>
+                    <div className="p-2.5 glass-option rounded-xl text-center !cursor-default !transform-none">
+                      <BookOpen className="w-4 h-4 mx-auto mb-0.5 text-blue-500" />
+                      <p className="text-base font-bold text-slate-900">{examInfo.tasks_per_variant}</p>
+                      <p className="text-[11px] text-slate-500">вопросов</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-4 mb-6">
-                  <Input
-                    label="Ваше имя"
-                    placeholder="Иван Петров"
-                    value={studentName}
-                    onChange={(e) => setStudentName(e.target.value)}
-                    icon={<User className="w-4 h-4" />}
-                  />
-                  <Input
-                    label="Класс"
-                    placeholder="8"
-                    value={classLevel}
-                    onChange={(e) => setClassLevel(e.target.value)}
-                  />
+                {/* Rules of Examination (Правила экзамена) */}
+                <div className="p-4 bg-slate-50/90 border border-slate-200/80 rounded-2xl mb-5 text-left space-y-2.5 shadow-2xs">
+                  <div className="flex items-center gap-2 text-xs font-bold text-slate-800 tracking-wide">
+                    <ShieldCheck className="w-4 h-4 text-slate-600" />
+                    <span>Правила прохождения</span>
+                  </div>
+                  <div className="space-y-2 text-xs text-slate-600 leading-relaxed">
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                        1
+                      </span>
+                      <span>
+                        <strong className="text-slate-800 font-semibold">Одна попытка:</strong> экзамен сдаётся один раз, повторное прохождение недоступно.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                        2
+                      </span>
+                      <span>
+                        <strong className="text-slate-800 font-semibold">Непрерывный таймер:</strong> отсчёт времени не останавливается при закрытии или перезагрузке вкладки.
+                      </span>
+                    </div>
+                    <div className="flex items-start gap-2.5">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                        3
+                      </span>
+                      <span>
+                        <strong className="text-slate-800 font-semibold">Автосохранение:</strong> каждый ответ моментально сохраняется в системе.
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                <Button
-                  className="w-full"
-                  size="lg"
-                  onClick={handleStart}
-                  disabled={!studentName.trim() || phase === "starting"}
-                  loading={phase === "starting"}
-                  icon={phase !== "starting" ? <ArrowRight className="w-5 h-5" /> : undefined}
-                >
-                  {phase === "starting" ? "Подготовка..." : "Начать экзамен"}
-                </Button>
+                {/* Form inputs */}
+                {!alreadySubmitted ? (
+                  <>
+                    <div className="space-y-3.5 mb-5">
+                      <Input
+                        label="Ваше имя или ФИО"
+                        placeholder="Иван Иванов"
+                        value={studentName}
+                        onChange={(e) => {
+                          setStudentName(e.target.value);
+                          if (groupWarning) setGroupWarning(null);
+                        }}
+                      />
+                      <Input
+                        label="ID ученика (если есть)"
+                        placeholder="AL-00123"
+                        value={studentId}
+                        onChange={(e) => {
+                          setStudentId(e.target.value);
+                          if (groupWarning) setGroupWarning(null);
+                        }}
+                      />
+                    </div>
 
-                <p className="text-xs text-center text-slate-400 mt-4">
-                  После начала таймер будет запущен и остановить его нельзя
+                    <Button
+                      className="w-full shadow-md shadow-primary-500/20"
+                      size="lg"
+                      onClick={handleStartClick}
+                      disabled={(!studentName.trim() && !studentId.trim()) || phase === "starting"}
+                      loading={phase === "starting"}
+                      icon={phase !== "starting" ? <ArrowRight className="w-5 h-5" /> : undefined}
+                    >
+                      {phase === "starting"
+                        ? "Проверка..."
+                        : examInfo.status === "lobby"
+                        ? "Присоединиться к лобби"
+                        : "Начать экзамен"}
+                    </Button>
+                  </>
+                ) : (
+                  <Link href="/login">
+                    <Button className="w-full" variant="secondary" icon={<Home className="w-4 h-4" />}>
+                      Вернуться на главную
+                    </Button>
+                  </Link>
+                )}
+              </GlassCard>
+            </motion.div>
+          </div>
+        )}
+
+        {/* ═══════════════ LATE JOIN / START CONFIRMATION MODAL ═══════════════ */}
+        <AnimatePresence>
+          {showStartConfirm && examInfo && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 10 }}
+                transition={{ duration: 0.25, ease: "easeOut" }}
+                className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-2xl border border-slate-200/90 text-left relative overflow-hidden"
+              >
+                {/* Decorative Top Accent Bar */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-400 via-amber-500 to-orange-500" />
+
+                {/* Header Icon Badge & Title */}
+                <div className="flex items-center gap-3.5 mb-4">
+                  <div className="w-11 h-11 rounded-2xl bg-amber-50 border border-amber-200/90 flex items-center justify-center shrink-0 shadow-xs">
+                    <Clock className="w-5 h-5 text-amber-600 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900 tracking-tight">Экзамен уже начался!</h3>
+                    <p className="text-xs text-slate-500 font-medium">Преподаватель запустил тестирование группы</p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-600 leading-relaxed mb-5">
+                  Вы подключаетесь к уже идущему тестированию. Поспешите приступить к выполнению заданий.
                 </p>
+
+                {/* Live Remaining Time Highlight Card */}
+                {(() => {
+                  const rem = liveRemainingSec !== null ? liveRemainingSec : (examInfo.time_remaining_seconds || examInfo.total_time_minutes * 60);
+                  const remMin = Math.floor(rem / 60);
+                  const remSec = rem % 60;
+                  const formattedMin = remMin.toString().padStart(2, "0");
+                  const formattedSec = remSec.toString().padStart(2, "0");
+
+                  return (
+                    <div className="p-4 bg-amber-50/80 border border-amber-200/90 rounded-2xl mb-6 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+                          Оставшееся время группы
+                        </span>
+                      </div>
+
+                      {/* Prominent Digital Countdown Box */}
+                      <div className="flex items-center justify-center py-2.5 bg-white/90 rounded-xl border border-amber-200/70 shadow-2xs">
+                        <div className="flex items-baseline gap-1 font-mono">
+                          <span className="text-3xl font-black text-slate-900 tracking-tight">{formattedMin}</span>
+                          <span className="text-xs font-sans font-bold text-slate-500 mr-2">мин</span>
+                          <span className="text-2xl font-bold text-amber-400 mr-2">:</span>
+                          <span className="text-3xl font-black text-amber-600 tracking-tight">{formattedSec}</span>
+                          <span className="text-xs font-sans font-bold text-amber-600">сек</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 pt-0.5">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
+                          Время идёт непрерывно для всех учеников одновременно. Таймер не останавливается при закрытии браузера.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Modal Action Buttons */}
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    className="flex-1"
+                    onClick={() => setShowStartConfirm(false)}
+                  >
+                    Отмена
+                  </Button>
+                  <Button
+                    className="flex-1 shadow-md shadow-primary-500/20 font-bold"
+                    onClick={executeStartExam}
+                    icon={<ArrowRight className="w-4 h-4" />}
+                  >
+                    Приступить
+                  </Button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* ═══════════════ WAITING ROOM (KAHOOT STYLE) ═══════════════ */}
+        {phase === "waiting_room" && examInfo && (
+          <div className="flex-1 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+              className="w-full max-w-md"
+            >
+              <GlassCard variant="panel" className="p-8 md:p-10 text-center" glow>
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+                  className="w-20 h-20 mx-auto mb-6 rounded-3xl bg-gradient-to-tr from-primary-400 to-indigo-500 flex items-center justify-center shadow-lg shadow-primary-500/30"
+                >
+                  <Clock className="w-10 h-10 text-white" />
+                </motion.div>
+
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Вы в комнате ожидания</h2>
+                <p className="text-sm text-slate-500 mb-6">
+                  Учитель запустит экзамен для всех участников одновременно.
+                </p>
+
+                {/* Confirmed student pill */}
+                <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-2xl mb-6">
+                  <div className="flex items-center justify-between">
+                    <div className="text-left">
+                      <p className="text-xs text-slate-400 font-medium">Участник</p>
+                      <p className="text-sm font-bold text-slate-900 truncate">
+                        {confirmedStudent?.name || studentName}
+                      </p>
+                      {confirmedStudent?.display_id && (
+                        <p className="text-xs font-mono font-bold text-primary-600">
+                          ID: {confirmedStudent.display_id}
+                        </p>
+                      )}
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      Готов
+                    </span>
+                  </div>
+                </div>
+
+                {/* Exam details */}
+                <div className="grid grid-cols-2 gap-3 mb-6 text-left">
+                  <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
+                    <p className="text-[11px] font-semibold text-slate-400">Экзамен</p>
+                    <p className="text-sm font-bold text-slate-800 truncate">{examInfo.title}</p>
+                  </div>
+                  <div className="p-3 bg-white/60 border border-slate-100 rounded-xl">
+                    <p className="text-[11px] font-semibold text-slate-400">Длительность</p>
+                    <p className="text-sm font-bold text-slate-800">{examInfo.total_time_minutes} минут</p>
+                  </div>
+                </div>
+
+                {/* Live Waiting Indicator */}
+                <div className="flex items-center justify-center gap-2 text-xs font-medium text-primary-600 bg-primary-50/80 py-2.5 px-4 rounded-xl border border-primary-100">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Ожидание синхронного старта...</span>
+                </div>
               </GlassCard>
             </motion.div>
           </div>
@@ -381,32 +865,28 @@ export default function ExamPage() {
 
         {/* ═══════════════ EXAM ═══════════════ */}
         {phase === "exam" && task && (
-          <>
-            <TestHeader
-              mode="exam"
-              timer={formatTime(timeLeft)}
-              timerDanger={timeLeft < 300}
-            />
+          <div className="relative z-10 w-full flex-1 flex flex-col">
+            <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+              <TestHeader
+                mode="exam"
+                timer={formatTime(timeLeft)}
+                timerDanger={timeLeft < 300}
+              />
+            </div>
 
-            <div className="flex-1 w-full max-w-4xl mx-auto px-4 md:px-6 relative flex flex-col items-center justify-center pb-24 overflow-y-auto">
-              <div className="w-full flex flex-col gap-6 md:gap-8 py-4">
+            <div className="w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-5rem)] p-4 md:p-6">
+              <div
+                className={cn(
+                  "w-full mx-auto py-4 md:py-6 flex flex-col gap-6 md:gap-8 transition-all duration-300",
+                  isWideTask
+                    ? "max-w-7xl 2xl:max-w-[1440px] px-2 md:px-4"
+                    : "max-w-4xl",
+                )}
+              >
                 {/* Question card */}
                 <QuestionCard
                   questionKey={task.task_id}
                   topic={`${task.skill_name} • Вопрос ${currentQuestion + 1}/${tasks.length}`}
-                  meta={
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        task.difficulty === "C"
-                          ? "bg-red-100 text-red-700"
-                          : task.difficulty === "B"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {task.difficulty === "C" ? "Сложный" : task.difficulty === "B" ? "Средний" : "Лёгкий"}
-                    </span>
-                  }
                 >
                   <MathRenderer
                     text={pickTaskDisplayText({
@@ -414,17 +894,15 @@ export default function ExamPage() {
                       question_text: task.text,
                       question_latex: task.question_latex,
                     })}
+                    block
                   />
                   {task.image_url && (
-                    <div className="mt-6 flex justify-center">
-                      <img
-                        src={task.image_url}
-                        alt="Иллюстрация"
-                        className="max-w-full max-h-48 rounded-xl border border-slate-200"
-                      />
+                    <div className="mt-4 sm:mt-6 flex justify-center">
+                      <TaskFigureDrawer imageUrl={task.image_url} inlinePreview={true} />
                     </div>
                   )}
                 </QuestionCard>
+
                 {/* Answer area */}
                 {task.options && task.options.length > 0 ? (
                   <OptionGrid
@@ -447,7 +925,7 @@ export default function ExamPage() {
                 ) : (
                   <TextInputAnswer
                     value={answers[task.task_id] || ""}
-                    onChange={(val) => setAnswers((prev) => ({ ...prev, [task.task_id]: val }))}
+                    onChange={(val) => handleAnswer(task.task_id, val)}
                     onSubmit={goNext}
                     answerType={task.answer_type}
                   />
@@ -503,7 +981,7 @@ export default function ExamPage() {
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {/* ═══════════════ REVIEW ═══════════════ */}
@@ -581,114 +1059,39 @@ export default function ExamPage() {
 
         {/* ═══════════════ RESULTS ═══════════════ */}
         {phase === "results" && result && (
-          <div className="flex-1 overflow-y-auto">
-            <div className="max-w-lg mx-auto p-4 py-8">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-              >
-                <GlassCard variant="panel" className="p-8 md:p-10" glow>
-                  <div className="text-center">
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ delay: 0.2, type: "spring" }}
-                      className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
-                    >
-                      <CheckCircle2 className="w-10 h-10 text-white" />
-                    </motion.div>
+          <div className="flex-1 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-full max-w-lg"
+            >
+              <GlassCard variant="panel" className="p-8 md:p-10" glow>
+                <div className="text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ delay: 0.2, type: "spring" }}
+                    className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30"
+                  >
+                    <CheckCircle2 className="w-10 h-10 text-white" />
+                  </motion.div>
 
-                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Спасибо за прохождение!</h2>
-                    <p className="text-slate-500 mb-2">
-                      {result.student_name}, ваши ответы успешно отправлены учителю.
-                    </p>
-                    <p className="text-sm text-slate-400 mb-8">
-                      Результаты будут доступны у вашего преподавателя.
-                    </p>
+                  <h2 className="text-2xl font-bold text-slate-900 mb-2">Спасибо за прохождение!</h2>
+                  <p className="text-slate-500 mb-2">
+                    {result.student_name}, ваши ответы успешно отправлены учителю.
+                  </p>
+                  <p className="text-sm text-slate-400 mb-8">
+                    Результаты будут доступны у вашего преподавателя.
+                  </p>
 
-                    {/* Score + stats */}
-                    <div className="grid grid-cols-2 gap-3 mb-6">
-                      <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none col-span-2">
-                        <p className="text-3xl font-bold text-primary-600">
-                          {result.percentage?.toFixed(0) ?? 0}%
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          {result.score}/{result.max_score} баллов · {result.correct_count} верных
-                        </p>
-                      </div>
-                      <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none">
-                        <p className="text-lg font-bold text-slate-900">{result.answered_count}/{result.total_tasks}</p>
-                        <p className="text-xs text-slate-500">Отвечено</p>
-                      </div>
-                      <div className="p-3 glass-option rounded-xl text-center !cursor-default !transform-none">
-                        <Clock className="w-5 h-5 mx-auto mb-1 text-slate-500" />
-                        <p className="text-lg font-bold text-slate-700">
-                          {Math.floor(result.time_spent_seconds / 60)}:{(result.time_spent_seconds % 60).toString().padStart(2, "0")}
-                        </p>
-                        <p className="text-xs text-slate-500">Время</p>
-                      </div>
-                    </div>
-
-                    {result.tasks && result.tasks.length > 0 && (
-                      <div className="mb-6 text-left">
-                        <button
-                          type="button"
-                          onClick={() => setShowDetailedResults(!showDetailedResults)}
-                          className="text-sm text-primary-600 font-medium mb-3 hover:underline"
-                        >
-                          {showDetailedResults ? "Скрыть разбор" : "Показать разбор ответов"}
-                        </button>
-                        {showDetailedResults && (
-                          <div className="space-y-2 max-h-64 overflow-y-auto">
-                            {result.tasks.map((t: any, i: number) => (
-                              <div
-                                key={t.task_id}
-                                className={`p-3 rounded-lg text-sm border ${
-                                  t.is_correct
-                                    ? "bg-emerald-50 border-emerald-100"
-                                    : "bg-red-50 border-red-100"
-                                }`}
-                              >
-                                <div className="flex items-start gap-2">
-                                  {t.is_correct ? (
-                                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                                  ) : (
-                                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
-                                  )}
-                                  <div>
-                                    <p className="text-xs text-slate-500 mb-1">Вопрос {i + 1}</p>
-                                    <MathRenderer
-                                      text={pickTaskDisplayText({
-                                        task_id: t.task_id,
-                                        question_text: t.text,
-                                        question_latex: t.question_latex,
-                                      })}
-                                      className="text-slate-800"
-                                    />
-                                    <p className="mt-1 text-xs">
-                                      Ваш ответ: <strong><MathRenderer text={pickAnswerDisplayText(t.student_answer ?? "")} className="inline text-xs" /></strong>
-                                      {!t.is_correct && (
-                                        <> · Верно: <strong><MathRenderer text={pickAnswerDisplayText(t.correct_answer ?? "", t.correct_answer_latex)} className="inline text-xs" /></strong></>
-                                      )}
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <Link href="/login">
-                      <Button className="w-full" icon={<Home className="w-4 h-4" />}>
-                        На главную
-                      </Button>
-                    </Link>
-                  </div>
-                </GlassCard>
-              </motion.div>
-            </div>
+                  <Link href="/login">
+                    <Button className="w-full" icon={<Home className="w-4 h-4" />}>
+                      На главную
+                    </Button>
+                  </Link>
+                </div>
+              </GlassCard>
+            </motion.div>
           </div>
         )}
       </main>

@@ -14,6 +14,8 @@ interface AuthGuardProps {
   loginPath?: string;
   /** Where to redirect if authenticated but wrong role */
   forbiddenPath?: string;
+  /** Role-specific destinations for a direct link to the wrong workspace. */
+  forbiddenRolePaths?: Partial<Record<UserRole, string>>;
 }
 
 /**
@@ -30,6 +32,7 @@ export function AuthGuard({
   allowedRoles = [],
   loginPath = "/login",
   forbiddenPath = "/",
+  forbiddenRolePaths,
 }: AuthGuardProps) {
   const router = useRouter();
   const { refreshProfile } = useAuthStore();
@@ -74,7 +77,9 @@ export function AuthGuard({
         const hasRole = allowedRoles.includes(currentUser.role as UserRole) ||
           allowedRoles.includes(currentUser.org_role as UserRole);
         if (!hasRole) {
-          router.replace(forbiddenPath);
+          const orgRole = currentUser.org_role as UserRole;
+          const accountRole = currentUser.role as UserRole;
+          router.replace(forbiddenRolePaths?.[orgRole] || forbiddenRolePaths?.[accountRole] || forbiddenPath);
           return;
         }
       }

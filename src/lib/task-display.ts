@@ -1,8 +1,8 @@
 /** Pick the best display string for a task question (KaTeX-ready). */
 
-import { wrapBareMath } from "./math-display";
+import { prepareMathDisplay, pickAnswerDisplayText, pickOptionDisplayText } from "./math-display";
 
-export { pickAnswerDisplayText, pickOptionDisplayText, wrapBareMath } from "./math-display";
+export { pickAnswerDisplayText, pickOptionDisplayText, prepareMathDisplay } from "./math-display";
 
 function subpartIndex(taskId?: string): number | null {
   if (!taskId) return null;
@@ -40,29 +40,10 @@ export function pickTaskDisplayText(opts: {
 }): string {
   const text = (opts.question_text || "").trim();
   const latex = (opts.question_latex || "").trim();
-  // ALG compounds: question_latex is fuller; TB: question_text has prose + math.
-  const source = latex.length > text.length ? latex : text || latex;
-  if (!source) return "";
-
-  const idx = subpartIndex(opts.task_id);
-  let part = extractNumberedPart(source, idx);
-
-  if (part.includes(";") && /\d+[\\).]\s*\$/.test(part)) {
-    part = part.split(/;\s*(?=\d+[\\).])/)[0].replace(/^\d+[\\).]\s*/, "").trim();
-  }
-
-  part = part.replace(/^Решите\s+уравнени[ея]:\s*/i, "").trim();
-
-  if (/=/.test(part) && !part.startsWith("$")) {
-    return `Решите уравнение: ${wrapBareMath(part)}`;
-  }
-
-  if (/^(Найдите|Вычислите|Упростите|Сократите|Определите|Сравните)/i.test(part)) {
-    const m = part.match(/^([А-Яа-яЁё\s]+:?\s*)(.+)$/);
-    if (m) return `${m[1].trim()} ${wrapBareMath(m[2])}`;
-  }
-
-  return wrapBareMath(part);
+  // The server owns LaTeX normalization. Prefer its display field exactly as
+  // supplied; no frontend parsing or mathematical transformation is allowed.
+  const source = latex || text;
+  return source;
 }
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
@@ -85,3 +66,15 @@ export function formatErrorType(errorType?: string): string {
   if (!errorType || errorType.startsWith("ai_")) return "Типичная ошибка";
   return ERROR_TYPE_LABELS[errorType] ?? "Типичная ошибка";
 }
+
+export function pickDistractorExplanation(dm: {
+  explanation?: string | null;
+  error_logic_latex?: string | null;
+  error_logic?: string | null;
+}): string {
+  const latex = (dm.error_logic_latex || "").trim();
+  const expl = (dm.explanation || "").trim();
+  const logic = (dm.error_logic || "").trim();
+  return latex || expl || logic || "";
+}
+

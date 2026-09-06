@@ -70,7 +70,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // Teacher screens show live, organization-specific operational data. A
+  // browser must never keep an obsolete dashboard shell after a deployment.
+  if (pathname.startsWith("/teacher")) {
+    response.headers.set(
+      "Cache-Control",
+      "private, no-store, max-age=0, must-revalidate",
+    );
+  }
+
+  return response;
 }
 
 export const config = {

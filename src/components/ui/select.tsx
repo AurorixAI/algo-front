@@ -48,6 +48,22 @@ export function Select({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Gently scroll down if opening the dropdown pushes it below the viewport fold
+  useEffect(() => {
+    if (open && ref.current) {
+      setTimeout(() => {
+        if (!ref.current) return;
+        const rect = ref.current.getBoundingClientRect();
+        const windowHeight = window.innerHeight;
+        const neededHeight = 250; // max dropdown height + margin
+        if (rect.bottom + neededHeight > windowHeight) {
+          const scrollAmount = rect.bottom + neededHeight - windowHeight;
+          window.scrollBy({ top: scrollAmount + 20, behavior: "smooth" });
+        }
+      }, 50);
+    }
+  }, [open]);
+
   const handleSelect = (val: string) => {
     // Pass standard event object { target: { value: val } } for backward compatibility
     // with inputs like onChange={(e) => setValue(e.target.value)}
