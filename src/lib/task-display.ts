@@ -33,6 +33,16 @@ function wrapEquation(expr: string): string {
 
 // wrapBareMath lives in math-display.ts (re-exported above)
 
+// A `question_latex` far shorter than `question_text` is a bare formula, not a
+// normalized rendering of the whole statement. Most of the task bank is stored
+// that way: "Решите уравнение: $4\sin^2 x + 8\cos x + 1 = 0$" in the text
+// against only "4\sin^2 x + 8\cos x + 1 = 0" in the LaTeX column. Preferring
+// LaTeX unconditionally therefore dropped the instruction wording — "Решите",
+// "Найдите", "Проверьте" — from every exam and diagnostic screen, and left the
+// undelimited fragment to print as literal `\quad` and `x^2` because the
+// renderer only treats a delimited or Latin-only string as math.
+const LATEX_FRAGMENT_RATIO = 0.6;
+
 export function pickTaskDisplayText(opts: {
   task_id?: string;
   question_text: string;
@@ -40,10 +50,12 @@ export function pickTaskDisplayText(opts: {
 }): string {
   const text = (opts.question_text || "").trim();
   const latex = (opts.question_latex || "").trim();
-  // The server owns LaTeX normalization. Prefer its display field exactly as
-  // supplied; no frontend parsing or mathematical transformation is allowed.
-  const source = latex || text;
-  return source;
+  if (!latex) return text;
+  if (!text) return latex;
+  // The server still owns LaTeX normalization: this chooses which field to
+  // show and never parses or rewrites either of them.
+  if (latex.length < text.length * LATEX_FRAGMENT_RATIO) return text;
+  return latex;
 }
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
