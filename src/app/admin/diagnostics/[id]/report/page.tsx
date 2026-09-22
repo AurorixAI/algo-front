@@ -37,7 +37,7 @@ import {
 import { analyticsApi, orgApi } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { pickTaskDisplayText } from "@/lib/task-display";
+import { pickAnswerDisplayText, pickTaskDisplayText } from "@/lib/task-display";
 import "katex/dist/katex.min.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -922,7 +922,10 @@ export default function DiagnosticReportPage() {
                               }
                             });
 
-                            const hasLongOptions = uniqueOptions.some(item => (item.opt || "").length > 60);
+                            const hasLongOptions = uniqueOptions.some((item) => {
+                              const display = item.latex || item.opt || "";
+                              return display.length > 80 || /\\text\{|\n/.test(display);
+                            });
                             const hasMatchedStudentOpt = uniqueOptions.some((item, oi) => matchesOption(err.student_answer, item.opt, item.latex, oi));
 
                             return (
@@ -932,7 +935,7 @@ export default function DiagnosticReportPage() {
                                     const isCorrect = matchesOption(err.correct_answer, item.opt, item.latex, oi);
                                     const isStudentAnswer = matchesOption(err.student_answer, item.opt, item.latex, oi);
                                     return (
-                                      <div key={oi} className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                                      <div key={oi} className={`flex min-w-0 items-start gap-4 overflow-hidden p-4 rounded-xl border transition-all ${
                                         isCorrect
                                           ? "bg-emerald-50/70 border-emerald-200/90 shadow-2xs"
                                           : isStudentAnswer && !isCorrect
@@ -944,10 +947,11 @@ export default function DiagnosticReportPage() {
                                           isStudentAnswer ? "bg-rose-500 text-white shadow-2xs" :
                                           "bg-slate-100 text-slate-500"
                                         }`}>{String.fromCharCode(65 + oi)}</span>
-                                        <div className="flex-1 min-w-0">
+                                        <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar">
                                           <MathRenderer
-                                            text={item.latex}
-                                            className="text-[14px] sm:text-[14.5px] leading-snug break-words font-normal text-slate-800"
+                                            text={pickAnswerDisplayText(item.opt, item.latex)}
+                                            block
+                                            className="min-w-0 max-w-full text-[14px] sm:text-[14.5px] leading-snug break-words font-normal text-slate-800"
                                           />
                                         </div>
                                         {isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
@@ -960,7 +964,7 @@ export default function DiagnosticReportPage() {
                                   <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs font-medium text-rose-950">
                                     <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
                                     <span className="font-semibold text-rose-700">Введённый ответ ученика:</span>
-                                    <MathRenderer text={err.student_answer_latex || err.student_answer} className="font-normal text-[14px] text-slate-800" />
+                                    <MathRenderer text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="font-normal text-[14px] text-slate-800" />
                                   </div>
                                 )}
                               </div>
@@ -977,7 +981,7 @@ export default function DiagnosticReportPage() {
                                   <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Ответ ученика</span>
                                 </div>
                                 {err.student_answer
-                                  ? <MathRenderer text={err.student_answer_latex || err.student_answer} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
+                                  ? <MathRenderer text={pickAnswerDisplayText(err.student_answer, err.student_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
                                   : <span className="text-xs font-normal text-slate-400">—</span>
                                 }
                               </div>
@@ -988,7 +992,7 @@ export default function DiagnosticReportPage() {
                                   <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Верный ответ</span>
                                 </div>
                                 {(err.correct_answer_latex || err.correct_answer)
-                                  ? <MathRenderer text={err.correct_answer_latex || err.correct_answer || ""} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
+                                  ? <MathRenderer text={pickAnswerDisplayText(err.correct_answer || "", err.correct_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
                                   : <span className="text-xs font-normal text-slate-400">—</span>
                                 }
                               </div>
@@ -1003,7 +1007,7 @@ export default function DiagnosticReportPage() {
                                 Анализ ошибки
                               </div>
                               <div className="text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal">
-                                <MathRenderer text={err.distractor_explanation_latex || err.distractor_explanation} className="text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal" />
+                                    <MathRenderer text={pickAnswerDisplayText(err.distractor_explanation || "", err.distractor_explanation_latex)} className="text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal" />
                               </div>
                             </div>
                           )}
@@ -1233,7 +1237,7 @@ export default function DiagnosticReportPage() {
 
                                         {(st.question_latex || st.question_text) && (
                                           <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-800 text-sm leading-relaxed">
-                                            <MathRenderer text={st.question_latex || st.question_text || ""} />
+                                            <MathRenderer text={pickTaskDisplayText({ question_text: st.question_text || "", question_latex: st.question_latex })} />
                                           </div>
                                         )}
 
@@ -1380,7 +1384,7 @@ export default function DiagnosticReportPage() {
 
                                           {(ex.question_latex || ex.question_text) && (
                                             <div className="p-3 rounded-lg bg-white border border-slate-200/80 text-slate-900 text-xs leading-relaxed">
-                                              <MathRenderer text={ex.question_latex || ex.question_text || ""} />
+                                              <MathRenderer text={pickTaskDisplayText({ question_text: ex.question_text || "", question_latex: ex.question_latex })} />
                                             </div>
                                           )}
 

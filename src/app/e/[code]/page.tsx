@@ -35,7 +35,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { pickAnswerDisplayText, pickTaskDisplayText } from "@/lib/task-display";
+import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,6 +46,8 @@ interface Task {
   task_id: string;
   text: string;
   question_latex?: string | null;
+  attested_fields?: string[] | null;
+  content_quality?: Record<string, unknown> | null;
   options: string[];
   options_latex?: string[] | null;
   image_url?: string;
@@ -262,20 +264,29 @@ export default function ExamPage() {
   };
 
   const task = tasks[currentQuestion];
+  const taskDisplay = useMemo(
+    () => pickTaskDisplayProjection({
+      task_id: task?.task_id,
+      question_text: task?.text || "",
+      question_latex: task?.question_latex,
+      attested_fields: task?.attested_fields,
+      content_quality: task?.content_quality,
+    }),
+    [task],
+  );
   const isWideTask = useMemo(() => {
     if (!task) return false;
     const opts = task.options || [];
     const optsL = task.options_latex || [];
     const maxOptLen = Math.max(
       0,
-      ...opts.map((o) => o?.length || 0),
-      ...optsL.map((o) => o?.length || 0),
+      ...opts.map((option, index) =>
+        pickOptionDisplayProjection(option || "", optsL[index]).text.length,
+      ),
     );
-    const qLen =
-      (task.text?.length || 0) +
-      (task.question_latex?.length || 0);
+    const qLen = taskDisplay.text.length;
     return maxOptLen > 25 || qLen > 80;
-  }, [task]);
+  }, [task, taskDisplay]);
 
   const answeredCount = tasks.filter((t) => answers[t.task_id]?.trim()).length;
   const unansweredTasks = tasks.filter((t) => !answers[t.task_id]?.trim());
@@ -889,11 +900,8 @@ export default function ExamPage() {
                   topic={`${task.skill_name} • Вопрос ${currentQuestion + 1}/${tasks.length}`}
                 >
                   <MathRenderer
-                    text={pickTaskDisplayText({
-                      task_id: task.task_id,
-                      question_text: task.text,
-                      question_latex: task.question_latex,
-                    })}
+                    text={taskDisplay.text}
+                    renderMode={taskDisplay.renderMode}
                     block
                   />
                   {task.image_url && (

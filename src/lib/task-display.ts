@@ -1,8 +1,22 @@
 /** Pick the best display string for a task question (KaTeX-ready). */
 
-import { prepareMathDisplay, pickAnswerDisplayText, pickOptionDisplayText } from "./math-display";
+import {
+  prepareMathDisplay,
+  pickAnswerDisplayText,
+  pickAnswerDisplayProjection,
+  pickOptionDisplayText,
+  pickOptionDisplayProjection,
+  type MathDisplayProjection,
+} from "./math-display";
 
-export { pickAnswerDisplayText, pickOptionDisplayText, prepareMathDisplay } from "./math-display";
+export {
+  pickAnswerDisplayText,
+  pickAnswerDisplayProjection,
+  pickOptionDisplayText,
+  pickOptionDisplayProjection,
+  prepareMathDisplay,
+  type MathDisplayProjection,
+} from "./math-display";
 
 function subpartIndex(taskId?: string): number | null {
   if (!taskId) return null;
@@ -33,29 +47,64 @@ function wrapEquation(expr: string): string {
 
 // wrapBareMath lives in math-display.ts (re-exported above)
 
-// A `question_latex` far shorter than `question_text` is a bare formula, not a
-// normalized rendering of the whole statement. Most of the task bank is stored
-// that way: "Решите уравнение: $4\sin^2 x + 8\cos x + 1 = 0$" in the text
-// against only "4\sin^2 x + 8\cos x + 1 = 0" in the LaTeX column. Preferring
-// LaTeX unconditionally therefore dropped the instruction wording — "Решите",
-// "Найдите", "Проверьте" — from every exam and diagnostic screen, and left the
-// undelimited fragment to print as literal `\quad` and `x^2` because the
-// renderer only treats a delimited or Latin-only string as math.
-const LATEX_FRAGMENT_RATIO = 0.6;
-
-export function pickTaskDisplayText(opts: {
+export interface TaskDisplayFields {
   task_id?: string;
   question_text: string;
   question_latex?: string | null;
-}): string {
+  attested_fields?: string[] | null;
+  latex_attested?: boolean | null;
+  content_quality?: { latex_attested_fields?: string[] } | Record<string, unknown> | null;
+}
+
+/**
+ * Check if the LaTeX question projection is attested and trustworthy.
+ */
+export function isQuestionLatexAttested(opts: TaskDisplayFields): boolean {
+  if (opts.latex_attested === true) return true;
+  if (Array.isArray(opts.attested_fields) && opts.attested_fields.includes("question")) {
+    return true;
+  }
+  const cq = opts.content_quality as { latex_attested_fields?: string[] } | null;
+  if (cq && Array.isArray(cq.latex_attested_fields) && cq.latex_attested_fields.includes("question")) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Select the safe display source for a question.
+ *
+ * A `question_latex` projection is authoritative when attested by the
+ * independent final review gate.  Unattested legacy rows often contain bare
+ * formula fragments which lack instructional words ("Решите", "Найдите").
+ * For those legacy rows, we fall back to the canonical `question_text`
+ * through safe KaTeX preparation.
+ */
+export function pickTaskDisplayProjection(opts: TaskDisplayFields): MathDisplayProjection {
   const text = (opts.question_text || "").trim();
   const latex = (opts.question_latex || "").trim();
-  if (!latex) return text;
-  if (!text) return latex;
-  // The server still owns LaTeX normalization: this chooses which field to
-  // show and never parses or rewrites either of them.
-  if (latex.length < text.length * LATEX_FRAGMENT_RATIO) return text;
-  return latex;
+
+  // If attested by the server review gate, render authoritative LaTeX verbatim
+  if (latex && isQuestionLatexAttested(opts)) {
+    return { text: latex, renderMode: "trusted" };
+  }
+
+  // Canonical statement fallback for legacy/unattested rows
+  if (text) {
+    return { text: prepareMathDisplay(text), renderMode: "legacy" };
+  }
+
+  // Fallback for records with only LaTeX
+  if (latex) {
+    return { text: latex, renderMode: "trusted" };
+  }
+
+  return { text: "", renderMode: "legacy" };
+}
+
+/** Compatibility helper for callers which only need the selected string. */
+export function pickTaskDisplayText(opts: TaskDisplayFields): string {
+  return pickTaskDisplayProjection(opts).text;
 }
 
 const ERROR_TYPE_LABELS: Record<string, string> = {
@@ -79,14 +128,23 @@ export function formatErrorType(errorType?: string): string {
   return ERROR_TYPE_LABELS[errorType] ?? "Типичная ошибка";
 }
 
-export function pickDistractorExplanation(dm: {
+export interface DistractorExplanationFields {
   explanation?: string | null;
   error_logic_latex?: string | null;
   error_logic?: string | null;
-}): string {
+}
+
+export function pickDistractorExplanationProjection(
+  dm: DistractorExplanationFields,
+): MathDisplayProjection {
   const latex = (dm.error_logic_latex || "").trim();
   const expl = (dm.explanation || "").trim();
   const logic = (dm.error_logic || "").trim();
-  return latex || expl || logic || "";
+  if (latex) return { text: latex, renderMode: "trusted" };
+  return { text: prepareMathDisplay(expl || logic || ""), renderMode: "legacy" };
 }
 
+/** Compatibility helper for callers which only need the selected string. */
+export function pickDistractorExplanation(dm: DistractorExplanationFields): string {
+  return pickDistractorExplanationProjection(dm).text;
+}

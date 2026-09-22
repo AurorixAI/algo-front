@@ -8,7 +8,16 @@ interface MathRendererProps {
   text: string;
   className?: string;
   block?: boolean;
+  /**
+   * `trusted` is reserved for a server-validated display projection (for
+   * example `question_latex` or `answer_latex`).  In that mode the client
+   * parses delimiters but never repairs, normalizes, or rewrites the stored
+   * LaTeX.  Raw/legacy fields must stay on the default mode.
+   */
+  renderMode?: MathRenderMode;
 }
+
+export type MathRenderMode = "legacy" | "trusted";
 
 export function escapeHtml(s: string): string {
   return s
@@ -76,10 +85,20 @@ function cleanLatexForKatex(latex: string): string {
   return out.join("");
 }
 
-function katexRender(latex: string, displayMode: boolean): string {
+function katexRender(
+  latex: string,
+  displayMode: boolean,
+  renderMode: MathRenderMode,
+): string {
   try {
-    const cleaned = cleanLatexForKatex(latex.trim());
-    return katex.renderToString(wrapBareCyrillicInMath(cleaned), {
+    // The browser has historically repaired malformed legacy fragments before
+    // giving them to KaTeX.  That must never happen to an audited projection:
+    // a rendering helper is not allowed to silently change its mathematical
+    // meaning.  Tokenization below still recognises delimiters in both modes.
+    const prepared = renderMode === "trusted"
+      ? latex
+      : wrapBareCyrillicInMath(cleanLatexForKatex(latex.trim()));
+    return katex.renderToString(prepared, {
       throwOnError: false,
       displayMode,
       output: "html",
@@ -167,8 +186,11 @@ function cleanNestedDollars(text: string): string {
   return out;
 }
 
-export function tokenize(rawS: string): Token[] {
-  const s = cleanNestedDollars(rawS || "");
+export function tokenize(rawS: string, renderMode: MathRenderMode = "legacy"): Token[] {
+  // `cleanNestedDollars` is a legacy recovery routine.  Calling it for a
+  // trusted projection could remove meaningful characters from a valid,
+  // server-reviewed expression, so it is intentionally bypassed there.
+  const s = renderMode === "trusted" ? (rawS || "") : cleanNestedDollars(rawS || "");
   if (!s) return [];
 
   // If the entire string is pure LaTeX without delimiters (e.g. "\frac{\sqrt{3}}{2}" or "7^{\log_5 x^2}")
@@ -256,11 +278,15 @@ export function tokenize(rawS: string): Token[] {
   return tokens;
 }
 
-export function renderMathText(text: string, allowLineBreaks = false): string {
-  const s = text.trim();
+export function renderMathText(
+  text: string,
+  allowLineBreaks = false,
+  renderMode: MathRenderMode = "legacy",
+): string {
+  const s = renderMode === "trusted" ? (text || "") : text.trim();
   if (!s) return "";
 
-  const tokens = tokenize(s);
+  const tokens = tokenize(s, renderMode);
   const parts: string[] = [];
 
   for (let idx = 0; idx < tokens.length; idx++) {
@@ -270,15 +296,23 @@ export function renderMathText(text: string, allowLineBreaks = false): string {
       parts.push(allowLineBreaks ? escaped.replace(/\n/g, "<br/>") : escaped.replace(/\n/g, " "));
     } else {
       const isDisplay = allowLineBreaks && token.type === "display";
-      parts.push(katexRender(token.content, isDisplay));
+      parts.push(katexRender(token.content, isDisplay, renderMode));
     }
   }
   return parts.join("");
 }
 
-export function MathRenderer({ text, className = "", block = false }: MathRendererProps) {
-  const html = useMemo(() => renderMathText(text, block), [text, block]);
-  const standalone = useMemo(() => isStandaloneMath(tokenize(text.trim())), [text]);
+export function MathRenderer({
+  text,
+  className = "",
+  block = false,
+  renderMode = "legacy",
+}: MathRendererProps) {
+  const html = useMemo(() => renderMathText(text, block, renderMode), [text, block, renderMode]);
+  const standalone = useMemo(
+    () => isStandaloneMath(tokenize(renderMode === "trusted" ? text : text.trim(), renderMode)),
+    [text, renderMode],
+  );
   const Tag = block ? "div" : "span";
   return (
     <Tag
@@ -287,8 +321,8 @@ export function MathRenderer({ text, className = "", block = false }: MathRender
         "[&_.katex]:text-[1.06em] [&_.katex]:font-normal",
         block
           ? (standalone
-              ? "block mx-auto w-fit max-w-full text-center [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden"
-              : "block [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden")
+              ? "block mx-auto max-w-full overflow-x-auto overflow-y-hidden text-center [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden"
+              : "block min-w-0 max-w-full overflow-x-auto overflow-y-hidden [&_.katex-display]:my-2.5 [&_.katex-display]:overflow-x-auto [&_.katex-display]:overflow-y-hidden")
           : "inline [&_.katex]:inline",
         className
       )}
@@ -297,6 +331,14 @@ export function MathRenderer({ text, className = "", block = false }: MathRender
   );
 }
 
-export function MathText({ text, className }: { text: string; className?: string }) {
-  return <MathRenderer text={text} className={className} block />;
+export function MathText({
+  text,
+  className,
+  renderMode = "legacy",
+}: {
+  text: string;
+  className?: string;
+  renderMode?: MathRenderMode;
+}) {
+  return <MathRenderer text={text} className={className} block renderMode={renderMode} />;
 }

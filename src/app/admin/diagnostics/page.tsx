@@ -497,11 +497,11 @@ export default function AdminDiagnosticsPage() {
 
 
 
-                  {/* Status + Actions — fixed-width right column */}
-                  <div className="flex items-center gap-2 shrink-0 justify-end">
+                  {/* Status + Actions — adaptive flex column/row */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
                     <div
                       className={
-                        "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap w-[110px] " +
+                        "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap " +
                         currentStatus.color
                       }
                     >
@@ -512,7 +512,7 @@ export default function AdminDiagnosticsPage() {
                     {inv.status === "pending" && (
                       <button
                         onClick={() => copyLink(inv.code)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap w-[110px]"
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap"
                         title="Скопировать ссылку для ученика"
                       >
                         {copiedCode === "link-" + inv.code ? (
@@ -530,7 +530,7 @@ export default function AdminDiagnosticsPage() {
                     {isCompleted && !isAssigned && (
                       <Link
                         href={`/admin/diagnostics/${inv.id}/report`}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap w-[110px]"
+                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap"
                       >
                         <ExternalLink className="w-3.5 h-3.5" /> Отчёт
                       </Link>

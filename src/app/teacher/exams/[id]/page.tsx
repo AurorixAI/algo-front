@@ -2296,7 +2296,7 @@ export default function ExamHubPage() {
                         )}
                       </div>
                       <div className="text-base text-slate-900 leading-relaxed font-normal py-1">
-                        <MathRenderer text={alt.question_text || alt.question_latex || ""} />
+                        <MathRenderer text={pickTaskDisplayText(alt)} />
                       </div>
                     </div>
                   ))

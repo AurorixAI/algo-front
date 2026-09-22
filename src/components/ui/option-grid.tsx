@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { pickAnswerDisplayText, pickOptionDisplayText } from "@/lib/task-display";
+import { pickOptionDisplayProjection } from "@/lib/task-display";
 
 export interface OptionItem {
   id: string;
@@ -35,6 +35,19 @@ export function OptionGrid({
 }: OptionGridProps) {
   const [pending, setPending] = useState<string | null>(null);
 
+  const optionDisplays = useMemo(
+    () => options.map((option) => pickOptionDisplayProjection(option.content, option.contentLatex)),
+    [options],
+  );
+
+  // Long prose inside an answer is not an edge case: theory questions and
+  // multi-step explanations legitimately have it.  Put such options in one
+  // column so the card can grow vertically rather than forcing KaTeX outside
+  // a half-width grid cell.
+  const hasLongOption = optionDisplays.some(({ text: display }) => {
+    return display.length > 80 || /\\text\{|\n/.test(display);
+  });
+
   const resetKey = useMemo(
     () => `${questionKey}|${options.map((o) => o.id).join("|")}`,
     [questionKey, options],
@@ -56,8 +69,9 @@ export function OptionGrid({
   }
 
   return (
-    <div className="grid gap-3 md:gap-4 w-full grid-cols-1 md:grid-cols-2">
+    <div className={cn("grid w-full grid-cols-1 gap-3 md:gap-4", !hasLongOption && "md:grid-cols-2")}>
       {options.map((opt, idx) => {
+        const display = optionDisplays[idx];
         const isConfirmed = selected === opt.key;
         const isPending = pending === opt.key;
         const isActive = isConfirmed || isPending;
@@ -70,9 +84,9 @@ export function OptionGrid({
             onClick={() => handleClick(opt.key)}
             disabled={disabled}
             className={cn(
-              "group glass-option rounded-2xl p-4 md:p-5 flex items-center gap-4 md:gap-5 text-left relative cursor-pointer",
+              "group glass-option relative flex min-w-0 items-start gap-4 overflow-hidden rounded-2xl p-4 text-left cursor-pointer md:gap-5 md:p-5",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none",
-              isOddLast && "md:col-span-2 md:justify-center",
+              isOddLast && !hasLongOption && "md:col-span-2 md:justify-center",
               isActive && "selected !border-primary-500 !bg-white !shadow-[0_8px_24px_rgba(37,99,235,0.2)]",
             )}
           >
@@ -87,14 +101,17 @@ export function OptionGrid({
               {isActive ? <Check className="w-4 h-4" /> : opt.label}
             </div>
 
-            <MathRenderer
-              text={pickOptionDisplayText(opt.content, opt.contentLatex)}
-              className={cn(
-                isOddLast ? "flex-initial" : "flex-1 min-w-0",
-                "font-sans text-base md:text-lg transition-colors pointer-events-none break-words",
-                isActive ? "text-slate-900" : "text-slate-700 group-hover:text-slate-900",
-              )}
-            />
+            <div className={cn("min-w-0 flex-1 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar", isOddLast && "flex-initial")}>
+              <MathRenderer
+                text={display.text}
+                renderMode={display.renderMode}
+                block
+                className={cn(
+                  "min-w-0 max-w-full font-sans text-base break-words pointer-events-none transition-colors md:text-lg",
+                  isActive ? "text-slate-900" : "text-slate-700 group-hover:text-slate-900",
+                )}
+              />
+            </div>
 
             {isConfirmed && (
               <div className="absolute right-5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-primary-500 shadow-sm" />

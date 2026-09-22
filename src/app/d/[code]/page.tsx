@@ -27,7 +27,7 @@ import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerRe
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { pickTaskDisplayText } from "@/lib/task-display";
+import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 type Phase = "loading" | "confirm" | "welcome" | "resume" | "testing" | "analyzing" | "results" | "error";
@@ -321,6 +321,16 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   };
 
   const currentTask = diagStore.currentTask as DiagTaskOut | null;
+  const taskDisplay = useMemo(
+    () => pickTaskDisplayProjection({
+      task_id: currentTask?.task_id,
+      question_text: currentTask?.question_text || "",
+      question_latex: currentTask?.question_latex,
+      attested_fields: currentTask?.attested_fields,
+      content_quality: currentTask?.content_quality,
+    }),
+    [currentTask],
+  );
 
   const isWideTask = useMemo(() => {
     if (!currentTask) return false;
@@ -328,14 +338,13 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     const optsL = currentTask.answer_options_latex || [];
     const maxOptLen = Math.max(
       0,
-      ...opts.map((o) => o?.length || 0),
-      ...optsL.map((o) => o?.length || 0),
+      ...opts.map((option, index) =>
+        pickOptionDisplayProjection(option || "", optsL[index]).text.length,
+      ),
     );
-    const qLen =
-      (currentTask.question_text?.length || 0) +
-      (currentTask.question_latex?.length || 0);
+    const qLen = taskDisplay.text.length;
     return maxOptLen > 25 || qLen > 80;
-  }, [currentTask]);
+  }, [currentTask, taskDisplay]);
 
   return (
     <div className="min-h-screen w-full relative bg-background-light text-slate-800 font-sans flex flex-col">
@@ -589,11 +598,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     topic={`Вопрос ${diagStore.itemNumber}`}
                   >
                     <MathRenderer
-                      text={pickTaskDisplayText({
-                        task_id: currentTask.task_id,
-                        question_text: currentTask.question_text,
-                        question_latex: currentTask.question_latex,
-                      })}
+                      text={taskDisplay.text}
+                      renderMode={taskDisplay.renderMode}
                       block
                     />
                     {currentTask.question_image_url && (

@@ -1102,6 +1102,8 @@ export interface DiagTaskOut {
   topic_id: string;
   question_text: string;
   question_latex: string | null;
+  attested_fields?: string[] | null;
+  content_quality?: Record<string, unknown> | null;
   question_image_url: string | null;
   answer_type: string;
   answer_options: string[] | null;
@@ -1557,6 +1559,12 @@ export const examsApi = {
 
   /** Get sessions list for an exam (teacher) */
   getSessions: (examId: string) => examApi<any[]>(`/exams/${examId}/sessions`),
+
+  /** Completed online attempts for one student, scoped by current staff access. */
+  getStudentHistory: (studentId: string) =>
+    examApi<NonNullable<StudentProfile["exams"]>>(
+      `/students/${encodeURIComponent(studentId)}/exam-history`
+    ),
 
   /** Get analytics for an exam (teacher) */
   getAnalytics: (examId: string) => examApi<any>(`/exams/${examId}/analytics`),

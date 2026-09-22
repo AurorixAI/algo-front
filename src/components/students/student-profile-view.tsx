@@ -10,7 +10,7 @@ import {
   FileText, Clock, ChevronRight, UserCheck, Plus
 } from "lucide-react";
 import Link from "next/link";
-import { orgApi, StudentAttendanceSummary, StudentProfile } from "@/lib/api";
+import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -86,9 +86,19 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
       setLoading(true);
       setError(null);
       const data = await orgApi.getStudentProfile(studentId);
-      setProfile(data);
-      setPhoneVal(data.student.student_phone || "");
-      setCommentVal(data.student.comment || "");
+      // Exam attempts live in exam-service, while the student, diagnostics and
+      // group timeline live in auth-service. Do not make the whole profile
+      // unavailable if the supplementary history request is temporarily down.
+      let exams: NonNullable<StudentProfile["exams"]> = [];
+      try {
+        exams = await examsApi.getStudentHistory(studentId);
+      } catch (historyError) {
+        console.error("Failed to load student exam history:", historyError);
+      }
+      const profileWithHistory: StudentProfile = { ...data, exams };
+      setProfile(profileWithHistory);
+      setPhoneVal(profileWithHistory.student.student_phone || "");
+      setCommentVal(profileWithHistory.student.comment || "");
     } catch (err: any) {
       console.error("Failed to load student profile:", err);
       setError(err?.message || "Ученик не найден");

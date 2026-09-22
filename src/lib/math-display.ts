@@ -14,6 +14,16 @@ const TWO_ARG_COMMANDS = new Set([
 const LATEX_COMMAND_RE = /\\[a-zA-Z]+|[\^_]/;
 const CYRILLIC_RE = /[а-яА-ЯёЁ]/;
 
+/**
+ * A display projection is deliberately paired with its render contract.
+ * A string alone cannot tell `MathRenderer` whether it came from immutable
+ * legacy text or from an audited server-side LaTeX projection.
+ */
+export interface MathDisplayProjection {
+  text: string;
+  renderMode: "legacy" | "trusted";
+}
+
 function looksLikeMathExpr(s: string): boolean {
   if (CYRILLIC_RE.test(s)) return false;
   return /^[0-9a-zA-Z\s\+\-\*\/\=\(\)\[\]\{\}\.,\^]+$/.test(s) && /[\+\-\*\/\=\^\[\]\{\}]/.test(s);
@@ -128,6 +138,7 @@ export function insertSpacesAroundInlineMath(s: string): string {
   return s
     .replace(/(\$[^$]+\$)([а-яА-ЯёЁ])/g, "$1 $2")
     .replace(/([а-яА-ЯёЁ])(\$[^$]+\$)/g, "$1 $2")
+    .replace(/([:;])(\$[^$]+\$)/g, "$1 $2")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -246,8 +257,32 @@ function wrapGenericMathSegments(s: string): string {
   return insertSpacesAroundInlineMath(wrapped.join(""));
 }
 
+/**
+ * Prepares a legacy question statement for the renderer without changing the
+ * statement itself.  Some older records contain a complete Russian condition
+ * in `question_text`, but only parts of the formula are un-delimited
+ * (for example `f(x) = x^3`).  KaTeX intentionally treats that as prose.
+ *
+ * Existing `$…$`, `\\(…\\)`, `\\[…\\]` and `$$…$$` fragments are left exactly as
+ * they arrived from the content service.  Only the prose in between is passed
+ * through the conservative legacy math wrapper.  This keeps a verified LaTeX
+ * projection intact and prevents a display helper from silently dropping or
+ * rewriting the instructional part of a task.
+ */
 export function prepareMathDisplay(text: string): string {
-  return wrapBareMath(text);
+  const source = (text || "").trim();
+  if (!source) return "";
+
+  const preservedMath = /(\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|\$[^\n$]+\$)/g;
+  const isPreservedMath = /^(?:\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$\$[\s\S]*?\$\$|\$[^\n$]+\$)$/;
+  const parts = source.split(preservedMath);
+  const prepared = parts.map((part) => {
+    if (!part) return part;
+    if (isPreservedMath.test(part)) return part;
+    return wrapGenericMathSegments(part);
+  }).join("");
+
+  return insertSpacesAroundInlineMath(prepared);
 }
 
 
@@ -263,20 +298,39 @@ export function wrapBareMath(text: string): string {
   return wrapGenericMathSegments(proseWrapped);
 }
 
+export function pickAnswerDisplayProjection(
+  answer: string,
+  answerLatex?: string | null,
+): MathDisplayProjection {
+  // A verified display projection is authoritative and passes through
+  // untouched by the browser. Old records may not have one; in that case we
+  // only add math delimiters around safe raw fragments so that `x^2` and
+  // `f(0)` are rendered rather than printed as source text. The raw answer
+  // itself is never replaced or sent back to the server.
+  const latex = (answerLatex || "").trim();
+  if (latex) return { text: latex, renderMode: "trusted" };
+  return { text: prepareMathDisplay(answer || ""), renderMode: "legacy" };
+}
+
+/** Compatibility helper for callers which only need the display string. */
 export function pickAnswerDisplayText(
   answer: string,
   answerLatex?: string | null,
 ): string {
-  // Content-service owns mathematical normalization.  A client-side rewrite
-  // can change the meaning of a value (for example a fraction or decimal), so
-  // the UI renders the stored display projection verbatim and only falls back
-  // to raw text when legacy data is incomplete.
-  return (answerLatex || answer || "").trim();
+  return pickAnswerDisplayProjection(answer, answerLatex).text;
 }
 
+export function pickOptionDisplayProjection(
+  content: string,
+  contentLatex?: string | null,
+): MathDisplayProjection {
+  return pickAnswerDisplayProjection(content, contentLatex);
+}
+
+/** Compatibility helper for callers which only need the display string. */
 export function pickOptionDisplayText(
   content: string,
   contentLatex?: string | null,
 ): string {
-  return pickAnswerDisplayText(content, contentLatex);
+  return pickOptionDisplayProjection(content, contentLatex).text;
 }

@@ -29,6 +29,7 @@ import {
 
 import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
+import { prepareMathDisplay } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
 import "katex/dist/katex.min.css";
 
@@ -721,7 +722,7 @@ export default function ExamReportPage() {
                             Условие задания
                           </div>
                           <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium">
-                            <MathRenderer text={task.question_text} />
+                            <MathRenderer text={prepareMathDisplay(task.question_text)} />
                           </div>
                         </div>
                       )}
