@@ -85,6 +85,14 @@ body {
   vertical-align: -0.06em;
 }
 
+/* Display formulas (tables, column arithmetic) wider than the card scroll horizontally instead of being clipped */
+.math-renderer .katex-display {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+
 /* Ensure scripts and fractions inside exponents never shrink into microscopic unreadable text */
 .math-renderer .katex .sizing.reset-size6.size1,
 .math-renderer .katex .sizing.reset-size5.size1,

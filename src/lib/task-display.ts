@@ -72,31 +72,30 @@ export function isQuestionLatexAttested(opts: TaskDisplayFields): boolean {
 }
 
 /**
- * Select the safe display source for a question.
+ * Select the display source for a question.
  *
- * A `question_latex` projection is authoritative when attested by the
- * independent final review gate.  Unattested legacy rows often contain bare
- * formula fragments which lack instructional words ("Решите", "Найдите").
- * For those legacy rows, we fall back to the canonical `question_text`
- * through safe KaTeX preparation.
+ * `question_latex` is the canonical statement shown to students in exams and
+ * diagnostics: the content bank keeps it complete (instruction wording
+ * included) and equal in meaning to `question_text`, which is audited batch by
+ * batch.  `question_text` is only a fallback for rows without LaTeX.
  */
 export function pickTaskDisplayProjection(opts: TaskDisplayFields): MathDisplayProjection {
   const text = (opts.question_text || "").trim();
   const latex = (opts.question_latex || "").trim();
 
-  // If attested by the server review gate, render authoritative LaTeX verbatim
-  if (latex && isQuestionLatexAttested(opts)) {
+  // A bare formula (older snapshots) carries none of the instruction wording;
+  // such a row keeps the statement from question_text instead.
+  const hasWords = /[А-Яа-яЁё]/;
+  if (latex && (hasWords.test(latex) || !hasWords.test(text))) {
     return { text: latex, renderMode: "trusted" };
   }
+  // Wording without its own formula: show the wording followed by the formula.
+  if (latex && !text.includes("$")) {
+    return { text: `${text}\n${latex}`, renderMode: "trusted" };
+  }
 
-  // Canonical statement fallback for legacy/unattested rows
   if (text) {
     return { text: prepareMathDisplay(text), renderMode: "legacy" };
-  }
-
-  // Fallback for records with only LaTeX
-  if (latex) {
-    return { text: latex, renderMode: "trusted" };
   }
 
   return { text: "", renderMode: "legacy" };
