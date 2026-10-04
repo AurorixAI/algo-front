@@ -51,6 +51,36 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Install pinned browser QA tools
+        run: |
+          npm install --prefix "$RUNNER_TEMP/algo-browser-qa" --no-audit --no-fund --no-save playwright@1.62.1
+          node "$RUNNER_TEMP/algo-browser-qa/node_modules/playwright/cli.js" install --with-deps chromium
+
+      - name: Tall formulas across diagnostic, exam, drafts and reports
+        env:
+          QA_BASE: http://127.0.0.1:3310
+          QA_OUTPUT: ${{ runner.temp }}/algo-math-layout
+        run: |
+          cp -R public .next/standalone/
+          cp -R .next/static .next/standalone/.next/
+          PORT=3310 HOSTNAME=127.0.0.1 node .next/standalone/server.js > "$RUNNER_TEMP/algo-layout-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3310/login >/dev/null; then break; fi
+            sleep 1
+          done
+          export PLAYWRIGHT_MODULE_PATH="$RUNNER_TEMP/algo-browser-qa/node_modules/playwright"
+          npm run test:math-layout
+
+      - name: Preserve synthetic math layout evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: math-layout
+          path: ${{ runner.temp }}/algo-math-layout
+          if-no-files-found: ignore
+
   deploy:
     if: github.ref_name == 'main' || github.ref_name == 'develop'
     needs: build

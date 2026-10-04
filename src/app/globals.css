@@ -85,42 +85,20 @@ body {
   vertical-align: -0.06em;
 }
 
-/* Display formulas (tables, column arithmetic) wider than the card scroll horizontally instead of being clipped */
+/* A horizontal scroll container also clips vertically. Reserve glyph overhang
+   above/below KaTeX's layout box (stacked braces, limits and nested roots). */
 .math-renderer .katex-display {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 2px;
+  padding: 0.95em 0;
+  margin: 0.4em 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Ensure scripts and fractions inside exponents never shrink into microscopic unreadable text */
-.math-renderer .katex .sizing.reset-size6.size1,
-.math-renderer .katex .sizing.reset-size5.size1,
-.math-renderer .katex .sizing.reset-size4.size1,
-.math-renderer .katex .sizing.reset-size3.size1,
-.math-renderer .katex .sizing.reset-size2.size1,
-.math-renderer .katex .sizing.reset-size1.size1 {
-  font-size: 0.72em !important;
-}
-
-.math-renderer .katex .sizing.reset-size6.size2,
-.math-renderer .katex .sizing.reset-size5.size2,
-.math-renderer .katex .sizing.reset-size4.size2,
-.math-renderer .katex .sizing.reset-size3.size2 {
-  font-size: 0.82em !important;
-}
-
-.math-renderer .katex .sizing.reset-size6.size3,
-.math-renderer .katex .sizing.reset-size5.size3,
-.math-renderer .katex .sizing.reset-size4.size3 {
-  font-size: 0.86em !important;
-}
-
-/* Fractions in inline math keep numerators and denominators legible */
-.math-renderer .katex .mfrac .vlist-t .vlist-r .vlist > span {
-  font-size: 0.9em;
-}
-
+/* KaTeX script/fraction sizes are coupled to its generated struts and offsets.
+   Preserve native metrics so tall limits, roots and braces fit their boxes. */
 .math-renderer .katex-html {
   white-space: normal;
 }
@@ -137,6 +115,14 @@ body {
   margin-left: 0;
   vertical-align: baseline;
   display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* Keep a display expression intact. Wrapping its individual KaTeX bases
+   stacks fraction rows on top of each other; scroll the intrinsic width. */
+.math-renderer .katex-display .katex-html {
+  white-space: nowrap;
 }
 
 .math-renderer .katex-error,
@@ -147,14 +133,6 @@ body {
 
 .math-renderer .katex .mfrac .frac-line {
   border-bottom-width: 1.25px !important;
-}
-
-.math-renderer .katex-display {
-  margin: 0.4em 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
 
 .math-renderer .katex-display::-webkit-scrollbar,

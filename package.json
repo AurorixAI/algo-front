@@ -11,7 +11,8 @@
     "deploy:demo": "npm run sync-demo && npx vercel deploy --prod --yes",
     "start": "next start",
     "lint": "next lint",
-    "test:display": "node --test tests/task-display-contract.test.cjs"
+    "test:display": "node --test tests/task-display-contract.test.cjs",
+    "test:math-layout": "node tests/math-layout.browser.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
