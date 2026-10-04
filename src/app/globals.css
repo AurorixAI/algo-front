@@ -91,7 +91,7 @@ body {
   max-width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0.95em 0;
+  padding: 0.7em 0;
   margin: 0.4em 0;
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -115,14 +115,21 @@ body {
   margin-left: 0;
   vertical-align: baseline;
   display: block;
-  width: max-content;
+  width: fit-content;
   min-width: 100%;
+  white-space: normal;
 }
 
-/* Keep a display expression intact. Wrapping its individual KaTeX bases
-   stacks fraction rows on top of each other; scroll the intrinsic width. */
+/* Break only between KaTeX's atomic bases (relations/operators). A vertical
+   margin keeps fraction rows apart; indivisible bases keep their native width
+   and use the display scroll container when they exceed the card. */
 .math-renderer .katex-display .katex-html {
-  white-space: nowrap;
+  white-space: normal;
+}
+
+.math-renderer .katex-display .katex-html > .base {
+  margin-top: 0.25em;
+  margin-bottom: 0.25em;
 }
 
 .math-renderer .katex-error,

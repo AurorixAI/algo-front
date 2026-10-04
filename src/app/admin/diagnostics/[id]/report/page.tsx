@@ -37,7 +37,8 @@ import {
 import { analyticsApi, orgApi } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { pickAnswerDisplayText, pickTaskDisplayText } from "@/lib/task-display";
+import { TaskStatement } from "@/components/ui/task-statement";
+import { pickAnswerDisplayText } from "@/lib/task-display";
 import "katex/dist/katex.min.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -780,7 +781,7 @@ export default function DiagnosticReportPage() {
           )}
 
           {/* ── SECTION TABS SWITCHER ── */}
-          <motion.div variants={fade} className="flex items-center gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/70 shadow-2xs">
+          <motion.div variants={fade} className="grid grid-cols-1 sm:grid-cols-3 items-stretch gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/70 shadow-2xs">
             <button
               onClick={() => setActiveTab("journal")}
               className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
@@ -897,12 +898,12 @@ export default function DiagnosticReportPage() {
                             <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                             Условие задачи
                           </div>
-                          <MathRenderer
-                            text={pickTaskDisplayText({
+                          <TaskStatement
+                            task={{
                               question_text: err.question_text || "",
                               question_latex: err.question_latex || null,
-                            }) || err.skill_name_ru}
-                            block
+                            }}
+                            fallbackText={err.skill_name_ru}
                             className="text-[15px] sm:text-[16px] text-slate-800 leading-relaxed font-normal whitespace-pre-wrap break-words"
                           />
                         </div>
@@ -1238,7 +1239,7 @@ export default function DiagnosticReportPage() {
 
                                         {(st.question_latex || st.question_text) && (
                                           <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-800 text-sm leading-relaxed">
-                                            <MathRenderer text={pickTaskDisplayText({ question_text: st.question_text || "", question_latex: st.question_latex })} />
+                                            <TaskStatement task={{ question_text: st.question_text || "", question_latex: st.question_latex }} />
                                           </div>
                                         )}
 
@@ -1385,7 +1386,7 @@ export default function DiagnosticReportPage() {
 
                                           {(ex.question_latex || ex.question_text) && (
                                             <div className="p-3 rounded-lg bg-white border border-slate-200/80 text-slate-900 text-xs leading-relaxed">
-                                              <MathRenderer text={pickTaskDisplayText({ question_text: ex.question_text || "", question_latex: ex.question_latex })} />
+                                              <TaskStatement task={{ question_text: ex.question_text || "", question_latex: ex.question_latex }} />
                                             </div>
                                           )}
 

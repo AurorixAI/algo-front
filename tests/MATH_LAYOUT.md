@@ -2,10 +2,13 @@
 
 `npm run test:math-layout` opens the real frontend pages with synthetic HTTP
 responses. It checks diagnostic, online exam, admin preview, teacher draft,
-exam report and diagnostic error report at 360, 768 and 1280 px (27 states).
+exam report and diagnostic error report at 360, 768 and 1280 px (30 states).
 Fixtures include integral limits, nested roots/fractions, a stacked brace and
-a wide formula. Assertions cover glyph bounds, parse errors, canonical source,
-page overflow and scrolling the wide formula to its end.
+a breakable sum and a wide matrix. Assertions cover glyph bounds, row overlap,
+parse errors, leaked TeX commands, canonical source and document/body overflow.
+The sum must wrap without horizontal scrolling; the matrix must render all
+48 fractions and scroll to its end. Previews and reports must render the matrix
+as math, rather than processing the canonical projection as legacy text.
 
 This is a rendering regression, not acceptance of backend contracts, RBAC,
 answer correctness, the content bank or the diagnostic model. All `/api/v1/`
@@ -21,4 +24,4 @@ outside this repository. `CHROME_EXECUTABLE_PATH` optionally selects an existing
 Chrome installation. `QA_OUTPUT` selects the output directory (default:
 `.qa/math-layout`, ignored by Git). `QA_LABEL=before` captures a known broken
 baseline without asserting that it passed; CI always uses the default candidate
-mode, which asserts all 27 states.
+mode, which asserts all 30 states.

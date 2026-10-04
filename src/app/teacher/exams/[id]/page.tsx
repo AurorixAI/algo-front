@@ -10,11 +10,12 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MathRenderer } from "@/components/ui/math-renderer";
+import { TaskStatement } from "@/components/ui/task-statement";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
-import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
+import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { examsApi, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -1698,8 +1699,8 @@ export default function ExamHubPage() {
 
                       return (
                         <GlassCard key={t.task_id || taskOrdinal} variant="default" className="p-5 md:p-6 transition-all hover:border-slate-300">
-                          <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-3">
+                          <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="flex min-w-0 items-center gap-3">
                               <span className="w-8 h-8 rounded-xl bg-slate-100 font-extrabold text-xs text-slate-700 flex items-center justify-center shrink-0">
                                 #{taskOrdinal}
                               </span>
@@ -1728,7 +1729,7 @@ export default function ExamHubPage() {
                           </div>
 
                           <div className="my-4 text-slate-900 leading-relaxed text-base">
-                            <MathRenderer text={pickTaskDisplayText(t)} />
+                            <TaskStatement task={t} />
                           </div>
 
                           {t.question_image_url && (
@@ -2296,7 +2297,7 @@ export default function ExamHubPage() {
                         )}
                       </div>
                       <div className="text-base text-slate-900 leading-relaxed font-normal py-1">
-                        <MathRenderer text={pickTaskDisplayText(alt)} />
+                        <TaskStatement task={alt} />
                       </div>
                     </div>
                   ))
