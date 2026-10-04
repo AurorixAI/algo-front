@@ -209,8 +209,8 @@ export default function AdminDiagnosticsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-slate-900">Диагностика</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             Создавайте диагностики, отслеживайте результаты и зачисляйте учеников
@@ -226,7 +226,7 @@ export default function AdminDiagnosticsPage() {
 
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         {[
           { label: "Всего", value: counts.all, icon: Brain, color: "text-blue-500", bg: "bg-blue-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)]", chartGlow: "from-blue-500 to-cyan-500", chart: [40, 70, 45, 90, 65, 85] },
           { label: "Ожидают старта", value: counts.awaiting_start, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]", chartGlow: "from-amber-500 to-orange-500", chart: [20, 40, 35, 60, 80, 100] },
@@ -307,9 +307,9 @@ export default function AdminDiagnosticsPage() {
         </div>
 
         {/* Right side controls: Time period pills + custom date + Assigned filter */}
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+        <div className="flex min-w-0 items-center gap-2 flex-wrap">
           {/* Time period segmented control */}
-          <div className="flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/60 text-xs font-medium gap-0.5">
+          <div className="flex max-w-full min-w-0 flex-wrap items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/60 text-xs font-medium gap-0.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400 ml-1.5 mr-0.5 shrink-0" />
             {[
               { id: "all", label: "Все" },
@@ -424,9 +424,10 @@ export default function AdminDiagnosticsPage() {
             return (
               <div
                 key={inv.id}
+                data-testid="diagnostic-card"
                 className="bg-white rounded-xl p-4 transition-all hover:shadow-sm"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                   {/* Avatar */}
                   {inv.student_id ? (
                     <Link
@@ -460,12 +461,12 @@ export default function AdminDiagnosticsPage() {
                       {inv.student_id ? (
                         <Link
                           href={`/admin/students/${inv.student_id}`}
-                          className="font-semibold text-slate-900 hover:text-primary-600 transition-colors"
+                          className="max-w-full min-w-0 break-words font-semibold text-slate-900 hover:text-primary-600 transition-colors"
                         >
                           {inv.student_name}
                         </Link>
                       ) : (
-                        <span className="font-semibold text-slate-900">{inv.student_name}</span>
+                        <span className="max-w-full min-w-0 break-words font-semibold text-slate-900">{inv.student_name}</span>
                       )}
                       <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                         {inv.class_level} класс
@@ -474,13 +475,13 @@ export default function AdminDiagnosticsPage() {
                         {typeLabels[inv.diagnostic_type] || inv.diagnostic_type}
                       </span>
                       {isAssigned && inv.group_name && (
-                        <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-medium border border-emerald-200/60 flex items-center gap-1">
-                          <Users className="w-3 h-3 text-emerald-600" />
-                          Группа: «{inv.group_name}»
+                        <span className="max-w-full min-w-0 text-xs px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-medium border border-emerald-200/60 flex items-center gap-1">
+                          <Users className="w-3 h-3 shrink-0 text-emerald-600" />
+                          <span className="min-w-0 break-words">Группа: «{inv.group_name}»</span>
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3 mt-1">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-1">
                       <code className="text-xs font-mono text-slate-500 bg-slate-50 px-1.5 py-0.5 rounded">
                         {inv.code}
                       </code>
@@ -498,15 +499,16 @@ export default function AdminDiagnosticsPage() {
 
 
                   {/* Status + Actions — adaptive flex column/row */}
-                  <div className="flex flex-wrap items-center gap-2 shrink-0 justify-end">
+                  <div className="flex w-full min-w-0 flex-wrap items-center gap-2 justify-end lg:ml-auto lg:w-auto lg:max-w-[50%]">
                     <div
+                      data-testid="diagnostic-status"
                       className={
-                        "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-nowrap " +
+                        "flex max-w-full min-w-0 items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-normal text-center " +
                         currentStatus.color
                       }
                     >
                       <div className={"w-1.5 h-1.5 rounded-full shrink-0 " + currentStatus.dot} />
-                      {currentStatus.label}
+                      <span className="min-w-0 break-words">{currentStatus.label}</span>
                     </div>
 
                     {inv.status === "pending" && (

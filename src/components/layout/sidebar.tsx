@@ -39,11 +39,21 @@ interface NavItem {
   comingSoon?: boolean;
 }
 
-export function Sidebar() {
+export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, org, logout } = useAuthStore();
-  const { collapsed, toggle } = useSidebarStore();
+  const { collapsed: storedCollapsed, toggle } = useSidebarStore();
+  const [mobile, setMobile] = useState(false);
+  const collapsed = storedCollapsed || (compactOnMobile && mobile);
+  useEffect(() => {
+    if (!compactOnMobile) return;
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setMobile(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, [compactOnMobile]);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -106,7 +116,9 @@ export function Sidebar() {
     <aside
       className={cn(
         "fixed left-0 top-0 h-screen bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 shrink-0 z-40 select-none",
-        collapsed ? "w-[68px]" : "w-[240px]"
+        compactOnMobile
+          ? (storedCollapsed ? "w-[68px]" : "w-[68px] md:w-[240px]")
+          : (collapsed ? "w-[68px]" : "w-[240px]")
       )}
     >
       {/* Header: Logo, Organization */}
@@ -261,7 +273,7 @@ export function Sidebar() {
       </nav>
 
       {/* Collapse button (above profile) - centered horizontally */}
-      <div className="px-3 pt-1 pb-1 shrink-0">
+      <div className={cn("px-3 pt-1 pb-1 shrink-0", compactOnMobile && "hidden md:block")}>
         <button
           type="button"
           onClick={toggle}

@@ -12,8 +12,8 @@ export default function AdminLayout({
   return (
     <AuthGuard allowedRoles={["admin", "owner"]} forbiddenPath="/">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary-50/30">
-        <Sidebar />
-        <main className={`${collapsed ? "ml-[68px]" : "ml-[240px]"} p-8 transition-all duration-300`}>{children}</main>
+        <Sidebar compactOnMobile />
+        <main className={`ml-[68px] ${collapsed ? "md:ml-[68px]" : "md:ml-[240px]"} min-w-0 p-4 md:p-8 transition-all duration-300`}>{children}</main>
       </div>
     </AuthGuard>
   );

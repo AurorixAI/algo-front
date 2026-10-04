@@ -29,7 +29,7 @@ import {
 
 import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { prepareMathDisplay } from "@/lib/task-display";
+import { pickTaskDisplayProjection, prepareMathDisplay } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
 import "katex/dist/katex.min.css";
 
@@ -37,6 +37,7 @@ interface TaskAnalytic {
   task_id?: string;
   skill_name?: string;
   question_text?: string;
+  question_latex?: string | null;
   question_preview?: string;
   correct_answer?: string;
   attempts: number;
@@ -85,8 +86,11 @@ interface CriticalGapItem {
 }
 
 interface ProblemTaskItem {
+  task_id?: string;
+  statement_unavailable?: boolean;
   task_title: string;
   question_text?: string;
+  question_latex?: string | null;
   correct_answer?: string;
   error_rate_pct: number;
   misconception: string;
@@ -204,8 +208,10 @@ function fallbackReport(taskAnalytics?: TaskAnalytic[]): StructuredReport {
       detail: `${Math.round((1 - t.correct_rate) * 100)}% учащихся допустили ошибки. Причина: ${t.distractor_hits?.[0]?.explanation || "сложности при выполнении промежуточных преобразований"}.`,
     })),
     problem_tasks_analysis: problemTasks.map((t, idx) => ({
+      task_id: t.task_id,
       task_title: `Задание ${idx + 1}: ${t.skill_name || "Задача"}`,
       question_text: t.question_text || t.question_preview || "",
+      question_latex: t.question_latex,
       correct_answer: t.correct_answer || "",
       error_rate_pct: Math.round((1 - t.correct_rate) * 100),
       misconception: t.distractor_hits?.[0]?.explanation || `Сложности при выполнении преобразований в теме «${t.skill_name || "Задание"}»`,
@@ -232,6 +238,15 @@ function fallbackReport(taskAnalytics?: TaskAnalytic[]): StructuredReport {
       },
     },
   };
+}
+
+function ReportTaskStatement({ task }: { task: ProblemTaskItem }) {
+  const display = pickTaskDisplayProjection({
+    task_id: task.task_id,
+    question_text: task.question_text || "",
+    question_latex: task.question_latex,
+  });
+  return <MathRenderer text={display.text} renderMode={display.renderMode} block />;
 }
 
 export default function ExamReportPage() {
@@ -364,9 +379,9 @@ export default function ExamReportPage() {
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-white shadow-md shadow-violet-500/20">
                 <FileBarChart2 className="h-6 w-6" />
               </div>
-              <div className="space-y-1">
+              <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-lg sm:text-xl font-bold text-slate-900">
+                  <h1 className="break-words text-lg sm:text-xl font-bold text-slate-900">
                     {report?.title || exam.title}
                   </h1>
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200/80 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700">
@@ -503,7 +518,7 @@ export default function ExamReportPage() {
         </div>
 
         {/* ── ТАБЫ РАЗДЕЛОВ (Как в Диагностике) ────────────────────────────── */}
-        <div className="flex rounded-2xl border border-slate-200/80 bg-slate-200/40 p-1.5 shadow-xs">
+        <div className="flex flex-col rounded-2xl border border-slate-200/80 bg-slate-200/40 p-1.5 shadow-xs sm:flex-row">
           <button
             onClick={() => setActiveTab("diagnosis")}
             className={cn(
@@ -699,11 +714,11 @@ export default function ExamReportPage() {
                   >
                     {/* Заголовок карточки задания */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white text-xs font-black">
                           № {idx + 1}
                         </span>
-                        <h4 className="text-sm font-bold text-slate-900">
+                        <h4 className="min-w-0 break-words text-sm font-bold text-slate-900">
                           {task.task_title}
                         </h4>
                       </div>
@@ -715,14 +730,18 @@ export default function ExamReportPage() {
 
                     {/* Условие задачи и Правильный ответ */}
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      {task.question_text && (
-                        <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 sm:col-span-2">
+                      {(task.statement_unavailable || task.question_latex || task.question_text) && (
+                        <div className="min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 sm:col-span-2">
                           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             <FileText className="h-3.5 w-3.5 text-slate-400" />
                             Условие задания
                           </div>
                           <div className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium">
-                            <MathRenderer text={prepareMathDisplay(task.question_text)} />
+                            {task.statement_unavailable ? (
+                              <Link href={`/teacher/exams/${examId}`} className="text-primary-600 underline">
+                                Смотреть исходные задания контрольной
+                              </Link>
+                            ) : <ReportTaskStatement task={task} />}
                           </div>
                         </div>
                       )}

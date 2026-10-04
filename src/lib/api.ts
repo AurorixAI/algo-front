@@ -30,7 +30,7 @@ interface ApiOptions {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string, public code?: string) {
+  constructor(public status: number, message: string, public code?: string, public action?: string) {
     super(message);
     this.name = "ApiError";
   }
@@ -260,6 +260,7 @@ async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Pr
       method,
       headers,
       credentials: "include",
+      cache: "no-store",
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -274,7 +275,7 @@ async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Pr
     } else if (typeof error?.detail === "object" && error.detail !== null) {
       message = (error.detail as any).message || JSON.stringify(error.detail);
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, error?.detail?.code, error?.detail?.action);
   }
 
   return response.json();
@@ -1125,6 +1126,14 @@ export interface DiagAnswerResult {
   session_completed: boolean;
 }
 
+export interface ResolvedDiagnosticSession {
+  session_id: string;
+  status: "active" | "completed";
+  items_answered: number;
+  current_task: DiagTaskOut | null;
+  total_time_ms: number;
+}
+
 export interface DiagReport {
   session_id: string;
   student_id: string;
@@ -1136,6 +1145,7 @@ export interface DiagReport {
   weak_skills: string[];
   recommended_start: string | null;
   items_total: number;
+  total_time_ms?: number;
   has_full_report?: boolean;
   report_json?: Record<string, any>;
   report_generation?: {
@@ -1147,6 +1157,10 @@ export interface DiagReport {
 }
 
 export const diagnosticApi = {
+  resolveSession: (inviteCode: string) =>
+    diagServiceApi<ResolvedDiagnosticSession>(
+      `/diagnostic/sessions/by-invite?invite_code=${encodeURIComponent(inviteCode)}`,
+    ),
   createSession: (data: {
     student_id: string;
     grade_level: number;

@@ -76,7 +76,9 @@ export function TextInputAnswer({
           />
 
           <button
-            onClick={onSubmit}
+            type="button"
+            aria-label="Отправить ответ"
+            onClick={() => onSubmit()}
             disabled={disabled || !filled || submitting}
             className={cn(
               "mr-3 p-2.5 rounded-lg transition-all shadow-sm flex-shrink-0",

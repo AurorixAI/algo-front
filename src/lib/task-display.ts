@@ -83,15 +83,8 @@ export function pickTaskDisplayProjection(opts: TaskDisplayFields): MathDisplayP
   const text = (opts.question_text || "").trim();
   const latex = (opts.question_latex || "").trim();
 
-  // A bare formula (older snapshots) carries none of the instruction wording;
-  // such a row keeps the statement from question_text instead.
-  const hasWords = /[А-Яа-яЁё]/;
-  if (latex && (hasWords.test(latex) || !hasWords.test(text))) {
+  if (latex) {
     return { text: latex, renderMode: "trusted" };
-  }
-  // Wording without its own formula: show the wording followed by the formula.
-  if (latex && !text.includes("$")) {
-    return { text: `${text}\n${latex}`, renderMode: "trusted" };
   }
 
   if (text) {

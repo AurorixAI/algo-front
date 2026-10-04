@@ -199,6 +199,7 @@ interface DiagnosticState {
   startSession: (sessionId: string, phase: string, firstTask: any, itemNumber?: number) => void;
   setNextTask: (task: any, theta: number, thetaSe: number, accuracy: number, phase: string, itemNumber: number) => void;
   complete: () => void;
+  restoreCompleted: (sessionId: string) => void;
   reset: () => void;
 }
 
@@ -237,6 +238,7 @@ export const useDiagnosticStore = create<DiagnosticState>()((set) => ({
     }),
 
   complete: () => set({ isComplete: true, currentTask: null }),
+  restoreCompleted: (sessionId) => set({ sessionId, phase: "completed", isComplete: true, currentTask: null }),
 
   reset: () =>
     set({

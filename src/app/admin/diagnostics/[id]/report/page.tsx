@@ -723,25 +723,26 @@ export default function DiagnosticReportPage() {
           {/* ── BLOCK 1: Hero Score Card ─────────────────── */}
           <motion.div
             variants={fade}
-            className={`rounded-2xl border p-6 shadow-sm relative overflow-hidden ${cfg!.cardBg} ${cfg!.cardBorder}`}
+            data-testid="diagnostic-report-score-card"
+            className={`rounded-2xl border p-4 sm:p-6 shadow-sm relative overflow-hidden ${cfg!.cardBg} ${cfg!.cardBorder}`}
           >
-            <div className="flex items-center gap-6">
+            <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
               {/* Circular Score */}
               <CircularScore score={rj.overall.score_percent} status={rj.overall.status} />
 
               {/* Status Pill Badge */}
-              <div className="flex-1 min-w-0 flex items-center">
-                <div className={`inline-flex items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badgeBg}`}>
-                  <span className="relative flex h-2.5 w-2.5">
+              <div className="w-full min-w-0 flex items-center justify-center sm:w-auto sm:flex-1 sm:justify-start">
+                <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badgeBg}`}>
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
                     <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cfg!.ping}`} />
                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cfg!.dot}`} />
                   </span>
-                  {rj.overall.status_label_ru}
+                  <span className="min-w-0 break-words text-center sm:text-left">{rj.overall.status_label_ru}</span>
                 </div>
               </div>
 
               {/* Right Stat Cards */}
-              <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+              <div className="hidden xl:flex items-center gap-3 flex-shrink-0">
                 <div className="flex items-center gap-3 px-4 py-3 bg-white/90 backdrop-blur border border-emerald-100 rounded-2xl shadow-sm">
                   <div className="w-9 h-9 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-600">
                     <CheckCircle2 className="w-5 h-5" />

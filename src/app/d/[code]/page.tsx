@@ -23,7 +23,7 @@ import {
   AlertCircle,
   Sparkles,
 } from "lucide-react";
-import { diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
+import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
@@ -85,6 +85,13 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   // generic retry button.  Keeping this separate prevents the UI from
   // offering a second attempt for a one-time diagnostic capability.
   const [canRetry, setCanRetry] = useState(true);
+  const [checkVersion, setCheckVersion] = useState(0);
+  const [errorContext, setErrorContext] = useState<"invite" | "answer" | "result">("invite");
+  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
+  const requestEpochRef = useRef(0);
+  const checkedCodeRef = useRef<string | null>(null);
+  const resultSessionIdRef = useRef<string | null>(null);
 
   // Active session for resume flow
   const [activeSession, setActiveSession] = useState<{
@@ -104,80 +111,22 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const questionStartRef = useRef<number>(Date.now());
   const sessionStartRef = useRef<number>(Date.now());
 
-  // On mount: check invite status — show confirm form, resume, or welcome
-  useEffect(() => {
-    (async () => {
-      try {
-        const info = await diagnosticInviteApi.getInfo(code);
-        setInviteInfo(info);
-        if (info.status === "pending") {
-          setPhase("confirm");
-          return;
-        }
-        if (info.status === "completed") {
-          setCanRetry(false);
-          setErrorMsg("Эта диагностика уже завершена. Повторное прохождение по данной ссылке недоступно.");
-          setPhase("error");
-          return;
-        }
-        if (info.status === "expired") {
-          setCanRetry(false);
-          setErrorMsg("Срок действия этой ссылки истёк. Обратитесь к учебному центру за новой диагностикой.");
-          setPhase("error");
-          return;
-        }
-        // Check if there's an active unfinished session to resume
-        try {
-          const active = await diagnosticApi.getActiveSession(code);
-          if (active?.session_id) {
-            setActiveSession(active);
-            initialElapsedMsRef.current = active.total_time_ms || 0;
-            setElapsedMs(active.total_time_ms || 0);
-            diagStore.startSession(
-              String(active.session_id),
-              active.current_task.phase,
-              active.current_task,
-              (active.items_answered ?? 0) + 1,
-            );
-            setPhase("resume");
-            return;
-          }
-        } catch (err: any) {
-          // A confirmed invite with no session can legitimately start.  An
-          // in-progress invite without recoverable state must never be shown
-          // as a fresh attempt, otherwise the next action ends in a 409 and
-          // suggests that the student may restart a consumed capability.
-          if (info.status === "in_progress") {
-            setCanRetry(false);
-            setErrorMsg(
-              "Диагностика уже начата, но её состояние временно недоступно. Не начинайте её заново — обратитесь к учебному центру."
-            );
-            setPhase("error");
-            return;
-          }
-        }
-        setPhase("welcome");
-      } catch (err: any) {
-        setCanRetry(true);
-        setErrorMsg(err?.message || "Не удалось проверить ссылку диагностики. Проверьте подключение и попробуйте ещё раз.");
-        setPhase("error");
-      }
-    })();
-  }, [code]);
-
   // Confirm — the code itself already uniquely identifies the student
   // (assigned 1:1 at invite creation), so this is just "yes, this is me",
   // not an identity check. No typing required.
   const handleConfirm = async () => {
+    const epoch = requestEpochRef.current;
     setConfirmLoading(true);
     setConfirmError("");
     try {
       await diagnosticInviteApi.confirm(code);
+      if (epoch !== requestEpochRef.current) return;
       setPhase("welcome");
     } catch (err: any) {
+      if (epoch !== requestEpochRef.current) return;
       setConfirmError(err?.message || "Не удалось подтвердить. Попробуйте ещё раз.");
     } finally {
-      setConfirmLoading(false);
+      if (epoch === requestEpochRef.current) setConfirmLoading(false);
     }
   };
 
@@ -186,10 +135,6 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [result, setResult] = useState<DiagReport | null>(null);
   const reportPollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
-  }, []);
 
   // Elapsed time ticker
   useEffect(() => {
@@ -203,8 +148,9 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
 
   /** Start diagnostic session via diagnostic-service */
   const handleStartTest = async () => {
+    const epoch = requestEpochRef.current;
     try {
-      setPhase("testing");
+      setPhase("loading");
       setErrorMsg(null);
 
       // student_id is required by diagnostic-service; it comes from the monolith
@@ -223,17 +169,26 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         grade_level: gradeLevel,
         invite_code: code,
       });
+      if (epoch !== requestEpochRef.current) return;
 
       diagStore.startSession(
         String(response.session_id),
         response.first_task.phase,
         response.first_task,
       );
+      setPhase("testing");
       initialElapsedMsRef.current = 0;
       setElapsedMs(0);
       questionStartRef.current = Date.now();
       sessionStartRef.current = Date.now();
     } catch (err: any) {
+      if (epoch !== requestEpochRef.current) return;
+      if (err instanceof ApiError && err.code === "SESSION_ALREADY_STARTED") {
+        await checkInvite(false);
+        return;
+      }
+      setErrorContext("invite");
+      setCanRetry(!(err instanceof ApiError) || ![403, 410].includes(err.status));
       setErrorMsg(err.message || "Не удалось начать диагностику");
       setPhase("error");
     }
@@ -243,16 +198,20 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const handleSubmit = async (answerOverride?: string) => {
     const submitted = (answerOverride ?? answer).trim();
     if (!submitted || !diagStore.currentTask || !diagStore.sessionId) return;
-    if (isSubmitting) return;
+    if (submitInFlightRef.current) return;
 
+    submitInFlightRef.current = true;
     setIsSubmitting(true);
+    setSubmissionNotice(null);
     setAnswer(submitted);
+    const epoch = requestEpochRef.current;
+    const sessionId = diagStore.sessionId;
 
     const timeMs = Date.now() - questionStartRef.current;
 
     try {
       const resp: DiagAnswerResult = await diagnosticApi.submitAnswer(
-        diagStore.sessionId,
+        sessionId,
         {
           task_id: diagStore.currentTask.task_id,
           student_answer: submitted,
@@ -260,14 +219,15 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         },
         code,
       );
+      if (epoch !== requestEpochRef.current) return;
 
       setAnswer("");
-      setIsSubmitting(false);
 
       if (resp.session_completed) {
         diagStore.complete();
+        resultSessionIdRef.current = sessionId;
         setPhase("analyzing");
-        fetchResult(diagStore.sessionId!);
+        void fetchResult(sessionId);
       } else if (resp.next_task) {
         diagStore.setNextTask(
           resp.next_task,
@@ -280,26 +240,40 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         questionStartRef.current = Date.now();
       }
     } catch (err: any) {
-      setIsSubmitting(false);
-      const msg = err.message || "Ошибка при отправке ответа";
-      setErrorMsg(
-        msg.includes("не найдена") || msg.includes("истекла")
-          ? "Сессия истекла. Нажмите «Попробовать снова» для перезапуска."
-          : msg,
-      );
-      diagStore.reset();
-      setPhase("error");
+      if (epoch !== requestEpochRef.current) return;
+      // A timeout says nothing about whether the server committed. Resolve
+      // this same attempt before asking the student to send anything again.
+      if (!(err instanceof ApiError) || err.status !== 403) {
+        await checkInvite(false, true);
+      } else {
+        setErrorContext("answer");
+        setCanRetry(false);
+        setErrorMsg(err.message);
+        setPhase("error");
+      }
+    } finally {
+      if (epoch === requestEpochRef.current) {
+        submitInFlightRef.current = false;
+        setIsSubmitting(false);
+      }
     }
   };
 
   /** Fetch final report from diagnostic-service */
   const fetchResult = async (sessionId: string) => {
+    const epoch = requestEpochRef.current;
+    resultSessionIdRef.current = sessionId;
+    if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
     try {
       const res = await diagnosticApi.getReport(sessionId, code);
+      if (epoch !== requestEpochRef.current) return;
       setResult(res);
+      if (typeof res.total_time_ms === "number") setElapsedMs(res.total_time_ms);
       const generationStatus = res.report_generation?.status;
       if (generationStatus === "ready" || generationStatus === "failed") {
-        reportPollTimerRef.current = setTimeout(() => setPhase("results"), 700);
+        reportPollTimerRef.current = setTimeout(() => {
+          if (epoch === requestEpochRef.current) setPhase("results");
+        }, 700);
         return;
       }
 
@@ -308,10 +282,95 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       // no report data is lost if the page is refreshed in the meantime.
       reportPollTimerRef.current = setTimeout(() => fetchResult(sessionId), 1800);
     } catch (err: any) {
-      setErrorMsg(err.message || "Не удалось получить результат");
+      if (epoch !== requestEpochRef.current) return;
+      setErrorContext("result");
+      setCanRetry(!(err instanceof ApiError) || ![403, 404].includes(err.status));
+      setErrorMsg("Ответы сохранены. Сейчас не удалось загрузить отчёт. Повторите загрузку или обратитесь к учебному центру.");
       setPhase("error");
     }
   };
+
+  /** Invitation controls new starts; diagnostic-service owns the attempt. */
+  const checkInvite = async (offerResume = true, recoveringAnswer = false) => {
+    const epoch = requestEpochRef.current;
+    try {
+      const info = await diagnosticInviteApi.getInfo(code);
+      if (epoch !== requestEpochRef.current) return;
+      setInviteInfo(info);
+      if (info.status === "pending") {
+        setPhase("confirm");
+        return;
+      }
+      try {
+        const resolved = await diagnosticApi.resolveSession(code);
+        if (epoch !== requestEpochRef.current) return;
+        if (resolved.status === "completed") {
+          diagStore.restoreCompleted(resolved.session_id);
+          setElapsedMs(resolved.total_time_ms);
+          setAnswer("");
+          setPhase("analyzing");
+          void fetchResult(resolved.session_id);
+          return;
+        }
+        if (!resolved.current_task) throw new Error("Не удалось восстановить текущий вопрос.");
+        const previousTaskId = useDiagnosticStore.getState().currentTask?.task_id;
+        const active = { ...resolved, current_task: resolved.current_task };
+        setActiveSession(active);
+        initialElapsedMsRef.current = active.total_time_ms;
+        sessionStartRef.current = Date.now();
+        setElapsedMs(active.total_time_ms);
+        diagStore.startSession(active.session_id, active.current_task.phase, active.current_task, active.items_answered + 1);
+        if (previousTaskId !== active.current_task.task_id) {
+          setAnswer("");
+          questionStartRef.current = Date.now();
+        }
+        if (recoveringAnswer) {
+          setSubmissionNotice(previousTaskId === active.current_task.task_id
+            ? "Отправка ответа не подтверждена. Текущий вопрос восстановлен — попробуйте отправить ответ ещё раз."
+            : "Ответ сохранён. Продолжайте диагностику с текущего вопроса.");
+        }
+        setCanRetry(true);
+        setPhase(offerResume ? "resume" : "testing");
+      } catch (err) {
+        // Only an explicit absence of an attempt allows a fresh start.
+        if (!recoveringAnswer && info.status === "confirmed" && err instanceof ApiError && err.status === 404 && err.code === "SESSION_NOT_FOUND") {
+          diagStore.reset();
+          setPhase("welcome");
+          return;
+        }
+        throw err;
+      }
+    } catch (err: any) {
+      if (epoch !== requestEpochRef.current) return;
+      setErrorContext(recoveringAnswer ? "answer" : "invite");
+      setCanRetry(!(err instanceof ApiError) || ![403, 404, 410].includes(err.status));
+      setErrorMsg(err?.message || "Не удалось проверить состояние диагностики. Проверьте подключение и повторите проверку.");
+      setPhase("error");
+    }
+  };
+
+  useEffect(() => {
+    if (checkedCodeRef.current !== code) {
+      checkedCodeRef.current = code;
+      diagStore.reset();
+      setAnswer("");
+      setActiveSession(null);
+      setInviteInfo(null);
+      setSubmissionNotice(null);
+      resultSessionIdRef.current = null;
+    }
+    setPhase("loading");
+    setErrorMsg(null);
+    setIsSubmitting(false);
+    setConfirmLoading(false);
+    setResult(null);
+    void checkInvite();
+    return () => {
+      requestEpochRef.current += 1;
+      submitInFlightRef.current = false;
+      if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
+    };
+  }, [code, checkVersion]);
 
   /** Handle Enter key for answer submission */
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -612,6 +671,12 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     )}
                   </QuestionCard>
 
+                  {submissionNotice && (
+                    <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      {submissionNotice}
+                    </p>
+                  )}
+
                   {/* Answer area — MC or text */}
                   {currentTask.answer_options && currentTask.answer_options.length > 0 ? (
                     <OptionGrid
@@ -840,7 +905,9 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     <AlertTriangle className="w-8 h-8 text-red-600" />
                   </div>
 
-                  <h1 className="text-xl font-bold text-slate-900 mb-2">Ошибка</h1>
+                  <h1 className="text-xl font-bold text-slate-900 mb-2">
+                    {errorContext === "result" ? "Ответы сохранены" : "Не удалось продолжить"}
+                  </h1>
                   <p className="text-slate-500 mb-6">
                     {errorMsg || "Произошла непредвиденная ошибка"}
                   </p>
@@ -850,13 +917,17 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                       <Button
                         onClick={() => {
                           setErrorMsg(null);
-                          setPhase("loading");
-                          diagStore.reset();
+                          if (errorContext === "result" && resultSessionIdRef.current) {
+                            setPhase("analyzing");
+                            void fetchResult(resultSessionIdRef.current);
+                          } else {
+                            setCheckVersion((value) => value + 1);
+                          }
                         }}
                         size="lg"
                         className="w-full"
                       >
-                        Повторить проверку ссылки
+                        {errorContext === "result" ? "Повторить загрузку результата" : "Повторить проверку состояния"}
                       </Button>
                     )}
                     <Button

@@ -10,7 +10,8 @@
     "sync-demo": "rm -rf demo && cp -R ../demo ./demo",
     "deploy:demo": "npm run sync-demo && npx vercel deploy --prod --yes",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:display": "node --test tests/task-display-contract.test.cjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
