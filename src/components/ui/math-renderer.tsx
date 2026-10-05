@@ -318,6 +318,7 @@ export function MathRenderer({
     <Tag
       className={cn(
         "math-renderer leading-relaxed antialiased no-scrollbar",
+        block && "math-block",
         "[&_.katex]:text-[1.06em] [&_.katex]:font-normal",
         block
           ? (standalone

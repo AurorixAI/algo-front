@@ -85,6 +85,12 @@ body {
   vertical-align: -0.06em;
 }
 
+/* Block renderers can contain inline display-style fractions too. Their glyph
+   ink exceeds the line box, while overflow-x makes this box clip vertically. */
+.math-renderer.math-block {
+  padding-block: 0.4em;
+}
+
 /* A horizontal scroll container also clips vertically. Reserve glyph overhang
    above/below KaTeX's layout box (stacked braces, limits and nested roots). */
 .math-renderer .katex-display {
