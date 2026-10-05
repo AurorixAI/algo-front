@@ -747,13 +747,13 @@ export default function ExamReportPage() {
                       )}
 
                       {task.correct_answer && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:col-span-1">
+                        <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:col-span-1">
                           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                             Правильный ответ
                           </div>
                           <div className="text-xs sm:text-sm text-emerald-950 font-bold leading-relaxed">
-                            <MathRenderer text={task.correct_answer} />
+                            <MathRenderer text={task.correct_answer} block />
                           </div>
                         </div>
                       )}
