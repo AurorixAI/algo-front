@@ -720,7 +720,7 @@ export default function ExamDraftPage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {!draft.group_id ? (
             <Button
               variant="primary"
@@ -1157,13 +1157,13 @@ export default function ExamDraftPage() {
       </div>
 
       {/* Bottom action bar */}
-      <div className="mt-8 flex items-center justify-between">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <Link href={backHref}>
           <Button variant="ghost" icon={<ArrowLeft className="w-4 h-4" />}>
             К списку экзаменов
           </Button>
         </Link>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {isPrintDraft ? (
             <>
               <span
