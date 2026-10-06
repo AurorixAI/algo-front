@@ -701,7 +701,7 @@ export const authApi = {
 
   getInviteInfo: (code: string) =>
     api<{ org_name: string; org_role: string; email: string | null }>(
-      `/auth/invite/${code}`,
+      `/auth/invite/${encodeURIComponent(code)}`,
       { noAuth: true }
     ),
 
@@ -1051,9 +1051,9 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
 
 export const diagnosticInviteApi = {
   getInfo: (code: string) =>
-    api<any>(`/auth/diagnostic/${code}`, { noAuth: true }),
+    api<any>(`/auth/diagnostic/${encodeURIComponent(code)}`, { noAuth: true }),
   confirm: (code: string) =>
-    api<any>(`/auth/diagnostic/${code}/confirm`, {
+    api<any>(`/auth/diagnostic/${encodeURIComponent(code)}/confirm`, {
       method: "POST",
       noAuth: true,
     }),
@@ -1186,17 +1186,6 @@ export const diagnosticApi = {
     diagServiceApi<DiagReport>(
       `/diagnostic/sessions/${sessionId}/report?invite_code=${encodeURIComponent(inviteCode)}`,
     ),
-
-  /** Check if an unfinished session exists for this invite code.
-   *  Returns null (via 404) when no active session found.
-   */
-  getActiveSession: (inviteCode: string) =>
-    diagServiceApi<{
-      session_id: string;
-      items_answered: number;
-      current_task: DiagTaskOut;
-      total_time_ms?: number;
-    }>(`/diagnostic/sessions/active?invite_code=${encodeURIComponent(inviteCode)}`),
 };
 
 // ============================================================================
@@ -1551,7 +1540,7 @@ export const examsApi = {
       difficulty: string;
       correct_answer: string;
       answer_type: string;
-    }>>(`/exams/${examId}/draft/alternatives?variant_number=${variantNumber}&task_id=${taskId}`),
+    }>>(`/exams/${examId}/draft/alternatives?variant_number=${variantNumber}&task_id=${encodeURIComponent(taskId)}`),
 
   /** Replace a task in a draft variant */
   replaceTask: (examId: string, data: { variant_number: number; task_id: string; old_task_id?: string; new_task_id?: string }) =>
@@ -1641,7 +1630,7 @@ export const examsApi = {
       status: string;
       time_remaining_seconds?: number | null;
       started_at?: string | null;
-    }>(`/exams/by-code/${code}`),
+    }>(`/exams/by-code/${encodeURIComponent(code)}`),
 
   /** Fast student roster check before starting exam */
   checkStudent: (
@@ -1664,7 +1653,7 @@ export const examsApi = {
       already_submitted?: boolean;
       session_id?: string | null;
       message?: string | null;
-    }>(`/exams/by-code/${code}/check-student`, {
+    }>(`/exams/by-code/${encodeURIComponent(code)}/check-student`, {
       method: "POST",
       body,
     });
@@ -1696,7 +1685,7 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-    }>(`/exams/by-code/${code}/start`, { method: "POST", body: data }),
+    }>(`/exams/by-code/${encodeURIComponent(code)}/start`, { method: "POST", body: data }),
 
   /** Auto-save student progress in real-time */
   saveProgress: (
@@ -1732,7 +1721,7 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-    }>(`/exams/by-code/${code}/session-status/${sessionId}`, { sessionToken }),
+    }>(`/exams/by-code/${encodeURIComponent(code)}/session-status/${encodeURIComponent(sessionId)}`, { sessionToken }),
 
   /** Teacher: bind a concrete lesson and open the lobby. */
   openLobby: (examId: string, data: { lesson_id: string; lesson_date: string }) =>

@@ -68,6 +68,9 @@ function formatTime(ms: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
+/** Max report-poll attempts (~3 min with backoff) before showing the retry screen. */
+const REPORT_POLL_MAX_ATTEMPTS = 40;
+
 export default function DiagnosticPage({ params }: { params: { code: string } }) {
   const code = params.code;
   const router = useRouter();
@@ -260,7 +263,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   };
 
   /** Fetch final report from diagnostic-service */
-  const fetchResult = async (sessionId: string) => {
+  const fetchResult = async (sessionId: string, attempt = 0) => {
     const epoch = requestEpochRef.current;
     resultSessionIdRef.current = sessionId;
     if (reportPollTimerRef.current) clearTimeout(reportPollTimerRef.current);
@@ -280,7 +283,17 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       // The service stores the job before returning from the final answer.
       // Poll only this completed session until its durable state becomes ready;
       // no report data is lost if the page is refreshed in the meantime.
-      reportPollTimerRef.current = setTimeout(() => fetchResult(sessionId), 1800);
+      // Capped with a gentle backoff so a stuck "pending" job cannot poll forever;
+      // after the cap the existing error screen offers a manual retry.
+      if (attempt + 1 >= REPORT_POLL_MAX_ATTEMPTS) {
+        setErrorContext("result");
+        setCanRetry(true);
+        setErrorMsg("Отчёт ещё формируется. Ответы сохранены. Повторите загрузку чуть позже.");
+        setPhase("error");
+        return;
+      }
+      const delay = Math.min(1800 + attempt * 400, 6000);
+      reportPollTimerRef.current = setTimeout(() => fetchResult(sessionId, attempt + 1), delay);
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
       setErrorContext("result");
