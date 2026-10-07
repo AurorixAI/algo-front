@@ -14,7 +14,7 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
-import { PROVISIONAL_LABEL, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
 
@@ -341,13 +341,12 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
                       {/* Quick Result Summary if completed */}
                       {isCompleted && res && (() => {
-                        const totalQ = res.total_questions || 25;
-                        const correctQ = res.correct_answers != null ? res.correct_answers : (res.accuracy != null ? Math.round(res.accuracy * totalQ) : 0);
-                        const incorrectQ = Math.max(0, totalQ - correctQ);
+                        // Same numbers as the report header: CAT answers only.
+                        const solvedText = formatSolved(res.correct_answers, res.total_questions);
                         const levelView = storedLevelDisplay(res);
 
                         return (
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100/80 mt-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100/80 mt-2">
                             <div className="text-center">
                               <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Уровень по классу</p>
                               <div className="mt-1 flex flex-col items-center gap-1">
@@ -370,25 +369,16 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                             </div>
 
                             <div className="text-center">
-                              <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Верных / Неверных</p>
-                              <p className="text-xs sm:text-sm font-medium mt-1 flex items-center justify-center gap-1.5 flex-wrap">
-                                <span className="text-emerald-600 font-semibold">{correctQ} верных</span>
-                                <span className="text-slate-300">·</span>
-                                <span className="text-rose-500 font-semibold">{incorrectQ} неверных</span>
-                              </p>
-                            </div>
-
-                            <div className="text-center">
-                              <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Объём теста</p>
+                              <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Результат</p>
                               <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1">
-                                {totalQ} заданий
+                                {solvedText ?? "—"}
                               </p>
                             </div>
 
                             <div className="text-center">
                               <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Время теста</p>
                               <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1">
-                                {res.duration_seconds ? `${Math.round(res.duration_seconds / 60)} мин` : "18 мин"}
+                                {res.duration_seconds ? `${Math.round(res.duration_seconds / 60)} мин` : "—"}
                               </p>
                             </div>
                           </div>
