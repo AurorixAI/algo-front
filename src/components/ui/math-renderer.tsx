@@ -278,6 +278,152 @@ export function tokenize(rawS: string, renderMode: MathRenderMode = "legacy"): T
   return tokens;
 }
 
+// ---------------------------------------------------------------------------
+// Line-break control
+//
+// KaTeX allows a break only after a top-level relation / binary operator
+// (TeX rule), never inside fractions, roots, scripts or \left..\right groups.
+// One gap remains: plain "(" ... ")" is not a TeX group, so "(a+b)" could break
+// at the "+".  `keepParenthesesTogether` merges those chunks back.
+// ---------------------------------------------------------------------------
+
+const SPAN_OR_TEXT = /<(\/?)span\b[^>]*>|<[^>]*>|[^<]+/g;
+
+// A parenthesised group stays in one piece only while it is short.  Longer runs
+// get a break point after each inner operator again (as plain KaTeX does), so a
+// long "(a+b)(c+d)..." cannot become wider than a phone screen.
+const MAX_UNBREAKABLE_CHARS = 10;
+// A glued "word" (formula + adjacent text/formulas) longer than this is not
+// glued at all: it would be wider than a phone screen and could not wrap.
+const MAX_GLUED_WORD_CHARS = 18;
+
+/** Visible characters of the formula part that touches its neighbours. */
+function glueLength(html: string): number {
+  const at = html.indexOf('<span class="katex-html"');
+  if (at === -1) return 0;
+  const parts = html.slice(at).split("<wbr>").map((p) => p.replace(/<[^>]*>/g, "").length);
+  return Math.max(parts[0], parts[parts.length - 1]);
+}
+
+export function keepParenthesesTogether(html: string): string {
+  const marker = '<span class="katex-html"';
+  const at = html.indexOf(marker);
+  if (at === -1) return html;
+  const bodyStart = html.indexOf(">", at) + 1;
+
+  // Collect top-level (depth 1) <span class="base"> chunks of .katex-html.
+  const chunks: { open: number; openEnd: number; close: number; delta: number; len: number }[] = [];
+  let depth = 1;
+  let cur: { open: number; openEnd: number; close: number; delta: number; len: number } | null = null;
+  SPAN_OR_TEXT.lastIndex = bodyStart;
+  let m: RegExpExecArray | null;
+  while ((m = SPAN_OR_TEXT.exec(html)) !== null) {
+    const tok = m[0];
+    if (tok.startsWith("<span")) {
+      if (depth === 1 && /class="base"/.test(tok)) {
+        cur = { open: m.index, openEnd: m.index + tok.length, close: -1, delta: 0, len: 0 };
+      }
+      depth++;
+    } else if (tok === "</span>") {
+      depth--;
+      if (depth === 0) break;
+      if (depth === 1 && cur) {
+        cur.close = m.index;
+        chunks.push(cur);
+        cur = null;
+      }
+    } else if (!tok.startsWith("<") && cur) {
+      cur.len += tok.replace(/\s/g, "").length;
+      for (const ch of tok) {
+        if (ch === "(" || ch === "[") cur.delta++;
+        else if (ch === ")" || ch === "]") cur.delta--;
+      }
+    }
+  }
+  if (chunks.length < 2) return html;
+
+  // Walk the boundaries between consecutive chunks: inside an open bracket the
+  // two chunks are merged; otherwise an explicit <wbr> marks the (only) legal
+  // break point, so glued groups can use white-space: nowrap everywhere else.
+  let open = 0;
+  let run = 0; // visible characters since the last break point
+  let out = "";
+  let pos = 0;
+  for (let k = 0; k < chunks.length - 1; k++) {
+    open = Math.max(0, open + chunks[k].delta);
+    run += chunks[k].len;
+    const closeEnd = chunks[k].close + "</span>".length;
+    if (html.slice(closeEnd, chunks[k + 1].open).length !== 0) continue;
+    if (open > 0 && run + chunks[k + 1].len <= MAX_UNBREAKABLE_CHARS) {
+      out += html.slice(pos, chunks[k].close);
+      pos = chunks[k + 1].openEnd;
+    } else {
+      out += html.slice(pos, closeEnd) + "<wbr>";
+      pos = closeEnd;
+      run = 0;
+    }
+  }
+  return out + html.slice(pos);
+}
+
+type Atom =
+  | { kind: "ws"; html: string; hard: boolean }
+  | { kind: "txt"; html: string; raw: string }
+  | { kind: "math"; html: string; content: string; len: number }
+  | { kind: "block"; html: string };
+
+// A numeric formula such as $10$, $12{,}3$, $-5$ ...
+const NUMERIC_MATH = /^\s*[−\-+]?\s*\d[\d\s{},.]*\s*$/;
+// ... followed by a short unit word that must stay on the same line.
+const UNIT_WORD =
+  /^(?:мкм|мм|см|дм|км|м|мг|кг|г|ц|т|мл|л|с|сек|мин|ч|%|°|руб(?:\.|л[а-яё]*)?|коп\.?|шт\.?|Гц|Н|Дж|Вт|Ом|рад|град[а-яё]*|м\/с|км\/ч)(?![A-Za-zА-Яа-яЁё])/u;
+
+/**
+ * Join into one non-breaking word every math span with the characters it
+ * touches ("см$^{2}$", "$x$,", "($a$)"), a script-only formula with the word
+ * before it, and a numeric formula with its unit ("$12{,}3$ см").
+ */
+function glueAtoms(atoms: Atom[], renderMode: MathRenderMode): string {
+  const out: string[] = [];
+  let word: Atom[] = [];
+  const flush = () => {
+    if (word.length === 0) return;
+    const html = word.map((a) => a.html).join("");
+    const hasMath = word.some((a) => a.kind === "math");
+    const len = word.reduce((n, a) => n + (a.kind === "math" ? a.len : a.kind === "txt" ? a.raw.length : 0), 0);
+    out.push(hasMath && word.length > 1 && len <= MAX_GLUED_WORD_CHARS ? `<span class="math-glue">${html}</span>` : html);
+    word = [];
+  };
+  for (let i = 0; i < atoms.length; i++) {
+    const a = atoms[i];
+    if (a.kind === "ws") {
+      const prev = word[word.length - 1];
+      const next = atoms[i + 1];
+      if (prev && next && !a.hard) {
+        // "см $^{2}$": a script never starts a line
+        if (next.kind === "math" && /^\s*[\^_]/.test(next.content)) {
+          if (renderMode === "trusted") word.push(a);
+          continue;
+        }
+        // "$12{,}3$ см": number and unit stay together
+        if (prev.kind === "math" && NUMERIC_MATH.test(prev.content) && next.kind === "txt" && UNIT_WORD.test(next.raw)) {
+          word.push(a);
+          continue;
+        }
+      }
+      flush();
+      out.push(a.html);
+    } else if (a.kind === "block") {
+      flush();
+      out.push(a.html);
+    } else {
+      word.push(a);
+    }
+  }
+  flush();
+  return out.join("");
+}
+
 export function renderMathText(
   text: string,
   allowLineBreaks = false,
@@ -287,19 +433,32 @@ export function renderMathText(
   if (!s) return "";
 
   const tokens = tokenize(s, renderMode);
-  const parts: string[] = [];
+  const atoms: Atom[] = [];
 
-  for (let idx = 0; idx < tokens.length; idx++) {
-    const token = tokens[idx];
+  for (const token of tokens) {
     if (token.type === "text") {
-      const escaped = escapeHtml(token.content);
-      parts.push(allowLineBreaks ? escaped.replace(/\n/g, "<br/>") : escaped.replace(/\n/g, " "));
+      for (const piece of token.content.split(/(\s+)/)) {
+        if (!piece) continue;
+        const escaped = escapeHtml(piece);
+        if (/^\s+$/.test(piece)) {
+          const hard = allowLineBreaks && piece.includes("\n");
+          atoms.push({
+            kind: "ws",
+            hard,
+            html: allowLineBreaks ? escaped.replace(/\n/g, "<br/>") : escaped.replace(/\n/g, " "),
+          });
+        } else {
+          atoms.push({ kind: "txt", html: escaped, raw: piece });
+        }
+      }
+    } else if (allowLineBreaks && token.type === "display") {
+      atoms.push({ kind: "block", html: keepParenthesesTogether(katexRender(token.content, true, renderMode)) });
     } else {
-      const isDisplay = allowLineBreaks && token.type === "display";
-      parts.push(katexRender(token.content, isDisplay, renderMode));
+      const html = keepParenthesesTogether(katexRender(token.content, false, renderMode));
+      atoms.push({ kind: "math", content: token.content, html, len: glueLength(html) });
     }
   }
-  return parts.join("");
+  return glueAtoms(atoms, renderMode);
 }
 
 export function MathRenderer({

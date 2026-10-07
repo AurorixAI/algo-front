@@ -607,22 +607,22 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                     <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
                       <Clock className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-slate-900 text-sm">~20 минут</p>
-                        <p className="text-xs text-slate-500">Без спешки, время не ограничено</p>
+                        <p className="font-medium text-slate-900 text-sm">Время не ограничено</p>
+                        <p className="text-xs text-slate-500">Решай спокойно: можно сделать паузу и продолжить по той же ссылке</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
                       <Target className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-slate-900 text-sm">15–30 вопросов</p>
-                        <p className="text-xs text-slate-500">Количество адаптируется под твой уровень</p>
+                        <p className="font-medium text-slate-900 text-sm">Адаптивный тест</p>
+                        <p className="text-xs text-slate-500">Задания подбираются под твои ответы: чем точнее мы понимаем уровень, тем раньше тест завершится</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3 p-3 glass-option rounded-xl !cursor-default !transform-none">
                       <TrendingUp className="w-5 h-5 text-primary-600 mt-0.5 flex-shrink-0" />
                       <div>
-                        <p className="font-medium text-slate-900 text-sm">Просто решай</p>
-                        <p className="text-xs text-slate-500">Это не влияет на оценку в школе</p>
+                        <p className="font-medium text-slate-900 text-sm">Это не школьная оценка</p>
+                        <p className="text-xs text-slate-500">Результат нужен, чтобы составить твой план занятий</p>
                       </div>
                     </div>
                   </div>

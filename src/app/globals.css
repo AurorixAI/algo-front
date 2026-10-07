@@ -85,6 +85,14 @@ body {
   vertical-align: -0.06em;
 }
 
+/* A formula glued to its neighbours ("см$^{2}$", "$x$,", "$12$ см") must not be
+   split from them. Inline formulas are nowrap; the only legal break points are
+   the <wbr> markers renderMathText puts after top-level relations/operators. */
+.math-renderer .math-glue,
+.math-renderer :not(.katex-display) > .katex > .katex-html {
+  white-space: nowrap;
+}
+
 /* Block renderers can contain inline display-style fractions too. Their glyph
    ink exceeds the line box, while overflow-x makes this box clip vertically. */
 .math-renderer.math-block {
