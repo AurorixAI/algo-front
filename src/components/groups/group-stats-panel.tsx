@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { TrendingDown, TrendingUp, Minus, AlertTriangle, Users, Target, BarChart2 } from "lucide-react";
 import { GroupStats } from "@/lib/api";
+import { LEVEL_CATEGORY_META, LEVEL_TONES, type LevelCategory } from "@/lib/diagnostic-level";
 
 interface GroupStatsPanelProps {
   stats: GroupStats;
@@ -13,34 +14,15 @@ export function GroupStatsPanel({ stats }: GroupStatsPanelProps) {
   const diagPct = total_students > 0 ? Math.round((diagnosed_count / total_students) * 100) : 0;
   const total_dist = dist.below_grade + dist.at_grade + dist.above_grade || 1;
 
+  const levelRow = (key: LevelCategory, icon: typeof TrendingUp) => {
+    const meta = LEVEL_CATEGORY_META[key];
+    const tone = LEVEL_TONES[meta.tone];
+    return { key, label: meta.label, count: dist[key], icon, barColor: tone.dot, textColor: tone.text, bg: tone.soft };
+  };
   const levels = [
-    {
-      key: "above_grade",
-      label: "Выше нормы",
-      count: dist.above_grade,
-      icon: TrendingUp,
-      barColor: "bg-emerald-400",
-      textColor: "text-emerald-700",
-      bg: "bg-emerald-50",
-    },
-    {
-      key: "at_grade",
-      label: "На уровне класса",
-      count: dist.at_grade,
-      icon: Minus,
-      barColor: "bg-amber-400",
-      textColor: "text-amber-700",
-      bg: "bg-amber-50",
-    },
-    {
-      key: "below_grade",
-      label: "Ниже нормы",
-      count: dist.below_grade,
-      icon: TrendingDown,
-      barColor: "bg-red-400",
-      textColor: "text-red-700",
-      bg: "bg-red-50",
-    },
+    levelRow("above_grade", TrendingUp),
+    levelRow("at_grade", Minus),
+    levelRow("below_grade", TrendingDown),
   ];
 
   return (

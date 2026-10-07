@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { FeatureLock } from "@/components/ui/feature-lock";
+import { isAtRisk } from "@/lib/diagnostic-level";
 
 interface OrgStats {
   total_students: number;
@@ -77,10 +78,12 @@ export default function OwnerDashboard() {
     ? groupsWithTheta.reduce((acc, g) => acc + (g.avg_theta || 0), 0) / groupsWithTheta.length 
     : 0;
 
+  const globalAtRisk = isAtRisk({ theta: globalTheta });
+
   // Smart Lists
   const sortedGroups = [...groupsWithTheta].sort((a, b) => (b.avg_theta || 0) - (a.avg_theta || 0));
   const topGroups = sortedGroups.slice(0, 3);
-  const riskGroups = sortedGroups.slice().reverse().slice(0, 3).filter(g => (g.avg_theta || 0) < 0.5); // Highlight those struggling
+  const riskGroups = sortedGroups.slice().reverse().slice(0, 3).filter(g => isAtRisk({ theta: g.avg_theta })); // level policy: below_grade, theta < -0.5
 
   // 4 Core KPIs — real values only. No trend/delta shown: there is no
   // historical snapshot to compute a real "+12%"-style change against, and
@@ -93,9 +96,9 @@ export default function OwnerDashboard() {
       label: "Средний уровень (θ)",
       value: globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2),
       icon: Activity,
-      color: globalTheta >= 0.5 ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500",
-      bg: globalTheta >= 0.5 ? "bg-emerald-50" : "bg-rose-50",
-      iconColor: globalTheta >= 0.5 ? "text-emerald-600" : "text-rose-600"
+      color: !globalAtRisk ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500",
+      bg: !globalAtRisk ? "bg-emerald-50" : "bg-rose-50",
+      iconColor: !globalAtRisk ? "text-emerald-600" : "text-rose-600"
     },
   ];
 

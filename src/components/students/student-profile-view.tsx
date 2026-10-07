@@ -14,6 +14,7 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
+import { PROVISIONAL_LABEL, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
 
@@ -22,15 +23,6 @@ const typeLabels: Record<string, string> = {
   recheck: "Повторная диагностика",
   pre_exam: "Предэкзаменационная диагностика",
   exam: "Экзаменационное тестирование",
-};
-
-const LEVEL_LABELS: Record<string, string> = {
-  below_grade: "Ниже уровня",
-  at_grade: "Соответствует классу",
-  above_grade: "Выше уровня",
-  below: "Ниже уровня",
-  normal: "Соответствует классу",
-  above: "Выше уровня",
 };
 
 function shiftMonth(month: string, direction: -1 | 1): string {
@@ -352,15 +344,28 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                         const totalQ = res.total_questions || 25;
                         const correctQ = res.correct_answers != null ? res.correct_answers : (res.accuracy != null ? Math.round(res.accuracy * totalQ) : 0);
                         const incorrectQ = Math.max(0, totalQ - correctQ);
+                        const levelView = storedLevelDisplay(res);
 
                         return (
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100/80 mt-2">
                             <div className="text-center">
                               <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Уровень по классу</p>
-                              <div className="mt-1 flex justify-center">
-                                <span className="inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200/70">
-                                  {LEVEL_LABELS[res.recommended_level || ""] || res.recommended_level || "Средний"}
-                                </span>
+                              <div className="mt-1 flex flex-col items-center gap-1">
+                                {levelView ? (
+                                  <>
+                                    <span className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium border ${levelView.tone.badge}`}>
+                                      {levelView.label}
+                                    </span>
+                                    {levelView.classEquivalent && (
+                                      <span className="text-[11px] text-slate-500">{levelView.classEquivalent}</span>
+                                    )}
+                                    {levelView.provisional && (
+                                      <span className="text-[10px] uppercase tracking-wide text-amber-600">{PROVISIONAL_LABEL}</span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-slate-400">—</span>
+                                )}
                               </div>
                             </div>
 

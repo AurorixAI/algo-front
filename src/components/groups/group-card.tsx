@@ -4,12 +4,7 @@ import { motion } from "framer-motion";
 import { GraduationCap, Users, ChevronRight, Archive, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
-
-const LEVEL_CONFIG = {
-  below_grade: { label: "Ниже нормы", color: "bg-red-50 text-red-700 border-red-200" },
-  at_grade:    { label: "На уровне",  color: "bg-amber-50 text-amber-700 border-amber-200" },
-  above_grade: { label: "Выше нормы", color: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-} as const;
+import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
 
 interface GroupCardProps {
   group: GroupInfo & { avg_level?: "below_grade" | "at_grade" | "above_grade" | null };
@@ -22,7 +17,9 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
     ? Math.min(100, Math.round(((group.student_count || 0) / group.max_students) * 100))
     : 0;
   const level = group.avg_level;
-  const levelCfg = level ? LEVEL_CONFIG[level] : null;
+  const levelCfg = level
+    ? { label: LEVEL_CATEGORY_META[level].label, color: LEVEL_TONES[LEVEL_CATEGORY_META[level].tone].badge }
+    : null;
 
   return (
     <motion.div

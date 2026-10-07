@@ -9,6 +9,7 @@ import {
   Sparkles, Users, User, Calendar, RotateCcw, X, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
+import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 interface DiagnosticInvite {
   id: string;
@@ -30,8 +31,11 @@ interface DiagnosticInvite {
     theta?: number | null;
     accuracy?: number | null;
     recommended_level?: string | null;
-    total_questions?: number;
-    correct_answers?: number;
+    level_status?: string | null;
+    class_equivalent?: string | null;
+    level_provisional?: boolean | null;
+    total_questions?: number | null;
+    correct_answers?: number | null;
   } | null;
 }
 
@@ -493,6 +497,22 @@ export default function AdminDiagnosticsPage() {
                           minute: "2-digit",
                         })}
                       </span>
+                      {isCompleted && (() => {
+                        const lv = storedLevelDisplay(inv.result);
+                        if (!lv) return null;
+                        const solved = formatSolved(inv.result?.correct_answers, inv.result?.total_questions);
+                        return (
+                          <span
+                            data-testid="diagnostic-level"
+                            className={"inline-flex flex-wrap items-center gap-1.5 text-xs px-2 py-0.5 rounded-md border font-medium " + lv.tone.badge}
+                          >
+                            {lv.label}
+                            {lv.classEquivalent && <span className="font-normal">· {lv.classEquivalent}</span>}
+                            {lv.provisional && <span className="font-normal italic">· {PROVISIONAL_LABEL}</span>}
+                            {solved && <span className="font-normal opacity-80">· {solved}</span>}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
 

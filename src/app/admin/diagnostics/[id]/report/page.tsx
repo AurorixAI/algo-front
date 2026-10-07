@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import {
+  LEVEL_TONES, PROVISIONAL_LABEL, formatSolved, levelStatusLabel, levelStatusTone, resolveReportLevel,
+  type LevelToneClasses, type ReportLevel,
+} from "@/lib/diagnostic-level";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -150,6 +154,8 @@ interface ReportJson {
     student_summary?: string | null; confidence_of_diagnosis?: number;
     class_equivalent?: string | null;
   };
+  /** New contract (report_json.level); absent in reports built before it. */
+  level?: ReportLevel | null;
   diagnostic_boundary?: DiagnosticBoundary;
   root_cause_chains?: RootCauseChain[];
   cognitive_error_types?: CognitiveErrorCluster[];
@@ -162,58 +168,9 @@ interface ReportJson {
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const STATUS_CFG = {
-  above_level: {
-    color: "text-violet-700",
-    badgeBg: "bg-violet-100/90 border-violet-200 text-violet-800",
-    dot: "bg-violet-500",
-    ping: "bg-violet-400",
-    ringColor: "text-violet-600",
-    trackColor: "#ede9fe",
-    cardBg: "bg-gradient-to-r from-violet-50/90 via-slate-50/50 to-white",
-    cardBorder: "border-violet-200/80 shadow-violet-100/50",
-  },
-  on_level: {
-    color: "text-emerald-700",
-    badgeBg: "bg-emerald-100/90 border-emerald-200 text-emerald-800",
-    dot: "bg-emerald-500",
-    ping: "bg-emerald-400",
-    ringColor: "text-emerald-500",
-    trackColor: "#dcfce7",
-    cardBg: "bg-gradient-to-r from-emerald-50/90 via-slate-50/50 to-white",
-    cardBorder: "border-emerald-200/80 shadow-emerald-100/50",
-  },
-  partial_gap: {
-    color: "text-amber-700",
-    badgeBg: "bg-amber-100/90 border-amber-200 text-amber-800",
-    dot: "bg-amber-500",
-    ping: "bg-amber-400",
-    ringColor: "text-amber-500",
-    trackColor: "#fef3c7",
-    cardBg: "bg-gradient-to-r from-amber-50/90 via-slate-50/50 to-white",
-    cardBorder: "border-amber-200/80 shadow-amber-100/50",
-  },
-  below_level: {
-    color: "text-orange-700",
-    badgeBg: "bg-orange-100/90 border-orange-200 text-orange-800",
-    dot: "bg-orange-500",
-    ping: "bg-orange-400",
-    ringColor: "text-orange-500",
-    trackColor: "#ffedd5",
-    cardBg: "bg-gradient-to-r from-orange-50/90 via-slate-50/50 to-white",
-    cardBorder: "border-orange-200/80 shadow-orange-100/50",
-  },
-  critical: {
-    color: "text-rose-700",
-    badgeBg: "bg-rose-100/90 border-rose-200 text-rose-800",
-    dot: "bg-rose-500",
-    ping: "bg-rose-400",
-    ringColor: "text-rose-600",
-    trackColor: "#ffe4e6",
-    cardBg: "bg-gradient-to-r from-rose-50/90 via-slate-50/40 to-white",
-    cardBorder: "border-rose-200/80 shadow-rose-100/50",
-  },
-} as const;
+// Level colours come from the shared dictionary (src/lib/diagnostic-level.ts).
+const toneForStatus = (status?: string | null): LevelToneClasses =>
+  levelStatusTone(status) ?? LEVEL_TONES.emerald;
 
 const SKILL_STATUS_CFG = {
   developing: { label: "Развивается", bar: "bg-amber-400",  text: "text-amber-700",  bg: "bg-amber-50/60"  },
@@ -349,16 +306,16 @@ function matchesOption(answer: string | null | undefined, opt: string, latexOpt:
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function CircularScore({ score, status }: { score: number; status: string }) {
-  const cfg = STATUS_CFG[status as keyof typeof STATUS_CFG] ?? STATUS_CFG.on_level;
+  const cfg = toneForStatus(status);
   const r = 46, circ = 2 * Math.PI * r;
   return (
     <div className="relative flex items-center justify-center w-28 h-28 flex-shrink-0">
       <svg viewBox="0 0 112 112" className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-sm">
-        <circle cx="56" cy="56" r={r} fill="none" stroke={cfg.trackColor} strokeWidth="10" />
+        <circle cx="56" cy="56" r={r} fill="none" stroke={cfg.track} strokeWidth="10" />
         <circle cx="56" cy="56" r={r} fill="none" stroke="currentColor"
           strokeWidth="10" strokeLinecap="round"
           strokeDasharray={`${(score / 100) * circ} ${circ}`}
-          className={cfg.ringColor}
+          className={cfg.ring}
           style={{ transition: "stroke-dasharray 1.2s ease" }}
         />
       </svg>
@@ -552,9 +509,9 @@ export default function DiagnosticReportPage() {
     title: "Готовим отчёт",
     description: "Ответы сохранены. Обычно подготовка занимает до минуты.",
   };
-  const cfg = rj
-    ? (STATUS_CFG[rj.overall.status as keyof typeof STATUS_CFG] ?? STATUS_CFG.on_level)
-    : null;
+  const level = rj ? resolveReportLevel(rj) : null;
+  const cfg = rj ? toneForStatus(level?.status) : null;
+  const solvedText = level ? formatSolved(level.solved, level.total) : null;
 
   return (
     <div className="space-y-5 w-full max-w-[1200px] mx-auto">
@@ -729,16 +686,29 @@ export default function DiagnosticReportPage() {
           >
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
               {/* Circular Score */}
-              <CircularScore score={rj.overall.score_percent} status={rj.overall.status} />
+              <CircularScore score={rj.overall.score_percent} status={level?.status ?? rj.overall.status} />
 
               {/* Status Pill Badge */}
-              <div className="w-full min-w-0 flex items-center justify-center sm:w-auto sm:flex-1 sm:justify-start">
-                <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badgeBg}`}>
+              <div className="w-full min-w-0 flex flex-col items-center justify-center sm:w-auto sm:flex-1 sm:items-start">
+                <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badge}`}>
                   <span className="relative flex h-2.5 w-2.5 shrink-0">
                     <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cfg!.ping}`} />
                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cfg!.dot}`} />
                   </span>
-                  <span className="min-w-0 break-words text-center sm:text-left">{rj.overall.status_label_ru}</span>
+                  <span className="min-w-0 break-words text-center sm:text-left">
+                    {(level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru}
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-600 sm:justify-start">
+                  {level?.classEquivalent && (
+                    <span data-testid="diagnostic-report-class-equivalent" className="font-semibold">{level.classEquivalent}</span>
+                  )}
+                  {level?.provisional && (
+                    <span data-testid="diagnostic-report-provisional" className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
+                      {PROVISIONAL_LABEL}
+                    </span>
+                  )}
+                  {solvedText && <span data-testid="diagnostic-report-solved">{solvedText}</span>}
                 </div>
               </div>
 
