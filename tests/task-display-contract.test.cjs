@@ -15,7 +15,7 @@ require.extensions[".tsx"] = (mod, filename) => {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText, filename);
 };
-const { renderMathText } = require(path.join(__dirname, "../src/components/ui/math-renderer.tsx"));
+const { renderMathText, allowBreakAfterPunctuation } = require(path.join(__dirname, "../src/components/ui/math-renderer.tsx"));
 const { pickTaskDisplayProjection, pickTaskDisplayText } = require(
   path.join(__dirname, "../src/lib/task-display.ts"),
 );
@@ -105,4 +105,52 @@ test("long sum breaks only at top-level operators, never inside fractions or par
   const html = renderMathText(`$${terms.join("+")}+(a+b-c)=0$`);
   const bases = html.match(/<span class="base"/g) || [];
     assert.equal(bases.length, 10, "8 fraction terms + merged \"(a+b-c)=\" + \"0\"; without the merge it would be 12");
+});
+
+test("break opportunities are added after top-level commas, quads, product groups and long digit runs only", () => {
+  const abp = allowBreakAfterPunctuation;
+  assert.equal(abp("x_1=2, x_2=5"), "x_1=2,\\allowbreak  x_2=5");
+  assert.equal(abp("1;2;3"), "1;\\allowbreak 2;\\allowbreak 3");
+  assert.equal(abp("12,5+1,5"), "12,5+1,5", "decimal comma stays whole");
+  assert.equal(abp("x_{1,2}"), "x_{1,2}", "nothing inside braces");
+  assert.equal(abp("\\left(a,b\\right)"), "\\left(a,b\\right)", "nothing inside \\left..\\right");
+  assert.equal(abp("\\begin{cases}a,b\\\\c\\end{cases}"), "\\begin{cases}a,b\\\\c\\end{cases}", "nothing inside environments");
+  assert.equal(abp("\\left(a\\right)\\left(b\\right)"), "\\left(a\\right)\\allowbreak \\left(b\\right)", "between factors");
+  assert.equal(abp("\\left(a\\right)^{2}"), "\\left(a\\right)^{2}", "never before a script");
+  assert.equal(abp("\\left(a\\right),"), "\\left(a\\right),", "trailing comma needs no break");
+  assert.equal(abp("A\\quad B"), "A\\quad\\allowbreak  B");
+  assert.equal(abp("x=1\\text{ или }x=2"), "x=1\\text{ или }\\allowbreak x=2");
+  assert.equal(abp("\\text{слово}x"), "\\text{слово}x", "unpadded text is a word, not a connector");
+  assert.equal(abp("123456789012345678"), "123456789\\allowbreak 012345678");
+  assert.equal(abp("1234567890123"), "1234567890123", "short numbers stay whole");
+  assert.equal(abp(abp("a, b")), abp("a, b"), "idempotent");
+  assert.equal(abp("1, 2, ..., n"), "1,\\allowbreak  2, ...,\\allowbreak  n", "no break before an ellipsis");
+  assert.equal(abp("1, \\dots, n"), "1, \\dots,\\allowbreak  n");
+  const html = renderMathText("$x_1=2, x_2=5, x_3=7, x_4=9$");
+  assert.equal((html.match(/<span class="base"/g) || []).length >= 7, true, "list now has a break opportunity per item");
+  assert.equal(/<wbr>/.test(html), true);
+});
+
+test("fitMathElement scales formulas by at most 15 % and otherwise leaves the scroll alone", () => {
+  const { fitMathElement, MIN_MATH_FIT } = require(path.join(__dirname, "../src/components/ui/math-fit.ts"));
+  const attrs = new Map();
+  const box = (clientWidth, widthAt) => {
+    const el = {
+      clientWidth,
+      get scrollWidth() { return widthAt(attrs.get("--math-fit") ? Number(attrs.get("--math-fit")) : 1); },
+      querySelectorAll: () => [],
+      removeAttribute: () => attrs.delete("data-math-fit"),
+      setAttribute: (k) => attrs.set(k, ""),
+      style: { removeProperty: (k) => attrs.delete(k), setProperty: (k, v) => attrs.set(k, v) },
+    };
+    return el;
+  };
+  attrs.clear();
+  assert.equal(fitMathElement(box(200, () => 200)), 1, "fits: untouched");
+  attrs.clear();
+  const fit = fitMathElement(box(200, (f) => 220 * f));
+  assert.ok(fit < 1 && fit >= MIN_MATH_FIT && 220 * fit <= 200 + 1, `10 % over -> scaled (${fit})`);
+  attrs.clear();
+  assert.equal(fitMathElement(box(200, (f) => 300 * f)), 1, "50 % over: scale cannot help, keep size and scroll");
+  assert.equal(attrs.has("data-math-fit"), false);
 });

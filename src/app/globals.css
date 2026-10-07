@@ -156,6 +156,16 @@ body {
   border-bottom-width: 1.25px !important;
 }
 
+/* Last-resort fit (math-fit.ts): a formula still wider than its box after all
+   legal line breaks shrinks by at most 15 %; the prose keeps its size. */
+.math-renderer[data-math-fit] .katex {
+  font-size: calc(1.1em * var(--math-fit, 1)) !important;
+}
+
+.math-renderer[data-math-fit] .katex-display .katex {
+  font-size: calc(1.18em * var(--math-fit, 1)) !important;
+}
+
 .math-renderer .katex-display::-webkit-scrollbar,
 .math-renderer::-webkit-scrollbar,
 .no-scrollbar::-webkit-scrollbar {

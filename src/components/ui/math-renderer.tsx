@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import katex from "katex";
 import { cn } from "../../lib/utils";
+import { fitMathElement } from "./math-fit";
 
 interface MathRendererProps {
   text: string;
@@ -85,6 +86,88 @@ function cleanLatexForKatex(latex: string): string {
   return out.join("");
 }
 
+/**
+ * KaTeX breaks a line only after a top-level relation or binary operator, so
+ * "$x_1=2, x_2=5$", "$(1;2), (3;4)$", "$A. 1 \\quad B. 2$", "(a+b)(c+d)" or a very
+ * long number is one unbreakable chunk, wider than a phone screen.  This adds
+ * `\allowbreak` (a break opportunity, invisible when no break is needed) at
+ * the places where a human would wrap such a formula:
+ *   - after a top-level comma / semicolon (not a decimal comma "12,5"),
+ *   - after \quad / \qquad,
+ *   - after a top-level \text{...} that is padded with spaces ("\text{ или }"),
+ *   - after a top-level \left..\right group when more math follows
+ *     (factors of a product),
+ *   - inside a run of 18+ digits.
+ * Nothing is added inside braces, \left..\right groups or environments, and
+ * the visible formula is otherwise unchanged.
+ */
+const BREAK_HINT = /[,;]|\\(?:quad|qquad|text|right)\b|\d{18}/;
+const NO_BREAK_BEFORE = /^[,;.:!?)\]}^_'|]/;
+
+export function allowBreakAfterPunctuation(latex: string): string {
+  if (!latex || !BREAK_HINT.test(latex)) return latex;
+  const src = latex.replace(/\d{18,}/g, (run) => run.replace(/(\d{9})(?=\d)/g, "$1\\allowbreak "));
+  let out = "";
+  let brace = 0;
+  let left = 0;
+  let env = 0;
+  const top = () => brace === 0 && left === 0 && env === 0;
+  const hint = (i: number) => {
+    const rest = src.slice(i);
+    // never start a line with an ellipsis: "..." / \dots count as stray punctuation
+    if (rest.trim() !== "" && !/^\s*(?:\\allowbreak|\.|\\[lc]?dots)/.test(rest)) out += "\\allowbreak ";
+  };
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (c === "\\") {
+      const m = /^\\([a-zA-Z]+)/.exec(src.slice(i, i + 12));
+      if (!m) {
+        out += c + (src[i + 1] ?? "");
+        i++;
+        continue;
+      }
+      const name = m[1];
+      out += m[0];
+      i += m[0].length - 1;
+      if (name === "left") left++;
+      else if (name === "begin") env++;
+      else if (name === "end") env = Math.max(0, env - 1);
+      else if (name === "right") {
+        // copy the delimiter token that belongs to \right
+        let j = i + 1;
+        while (src[j] === " ") j++;
+        const d = src[j] === "\\" ? /^\\(?:[a-zA-Z]+|.)/.exec(src.slice(j, j + 12))?.[0] ?? "" : src[j] ?? "";
+        out += src.slice(i + 1, j) + d;
+        i = j + d.length - 1;
+        left = Math.max(0, left - 1);
+        if (top() && !NO_BREAK_BEFORE.test(src.slice(i + 1).trimStart()) && !/^\s*\\(?:right|end)\b/.test(src.slice(i + 1))) hint(i + 1);
+      } else if ((name === "quad" || name === "qquad") && top()) {
+        hint(i + 1);
+      } else if (name === "text" && src[i + 1] === "{" && top()) {
+        let depth = 0;
+        let j = i + 1;
+        for (; j < src.length; j++) {
+          if (src[j] === "{") depth++;
+          else if (src[j] === "}" && --depth === 0) break;
+        }
+        const body = src.slice(i + 2, j);
+        out += src.slice(i + 1, j + 1);
+        i = j;
+        if (/^\s|\s$/.test(body)) hint(i + 1);
+      }
+      continue;
+    }
+    out += c;
+    if (c === "{") brace++;
+    else if (c === "}") brace = Math.max(0, brace - 1);
+    else if ((c === "," || c === ";") && top()) {
+      const decimal = c === "," && /\d/.test(src[i - 1] ?? "") && /^\d/.test(src.slice(i + 1));
+      if (!decimal) hint(i + 1);
+    }
+  }
+  return out;
+}
+
 function katexRender(
   latex: string,
   displayMode: boolean,
@@ -98,7 +181,7 @@ function katexRender(
     const prepared = renderMode === "trusted"
       ? latex
       : wrapBareCyrillicInMath(cleanLatexForKatex(latex.trim()));
-    return katex.renderToString(prepared, {
+    return katex.renderToString(allowBreakAfterPunctuation(prepared), {
       throwOnError: false,
       displayMode,
       output: "html",
@@ -461,6 +544,40 @@ export function renderMathText(
   return glueAtoms(atoms, renderMode);
 }
 
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * Block renderers scale their formulas down (<= 15 %) when one is still wider
+ * than the box (see math-fit.ts); re-fitted when the width or the fonts change.
+ */
+function useMathFit(ref: React.MutableRefObject<HTMLElement | null>, html: string, block: boolean) {
+  useIsomorphicLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !block) return;
+    fitMathElement(el);
+    let width = el.clientWidth;
+    let cancelled = false;
+    const refit = () => {
+      if (!cancelled) fitMathElement(el);
+    };
+    const observer = typeof ResizeObserver === "undefined"
+      ? null
+      : new ResizeObserver(() => {
+          if (el.clientWidth !== width) {
+            width = el.clientWidth;
+            refit();
+          }
+        });
+    observer?.observe(el);
+    // KaTeX glyph metrics change when the web fonts arrive.
+    void document.fonts?.ready.then(refit);
+    return () => {
+      cancelled = true;
+      observer?.disconnect();
+    };
+  }, [ref, html, block]);
+}
+
 export function MathRenderer({
   text,
   className = "",
@@ -473,8 +590,11 @@ export function MathRenderer({
     [text, renderMode],
   );
   const Tag = block ? "div" : "span";
+  const ref = useRef<HTMLElement | null>(null);
+  useMathFit(ref, html, block);
   return (
     <Tag
+      ref={ref as React.Ref<HTMLDivElement & HTMLSpanElement>}
       className={cn(
         "math-renderer leading-relaxed antialiased no-scrollbar",
         block && "math-block",
