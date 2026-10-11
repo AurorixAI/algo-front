@@ -8,7 +8,8 @@ import { useAuthStore } from "@/lib/store";
 import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
 
 interface Member {
-  id: string;
+  id: string; // user id
+  member_id: string; // OrganizationMember.id (use for remove / role change)
   user_id: string;
   email: string;
   first_name: string;
@@ -105,7 +106,9 @@ export default function OwnerTeachersPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  const handleRemoveMember = async (memberId: string) => {
+  // DELETE /org/members/{id} expects OrganizationMember.id (`member_id`), not the user id.
+  const handleRemoveMember = async (memberId?: string) => {
+    if (!memberId) { alert("Не удалось определить сотрудника. Обновите страницу."); return; }
     if (!confirm("Удалить сотрудника из организации? Это действие нельзя отменить.")) return;
     try {
       await orgApi.removeMember(memberId);
@@ -214,7 +217,7 @@ export default function OwnerTeachersPage() {
                     <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 overflow-hidden divide-y divide-slate-100">
                       {groupMembers.map((m, i) => (
                         <motion.div
-                          key={m.id || m.user_id}
+                          key={m.member_id || m.id || m.user_id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: i * 0.05 }}
@@ -238,7 +241,7 @@ export default function OwnerTeachersPage() {
                           <div className="flex items-center gap-4 sm:ml-auto">
                             {m.org_role !== "owner" ? (
                               <button
-                                onClick={() => handleRemoveMember(m.id || m.user_id)}
+                                onClick={() => handleRemoveMember(m.member_id)}
                                 className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100"
                                 title="Удалить сотрудника"
                               >

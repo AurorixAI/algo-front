@@ -89,9 +89,9 @@ interface ExamResult {
     text: string;
     options: string[];
     student_answer: string | null;
-    correct_answer: string;
+    correct_answer?: string | null;
     correct_answer_latex?: string | null;
-    is_correct: boolean;
+    is_correct?: boolean | null;
     skill_name: string;
   }>;
 }

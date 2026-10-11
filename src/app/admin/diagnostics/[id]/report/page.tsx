@@ -743,7 +743,7 @@ export default function DiagnosticReportPage() {
               <div className="flex gap-3">
                 <div className="w-1 rounded-full bg-primary-400 flex-shrink-0 self-stretch" />
                 <div>
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Заключение педагога</p>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Краткое резюме (сформировано автоматически)</p>
                   <p className="text-sm text-slate-700 leading-relaxed">{rj.overall.student_summary}</p>
                 </div>
               </div>

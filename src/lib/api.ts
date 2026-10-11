@@ -791,6 +791,26 @@ export const orgApi = {
     const qs = query.toString();
     return api<any[]>(`/auth/org/students${qs ? `?${qs}` : ""}`);
   },
+  /** One server-side page of students plus the exact total of the filtered set. */
+  listStudentsPage: async (params: {
+    class_level?: number; group_id?: string; has_group?: boolean; has_primary_group?: boolean;
+    status?: string; exclude_status?: string; search?: string; limit?: number; offset?: number;
+  }) => {
+    const query = new URLSearchParams({ include_meta: "true" });
+    if (params.class_level) query.set("class_level", String(params.class_level));
+    if (params.group_id) query.set("group_id", params.group_id);
+    if (params.has_group !== undefined) query.set("has_group", String(params.has_group));
+    if (params.has_primary_group !== undefined) query.set("has_primary_group", String(params.has_primary_group));
+    if (params.status) query.set("status", params.status);
+    if (params.exclude_status) query.set("exclude_status", params.exclude_status);
+    if (params.search) query.set("search", params.search);
+    query.set("limit", String(params.limit ?? 50));
+    query.set("offset", String(params.offset ?? 0));
+    const response = await api<{ items: any[]; total: number } | any[]>(`/auth/org/students?${query.toString()}`);
+    // Rolling update: an older auth-service still answers with a bare array.
+    if (Array.isArray(response)) return { items: response, total: response.length };
+    return { items: response.items ?? [], total: response.total ?? (response.items ?? []).length };
+  },
   getStudent: (id: string) => api<any>(`/auth/org/students/${id}`),
   getStudentProfile: (id: string) => api<StudentProfile>(`/auth/org/students/${id}/profile`),
   getStudentAttendanceSummary: (id: string, month?: string) =>
@@ -1825,15 +1845,18 @@ export const examsApi = {
       percentage: number;
       time_spent_seconds: number;
       submitted_at: string;
+      /** false until the whole exam is over: key / verdicts are withheld (null) */
+      answer_key_available?: boolean;
+      message?: string | null;
       tasks: Array<{
         task_id: string;
         text: string;
         question_latex?: string | null;
         options: string[];
         student_answer: string | null;
-        correct_answer: string;
+        correct_answer?: string | null;
         correct_answer_latex?: string | null;
-        is_correct: boolean;
+        is_correct?: boolean | null;
         skill_name: string;
       }>;
     }>(`/exam-sessions/${sessionId}/results`, { sessionToken }),

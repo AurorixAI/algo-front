@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
-import { Users, Search, Brain, GraduationCap, Folder, Check, Copy } from "lucide-react";
+import { Users, Search, Brain, GraduationCap, Folder, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
@@ -23,10 +23,15 @@ interface StudentInfo {
   created_at: string | null;
 }
 
+const PAGE_SIZE = 50;
+
 export default function AdminStudentsPage() {
   const [students, setStudents] = useState<StudentInfo[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterTeacher, setFilterTeacher] = useState<string>("");
   const [filterGroup, setFilterGroup] = useState<string>("");
   const [teachers, setTeachers] = useState<any[]>([]);
@@ -41,27 +46,46 @@ export default function AdminStudentsPage() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const loadAll = async () => {
+  // Search is debounced and resets paging.
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(0); }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const loadDirectories = useCallback(async () => {
     try {
-      const [studentsData, membersData, groupsData] = await Promise.all([
-        orgApi.listStudents({ search: search || undefined, has_group: true }),
-        orgApi.listMembers(),
-        orgApi.listGroups(),
-      ]);
-      const rawStudents = Array.isArray(studentsData) ? studentsData : (studentsData as any)?.items || [];
-      // Only keep students who are enrolled in a group
-      const enrolledStudents = rawStudents.filter((s: StudentInfo) => s.group_id != null);
-      setStudents(enrolledStudents);
+      const [membersData, groupsData] = await Promise.all([orgApi.listMembers(), orgApi.listGroups()]);
       setTeachers(Array.isArray(membersData) ? membersData.filter((m: any) => m.org_role === "teacher") : []);
       setGroups(Array.isArray(groupsData) ? groupsData : (groupsData as any)?.items || []);
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Server-side paging: only the current page is fetched; `total` is the exact
+  // size of the filtered set (only students enrolled in a group are listed).
+  const loadStudents = useCallback(async () => {
+    try {
+      const data = await orgApi.listStudentsPage({
+        search: debouncedSearch || undefined,
+        group_id: filterGroup || undefined,
+        has_primary_group: true,
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+      });
+      setStudents(data.items as StudentInfo[]);
+      setTotal(data.total);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch, filterGroup, page]);
 
-  useEffect(() => { loadAll(); }, [search]);
+  const loadAll = () => { loadDirectories(); loadStudents(); };
+
+  useEffect(() => { loadDirectories(); }, [loadDirectories]);
+  useEffect(() => { loadStudents(); }, [loadStudents]);
 
   const groupsById = useMemo(() => {
     const map: Record<string, any> = {};
@@ -69,21 +93,9 @@ export default function AdminStudentsPage() {
     return map;
   }, [groups]);
 
-  // Teacher → group is a client-side filter (the API doesn't support it) —
-  // resolve it via which groups belong to the selected teacher.
-  const groupIdsForTeacher = useMemo(() => {
-    if (!filterTeacher) return null;
-    return new Set(groups.filter((g) => g.teacher_id === filterTeacher).map((g) => g.id));
-  }, [groups, filterTeacher]);
-
-  const filteredBySelection = useMemo(() => {
-    return students.filter((s) => {
-      if (!s.group_id) return false;
-      if (filterGroup) return s.group_id === filterGroup;
-      if (groupIdsForTeacher) return groupIdsForTeacher.has(s.group_id);
-      return true;
-    });
-  }, [students, filterGroup, groupIdsForTeacher]);
+  // Teacher without a chosen group shows group cards, not students.
+  const showStudents = !(filterTeacher && !filterGroup);
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (loading) {
     return (
@@ -93,7 +105,7 @@ export default function AdminStudentsPage() {
     );
   }
 
-  const totalCount = filteredBySelection.length;
+  const totalCount = showStudents ? total : 0;
 
   return (
     <div className="space-y-6">
@@ -129,6 +141,7 @@ export default function AdminStudentsPage() {
           onChange={({ teacherId, groupId }) => {
             setFilterTeacher(teacherId);
             setFilterGroup(groupId);
+            setPage(0);
           }}
         />
       </div>
@@ -146,13 +159,13 @@ export default function AdminStudentsPage() {
             </div>
           ) : (
             groups.filter((g) => g.teacher_id === filterTeacher).map((g, i) => (
-              <div key={g.id} onClick={() => setFilterGroup(g.id)}>
+              <div key={g.id} onClick={() => { setFilterGroup(g.id); setPage(0); }}>
                 <GroupCard group={g} href="" index={i} />
               </div>
             ))
           )}
         </div>
-      ) : filteredBySelection.length === 0 ? (
+      ) : students.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8 text-primary-600" />
@@ -194,7 +207,7 @@ export default function AdminStudentsPage() {
             </thead>
             <tbody className="divide-y divide-slate-50">
               <AnimatePresence mode="popLayout" initial={false}>
-                {filteredBySelection.map((s, i) => {
+                {students.map((s, i) => {
                   const group = s.group_id ? groupsById[s.group_id] : null;
                   return (
                     <motion.tr
@@ -266,6 +279,34 @@ export default function AdminStudentsPage() {
               </AnimatePresence>
             </tbody>
           </table>
+          {total > PAGE_SIZE && (
+            <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 text-sm text-slate-500">
+              <span>
+                {page * PAGE_SIZE + 1}–{page * PAGE_SIZE + students.length} из {total}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page === 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Предыдущая страница"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span>Стр. {page + 1} / {pageCount}</span>
+                <button
+                  type="button"
+                  disabled={page >= pageCount - 1}
+                  onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+                  className="p-2 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                  aria-label="Следующая страница"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

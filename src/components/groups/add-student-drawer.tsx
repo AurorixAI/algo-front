@@ -30,6 +30,7 @@ export function AddStudentDrawer({
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
+  const [totalFound, setTotalFound] = useState(0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -48,13 +49,17 @@ export function AddStudentDrawer({
   const loadStudents = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await orgApi.listStudents({
+      // The server caps a page at 500; beyond that the search box narrows the list.
+      const data = await orgApi.listStudentsPage({
         search: debouncedSearch || undefined,
         class_level: groupClassLevel || undefined,
+        limit: 500,
       });
-      setStudents(Array.isArray(data) ? data : []);
+      setStudents(data.items);
+      setTotalFound(data.total);
     } catch {
       setStudents([]);
+      setTotalFound(0);
     } finally {
       setLoading(false);
     }
@@ -187,6 +192,11 @@ export function AddStudentDrawer({
                     );
                   })}
                 </div>
+              )}
+              {!loading && totalFound > students.length && (
+                <p className="px-4 py-3 text-xs text-slate-400 text-center">
+                  Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
+                </p>
               )}
             </div>
 
