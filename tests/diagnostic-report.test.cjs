@@ -297,13 +297,13 @@ test("report dates: attempt date and build date are formatted, junk is dropped",
 
 test("stale / degraded notes: legacy only when the backend says not current and the report is not degraded or rebuilding", () => {
   const rj = { report_meta: { date: "2026-10-04", generated_on: "2026-10-12" } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true }, rj), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false });
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true }, rj), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false, oldFormat: false });
   assert.equal(R.reportMetaInfo({ is_current_schema: false }, rj).legacy, true);
   assert.equal(R.reportMetaInfo({ is_current_schema: false, status: "ready" }, rj).legacy, true);
   assert.equal(R.reportMetaInfo({}, rj).legacy, false); // unknown is not "old"
   assert.equal(R.reportMetaInfo(undefined, rj).legacy, false);
   const degraded = { report_meta: { degraded: ["skill_names"] } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false });
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false, oldFormat: false });
   assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { degraded: [] } }).degraded, false);
   assert.equal(R.reportMetaInfo(null, null).degraded, false);
   // a running rebuild: «обновляется», not «старый формат»
@@ -596,7 +596,8 @@ test("poller: failed generation without a report stops; with the old report it i
   assert.equal(b.clock.pending, 0);
 });
 
-test("poller: transient failures (status 0 / 5xx / unknown) are tolerated up to 3 in a row; 4xx fails at once", async () => {
+test("poller: 3 consecutive transient failures (status 0 / 408 / 429 / 5xx / unknown) are tolerated, the 4th ends the poll; other 4xx fails at once", async () => {
+  assert.equal(R.REPORT_POLL_TOLERATED_FAILURES, 3);
   const net = Object.assign(new Error("offline"), { status: 0 });
   const down = Object.assign(new Error("bad gateway"), { status: 502 });
   // two failures, then the report: the poll survives
@@ -613,11 +614,18 @@ test("poller: transient failures (status 0 / 5xx / unknown) are tolerated up to 
   await b.clock.advance(120000);
   assert.equal(b.states[b.states.length - 1].phase, "done");
   assert.equal(b.calls.length, 6);
-  // three in a row: an honest error
+  // three failures in a row are tolerated (the poll goes on and recovers) ...
+  const seq3 = [() => { throw net; }, () => { throw net; }, () => { throw down; }, () => readyReport()];
+  const three = setup((n) => seq3[n - 1]());
+  three.poller.ingest(pending());
+  await three.clock.advance(120000);
+  assert.equal(three.calls.length, 4);
+  assert.equal(three.states[three.states.length - 1].phase, "done");
+  // ... the 4th consecutive one is an honest error
   const c = setup(() => { throw net; });
   c.poller.ingest(pending());
   await c.clock.advance(120000);
-  assert.equal(c.calls.length, 3);
+  assert.equal(c.calls.length, 4);
   const last = c.states[c.states.length - 1];
   assert.equal(last.phase, "error");
   assert.equal(last.error.status, 0);
@@ -626,9 +634,19 @@ test("poller: transient failures (status 0 / 5xx / unknown) are tolerated up to 
   const d = setup(() => { throw new TypeError("x"); });
   d.poller.ingest(pending());
   await d.clock.advance(120000);
-  assert.equal(d.calls.length, 3);
+  assert.equal(d.calls.length, 4);
+  // 408 and 429 are transient like 5xx
+  for (const code of [408, 429]) {
+    const f = setup((n) => { if (n === 1) throw Object.assign(new Error("slow"), { status: code }); return readyReport(); });
+    f.poller.ingest(pending());
+    await f.clock.advance(60000);
+    assert.equal(f.calls.length, 2, `status ${code}`);
+    assert.equal(f.states[f.states.length - 1].phase, "done");
+  }
+  assert.deepEqual([0, 408, 429, 500, 503, null, undefined].map(R.isTransientStatus), [true, true, true, true, true, true, true]);
+  assert.deepEqual([400, 401, 403, 404, 410, 422].map(R.isTransientStatus), [false, false, false, false, false, false]);
   // 4xx: immediately
-  for (const code of [400, 401, 403, 404]) {
+  for (const code of [400, 401, 403, 404, 422]) {
     const e = setup(() => { throw Object.assign(new Error("no"), { status: code }); });
     e.poller.ingest(pending());
     await e.clock.advance(60000);
@@ -699,4 +717,99 @@ test("report page contract (N04 round 2): no unverified claims, no non-Tailwind 
   assert.ok(api.includes("/auth/org/diagnostics/${encodePathId(id)}`"));
   assert.ok(api.includes("/analytics/students/${encodePathId(studentId)}/report?"));
   assert.equal(api.includes("${encodeURIComponent(id)}`)"), false);
+});
+
+// ─── N04 round 3 ──────────────────────────────────────────────────────────────
+
+test("journal page is clamped: a shorter replacement report never leaves an empty page", () => {
+  // old report: 9 records on page index 2 (records 7-9); the new one has 3 -> page 0
+  assert.equal(R.clampPage(2, 3, 3), 0);
+  assert.equal(R.clampPage(2, 9, 3), 2);
+  assert.equal(R.clampPage(5, 9, 3), 2);
+  assert.equal(R.clampPage(1, 4, 3), 1);
+  assert.equal(R.clampPage(1, 3, 3), 0);
+  assert.equal(R.clampPage(0, 0, 3), 0);
+  assert.equal(R.clampPage(-4, 9, 3), 0);
+  assert.equal(R.clampPage(Number.NaN, 9, 3), 0);
+  assert.equal(R.clampPage(3, 10, 0), 0);
+  // the slice shown is never empty for a non-empty list
+  for (let total = 1; total <= 12; total++) for (let page = 0; page < 6; page++) {
+    const p = R.clampPage(page, total, 3);
+    assert.ok(total - p * 3 > 0, `total ${total} page ${page}`);
+  }
+});
+
+test("report identity changes when the report is replaced, not when it is polled again", () => {
+  const rep = (over = {}, generatedAt = "2026-10-12T10:00:00") => ({ generated_at: generatedAt, report_json: { report_meta: { session_id: "S1", generated_on: "2026-10-12", report_schema_version: 5, ...over } } });
+  const base = R.reportIdentity(rep());
+  assert.equal(R.reportIdentity(rep()), base); // same report polled again
+  assert.notEqual(R.reportIdentity(rep({ generated_on: "2026-10-13" })), base);
+  assert.notEqual(R.reportIdentity(rep({ report_schema_version: 4 })), base);
+  assert.notEqual(R.reportIdentity(rep({ session_id: "S2" })), base);
+  assert.notEqual(R.reportIdentity(rep({}, "2026-10-12T11:00:00")), base); // rebuilt the same day
+  // old report (no meta fields) -> new report: different
+  assert.notEqual(R.reportIdentity({ report_json: { report_meta: {} } }), base);
+  for (const none of [null, undefined, {}, { report_json: "oops" }, { report_json: null }]) assert.equal(R.reportIdentity(none), "|||");
+});
+
+test("during a rebuild the old report is still «old format»: placeholders and journal line say so", () => {
+  const rj = { report_meta: { date: "2026-09-01" } };
+  const rebuilding = R.reportMetaInfo({ status: "generating", is_current_schema: false }, rj);
+  assert.equal(rebuilding.legacy, false);
+  assert.equal(rebuilding.rebuilding, true);
+  assert.equal(rebuilding.oldFormat, true);
+  assert.equal(R.skillsEmptyText(rebuilding.oldFormat), R.SECTION_LEGACY_TEXT);
+  assert.equal(R.planNotBuiltText(rebuilding.oldFormat), R.SECTION_LEGACY_TEXT);
+  const settled = R.reportMetaInfo({ status: "ready", is_current_schema: false }, rj);
+  assert.deepEqual([settled.legacy, settled.oldFormat], [true, true]);
+  const current = R.reportMetaInfo({ status: "ready", is_current_schema: true }, rj);
+  assert.equal(current.oldFormat, false);
+  assert.equal(R.skillsEmptyText(current.oldFormat), R.SKILLS_EMPTY_TEXT);
+  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: false }, { report_meta: { degraded: ["skill_names"] } }).oldFormat, false);
+});
+
+test("a chain reconstructed from the answers is marked neutrally and never makes a «confirmed» breakpoint", () => {
+  assert.equal(R.CHAIN_INFERRED_TEXT, "выведено по ответам, без углублённой проверки");
+  assert.equal(R.isInferredChain({ evidence_source: "inferred" }), true);
+  for (const other of [{ evidence_source: "stored_link" }, {}, null, undefined]) assert.equal(R.isInferredChain(other), false);
+  const confirmed = { breakpoint_evidence: "confirmed" };
+  assert.equal(R.breakpointCopy(confirmed, {}, [{ evidence_source: "stored_link" }]).title, "Подтверждённый пробел (углублённая проверка)");
+  assert.equal(R.breakpointCopy(confirmed, {}, [{ evidence_source: "inferred" }, { evidence_source: "stored_link" }]).title, "Подтверждённый пробел (углублённая проверка)");
+  assert.equal(R.breakpointCopy(confirmed, {}, [{}]).title, "Подтверждённый пробел (углублённая проверка)"); // older chains carry no source
+  assert.equal(R.breakpointCopy(confirmed, {}).title, "Подтверждённый пробел (углублённая проверка)");
+  assert.equal(R.breakpointCopy(confirmed, {}, []).title, "Подтверждённый пробел (углублённая проверка)");
+  assert.equal(R.breakpointCopy(confirmed, {}, [{ evidence_source: "inferred" }, { evidence_source: "inferred" }]).title, "Ключевой наблюдаемый дефицит");
+});
+
+test("boundary texts: capped lists say «основные»; the observed text names the earliest grade with errors", () => {
+  const observed = R.breakpointCopy({ breakpoint_evidence: "observed" }, {});
+  assert.equal(observed.description, "Основные навыки с ошибками в самом раннем классе, где были ошибки.");
+  assert.match(R.breakpointCopy({ breakpoint_evidence: "confirmed" }, {}).description, /основные навыки/);
+});
+
+test("a final error (no attempt id) is not «temporary» and has no retry", () => {
+  const fin = R.loadErrorInfo(null, "У завершённой диагностики отсутствует идентификатор попытки.", "report", false);
+  assert.equal(fin.title, "Отчёт недоступен");
+  assert.equal(fin.retryable, false);
+  assert.equal(/временно/i.test(fin.title + fin.text), false);
+  assert.equal(R.loadErrorInfo(500, "x", "report").title, "Отчёт временно недоступен"); // a retryable error keeps «временно»
+  assert.equal(R.loadErrorInfo(403, "x", "report", false).title, "Нет доступа к отчёту");
+  assert.equal(R.loadErrorInfo(null, "", "report", false).text, "Отчёт для этой диагностики недоступен.");
+});
+
+test("report page contract (N04 round 3): owner-decision wording, no duration promise, state reset", () => {
+  const root = path.join(__dirname, "..", "src");
+  const page = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  assert.equal(/первопричин/i.test(page), false, "O4: no «первопричин» wording on the page");
+  assert.ok(page.includes('label: "Анализ навыков"'));
+  assert.ok(page.includes('title="Цепочки диагностического спуска (Deep Scan)"'));
+  assert.equal(page.includes("Обычно подготовка занимает"), false);
+  assert.equal(/до минуты/.test(page), false);
+  assert.ok(page.includes("clampPage(errorPage"));
+  assert.ok(page.includes("reportIdentity(report)"));
+  assert.ok(page.includes("setExpandedChains([])") && page.includes("setExpandedClusters([])"));
+  assert.ok(page.includes("meta.oldFormat"));
+  assert.equal(page.includes("skillsEmptyText(meta.legacy)"), false);
+  assert.ok(page.includes("isInferredChain(ch)"));
+  assert.ok(page.includes("loadErrorInfo(reportErrorStatus, reportError, \"report\", reportErrorRetryable)"));
 });

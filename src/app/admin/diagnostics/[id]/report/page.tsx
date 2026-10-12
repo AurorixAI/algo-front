@@ -8,10 +8,10 @@ import {
   type LevelToneClasses, type ReportLevel,
 } from "@/lib/diagnostic-level";
 import {
-  JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
-  breakpointCopy, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
-  isErrorFreeReport, knownPlanHours, loadErrorInfo, normalizeReportJson, planNotBuiltText, recommendedStartName,
-  reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
+  CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
+  breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
+  isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, planNotBuiltText, recommendedStartName,
+  reportIdentity, reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
   type ReportPollerState,
 } from "@/lib/diagnostic-report";
@@ -128,6 +128,8 @@ interface RootCauseChain {
   anchor_skill_name?: string | null;
   severity: "critical" | "warning" | "local_gap";
   steps_count: number;
+  /** stored_link = recorded deep-scan link; inferred = reconstructed from the answers (no deep scan). */
+  evidence_source?: "stored_link" | "inferred" | string | null;
   steps: ChainStep[];
 }
 
@@ -581,6 +583,15 @@ export default function DiagnosticReportPage() {
     });
   }, [invite?.id, isTeacher, reportUsable]);
 
+  // A replaced report (a rebuild finishing) starts with a clean UI: first journal page, nothing expanded.
+  // The same report polled again keeps the identity, so the reader's place is kept.
+  const reportKey = reportIdentity(report);
+  useEffect(() => {
+    setErrorPage(0);
+    setExpandedChains([]);
+    setExpandedClusters([]);
+  }, [reportKey]);
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-3">
@@ -639,7 +650,7 @@ export default function DiagnosticReportPage() {
   };
   const generationCopy = generationStageCopy[reportGeneration?.stage || ""] || {
     title: "Готовим отчёт",
-    description: "Ответы сохранены. Обычно подготовка занимает до минуты.",
+    description: "Ответы сохранены. Отчёт появится на странице автоматически.",
   };
   const level = rj ? resolveReportLevel(rj) : null;
   // Error-free attempt: a positive scenario (achievements + a development step).
@@ -651,7 +662,7 @@ export default function DiagnosticReportPage() {
   const tabs = rj ? tabContentState(rj) : null;
   const meta = reportMetaInfo(reportGeneration, rj);
   const pollExhausted = pollPhase === "exhausted";
-  const breakpoint = breakpointCopy(rj?.diagnostic_boundary, rj?.report_meta);
+  const breakpoint = breakpointCopy(rj?.diagnostic_boundary, rj?.report_meta, rj?.root_cause_chains);
   // report_json arrived but is not a report object (string, list ...): not renderable, not poll-able
   const reportInvalid = !rj && report?.report_json !== null && report?.report_json !== undefined;
   const scorePercent = rj ? reportScorePercent(rj) : null;
@@ -663,7 +674,7 @@ export default function DiagnosticReportPage() {
     key: ReportTab; label: string; Icon: any; iconClass: string; badge: number; badgeClass: string;
   }> = [
     { key: "journal", label: "Журнал ошибок", Icon: FileText, iconClass: "text-rose-500", badge: rj?.error_patterns.length ?? 0, badgeClass: "bg-rose-100 text-rose-700" },
-    { key: "skills", label: "Анализ навыков и первопричин", Icon: GitBranch, iconClass: "text-indigo-500", badge: rj?.root_cause_chains?.length ?? 0, badgeClass: "bg-indigo-100 text-indigo-700" },
+    { key: "skills", label: "Анализ навыков", Icon: GitBranch, iconClass: "text-indigo-500", badge: rj?.root_cause_chains?.length ?? 0, badgeClass: "bg-indigo-100 text-indigo-700" },
     { key: "plan", label: "План обучения", Icon: ListChecks, iconClass: "text-emerald-500", badge: 0, badgeClass: "" },
   ];
   // Arrow keys / Home / End move between tabs (WAI-ARIA tabs pattern).
@@ -813,7 +824,7 @@ export default function DiagnosticReportPage() {
 
       {/* ── Generating / unavailable ──────────────────────────────────────── */}
       {!isPending && !rj && (() => {
-        const errInfo = reportError ? loadErrorInfo(reportErrorStatus, reportError, "report") : null;
+        const errInfo = reportError ? loadErrorInfo(reportErrorStatus, reportError, "report", reportErrorRetryable) : null;
         const failed = reportGeneration?.status === "failed";
         const calm = Boolean(errInfo) || reportInvalid || pollExhausted || failed;
         const recheck = () => { setPollPhase(null); setReportError(null); setReportErrorStatus(null); setRetryNonce((value) => value + 1); };
@@ -1041,9 +1052,11 @@ export default function DiagnosticReportPage() {
           {/* ── TAB 1: Error Journal — paginated ──────────────────────────── */}
           {activeTab === "journal" && rj.error_patterns.length > 0 && (() => {
             const totalPages = Math.ceil(rj.error_patterns.length / ERRORS_PER_PAGE);
+            // clamped: a shorter replacement report never leaves the reader on an empty page
+            const page = clampPage(errorPage, rj.error_patterns.length, ERRORS_PER_PAGE);
             const pageErrors = rj.error_patterns.slice(
-              errorPage * ERRORS_PER_PAGE,
-              (errorPage + 1) * ERRORS_PER_PAGE
+              page * ERRORS_PER_PAGE,
+              (page + 1) * ERRORS_PER_PAGE
             );
             return (
               <motion.div variants={fade} className="bg-white rounded-[28px] border border-slate-200/80 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.32)] overflow-hidden">
@@ -1061,17 +1074,17 @@ export default function DiagnosticReportPage() {
                   {/* Compact pagination in header */}
                   {totalPages > 1 && (
                     <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => setErrorPage(p => Math.max(0, p - 1))} disabled={errorPage === 0}
+                      <button onClick={() => setErrorPage(Math.max(0, page - 1))} disabled={page === 0}
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
                       </button>
                       {Array.from({ length: totalPages }).map((_, pi) => (
                         <button key={pi} onClick={() => setErrorPage(pi)}
                           className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                            pi === errorPage ? "bg-slate-900 text-white" : "text-slate-400 hover:bg-slate-100"
+                            pi === page ? "bg-slate-900 text-white" : "text-slate-400 hover:bg-slate-100"
                           }`}>{pi + 1}</button>
                       ))}
-                      <button onClick={() => setErrorPage(p => Math.min(totalPages - 1, p + 1))} disabled={errorPage === totalPages - 1}
+                      <button onClick={() => setErrorPage(Math.min(totalPages - 1, page + 1))} disabled={page === totalPages - 1}
                         className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
                       </button>
@@ -1082,7 +1095,7 @@ export default function DiagnosticReportPage() {
                 {/* ── Error Entries ── */}
                 <div className="divide-y divide-slate-100/80">
                   {pageErrors.map((err, i) => {
-                    const globalIdx = errorPage * ERRORS_PER_PAGE + i + 1;
+                    const globalIdx = page * ERRORS_PER_PAGE + i + 1;
                     const isDistractor = err.eval_category === "distractor";
                     const hasMcqOptions = err.answer_options && err.answer_options.length > 0;
 
@@ -1245,14 +1258,14 @@ export default function DiagnosticReportPage() {
                 {totalPages > 1 && (
                   <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/50">
                     <span className="text-xs text-slate-400">
-                      Записи <span className="font-semibold text-slate-700">{errorPage * ERRORS_PER_PAGE + 1}–{Math.min((errorPage + 1) * ERRORS_PER_PAGE, rj.error_patterns.length)}</span> из <span className="font-semibold text-slate-700">{rj.error_patterns.length}</span>
+                      Записи <span className="font-semibold text-slate-700">{page * ERRORS_PER_PAGE + 1}–{Math.min((page + 1) * ERRORS_PER_PAGE, rj.error_patterns.length)}</span> из <span className="font-semibold text-slate-700">{rj.error_patterns.length}</span>
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => setErrorPage(p => Math.max(0, p - 1))} disabled={errorPage === 0}
+                      <button onClick={() => setErrorPage(Math.max(0, page - 1))} disabled={page === 0}
                         className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         ← Назад
                       </button>
-                      <button onClick={() => setErrorPage(p => Math.min(totalPages - 1, p + 1))} disabled={errorPage === totalPages - 1}
+                      <button onClick={() => setErrorPage(Math.min(totalPages - 1, page + 1))} disabled={page === totalPages - 1}
                         className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         Вперёд →
                       </button>
@@ -1286,7 +1299,7 @@ export default function DiagnosticReportPage() {
                       ? "Все выполненные задания решены верно"
                       : unavailable ? JOURNAL_UNAVAILABLE_TEXT : "В журнале нет записей об ошибках"}
                   </h2>
-                  {unavailable && meta.legacy && (
+                  {unavailable && meta.oldFormat && (
                     <p className="text-sm text-slate-600 leading-relaxed">{JOURNAL_UNAVAILABLE_LEGACY_TEXT}</p>
                   )}
                   {errorFree && (
@@ -1341,7 +1354,7 @@ export default function DiagnosticReportPage() {
             <motion.div variants={fade} className="min-w-0 space-y-6">
 
               {tabs?.skills === "empty" && (
-                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={skillsEmptyText(meta.legacy)} />
+                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={skillsEmptyText(meta.oldFormat)} />
               )}
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
@@ -1366,7 +1379,7 @@ export default function DiagnosticReportPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Темы, по которым были верные ответы в самом раннем классе диагностики.
+                          Основные темы, по которым были верные ответы в самом раннем классе диагностики.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1424,7 +1437,7 @@ export default function DiagnosticReportPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Навыки текущего класса, в которых были ошибки.
+                          Основные навыки текущего класса, в которых были ошибки.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1448,7 +1461,7 @@ export default function DiagnosticReportPage() {
                 <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-4">
                   <SectionHeader
                     icon={GitBranch}
-                    title="Цепочки диагностического спуска (Deep Scan) — Поиск первопричин"
+                    title="Цепочки диагностического спуска (Deep Scan)"
                     count={rj.root_cause_chains.length}
                     action={
                       <button
@@ -1471,16 +1484,24 @@ export default function DiagnosticReportPage() {
                             onClick={() => toggleChain(idx)}
                             className="px-4 sm:px-5 py-4 cursor-pointer hover:bg-slate-50/70 transition-colors flex flex-wrap items-center justify-between gap-x-4 gap-y-2 select-none"
                           >
-                            <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2.5 text-sm font-semibold text-slate-900 flex-1 basis-60 min-w-0">
-                              <span className="min-w-0 break-words">
-                                {ch.source_skill_name}{" "}
-                                <span className="text-xs font-medium text-slate-400 whitespace-nowrap">({ch.source_grade} кл)</span>
-                              </span>
-                              <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0 rotate-90 lg:rotate-0" />
-                              <span className="min-w-0 break-words font-medium text-rose-600">
-                                {ch.root_gap_skill_name}{" "}
-                                <span className="text-xs font-normal text-rose-500/80 whitespace-nowrap">({ch.root_gap_grade} кл)</span>
-                              </span>
+                            <div className="flex-1 basis-60 min-w-0 space-y-1.5">
+                              <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2.5 text-sm font-semibold text-slate-900 min-w-0">
+                                <span className="min-w-0 break-words">
+                                  {ch.source_skill_name}{" "}
+                                  <span className="text-xs font-medium text-slate-400 whitespace-nowrap">({ch.source_grade} кл)</span>
+                                </span>
+                                <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0 rotate-90 lg:rotate-0" />
+                                <span className="min-w-0 break-words font-medium text-rose-600">
+                                  {ch.root_gap_skill_name}{" "}
+                                  <span className="text-xs font-normal text-rose-500/80 whitespace-nowrap">({ch.root_gap_grade} кл)</span>
+                                </span>
+                              </div>
+                              {/* reconstructed from the answers, not a recorded deep-scan trajectory: neutral marker, no "confirmed" */}
+                              {isInferredChain(ch) && (
+                                <span data-testid="diagnostic-report-chain-inferred" className="inline-block max-w-full break-words text-[11px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">
+                                  {CHAIN_INFERRED_TEXT}
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-md">
@@ -1748,7 +1769,7 @@ export default function DiagnosticReportPage() {
           )}
           {activeTab === "plan" && tabs?.plan === "not_built" && (
             <motion.div variants={fade}>
-              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={planNotBuiltText(meta.legacy)} />
+              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={planNotBuiltText(meta.oldFormat)} />
             </motion.div>
           )}
           {activeTab === "plan" && rj.action_plan.length > 0 && (() => {

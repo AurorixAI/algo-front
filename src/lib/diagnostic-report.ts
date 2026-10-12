@@ -299,6 +299,29 @@ export const SECTION_LEGACY_TEXT = "Этот раздел не входит в �
 export const planNotBuiltText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : PLAN_NOT_BUILT_TEXT);
 export const skillsEmptyText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : SKILLS_EMPTY_TEXT);
 
+// ─── N04 round 3: journal paging survives a report swap ───────────────────────
+
+/** Page index clamped into [0, last page]: a shorter replacement report never shows an empty page. */
+export function clampPage(page: number, total: number, perPage: number): number {
+  const pages = perPage > 0 ? Math.ceil(Math.max(0, total) / perPage) : 0;
+  const last = Math.max(0, pages - 1);
+  const n = Number.isFinite(page) ? Math.trunc(page) : 0;
+  return Math.min(Math.max(0, n), last);
+}
+
+/**
+ * Identity of the report on screen. It changes when the report is REPLACED (a rebuild
+ * finishing: other build date / schema version / generation time / attempt), not when
+ * the same report is polled again - the page resets its UI state (journal page, expanded
+ * chains and clusters) on a change only.
+ */
+export function reportIdentity(response: { report_json?: unknown; generated_at?: unknown } | null | undefined): string {
+  const meta = isObj(response?.report_json) && isObj((response!.report_json as Obj).report_meta) ? (response!.report_json as Obj).report_meta : {};
+  return [meta.session_id, meta.generated_on, meta.report_schema_version, response?.generated_at]
+    .map((v) => (v === undefined || v === null ? "" : String(v)))
+    .join("|");
+}
+
 // ─── N04a: diagnostic boundary wording (owner decision O4) ────────────────────
 
 export interface BreakpointCopy {
@@ -313,27 +336,36 @@ export interface BreakpointCopy {
  *   confirmed - a deep-scan trajectory reached it: a factual «Подтверждённый пробел»;
  *   observed (or missing, old reports) - only the earliest grade with wrong answers:
  *             «Ключевой наблюдаемый дефицит», no causal wording.
+ * A "confirmed" boundary whose chains are ALL `evidence_source: "inferred"` (reconstructed
+ * from the answers, no stored deep-scan link) is not confirmed by a deep scan: observed wording.
  * «Глубоких сбоев не выявлено» is never printed after an incomplete deep scan.
+ * The skill lists of the boundary are capped by the backend (3 / 3 / 4): the texts say «основные».
  */
 export function breakpointCopy(
   boundary: { breakpoint_evidence?: unknown } | null | undefined,
   reportMeta: { deep_scan_incomplete?: unknown } | null | undefined,
+  chains?: Array<{ evidence_source?: unknown }> | null,
 ): BreakpointCopy {
   const incomplete = reportMeta?.deep_scan_incomplete === true;
-  const confirmed = boundary?.breakpoint_evidence === "confirmed";
+  const onlyInferred = Array.isArray(chains) && chains.length > 0 && chains.every((c) => c?.evidence_source === "inferred");
+  const confirmed = boundary?.breakpoint_evidence === "confirmed" && !onlyInferred;
   if (confirmed) {
     return {
       title: "Подтверждённый пробел (углублённая проверка)",
-      description: "Самый ранний класс среди пробелов, найденных углублённой проверкой.",
+      description: "Самый ранний класс среди пробелов, найденных углублённой проверкой; показаны основные навыки.",
       emptyText: incomplete ? "Углублённая проверка выполнена не полностью" : null,
     };
   }
   return {
     title: "Ключевой наблюдаемый дефицит",
-    description: "Навыки с ошибками в самом раннем классе среди заданий диагностики.",
+    description: "Основные навыки с ошибками в самом раннем классе, где были ошибки.",
     emptyText: incomplete ? "Углублённая проверка выполнена не полностью" : "Наблюдаемых дефицитов нет",
   };
 }
+
+/** The deep-scan chain was reconstructed from the answers (no stored link): shown with a neutral marker. */
+export const CHAIN_INFERRED_TEXT = "выведено по ответам, без углублённой проверки";
+export const isInferredChain = (chain: { evidence_source?: unknown } | null | undefined): boolean => chain?.evidence_source === "inferred";
 
 // ─── N04a: report polling ─────────────────────────────────────────────────────
 
@@ -396,8 +428,16 @@ export function nextReportPollStep(input: {
   return { kind: "wait", delayMs: reportPollDelayMs(input.attempt) };
 }
 
-/** Consecutive transient fetch failures (status 0 / 5xx / unknown) tolerated before the poll gives up. */
-export const REPORT_POLL_MAX_FAILURES = 3;
+/**
+ * Consecutive transient fetch failures that are tolerated (the poll backs off and goes on):
+ * the 3 first are, the 4th consecutive one ends the poll with an honest error.
+ * Transient = status 0 (network), 408, 429, 5xx or no status at all; any other 4xx fails at once.
+ */
+export const REPORT_POLL_TOLERATED_FAILURES = 3;
+
+export function isTransientStatus(status: number | null | undefined): boolean {
+  return status === null || status === undefined || status === 0 || status === 408 || status === 429 || status >= 500;
+}
 
 export interface ReportPollerState {
   phase: "polling" | "done" | "failed" | "invalid" | "exhausted" | "error";
@@ -420,8 +460,8 @@ export interface ReportPollerDeps {
  * The page's report poll as one object with injectable timers (so it is testable with
  * fake ones). Feed it every response with `ingest()` (the initial load included); it
  * decides with nextReportPollStep, polls with the backoff, never in a hidden tab,
- * tolerates up to REPORT_POLL_MAX_FAILURES consecutive transient failures (status 0,
- * 5xx), fails at once on 4xx, and after `cancel()` ignores every late response.
+ * tolerates REPORT_POLL_TOLERATED_FAILURES consecutive transient failures (status 0, 408,
+ * 429, 5xx; the next one fails), fails at once on other 4xx, and after `cancel()` ignores every late response.
  * One timer at most exists at any time.
  */
 export function createReportPoller(deps: ReportPollerDeps) {
@@ -456,9 +496,8 @@ export function createReportPoller(deps: ReportPollerDeps) {
     } catch (e: any) {
       if (cancelled || mine !== token) return;
       const status = typeof e?.status === "number" ? e.status : null;
-      const transient = status === null || status === 0 || status >= 500;
       failures += 1;
-      if (transient && failures < REPORT_POLL_MAX_FAILURES) {
+      if (isTransientStatus(status) && failures <= REPORT_POLL_TOLERATED_FAILURES) {
         if (attempt >= REPORT_POLL_MAX_ATTEMPTS) deps.onState({ phase: "exhausted", rebuilding: false });
         else schedule(reportPollDelayMs(attempt));
         return;
@@ -539,6 +578,11 @@ export interface ReportMetaInfo {
   degradedReasons: string[];
   /** The old report is shown while a new one is being built (historical rebuild). */
   rebuilding: boolean;
+  /**
+   * The report on screen is in the old format: `legacy` or, during a rebuild, the old report.
+   * Section placeholders and the journal line speak about the format, not about missing data.
+   */
+  oldFormat: boolean;
 }
 
 /**
@@ -554,13 +598,15 @@ export function reportMetaInfo(
   const reasons = Array.isArray(meta?.degraded) ? meta.degraded.filter((r: unknown): r is string => typeof r === "string") : [];
   const degraded = Array.isArray(meta?.degraded) ? meta.degraded.length > 0 : meta?.degraded === true;
   const rebuilding = isRebuildingReport(generation);
+  const legacy = generation?.is_current_schema === false && !degraded && !rebuilding;
   return {
     attemptDate: formatReportDate(meta?.date),
     generatedOn: formatReportDate(meta?.generated_on),
-    legacy: generation?.is_current_schema === false && !degraded && !rebuilding,
+    legacy,
     degraded,
     degradedReasons: reasons,
     rebuilding,
+    oldFormat: legacy || rebuilding,
   };
 }
 
@@ -593,7 +639,12 @@ export function loadErrorInfo(
   status: number | null | undefined,
   message: string | null | undefined,
   subject: "diagnostic" | "report",
+  retryable = true,
 ): LoadErrorInfo {
+  // a final error ("no attempt id") is not "temporary": no «временно», no retry
+  if (!retryable && status !== 403 && status !== 404) {
+    return { title: subject === "diagnostic" ? "Диагностика недоступна" : "Отчёт недоступен", text: message?.trim() || "Отчёт для этой диагностики недоступен.", retryable: false };
+  }
   if (status === 403) {
     return subject === "diagnostic"
       ? { title: "Нет доступа к этой диагностике", text: "У вашей учётной записи нет прав на просмотр этой диагностики. Если это ошибка, обратитесь к администратору.", retryable: false }

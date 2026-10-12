@@ -45,7 +45,8 @@
  *   s3-errorfree-empty  error-free, no achievements, no plan
  *   s4-long             3 long chains (long skill names, wide LaTeX answers),
  *                       4 cognitive patterns with 3 examples, full boundary
- *                       (breakpoint_evidence "confirmed"; s2-noplan has "observed")
+ *                       (breakpoint_evidence "confirmed"; s2-noplan has "observed";
+ *                       the 3rd chain has evidence_source "inferred" -> neutral marker)
  *   s5-pending          report pending (stays pending: watch the poll back off,
  *                       then «Отчёт формируется дольше обычного» after 40 polls)
  *   s5-failed           generation failed
@@ -60,6 +61,7 @@
  *   s9-deepscan-incomplete observed boundary, no breakpoint skills, report_meta.deep_scan_incomplete = true
  *   s9-rebuild          old report + generation pending/generating with is_current_schema=false, then the
  *                       new report after MOCK_FLIP_AFTER requests (page: old report + «Отчёт обновляется…»)
+ *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
  *   s6-partial          report_json = {} (nothing but empty shell)
@@ -165,6 +167,8 @@ const chain = (i, long) => ({
   anchor_skill_id: "ANC",
   anchor_skill_name: "Опорный навык",
   severity: "critical",
+  // backend evidence_source: stored_link = recorded deep-scan link; inferred = reconstructed from the answers
+  evidence_source: long && i === 2 ? "inferred" : "stored_link",
   steps_count: 3,
   steps: [0, 1, 2].map((k) => chainStep(k, long)),
 });
@@ -296,6 +300,11 @@ const SCENARIOS = {
     FLIP_AFTER > 0 && n > FLIP_AFTER
       ? envelope(errorsJson({ long: false, plan: true }))
       : envelope(legacyJson(), generation({ status: n > 2 ? "generating" : "pending", stage: "collecting_evidence", is_current_schema: false })),
+  // rebuild where the old report is LONGER (4 records, 2 journal pages) than the new one (2 records)
+  "s9-rebuild-long": (n) =>
+    FLIP_AFTER > 0 && n > FLIP_AFTER
+      ? envelope(errorsJson({ long: false, plan: true }))
+      : envelope(errorsJson({ long: true, plan: true, metaOver: { report_schema_version: 4, generated_on: "2026-09-01" } }), generation({ status: "generating", stage: "collecting_evidence", is_current_schema: false })),
   // truthy non-object report_json: must not poll forever
   "s9-invalid-json": () => envelope("oops", generation()),
   // transient server failures while polling: pending, 503, 503, then the report
