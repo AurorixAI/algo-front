@@ -63,14 +63,19 @@ export function isDevelopmentStep(step: PlanStepLike | null | undefined): boolea
 }
 
 /**
- * Error-free attempt. The backend flag `report_meta.error_free` wins; a report
- * without it falls back to the counts (every answer solved, no error journal).
+ * Error-free attempt: nothing contradicts it. The backend flag `report_meta.error_free`
+ * decides, but it cannot override facts of the same report: any error record, or any
+ * wrong answer counted by `report_meta` / `level` / the score (wrongAnswersState),
+ * makes the attempt not error-free. A report without the flag falls back to the
+ * counts (every answer solved).
  */
 export function isErrorFreeReport(report: ReportShapeLike | null | undefined): boolean {
+  if ((report?.error_patterns?.length ?? 0) > 0) return false;
+  if (wrongAnswersState(report as Obj | null | undefined) === "yes") return false;
   const meta = report?.report_meta;
   if (typeof meta?.error_free === "boolean") return meta.error_free;
   const total = meta?.total_questions ?? 0;
-  return total > 0 && meta?.questions_correct === total && (report?.error_patterns?.length ?? 0) === 0;
+  return total > 0 && meta?.questions_correct === total;
 }
 
 /** Name of the one recommended start (== first plan step); null when there is no plan. */
@@ -100,8 +105,12 @@ export function normalizeReportJson(raw: unknown): Obj | null {
   if (!isObj(raw)) return null;
   const out: Obj = { ...raw };
   for (const key of [
-    "error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "achievements",
+    "error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps",
   ]) out[key] = asObjArray(raw[key]);
+  // `achievements` exists only in schema 5: an absent key stays absent (that is how
+  // reportAchievements tells "none confirmed" from "an older report").
+  if (Array.isArray(raw.achievements)) out.achievements = asObjArray(raw.achievements);
+  else delete out.achievements;
   out.report_meta = isObj(raw.report_meta) ? raw.report_meta : {};
   out.overall = isObj(raw.overall) ? raw.overall : {};
   out.root_cause_chains = asObjArray(raw.root_cause_chains).map((chain) => {
@@ -114,11 +123,10 @@ export function normalizeReportJson(raw: unknown): Obj | null {
   });
   out.cognitive_error_types = asObjArray(raw.cognitive_error_types).map((cluster) => {
     const examples = asObjArray(cluster.examples);
-    return {
-      ...cluster,
-      examples,
-      count: typeof cluster.count === "number" ? cluster.count : examples.length,
-    };
+    // a missing count stays missing (the page hides the badge): examples are a sample, not the total
+    const out2: Obj = { ...cluster, examples };
+    if (typeof cluster.count !== "number") delete out2.count;
+    return out2;
   });
   if (isObj(raw.diagnostic_boundary)) {
     const b = raw.diagnostic_boundary;
@@ -153,15 +161,47 @@ export function reportWrongCount(meta: { total_questions?: unknown; questions_co
   return Math.max(0, total - correct);
 }
 
-/** Skills solved without a wrong attempt: `achievements`, else the strong skills of an older report. */
-export function reportAchievements(report: Obj | null | undefined): Obj[] {
-  const own = asObjArray(report?.achievements);
-  if (own.length > 0) return own;
-  return asObjArray(report?.strong_skills).map((s) => ({
+/**
+ * Skills solved without a wrong attempt. Schema 5 carries `achievements` (verified:
+ * possibly an empty list, which stays empty). Only a report WITHOUT that key falls back
+ * to `strong_skills` - a model estimate (mastery), not a verified fact: `fallback` says so
+ * and the page labels it «Сильные стороны (по оценке модели)».
+ */
+export function resolveAchievements(report: Obj | null | undefined): { items: Obj[]; fallback: boolean } {
+  if (Array.isArray(report?.achievements)) return { items: asObjArray(report?.achievements), fallback: false };
+  const items = asObjArray(report?.strong_skills).map((s) => ({
     skill_id: s.skill_id,
     skill_name_ru: s.skill_name_ru,
     mastery_percent: s.mastery_percent,
   }));
+  return { items, fallback: items.length > 0 };
+}
+
+export function reportAchievements(report: Obj | null | undefined): Obj[] {
+  return resolveAchievements(report).items;
+}
+
+// ─── N04a: Russian plurals and step outcome ───────────────────────────────────
+
+/** 1 шаг / 2 шага / 5 шагов / 11 шагов / 21 шаг / 22 шага / 0 шагов. */
+export function pluralRu(n: number, one: string, few: string, many: string): string {
+  const v = Number.isFinite(n) ? Math.abs(Math.trunc(n)) : 0;
+  const tail = v % 100;
+  const last = v % 10;
+  if (tail >= 11 && tail <= 14) return many;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
+  return many;
+}
+export const stepsLabel = (n: number) => `${n} ${pluralRu(n, "шаг", "шага", "шагов")}`;
+export const errorsLabel = (n: number) => `${n} ${pluralRu(n, "ошибка", "ошибки", "ошибок")}`;
+export const tasksLabel = (n: number) => `${n} ${pluralRu(n, "задание", "задания", "заданий")}`;
+export const stagesLabel = (n: number) => `${n} ${pluralRu(n, "этап", "этапа", "этапов")}`;
+
+/** Outcome of a deep-scan step: only a number is a fact; a missing outcome is "unknown", never an error. */
+export function stepOutcomeState(outcome: unknown): "correct" | "wrong" | "unknown" {
+  if (typeof outcome !== "number" || !Number.isFinite(outcome)) return "unknown";
+  return outcome >= 1 ? "correct" : "wrong";
 }
 
 // ─── N04a: no blank tab ───────────────────────────────────────────────────────
@@ -239,9 +279,10 @@ export function tabContentState(report: Obj | null | undefined): TabContentState
 
   const hasChains = asObjArray(report?.root_cause_chains).length > 0;
   const hasClusters = asObjArray(report?.cognitive_error_types).length > 0;
-  const skillsHaveContent = errorFree
-    ? reportAchievements(report).length > 0 || hasClusters
-    : hasBoundaryData(report?.diagnostic_boundary) || hasChains || hasClusters;
+  // the chains block renders for error-free and for other attempts alike
+  const skillsHaveContent =
+    hasChains || hasClusters ||
+    (errorFree ? reportAchievements(report).length > 0 : hasBoundaryData(report?.diagnostic_boundary));
 
   let planState: PlanTabState;
   if (plan.length > 0) planState = errorFree ? "error_free_with_step" : "plan";
@@ -253,6 +294,46 @@ export function tabContentState(report: Obj | null | undefined): TabContentState
 export const PLAN_NOT_NEEDED_TEXT = "Коррекционный план не нужен: ошибок не обнаружено";
 export const PLAN_NOT_BUILT_TEXT = "План не сформирован: недостаточно данных для рекомендаций";
 export const SKILLS_EMPTY_TEXT = "Недостаточно данных для анализа навыков";
+/** An old-format report simply has no such section: say that instead of "not enough data". */
+export const SECTION_LEGACY_TEXT = "Этот раздел не входит в отчёт старого формата";
+export const planNotBuiltText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : PLAN_NOT_BUILT_TEXT);
+export const skillsEmptyText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : SKILLS_EMPTY_TEXT);
+
+// ─── N04a: diagnostic boundary wording (owner decision O4) ────────────────────
+
+export interface BreakpointCopy {
+  title: string;
+  description: string;
+  /** Shown when no skill is named; null = say nothing. */
+  emptyText: string | null;
+}
+
+/**
+ * The "breakpoint" card says only what its evidence supports. `breakpoint_evidence`:
+ *   confirmed - a deep-scan trajectory reached it: a factual «Подтверждённый пробел»;
+ *   observed (or missing, old reports) - only the earliest grade with wrong answers:
+ *             «Ключевой наблюдаемый дефицит», no causal wording.
+ * «Глубоких сбоев не выявлено» is never printed after an incomplete deep scan.
+ */
+export function breakpointCopy(
+  boundary: { breakpoint_evidence?: unknown } | null | undefined,
+  reportMeta: { deep_scan_incomplete?: unknown } | null | undefined,
+): BreakpointCopy {
+  const incomplete = reportMeta?.deep_scan_incomplete === true;
+  const confirmed = boundary?.breakpoint_evidence === "confirmed";
+  if (confirmed) {
+    return {
+      title: "Подтверждённый пробел (углублённая проверка)",
+      description: "Самый ранний класс среди пробелов, найденных углублённой проверкой.",
+      emptyText: incomplete ? "Углублённая проверка выполнена не полностью" : null,
+    };
+  }
+  return {
+    title: "Ключевой наблюдаемый дефицит",
+    description: "Навыки с ошибками в самом раннем классе среди заданий диагностики.",
+    emptyText: incomplete ? "Углублённая проверка выполнена не полностью" : "Наблюдаемых дефицитов нет",
+  };
+}
 
 // ─── N04a: report polling ─────────────────────────────────────────────────────
 
@@ -267,15 +348,34 @@ export function reportPollDelayMs(attempt: number): number {
   return Math.min(REPORT_POLL_FIRST_DELAY_MS + n * 500, REPORT_POLL_MAX_DELAY_MS);
 }
 
+export type ReportJsonState = "ok" | "missing" | "invalid";
+
+/** "ok" = a report object the page can render; "invalid" = something else (string, list, number). */
+export function reportJsonState(raw: unknown): ReportJsonState {
+  if (raw === null || raw === undefined) return "missing";
+  return normalizeReportJson(raw) ? "ok" : "invalid";
+}
+
+/**
+ * A historical rebuild keeps the OLD report_json while the new one is generated: the
+ * old report stays on screen, flagged «Отчёт обновляется…», and the poll continues.
+ */
+export function isRebuildingReport(generation: { status?: string | null; is_current_schema?: boolean | null } | null | undefined): boolean {
+  return generation?.is_current_schema === false && (generation?.status === "pending" || generation?.status === "generating");
+}
+
 export type ReportPollStep =
   | { kind: "done" }
   | { kind: "failed" }
+  | { kind: "invalid" }
   | { kind: "exhausted" }
   | { kind: "wait"; delayMs: number };
 
 /**
  * After a load / poll response decide what the page does next.
- *  - the report is there: stop (whatever the generation status says);
+ *  - report_json is not a report object: stop, "unavailable" with a manual retry;
+ *  - a usable report is there: stop - unless it is the old report of a running
+ *    rebuild (is_current_schema === false and pending / generating): poll on;
  *  - generation failed (and no report): stop, the page shows the failure;
  *  - the cap is reached: stop and offer a manual re-check;
  *  - anything else polls: pending / generating, but also a null report and
@@ -284,13 +384,133 @@ export type ReportPollStep =
  */
 export function nextReportPollStep(input: {
   attempt: number;
-  hasReportJson: boolean;
+  jsonState: ReportJsonState;
   status?: string | null;
+  isCurrentSchema?: boolean | null;
 }): ReportPollStep {
-  if (input.hasReportJson) return { kind: "done" };
-  if (input.status === "failed") return { kind: "failed" };
+  if (input.jsonState === "invalid") return { kind: "invalid" };
+  const rebuilding = input.jsonState === "ok" && isRebuildingReport({ status: input.status, is_current_schema: input.isCurrentSchema });
+  if (input.jsonState === "ok" && !rebuilding) return { kind: "done" };
+  if (input.jsonState === "missing" && input.status === "failed") return { kind: "failed" };
   if (input.attempt >= REPORT_POLL_MAX_ATTEMPTS) return { kind: "exhausted" };
   return { kind: "wait", delayMs: reportPollDelayMs(input.attempt) };
+}
+
+/** Consecutive transient fetch failures (status 0 / 5xx / unknown) tolerated before the poll gives up. */
+export const REPORT_POLL_MAX_FAILURES = 3;
+
+export interface ReportPollerState {
+  phase: "polling" | "done" | "failed" | "invalid" | "exhausted" | "error";
+  /** Latest report response (null for `{report: null}`); absent on phase "exhausted" / "error" that keep the last one. */
+  response?: any | null;
+  /** The old report of a running rebuild is on screen and a new one is being built. */
+  rebuilding: boolean;
+  error?: { status: number | null; message: string };
+}
+
+export interface ReportPollerDeps {
+  fetchReport: () => Promise<any>;
+  setTimeout: (fn: () => void, ms: number) => unknown;
+  clearTimeout: (handle: unknown) => void;
+  isHidden: () => boolean;
+  onState: (state: ReportPollerState) => void;
+}
+
+/**
+ * The page's report poll as one object with injectable timers (so it is testable with
+ * fake ones). Feed it every response with `ingest()` (the initial load included); it
+ * decides with nextReportPollStep, polls with the backoff, never in a hidden tab,
+ * tolerates up to REPORT_POLL_MAX_FAILURES consecutive transient failures (status 0,
+ * 5xx), fails at once on 4xx, and after `cancel()` ignores every late response.
+ * One timer at most exists at any time.
+ */
+export function createReportPoller(deps: ReportPollerDeps) {
+  let cancelled = false;
+  let timer: unknown = null;
+  let attempt = 0;          // polls made after the initial load
+  let failures = 0;         // consecutive transient failures
+  let token = 0;            // identifies the in-flight request
+  let waitingForVisible = false;
+
+  const clear = () => {
+    if (timer !== null) { deps.clearTimeout(timer); timer = null; }
+  };
+  const schedule = (ms: number) => {
+    clear();
+    timer = deps.setTimeout(tick, ms);
+  };
+
+  function tick() {
+    timer = null;
+    if (cancelled) return;
+    if (deps.isHidden()) { waitingForVisible = true; return; }
+    void poll();
+  }
+
+  async function poll() {
+    attempt += 1;
+    const mine = ++token;
+    let response: any;
+    try {
+      response = await deps.fetchReport();
+    } catch (e: any) {
+      if (cancelled || mine !== token) return;
+      const status = typeof e?.status === "number" ? e.status : null;
+      const transient = status === null || status === 0 || status >= 500;
+      failures += 1;
+      if (transient && failures < REPORT_POLL_MAX_FAILURES) {
+        if (attempt >= REPORT_POLL_MAX_ATTEMPTS) deps.onState({ phase: "exhausted", rebuilding: false });
+        else schedule(reportPollDelayMs(attempt));
+        return;
+      }
+      deps.onState({ phase: "error", rebuilding: false, error: { status, message: String(e?.message || "") } });
+      return;
+    }
+    if (cancelled || mine !== token) return;
+    ingest(response);
+  }
+
+  function ingest(raw: any) {
+    if (cancelled) return;
+    failures = 0;
+    waitingForVisible = false;
+    clear();
+    const response = raw && typeof raw === "object" && "report" in raw && raw.report === null ? null : raw;
+    const generation = response?.report_generation;
+    const jsonState = reportJsonState(response?.report_json);
+    const step = nextReportPollStep({
+      attempt,
+      jsonState,
+      status: generation?.status,
+      isCurrentSchema: generation?.is_current_schema,
+    });
+    const rebuilding = jsonState === "ok" && isRebuildingReport(generation);
+    if (step.kind === "wait") {
+      deps.onState({ phase: "polling", response, rebuilding });
+      schedule(step.delayMs);
+    } else if (step.kind === "exhausted") {
+      deps.onState({ phase: "exhausted", response, rebuilding });
+    } else {
+      deps.onState({ phase: step.kind, response, rebuilding: false });
+    }
+  }
+
+  return {
+    /** Process a report response (initial load or poll). */
+    ingest,
+    /** The tab may be visible again: resume ONE pending poll (repeated events do nothing). */
+    visibilityChanged() {
+      if (cancelled || !waitingForVisible || deps.isHidden()) return;
+      waitingForVisible = false;
+      tick();
+    },
+    /** Stop: clears the timer, late responses are ignored. */
+    cancel() {
+      cancelled = true;
+      token += 1;
+      clear();
+    },
+  };
 }
 
 // ─── N04a: stale / degraded / dates ───────────────────────────────────────────
@@ -315,24 +535,45 @@ export interface ReportMetaInfo {
   legacy: boolean;
   /** Part of the reference data (names / hierarchy) was unavailable when it was built. */
   degraded: boolean;
+  /** Backend reasons of the degradation (report_meta.degraded), e.g. skill_names, knowledge_hierarchy. */
+  degradedReasons: string[];
+  /** The old report is shown while a new one is being built (historical rebuild). */
+  rebuilding: boolean;
 }
 
 /**
  * A degraded report is stamped "not current" by the backend, but it is not an old
- * format: the degraded note wins and `legacy` is then false.
+ * format: the degraded note wins and `legacy` is then false. While a rebuild runs the
+ * old report is "being updated", not just "old".
  */
 export function reportMetaInfo(
-  generation: { is_current_schema?: boolean | null } | null | undefined,
+  generation: { status?: string | null; is_current_schema?: boolean | null } | null | undefined,
   report: { report_meta?: Obj | null } | null | undefined,
 ): ReportMetaInfo {
   const meta = report?.report_meta;
+  const reasons = Array.isArray(meta?.degraded) ? meta.degraded.filter((r: unknown): r is string => typeof r === "string") : [];
   const degraded = Array.isArray(meta?.degraded) ? meta.degraded.length > 0 : meta?.degraded === true;
+  const rebuilding = isRebuildingReport(generation);
   return {
     attemptDate: formatReportDate(meta?.date),
     generatedOn: formatReportDate(meta?.generated_on),
-    legacy: generation?.is_current_schema === false && !degraded,
+    legacy: generation?.is_current_schema === false && !degraded && !rebuilding,
     degraded,
+    degradedReasons: reasons,
+    rebuilding,
   };
+}
+
+const DEGRADED_REASON_TEXT: Record<string, string> = {
+  skill_names: "названия тем могут отображаться неполностью",
+  knowledge_hierarchy: "группировка по разделам может быть неполной",
+};
+
+/** Neutral note of a degraded report, worded by the backend's reasons. */
+export function degradedNote(reasons: string[] | null | undefined): string {
+  const parts = (reasons ?? []).map((r) => DEGRADED_REASON_TEXT[r]).filter(Boolean);
+  const detail = parts.length > 0 ? parts.join("; ") : "некоторые данные могут отображаться неполностью";
+  return `При подготовке отчёта часть справочных данных была недоступна: ${detail}.`;
 }
 
 // ─── N04a: load error screens ─────────────────────────────────────────────────

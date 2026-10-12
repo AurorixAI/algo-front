@@ -33,8 +33,16 @@ test("hoursLabel pluralises Russian hours", () => {
   assert.equal(R.hoursLabel(21), "~21 час");
 });
 
-test("error-free scenario: backend flag wins, counts are the fallback", () => {
-  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true, total_questions: 10, questions_correct: 9 } }), true);
+test("error-free scenario: the flag decides but cannot override the report's own facts; counts are the fallback", () => {
+  // flag true is contradicted by a wrong answer / an error record / a level: not error-free (R3 finding 7)
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true, total_questions: 10, questions_correct: 9 } }), false);
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true, total_questions: 10, questions_correct: 10 }, error_patterns: [{}] }), false);
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true }, level: { solved: 5, total: 8 } }), false);
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true }, overall: { score_percent: 80 } }), false);
+  // ... and consistent with it: error-free
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true, total_questions: 10, questions_correct: 10 }, error_patterns: [] }), true);
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true } }), true); // no numbers at all: the flag stands
+  assert.equal(R.isErrorFreeReport({ report_meta: { error_free: true }, level: { solved: 8, total: 8 } }), true);
   assert.equal(R.isErrorFreeReport({ report_meta: { error_free: false, total_questions: 10, questions_correct: 10 } }), false);
   assert.equal(R.isErrorFreeReport({ report_meta: { total_questions: 10, questions_correct: 10 }, error_patterns: [] }), true);
   assert.equal(R.isErrorFreeReport({ report_meta: { total_questions: 10, questions_correct: 9 }, error_patterns: [{}] }), false);
@@ -86,9 +94,13 @@ test("normalizeReportJson: old / partial report_json never leaves a missing list
   assert.equal(R.normalizeReportJson([]), null);
   assert.equal(R.normalizeReportJson("x"), null);
   const n = R.normalizeReportJson({});
-  for (const key of ["error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "achievements", "root_cause_chains", "cognitive_error_types"]) {
+  for (const key of ["error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "root_cause_chains", "cognitive_error_types"]) {
     assert.deepEqual(n[key], [], key);
   }
+  // `achievements` exists in schema 5 only: absent stays absent, present stays (even empty)
+  assert.equal("achievements" in n, false);
+  assert.deepEqual(R.normalizeReportJson({ achievements: [] }).achievements, []);
+  assert.deepEqual(R.normalizeReportJson({ achievements: [{ skill_id: "A" }, null] }).achievements, [{ skill_id: "A" }]);
   assert.deepEqual(n.report_meta, {});
   assert.deepEqual(n.overall, {});
   assert.equal("diagnostic_boundary" in n, false);
@@ -106,7 +118,9 @@ test("normalizeReportJson: partial chain / cluster / boundary objects get safe l
     diagnostic_boundary: { anchor_level: "5 класс", anchor_skills: ["Дроби", 7, ""] },
   });
   assert.deepEqual(n.root_cause_chains.map((c) => [c.steps.length, c.steps_count]), [[0, 0], [2, 5]]);
-  assert.deepEqual(n.cognitive_error_types.map((c) => [c.examples.length, c.count]), [[0, 0], [3, 9]]);
+  // a missing count is NOT replaced by the number of examples (a sample, not the total)
+  assert.deepEqual(n.cognitive_error_types.map((c) => [c.examples.length, c.count]), [[0, undefined], [3, 9]]);
+  assert.equal("count" in n.cognitive_error_types[0], false);
   assert.deepEqual(n.diagnostic_boundary.anchor_skills, ["Дроби"]);
   assert.deepEqual(n.diagnostic_boundary.breakpoint_skills, []);
   assert.equal(n.diagnostic_boundary.blocked_level, "");
@@ -226,28 +240,47 @@ test("polling backoff: 2 s growing to a 10 s cap", () => {
 });
 
 test("polling decisions: pending / generating / null report / ready-without-json all poll", () => {
-  const wait = (status, hasReportJson = false, attempt = 0) => R.nextReportPollStep({ attempt, hasReportJson, status });
+  const wait = (status, jsonState = "missing", attempt = 0) => R.nextReportPollStep({ attempt, jsonState, status });
   assert.deepEqual(wait("pending"), { kind: "wait", delayMs: 2000 });
-  assert.deepEqual(wait("generating", false, 3), { kind: "wait", delayMs: 3500 });
+  assert.deepEqual(wait("generating", "missing", 3), { kind: "wait", delayMs: 3500 });
   assert.equal(wait(undefined).kind, "wait"); // {report: null}
   assert.equal(wait(null).kind, "wait");
   assert.equal(wait("ready").kind, "wait"); // ready but report_json not there yet
 });
 
-test("polling stops: report present, failed, or the cap is reached", () => {
-  assert.deepEqual(R.nextReportPollStep({ attempt: 0, hasReportJson: true, status: "ready" }), { kind: "done" });
-  assert.deepEqual(R.nextReportPollStep({ attempt: 5, hasReportJson: true, status: "generating" }), { kind: "done" });
-  assert.deepEqual(R.nextReportPollStep({ attempt: 0, hasReportJson: false, status: "failed" }), { kind: "failed" });
-  assert.deepEqual(R.nextReportPollStep({ attempt: R.REPORT_POLL_MAX_ATTEMPTS, hasReportJson: false, status: "pending" }), { kind: "exhausted" });
+test("polling stops: usable report, failed, unusable json, or the cap is reached", () => {
+  const step = (o) => R.nextReportPollStep({ attempt: 0, ...o });
+  assert.deepEqual(step({ jsonState: "ok", status: "ready" }), { kind: "done" });
+  assert.deepEqual(step({ attempt: 5, jsonState: "ok", status: "generating", isCurrentSchema: true }), { kind: "done" });
+  assert.deepEqual(step({ jsonState: "ok", status: "failed", isCurrentSchema: false }), { kind: "done" }); // old report stays
+  assert.deepEqual(step({ jsonState: "missing", status: "failed" }), { kind: "failed" });
+  assert.deepEqual(step({ jsonState: "invalid", status: "ready" }), { kind: "invalid" }); // truthy non-object json (R3 finding 2)
+  assert.deepEqual(step({ attempt: R.REPORT_POLL_MAX_ATTEMPTS, jsonState: "missing", status: "pending" }), { kind: "exhausted" });
   assert.equal(R.REPORT_POLL_MAX_ATTEMPTS, 40);
-  // exactly 40 polls happen, then it is exhausted
   let polls = 0;
   for (;;) {
-    const step = R.nextReportPollStep({ attempt: polls, hasReportJson: false, status: "generating" });
-    if (step.kind !== "wait") { assert.equal(step.kind, "exhausted"); break; }
+    const next = R.nextReportPollStep({ attempt: polls, jsonState: "missing", status: "generating" });
+    if (next.kind !== "wait") { assert.equal(next.kind, "exhausted"); break; }
     polls += 1;
   }
   assert.equal(polls, 40);
+});
+
+test("historical rebuild: the old report stays, polling continues until the new schema is ready", () => {
+  const old = { jsonState: "ok", isCurrentSchema: false };
+  assert.equal(R.nextReportPollStep({ attempt: 0, ...old, status: "pending" }).kind, "wait");
+  assert.equal(R.nextReportPollStep({ attempt: 7, ...old, status: "generating" }).kind, "wait");
+  assert.equal(R.nextReportPollStep({ attempt: R.REPORT_POLL_MAX_ATTEMPTS, ...old, status: "generating" }).kind, "exhausted");
+  assert.equal(R.nextReportPollStep({ attempt: 0, ...old, status: "ready" }).kind, "done");
+  assert.equal(R.nextReportPollStep({ attempt: 0, jsonState: "ok", isCurrentSchema: true, status: "generating" }).kind, "done");
+  assert.equal(R.isRebuildingReport({ status: "generating", is_current_schema: false }), true);
+  assert.equal(R.isRebuildingReport({ status: "pending", is_current_schema: false }), true);
+  assert.equal(R.isRebuildingReport({ status: "ready", is_current_schema: false }), false);
+  assert.equal(R.isRebuildingReport({ status: "pending" }), false);
+  assert.equal(R.reportJsonState(undefined), "missing");
+  assert.equal(R.reportJsonState(null), "missing");
+  assert.equal(R.reportJsonState({}), "ok");
+  for (const bad of ["oops", [], 7, true]) assert.equal(R.reportJsonState(bad), "invalid");
 });
 
 test("the cap mirrors the student result page", () => {
@@ -262,16 +295,30 @@ test("report dates: attempt date and build date are formatted, junk is dropped",
   for (const bad of [null, undefined, 20261004, "", "04.10.2026", "2026-13-01", "2026-00-10", "2026-10-32"]) assert.equal(R.formatReportDate(bad), null);
 });
 
-test("stale / degraded notes: legacy only when the backend says not current and the report is not degraded", () => {
+test("stale / degraded notes: legacy only when the backend says not current and the report is not degraded or rebuilding", () => {
   const rj = { report_meta: { date: "2026-10-04", generated_on: "2026-10-12" } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true }, rj), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false });
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true }, rj), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false });
   assert.equal(R.reportMetaInfo({ is_current_schema: false }, rj).legacy, true);
+  assert.equal(R.reportMetaInfo({ is_current_schema: false, status: "ready" }, rj).legacy, true);
   assert.equal(R.reportMetaInfo({}, rj).legacy, false); // unknown is not "old"
   assert.equal(R.reportMetaInfo(undefined, rj).legacy, false);
   const degraded = { report_meta: { degraded: ["skill_names"] } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true });
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false });
   assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { degraded: [] } }).degraded, false);
   assert.equal(R.reportMetaInfo(null, null).degraded, false);
+  // a running rebuild: «обновляется», not «старый формат»
+  const rebuilding = R.reportMetaInfo({ is_current_schema: false, status: "generating" }, rj);
+  assert.equal(rebuilding.rebuilding, true);
+  assert.equal(rebuilding.legacy, false);
+});
+
+test("degraded note names what the backend says was unavailable", () => {
+  assert.match(R.degradedNote(["skill_names"]), /названия тем/);
+  assert.match(R.degradedNote(["knowledge_hierarchy"]), /группировка по разделам/);
+  const both = R.degradedNote(["skill_names", "knowledge_hierarchy"]);
+  assert.ok(/названия тем/.test(both) && /разделам/.test(both));
+  for (const generic of [[], ["something_new"], undefined]) assert.match(R.degradedNote(generic), /некоторые данные могут отображаться неполностью/);
+  assert.equal(/первопричин|надёжност|%/i.test(both), false);
 });
 
 test("error screens: 403 / 404 have their own text and no «Повторить»; other errors retry", () => {
@@ -299,11 +346,11 @@ test("report page contract (N04a): tabs a11y, no fixed-1800ms poll, no fake task
     assert.ok(page.includes(needle), `missing ${needle}`);
   }
   // polling goes through the pure schedule, never a fixed unlimited interval
-  assert.ok(page.includes("nextReportPollStep"));
+  assert.ok(page.includes("createReportPoller"));
   assert.equal(/setTimeout\([^)]*,\s*1800\)/.test(page), false);
   assert.ok(page.includes("document.hidden"));
   // placeholders come from the tested constants
-  for (const name of ["PLAN_NOT_NEEDED_TEXT", "PLAN_NOT_BUILT_TEXT", "SKILLS_EMPTY_TEXT", "JOURNAL_UNAVAILABLE_TEXT", "JOURNAL_UNAVAILABLE_LEGACY_TEXT"]) assert.ok(page.includes(name), name);
+  for (const name of ["PLAN_NOT_NEEDED_TEXT", "planNotBuiltText", "skillsEmptyText", "JOURNAL_UNAVAILABLE_TEXT", "JOURNAL_UNAVAILABLE_LEGACY_TEXT"]) assert.ok(page.includes(name), name);
   // a missing task statement is never replaced by the skill name
   assert.equal(page.includes("fallbackText={err.skill_name_ru}"), false);
   assert.ok(page.includes("Условие задания недоступно"));
@@ -317,7 +364,339 @@ test("report page contract (N04a): tabs a11y, no fixed-1800ms poll, no fake task
     assert.ok(fs.existsSync(boundary), `${dir} error.tsx`);
     assert.ok(fs.readFileSync(boundary, "utf8").startsWith('"use client"'));
   }
+});
+
+// ─── N04 round 2 (R3 findings) ────────────────────────────────────────────────
+
+test("Russian plurals of the counters (шаг / ошибка / задание / этап)", () => {
+  const steps = [0, 1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111].map((n) => R.stepsLabel(n));
+  assert.deepEqual(steps, ["0 шагов", "1 шаг", "2 шага", "4 шага", "5 шагов", "11 шагов", "12 шагов", "14 шагов", "21 шаг", "22 шага", "25 шагов", "101 шаг", "111 шагов"]);
+  assert.deepEqual([1, 2, 5, 21].map(R.errorsLabel), ["1 ошибка", "2 ошибки", "5 ошибок", "21 ошибка"]);
+  assert.deepEqual([1, 3, 10, 22].map(R.tasksLabel), ["1 задание", "3 задания", "10 заданий", "22 задания"]);
+  assert.deepEqual([1, 2, 5].map(R.stagesLabel), ["1 этап", "2 этапа", "5 этапов"]);
+  assert.equal(R.pluralRu(Number.NaN, "a", "b", "c"), "c");
+});
+
+test("a deep-scan step without a numeric outcome is «unknown», never an error", () => {
+  assert.equal(R.stepOutcomeState(1), "correct");
+  assert.equal(R.stepOutcomeState(1.0), "correct");
+  assert.equal(R.stepOutcomeState(0), "wrong");
+  assert.equal(R.stepOutcomeState(0.5), "wrong");
+  for (const bad of [undefined, null, "1", Number.NaN]) assert.equal(R.stepOutcomeState(bad), "unknown");
+});
+
+test("achievements: the verified list (even empty) is never replaced by model-estimated strong skills", () => {
+  const strong = [{ skill_id: "B", skill_name_ru: "Степени", mastery_percent: 90 }];
+  assert.deepEqual(R.resolveAchievements({ achievements: [], strong_skills: strong }), { items: [], fallback: false });
+  assert.deepEqual(R.resolveAchievements({ achievements: [{ skill_id: "A" }], strong_skills: strong }), { items: [{ skill_id: "A" }], fallback: false });
+  assert.equal(R.resolveAchievements({ strong_skills: strong }).fallback, true);
+  assert.deepEqual(R.resolveAchievements({}), { items: [], fallback: false });
+  // after the page's normalisation the absent key is still absent: schema-5 empty stays empty
+  const raw5 = { achievements: [], strong_skills: strong };
+  assert.deepEqual(R.reportAchievements(R.normalizeReportJson(raw5)), []);
+  assert.equal(R.reportAchievements(R.normalizeReportJson({ strong_skills: strong })).length, 1);
+});
+
+test("breakpoint wording follows the backend evidence (owner decision O4)", () => {
+  const confirmed = R.breakpointCopy({ breakpoint_evidence: "confirmed" }, { deep_scan_incomplete: false });
+  assert.equal(confirmed.title, "Подтверждённый пробел (углублённая проверка)");
+  const observed = R.breakpointCopy({ breakpoint_evidence: "observed" }, {});
+  assert.equal(observed.title, "Ключевой наблюдаемый дефицит");
+  // an old report without the field is "observed", never "confirmed"
+  assert.equal(R.breakpointCopy({}, {}).title, "Ключевой наблюдаемый дефицит");
+  assert.equal(R.breakpointCopy(null, null).title, "Ключевой наблюдаемый дефицит");
+  for (const copy of [confirmed, observed]) {
+    assert.equal(/слом|разрушен|первопричин|пререквизит|надёжност/i.test(copy.title + copy.description), false, JSON.stringify(copy));
+  }
+  // «Глубоких сбоев не выявлено» is never said, least of all after an incomplete deep scan
+  for (const evidence of ["confirmed", "observed", undefined]) {
+    const incomplete = R.breakpointCopy({ breakpoint_evidence: evidence }, { deep_scan_incomplete: true });
+    assert.equal(incomplete.emptyText, "Углублённая проверка выполнена не полностью");
+    const complete = R.breakpointCopy({ breakpoint_evidence: evidence }, { deep_scan_incomplete: false });
+    assert.notEqual(complete.emptyText, "Углублённая проверка выполнена не полностью");
+    assert.equal(/Глубоких сбоев/.test(String(complete.emptyText)), false);
+  }
+  assert.equal(R.breakpointCopy({ breakpoint_evidence: "confirmed" }, {}).emptyText, null);
+});
+
+test("skills tab: the chains block counts for an error-free report as well", () => {
+  assert.equal(R.tabContentState({ report_meta: freeMeta, root_cause_chains: [{}] }).skills, "content");
+  assert.equal(R.tabContentState({ report_meta: freeMeta }).skills, "empty");
+});
+
+test("placeholders of an old-format report say the section does not exist, not «not enough data»", () => {
+  assert.equal(R.skillsEmptyText(true), "Этот раздел не входит в отчёт старого формата");
+  assert.equal(R.planNotBuiltText(true), "Этот раздел не входит в отчёт старого формата");
+  assert.equal(R.skillsEmptyText(false), R.SKILLS_EMPTY_TEXT);
+  assert.equal(R.planNotBuiltText(false), R.PLAN_NOT_BUILT_TEXT);
+});
+
+test("path ids are decoded once, then encoded: no double encoding", () => {
+  const { encodePathId } = require(path.join(__dirname, "../src/lib/encode-id.ts"));
+  assert.equal(encodePathId("abc-123"), "abc-123");
+  assert.equal(encodePathId("a/b"), "a%2Fb");
+  assert.equal(encodePathId("a%2Fb"), "a%2Fb"); // already encoded by the router
+  assert.equal(encodePathId("a b"), "a%20b");
+  assert.equal(encodePathId("a%20b"), "a%20b");
+  assert.equal(encodePathId("100%"), "100%25"); // not valid percent-encoding: encoded as is
+  assert.equal(encodePathId("%E0%A4%A"), "%25E0%25A4%25A");
+});
+
+// ─── report poller with fake timers ───────────────────────────────────────────
+
+const flush = async () => { for (let i = 0; i < 6; i++) await Promise.resolve(); };
+
+function fakeClock() {
+  let now = 0;
+  let seq = 0;
+  const timers = new Map();
+  return {
+    setTimeout(fn, ms) { const id = ++seq; timers.set(id, { at: now + ms, fn }); return id; },
+    clearTimeout(id) { timers.delete(id); },
+    get pending() { return timers.size; },
+    get now() { return now; },
+    async advance(ms) {
+      const end = now + ms;
+      for (;;) {
+        let next = null;
+        for (const [id, t] of timers) if (t.at <= end && (!next || t.at < next.t.at)) next = { id, t };
+        if (!next) break;
+        timers.delete(next.id);
+        now = next.t.at;
+        next.t.fn();
+        await flush();
+      }
+      now = end;
+    },
+  };
+}
+
+const pending = (over = {}) => ({ report_json: null, report_generation: { status: "pending", ...over } });
+const readyReport = (over = {}) => ({ report_json: { report_meta: {} }, report_generation: { status: "ready", is_current_schema: true, ...over } });
+
+function setup(fetchImpl, clock = fakeClock()) {
+  const states = [];
+  const calls = [];
+  let hidden = false;
+  const poller = R.createReportPoller({
+    fetchReport: async () => { calls.push(clock.now); return fetchImpl(calls.length); },
+    setTimeout: (fn, ms) => clock.setTimeout(fn, ms),
+    clearTimeout: (h) => clock.clearTimeout(h),
+    isHidden: () => hidden,
+    onState: (s) => states.push(s),
+  });
+  return { clock, states, calls, poller, setHidden: (v) => { hidden = v; } };
+}
+
+test("poller: backoff sequence 2 s, 2.5 s, 3 s ... between polls", async () => {
+  const { clock, calls, poller } = setup(() => pending());
+  poller.ingest(pending());
+  await clock.advance(60000);
+  let expected = 0;
+  const times = [];
+  for (let i = 0; i < calls.length; i++) { expected += R.reportPollDelayMs(i); times.push(expected); }
+  assert.deepEqual(calls, times);
+  assert.ok(calls.length >= 8);
+  assert.deepEqual(calls.slice(0, 3), [2000, 4500, 7500]);
+  poller.cancel();
+});
+
+test("poller: 40 polls at most, then «exhausted» and no timer left", async () => {
+  const { clock, calls, states, poller } = setup(() => pending({ status: "generating" }));
+  poller.ingest(pending());
+  await clock.advance(600000);
+  assert.equal(calls.length, 40);
+  assert.equal(states[states.length - 1].phase, "exhausted");
+  assert.equal(clock.pending, 0);
+  await clock.advance(600000);
+  assert.equal(calls.length, 40);
+});
+
+test("poller: nothing is fetched while the tab is hidden; repeated visibilitychange resumes exactly one poll", async () => {
+  const { clock, calls, poller, setHidden } = setup(() => pending());
+  poller.ingest(pending());
+  setHidden(true);
+  await clock.advance(30000);
+  assert.equal(calls.length, 0);
+  assert.equal(clock.pending, 0);
+  poller.visibilityChanged(); // still hidden: nothing
+  await flush();
+  assert.equal(calls.length, 0);
+  setHidden(false);
+  poller.visibilityChanged();
+  poller.visibilityChanged();
+  poller.visibilityChanged();
+  await flush();
+  assert.equal(calls.length, 1);
+  assert.equal(clock.pending, 1); // exactly one next timer, not three
+  poller.cancel();
+});
+
+test("poller: ingesting twice never leaves two timers; cancel clears; a fresh poller does not duplicate", async () => {
+  const clock = fakeClock();
+  const a = setup(() => pending(), clock);
+  a.poller.ingest(pending());
+  a.poller.ingest(pending());
+  assert.equal(clock.pending, 1);
+  a.poller.cancel();
+  assert.equal(clock.pending, 0);
+  const b = setup(() => pending(), clock);
+  b.poller.ingest(pending());
+  assert.equal(clock.pending, 1);
+  await clock.advance(2000);
+  assert.equal(a.calls.length, 0);
+  assert.equal(b.calls.length, 1);
+  b.poller.cancel();
+});
+
+test("poller: after cancel a late in-flight response is ignored", async () => {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const { clock, states, calls, poller } = setup(() => gate);
+  poller.ingest(pending());
+  await clock.advance(2000);
+  assert.equal(calls.length, 1); // in flight
+  const before = states.length;
+  poller.cancel();
+  release(readyReport());
+  await flush();
+  assert.equal(states.length, before);
+  assert.equal(clock.pending, 0);
+});
+
+test("poller: {report: null} and ready-without-report_json keep polling until the report appears", async () => {
+  const seq = [{ report: null }, { report_json: null, report_generation: { status: "ready" } }, readyReport()];
+  const { clock, states, calls, poller } = setup((n) => seq[n - 1]);
+  poller.ingest({ report: null });
+  assert.equal(states[0].phase, "polling");
+  assert.equal(states[0].response, null);
+  await clock.advance(60000);
+  assert.equal(calls.length, 3);
+  assert.equal(states[states.length - 1].phase, "done");
+  assert.equal(clock.pending, 0);
+});
+
+test("poller: a non-object report_json ends the poll as «invalid» (no endless «updating»)", async () => {
+  for (const bad of ["oops", []]) {
+    const { clock, states, poller } = setup(() => pending());
+    poller.ingest({ report_json: bad, report_generation: { status: "ready" } });
+    assert.equal(states[0].phase, "invalid");
+    assert.equal(clock.pending, 0);
+  }
+});
+
+test("poller: failed generation without a report stops; with the old report it is just shown", async () => {
+  const a = setup(() => pending());
+  a.poller.ingest(pending({ status: "failed" }));
+  assert.equal(a.states[0].phase, "failed");
+  assert.equal(a.clock.pending, 0);
+  const b = setup(() => pending());
+  b.poller.ingest(readyReport({ status: "failed", is_current_schema: false }));
+  assert.equal(b.states[0].phase, "done");
+  assert.equal(b.clock.pending, 0);
+});
+
+test("poller: transient failures (status 0 / 5xx / unknown) are tolerated up to 3 in a row; 4xx fails at once", async () => {
+  const net = Object.assign(new Error("offline"), { status: 0 });
+  const down = Object.assign(new Error("bad gateway"), { status: 502 });
+  // two failures, then the report: the poll survives
+  const seq1 = [() => { throw net; }, () => { throw down; }, () => readyReport()];
+  const a = setup((n) => seq1[n - 1]());
+  a.poller.ingest(pending());
+  await a.clock.advance(60000);
+  assert.equal(a.calls.length, 3);
+  assert.equal(a.states[a.states.length - 1].phase, "done");
+  // a success in between resets the counter: fail, fail, pending, fail, fail, ready
+  const seq2 = [() => { throw net; }, () => { throw net; }, () => pending(), () => { throw down; }, () => { throw net; }, () => readyReport()];
+  const b = setup((n) => seq2[n - 1]());
+  b.poller.ingest(pending());
+  await b.clock.advance(120000);
+  assert.equal(b.states[b.states.length - 1].phase, "done");
+  assert.equal(b.calls.length, 6);
+  // three in a row: an honest error
+  const c = setup(() => { throw net; });
+  c.poller.ingest(pending());
+  await c.clock.advance(120000);
+  assert.equal(c.calls.length, 3);
+  const last = c.states[c.states.length - 1];
+  assert.equal(last.phase, "error");
+  assert.equal(last.error.status, 0);
+  assert.equal(c.clock.pending, 0);
+  // an error without a status (e.g. a JSON parse failure) counts as transient too
+  const d = setup(() => { throw new TypeError("x"); });
+  d.poller.ingest(pending());
+  await d.clock.advance(120000);
+  assert.equal(d.calls.length, 3);
+  // 4xx: immediately
+  for (const code of [400, 401, 403, 404]) {
+    const e = setup(() => { throw Object.assign(new Error("no"), { status: code }); });
+    e.poller.ingest(pending());
+    await e.clock.advance(60000);
+    assert.equal(e.calls.length, 1, `status ${code}`);
+    assert.equal(e.states[e.states.length - 1].phase, "error");
+    assert.equal(e.states[e.states.length - 1].error.status, code);
+  }
+});
+
+test("poller: the old report of a historical rebuild stays visible and the poll continues until the new one is ready", async () => {
+  const rebuilding = (status) => ({ report_json: { report_meta: { date: "2026-09-01" } }, report_generation: { status, is_current_schema: false } });
+  const seq = [rebuilding("generating"), rebuilding("generating"), readyReport({ is_current_schema: true })];
+  const { clock, states, calls, poller } = setup((n) => seq[n - 1]);
+  poller.ingest(rebuilding("pending"));
+  assert.equal(states[0].phase, "polling");
+  assert.equal(states[0].rebuilding, true);
+  assert.ok(states[0].response.report_json); // the old report is handed to the page
+  await clock.advance(60000);
+  assert.equal(calls.length, 3);
+  const last = states[states.length - 1];
+  assert.equal(last.phase, "done");
+  assert.equal(last.rebuilding, false);
+  assert.equal(last.response.report_generation.is_current_schema, true);
+  assert.equal(clock.pending, 0);
+  // the cap applies to a rebuild as well
+  const stuck = setup(() => rebuilding("generating"));
+  stuck.poller.ingest(rebuilding("generating"));
+  await stuck.clock.advance(600000);
+  assert.equal(stuck.calls.length, 40);
+  const end = stuck.states[stuck.states.length - 1];
+  assert.equal(end.phase, "exhausted");
+  assert.equal(end.rebuilding, true);
+});
+
+test("report page contract (N04 round 2): no unverified claims, no non-Tailwind sizes, honest states", () => {
+  const root = path.join(__dirname, "..", "src");
+  const page = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  // process / causal claims that are not in the report
+  for (const phrase of [
+    "серия из 5 задач подряд",
+    "итог проверяется повторной диагностикой",
+    "первичное разрушение",
+    "Точка слома понимания",
+    "Глубоких сбоев не выявлено",
+    "невозможно освоить без",
+    "решённые стабильно",
+  ]) assert.equal(page.includes(phrase), false, phrase);
+  // every Tailwind size on the half-step scale must exist: 0.5 1.5 2.5 3.5 only (-4.5, -5.5 ... are not classes)
+  assert.equal(/-(?:[4-9]|1\d)\.5\b/.test(page.replace(/\[[^\]]*\]/g, "")), false, "a -N.5 utility that Tailwind 3.4 does not generate");
+  // tabpanel is focusable, the poll is the tested poller, achievements fallback is labelled
+  assert.ok(/role="tabpanel"[^>]*tabIndex=\{0\}|tabIndex=\{0\}[^>]*role="tabpanel"|id="report-tabpanel" tabIndex=\{0\}/.test(page));
+  assert.ok(page.includes("createReportPoller"));
+  assert.ok(page.includes("breakpointCopy"));
+  assert.ok(page.includes("Сильные стороны (по оценке модели)"));
+  assert.ok(page.includes("diagnostic-report-rebuilding"));
+  assert.ok(page.includes("stepOutcomeState"));
+  assert.ok(page.includes("normalizeReportJson(report?.report_json) !== null"));
+  // the failed state has its own manual re-check
+  const failedBlock = page.slice(page.indexOf("Generating / unavailable"), page.indexOf("REPORT BLOCKS"));
+  assert.ok(failedBlock.includes("failed") && failedBlock.includes("Проверить снова"));
+  // the missing-attempt error is final: no retry
+  assert.ok(page.includes("setReportErrorRetryable(false)"));
+  // error boundary: link back to the list
+  const boundary = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/error.tsx"), "utf8");
+  assert.ok(boundary.includes("Назад к списку"));
+  // api uses the decode-once helper
   const api = fs.readFileSync(path.join(root, "lib/api.ts"), "utf8");
-  assert.ok(api.includes("/auth/org/diagnostics/${encodeURIComponent(id)}`"));
-  assert.ok(api.includes("/analytics/students/${encodeURIComponent(studentId)}/report?"));
+  assert.ok(api.includes("/auth/org/diagnostics/${encodePathId(id)}`"));
+  assert.ok(api.includes("/analytics/students/${encodePathId(studentId)}/report?"));
+  assert.equal(api.includes("${encodeURIComponent(id)}`)"), false);
 });
