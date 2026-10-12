@@ -66,6 +66,7 @@
  *   s10-many-errors     21 error records (7 journal pages) with LaTeX answers: pager / header overflow check
  *   s11-legacy-option   MCQ records: an option changed after the attempt (card «вариант из прежней версии
  *                       задания») and two answers that match their LaTeX option after normalisation
+ *   s12-wide-option     MCQ option wider than any card (44-entry matrix): scroll affordance check
  *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
@@ -360,6 +361,23 @@ const SCENARIOS = {
       }),
       { ...errorPattern(3, false), answer_type: "text", answer_options: [], answer_options_latex: [], student_answer: "17", student_answer_latex: null },
     ];
+    return envelope(json);
+  },
+  // an indivisible formula wider than ANY card (1 x 44 matrix): the scroll affordance (edge fade, scroll region)
+  // shows at 360 / 768 / 1280 alike - in an MCQ option, in the student's answer and in the correct answer
+  "s12-wide-option": () => {
+    const json = errorsJson({ long: false, plan: true });
+    const wide = "$$\\begin{pmatrix}" + Array.from({ length: 44 }, (_, i) => `\\frac{x^{${i + 1}}}{${i + 1}}`).join(" & ") + "\\end{pmatrix}$$";
+    json.error_patterns = [{
+      ...errorPattern(0, false),
+      question_latex: "Выберите верную запись матрицы.",
+      answer_options: ["a", "b", "c", "d"],
+      answer_options_latex: [wide, "$x^2$", "$\\sqrt{x}$", "$\\frac{1}{x}$"],
+      student_answer: "b",
+      correct_answer: "a",
+      correct_answer_latex: wide,
+    }];
+    json.report_meta.questions_correct = 11;
     return envelope(json);
   },
   // rebuild where the old report is LONGER (4 records, 2 journal pages) than the new one (2 records)

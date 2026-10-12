@@ -154,3 +154,165 @@ test("fitMathElement scales formulas by at most 15 % and otherwise leaves the sc
   assert.equal(fitMathElement(box(200, (f) => 300 * f)), 1, "50 % over: scale cannot help, keep size and scroll");
   assert.equal(attrs.has("data-math-fit"), false);
 });
+
+// ─── Scroll affordance of math overflow containers (FE-2) ─────────────────────────────────────
+
+const { overflowEdgeState, SCROLL_REGION_LABEL } = require(path.join(__dirname, "../src/lib/scroll-edges.ts"));
+
+test("overflow edges: the fade shows only on the side that hides content", () => {
+  const edges = (scrollLeft, scrollWidth = 600, clientWidth = 300) => overflowEdgeState({ scrollLeft, scrollWidth, clientWidth });
+  assert.deepEqual(edges(0), { overflows: true, left: false, right: true });      // at the start: hidden on the right only
+  assert.deepEqual(edges(120), { overflows: true, left: true, right: true });     // in the middle: both
+  assert.deepEqual(edges(300), { overflows: true, left: true, right: false });    // at the end: hidden on the left only
+  assert.deepEqual(edges(299.4), { overflows: true, left: true, right: false });  // sub-pixel rounding at the end
+  assert.deepEqual(edges(1.2), { overflows: true, left: false, right: true });    // sub-pixel rounding at the start
+  assert.deepEqual(edges(9999), { overflows: true, left: true, right: false });   // overscroll is clamped
+  assert.deepEqual(edges(-120), { overflows: true, left: true, right: true });    // RTL: distance from the start
+  // no overflow (or within the tolerance): nothing to hint
+  assert.deepEqual(edges(0, 300, 300), { overflows: false, left: false, right: false });
+  assert.deepEqual(edges(0, 301, 300), { overflows: false, left: false, right: false });
+  assert.deepEqual(edges(0, 302, 300), { overflows: false, left: false, right: false });
+  assert.equal(edges(0, 303, 300).overflows, true);
+  // hidden / unmeasured boxes and junk never claim an overflow
+  for (const bad of [{ scrollLeft: 0, scrollWidth: 600, clientWidth: 0 }, { scrollLeft: 0, scrollWidth: Number.NaN, clientWidth: 300 }, { scrollLeft: Number.NaN, scrollWidth: 600, clientWidth: 300 }, null, undefined]) {
+    const r = overflowEdgeState(bad);
+    if (bad && Number.isNaN(bad.scrollLeft)) assert.deepEqual(r, { overflows: true, left: false, right: true });
+    else assert.deepEqual(r, { overflows: false, left: false, right: false });
+  }
+  assert.equal(SCROLL_REGION_LABEL, "Формула, прокрутите по горизонтали");
+});
+
+function fakeBox({ scrollWidth, clientWidth, scrollLeft = 0 }) {
+  const attrs = new Map();
+  const listeners = {};
+  const el = {
+    scrollWidth, clientWidth, scrollLeft, children: [], attrs,
+    hasAttribute: (n) => attrs.has(n),
+    getAttribute: (n) => (attrs.has(n) ? attrs.get(n) : null),
+    setAttribute: (n, v) => attrs.set(n, String(v)),
+    removeAttribute: (n) => attrs.delete(n),
+    // the affordance captures scroll on the root (scroll does not bubble)
+    addEventListener: (type, fn) => { (listeners[type] = listeners[type] || []).push(fn); },
+    removeEventListener: (type, fn) => { listeners[type] = (listeners[type] || []).filter((f) => f !== fn); },
+    querySelectorAll: () => [],
+    contains: () => true,
+    scrolled(to, target = el) { target.scrollLeft = to; (listeners.scroll || []).forEach((fn) => fn({ target, currentTarget: el })); },
+    listenerCount: () => (listeners.scroll || []).length,
+  };
+  return el;
+}
+
+test("attachScrollHints: edge flags follow the scroll, the keyboard region exists only while it overflows", () => {
+  global.window = { requestAnimationFrame: (fn) => { fn(); return 1; }, cancelAnimationFrame: () => {} };
+  global.document = {};
+  try {
+    const { attachScrollHints } = require(path.join(__dirname, "../src/components/ui/scroll-hint.tsx"));
+    const box = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    const stop = attachScrollHints(box, { selector: "", includeRoot: true, focusable: true });
+    assert.deepEqual([box.hasAttribute("data-sh-left"), box.hasAttribute("data-sh-right")], [false, true]);
+    assert.equal(box.getAttribute("tabindex"), "0");
+    assert.equal(box.getAttribute("role"), "region");
+    assert.equal(box.getAttribute("aria-label"), "Формула, прокрутите по горизонтали");
+    box.scrolled(150);
+    assert.deepEqual([box.hasAttribute("data-sh-left"), box.hasAttribute("data-sh-right")], [true, true]);
+    box.scrolled(300);
+    assert.deepEqual([box.hasAttribute("data-sh-left"), box.hasAttribute("data-sh-right")], [true, false]); // at the end: the right fade is gone
+    box.scrollWidth = 300; // the box now fits
+    box.scrolled(0);
+    assert.deepEqual([box.hasAttribute("data-sh-left"), box.hasAttribute("data-sh-right")], [false, false]);
+    assert.equal(box.hasAttribute("tabindex"), false, "no tab stop without overflow");
+    assert.equal(box.hasAttribute("aria-label"), false);
+    stop();
+    assert.equal(box.listenerCount(), 0);
+    assert.equal(box.attrs.size, 0);
+
+    // inside a button: the fade only, never a tab stop
+    const inButton = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    const stop2 = attachScrollHints(inButton, { selector: "", focusable: false });
+    assert.equal(inButton.hasAttribute("data-sh-right"), true);
+    assert.equal(inButton.hasAttribute("tabindex"), false);
+    assert.equal(inButton.hasAttribute("aria-label"), false);
+    stop2();
+
+    // an author-set tabindex is neither replaced nor removed
+    const authored = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    authored.setAttribute("tabindex", "-1");
+    const stop3 = attachScrollHints(authored, { selector: "", focusable: true });
+    assert.equal(authored.getAttribute("tabindex"), "-1");
+    stop3();
+    assert.equal(authored.getAttribute("tabindex"), "-1");
+  } finally {
+    delete global.window;
+    delete global.document;
+  }
+});
+
+test("SSR markup of a math renderer is unchanged by the affordance (no tab stop, no flags: no layout shift)", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { MathRenderer } = require(path.join(__dirname, "../src/components/ui/math-renderer.tsx"));
+  const html = renderToStaticMarkup(React.createElement(MathRenderer, { text: "$$\\frac{x^{1}}{1}+\\frac{x^{2}}{2}$$", block: true }));
+  assert.ok(html.includes("math-renderer"));
+  for (const attr of ["tabindex", "data-sh-left", "data-sh-right", "aria-label", 'role="region"']) assert.equal(html.includes(attr), false, attr);
+});
+
+test("contract: every math overflow container uses the affordance", () => {
+  const root = path.join(__dirname, "..", "src");
+  const mathRenderer = fs.readFileSync(path.join(root, "components/ui/math-renderer.tsx"), "utf8");
+  assert.ok(mathRenderer.includes('from "./scroll-hint"') && mathRenderer.includes("useScrollHint(ref, html"));
+  assert.ok(/focusable\?: boolean/.test(mathRenderer));
+  const css = fs.readFileSync(path.join(root, "app/globals.css"), "utf8");
+  for (const needle of ["[data-sh-left]", "[data-sh-right]", "mask-image", "[data-sh-a11y]:focus-visible", "(hover: hover) and (pointer: fine)", "scrollbar-width: thin"]) {
+    assert.ok(css.includes(needle), `globals.css: ${needle}`);
+  }
+  // a hidden-scrollbar box (`no-scrollbar`) outside MathRenderer itself must be a ScrollHint
+  const offenders = [];
+  (function walk(dir) {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.tsx$/.test(entry.name) && !full.endsWith(path.join("ui", "math-renderer.tsx"))) {
+        fs.readFileSync(full, "utf8").split("\n").forEach((line, i) => {
+          if (/no-scrollbar/.test(line) && !/<ScrollHint/.test(line)) offenders.push(`${path.relative(root, full)}:${i + 1}`);
+        });
+      }
+    }
+  })(root);
+  assert.deepEqual(offenders, [], "no-scrollbar boxes must be <ScrollHint>");
+  // the student / exam option cards: fade only inside the button, and the formula can be scrolled
+  const grid = fs.readFileSync(path.join(root, "components/ui/option-grid.tsx"), "utf8");
+  assert.ok(grid.includes("<ScrollHint focusable={false}") && grid.includes("focusable={false}"));
+  assert.equal(/pointer-events-none/.test(grid), false, "pointer-events-none would block wheel / touch scrolling of the formula");
+  const report = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  assert.ok((report.match(/<ScrollHint/g) || []).length >= 2);
+});
+
+test("attachScrollHints: a KaTeX display block inside the renderer gets its own edge flags (scroll captured on the root)", () => {
+  global.window = { requestAnimationFrame: (fn) => { fn(); return 1; }, cancelAnimationFrame: () => {} };
+  global.document = {};
+  try {
+    const { attachScrollHints } = require(path.join(__dirname, "../src/components/ui/scroll-hint.tsx"));
+    const root = fakeBox({ scrollWidth: 300, clientWidth: 300 }); // the renderer itself fits
+    const display = fakeBox({ scrollWidth: 900, clientWidth: 300 });
+    display.matches = (sel) => sel === ".katex-display";
+    root.querySelectorAll = (sel) => (sel === ".katex-display" ? [display] : []);
+    const stop = attachScrollHints(root, { selector: ".katex-display", includeRoot: true, focusable: true });
+    assert.deepEqual([root.hasAttribute("data-sh-right"), root.hasAttribute("tabindex")], [false, false]); // a fitting box gets nothing
+    assert.deepEqual([display.hasAttribute("data-sh-left"), display.hasAttribute("data-sh-right"), display.getAttribute("tabindex")], [false, true, "0"]);
+    root.scrolled(300, display); // scroll event of the display block, captured on the root
+    assert.deepEqual([display.hasAttribute("data-sh-left"), display.hasAttribute("data-sh-right")], [true, true]);
+    root.scrolled(600, display);
+    assert.deepEqual([display.hasAttribute("data-sh-left"), display.hasAttribute("data-sh-right")], [true, false]); // end: right fade gone
+    // the scroll of something that is not a box is ignored
+    const stranger = fakeBox({ scrollWidth: 900, clientWidth: 300 });
+    stranger.matches = () => false;
+    root.scrolled(100, stranger);
+    assert.equal(stranger.hasAttribute("data-sh-left"), false);
+    stop();
+    assert.equal(display.attrs.size, 0);
+    assert.equal(root.listenerCount(), 0);
+  } finally {
+    delete global.window;
+    delete global.document;
+  }
+});

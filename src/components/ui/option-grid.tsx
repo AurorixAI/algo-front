@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { Check } from "lucide-react";
 import { MathRenderer } from "@/components/ui/math-renderer";
+import { ScrollHint } from "@/components/ui/scroll-hint";
 import { pickOptionDisplayProjection } from "@/lib/task-display";
 
 export interface OptionItem {
@@ -101,17 +102,20 @@ export function OptionGrid({
               {isActive ? <Check className="w-4 h-4" /> : opt.label}
             </div>
 
-            <div className={cn("min-w-0 flex-1 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar", isOddLast && "flex-initial")}>
+            {/* inside a button: the edge fade only (a focusable scroll region cannot nest in a button). The formula
+                itself scrolls: select-none, and pointer events are NOT disabled, so wheel / touch / drag reach it. */}
+            <ScrollHint focusable={false} className={cn("min-w-0 flex-1 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar", isOddLast && "flex-initial")}>
               <MathRenderer
                 text={display.text}
                 renderMode={display.renderMode}
                 block
+                focusable={false}
                 className={cn(
-                  "min-w-0 max-w-full font-sans text-base break-words pointer-events-none transition-colors md:text-lg",
+                  "min-w-0 max-w-full font-sans text-base break-words select-none transition-colors md:text-lg",
                   isActive ? "text-slate-900" : "text-slate-700 group-hover:text-slate-900",
                 )}
               />
-            </div>
+            </ScrollHint>
 
             {isConfirmed && (
               <div className="absolute right-5 top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-primary-500 shadow-sm" />

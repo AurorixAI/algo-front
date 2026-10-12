@@ -10,6 +10,7 @@ import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MathRenderer } from "@/components/ui/math-renderer";
+import { ScrollHint } from "@/components/ui/scroll-hint";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -1797,9 +1798,9 @@ export default function ExamHubPage() {
                                               <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200/70 text-rose-700 text-xs font-semibold shrink-0 mt-0.5">
                                                 Вариант #{dIdx + 1}
                                               </span>
-                                              <div className="text-sm sm:text-base font-medium text-slate-900 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
+                                              <ScrollHint className="text-sm sm:text-base font-medium text-slate-900 bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
                                                 <MathRenderer text={pickAnswerDisplayText(dm.value, dm.value_latex)} />
-                                              </div>
+                                              </ScrollHint>
                                             </div>
 
                                             {dm.error_type && !dm.error_type.startsWith("ai_") && dm.error_type !== "common_mistake" && (

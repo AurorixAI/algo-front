@@ -179,6 +179,76 @@ body {
   -ms-overflow-style: none;
 }
 
+/* ── Scroll affordance of math overflow containers (src/components/ui/scroll-hint.tsx) ─────────
+   A formula wider than its card scrolls inside an overflow-x box whose scrollbar is hidden.
+   - data-sh-left / data-sh-right (set by scroll-hint.tsx on the sides that HIDE content) fade that
+     edge out with a mask: it works on any card background and moves no layout;
+   - pointer devices (hover + fine pointer) get a thin scrollbar that appears on hover / focus
+     (its space is reserved by CSS alone, so nothing shifts when the hint switches on);
+     touch devices keep the hidden scrollbar. */
+[data-sh-left],
+[data-sh-right] {
+  --sh-l: 0px;
+  --sh-r: 0px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-l), #000 calc(100% - var(--sh-r)), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 var(--sh-l), #000 calc(100% - var(--sh-r)), transparent 100%);
+}
+[data-sh-left] {
+  --sh-l: 1.75rem;
+}
+[data-sh-right] {
+  --sh-r: 1.75rem;
+}
+/* the focus ring must stay inside the (masked) box */
+[data-sh-a11y]:focus-visible {
+  outline: 2px solid rgb(96 165 250 / 0.9);
+  outline-offset: -2px;
+  border-radius: 0.5rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .math-renderer.math-block,
+  .math-renderer .katex-display,
+  .scroll-hint {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .math-renderer.math-block:hover,
+  .math-renderer.math-block:focus-visible,
+  .math-renderer .katex-display:hover,
+  .math-renderer .katex-display:focus-visible,
+  .scroll-hint:hover,
+  .scroll-hint:focus-visible {
+    scrollbar-color: rgb(148 163 184 / 0.85) transparent;
+  }
+  .math-renderer.math-block::-webkit-scrollbar,
+  .math-renderer .katex-display::-webkit-scrollbar,
+  .scroll-hint::-webkit-scrollbar {
+    display: block !important;
+    width: 6px !important;
+    height: 6px !important;
+  }
+  .math-renderer.math-block::-webkit-scrollbar-track,
+  .math-renderer .katex-display::-webkit-scrollbar-track,
+  .scroll-hint::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .math-renderer.math-block::-webkit-scrollbar-thumb,
+  .math-renderer .katex-display::-webkit-scrollbar-thumb,
+  .scroll-hint::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 9999px;
+  }
+  .math-renderer.math-block:hover::-webkit-scrollbar-thumb,
+  .math-renderer.math-block:focus-visible::-webkit-scrollbar-thumb,
+  .math-renderer .katex-display:hover::-webkit-scrollbar-thumb,
+  .math-renderer .katex-display:focus-visible::-webkit-scrollbar-thumb,
+  .scroll-hint:hover::-webkit-scrollbar-thumb,
+  .scroll-hint:focus-visible::-webkit-scrollbar-thumb {
+    background: rgb(148 163 184 / 0.85);
+  }
+}
+
 
 
 .font-math,

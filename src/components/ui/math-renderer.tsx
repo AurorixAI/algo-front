@@ -4,6 +4,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import katex from "katex";
 import { cn } from "../../lib/utils";
 import { fitMathElement } from "./math-fit";
+import { useScrollHint } from "./scroll-hint";
 
 interface MathRendererProps {
   text: string;
@@ -16,6 +17,12 @@ interface MathRendererProps {
    * LaTeX.  Raw/legacy fields must stay on the default mode.
    */
   renderMode?: MathRenderMode;
+  /**
+   * An overflowing formula box becomes a keyboard scroll region (tabindex 0, aria-label). Pass
+   * `false` where the renderer sits inside a button or link: a focusable region cannot be
+   * nested in one (the edge fade is shown either way).
+   */
+  focusable?: boolean;
 }
 
 export type MathRenderMode = "legacy" | "trusted";
@@ -583,6 +590,7 @@ export function MathRenderer({
   className = "",
   block = false,
   renderMode = "legacy",
+  focusable = true,
 }: MathRendererProps) {
   const html = useMemo(() => renderMathText(text, block, renderMode), [text, block, renderMode]);
   const standalone = useMemo(
@@ -592,6 +600,8 @@ export function MathRenderer({
   const Tag = block ? "div" : "span";
   const ref = useRef<HTMLElement | null>(null);
   useMathFit(ref, html, block);
+  // edge fade on the side that hides content + keyboard scroll region while it overflows (scroll-hint.tsx)
+  useScrollHint(ref, html, { selector: ".katex-display", includeRoot: block, focusable });
   return (
     <Tag
       ref={ref as React.Ref<HTMLDivElement & HTMLSpanElement>}
