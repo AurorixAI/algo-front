@@ -11,7 +11,7 @@ import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
   breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
   isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, planNotBuiltText, recommendedStartName,
-  reportIdentity, reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
+  reportIdentity, reportJsonState, reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
   type ReportPollerState,
 } from "@/lib/diagnostic-report";
@@ -664,7 +664,7 @@ export default function DiagnosticReportPage() {
   const pollExhausted = pollPhase === "exhausted";
   const breakpoint = breakpointCopy(rj?.diagnostic_boundary, rj?.report_meta, rj?.root_cause_chains);
   // report_json arrived but is not a report object (string, list ...): not renderable, not poll-able
-  const reportInvalid = !rj && report?.report_json !== null && report?.report_json !== undefined;
+  const reportInvalid = !rj && reportJsonState(report?.report_json) === "invalid";
   const scorePercent = rj ? reportScorePercent(rj) : null;
   const wrongCount = rj ? reportWrongCount(rj.report_meta) : null;
   const levelText = rj ? ((level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru || null) : null;

@@ -66,7 +66,8 @@
  *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
- *   s6-partial          report_json = {} (nothing but empty shell)
+ *   s6-partial          report_json = {report_meta: {}} (nothing but an empty shell)
+ *   s9-regeneration-placeholder  report_json = {"_regeneration": {...}} only (no report yet): pending UI + polling, then the report
  *   s7-404              GET /auth/org/diagnostics/<id> -> 404
  *   s8-degraded         current schema but report_meta.degraded = ["skill_names"]
  *
@@ -322,7 +323,13 @@ const SCENARIOS = {
   // transient server failures while polling: pending, 503, 503, then the report
   "s9-flaky": (n) => (n === 2 || n === 3 ? { __http: 503, detail: "Service unavailable (synthetic)" } : n === 1 ? envelope(null, generation({ status: "pending", stage: "queued", is_current_schema: false })) : envelope(errorsJson({ long: false, plan: true }))),
   "s6-legacy": () => envelope(legacyJson(), generation({ is_current_schema: false })),
-  "s6-partial": () => envelope({}, generation({ is_current_schema: false })),
+  "s6-partial": () => envelope({ report_meta: {} }, generation({ is_current_schema: false })),
+  // a rebuild was queued for a row WITHOUT json: report_json is only the service placeholder (report_jobs.py);
+  // the page must say «report is being prepared» and poll - never «старый формат» - then show the real report
+  "s9-regeneration-placeholder": (n) =>
+    FLIP_AFTER > 0 && n > FLIP_AFTER
+      ? envelope(errorsJson({ long: false, plan: true }))
+      : envelope({ _regeneration: { narrative: "deterministic" } }, generation({ status: n > 2 ? "generating" : "pending", stage: n > 2 ? "collecting_evidence" : "queued", attempts: 0, is_current_schema: false })),
   "s8-degraded": () => {
     const json = errorsJson({ long: false, plan: true });
     json.report_meta.degraded = ["skill_names"];

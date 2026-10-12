@@ -95,14 +95,34 @@ const asObjArray = (v: unknown): Obj[] => (Array.isArray(v) ? v.filter(isObj) : 
 const asStrArray = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : [];
 
+const REPORT_CONTENT_KEYS = [
+  "report_meta", "overall", "level", "error_patterns", "action_plan", "root_cause_chains", "cognitive_error_types",
+  "strong_skills", "weak_skills", "critical_gaps", "diagnostic_boundary", "achievements", "recommended_start",
+];
+
+/**
+ * An object that carries a report: at least one report key. A placeholder is NOT a report:
+ * `{}` or an object of underscore-prefixed service keys only - e.g. the backend queues a
+ * rebuild of a row without JSON as {"_regeneration": {"narrative": "deterministic"}}
+ * (report_jobs.py). The page treats it like null: "no report yet", pending UI and polling.
+ */
+export function hasReportContent(raw: unknown): boolean {
+  return isObj(raw) && REPORT_CONTENT_KEYS.some((key) => raw[key] !== undefined);
+}
+
 /**
  * report_json as stored may be old or partial (reports built before schema 5 have no
  * `achievements`, `diagnostic_boundary`, `level` ...). The page reads the result of
  * this function only: every list is a list, `report_meta` / `overall` are objects,
- * nothing is invented (a missing number stays missing). null when there is no report.
+ * nothing is invented (a missing number stays missing). null when there is no report
+ * (null, a non-object, `{}`, a service placeholder - see hasReportContent).
  */
 export function normalizeReportJson(raw: unknown): Obj | null {
-  if (!isObj(raw)) return null;
+  if (!hasReportContent(raw)) return null;
+  return normalizeReportObject(raw as Obj);
+}
+
+function normalizeReportObject(raw: Obj): Obj {
   const out: Obj = { ...raw };
   for (const key of [
     "error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps",
@@ -424,10 +444,11 @@ export function reportPollDelayMs(attempt: number): number {
 
 export type ReportJsonState = "ok" | "missing" | "invalid";
 
-/** "ok" = a report object the page can render; "invalid" = something else (string, list, number). */
+/** "ok" = a report object the page can render; "missing" = none yet (null, `{}`, a service placeholder); "invalid" = something else (string, list, number). */
 export function reportJsonState(raw: unknown): ReportJsonState {
   if (raw === null || raw === undefined) return "missing";
-  return normalizeReportJson(raw) ? "ok" : "invalid";
+  if (isObj(raw)) return hasReportContent(raw) ? "ok" : "missing"; // {} / {"_regeneration": ...}: no report yet
+  return "invalid";
 }
 
 /**
@@ -630,7 +651,7 @@ export function reportContentSchema(report: Obj | null | undefined): number {
 }
 
 export const isOldFormatReport = (report: Obj | null | undefined): boolean =>
-  isObj(report) && reportContentSchema(report) < CURRENT_REPORT_SCHEMA;
+  hasReportContent(report) && reportContentSchema(report) < CURRENT_REPORT_SCHEMA;
 
 export interface ReportMetaInfo {
   /** Date the student took the test (report_meta.date), "dd.mm.yyyy". */

@@ -93,7 +93,7 @@ test("normalizeReportJson: old / partial report_json never leaves a missing list
   assert.equal(R.normalizeReportJson(undefined), null);
   assert.equal(R.normalizeReportJson([]), null);
   assert.equal(R.normalizeReportJson("x"), null);
-  const n = R.normalizeReportJson({});
+  const n = R.normalizeReportJson({ report_meta: {} }); // the thinnest real report
   for (const key of ["error_patterns", "action_plan", "strong_skills", "weak_skills", "critical_gaps", "root_cause_chains", "cognitive_error_types"]) {
     assert.deepEqual(n[key], [], key);
   }
@@ -279,7 +279,8 @@ test("historical rebuild: the old report stays, polling continues until the new 
   assert.equal(R.isRebuildingReport({ status: "pending" }), false);
   assert.equal(R.reportJsonState(undefined), "missing");
   assert.equal(R.reportJsonState(null), "missing");
-  assert.equal(R.reportJsonState({}), "ok");
+  assert.equal(R.reportJsonState({}), "missing"); // no report yet
+  assert.equal(R.reportJsonState({ report_meta: {} }), "ok");
   for (const bad of ["oops", [], 7, true]) assert.equal(R.reportJsonState(bad), "invalid");
 });
 
@@ -912,4 +913,58 @@ test("report page contract (N04 round 3): owner-decision wording, no duration pr
   assert.equal(page.includes("skillsEmptyText(meta.legacy)"), false);
   assert.ok(page.includes("isInferredChain(ch)"));
   assert.ok(page.includes("loadErrorInfo(reportErrorStatus, reportError, \"report\", reportErrorRetryable)"));
+});
+
+// ─── regeneration placeholder: report_json = {"_regeneration": {...}} is no report yet ──────────
+
+const PLACEHOLDER = { _regeneration: { narrative: "deterministic" } };
+
+test("a service placeholder / empty object is «no report yet», never an old-format report", () => {
+  for (const none of [PLACEHOLDER, {}, { _a: 1, _b: { x: 1 } }, { _regeneration: { narrative: "deterministic" }, _other: null }]) {
+    assert.equal(R.hasReportContent(none), false, JSON.stringify(none));
+    assert.equal(R.normalizeReportJson(none), null);
+    assert.equal(R.reportJsonState(none), "missing");
+    assert.equal(R.isOldFormatReport(none), false);
+    const meta = R.reportMetaInfo({ status: "pending", is_current_schema: false }, R.normalizeReportJson(none));
+    assert.deepEqual([meta.oldFormat, meta.legacy], [false, false]);
+  }
+  // an old report that merely CARRIES the key (rebuild queued over existing json) is still that report
+  const queuedOld = { report_meta: { date: "2026-09-01" }, overall: { score_percent: 60 }, _regeneration: { narrative: "deterministic" } };
+  assert.equal(R.hasReportContent(queuedOld), true);
+  assert.equal(R.reportJsonState(queuedOld), "ok");
+  assert.equal(R.isOldFormatReport(queuedOld), true);
+  assert.notEqual(R.normalizeReportJson(queuedOld), null);
+  // junk stays invalid, null stays missing
+  assert.equal(R.reportJsonState("oops"), "invalid");
+  assert.equal(R.reportJsonState(null), "missing");
+  assert.equal(R.hasReportContent("x"), false);
+  assert.equal(R.hasReportContent([]), false);
+});
+
+test("poller: a placeholder keeps the pending UI and polling until the real report arrives (no «old format»)", async () => {
+  const placeholder = (status) => ({ report_json: PLACEHOLDER, report_generation: { status, is_current_schema: false } });
+  const seq = [placeholder("generating"), placeholder("generating"), readyReport()];
+  const { clock, states, calls, poller } = setup((n) => seq[n - 1]);
+  poller.ingest(placeholder("pending"));
+  assert.equal(states[0].phase, "polling");
+  assert.equal(states[0].rebuilding, false); // not «an old report being rebuilt»: there is no report
+  await clock.advance(60000);
+  assert.equal(calls.length, 3);
+  assert.equal(states[states.length - 1].phase, "done");
+  assert.equal(clock.pending, 0);
+  // a failed generation with only a placeholder is a failure, not a report
+  const failed = setup(() => pending());
+  failed.poller.ingest(placeholder("failed"));
+  assert.equal(failed.states[0].phase, "failed");
+  // the cap applies as to any missing report
+  const stuck = setup(() => placeholder("generating"));
+  stuck.poller.ingest(placeholder("pending"));
+  await stuck.clock.advance(600000);
+  assert.equal(stuck.calls.length, 40);
+  assert.equal(stuck.states[stuck.states.length - 1].phase, "exhausted");
+});
+
+test("page: invalid json is detected by reportJsonState (a placeholder is not «invalid»)", () => {
+  const page = fs.readFileSync(path.join(__dirname, "..", "src/app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  assert.ok(page.includes('reportJsonState(report?.report_json) === "invalid"'));
 });
