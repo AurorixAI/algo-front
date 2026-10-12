@@ -3,11 +3,14 @@
 import { cn } from "@/lib/utils";
 import {
   computeMenuPlacement,
+  isAnchorInSight,
   moveActiveIndex,
   resolveSelectKey,
   type MenuNavKey,
   type MenuPlacement,
   type MenuViewport,
+  type SightHit,
+  type SightRect,
 } from "@/lib/select-menu";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -121,15 +124,31 @@ export function Select({
     );
   }, [options.length]);
 
-  // The field is "in sight" when what is painted at its centre is the field itself:
-  // false once it is scrolled out of the page, out of an inner scroller/clip parent,
-  // or under a sticky header or other overlay.
+  // The field is "in sight" while it is what is painted at its centre (or the list pinned
+  // over it); with no usable hit test (off-screen, pointer-events: none) its geometry decides.
+  // False once it is scrolled out of the page or an inner scroller/clip parent, or sits under a
+  // sticky header or other overlay.
   const anchorInSight = useCallback(() => {
     const anchor = anchorRef.current;
     if (!anchor) return false;
     const rect = anchor.getBoundingClientRect();
     const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    return Boolean(hit && anchor.contains(hit));
+    const clickThrough = getComputedStyle(anchor).pointerEvents === "none";
+    const hitKind: SightHit =
+      !hit || clickThrough ? "none" : anchor.contains(hit) ? "anchor" : listRef.current?.contains(hit) ? "list" : "other";
+    const viewport = readViewport();
+    const visible: SightRect = {
+      top: viewport.visibleTop ?? 0,
+      bottom: viewport.visibleBottom ?? viewport.height,
+      left: viewport.visibleLeft ?? 0,
+      right: viewport.visibleRight ?? viewport.width,
+    };
+    const clips: SightRect[] = [];
+    for (let el = anchor.parentElement; el && el !== document.documentElement; el = el.parentElement) {
+      const cs = getComputedStyle(el);
+      if ([cs.overflowX, cs.overflowY].some((v) => v !== "visible")) clips.push(el.getBoundingClientRect());
+    }
+    return isAnchorInSight(rect, visible, clips, hitKind);
   }, []);
 
   useIsomorphicLayoutEffect(() => {

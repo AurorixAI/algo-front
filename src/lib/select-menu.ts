@@ -140,3 +140,30 @@ export function resolveSelectKey(open: boolean, key: string): SelectKeyResult {
   if (key === "Tab") return { action: "close", stop: false, prevent: false };
   return { action: "none", stop: false, prevent: false };
 }
+
+export interface SightRect {
+  top: number;
+  bottom: number;
+  left: number;
+  right: number;
+}
+
+/** What `document.elementFromPoint` found at the field's centre. */
+export type SightHit = "anchor" | "list" | "other" | "none";
+
+/**
+ * Is the field still in sight (so the open list stays)? A hit on the field is a
+ * yes and a hit on anything else (sticky header, overlay) a no. A hit on the list
+ * (a pinned list covers the field on very short viewports) or no hit at all
+ * (off-screen, or pointer-events: none on the field) says nothing about the field,
+ * so the geometry decides: its centre must lie inside the visible viewport and
+ * inside every clipping ancestor.
+ */
+export function isAnchorInSight(anchor: SightRect, visible: SightRect, clips: SightRect[], hit: SightHit): boolean {
+  if (hit === "anchor") return true;
+  if (hit === "other") return false;
+  const cx = (anchor.left + anchor.right) / 2;
+  const cy = (anchor.top + anchor.bottom) / 2;
+  const inside = (r: SightRect) => cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom;
+  return inside(visible) && clips.every(inside);
+}

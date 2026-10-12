@@ -9,7 +9,7 @@ require.extensions[".ts"] = (mod, filename) => {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText, filename);
 };
-const { computeMenuPlacement, moveActiveIndex, resolveSelectKey } = require(path.join(__dirname, "../src/lib/select-menu.ts"));
+const { computeMenuPlacement, moveActiveIndex, resolveSelectKey, isAnchorInSight } = require(path.join(__dirname, "../src/lib/select-menu.ts"));
 
 // A field of the given width whose top sits at `top` (height 48).
 const anchor = (top, left, width) => ({ top, bottom: top + 48, left, width });
@@ -108,6 +108,26 @@ test("arrow keys move the highlight, clamp at both ends; Home / End jump", () =>
   assert.equal(moveActiveIndex(0, -1, "ArrowDown"), -1);
 });
 
+test("field in sight: a hit on the field or on the list pinned over it keeps the menu; an overlay or scrolling away closes it", () => {
+  const vp = { top: 0, bottom: 640, left: 0, right: 360 };
+  const field = { top: 300, bottom: 346, left: 16, right: 344 };
+  assert.equal(isAnchorInSight(field, vp, [], "anchor"), true);
+  assert.equal(isAnchorInSight(field, vp, [], "other"), false, "sticky header / overlay on top of the field");
+  // The pinned list (very short viewport) covers the field: the next resize / keyboard event must not close it.
+  assert.equal(isAnchorInSight(field, vp, [], "list"), true);
+  // ...but a list hit does not keep it open once the field has scrolled off-screen or out of its scroller.
+  assert.equal(isAnchorInSight({ top: -80, bottom: -34, left: 16, right: 344 }, vp, [], "list"), false);
+  assert.equal(isAnchorInSight(field, vp, [{ top: 0, bottom: 200, left: 0, right: 360 }], "list"), false);
+  // No usable hit test (null / pointer-events: none): geometry decides.
+  assert.equal(isAnchorInSight(field, vp, [], "none"), true);
+  assert.equal(isAnchorInSight(field, vp, [{ top: 100, bottom: 500, left: 0, right: 360 }], "none"), true);
+  assert.equal(isAnchorInSight(field, vp, [{ top: 400, bottom: 900, left: 0, right: 360 }], "none"), false, "scrolled out of its clip parent");
+  assert.equal(isAnchorInSight({ top: 700, bottom: 746, left: 16, right: 344 }, vp, [], "none"), false, "below the viewport");
+  // On-screen keyboard: the visible area ends at y = 340, the field's centre (323) is still inside.
+  assert.equal(isAnchorInSight(field, { ...vp, bottom: 340 }, [], "none"), true);
+  assert.equal(isAnchorInSight({ top: 330, bottom: 376, left: 16, right: 344 }, { ...vp, bottom: 340 }, [], "none"), false);
+});
+
 test("every key the Select handles stops bubbling (login form must not submit on Enter while choosing a role)", () => {
   for (const open of [false, true]) {
     for (const key of ["Enter", " "]) {
@@ -145,6 +165,7 @@ test("Select contract: opaque portal surface, no opacity/exit animation, Escape 
   assert.ok(/role="listbox"/.test(src) && /role="option"/.test(src) && /aria-activedescendant/.test(src), "listbox semantics");
   assert.ok(/if \(result\.stop\) e\.stopPropagation\(\)/.test(src), "handled keys do not bubble");
   assert.ok(/elementFromPoint/.test(src) && /if \(!anchorInSight\(\)\) setOpen\(false\)/.test(src), "closes when the field scrolls out of sight");
+  assert.ok(/listRef\.current\?\.contains\(hit\)/.test(src) && /pointerEvents === "none"/.test(src), "a hit on the pinned list or a click-through field does not decide");
   assert.ok(/window\.visualViewport/.test(src) && /visibleBottom/.test(src), "uses the visual viewport");
   assert.ok(!/\.focus\(\)/.test(src), "focus() never scrolls the page: preventScroll everywhere");
   assert.ok(/htmlFor=\{triggerId\}/.test(src) && /aria-describedby=\{error \? errorId/.test(src) && /id=\{errorId\}/.test(src), "label and error are associated with the field");
