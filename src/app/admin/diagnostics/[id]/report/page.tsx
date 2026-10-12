@@ -10,7 +10,7 @@ import {
 import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
   breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
-  isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, planNotBuiltText, recommendedStartName,
+  isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, pagerItems, planNotBuiltText, recommendedStartName,
   reportIdentity, reportJsonState, reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
   type ReportPollerState,
@@ -397,6 +397,49 @@ function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title:
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Pager of the error journal. Below sm it is «‹ 3 / 7 ›» (a numbered row of 7 pages does not
+ * fit 360 px); from sm up the numbered pager (with ellipses beyond 7 pages). Native buttons:
+ * Tab / Enter / Space work, prev / next are disabled at the ends, the current page is
+ * aria-current, the compact counter is a polite live region.
+ */
+function JournalPager({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+  const arrow = "w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors";
+  return (
+    <nav aria-label="Страницы журнала ошибок" className="flex max-w-full items-center gap-1 flex-shrink-0">
+      <button type="button" aria-label="Предыдущая страница" disabled={page === 0} onClick={() => onChange(Math.max(0, page - 1))} className={arrow}>
+        <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      <span aria-live="polite" className="sm:hidden px-2 text-xs font-bold tabular-nums text-slate-700 whitespace-nowrap">
+        {page + 1} / {totalPages}
+      </span>
+      <div className="hidden sm:flex items-center gap-1">
+        {pagerItems(page, totalPages).map((item, idx) =>
+          item === "gap" ? (
+            <span key={`gap-${idx}`} aria-hidden="true" className="w-5 text-center text-xs text-slate-400 select-none">…</span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              aria-label={`Страница ${item + 1}`}
+              aria-current={item === page ? "page" : undefined}
+              onClick={() => onChange(item)}
+              className={`min-w-[1.75rem] h-7 px-1 rounded-lg text-xs font-bold tabular-nums transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-300 ${
+                item === page ? "bg-slate-900 text-white" : "text-slate-500 hover:bg-slate-100"
+              }`}
+            >
+              {item + 1}
+            </button>
+          ),
+        )}
+      </div>
+      <button type="button" aria-label="Следующая страница" disabled={page === totalPages - 1} onClick={() => onChange(Math.min(totalPages - 1, page + 1))} className={arrow}>
+        <svg aria-hidden="true" className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
+      </button>
+    </nav>
   );
 }
 
@@ -1061,35 +1104,15 @@ export default function DiagnosticReportPage() {
             return (
               <motion.div variants={fade} className="bg-white rounded-[28px] border border-slate-200/80 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.32)] overflow-hidden">
 
-                {/* ── Journal Header ── */}
-                <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
-                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                {/* ── Journal Header: the pager wraps under the title when the row is too narrow ── */}
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0 basis-40">
                     <div className="w-10 h-10 rounded-2xl bg-rose-50 ring-1 ring-rose-100 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-rose-500" />
                     </div>
-                    <div>
-                      <h2 className="font-bold text-slate-900 text-sm leading-none">Журнал ошибок</h2>
-                    </div>
+                    <h2 className="min-w-0 break-words font-bold text-slate-900 text-sm leading-tight">Журнал ошибок</h2>
                   </div>
-                  {/* Compact pagination in header */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      <button onClick={() => setErrorPage(Math.max(0, page - 1))} disabled={page === 0}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" /></svg>
-                      </button>
-                      {Array.from({ length: totalPages }).map((_, pi) => (
-                        <button key={pi} onClick={() => setErrorPage(pi)}
-                          className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
-                            pi === page ? "bg-slate-900 text-white" : "text-slate-400 hover:bg-slate-100"
-                          }`}>{pi + 1}</button>
-                      ))}
-                      <button onClick={() => setErrorPage(Math.min(totalPages - 1, page + 1))} disabled={page === totalPages - 1}
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" /></svg>
-                      </button>
-                    </div>
-                  )}
+                  {totalPages > 1 && <JournalPager page={page} totalPages={totalPages} onChange={setErrorPage} />}
                 </div>
 
                 {/* ── Error Entries ── */}
@@ -1261,11 +1284,11 @@ export default function DiagnosticReportPage() {
                       Записи <span className="font-semibold text-slate-700">{page * ERRORS_PER_PAGE + 1}–{Math.min((page + 1) * ERRORS_PER_PAGE, rj.error_patterns.length)}</span> из <span className="font-semibold text-slate-700">{rj.error_patterns.length}</span>
                     </span>
                     <div className="flex gap-2">
-                      <button onClick={() => setErrorPage(Math.max(0, page - 1))} disabled={page === 0}
+                      <button type="button" onClick={() => setErrorPage(Math.max(0, page - 1))} disabled={page === 0}
                         className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         ← Назад
                       </button>
-                      <button onClick={() => setErrorPage(Math.min(totalPages - 1, page + 1))} disabled={page === totalPages - 1}
+                      <button type="button" onClick={() => setErrorPage(Math.min(totalPages - 1, page + 1))} disabled={page === totalPages - 1}
                         className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                         Вперёд →
                       </button>

@@ -63,6 +63,7 @@
  *                       new report after MOCK_FLIP_AFTER requests (page: old report + «Отчёт обновляется…»)
  *   s9-rebuild-current  schema-5 report being regenerated (is_current_schema=false): normal content, empty
  *                       sections say «Раздел обновляется вместе с отчётом», NO «старый формат»; new report later
+ *   s10-many-errors     21 error records (7 journal pages) with LaTeX answers: pager / header overflow check
  *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
@@ -312,6 +313,14 @@ const SCENARIOS = {
     json.root_cause_chains = [];
     json.cognitive_error_types = [];
     return envelope(json, generation({ status: "generating", stage: "collecting_evidence", is_current_schema: false }));
+  },
+  // real reports have 15-21 error records -> 5-7 journal pages; LaTeX answers, a wide formula every 4th record
+  "s10-many-errors": () => {
+    const json = errorsJson({ long: false, plan: true });
+    json.error_patterns = Array.from({ length: 21 }, (_, i) => errorPattern(i, i % 4 === 0));
+    json.report_meta.questions_correct = 12;
+    json.report_meta.total_questions = 33;
+    return envelope(json);
   },
   // rebuild where the old report is LONGER (4 records, 2 journal pages) than the new one (2 records)
   "s9-rebuild-long": (n) =>
