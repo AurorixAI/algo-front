@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,6 +14,9 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
+import { DataLoadError } from "@/components/ui/data-load-error";
+import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
+import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
@@ -65,6 +68,8 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [attendanceMonth, setAttendanceMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [examsError, setExamsError] = useState<ExamHistoryError | null>(null);
+  const [examsRetrying, setExamsRetrying] = useState(false);
 
   // Edit notes/phone state
   const [editingNotes, setEditingNotes] = useState(false);
@@ -72,12 +77,34 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [commentVal, setCommentVal] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
 
+  // Latest-request-wins, one sequence per kind of load: each request takes a
+  // token and applies its result only if no newer request of that kind has
+  // started (student switch, A->B->A, month clicks, reload after save/assign).
+  // loadProfile also bumps examsSeq (it re-fetches the history, so an older
+  // retry must be dropped); retryExams never invalidates an in-flight loadProfile.
+  const [{ profileSeq, examsSeq, attendanceSeq, notesSeq }] = useState(() => ({
+    profileSeq: createRequestSequence(),
+    examsSeq: createRequestSequence(),
+    attendanceSeq: createRequestSequence(),
+    notesSeq: createRequestSequence(),
+  }));
+  // Student on screen, updated in the effect that starts loadProfile.  A callback
+  // from an older render (e.g. handleSaveNotes -> loadProfile after navigating
+  // to another student) must not start a request for a student that is gone.
+  const currentStudentIdRef = useRef(studentId);
+
   const loadProfile = useCallback(async () => {
-    if (!studentId) return;
+    if (!canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = profileSeq.next();
+    examsSeq.next();
+    const isCurrent = () => profileSeq.isCurrent(token);
     try {
       setLoading(true);
       setError(null);
+      setExamsError(null);
+      setExamsRetrying(false);
       const data = await orgApi.getStudentProfile(studentId);
+      if (!isCurrent()) return;
       // Exam attempts live in exam-service, while the student, diagnostics and
       // group timeline live in auth-service. Do not make the whole profile
       // unavailable if the supplementary history request is temporarily down.
@@ -86,37 +113,67 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
         exams = await examsApi.getStudentHistory(studentId);
       } catch (historyError) {
         console.error("Failed to load student exam history:", historyError);
+        // Surface the failure: an empty list must not look like "no exams".
+        if (isCurrent()) setExamsError(toExamHistoryError(historyError));
       }
+      if (!isCurrent()) return;
       const profileWithHistory: StudentProfile = { ...data, exams };
       setProfile(profileWithHistory);
       setPhoneVal(profileWithHistory.student.student_phone || "");
       setCommentVal(profileWithHistory.student.comment || "");
     } catch (err: any) {
       console.error("Failed to load student profile:", err);
-      setError(err?.message || "Ученик не найден");
+      if (isCurrent()) setError(err?.message || "Ученик не найден");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, profileSeq, examsSeq]);
 
   useEffect(() => {
+    currentStudentIdRef.current = studentId;
+    // A new student never opens with the previous student's notes editor / draft.
+    setEditingNotes(false);
+    setPhoneVal("");
+    setCommentVal("");
     loadProfile();
-  }, [loadProfile]);
+  }, [studentId, loadProfile]);
+
+  const retryExams = useCallback(async () => {
+    if (!canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = examsSeq.next();
+    const requestedFor = studentId;
+    const isCurrent = () => examsSeq.isCurrent(token);
+    setExamsRetrying(true);
+    try {
+      const exams = await examsApi.getStudentHistory(requestedFor);
+      if (!isCurrent()) return;
+      setProfile((prev) => (prev ? { ...prev, exams } : prev));
+      setExamsError(null);
+    } catch (err) {
+      console.error("Failed to load student exam history:", err);
+      if (isCurrent()) setExamsError(toExamHistoryError(err));
+    } finally {
+      if (isCurrent()) setExamsRetrying(false);
+    }
+  }, [studentId, examsSeq]);
 
   const loadAttendanceSummary = useCallback(async () => {
-    if (!studentId || isTeacher) return;
+    if (isTeacher || !canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = attendanceSeq.next();
+    const isCurrent = () => attendanceSeq.isCurrent(token);
     setAttendanceLoading(true);
     try {
-      setAttendanceSummary(await orgApi.getStudentAttendanceSummary(studentId, attendanceMonth));
+      const summary = await orgApi.getStudentAttendanceSummary(studentId, attendanceMonth);
+      if (isCurrent()) setAttendanceSummary(summary);
     } catch (err) {
       // Attendance is a supplementary administrative card. It must not make
       // the student's diagnostic and learning profile inaccessible.
       console.error("Failed to load student attendance summary:", err);
-      setAttendanceSummary(null);
+      if (isCurrent()) setAttendanceSummary(null);
     } finally {
-      setAttendanceLoading(false);
+      if (isCurrent()) setAttendanceLoading(false);
     }
-  }, [attendanceMonth, isTeacher, studentId]);
+  }, [attendanceMonth, attendanceSeq, isTeacher, studentId]);
 
   useEffect(() => {
     void loadAttendanceSummary();
@@ -130,18 +187,24 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
   const handleSaveNotes = async () => {
     if (!profile) return;
+    // The save may resolve after the user opened another student: it must not
+    // close that student's notes editor (discarding unsaved text) or clear a
+    // newer save's "saving" flag.  loadProfile below guards itself.
+    const token = notesSeq.next();
+    const stillOnScreen = () => canStartRequest(studentId, currentStudentIdRef.current);
     setSavingNotes(true);
     try {
       await orgApi.updateStudent(studentId, {
         student_phone: phoneVal.trim() || null,
         comment: commentVal.trim() || null,
       });
-      setEditingNotes(false);
+      if (stillOnScreen()) setEditingNotes(false);
       await loadProfile();
     } catch (e: any) {
+      // A failed save is always reported, whichever student is on screen now.
       alert(e.message || "Ошибка сохранения");
     } finally {
-      setSavingNotes(false);
+      if (notesSeq.isCurrent(token)) setSavingNotes(false);
     }
   };
 
@@ -394,7 +457,14 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
               <h2 className="text-base font-semibold text-slate-800">История экзаменов и срезов</h2>
             </div>
 
-            {exams.length === 0 ? (
+            {examsError ? (
+              <DataLoadError
+                title={examsError.title}
+                message={examsError.message}
+                onRetry={examsError.retryable ? retryExams : undefined}
+                isRetrying={examsRetrying}
+              />
+            ) : exams.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center space-y-2">
                 <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center mx-auto text-slate-400">
                   <GraduationCap className="w-5 h-5" />
@@ -714,20 +784,22 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
         </div>
       )}
 
-      {/* ── Assign to Group Modal ─────────────────────────────────────────── */}
-      <AssignGroupModal
-        open={assignModalOpen}
-        studentId={student.id}
-        studentName={student.full_name}
-        studentGrade={student.class_level}
-        currentGroupId={student.group_id}
-        currentGroupName={group?.name || null}
-        onClose={() => setAssignModalOpen(false)}
-        onAssigned={() => {
-          setAssignModalOpen(false);
-          loadProfile();
-        }}
-      />
+      {/* ── Assign to Group Modal (staff only, like the buttons that open it) ── */}
+      {!isTeacher && (
+        <AssignGroupModal
+          open={assignModalOpen}
+          studentId={student.id}
+          studentName={student.full_name}
+          studentGrade={student.class_level}
+          currentGroupId={student.group_id}
+          currentGroupName={group?.name || null}
+          onClose={() => setAssignModalOpen(false)}
+          onAssigned={() => {
+            setAssignModalOpen(false);
+            loadProfile();
+          }}
+        />
+      )}
     </div>
   );
 }
