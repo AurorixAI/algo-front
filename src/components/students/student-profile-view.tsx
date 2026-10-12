@@ -131,6 +131,10 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
   useEffect(() => {
     currentStudentIdRef.current = studentId;
+    // A new student never opens with the previous student's notes editor / draft.
+    setEditingNotes(false);
+    setPhoneVal("");
+    setCommentVal("");
     loadProfile();
   }, [studentId, loadProfile]);
 
