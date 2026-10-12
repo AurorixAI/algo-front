@@ -21,3 +21,13 @@ export function createRequestSequence(): RequestSequence {
     isCurrent: (token: number) => token === latest,
   };
 }
+
+/**
+ * A request for `requestedFor` may start only while that entity is still the one
+ * on screen.  Callbacks captured by an older render (a save that resolves after
+ * the user navigated to another student, then reloads "its" profile) fail this
+ * check, so they can never become the latest request for the wrong student.
+ */
+export function canStartRequest(requestedFor: string | null | undefined, onScreen: string | null | undefined): boolean {
+  return !!requestedFor && requestedFor === onScreen;
+}

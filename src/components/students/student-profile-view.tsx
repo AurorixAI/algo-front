@@ -16,7 +16,7 @@ import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
-import { createRequestSequence } from "@/lib/request-sequence";
+import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
@@ -77,15 +77,26 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [commentVal, setCommentVal] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
 
-  // Latest-request-wins: every loadProfile / retryExams takes a token and applies
-  // its result only if no newer request has started (student switch, A->B->A,
-  // reload after save/assign while a retry is in flight).
-  const loadSeq = useRef(createRequestSequence());
+  // Latest-request-wins, one sequence per kind of load: each request takes a
+  // token and applies its result only if no newer request of that kind has
+  // started (student switch, A->B->A, month clicks, reload after save/assign).
+  // loadProfile also bumps examsSeq (it re-fetches the history, so an older
+  // retry must be dropped); retryExams never invalidates an in-flight loadProfile.
+  const [{ profileSeq, examsSeq, attendanceSeq }] = useState(() => ({
+    profileSeq: createRequestSequence(),
+    examsSeq: createRequestSequence(),
+    attendanceSeq: createRequestSequence(),
+  }));
+  // Student on screen, updated in the effect that starts loadProfile.  A callback
+  // from an older render (e.g. handleSaveNotes -> loadProfile after navigating
+  // to another student) must not start a request for a student that is gone.
+  const currentStudentIdRef = useRef(studentId);
 
   const loadProfile = useCallback(async () => {
-    const token = loadSeq.current.next();
-    if (!studentId) return;
-    const isCurrent = () => loadSeq.current.isCurrent(token);
+    if (!canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = profileSeq.next();
+    examsSeq.next();
+    const isCurrent = () => profileSeq.isCurrent(token);
     try {
       setLoading(true);
       setError(null);
@@ -115,17 +126,18 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, profileSeq, examsSeq]);
 
   useEffect(() => {
+    currentStudentIdRef.current = studentId;
     loadProfile();
-  }, [loadProfile]);
+  }, [studentId, loadProfile]);
 
   const retryExams = useCallback(async () => {
-    const token = loadSeq.current.next();
-    if (!studentId) return;
+    if (!canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = examsSeq.next();
     const requestedFor = studentId;
-    const isCurrent = () => loadSeq.current.isCurrent(token);
+    const isCurrent = () => examsSeq.isCurrent(token);
     setExamsRetrying(true);
     try {
       const exams = await examsApi.getStudentHistory(requestedFor);
@@ -138,22 +150,25 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
     } finally {
       if (isCurrent()) setExamsRetrying(false);
     }
-  }, [studentId]);
+  }, [studentId, examsSeq]);
 
   const loadAttendanceSummary = useCallback(async () => {
-    if (!studentId || isTeacher) return;
+    if (isTeacher || !canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const token = attendanceSeq.next();
+    const isCurrent = () => attendanceSeq.isCurrent(token);
     setAttendanceLoading(true);
     try {
-      setAttendanceSummary(await orgApi.getStudentAttendanceSummary(studentId, attendanceMonth));
+      const summary = await orgApi.getStudentAttendanceSummary(studentId, attendanceMonth);
+      if (isCurrent()) setAttendanceSummary(summary);
     } catch (err) {
       // Attendance is a supplementary administrative card. It must not make
       // the student's diagnostic and learning profile inaccessible.
       console.error("Failed to load student attendance summary:", err);
-      setAttendanceSummary(null);
+      if (isCurrent()) setAttendanceSummary(null);
     } finally {
-      setAttendanceLoading(false);
+      if (isCurrent()) setAttendanceLoading(false);
     }
-  }, [attendanceMonth, isTeacher, studentId]);
+  }, [attendanceMonth, attendanceSeq, isTeacher, studentId]);
 
   useEffect(() => {
     void loadAttendanceSummary();
