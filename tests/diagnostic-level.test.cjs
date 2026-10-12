@@ -50,15 +50,15 @@ test("formatSolved", () => {
 test("resolveReportLevel prefers report.level, falls back to legacy fields", () => {
   const withLevel = L.resolveReportLevel({
     level: { category: "at_grade", status: "on_level", class_equivalent: "конец 8 класса", provisional: true, solved: 6, total: 30 },
-    overall: { status: "critical", class_equivalent: "начало 7 класса" },
+    overall: { status: "critical", class_equivalent: "начало 7 класса" },   // stored by older reports: ignored (N03a)
     report_meta: { total_questions: 99, questions_correct: 1 },
   });
-  assert.deepEqual(withLevel, { category: "at_grade", status: "on_level", classEquivalent: "конец 8 класса", provisional: true, solved: 6, total: 30 });
+  assert.deepEqual(withLevel, { category: "at_grade", status: "on_level", provisional: true, solved: 6, total: 30 });
   const legacy = L.resolveReportLevel({
     overall: { status: "below_level", class_equivalent: "начало 7 класса" },
     report_meta: { total_questions: 25, questions_correct: 5 },
   });
-  assert.deepEqual(legacy, { category: "below_grade", status: "below", classEquivalent: "начало 7 класса", provisional: false, solved: 5, total: 25 });
+  assert.deepEqual(legacy, { category: "below_grade", status: "below", provisional: false, solved: 5, total: 25 });
 });
 
 test("storedLevelDisplay: status wins, category fallback, no invented default", () => {
@@ -67,6 +67,10 @@ test("storedLevelDisplay: status wins, category fallback, no invented default", 
   assert.equal(L.storedLevelDisplay({ recommended_level: "above_grade", level_provisional: true }).provisional, true);
   assert.equal(L.storedLevelDisplay({ recommended_level: null }), null);
   assert.equal(L.storedLevelDisplay(null), null);
+  // the "beginning/middle/end of grade N" equivalent is neither read nor returned (N03a, O4)
+  const stored = L.storedLevelDisplay({ recommended_level: "at_grade", level_status: "on_level", class_equivalent: "конец 8 класса" });
+  assert.equal("classEquivalent" in stored, false);
+  assert.equal("classEquivalent" in L.resolveReportLevel({ level: { status: "on_level", class_equivalent: "середина 8 класса" } }), false);
 });
 
 test("isAtRisk follows the level policy (theta < -0.5), not the old 0.5 filter", () => {

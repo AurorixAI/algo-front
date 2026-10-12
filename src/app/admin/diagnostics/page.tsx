@@ -32,7 +32,6 @@ interface DiagnosticInvite {
     accuracy?: number | null;
     recommended_level?: string | null;
     level_status?: string | null;
-    class_equivalent?: string | null;
     level_provisional?: boolean | null;
     total_questions?: number | null;
     correct_answers?: number | null;
@@ -507,7 +506,6 @@ export default function AdminDiagnosticsPage() {
                             className={"inline-flex flex-wrap items-center gap-1.5 text-xs px-2 py-0.5 rounded-md border font-medium " + lv.tone.badge}
                           >
                             {lv.label}
-                            {lv.classEquivalent && <span className="font-normal">· {lv.classEquivalent}</span>}
                             {lv.provisional && <span className="font-normal italic">· {PROVISIONAL_LABEL}</span>}
                             {solved && <span className="font-normal opacity-80">· {solved}</span>}
                           </span>

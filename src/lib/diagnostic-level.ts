@@ -181,7 +181,6 @@ export function formatSolved(solved?: number | null, total?: number | null): str
 export interface ReportLevel {
   category?: string | null;
   status?: string | null;
-  class_equivalent?: string | null;
   provisional?: boolean | null;
   theta?: number | null;
   se?: number | null;
@@ -192,7 +191,6 @@ export interface ReportLevel {
 export interface ResolvedLevel {
   category: LevelCategory | null;
   status: LevelStatus | null;
-  classEquivalent: string | null;
   provisional: boolean;
   solved: number | null;
   total: number | null;
@@ -200,11 +198,13 @@ export interface ResolvedLevel {
 
 /**
  * Report header level: read report_json.level when present, otherwise the
- * legacy fields (overall.status / overall.class_equivalent / report_meta).
+ * legacy fields (overall.status / report_meta).
+ * The "beginning/middle/end of grade N" equivalent was removed (N03a, O4): it has
+ * no norming behind it, so it is neither read nor shown.
  */
 export function resolveReportLevel(report: {
   level?: ReportLevel | null;
-  overall?: { status?: string | null; class_equivalent?: string | null } | null;
+  overall?: { status?: string | null } | null;
   report_meta?: { total_questions?: number | null; questions_correct?: number | null } | null;
 }): ResolvedLevel {
   const lv = report.level ?? null;
@@ -213,7 +213,6 @@ export function resolveReportLevel(report: {
   return {
     category,
     status,
-    classEquivalent: lv?.class_equivalent ?? report.overall?.class_equivalent ?? null,
     provisional: lv?.provisional === true,
     solved: lv?.solved ?? report.report_meta?.questions_correct ?? null,
     total: lv?.total ?? report.report_meta?.total_questions ?? null,
@@ -224,7 +223,6 @@ export function resolveReportLevel(report: {
 export interface StoredLevelFields {
   recommended_level?: string | null;
   level_status?: string | null;
-  class_equivalent?: string | null;
   level_provisional?: boolean | null;
 }
 
@@ -235,7 +233,7 @@ export interface StoredLevelFields {
  */
 export function storedLevelDisplay(
   res?: StoredLevelFields | null,
-): { label: string; tone: LevelToneClasses; provisional: boolean; classEquivalent: string | null } | null {
+): { label: string; tone: LevelToneClasses; provisional: boolean } | null {
   if (!res) return null;
   const status = normalizeStatus(res.level_status);
   const category = normalizeCategory(res.recommended_level);
@@ -246,6 +244,5 @@ export function storedLevelDisplay(
     label,
     tone,
     provisional: res.level_provisional === true,
-    classEquivalent: res.class_equivalent ?? null,
   };
 }

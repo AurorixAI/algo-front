@@ -355,9 +355,6 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                                     <span className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium border ${levelView.tone.badge}`}>
                                       {levelView.label}
                                     </span>
-                                    {levelView.classEquivalent && (
-                                      <span className="text-[11px] text-slate-500">{levelView.classEquivalent}</span>
-                                    )}
                                     {levelView.provisional && (
                                       <span className="text-[10px] uppercase tracking-wide text-amber-600">{PROVISIONAL_LABEL}</span>
                                     )}

@@ -448,7 +448,6 @@ export interface StudentInGroup {
   last_theta: number | null;
   last_level: "below_grade" | "at_grade" | "above_grade" | null;
   last_level_status?: "critical" | "below" | "partial_gap" | "on_level" | "above" | null;
-  last_class_equivalent?: string | null;
   last_level_provisional?: boolean | null;
   last_diagnosed_at: string | null;
 }
@@ -610,7 +609,6 @@ export interface StudentProfile {
       accuracy?: number | null;
       recommended_level?: string | null;
       level_status?: string | null;
-      class_equivalent?: string | null;
       level_provisional?: boolean | null;
       total_questions?: number | null;
       correct_answers?: number | null;

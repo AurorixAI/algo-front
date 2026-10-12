@@ -7,6 +7,9 @@ import {
   LEVEL_TONES, PROVISIONAL_LABEL, formatSolved, levelStatusLabel, levelStatusTone, resolveReportLevel,
   type LevelToneClasses, type ReportLevel,
 } from "@/lib/diagnostic-level";
+import {
+  hoursLabel, isDevelopmentStep, isErrorFreeReport, knownPlanHours, recommendedStartName, stepHours,
+} from "@/lib/diagnostic-report";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft,
@@ -76,8 +79,14 @@ interface ErrorPattern {
 }
 interface ActionItem {
   priority: number; skill_name_ru: string;
-  action_title: string; full_description: string; estimated_hours: number;
+  skill_id?: string;
+  action_title: string; full_description: string;
+  /** Present only when the report has a real basis for a duration; never invented. */
+  estimated_hours?: number | null;
+  /** "development" = next growth step of an error-free attempt (no deficit implied). */
+  kind?: "development" | string | null;
 }
+interface Achievement { skill_id: string; skill_name_ru: string; correct_answers?: number; mastery_percent?: number; }
 
 interface ChainStep {
   step_num?: number;
@@ -148,17 +157,22 @@ interface ReportJson {
     session_id: string; student_name: string; class_level: number;
     test_code: string; date: string; total_questions: number;
     questions_correct: number; score_percent: number;
+    /** Every answer correct and nothing to correct (schema 5). */
+    error_free?: boolean;
   };
   overall: {
     score_percent: number; status: string; status_label_ru: string;
-    student_summary?: string | null; confidence_of_diagnosis?: number;
-    class_equivalent?: string | null;
+    student_summary?: string | null;
   };
   /** New contract (report_json.level); absent in reports built before it. */
   level?: ReportLevel | null;
   diagnostic_boundary?: DiagnosticBoundary;
   root_cause_chains?: RootCauseChain[];
   cognitive_error_types?: CognitiveErrorCluster[];
+  /** Topics solved without a single wrong attempt (schema 5). */
+  achievements?:  Achievement[];
+  /** The one recommended start == first plan step (schema 5). */
+  recommended_start?: { skill_id?: string | null; skill_name_ru?: string | null; evidence?: string | null } | null;
   strong_skills:  StrongSkill[];
   weak_skills:    WeakSkill[];
   critical_gaps:  CriticalGap[];
@@ -501,7 +515,7 @@ export default function DiagnosticReportPage() {
   const generationStageCopy: Record<string, { title: string; description: string }> = {
     queued: { title: "Отчёт поставлен в очередь", description: "Ответы уже сохранены. Подготовка начнётся автоматически." },
     collecting_evidence: { title: "Проверяем результаты", description: "Сверяем ответы, навыки и журнал ошибок." },
-    writing_methodical_conclusion: { title: "Формируем методическое заключение", description: "Готовим компактный персональный план обучения." },
+    writing_methodical_conclusion: { title: "Формируем автоматическое резюме", description: "Готовим компактный персональный план обучения." },
     retry_queued: { title: "Повторно готовим отчёт", description: "Исходные ответы сохранены; повторяем подготовку отчёта." },
     failed: { title: "Подготовка отчёта требует повторного запуска", description: "Исходные результаты сохранены. Обратитесь к администратору для повторной подготовки." },
   };
@@ -510,6 +524,13 @@ export default function DiagnosticReportPage() {
     description: "Ответы сохранены. Обычно подготовка занимает до минуты.",
   };
   const level = rj ? resolveReportLevel(rj) : null;
+  // Error-free attempt: a positive scenario (achievements + a development step).
+  const errorFree = rj ? isErrorFreeReport(rj) : false;
+  const achievements: Achievement[] = rj
+    ? (rj.achievements && rj.achievements.length > 0
+        ? rj.achievements
+        : (rj.strong_skills ?? []).map((item) => ({ skill_id: item.skill_id, skill_name_ru: item.skill_name_ru, mastery_percent: item.mastery_percent })))
+    : [];
   const cfg = rj ? toneForStatus(level?.status) : null;
   const solvedText = level ? formatSolved(level.solved, level.total) : null;
 
@@ -700,9 +721,6 @@ export default function DiagnosticReportPage() {
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-600 sm:justify-start">
-                  {level?.classEquivalent && (
-                    <span data-testid="diagnostic-report-class-equivalent" className="font-semibold">{level.classEquivalent}</span>
-                  )}
                   {level?.provisional && (
                     <span data-testid="diagnostic-report-provisional" className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
                       {PROVISIONAL_LABEL}
@@ -1022,20 +1040,64 @@ export default function DiagnosticReportPage() {
             );
           })()}
 
+          {/* ── TAB 1 (no errors): positive scenario instead of an empty tab ── */}
+          {activeTab === "journal" && rj.error_patterns.length === 0 && (
+            <motion.div
+              variants={fade}
+              data-testid={errorFree ? "diagnostic-report-error-free" : "diagnostic-report-no-errors"}
+              className="bg-white rounded-2xl border border-emerald-200/80 p-6 shadow-2xs space-y-5"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
+                  <Award className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="font-bold text-slate-900 text-base">
+                    {errorFree ? "Все выполненные задания решены верно" : "В журнале нет записей об ошибках"}
+                  </h2>
+                  {errorFree && (
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      Дефицит по результатам диагностики не выявлен: ниже — подтверждённые навыки и следующий шаг развития.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {achievements.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Подтверждённые навыки</div>
+                  <div className="flex flex-wrap gap-2" data-testid="diagnostic-report-achievements">
+                    {achievements.map((item) => (
+                      <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
+                        {item.skill_name_ru}
+                        {typeof item.correct_answers === "number" && (
+                          <span className="ml-1.5 font-normal text-emerald-700/80">· верно: {item.correct_answers}</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {errorFree && rj.action_plan.length > 0 && (
+                <div className="rounded-xl border border-primary-100 bg-primary-50/40 p-4 space-y-1" data-testid="diagnostic-report-next-step">
+                  <div className="text-xs font-bold uppercase tracking-wider text-primary-700">Следующий шаг развития</div>
+                  <div className="text-sm font-semibold text-slate-900">{rj.action_plan[0].action_title || rj.action_plan[0].skill_name_ru}</div>
+                  <p className="text-sm text-slate-700 leading-relaxed">{rj.action_plan[0].full_description}</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {/* ── TAB 2: Skills & Root-Cause Anatomy ─────────────────────────── */}
           {activeTab === "skills" && (
             <motion.div variants={fade} className="space-y-6">
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
-              {rj.diagnostic_boundary && (
+              {rj.diagnostic_boundary && !errorFree && (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <SectionHeader icon={Target} title="Академическая граница знаний (Диагностический срез)" />
-                    {rj.overall.confidence_of_diagnosis !== undefined && (
-                      <span className="text-xs font-semibold text-slate-500 bg-slate-50 border border-slate-200/80 px-3 py-1 rounded-full">
-                        Надёжность диагноза: <span className="font-bold text-slate-800">{Math.round(rj.overall.confidence_of_diagnosis * 100)}%</span>
-                      </span>
-                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
@@ -1269,21 +1331,21 @@ export default function DiagnosticReportPage() {
                 </div>
               )}
 
-              {(rj.root_cause_chains?.length ?? 0) === 0 && (
-                <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5 sm:p-6 flex gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-white border border-indigo-100 flex items-center justify-center flex-shrink-0 shadow-2xs">
-                    <Compass className="w-5 h-5 text-indigo-600" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <h3 className="text-sm font-bold text-slate-900">Единая первопричина не подтверждена</h3>
-                    <p className="text-sm leading-relaxed text-slate-600">
-                      Уровень и учебные приоритеты определены по {rj.report_meta.total_questions} ответам.
-                      Для зафиксированных ошибок не обнаружена подтверждённая цепочка
-                      «тема → пререквизит» в диагностическом спуске. Система намеренно
-                      не назначает вымышленную первопричину: опирайтесь на журнал ошибок
-                      и индивидуальный план обучения.
-                    </p>
-                  </div>
+              {/* ── Error-free attempt: verified skills instead of a "break point" ── */}
+              {errorFree && (
+                <div className="bg-white rounded-2xl border border-emerald-200/80 p-6 shadow-2xs space-y-3" data-testid="diagnostic-report-skills-error-free">
+                  <SectionHeader icon={Anchor} title="Подтверждённые навыки" count={achievements.length} />
+                  {achievements.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {achievements.map((item) => (
+                        <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
+                          {item.skill_name_ru}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">Подтверждённые навыки не определены.</p>
+                  )}
                 </div>
               )}
 
@@ -1416,9 +1478,14 @@ export default function DiagnosticReportPage() {
 
           {/* ── TAB 3: Student Action Plan (Learning Roadmap Timeline) ── */}
           {activeTab === "plan" && rj.action_plan.length > 0 && (() => {
-            const totalHours = rj.action_plan.reduce((sum: number, it: any) => sum + (Number(it.estimated_hours) || 0), 0);
-            const targetGrade = rj.report_meta?.class_level || 8;
-            const primaryStart = rj.action_plan[0]?.action_title || rj.action_plan[0]?.skill_name_ru || "Базовый пререквизит";
+            // Durations are shown only when the report really carries them (it normally does not).
+            const totalHours = knownPlanHours(rj.action_plan);
+            // One recommended start == the first plan step; no placeholder when it is missing.
+            const primaryStart = recommendedStartName(rj) || "—";
+            const development = isDevelopmentStep(rj.action_plan[0]);
+            const planSkillNames = rj.action_plan
+              .map((it) => it.skill_name_ru)
+              .filter((name): name is string => Boolean(name));
 
             return (
               <motion.div variants={fade} className="space-y-6">
@@ -1429,26 +1496,30 @@ export default function DiagnosticReportPage() {
                       <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
                         <Compass className="w-4 h-4 text-primary-600" />
                       </div>
-                      <h2 className="font-bold text-slate-900 text-base">Индивидуальный образовательный маршрут</h2>
+                      <h2 className="font-bold text-slate-900 text-base">
+                        {development ? "Следующий шаг развития" : "Индивидуальный образовательный маршрут"}
+                      </h2>
                     </div>
                     <p className="text-xs sm:text-sm text-slate-500 pl-9">
-                      Пошаговая траектория: от ликвидации базовых пробелов к стабильному освоению программы {targetGrade} класса.
+                      {development
+                        ? "Дефицит по результатам диагностики не выявлен: предлагается расширить подтверждённые навыки."
+                        : "Пошаговый план отработки навыков, выявленных диагностикой, в порядке приоритета."}
                     </p>
                   </div>
 
                   {/* Summary Metric Widgets */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                    <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3.5">
-                      <div className="w-9 h-9 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-2xs">
-                        <Clock className="w-4 h-4 text-primary-600" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="text-[11px] font-medium text-slate-500">Общее время коррекции</div>
-                        <div className="text-sm font-bold text-slate-900 truncate">
-                          ~{totalHours > 0 ? totalHours : rj.action_plan.length * 3} часов занятий
+                  <div className={`grid grid-cols-1 gap-3 pt-2 ${totalHours !== null ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                    {totalHours !== null && (
+                      <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3.5">
+                        <div className="w-9 h-9 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-2xs">
+                          <Clock className="w-4 h-4 text-primary-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-medium text-slate-500">Время по плану</div>
+                          <div className="text-sm font-bold text-slate-900 truncate">{hoursLabel(totalHours)} занятий</div>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3.5">
                       <div className="w-9 h-9 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-2xs">
@@ -1457,7 +1528,9 @@ export default function DiagnosticReportPage() {
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-slate-500">Структура трека</div>
                         <div className="text-sm font-bold text-slate-900 truncate">
-                          {rj.action_plan.length} {rj.action_plan.length === 1 ? "этап" : rj.action_plan.length < 5 ? "этапа" : "этапов"} освоения
+                          {development
+                            ? "шаг развития"
+                            : `${rj.action_plan.length} ${rj.action_plan.length === 1 ? "этап" : rj.action_plan.length < 5 ? "этапа" : "этапов"} освоения`}
                         </div>
                       </div>
                     </div>
@@ -1483,7 +1556,7 @@ export default function DiagnosticReportPage() {
 
                   {rj.action_plan.map((item, idx) => {
                     const isFirst = item.priority === 1 || idx === 0;
-                    const hours = item.estimated_hours || 3;
+                    const hours = stepHours(item);
 
                     return (
                       <div key={item.priority || idx} className="relative flex items-start gap-4 sm:gap-6 group">
@@ -1516,7 +1589,9 @@ export default function DiagnosticReportPage() {
                                     : "bg-slate-100 text-slate-700 border-slate-200/80"
                                 }`}
                               >
-                                {isFirst ? "Стартовый приоритет · Шаг 1" : `Шаг ${item.priority || idx + 1} · Развитие`}
+                                {isDevelopmentStep(item)
+                                  ? "Шаг развития"
+                                  : isFirst ? "Стартовый приоритет · Шаг 1" : `Шаг ${item.priority || idx + 1} · Развитие`}
                               </span>
 
                               {item.skill_name_ru && item.action_title && item.action_title !== item.skill_name_ru && (
@@ -1526,10 +1601,12 @@ export default function DiagnosticReportPage() {
                               )}
                             </div>
 
-                            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-md">
-                              <Clock className="w-3.5 h-3.5 text-slate-400" />
-                              <span>~{hours} {hours === 1 ? "час" : hours < 5 ? "часа" : "часов"}</span>
-                            </div>
+                            {hours !== null && (
+                              <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 bg-slate-50 border border-slate-200/80 px-2.5 py-1 rounded-md">
+                                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                                <span>{hoursLabel(hours)}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Title */}
@@ -1547,36 +1624,40 @@ export default function DiagnosticReportPage() {
                               .trim()}
                           </p>
 
-                          {/* Milestone Criteria Footer */}
-                          <div className="pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                            <span>Критерий освоения: серия из 5 задач подряд без ошибок перед переходом к следующей теме</span>
-                          </div>
+                          {/* Milestone Criteria Footer (correction steps only) */}
+                          {!isDevelopmentStep(item) && (
+                            <div className="pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+                              <span>Критерий освоения: серия из 5 задач подряд без ошибок перед переходом к следующей теме</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
                   })}
 
-                  {/* Final Milestone / Goal Node */}
-                  <div className="relative flex items-start gap-4 sm:gap-6 group">
-                    <div className="relative z-10 -ml-[23px] sm:-ml-[39px] w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md ring-4 ring-emerald-100/80 flex-shrink-0">
-                      <Flag className="w-4 h-4" />
-                    </div>
-
-                    <div className="flex-1 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 p-5 sm:p-6 shadow-2xs space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                          Целевой результат трека
-                        </span>
+                  {/* Final Milestone / Goal Node: a learning goal, not a promise of "full readiness" */}
+                  {!development && planSkillNames.length > 0 && (
+                    <div className="relative flex items-start gap-4 sm:gap-6 group">
+                      <div className="relative z-10 -ml-[23px] sm:-ml-[39px] w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md ring-4 ring-emerald-100/80 flex-shrink-0">
+                        <Flag className="w-4 h-4" />
                       </div>
-                      <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                        Полная готовность и уверенность по программе {targetGrade} класса
-                      </h3>
-                      <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                        Последовательное прохождение всех шагов устраняет барьеры в пререквизитах, нормализует скорость решения и обеспечивает устойчивую базу для контрольных срезов и олимпиадных задач.
-                      </p>
+
+                      <div className="flex-1 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 p-5 sm:p-6 shadow-2xs space-y-2" data-testid="diagnostic-report-plan-goal">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Цель плана
+                          </span>
+                        </div>
+                        <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                          Решать задачи по темам плана в новом контексте
+                        </h3>
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                          Темы: {planSkillNames.join("; ")}. Освоение каждой темы подтверждается решением новых задач; итог проверяется повторной диагностикой.
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </motion.div>
             );
