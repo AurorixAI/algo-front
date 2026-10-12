@@ -80,6 +80,7 @@ export default function AdminExamViewPage() {
 
   const load = useCallback(async () => {
     setError(null);
+    setLobbyConflict(false);
     try {
       // The lobby is requested only after the view says the exam has one: a printed
       // exam answers 409 there (and the browser logs it as a console error).

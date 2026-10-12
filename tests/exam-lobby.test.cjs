@@ -35,4 +35,6 @@ test("pages ask for the lobby only after the exam data says it has one", () => {
   assert.ok(/examHasLobby\(view\)\s*\?\s*await examsApi\.getLobbyStatus/.test(admin), "admin: initial load gated on the view");
   assert.ok(/hasLobby\s*\?\s*examsApi\.getLobbyStatus/.test(admin), "admin: polling gated");
   assert.ok(/!examHasLobby\(exam\)/.test(teacher), "teacher: polling gated on a loaded exam with a lobby");
+  assert.ok(/isNoLobbyConflict\(err\)[\s\S]{0,400}delivery_mode: "print"/.test(teacher), "teacher: a 409 switches the exam to print mode in state");
+  assert.ok(/setLobbyConflict\(false\)/.test(admin), "admin: the conflict flag is reset when the data is loaded again");
 });

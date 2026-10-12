@@ -248,8 +248,6 @@ export default function ExamHubPage() {
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const menuBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const analyticsRequestIdRef = useRef(0);
-  // Лобби-эндпоинт ответил 409 («нет лобби»): экзамен печатный, опрос не возобновляем.
-  const noLobbyRef = useRef(false);
 
   // Group Assignment & Quick Actions State
   const [groups, setGroups] = useState<Group[]>([]);
@@ -330,7 +328,7 @@ export default function ExamHubPage() {
     }
     // Пока данные экзамена не загружены, тип выдачи неизвестен: не угадываем, иначе
     // печатный экзамен получит 409 уже на первом запросе (и ошибку в консоли браузера).
-    if (!examHasLobby(exam) || noLobbyRef.current) return;
+    if (!examHasLobby(exam)) return;
 
     const pollStatus = async () => {
       try {
@@ -350,14 +348,17 @@ export default function ExamHubPage() {
           setExam((prev) => (prev ? { ...prev, status: lobbyData.status, access_code: lobbyData.access_code || prev.access_code } : null));
         }
       } catch (err) {
-        // 409 = у экзамена нет лобби (стал печатным): больше не опрашиваем.
+        // 409 = у экзамена нет лобби (стал печатным): больше не опрашиваем (эффект
+        // перезапустится по смене delivery_mode и уйдёт в печатную ветку).
         // Остальные ошибки опроса — тихие, следующий тик повторит запрос.
         if (isNoLobbyConflict(err)) {
-          noLobbyRef.current = true;
           if (interval) clearInterval(interval);
           interval = null;
           setLobbyStudents([]);
           setTimeRemaining(null);
+          // Экзамен печатный, а страница считала его онлайн-экзаменом: переключаем
+          // интерфейс на печатный режим (кнопки лобби/запуска онлайн-сессий уходят).
+          setExam((prev) => (prev && prev.delivery_mode !== "print" ? { ...prev, delivery_mode: "print" } : prev));
         }
       }
     };

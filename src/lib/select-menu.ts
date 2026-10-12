@@ -13,8 +13,17 @@ export interface MenuAnchor {
 }
 
 export interface MenuViewport {
+  /** Layout viewport size (CSS `bottom` of an upward list is measured from its bottom edge). */
   width: number;
   height: number;
+  /**
+   * Part of the layout viewport the user can actually see: the visual viewport
+   * (on-screen keyboard, pinch-zoom). Defaults to the whole layout viewport.
+   */
+  visibleTop?: number;
+  visibleBottom?: number;
+  visibleLeft?: number;
+  visibleRight?: number;
 }
 
 export interface MenuPlacement {
@@ -45,7 +54,11 @@ export interface MenuPlacementOptions {
 /**
  * Fixed-position box for the open list: opens below the trigger when there is
  * room (or more room than above), otherwise flips above; clamps the width and
- * left edge into the viewport and caps the height to the space actually left.
+ * left edge into the visible viewport and caps the height to the space actually
+ * left. When neither side has room for `minHeight` (landscape phone, on-screen
+ * keyboard) the list is pinned inside the visible area, covering the field if it
+ * has to, and shrinks below `minHeight` rather than leaving the screen: it
+ * always scrolls inside its own height.
  */
 export function computeMenuPlacement(
   anchor: MenuAnchor,
@@ -58,15 +71,26 @@ export function computeMenuPlacement(
   const minHeight = opts.minHeight ?? 64;
   const need = Math.min(maxHeight, opts.contentHeight ?? maxHeight);
 
-  const spaceBelow = viewport.height - anchor.bottom - gap - margin;
-  const spaceAbove = anchor.top - gap - margin;
+  const vTop = viewport.visibleTop ?? 0;
+  const vBottom = viewport.visibleBottom ?? viewport.height;
+  const vLeft = viewport.visibleLeft ?? 0;
+  const vRight = viewport.visibleRight ?? viewport.width;
+
+  const width = Math.max(0, Math.min(anchor.width, vRight - vLeft - 2 * margin));
+  const left = Math.max(vLeft + margin, Math.min(anchor.left, vRight - margin - width));
+
+  const spaceBelow = vBottom - anchor.bottom - gap - margin;
+  const spaceAbove = anchor.top - vTop - gap - margin;
   const side: MenuPlacement["side"] = spaceBelow >= need || spaceBelow >= spaceAbove ? "below" : "above";
   const space = side === "below" ? spaceBelow : spaceAbove;
 
-  const width = Math.max(0, Math.min(anchor.width, viewport.width - 2 * margin));
-  const left = Math.max(margin, Math.min(anchor.left, viewport.width - margin - width));
-  const height = Math.max(Math.min(minHeight, maxHeight), Math.min(maxHeight, space));
+  if (space < Math.min(minHeight, need)) {
+    const height = Math.max(0, Math.min(maxHeight, need, vBottom - vTop - 2 * margin));
+    const top = Math.max(vTop + margin, Math.min(anchor.bottom + gap, vBottom - margin - height));
+    return { side: "below", left, width, maxHeight: height, top };
+  }
 
+  const height = Math.min(maxHeight, space);
   return side === "below"
     ? { side, left, width, maxHeight: height, top: anchor.bottom + gap }
     : { side, left, width, maxHeight: height, bottom: viewport.height - anchor.top + gap };
@@ -87,4 +111,32 @@ export function moveActiveIndex(count: number, current: number, key: MenuNavKey)
     case "ArrowUp":
       return current < 0 ? count - 1 : Math.max(0, current - 1);
   }
+}
+
+export type SelectKeyAction = "none" | "open" | "move" | "choose" | "close";
+
+export interface SelectKeyResult {
+  action: SelectKeyAction;
+  /** The Select handled the key: it must not bubble (a login form's Enter handler must not fire). */
+  stop: boolean;
+  /** Suppress the browser default (page scroll on arrows, Space activation). */
+  prevent: boolean;
+}
+
+/**
+ * What a key does on the Select's field. Enter/Space on a closed field open it
+ * through the button's own click (no preventDefault) but are still ours: they
+ * must not reach an ancestor key handler. Tab only closes and keeps its default.
+ */
+export function resolveSelectKey(open: boolean, key: string): SelectKeyResult {
+  const nav = key === "ArrowDown" || key === "ArrowUp" || key === "Home" || key === "End";
+  if (!open) {
+    if (key === "ArrowDown" || key === "ArrowUp") return { action: "open", stop: true, prevent: true };
+    if (key === "Enter" || key === " ") return { action: "none", stop: true, prevent: false };
+    return { action: "none", stop: false, prevent: false };
+  }
+  if (nav) return { action: "move", stop: true, prevent: true };
+  if (key === "Enter" || key === " ") return { action: "choose", stop: true, prevent: true };
+  if (key === "Tab") return { action: "close", stop: false, prevent: false };
+  return { action: "none", stop: false, prevent: false };
 }

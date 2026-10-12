@@ -1,7 +1,14 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { computeMenuPlacement, moveActiveIndex, type MenuNavKey, type MenuPlacement } from "@/lib/select-menu";
+import {
+  computeMenuPlacement,
+  moveActiveIndex,
+  resolveSelectKey,
+  type MenuNavKey,
+  type MenuPlacement,
+  type MenuViewport,
+} from "@/lib/select-menu";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Check } from "lucide-react";
@@ -30,7 +37,18 @@ const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : us
 const MENU_MAX_HEIGHT = 240;
 const OPTION_HEIGHT_ESTIMATE = 48;
 
-const NAV_KEYS: readonly string[] = ["ArrowDown", "ArrowUp", "Home", "End"];
+/** Layout viewport plus the part of it the user can see (on-screen keyboard, pinch-zoom). */
+function readViewport(): MenuViewport {
+  const viewport: MenuViewport = { width: document.documentElement.clientWidth, height: window.innerHeight };
+  const vv = window.visualViewport;
+  if (vv) {
+    viewport.visibleTop = vv.offsetTop;
+    viewport.visibleBottom = vv.offsetTop + vv.height;
+    viewport.visibleLeft = vv.offsetLeft;
+    viewport.visibleRight = vv.offsetLeft + vv.width;
+  }
+  return viewport;
+}
 
 /**
  * Custom select. The open list is rendered into <body> with fixed positioning, so
@@ -42,7 +60,10 @@ const NAV_KEYS: readonly string[] = ["ArrowDown", "ArrowUp", "Home", "End"];
  *
  * Keyboard: Enter/Space/ArrowDown/ArrowUp open; ArrowUp/ArrowDown/Home/End move
  * the highlight (focus stays on the field, aria-activedescendant); Enter/Space
- * choose; Escape closes; Tab closes and moves on. Outside press closes.
+ * choose; Escape closes; Tab closes and moves on. Outside press closes, and so
+ * does scrolling the field out of sight (page, inner scroller or sticky header).
+ * Keys the Select handles do not bubble, so a surrounding form's Enter handler
+ * (login) does not fire with a half-chosen value.
  */
 export function Select({
   className,
@@ -67,6 +88,7 @@ export function Select({
   const triggerId = `${uid}-trigger`;
   const labelId = `${uid}-label`;
   const listId = `${uid}-list`;
+  const errorId = `${uid}-error`;
   const optionId = (index: number) => `${uid}-opt-${index}`;
 
   const selectedIndex = options.findIndex((o) => o.value === value);
@@ -77,6 +99,7 @@ export function Select({
   const openMenu = useCallback(() => {
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : options.length ? 0 : -1);
     keyboardNav.current = true;
+    lastMouse.current = null;
     setOpen(true);
   }, [selectedIndex, options.length]);
 
@@ -87,7 +110,7 @@ export function Select({
     const rect = anchor.getBoundingClientRect();
     const next = computeMenuPlacement(
       rect,
-      { width: document.documentElement.clientWidth, height: window.innerHeight },
+      readViewport(),
       { maxHeight: MENU_MAX_HEIGHT, contentHeight: options.length * OPTION_HEIGHT_ESTIMATE + 12 },
     );
     setPlacement((prev) =>
@@ -98,24 +121,44 @@ export function Select({
     );
   }, [options.length]);
 
+  // The field is "in sight" when what is painted at its centre is the field itself:
+  // false once it is scrolled out of the page, out of an inner scroller/clip parent,
+  // or under a sticky header or other overlay.
+  const anchorInSight = useCallback(() => {
+    const anchor = anchorRef.current;
+    if (!anchor) return false;
+    const rect = anchor.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return Boolean(hit && anchor.contains(hit));
+  }, []);
+
   useIsomorphicLayoutEffect(() => {
     if (!open) {
       setPlacement(null);
       return;
     }
     updatePlacement();
+    const sync = () => {
+      if (!anchorInSight()) setOpen(false);
+      else updatePlacement();
+    };
     const onScroll = (e: Event) => {
       // Scrolling the list itself does not move it.
       if (e.target instanceof Node && listRef.current?.contains(e.target)) return;
-      updatePlacement();
+      sync();
     };
-    window.addEventListener("resize", updatePlacement);
+    const vv = window.visualViewport;
+    window.addEventListener("resize", sync);
     window.addEventListener("scroll", onScroll, true);
+    vv?.addEventListener("resize", sync);
+    vv?.addEventListener("scroll", sync);
     return () => {
-      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("resize", sync);
       window.removeEventListener("scroll", onScroll, true);
+      vv?.removeEventListener("resize", sync);
+      vv?.removeEventListener("scroll", sync);
     };
-  }, [open, updatePlacement]);
+  }, [open, updatePlacement, anchorInSight]);
 
   // Outside press and Escape (the latter also when focus is not on the field).
   useEffect(() => {
@@ -129,7 +172,7 @@ export function Select({
       if (e.key !== "Escape") return;
       e.stopPropagation();
       setOpen(false);
-      triggerRef.current?.focus();
+      triggerRef.current?.focus({ preventScroll: true });
     };
     document.addEventListener("mousedown", onPress);
     document.addEventListener("touchstart", onPress, { passive: true });
@@ -155,38 +198,46 @@ export function Select({
     const event = { target: { value: val } };
     onChange?.(event);
     setOpen(false);
-    triggerRef.current?.focus();
+    triggerRef.current?.focus({ preventScroll: true });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    if (!open) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
+    // A stale "swallow the Space release" flag must not outlive the key press it belongs to.
+    if (e.key !== " ") swallowSpaceUp.current = false;
+    const result = resolveSelectKey(open, e.key);
+    if (result.stop) e.stopPropagation();
+    if (result.prevent) e.preventDefault();
+    switch (result.action) {
+      case "open":
         openMenu();
+        break;
+      case "move":
+        keyboardNav.current = true;
+        setActiveIndex((current) => moveActiveIndex(options.length, current, e.key as MenuNavKey));
+        break;
+      case "choose": {
+        // A button clicks on Space *release*: swallow it, or the list would reopen at once.
+        if (e.key === " ") swallowSpaceUp.current = true;
+        const option = options[activeIndex];
+        if (option) handleSelect(option.value);
+        else close();
+        break;
       }
-      return; // Enter / Space: the button's own click opens it
-    }
-    if (NAV_KEYS.includes(e.key)) {
-      e.preventDefault();
-      keyboardNav.current = true;
-      setActiveIndex((current) => moveActiveIndex(options.length, current, e.key as MenuNavKey));
-    } else if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      // A button clicks on Space *release*: swallow it, or the list would reopen at once.
-      if (e.key === " ") swallowSpaceUp.current = true;
-      const option = options[activeIndex];
-      if (option) handleSelect(option.value);
-      else close();
-    } else if (e.key === "Tab") {
-      close();
+      case "close":
+        close();
+        break;
     }
   };
 
   const handleKeyUp = (e: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === " " && swallowSpaceUp.current) {
-      swallowSpaceUp.current = false;
-      e.preventDefault();
+    if (e.key === " ") {
+      // Space opened/chose through this field: its release is ours too.
+      e.stopPropagation();
+      if (swallowSpaceUp.current) {
+        swallowSpaceUp.current = false;
+        e.preventDefault();
+      }
     }
   };
 
@@ -259,7 +310,16 @@ export function Select({
   return (
     <div className={cn("w-full relative", className)}>
       {label && (
-        <label id={labelId} className="block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5">
+        <label
+          id={labelId}
+          htmlFor={triggerId}
+          // Like a native select: the label focuses the field, it does not also click (toggle) it.
+          onClick={(e) => {
+            e.preventDefault();
+            triggerRef.current?.focus({ preventScroll: true });
+          }}
+          className="block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5"
+        >
           {label}
         </label>
       )}
@@ -275,7 +335,15 @@ export function Select({
           aria-labelledby={label ? `${labelId} ${triggerId}` : undefined}
           aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
           aria-invalid={error ? true : undefined}
-          onClick={() => (open ? close() : openMenu())}
+          aria-describedby={error ? errorId : undefined}
+          onBlur={() => {
+            swallowSpaceUp.current = false;
+          }}
+          onClick={() => {
+            swallowSpaceUp.current = false;
+            if (open) close();
+            else openMenu();
+          }}
           onKeyDown={handleKeyDown}
           onKeyUp={handleKeyUp}
           className={cn(
@@ -302,7 +370,11 @@ export function Select({
         </button>
         {menu}
       </div>
-      {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
+      {error && (
+        <p id={errorId} className="mt-1.5 text-xs text-red-500">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
