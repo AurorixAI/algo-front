@@ -226,13 +226,21 @@ test("attachScrollHints: edge flags follow the scroll, the keyboard region exist
     assert.equal(box.listenerCount(), 0);
     assert.equal(box.attrs.size, 0);
 
-    // inside a button: the fade only, never a tab stop
+    // inside a button: the fade only; the scroller is kept OUT of the Tab order (tabindex -1), no role / label
     const inButton = fakeBox({ scrollWidth: 600, clientWidth: 300 });
     const stop2 = attachScrollHints(inButton, { selector: "", focusable: false });
     assert.equal(inButton.hasAttribute("data-sh-right"), true);
-    assert.equal(inButton.hasAttribute("tabindex"), false);
+    assert.equal(inButton.getAttribute("tabindex"), "-1");
     assert.equal(inButton.hasAttribute("aria-label"), false);
+    assert.equal(inButton.hasAttribute("role"), false);
+    inButton.scrollWidth = 300; // fits again: the mark goes away
+    inButton.scrolled(0);
+    assert.equal(inButton.hasAttribute("tabindex"), false);
+    inButton.scrollWidth = 600;
+    inButton.scrolled(0);
+    assert.equal(inButton.getAttribute("tabindex"), "-1");
     stop2();
+    assert.equal(inButton.attrs.size, 0);
 
     // an author-set tabindex is neither replaced nor removed
     const authored = fakeBox({ scrollWidth: 600, clientWidth: 300 });
@@ -315,4 +323,24 @@ test("attachScrollHints: a KaTeX display block inside the renderer gets its own 
     delete global.window;
     delete global.document;
   }
+});
+
+test("OptionGrid: the card (button) owns the click; the formula inside keeps pointer events for scrolling", () => {
+  const grid = fs.readFileSync(path.join(__dirname, "..", "src/components/ui/option-grid.tsx"), "utf8");
+  // the click handler is on the card button
+  const button = grid.slice(grid.indexOf("<button"), grid.indexOf(">", grid.indexOf("className={cn(", grid.indexOf("<button"))));
+  assert.ok(/onClick=\{/.test(button), "onClick is on the <button> card");
+  assert.ok(/handleClick\(opt\.key\)/.test(grid));
+  // the content inside: no pointer handlers of its own, pointer events not disabled, text not selectable
+  const inner = grid.slice(grid.indexOf("<ScrollHint"), grid.indexOf("</ScrollHint>"));
+  assert.ok(inner.includes("<MathRenderer"));
+  for (const handler of ["onClick", "onPointerDown", "onMouseDown", "onTouchStart", "onTouchEnd", "stopPropagation", "pointer-events-none"]) {
+    assert.equal(inner.includes(handler), false, `the formula must not carry ${handler}`);
+  }
+  assert.ok(inner.includes("select-none"));
+  // the scroller inside a button is not a tab stop (focusable={false}) and the card keeps the focus after a tap
+  assert.ok(inner.includes("focusable={false}"));
+  assert.ok(/document\.activeElement !== card\) card\.focus/.test(grid));
+  // two-step selection is unchanged: first tap = pending, second tap on the same option = onSelect
+  assert.ok(/if \(pending === answerValue\) \{\s*onSelect\(answerValue\);\s*return;\s*\}\s*setPending\(answerValue\);/.test(grid));
 });

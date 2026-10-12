@@ -597,6 +597,10 @@ export function MathRenderer({
     () => isStandaloneMath(tokenize(renderMode === "trusted" ? text : text.trim(), renderMode)),
     [text, renderMode],
   );
+  // A new `{ __html }` object on every render makes React (canary used by Next 14) re-write innerHTML on EVERY
+  // re-render of the parent (the student pages tick every second): the formula DOM was replaced each second, which
+  // reset the horizontal scroll position of a wide formula and dropped the scroll hint. Keep the object stable.
+  const innerHtml = useMemo(() => ({ __html: html }), [html]);
   const Tag = block ? "div" : "span";
   const ref = useRef<HTMLElement | null>(null);
   useMathFit(ref, html, block);
@@ -616,7 +620,7 @@ export function MathRenderer({
           : "inline [&_.katex]:inline",
         className
       )}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={innerHtml}
     />
   );
 }

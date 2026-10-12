@@ -82,7 +82,13 @@ export function OptionGrid({
           <button
             key={opt.id}
             type="button"
-            onClick={() => handleClick(opt.key)}
+            onClick={(event) => {
+              handleClick(opt.key);
+              // A press on a scrollable formula inside the card may have focused that formula (tabindex -1):
+              // keep the keyboard on the card, so Enter / Space keep working after a tap.
+              const card = event.currentTarget;
+              if (document.activeElement !== card) card.focus({ preventScroll: true });
+            }}
             disabled={disabled}
             className={cn(
               "group glass-option relative flex min-w-0 items-start gap-4 overflow-hidden rounded-2xl p-4 text-left cursor-pointer md:gap-5 md:p-5",

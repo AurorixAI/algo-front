@@ -10,7 +10,8 @@ import { SCROLL_REGION_LABEL, overflowEdgeState } from "../../lib/scroll-edges";
  * marks every such box with `data-sh-left` / `data-sh-right` on the sides that hide content
  * (globals.css turns them into an edge fade: a mask, so it fits any card background and moves
  * no layout), and - only while the box really overflows and `focusable` - makes it a keyboard
- * scroll region (tabindex 0, role region, aria-label «Формула, прокрутите по горизонтали»).
+ * scroll region (tabindex 0, role region, aria-label «Формула, прокрутите по горизонтали»); with
+ * `focusable={false}` (inside a button / link) an overflowing box gets tabindex -1 instead, so Tab skips it.
  * Everything is written straight to the DOM (no React state, no re-render, no layout change).
  * The edge logic is the pure overflowEdgeState (src/lib/scroll-edges.ts).
  */
@@ -37,7 +38,20 @@ function refresh(el: HTMLElement, focusable: boolean) {
   const edges = overflowEdgeState({ scrollLeft: el.scrollLeft, scrollWidth: el.scrollWidth, clientWidth: el.clientWidth });
   setFlag(el, "data-sh-left", edges.left);
   setFlag(el, "data-sh-right", edges.right);
-  if (!focusable) return;
+  if (!focusable) {
+    // Inside a button / link the scroller must not be a tab stop of its own: Chrome makes every scroller
+    // without a focusable child keyboard-focusable, so Tab would stop on the formula between two options.
+    // tabindex -1 keeps it out of the Tab order (wheel / touch / pointer scrolling is unaffected).
+    if (edges.overflows) {
+      if (!el.hasAttribute("tabindex")) {
+        el.setAttribute("tabindex", "-1");
+        el.setAttribute(A11Y_MARK, "");
+      }
+    } else {
+      dropA11y(el);
+    }
+    return;
+  }
   if (edges.overflows) {
     // an author-set tabindex is never touched
     if (!el.hasAttribute("tabindex")) {

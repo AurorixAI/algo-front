@@ -75,6 +75,12 @@
  *   s7-404              GET /auth/org/diagnostics/<id> -> 404
  *   s8-degraded         current schema but report_meta.degraded = ["skill_names"]
  *
+ * Student flows (any code), for the option cards of OptionGrid with a very wide LaTeX option:
+ *   http://127.0.0.1:3204/d/ui-wide   diagnostic: 3 tasks (1st and 3rd carry the wide option), POSTs counted
+ *   http://127.0.0.1:3204/e/ui-wide   exam: same tasks; progress POSTs counted
+ *   GET /__mock/flow/<code>           POST counts and the submitted answers of both flows (the exam page upper-cases
+ *                                     the code: /e/ui-g -> /__mock/flow/UI-G)
+ *
  * Control endpoints (not part of the real API):
  *   GET /__mock/stats   request counters per scenario (poll count of the report)
  *   GET /__mock/reset   zero the counters
@@ -434,6 +440,44 @@ function cookies(req) {
 
 const bump = (key) => (counters[key] = (counters[key] || 0) + 1);
 
+// ─── Student flows: /d/<code> (diagnostic) and /e/<code> (exam) with a very wide LaTeX option ──────────
+// Any code works: http://127.0.0.1:3204/d/ui-wide   http://127.0.0.1:3204/e/ui-wide
+// The mock records every POST: GET /__mock/flow/<code> -> { d: {...}, e: {...} } (counts + submitted answers).
+const flows = new Map();
+const flowOf = (code) => {
+  if (!flows.has(code)) flows.set(code, { d: { createPosts: 0, answerPosts: 0, answers: [], created: false, answered: 0 }, e: { startPosts: 0, progressPosts: 0, progress: [] } });
+  return flows.get(code);
+};
+const WIDE_OPTION = "$$\\begin{pmatrix}" + Array.from({ length: 44 }, (_, i) => `\\frac{x^{${i + 1}}}{${i + 1}}`).join(" & ") + "\\end{pmatrix}$$";
+// option texts are the submitted answers; the wide one is first (A), then normal short options
+const OPT_TEXT = ["Широкая матрица", "x в квадрате", "корень из x", "единица на x"];
+const OPT_LATEX = [WIDE_OPTION, "$x^2$", "$\\sqrt{x}$", "$\\frac{1}{x}$"];
+const STUDENT_TASKS = 3;
+const questionOf = (i) => ({
+  question_text: `Вопрос ${i + 1}: выберите верную запись.`,
+  question_latex: `Вопрос ${i + 1}: выберите верную запись $f(x)$.`,
+  // task 2 (index 1): normal options only; tasks 1 and 3 carry the wide formula
+  options: i === 1 ? ["x в квадрате", "корень из x", "единица на x", "ноль"] : OPT_TEXT,
+  options_latex: i === 1 ? ["$x^2$", "$\\sqrt{x}$", "$\\frac{1}{x}$", "$0$"] : OPT_LATEX,
+});
+const diagTask = (i) => {
+  const q = questionOf(i);
+  return {
+    task_id: `D-${i + 1}`, skill_id: `SK-D-${i + 1}`, topic_id: "T-D", question_text: q.question_text, question_latex: q.question_latex,
+    question_image_url: null, answer_type: "multiple_choice", answer_options: q.options, answer_options_latex: q.options_latex, hints: [],
+    phase: "navigation", items_answered: i, items_max: STUDENT_TASKS, is_deep_scan: false,
+  };
+};
+const examTask = (i) => {
+  const q = questionOf(i);
+  return { task_id: `E-${i + 1}`, text: q.question_text, question_latex: q.question_latex, options: q.options, options_latex: q.options_latex, difficulty: "medium", skill_name: "Функции", answer_type: "multiple_choice" };
+};
+function readJson(req, cb) {
+  let raw = "";
+  req.on("data", (c) => { raw += c; });
+  req.on("end", () => { let body = {}; try { body = raw ? JSON.parse(raw) : {}; } catch (_) { /* keep {} */ } cb(body); });
+}
+
 function handle(req, res) {
   cors(req, res);
   if (req.method === "OPTIONS") { res.writeHead(204); return res.end(); }
@@ -442,7 +486,9 @@ function handle(req, res) {
   if (process.env.MOCK_LOG === "1") console.log(req.method, path + url.search);
 
   if (path === "/__mock/stats") return send(res, 200, counters);
-  if (path === "/__mock/reset") { for (const k of Object.keys(counters)) delete counters[k]; return send(res, 200, { reset: true }); }
+  if (path === "/__mock/reset") { for (const k of Object.keys(counters)) delete counters[k]; flows.clear(); return send(res, 200, { reset: true }); }
+  let fm = /^\/__mock\/flow\/([^/]+)$/.exec(path);
+  if (fm) return send(res, 200, flowOf(decodeURIComponent(fm[1])));
   let m = /^\/__mock\/role\/(admin|teacher)$/.exec(path);
   if (m) {
     defaultRole = m[1];
@@ -498,6 +544,67 @@ function handle(req, res) {
     const body = build(n);
     if (body && body.__http) return send(res, body.__http, { detail: body.detail || "error (synthetic)" });
     return send(res, 200, body);
+  }
+
+  // ── student diagnostic flow (/d/<code>) ──
+  m = /^\/api\/v1\/auth\/diagnostic\/([^/]+)$/.exec(path);
+  if (m) {
+    const code = decodeURIComponent(m[1]);
+    return send(res, 200, { status: "confirmed", student_id: `stu-${code}`, class_level: 9, student_first_name: "Синтетический", student_last_name: "Ученик", org_name: "Синтетический центр" });
+  }
+  m = /^\/api\/v1\/auth\/diagnostic\/([^/]+)\/confirm$/.exec(path);
+  if (m && req.method === "POST") { bump(`${decodeURIComponent(m[1])} d-confirm`); return send(res, 200, {}); }
+  if (path === "/api/v1/diagnostic/sessions/by-invite") {
+    const code = url.searchParams.get("invite_code") || "";
+    const f = flowOf(code).d;
+    if (!f.created) return send(res, 404, { detail: { code: "SESSION_NOT_FOUND", message: "Попытка не найдена (synthetic)" } });
+    return send(res, 200, { session_id: `ds-${code}`, status: "active", items_answered: f.answered, current_task: diagTask(f.answered), total_time_ms: 1000 });
+  }
+  if (path === "/api/v1/diagnostic/sessions" && req.method === "POST") {
+    return readJson(req, (body) => {
+      const code = body.invite_code || "";
+      const f = flowOf(code).d;
+      f.createPosts += 1;
+      f.created = true;
+      send(res, 200, { session_id: `ds-${code}`, first_task: diagTask(f.answered) });
+    });
+  }
+  m = /^\/api\/v1\/diagnostic\/sessions\/ds-([^/]+)\/answer$/.exec(path);
+  if (m && req.method === "POST") {
+    const code = decodeURIComponent(m[1]);
+    return readJson(req, (body) => {
+      const f = flowOf(code).d;
+      f.answerPosts += 1;
+      f.answers.push({ task_id: body.task_id, student_answer: body.student_answer, invite_header: req.headers["x-diagnostic-invite-code"] || null });
+      f.answered += 1;
+      const done = f.answered >= STUDENT_TASKS;
+      send(res, 200, { is_correct: false, outcome: 0, eval_category: "wrong", theta: -0.2, se: 0.6, next_task: done ? null : diagTask(f.answered), session_completed: done });
+    });
+  }
+  m = /^\/api\/v1\/diagnostic\/sessions\/ds-([^/]+)\/report$/.exec(path);
+  if (m) {
+    return send(res, 200, { session_id: `ds-${decodeURIComponent(m[1])}`, student_id: "stu-ui", grade_level: 9, overall_theta: -0.2, overall_level: "at_grade", confidence_interval: [-1, 1], topic_breakdown: {}, weak_skills: [], recommended_start: null, items_total: STUDENT_TASKS, total_time_ms: 5000, report_generation: { status: "ready" } });
+  }
+  // ── student exam flow (/e/<code>) ──
+  m = /^\/api\/v1\/exams\/by-code\/([^/]+)$/.exec(path);
+  if (m) return send(res, 200, { title: "Синтетический экзамен", teacher_name: "Синтетический преподаватель", subject: "Математика", status: "active", total_time_minutes: 45, tasks_per_variant: STUDENT_TASKS, variants_count: 1 });
+  m = /^\/api\/v1\/exams\/by-code\/([^/]+)\/check-student$/.exec(path);
+  if (m && req.method === "POST") return send(res, 200, { enrolled: true, group_required: false, student: null, already_submitted: false });
+  m = /^\/api\/v1\/exams\/by-code\/([^/]+)\/start$/.exec(path);
+  if (m && req.method === "POST") {
+    const code = decodeURIComponent(m[1]);
+    flowOf(code).e.startPosts += 1;
+    return send(res, 200, { session_id: `es-${code}`, session_token: "synthetic", variant_number: 1, time_minutes: 45, status: "in_progress", tasks: Array.from({ length: STUDENT_TASKS }, (_, i) => examTask(i)) });
+  }
+  m = /^\/api\/v1\/exam-sessions\/es-([^/]+)\/progress$/.exec(path);
+  if (m && req.method === "POST") {
+    const code = decodeURIComponent(m[1]);
+    return readJson(req, (body) => {
+      const f = flowOf(code).e;
+      f.progressPosts += 1;
+      f.progress.push(body.answers || {});
+      send(res, 200, { ok: true, answered_count: Object.keys(body.answers || {}).length });
+    });
   }
 
   if (path === "/api/v1/auth/org/groups" || path === "/api/v1/auth/org/members") return send(res, 200, []);
