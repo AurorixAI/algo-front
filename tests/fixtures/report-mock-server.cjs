@@ -45,6 +45,7 @@
  *   s3-errorfree-empty  error-free, no achievements, no plan
  *   s4-long             3 long chains (long skill names, wide LaTeX answers),
  *                       4 cognitive patterns with 3 examples, full boundary
+ *                       (breakpoint_evidence "confirmed"; s2-noplan has "observed")
  *   s5-pending          report pending (stays pending: watch the poll back off,
  *                       then «Отчёт формируется дольше обычного» after 40 polls)
  *   s5-failed           generation failed
@@ -56,6 +57,11 @@
  *   s7-403              GET /auth/org/diagnostics/<id> -> 403
  * extras:
  *   s5-pending-then-ready  pending until MOCK_FLIP_AFTER (default 4) report requests, then s4-long
+ *   s9-deepscan-incomplete observed boundary, no breakpoint skills, report_meta.deep_scan_incomplete = true
+ *   s9-rebuild          old report + generation pending/generating with is_current_schema=false, then the
+ *                       new report after MOCK_FLIP_AFTER requests (page: old report + «Отчёт обновляется…»)
+ *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
+ *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
  *   s6-partial          report_json = {} (nothing but empty shell)
  *   s7-404              GET /auth/org/diagnostics/<id> -> 404
  *   s8-degraded         current schema but report_meta.degraded = ["skill_names"]
@@ -183,13 +189,17 @@ const cluster = (i, long) => ({
   })),
 });
 
-const boundary = (long) => ({
+// breakpoint_evidence (backend _build_diagnostic_boundary): "confirmed" = reached by a deep-scan
+// chain (s4-long), "observed" = earliest grade with wrong answers only (s2-noplan).
+const boundary = (long, over = {}) => ({
   anchor_level: long ? "5 класс (опорный фундамент диагностики)" : "5 класс",
   anchor_skills: long ? LONG_SKILLS : ["Сложение дробей"],
   breakpoint_level: long ? "4 класс (первичное нарушение логики вычислений)" : "4 класс",
   breakpoint_skills: long ? LONG_SKILLS.slice(0, 2) : ["Сокращение дробей"],
+  breakpoint_evidence: long ? "confirmed" : "observed",
   blocked_level: long ? "9 класс (текущий класс обучения ученика)" : "9 класс",
   blocked_skills: long ? LONG_SKILLS.slice(1) : ["Квадратные уравнения"],
+  ...over,
 });
 
 const planItem = (i, long, extra = {}) => ({
@@ -233,14 +243,14 @@ const errorFreeJson = (withAchievements, withPlan) => ({
     : [],
 });
 
-const errorsJson = ({ long, plan, noPatterns }) => ({
-  report_meta: baseMeta(),
+const errorsJson = ({ long, plan, noPatterns, boundaryOver, metaOver }) => ({
+  report_meta: baseMeta({ deep_scan_incomplete: false, ...(metaOver || {}) }),
   overall: {
     score_percent: 58, status: "below", status_label_ru: "Ниже уровня класса",
     student_summary: "Автоматическое резюме: часть заданий решена верно, по ряду тем есть ошибки.",
   },
   level: level({ provisional: long }),
-  diagnostic_boundary: boundary(long),
+  diagnostic_boundary: boundary(long, boundaryOver),
   root_cause_chains: long ? [0, 1, 2].map((i) => chain(i, true)) : [chain(0, false)],
   cognitive_error_types: long ? [0, 1, 2, 3].map((i) => cluster(i, true)) : [],
   achievements: [],
@@ -279,6 +289,17 @@ const SCENARIOS = {
     FLIP_AFTER > 0 && n > FLIP_AFTER
       ? envelope(errorsJson({ long: true, plan: true }))
       : envelope(null, generation({ status: n > 2 ? "generating" : "pending", stage: n > 2 ? "collecting_evidence" : "queued", attempts: 1, is_current_schema: false })),
+  // deep scan could not be completed: no «глубоких сбоев не выявлено», says so instead
+  "s9-deepscan-incomplete": () => envelope(errorsJson({ long: false, plan: true, boundaryOver: { breakpoint_skills: [], breakpoint_evidence: "observed" }, metaOver: { deep_scan_incomplete: true } })),
+  // historical rebuild: the OLD report is returned while generating (is_current_schema false), then the new one
+  "s9-rebuild": (n) =>
+    FLIP_AFTER > 0 && n > FLIP_AFTER
+      ? envelope(errorsJson({ long: false, plan: true }))
+      : envelope(legacyJson(), generation({ status: n > 2 ? "generating" : "pending", stage: "collecting_evidence", is_current_schema: false })),
+  // truthy non-object report_json: must not poll forever
+  "s9-invalid-json": () => envelope("oops", generation()),
+  // transient server failures while polling: pending, 503, 503, then the report
+  "s9-flaky": (n) => (n === 2 || n === 3 ? { __http: 503, detail: "Service unavailable (synthetic)" } : n === 1 ? envelope(null, generation({ status: "pending", stage: "queued", is_current_schema: false })) : envelope(errorsJson({ long: false, plan: true }))),
   "s6-legacy": () => envelope(legacyJson(), generation({ is_current_schema: false })),
   "s6-partial": () => envelope({}, generation({ is_current_schema: false })),
   "s8-degraded": () => {
@@ -379,7 +400,9 @@ function handle(req, res) {
     const n = bump(`${id} report`);
     const build = SCENARIOS[id];
     if (!build) return send(res, 404, { detail: "Not found (synthetic)" });
-    return send(res, 200, build(n));
+    const body = build(n);
+    if (body && body.__http) return send(res, body.__http, { detail: body.detail || "error (synthetic)" });
+    return send(res, 200, body);
   }
 
   if (path === "/api/v1/auth/org/groups" || path === "/api/v1/auth/org/members") return send(res, 200, []);
