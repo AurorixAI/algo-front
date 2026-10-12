@@ -17,6 +17,7 @@ import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
 import { examsApi, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -247,6 +248,8 @@ export default function ExamHubPage() {
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const menuBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const analyticsRequestIdRef = useRef(0);
+  // Лобби-эндпоинт ответил 409 («нет лобби»): экзамен печатный, опрос не возобновляем.
+  const noLobbyRef = useRef(false);
 
   // Group Assignment & Quick Actions State
   const [groups, setGroups] = useState<Group[]>([]);
@@ -325,6 +328,9 @@ export default function ExamHubPage() {
       setTimeRemaining(null);
       return;
     }
+    // Пока данные экзамена не загружены, тип выдачи неизвестен: не угадываем, иначе
+    // печатный экзамен получит 409 уже на первом запросе (и ошибку в консоли браузера).
+    if (!examHasLobby(exam) || noLobbyRef.current) return;
 
     const pollStatus = async () => {
       try {
@@ -344,7 +350,15 @@ export default function ExamHubPage() {
           setExam((prev) => (prev ? { ...prev, status: lobbyData.status, access_code: lobbyData.access_code || prev.access_code } : null));
         }
       } catch (err) {
-        // silent polling error
+        // 409 = у экзамена нет лобби (стал печатным): больше не опрашиваем.
+        // Остальные ошибки опроса — тихие, следующий тик повторит запрос.
+        if (isNoLobbyConflict(err)) {
+          noLobbyRef.current = true;
+          if (interval) clearInterval(interval);
+          interval = null;
+          setLobbyStudents([]);
+          setTimeRemaining(null);
+        }
       }
     };
 

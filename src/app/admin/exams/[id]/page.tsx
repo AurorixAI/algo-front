@@ -10,6 +10,7 @@ import {
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { examsApi, type AdminExamView } from "@/lib/api";
+import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
 import { formatErrorType, pickAnswerDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,8 @@ export default function AdminExamViewPage() {
   const { id: examId } = useParams<{ id: string }>();
   const [exam, setExam] = useState<AdminExamView | null>(null);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
+  // Set when exam-service answers 409 "no lobby" (a print exam we did not know was one): stop asking.
+  const [lobbyConflict, setLobbyConflict] = useState(false);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [analytics, setAnalytics] = useState<any | null>(null);
   const [tab, setTab] = useState<Tab>("lobby");
@@ -78,12 +81,18 @@ export default function AdminExamViewPage() {
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [view, lobbyState, sessionRows, analyticsData] = await Promise.all([
-        examsApi.getAdminView(examId),
-        examsApi.getLobbyStatus(examId).catch(() => null),
-        examsApi.getSessions(examId).catch(() => []),
-        examsApi.getAnalytics(examId).catch(() => null),
-      ]);
+      // The lobby is requested only after the view says the exam has one: a printed
+      // exam answers 409 there (and the browser logs it as a console error).
+      const sessionsRequest = examsApi.getSessions(examId).catch(() => []);
+      const analyticsRequest = examsApi.getAnalytics(examId).catch(() => null);
+      const view = await examsApi.getAdminView(examId);
+      const lobbyState = examHasLobby(view)
+        ? await examsApi.getLobbyStatus(examId).catch((err) => {
+            if (isNoLobbyConflict(err)) setLobbyConflict(true);
+            return null;
+          })
+        : null;
+      const [sessionRows, analyticsData] = await Promise.all([sessionsRequest, analyticsRequest]);
       setExam(view);
       setLobby(lobbyState);
       setSessions(Array.isArray(sessionRows) ? sessionRows : []);
@@ -99,18 +108,24 @@ export default function AdminExamViewPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  const hasLobby = examHasLobby(exam) && !lobbyConflict;
+
   useEffect(() => {
     if (exam?.status !== "lobby" && exam?.status !== "active") return;
     const interval = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void Promise.all([
-        examsApi.getLobbyStatus(examId).then(setLobby).catch(() => undefined),
+        hasLobby
+          ? examsApi.getLobbyStatus(examId).then(setLobby).catch((err) => {
+              if (isNoLobbyConflict(err)) { setLobbyConflict(true); setLobby(null); }
+            })
+          : undefined,
         examsApi.getSessions(examId).then((rows) => setSessions(Array.isArray(rows) ? rows : [])).catch(() => undefined),
         examsApi.getAnalytics(examId).then(setAnalytics).catch(() => undefined),
       ]);
     }, 15_000);
     return () => window.clearInterval(interval);
-  }, [exam?.status, examId]);
+  }, [exam?.status, examId, hasLobby]);
 
   const currentVariant = useMemo(
     () => exam?.variants.find((item) => item.variant_number === selectedVariant) || exam?.variants[0],
