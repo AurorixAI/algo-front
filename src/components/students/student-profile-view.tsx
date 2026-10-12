@@ -82,10 +82,11 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   // started (student switch, A->B->A, month clicks, reload after save/assign).
   // loadProfile also bumps examsSeq (it re-fetches the history, so an older
   // retry must be dropped); retryExams never invalidates an in-flight loadProfile.
-  const [{ profileSeq, examsSeq, attendanceSeq }] = useState(() => ({
+  const [{ profileSeq, examsSeq, attendanceSeq, notesSeq }] = useState(() => ({
     profileSeq: createRequestSequence(),
     examsSeq: createRequestSequence(),
     attendanceSeq: createRequestSequence(),
+    notesSeq: createRequestSequence(),
   }));
   // Student on screen, updated in the effect that starts loadProfile.  A callback
   // from an older render (e.g. handleSaveNotes -> loadProfile after navigating
@@ -182,18 +183,24 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
   const handleSaveNotes = async () => {
     if (!profile) return;
+    // The save may resolve after the user opened another student: it must not
+    // close that student's notes editor (discarding unsaved text) or clear a
+    // newer save's "saving" flag.  loadProfile below guards itself.
+    const token = notesSeq.next();
+    const stillOnScreen = () => canStartRequest(studentId, currentStudentIdRef.current);
     setSavingNotes(true);
     try {
       await orgApi.updateStudent(studentId, {
         student_phone: phoneVal.trim() || null,
         comment: commentVal.trim() || null,
       });
-      setEditingNotes(false);
+      if (stillOnScreen()) setEditingNotes(false);
       await loadProfile();
     } catch (e: any) {
+      // A failed save is always reported, whichever student is on screen now.
       alert(e.message || "Ошибка сохранения");
     } finally {
-      setSavingNotes(false);
+      if (notesSeq.isCurrent(token)) setSavingNotes(false);
     }
   };
 

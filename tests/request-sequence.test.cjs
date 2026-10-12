@@ -160,3 +160,19 @@ test("a stale response settling after the latest one finished does not flip load
   assert.equal(state.shown, "B");
   assert.equal(state.loading, false);
 });
+
+test("notes save: a late save for A does not clear the saving flag of B's newer save", () => {
+  const notesSeq = createRequestSequence();
+  const saveA = notesSeq.next();
+  const saveB = notesSeq.next();   // user switched to B and started saving there
+  assert.equal(notesSeq.isCurrent(saveA), false, "A's finally must not clear B's saving flag");
+  assert.equal(notesSeq.isCurrent(saveB), true);
+});
+
+test("notes save: a late save for A must not close B's editor", () => {
+  let onScreen = "A";
+  const savedFor = "A";
+  onScreen = "B";
+  assert.equal(canStartRequest(savedFor, onScreen), false, "setEditingNotes(false) is skipped");
+  assert.equal(canStartRequest("B", onScreen), true);
+});
