@@ -1005,3 +1005,79 @@ test("journal header pager: wraps, compact below sm, aria and keyboard-friendly 
   }
   assert.equal((pager.match(/<button/g) || []).length, (pager.match(/type="button"/g) || []).length, "every pager button is type=button");
 });
+
+// ─── MCQ answers: LaTeX / Unicode forms match, repaired options do not (real stage / prod cases) ───
+
+test("a stored answer matches the same option written as LaTeX / Unicode / plain (real examples)", () => {
+  const m = (answer, latex, opt = "—") => R.matchesOption(answer, opt, latex, 0);
+  assert.equal(m("1 + 1/√3", "$1 + \\frac{1}{\\sqrt{3}}$"), true);
+  assert.equal(m("(0; ln 3)", "$(0; \\ln 3)$"), true); // \ln -> ln (was dropped from the LaTeX side only)
+  assert.equal(m("неверно, так как log_2 (1/4) = -4", "неверно, так как $\\log_{2} \\frac{1}{4} = -4$"), true);
+  assert.equal(m("x ∈ (0; ∞)", "$x \\in (0;\\ \\infty)$"), true);
+  assert.equal(m("{1; 2}", "$\\{1;\\,2\\}$"), true);
+  assert.equal(m("x² − 4x ≥ 0", "$x^{2} - 4x \\geq 0$"), true);
+  assert.equal(m("x ≤ 4", "$x \\le 4$"), true);
+  assert.equal(m("x ≠ 0", "$x \\ne 0$"), true);
+  assert.equal(m("sin x = 1/2", "$\\sin x = \\dfrac{1}{2}$"), true);
+  assert.equal(m("2·3", "$2 \\cdot 3$"), true);
+  assert.equal(m("log₂ 8 = 3", "$\\log_{2} 8 = 3$"), true);
+  assert.equal(m("5 км/ч", "$5\\ \\text{км/ч}$"), true);
+  assert.equal(m("−3", "$-3$"), true);
+  // the plain option text, as before
+  assert.equal(R.matchesOption("а) x < 5", "а) x < 5", "", 0), true);
+  // letters and indices (as before)
+  assert.equal(R.matchesOption("B", "x", "y", 1), true);
+  assert.equal(R.matchesOption("option_2", "x", "y", 2), true);
+  assert.equal(R.matchesOption("", "x", "y", 0), false);
+});
+
+test("a repaired option is NOT matched by loose normalisation", () => {
+  const opt = "а) $x < 5$ и $x > -5$; б) $x \\le 4$";
+  // the stored answer is the option BEFORE the repair: it dropped a clause
+  assert.equal(R.matchesOption("а) x < 5; б) x ≤ 4", "а) x < 5 и x > -5; б) x ≤ 4", opt, 0), false);
+  assert.equal(R.matchesOption("x ≤ 4", "—", "$x \\le 5$", 0), false);
+  assert.equal(R.matchesOption("1 - 1/√3", "—", "$1 + \\frac{1}{\\sqrt{3}}$", 0), false);
+  assert.equal(R.matchesOption("(0; ln 3)", "—", "$(0; \\ln 2)$", 0), false);
+  assert.equal(R.matchesOption("1 + 1/√3", "—", "$1 + \\frac{1}{\\sqrt{2}}$", 0), false);
+  assert.equal(R.matchesOption("log_2 4", "—", "$\\log_{3} 4$", 0), false);
+});
+
+test("the chosen option: carried index, else text match; none = changed after the attempt", () => {
+  const options = [
+    { opt: "а) x < 5 и x > -5; б) x ≤ 4", latex: "а) $x < 5$ и $x > -5$; б) $x \\le 4$", originalIndex: 0 },
+    { opt: "1 + 1/√3", latex: "$1 + \\frac{1}{\\sqrt{3}}$", originalIndex: 2 },
+    { opt: "нет решений", latex: "нет решений", originalIndex: 3 },
+  ];
+  assert.equal(R.findChosenOption({ student_answer: "1 + 1/√3" }, options, 4), 1);
+  assert.equal(R.findChosenOption({ student_answer: "а) x < 5; б) x ≤ 4" }, options, 4), -1); // repaired option
+  assert.equal(R.findChosenOption({ student_answer: "нет решений" }, options, 4), 2);
+  // a carried index wins and is mapped through originalIndex (the page de-duplicates options)
+  assert.equal(R.findChosenOption({ student_answer: "whatever", selected_option_index: 2 }, options, 4), 1);
+  assert.equal(R.findChosenOption({ student_answer: "whatever", chosen_option_index: 3 }, options, 4), 2);
+  assert.equal(R.findChosenOption({ student_answer: "нет решений", chosen_option_index: 1 }, options, 4), 2); // index 1 was de-duplicated away: text decides
+  assert.equal(R.chosenOptionIndex({ student_option_index: 1 }, 4), 1);
+  for (const bad of [-1, 4, 1.5, "1", null, undefined]) assert.equal(R.chosenOptionIndex({ selected_option_index: bad }, 4), null);
+  assert.equal(R.chosenOptionIndex(null, 4), null);
+  assert.equal(R.chosenOptionIndex({ answer_id: "7f3c0000-0000-0000-0000-000000000000" }, 4), null); // answer_id is the answer's UUID, not an option
+});
+
+test("an unmatched answer of a task with options is a chosen legacy option, never «entered»", () => {
+  assert.equal(R.unmatchedAnswerLabel("mcq", 4), "Выбранный ответ ученика (вариант из прежней версии задания):");
+  assert.equal(R.unmatchedAnswerLabel("text", 4), R.CHOSEN_LEGACY_OPTION_LABEL); // options exist: the student selected
+  assert.equal(R.unmatchedAnswerLabel(undefined, 3), R.CHOSEN_LEGACY_OPTION_LABEL);
+  assert.equal(R.unmatchedAnswerLabel("multiple_choice", 0), R.CHOSEN_LEGACY_OPTION_LABEL);
+  assert.equal(R.unmatchedAnswerLabel("text", 0), "Введённый ответ ученика:");
+  assert.equal(R.unmatchedAnswerLabel("short_answer", 0), R.ENTERED_ANSWER_LABEL);
+  assert.equal(R.unmatchedAnswerLabel(undefined, 0), R.ENTERED_ANSWER_LABEL);
+});
+
+test("report page contract: the unmatched MCQ answer is a legacy-option card, matching comes from the lib", () => {
+  const root = path.join(__dirname, "..", "src");
+  const page = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  assert.equal(page.includes("Введённый ответ ученика"), false, "the page does not hard-code «Введённый» for options");
+  assert.ok(page.includes("unmatchedAnswerLabel(err.answer_type"));
+  assert.ok(page.includes("diagnostic-report-legacy-option"));
+  assert.ok(page.includes("findChosenOption(err"));
+  assert.equal(page.includes("function canonicalAnswerKey"), false, "the normaliser lives in src/lib/answer-match.ts");
+  assert.ok(fs.readFileSync(path.join(root, "lib/diagnostic-report.ts"), "utf8").includes('export * from "./answer-match"'));
+});

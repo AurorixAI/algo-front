@@ -64,6 +64,8 @@
  *   s9-rebuild-current  schema-5 report being regenerated (is_current_schema=false): normal content, empty
  *                       sections say «Раздел обновляется вместе с отчётом», NO «старый формат»; new report later
  *   s10-many-errors     21 error records (7 journal pages) with LaTeX answers: pager / header overflow check
+ *   s11-legacy-option   MCQ records: an option changed after the attempt (card «вариант из прежней версии
+ *                       задания») and two answers that match their LaTeX option after normalisation
  *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
@@ -320,6 +322,44 @@ const SCENARIOS = {
     json.error_patterns = Array.from({ length: 21 }, (_, i) => errorPattern(i, i % 4 === 0));
     json.report_meta.questions_correct = 12;
     json.report_meta.total_questions = 33;
+    return envelope(json);
+  },
+  // MCQ records whose stored answer is an OLD option text (a content repair changed the option) or the plain /
+  // Unicode form of a LaTeX option. Card 1: no option matches -> «Выбранный ответ ученика (вариант из прежней
+  // версии задания)»; cards 2-3: matched after normalisation -> the option itself is marked as chosen.
+  "s11-legacy-option": () => {
+    const json = errorsJson({ long: false, plan: true });
+    const mcq = (i, over) => ({ ...errorPattern(i, false), eval_category: "wrong", distractor_explanation: null, ...over });
+    json.error_patterns = [
+      mcq(0, {
+        skill_name_ru: "Системы неравенств",
+        question_text: "Решите систему неравенств.",
+        question_latex: "Решите систему неравенств: $|x| < 5$, $x \\le 4$",
+        answer_options: ["а) x < 5 и x > -5; б) x ≤ 4", "а) x < 4", "а) x > 5", "нет решений"],
+        answer_options_latex: ["а) $x < 5$ и $x > -5$; б) $x \\le 4$", "а) $x < 4$", "а) $x > 5$", "нет решений"],
+        student_answer: "а) x < 5; б) x ≤ 4", student_answer_latex: null,
+        correct_answer: "а) x < 5 и x > -5; б) x ≤ 4", correct_answer_latex: "а) $x < 5$ и $x > -5$; б) $x \\le 4$",
+      }),
+      mcq(1, {
+        skill_name_ru: "Корни и дроби",
+        question_text: "Вычислите значение выражения.",
+        question_latex: "Вычислите: $1 + \\frac{1}{\\sqrt{3}}$ при $x = 1$",
+        answer_options: ["1 + 1/√3", "1 - 1/√3", "2", "√3"],
+        answer_options_latex: ["$1 + \\frac{1}{\\sqrt{3}}$", "$1 - \\frac{1}{\\sqrt{3}}$", "$2$", "$\\sqrt{3}$"],
+        student_answer: "1 - 1/√3", student_answer_latex: null,
+        correct_answer: "1 + 1/√3", correct_answer_latex: "$1 + \\frac{1}{\\sqrt{3}}$",
+      }),
+      mcq(2, {
+        skill_name_ru: "Логарифмы",
+        question_text: "Найдите область значений.",
+        question_latex: "Найдите область: $\\log_2 x$",
+        answer_options: ["(0; ln 3)", "(0; 3)", "(-∞; ln 3)", "неверно, так как log_2 (1/4) = -4"],
+        answer_options_latex: ["$(0; \\ln 3)$", "$(0; 3)$", "$(-\\infty; \\ln 3)$", "неверно, так как $\\log_{2} \\frac{1}{4} = -4$"],
+        student_answer: "неверно, так как log_2 (1/4) = -4", student_answer_latex: null,
+        correct_answer: "(0; ln 3)", correct_answer_latex: "$(0; \\ln 3)$",
+      }),
+      { ...errorPattern(3, false), answer_type: "text", answer_options: [], answer_options_latex: [], student_answer: "17", student_answer_latex: null },
+    ];
     return envelope(json);
   },
   // rebuild where the old report is LONGER (4 records, 2 journal pages) than the new one (2 records)
