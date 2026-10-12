@@ -1,3 +1,5 @@
+import { encodePathId } from "./encode-id";
+
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 function demoApiV1(): string {
@@ -448,7 +450,6 @@ export interface StudentInGroup {
   last_theta: number | null;
   last_level: "below_grade" | "at_grade" | "above_grade" | null;
   last_level_status?: "critical" | "below" | "partial_gap" | "on_level" | "above" | null;
-  last_class_equivalent?: string | null;
   last_level_provisional?: boolean | null;
   last_diagnosed_at: string | null;
 }
@@ -610,7 +611,6 @@ export interface StudentProfile {
       accuracy?: number | null;
       recommended_level?: string | null;
       level_status?: string | null;
-      class_equivalent?: string | null;
       level_provisional?: boolean | null;
       total_questions?: number | null;
       correct_answers?: number | null;
@@ -853,9 +853,9 @@ export const orgApi = {
       if (offset >= response.total || pageItems.length === 0) return allItems;
     }
   },
-  getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${id}`),
+  getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${encodePathId(id)}`),
   acknowledgeDiagnosticReport: (id: string) =>
-    api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${id}/acknowledge-report`, { method: "POST" }),
+    api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${encodePathId(id)}/acknowledge-report`, { method: "POST" }),
 
   // Groups
   createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number }) =>
@@ -1100,7 +1100,7 @@ export const analyticsApi = {
   studentReport: (studentId: string, sessionId?: string | null) => {
     const query = new URLSearchParams({ _t: String(Date.now()) });
     if (sessionId) query.set("session_id", sessionId);
-    return diagApi<any>(`/analytics/students/${studentId}/report?${query.toString()}`);
+    return diagApi<any>(`/analytics/students/${encodePathId(studentId)}/report?${query.toString()}`);
   },
 
   // Group analytics — передаём student_ids списком
