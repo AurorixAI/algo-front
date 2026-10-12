@@ -968,3 +968,40 @@ test("page: invalid json is detected by reportJsonState (a placeholder is not «
   const page = fs.readFileSync(path.join(__dirname, "..", "src/app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
   assert.ok(page.includes('reportJsonState(report?.report_json) === "invalid"'));
 });
+
+test("journal pager items: all pages up to 7, else 1 … p-1 p p+1 … N (never more than 7 items)", () => {
+  assert.deepEqual(R.pagerItems(0, 1), [0]);
+  assert.deepEqual(R.pagerItems(2, 5), [0, 1, 2, 3, 4]);
+  assert.deepEqual(R.pagerItems(6, 7), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(R.pagerItems(0, 0), []);
+  assert.deepEqual(R.pagerItems(4, 9), [0, "gap", 3, 4, 5, "gap", 8]);
+  assert.deepEqual(R.pagerItems(0, 9), [0, 1, 2, 3, "gap", 8]);
+  assert.deepEqual(R.pagerItems(8, 9), [0, "gap", 5, 6, 7, 8]);
+  assert.deepEqual(R.pagerItems(1, 9), [0, 1, 2, 3, "gap", 8]);
+  assert.deepEqual(R.pagerItems(3, 9), [0, 1, 2, 3, 4, "gap", 8]); // a single hidden page is shown, not «…»
+  assert.deepEqual(R.pagerItems(5, 9), [0, "gap", 4, 5, 6, 7, 8]);
+  for (let total = 1; total <= 30; total++) for (let page = 0; page < total; page++) {
+    const items = R.pagerItems(page, total);
+    assert.ok(items.length <= Math.max(7, total <= 7 ? total : 0), `${page}/${total}: ${items.length} items`);
+    const nums = items.filter((i) => i !== "gap");
+    assert.ok(nums.includes(page) && nums.includes(0) && nums.includes(total - 1));
+    assert.deepEqual(nums, [...nums].sort((a, b) => a - b));
+    assert.equal(new Set(nums).size, nums.length);
+    // a gap hides at least one page; adjacent pages never get a gap
+    items.forEach((it, i) => { if (it === "gap") assert.ok(items[i + 1] - items[i - 1] > 2); });
+  }
+  assert.deepEqual(R.pagerItems(99, 9).filter((i) => i !== "gap").pop(), 8); // out-of-range page is clamped
+});
+
+test("journal header pager: wraps, compact below sm, aria and keyboard-friendly buttons", () => {
+  const page = fs.readFileSync(path.join(__dirname, "..", "src/app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  const header = page.slice(page.indexOf("Journal Header"), page.indexOf("Error Entries"));
+  assert.ok(/flex flex-wrap items-center/.test(header), "the header row wraps");
+  assert.ok(header.includes("min-w-0") && header.includes("break-words"), "the title wraps, never truncates");
+  assert.equal(/truncate/.test(header), false);
+  const pager = page.slice(page.indexOf("function JournalPager"), page.indexOf("A visible tab never stays blank"));
+  for (const needle of ['aria-label="Страницы журнала ошибок"', 'aria-label="Предыдущая страница"', 'aria-label="Следующая страница"', "aria-current", 'aria-live="polite"', "sm:hidden", "hidden sm:flex"]) {
+    assert.ok(pager.includes(needle), needle);
+  }
+  assert.equal((pager.match(/<button/g) || []).length, (pager.match(/type="button"/g) || []).length, "every pager button is type=button");
+});

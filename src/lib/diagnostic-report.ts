@@ -342,6 +342,30 @@ export function clampPage(page: number, total: number, perPage: number): number 
 const listLength = (v: unknown): string => (Array.isArray(v) ? String(v.length) : "");
 
 /**
+ * Numbered pager items for `total` pages (0-based `page`): every page up to 7, else
+ * 1 … p-1 p p+1 … N (at most 7 items, "gap" = an ellipsis). Narrow screens show «3 / 7» instead.
+ */
+export function pagerItems(page: number, total: number): Array<number | "gap"> {
+  const last = Math.max(0, Math.trunc(total) - 1);
+  if (last < 0 || total <= 0) return [];
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  const cur = Math.min(Math.max(0, Math.trunc(Number.isFinite(page) ? page : 0)), last);
+  const keep = new Set<number>([0, last, cur, cur - 1, cur + 1]);
+  // near the ends keep a run, so the list stays 7 items long and the reader can step on
+  if (cur <= 2) [1, 2, 3].forEach((n) => keep.add(n));
+  if (cur >= last - 2) [last - 1, last - 2, last - 3].forEach((n) => keep.add(n));
+  const sorted = [...keep].filter((n) => n >= 0 && n <= last).sort((a, b) => a - b);
+  const out: Array<number | "gap"> = [];
+  sorted.forEach((n, i) => {
+    // an ellipsis must hide at least two pages: a single hidden page is shown instead
+    if (i > 0 && n - sorted[i - 1] === 2) out.push(sorted[i - 1] + 1);
+    else if (i > 0 && n - sorted[i - 1] > 2) out.push("gap");
+    out.push(n);
+  });
+  return out;
+}
+
+/**
  * Identity of the report on screen. It changes when the report is REPLACED, not when the
  * same report is polled again - the page resets its UI state (journal page, expanded
  * chains and clusters) on a change only. A same-day, same-schema rebuild changes neither
