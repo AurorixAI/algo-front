@@ -16,6 +16,7 @@ import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
+import { createRequestSequence } from "@/lib/request-sequence";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
@@ -76,16 +77,15 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [commentVal, setCommentVal] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
 
-  // The student currently on screen.  Responses are asynchronous: one that
-  // belongs to a previously opened student must never overwrite the new profile.
-  const studentIdRef = useRef(studentId);
-  useEffect(() => {
-    studentIdRef.current = studentId;
-  }, [studentId]);
+  // Latest-request-wins: every loadProfile / retryExams takes a token and applies
+  // its result only if no newer request has started (student switch, A->B->A,
+  // reload after save/assign while a retry is in flight).
+  const loadSeq = useRef(createRequestSequence());
 
   const loadProfile = useCallback(async () => {
+    const token = loadSeq.current.next();
     if (!studentId) return;
-    const isCurrent = () => studentIdRef.current === studentId;
+    const isCurrent = () => loadSeq.current.isCurrent(token);
     try {
       setLoading(true);
       setError(null);
@@ -122,10 +122,10 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   }, [loadProfile]);
 
   const retryExams = useCallback(async () => {
+    const token = loadSeq.current.next();
     if (!studentId) return;
-    // Id captured at request time: a late answer for a previous student is dropped.
     const requestedFor = studentId;
-    const isCurrent = () => studentIdRef.current === requestedFor;
+    const isCurrent = () => loadSeq.current.isCurrent(token);
     setExamsRetrying(true);
     try {
       const exams = await examsApi.getStudentHistory(requestedFor);
@@ -761,20 +761,22 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
         </div>
       )}
 
-      {/* ── Assign to Group Modal ─────────────────────────────────────────── */}
-      <AssignGroupModal
-        open={assignModalOpen}
-        studentId={student.id}
-        studentName={student.full_name}
-        studentGrade={student.class_level}
-        currentGroupId={student.group_id}
-        currentGroupName={group?.name || null}
-        onClose={() => setAssignModalOpen(false)}
-        onAssigned={() => {
-          setAssignModalOpen(false);
-          loadProfile();
-        }}
-      />
+      {/* ── Assign to Group Modal (staff only, like the buttons that open it) ── */}
+      {!isTeacher && (
+        <AssignGroupModal
+          open={assignModalOpen}
+          studentId={student.id}
+          studentName={student.full_name}
+          studentGrade={student.class_level}
+          currentGroupId={student.group_id}
+          currentGroupName={group?.name || null}
+          onClose={() => setAssignModalOpen(false)}
+          onAssigned={() => {
+            setAssignModalOpen(false);
+            loadProfile();
+          }}
+        />
+      )}
     </div>
   );
 }
