@@ -295,21 +295,68 @@ test("report dates: attempt date and build date are formatted, junk is dropped",
   for (const bad of [null, undefined, 20261004, "", "04.10.2026", "2026-13-01", "2026-00-10", "2026-10-32"]) assert.equal(R.formatReportDate(bad), null);
 });
 
-test("stale / degraded notes: legacy only when the backend says not current and the report is not degraded or rebuilding", () => {
-  const rj = { report_meta: { date: "2026-10-04", generated_on: "2026-10-12" } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true }, rj), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false, oldFormat: false });
-  assert.equal(R.reportMetaInfo({ is_current_schema: false }, rj).legacy, true);
-  assert.equal(R.reportMetaInfo({ is_current_schema: false, status: "ready" }, rj).legacy, true);
-  assert.equal(R.reportMetaInfo({}, rj).legacy, false); // unknown is not "old"
-  assert.equal(R.reportMetaInfo(undefined, rj).legacy, false);
-  const degraded = { report_meta: { degraded: ["skill_names"] } };
-  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false, oldFormat: false });
-  assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { degraded: [] } }).degraded, false);
+const CURRENT5 = { report_meta: { report_schema_version: 5, error_free: false, date: "2026-10-04", generated_on: "2026-10-12" }, level: { status: "below" } };
+const OLD0 = { report_meta: { date: "2026-10-04", generated_on: "2026-10-12" } }; // no marker, none of the schema-5 fields
+
+test("old format is decided by the report's CONTENT, never by generation status", () => {
+  assert.equal(R.reportContentSchema(CURRENT5), 5);
+  assert.equal(R.reportContentSchema({ report_meta: { report_schema_version: 4 } }), 4);
+  assert.equal(R.reportContentSchema({ report_meta: { error_free: false } }), 5); // no version, but schema-5 fields
+  assert.equal(R.reportContentSchema({ level: { status: "below" } }), 5);
+  assert.equal(R.reportContentSchema(OLD0), 0);
+  assert.equal(R.reportContentSchema({}), 0);
+  assert.equal(R.reportContentSchema(null), 0);
+  assert.equal(R.isOldFormatReport(OLD0), true);
+  assert.equal(R.isOldFormatReport({ report_meta: { report_schema_version: 4 } }), true);
+  assert.equal(R.isOldFormatReport(CURRENT5), false);
+  assert.equal(R.isOldFormatReport(null), false);
+  assert.equal(R.isOldFormatReport("oops"), false);
+  // a CURRENT report stamped "not current" (explicit regeneration sets the DB version to 0) is not «old»
+  for (const status of ["ready", "failed", "pending", "generating"]) {
+    const meta = R.reportMetaInfo({ status, is_current_schema: false }, CURRENT5);
+    assert.deepEqual([meta.legacy, meta.oldFormat], [false, false], status);
+  }
+  // an old-format report is old whatever the generation says, even "current"
+  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: true }, OLD0).oldFormat, true);
+  assert.equal(R.reportMetaInfo(undefined, OLD0).legacy, true);
+  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: false }, OLD0).legacy, true);
+});
+
+test("report meta: dates, degraded reasons, rebuilding", () => {
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: true, status: "ready" }, CURRENT5), { attemptDate: "04.10.2026", generatedOn: "12.10.2026", legacy: false, degraded: false, degradedReasons: [], rebuilding: false, oldFormat: false });
+  const degraded = { report_meta: { report_schema_version: 5, degraded: ["skill_names"] } };
+  assert.deepEqual(R.reportMetaInfo({ is_current_schema: false, status: "failed" }, degraded), { attemptDate: null, generatedOn: null, legacy: false, degraded: true, degradedReasons: ["skill_names"], rebuilding: false, oldFormat: false });
+  assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { report_schema_version: 5, degraded: [] } }).degraded, false);
   assert.equal(R.reportMetaInfo(null, null).degraded, false);
-  // a running rebuild: «обновляется», not «старый формат»
-  const rebuilding = R.reportMetaInfo({ is_current_schema: false, status: "generating" }, rj);
-  assert.equal(rebuilding.rebuilding, true);
-  assert.equal(rebuilding.legacy, false);
+  assert.equal(R.reportMetaInfo(null, null).oldFormat, false);
+  // a degraded OLD report shows the degraded note, not the old-format banner
+  const oldDegraded = R.reportMetaInfo({ status: "ready" }, { report_meta: { report_schema_version: 3, degraded: ["skill_names"] } });
+  assert.deepEqual([oldDegraded.legacy, oldDegraded.degraded], [false, true]);
+});
+
+test("rebuilding: legacy keeps «старый формат»; current and degraded reports get the neutral «обновляется» text", () => {
+  const running = { status: "generating", is_current_schema: false };
+  // rebuilding legacy
+  const legacy = R.reportMetaInfo(running, OLD0);
+  assert.deepEqual([legacy.rebuilding, legacy.oldFormat, legacy.legacy], [true, true, true]);
+  assert.equal(R.skillsEmptyText(legacy), R.SECTION_LEGACY_TEXT);
+  assert.equal(R.planNotBuiltText(legacy), R.SECTION_LEGACY_TEXT);
+  // rebuilding current (explicit regeneration of a current report)
+  const current = R.reportMetaInfo(running, CURRENT5);
+  assert.deepEqual([current.rebuilding, current.oldFormat, current.legacy], [true, false, false]);
+  assert.equal(R.skillsEmptyText(current), "Раздел обновляется вместе с отчётом");
+  assert.equal(R.planNotBuiltText(current), "Раздел обновляется вместе с отчётом");
+  assert.equal(/старого формата|старом формате/.test(R.skillsEmptyText(current) + R.planNotBuiltText(current)), false);
+  // rebuilding degraded (re-queued)
+  const degraded = R.reportMetaInfo({ status: "pending", is_current_schema: false }, { report_meta: { report_schema_version: 5, degraded: ["knowledge_hierarchy"] } });
+  assert.deepEqual([degraded.rebuilding, degraded.oldFormat, degraded.legacy, degraded.degraded], [true, false, false, true]);
+  assert.equal(R.skillsEmptyText(degraded), R.SECTION_UPDATING_TEXT);
+  // nothing running, current: the plain «not enough data»
+  const settled = R.reportMetaInfo({ status: "ready", is_current_schema: true }, CURRENT5);
+  assert.equal(R.skillsEmptyText(settled), R.SKILLS_EMPTY_TEXT);
+  assert.equal(R.planNotBuiltText(settled), R.PLAN_NOT_BUILT_TEXT);
+  assert.equal(R.skillsEmptyText(null), R.SKILLS_EMPTY_TEXT);
+  assert.equal(R.skillsEmptyText({}), R.SKILLS_EMPTY_TEXT);
 });
 
 test("degraded note names what the backend says was unavailable", () => {
@@ -425,10 +472,11 @@ test("skills tab: the chains block counts for an error-free report as well", () 
 });
 
 test("placeholders of an old-format report say the section does not exist, not «not enough data»", () => {
-  assert.equal(R.skillsEmptyText(true), "Этот раздел не входит в отчёт старого формата");
-  assert.equal(R.planNotBuiltText(true), "Этот раздел не входит в отчёт старого формата");
-  assert.equal(R.skillsEmptyText(false), R.SKILLS_EMPTY_TEXT);
-  assert.equal(R.planNotBuiltText(false), R.PLAN_NOT_BUILT_TEXT);
+  assert.equal(R.skillsEmptyText({ oldFormat: true }), "Этот раздел не входит в отчёт старого формата");
+  assert.equal(R.planNotBuiltText({ oldFormat: true }), "Этот раздел не входит в отчёт старого формата");
+  assert.equal(R.skillsEmptyText({ oldFormat: true, rebuilding: true }), R.SECTION_LEGACY_TEXT);
+  assert.equal(R.skillsEmptyText({ oldFormat: false }), R.SKILLS_EMPTY_TEXT);
+  assert.equal(R.planNotBuiltText({ oldFormat: false }), R.PLAN_NOT_BUILT_TEXT);
 });
 
 test("path ids are decoded once, then encoded: no double encoding", () => {
@@ -740,32 +788,35 @@ test("journal page is clamped: a shorter replacement report never leaves an empt
 });
 
 test("report identity changes when the report is replaced, not when it is polled again", () => {
-  const rep = (over = {}, generatedAt = "2026-10-12T10:00:00") => ({ generated_at: generatedAt, report_json: { report_meta: { session_id: "S1", generated_on: "2026-10-12", report_schema_version: 5, ...over } } });
-  const base = R.reportIdentity(rep());
-  assert.equal(R.reportIdentity(rep()), base); // same report polled again
-  assert.notEqual(R.reportIdentity(rep({ generated_on: "2026-10-13" })), base);
-  assert.notEqual(R.reportIdentity(rep({ report_schema_version: 4 })), base);
-  assert.notEqual(R.reportIdentity(rep({ session_id: "S2" })), base);
-  assert.notEqual(R.reportIdentity(rep({}, "2026-10-12T11:00:00")), base); // rebuilt the same day
-  // old report (no meta fields) -> new report: different
+  const full = (over = {}, generatedAt = "2026-10-12T10:00:00", lists = {}) => ({
+    generated_at: generatedAt,
+    report_json: {
+      report_meta: { session_id: "S1", generated_on: "2026-10-12", report_schema_version: 5, total_questions: 12, questions_correct: 7, ...over },
+      error_patterns: [{}, {}, {}], root_cause_chains: [{}], cognitive_error_types: [{}], achievements: [], action_plan: [{}, {}],
+      ...lists,
+    },
+  });
+  const base = R.reportIdentity(full());
+  assert.equal(R.reportIdentity(full()), base); // the same report polled again
+  assert.notEqual(R.reportIdentity(full({ generated_on: "2026-10-13" })), base);
+  assert.notEqual(R.reportIdentity(full({ report_schema_version: 4 })), base);
+  assert.notEqual(R.reportIdentity(full({ session_id: "S2" })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T11:00:00")), base);
+  // A same-day, same-schema rebuild: generated_on is a date and generated_at is set on INSERT only
+  // (a rebuild updates the row), so both stay equal - the CONTENT shape tells the reports apart.
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { error_patterns: [{}] })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { root_cause_chains: [{}, {}, {}] })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { cognitive_error_types: [] })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { achievements: [{}] })), base);
+  assert.notEqual(R.reportIdentity(full({}, "2026-10-12T10:00:00", { action_plan: [] })), base);
+  assert.notEqual(R.reportIdentity(full({ total_questions: 14 })), base);
+  assert.notEqual(R.reportIdentity(full({ questions_correct: 9 })), base);
+  // an old report -> a new one differs; nothing / junk is the empty identity
   assert.notEqual(R.reportIdentity({ report_json: { report_meta: {} } }), base);
-  for (const none of [null, undefined, {}, { report_json: "oops" }, { report_json: null }]) assert.equal(R.reportIdentity(none), "|||");
-});
-
-test("during a rebuild the old report is still «old format»: placeholders and journal line say so", () => {
-  const rj = { report_meta: { date: "2026-09-01" } };
-  const rebuilding = R.reportMetaInfo({ status: "generating", is_current_schema: false }, rj);
-  assert.equal(rebuilding.legacy, false);
-  assert.equal(rebuilding.rebuilding, true);
-  assert.equal(rebuilding.oldFormat, true);
-  assert.equal(R.skillsEmptyText(rebuilding.oldFormat), R.SECTION_LEGACY_TEXT);
-  assert.equal(R.planNotBuiltText(rebuilding.oldFormat), R.SECTION_LEGACY_TEXT);
-  const settled = R.reportMetaInfo({ status: "ready", is_current_schema: false }, rj);
-  assert.deepEqual([settled.legacy, settled.oldFormat], [true, true]);
-  const current = R.reportMetaInfo({ status: "ready", is_current_schema: true }, rj);
-  assert.equal(current.oldFormat, false);
-  assert.equal(R.skillsEmptyText(current.oldFormat), R.SKILLS_EMPTY_TEXT);
-  assert.equal(R.reportMetaInfo({ status: "ready", is_current_schema: false }, { report_meta: { degraded: ["skill_names"] } }).oldFormat, false);
+  const none = R.reportIdentity(null);
+  assert.equal(R.reportIdentity({ report_json: "oops" }), none);
+  assert.equal(R.reportIdentity({ report_json: null }), none);
+  assert.equal(R.reportIdentity({}), none);
 });
 
 test("a chain reconstructed from the answers is marked neutrally and never makes a «confirmed» breakpoint", () => {
@@ -779,6 +830,48 @@ test("a chain reconstructed from the answers is marked neutrally and never makes
   assert.equal(R.breakpointCopy(confirmed, {}).title, "Подтверждённый пробел (углублённая проверка)");
   assert.equal(R.breakpointCopy(confirmed, {}, []).title, "Подтверждённый пробел (углублённая проверка)");
   assert.equal(R.breakpointCopy(confirmed, {}, [{ evidence_source: "inferred" }, { evidence_source: "inferred" }]).title, "Ключевой наблюдаемый дефицит");
+});
+
+test("mixed chains: only the chains AT the breakpoint decide «confirmed» (backend: any chain -> confirmed, min grade over all)", () => {
+  const CONF = "Подтверждённый пробел (углублённая проверка)";
+  const OBS = "Ключевой наблюдаемый дефицит";
+  const boundary = (skills) => ({ breakpoint_evidence: "confirmed", breakpoint_skills: skills });
+  const earliestInferred = [
+    { root_gap_grade: 3, root_gap_skill_name: "Дроби", evidence_source: "inferred" },
+    { root_gap_grade: 5, root_gap_skill_name: "Степени", evidence_source: "stored_link" },
+  ];
+  // the earliest gap (the breakpoint) is only inferred: not confirmed, even though a later chain is a stored link
+  assert.equal(R.breakpointCopy(boundary(["Дроби"]), {}, earliestInferred).title, OBS);
+  assert.equal(R.breakpointCopy(boundary([]), {}, earliestInferred).title, OBS); // by grade alone
+  // the earliest gap is a stored link, a later one inferred: confirmed
+  const earliestStored = [
+    { root_gap_grade: 3, root_gap_skill_name: "Дроби", evidence_source: "stored_link" },
+    { root_gap_grade: 5, root_gap_skill_name: "Степени", evidence_source: "inferred" },
+  ];
+  assert.equal(R.breakpointCopy(boundary(["Дроби"]), {}, earliestStored).title, CONF);
+  // two chains at the breakpoint grade, one stored: confirmed; both inferred: not
+  assert.equal(R.breakpointCopy(boundary(["Дроби", "Деление"]), {}, [
+    { root_gap_grade: 3, root_gap_skill_name: "Дроби", evidence_source: "inferred" },
+    { root_gap_grade: 3, root_gap_skill_name: "Деление", evidence_source: "stored_link" },
+  ]).title, CONF);
+  assert.equal(R.breakpointCopy(boundary(["Дроби", "Деление"]), {}, [
+    { root_gap_grade: 3, root_gap_skill_name: "Дроби", evidence_source: "inferred" },
+    { root_gap_grade: 3, root_gap_skill_name: "Деление", evidence_source: "inferred" },
+    { root_gap_grade: 5, root_gap_skill_name: "Степени", evidence_source: "stored_link" },
+  ]).title, OBS);
+  // no grades in the chains: the breakpoint skills pick the deciding chains
+  assert.equal(R.breakpointCopy(boundary(["Дроби"]), {}, [
+    { root_gap_skill_name: "Дроби", evidence_source: "inferred" },
+    { root_gap_skill_name: "Степени", evidence_source: "stored_link" },
+  ]).title, OBS);
+  assert.equal(R.breakpointCopy(boundary(["Степени"]), {}, [
+    { root_gap_skill_name: "Дроби", evidence_source: "inferred" },
+    { root_gap_skill_name: "Степени", evidence_source: "stored_link" },
+  ]).title, CONF);
+  // nothing identifies the chains at the breakpoint: all chains decide (as before)
+  assert.equal(R.breakpointCopy(boundary(["Нет такого"]), {}, [{ evidence_source: "inferred" }, { evidence_source: "stored_link" }]).title, CONF);
+  // an observed boundary stays observed whatever the chains say
+  assert.equal(R.breakpointCopy({ breakpoint_evidence: "observed" }, {}, [{ root_gap_grade: 3, evidence_source: "stored_link" }]).title, OBS);
 });
 
 test("boundary texts: capped lists say «основные»; the observed text names the earliest grade with errors", () => {

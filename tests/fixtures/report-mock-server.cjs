@@ -61,6 +61,8 @@
  *   s9-deepscan-incomplete observed boundary, no breakpoint skills, report_meta.deep_scan_incomplete = true
  *   s9-rebuild          old report + generation pending/generating with is_current_schema=false, then the
  *                       new report after MOCK_FLIP_AFTER requests (page: old report + «Отчёт обновляется…»)
+ *   s9-rebuild-current  schema-5 report being regenerated (is_current_schema=false): normal content, empty
+ *                       sections say «Раздел обновляется вместе с отчётом», NO «старый формат»; new report later
  *   s9-rebuild-long     like s9-rebuild, but the old report has 4 records (journal page 2) and the new one 2
  *   s9-invalid-json     report_json is the string "oops" (page: «Данные отчёта недоступны», no endless poll)
  *   s9-flaky            pending, then 503, 503, then the report (poll must survive 2 transient failures)
@@ -300,6 +302,16 @@ const SCENARIOS = {
     FLIP_AFTER > 0 && n > FLIP_AFTER
       ? envelope(errorsJson({ long: false, plan: true }))
       : envelope(legacyJson(), generation({ status: n > 2 ? "generating" : "pending", stage: "collecting_evidence", is_current_schema: false })),
+  // explicit regeneration of a CURRENT-format report: schema-5 content, generation pending/generating with
+  // is_current_schema=false; sections without data show «Раздел обновляется вместе с отчётом», no «старый формат»
+  "s9-rebuild-current": (n) => {
+    if (FLIP_AFTER > 0 && n > FLIP_AFTER) return envelope(errorsJson({ long: false, plan: true }));
+    const json = errorsJson({ long: false, plan: false });
+    delete json.diagnostic_boundary;
+    json.root_cause_chains = [];
+    json.cognitive_error_types = [];
+    return envelope(json, generation({ status: "generating", stage: "collecting_evidence", is_current_schema: false }));
+  },
   // rebuild where the old report is LONGER (4 records, 2 journal pages) than the new one (2 records)
   "s9-rebuild-long": (n) =>
     FLIP_AFTER > 0 && n > FLIP_AFTER

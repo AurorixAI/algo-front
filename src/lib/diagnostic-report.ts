@@ -296,8 +296,18 @@ export const PLAN_NOT_BUILT_TEXT = "План не сформирован: нед
 export const SKILLS_EMPTY_TEXT = "Недостаточно данных для анализа навыков";
 /** An old-format report simply has no such section: say that instead of "not enough data". */
 export const SECTION_LEGACY_TEXT = "Этот раздел не входит в отчёт старого формата";
-export const planNotBuiltText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : PLAN_NOT_BUILT_TEXT);
-export const skillsEmptyText = (legacy: boolean) => (legacy ? SECTION_LEGACY_TEXT : SKILLS_EMPTY_TEXT);
+/** A current-format report that is being rebuilt: its empty section may fill in when the new one is ready. */
+export const SECTION_UPDATING_TEXT = "Раздел обновляется вместе с отчётом";
+
+/** What decides an empty section's wording: the report's CONTENT format and whether a rebuild runs. */
+export interface SectionState {
+  oldFormat?: boolean;
+  rebuilding?: boolean;
+}
+export const planNotBuiltText = (state?: SectionState | null) =>
+  state?.oldFormat ? SECTION_LEGACY_TEXT : state?.rebuilding ? SECTION_UPDATING_TEXT : PLAN_NOT_BUILT_TEXT;
+export const skillsEmptyText = (state?: SectionState | null) =>
+  state?.oldFormat ? SECTION_LEGACY_TEXT : state?.rebuilding ? SECTION_UPDATING_TEXT : SKILLS_EMPTY_TEXT;
 
 // ─── N04 round 3: journal paging survives a report swap ───────────────────────
 
@@ -309,15 +319,24 @@ export function clampPage(page: number, total: number, perPage: number): number 
   return Math.min(Math.max(0, n), last);
 }
 
+const listLength = (v: unknown): string => (Array.isArray(v) ? String(v.length) : "");
+
 /**
- * Identity of the report on screen. It changes when the report is REPLACED (a rebuild
- * finishing: other build date / schema version / generation time / attempt), not when
- * the same report is polled again - the page resets its UI state (journal page, expanded
- * chains and clusters) on a change only.
+ * Identity of the report on screen. It changes when the report is REPLACED, not when the
+ * same report is polled again - the page resets its UI state (journal page, expanded
+ * chains and clusters) on a change only. A same-day, same-schema rebuild changes neither
+ * `generated_on` (a date) nor `generated_at` (the backend sets it on INSERT only), so the
+ * content shape is part of the identity: question count and the lengths of the lists.
  */
 export function reportIdentity(response: { report_json?: unknown; generated_at?: unknown } | null | undefined): string {
-  const meta = isObj(response?.report_json) && isObj((response!.report_json as Obj).report_meta) ? (response!.report_json as Obj).report_meta : {};
-  return [meta.session_id, meta.generated_on, meta.report_schema_version, response?.generated_at]
+  const rj: Obj = isObj(response?.report_json) ? (response!.report_json as Obj) : {};
+  const meta: Obj = isObj(rj.report_meta) ? rj.report_meta : {};
+  return [
+    meta.session_id, meta.generated_on, meta.report_schema_version, response?.generated_at,
+    meta.total_questions, meta.questions_correct,
+    listLength(rj.error_patterns), listLength(rj.root_cause_chains), listLength(rj.cognitive_error_types),
+    listLength(rj.achievements), listLength(rj.action_plan),
+  ]
     .map((v) => (v === undefined || v === null ? "" : String(v)))
     .join("|");
 }
@@ -342,13 +361,12 @@ export interface BreakpointCopy {
  * The skill lists of the boundary are capped by the backend (3 / 3 / 4): the texts say «основные».
  */
 export function breakpointCopy(
-  boundary: { breakpoint_evidence?: unknown } | null | undefined,
+  boundary: { breakpoint_evidence?: unknown; breakpoint_skills?: unknown } | null | undefined,
   reportMeta: { deep_scan_incomplete?: unknown } | null | undefined,
-  chains?: Array<{ evidence_source?: unknown }> | null,
+  chains?: Array<{ evidence_source?: unknown; root_gap_grade?: unknown; root_gap_skill_name?: unknown }> | null,
 ): BreakpointCopy {
   const incomplete = reportMeta?.deep_scan_incomplete === true;
-  const onlyInferred = Array.isArray(chains) && chains.length > 0 && chains.every((c) => c?.evidence_source === "inferred");
-  const confirmed = boundary?.breakpoint_evidence === "confirmed" && !onlyInferred;
+  const confirmed = boundary?.breakpoint_evidence === "confirmed" && !breakpointChainsAllInferred(boundary, chains);
   if (confirmed) {
     return {
       title: "Подтверждённый пробел (углублённая проверка)",
@@ -361,6 +379,30 @@ export function breakpointCopy(
     description: "Основные навыки с ошибками в самом раннем классе, где были ошибки.",
     emptyText: incomplete ? "Углублённая проверка выполнена не полностью" : "Наблюдаемых дефицитов нет",
   };
+}
+
+/**
+ * The backend marks the boundary "confirmed" when ANY chain exists and takes the breakpoint
+ * grade as the minimum over ALL chains, inferred ones included. So only the chains AT the
+ * breakpoint (root_gap_grade == the minimum, or a root skill named in breakpoint_skills)
+ * decide: if every one of them is reconstructed (`inferred`), nothing was confirmed by a
+ * deep scan - a later stored-link chain does not confirm an earlier inferred breakpoint.
+ */
+function breakpointChainsAllInferred(
+  boundary: { breakpoint_skills?: unknown } | null | undefined,
+  chains: Array<{ evidence_source?: unknown; root_gap_grade?: unknown; root_gap_skill_name?: unknown }> | null | undefined,
+): boolean {
+  if (!Array.isArray(chains) || chains.length === 0) return false;
+  const grades = chains.map((c) => c?.root_gap_grade).filter((g): g is number => typeof g === "number" && Number.isFinite(g));
+  const minGrade = grades.length > 0 ? Math.min(...grades) : null;
+  const names = new Set(asStrArray(boundary?.breakpoint_skills));
+  const atBreakpoint = chains.filter(
+    (c) =>
+      (minGrade !== null && c?.root_gap_grade === minGrade) ||
+      (typeof c?.root_gap_skill_name === "string" && names.has(c.root_gap_skill_name)),
+  );
+  const decisive = atBreakpoint.length > 0 ? atBreakpoint : chains;
+  return decisive.every((c) => c?.evidence_source === "inferred");
 }
 
 /** The deep-scan chain was reconstructed from the answers (no stored link): shown with a neutral marker. */
@@ -565,12 +607,32 @@ export function formatReportDate(value: unknown): string | null {
   return `${m[3]}.${m[2]}.${m[1]}`;
 }
 
+/** Mirrors the backend REPORT_SCHEMA_VERSION (report_generator.py): the format of a report built now. */
+export const CURRENT_REPORT_SCHEMA = 5;
+
+/**
+ * Format of the report by its CONTENT, not by generation status (an explicit regeneration
+ * stamps a CURRENT report "not current" in the DB, a degraded one is re-queued): the
+ * report's own `report_meta.report_schema_version`; a report without the marker is current
+ * only if it carries what schema 5 always writes (`report_meta.error_free`, `level`).
+ */
+export function reportContentSchema(report: Obj | null | undefined): number {
+  const meta = report?.report_meta;
+  const v = isObj(meta) ? meta.report_schema_version : undefined;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if ((isObj(meta) && typeof meta.error_free === "boolean") || isObj(report?.level)) return CURRENT_REPORT_SCHEMA;
+  return 0;
+}
+
+export const isOldFormatReport = (report: Obj | null | undefined): boolean =>
+  isObj(report) && reportContentSchema(report) < CURRENT_REPORT_SCHEMA;
+
 export interface ReportMetaInfo {
   /** Date the student took the test (report_meta.date), "dd.mm.yyyy". */
   attemptDate: string | null;
   /** Date the report was built (report_meta.generated_on), "dd.mm.yyyy". */
   generatedOn: string | null;
-  /** The report was built before the current format (report_generation.is_current_schema === false). */
+  /** The report is in an old format by its content and not degraded: the «старом формате» banner. */
   legacy: boolean;
   /** Part of the reference data (names / hierarchy) was unavailable when it was built. */
   degraded: boolean;
@@ -579,16 +641,18 @@ export interface ReportMetaInfo {
   /** The old report is shown while a new one is being built (historical rebuild). */
   rebuilding: boolean;
   /**
-   * The report on screen is in the old format: `legacy` or, during a rebuild, the old report.
-   * Section placeholders and the journal line speak about the format, not about missing data.
+   * The report on screen is in an old format BY ITS CONTENT (report_meta schema marker /
+   * schema-5 fields), regardless of generation status. Placeholders and the journal line say
+   * «старый формат» only then; a current report being rebuilt gets the neutral updating text.
    */
   oldFormat: boolean;
 }
 
 /**
- * A degraded report is stamped "not current" by the backend, but it is not an old
- * format: the degraded note wins and `legacy` is then false. While a rebuild runs the
- * old report is "being updated", not just "old".
+ * Meta of the report on screen. The old-format verdict comes from the report's content
+ * (reportContentSchema), never from `is_current_schema`: a current-format report that is
+ * regenerated or degraded is stamped "not current" in the DB but is not an old format.
+ * A degraded report shows its degraded note, not the old-format banner.
  */
 export function reportMetaInfo(
   generation: { status?: string | null; is_current_schema?: boolean | null } | null | undefined,
@@ -597,16 +661,15 @@ export function reportMetaInfo(
   const meta = report?.report_meta;
   const reasons = Array.isArray(meta?.degraded) ? meta.degraded.filter((r: unknown): r is string => typeof r === "string") : [];
   const degraded = Array.isArray(meta?.degraded) ? meta.degraded.length > 0 : meta?.degraded === true;
-  const rebuilding = isRebuildingReport(generation);
-  const legacy = generation?.is_current_schema === false && !degraded && !rebuilding;
+  const oldFormat = isOldFormatReport(report as Obj | null | undefined) && !degraded;
   return {
     attemptDate: formatReportDate(meta?.date),
     generatedOn: formatReportDate(meta?.generated_on),
-    legacy,
+    legacy: oldFormat,
     degraded,
     degradedReasons: reasons,
-    rebuilding,
-    oldFormat: legacy || rebuilding,
+    rebuilding: isRebuildingReport(generation),
+    oldFormat,
   };
 }
 

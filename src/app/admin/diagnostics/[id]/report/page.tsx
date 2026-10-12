@@ -1354,7 +1354,7 @@ export default function DiagnosticReportPage() {
             <motion.div variants={fade} className="min-w-0 space-y-6">
 
               {tabs?.skills === "empty" && (
-                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={skillsEmptyText(meta.oldFormat)} />
+                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={skillsEmptyText(meta)} />
               )}
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
@@ -1769,7 +1769,7 @@ export default function DiagnosticReportPage() {
           )}
           {activeTab === "plan" && tabs?.plan === "not_built" && (
             <motion.div variants={fade}>
-              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={planNotBuiltText(meta.oldFormat)} />
+              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={planNotBuiltText(meta)} />
             </motion.div>
           )}
           {activeTab === "plan" && rj.action_plan.length > 0 && (() => {
