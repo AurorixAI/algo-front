@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 
 /**
@@ -15,6 +17,9 @@ export default function ReportSegmentError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const pathname = usePathname();
+  const listHref = pathname?.startsWith("/teacher") ? "/teacher/groups" : "/admin/diagnostics";
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -30,13 +35,21 @@ export default function ReportSegmentError({
       <p className="text-sm text-slate-500 mt-2">
         При отображении отчёта произошла ошибка. Повторите попытку; если ошибка повторяется, обратитесь к администратору.
       </p>
-      <button
-        type="button"
-        onClick={reset}
-        className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
-      >
-        Повторить
-      </button>
+      <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={reset}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+        >
+          Повторить
+        </button>
+        <Link
+          href={listHref}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200"
+        >
+          Назад к списку
+        </Link>
+      </div>
     </div>
   );
 }

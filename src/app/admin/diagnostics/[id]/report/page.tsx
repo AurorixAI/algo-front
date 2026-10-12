@@ -8,10 +8,12 @@ import {
   type LevelToneClasses, type ReportLevel,
 } from "@/lib/diagnostic-level";
 import {
-  JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_BUILT_TEXT, PLAN_NOT_NEEDED_TEXT, SKILLS_EMPTY_TEXT,
-  hasBoundaryData, hoursLabel, isDevelopmentStep, isErrorFreeReport, knownPlanHours, loadErrorInfo, nextReportPollStep,
-  normalizeReportJson, recommendedStartName, reportAchievements, reportMetaInfo, reportScorePercent,
-  reportWrongCount, stepHours, tabContentState,
+  JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
+  breakpointCopy, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
+  isErrorFreeReport, knownPlanHours, loadErrorInfo, normalizeReportJson, planNotBuiltText, recommendedStartName,
+  reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
+  stepHours, stepOutcomeState, stepsLabel, tabContentState,
+  type ReportPollerState,
 } from "@/lib/diagnostic-report";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,7 +41,6 @@ import {
   ArrowRight,
   Target,
   Compass,
-  Flag,
   Zap,
   User,
   Info,
@@ -135,6 +136,8 @@ interface DiagnosticBoundary {
   anchor_skills: string[];
   breakpoint_level: string;
   breakpoint_skills: string[];
+  /** confirmed = reached by a deep-scan trajectory; observed = earliest grade with wrong answers only. */
+  breakpoint_evidence?: "confirmed" | "observed" | string | null;
   blocked_level: string;
   blocked_skills: string[];
 }
@@ -177,6 +180,8 @@ interface ReportJson {
     error_free?: boolean;
     /** Reasons part of the reference data was unavailable at build time. */
     degraded?: string[] | null;
+    /** The deep-scan descent could not be completed (no «глубоких сбоев не выявлено» then). */
+    deep_scan_incomplete?: boolean | null;
   };
   overall: {
     score_percent?: number | null; status?: string; status_label_ru?: string;
@@ -402,7 +407,7 @@ function TabNotice({ icon: Icon, title, text, tone = "slate", testId }: {
   return (
     <div data-testid={testId} className={`min-w-0 rounded-2xl border p-5 sm:p-6 shadow-2xs flex items-start gap-3.5 ${box}`}>
       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${chip}`}>
-        <Icon className="w-4.5 h-4.5" />
+        <Icon className="w-5 h-5" />
       </div>
       <div className="min-w-0 space-y-1">
         <h2 className="font-bold text-slate-900 text-sm sm:text-base break-words">{title}</h2>
@@ -428,8 +433,10 @@ export default function DiagnosticReportPage() {
   const [reportError, setReportError] = useState<string | null>(null);
   // HTTP status of the failed load (403 / 404 have their own screens, no «Повторить»).
   const [reportErrorStatus, setReportErrorStatus] = useState<number | null>(null);
-  // The bounded poll gave up: «Отчёт формируется дольше обычного» + «Проверить снова».
-  const [pollExhausted, setPollExhausted] = useState(false);
+  // The error is final for this attempt (no «Повторить загрузку»).
+  const [reportErrorRetryable, setReportErrorRetryable] = useState(true);
+  // Phase of the report poller: «Отчёт формируется дольше обычного» after the cap.
+  const [pollPhase, setPollPhase] = useState<ReportPollerState["phase"] | null>(null);
   const acknowledgedInviteRef = useRef<string | null>(null);
   const [retryNonce, setRetryNonce]   = useState(0);
   const [loading, setLoading]         = useState(true);
@@ -478,57 +485,41 @@ export default function DiagnosticReportPage() {
 
   useEffect(() => {
     let cancelled = false;
-    let pollTimer: ReturnType<typeof setTimeout> | null = null;
-    let pollAttempt = 0;            // polls made after the initial load
-    let waitingForVisible = false;  // a poll is due but the tab is hidden
     let target: { studentId: string; sessionId: string } | null = null;
 
     const fail = (e: any) => {
       console.error(e);
       if (cancelled) return;
+      setReportErrorRetryable(true);
       setReportErrorStatus(typeof e?.status === "number" ? e.status : null);
       setReportError(e?.message || "Не удалось загрузить отчёт. Повторите попытку.");
     };
 
-    // One decision after every response: stop (ready / failed / cap) or poll again.
-    // Polls only the student report endpoint, with backoff, never in a hidden tab.
-    // `{report: null}` and "ready" without report_json poll as well.
-    const afterResponse = (reportData: any) => {
-      const step = nextReportPollStep({
-        attempt: pollAttempt,
-        hasReportJson: Boolean(reportData?.report_json),
-        status: reportData?.report_generation?.status,
-      });
-      if (step.kind === "wait") pollTimer = setTimeout(tick, step.delayMs);
-      else if (step.kind === "exhausted") setPollExhausted(true);
-    };
-
-    const tick = () => {
-      pollTimer = null;
-      if (cancelled) return;
-      if (typeof document !== "undefined" && document.hidden) { waitingForVisible = true; return; }
-      void pollReport();
-    };
-
-    const onVisibility = () => {
-      if (cancelled || !waitingForVisible || document.hidden) return;
-      waitingForVisible = false;
-      tick();
-    };
-
-    const pollReport = async () => {
-      if (!target) return;
-      pollAttempt += 1;
-      try {
-        const rep = await analyticsApi.studentReport(target.studentId, target.sessionId);
+    // The report poll (src/lib/diagnostic-report.ts, tested with fake timers): only the
+    // student report endpoint, 2 s -> 10 s backoff, 40 polls at most, paused in a hidden
+    // tab, three consecutive transient failures tolerated, `{report: null}` and
+    // ready-without-report_json keep polling, the old report of a rebuild stays visible.
+    const poller = createReportPoller({
+      fetchReport: () => analyticsApi.studentReport(target!.studentId, target!.sessionId),
+      setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+      clearTimeout: (handle) => window.clearTimeout(handle as number),
+      isHidden: () => document.hidden,
+      onState: (state) => {
         if (cancelled) return;
-        const reportData = rep && "report" in rep && rep.report === null ? null : rep;
-        setReport(reportData);
-        afterResponse(reportData);
-      } catch (e: any) {
-        fail(e);
-      }
-    };
+        if (state.response !== undefined) {
+          setReport(state.response);
+          setReportError(null);
+          setReportErrorStatus(null);
+        }
+        if (state.phase === "error") {
+          setReportErrorRetryable(true);
+          setReportErrorStatus(state.error?.status ?? null);
+          setReportError(state.error?.message || "Не удалось загрузить отчёт. Повторите попытку.");
+        }
+        setPollPhase(state.phase);
+      },
+    });
+    const onVisibility = () => poller.visibilityChanged();
 
     const load = async () => {
       try {
@@ -543,8 +534,6 @@ export default function DiagnosticReportPage() {
             found.student_id ? orgApi.getStudentProfile(found.student_id).catch(() => null) : null,
           ]);
           if (cancelled) return;
-          const reportData = rep && "report" in rep && rep.report === null ? null : rep;
-          setReport(reportData);
           setReportError(null);
           setReportErrorStatus(null);
           if (studentData) {
@@ -557,9 +546,10 @@ export default function DiagnosticReportPage() {
           } else {
             setCurrentStudentGroup(null);
           }
-          afterResponse(reportData);
+          poller.ingest(rep);
         } else if (found.status === "completed") {
           setReport(null);
+          setReportErrorRetryable(false);
           setReportError("У завершённой диагностики отсутствует идентификатор попытки. Отчёт не может быть подменён другой диагностикой.");
         }
       } catch (e: any) {
@@ -568,12 +558,13 @@ export default function DiagnosticReportPage() {
       finally { if (!cancelled) setLoading(false); }
     };
 
-    setPollExhausted(false);
+    setPollPhase(null);
+    setReportErrorRetryable(true);
     document.addEventListener("visibilitychange", onVisibility);
     void load();
     return () => {
       cancelled = true;
-      if (pollTimer) clearTimeout(pollTimer);
+      poller.cancel();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [inviteId, isTeacher, retryNonce, router]);
@@ -581,13 +572,14 @@ export default function DiagnosticReportPage() {
   // Opening a fully generated initial report is the teacher's acknowledgement
   // of the new student. This is intentionally not performed for admins, and
   // the endpoint is idempotent to withstand a refresh or report polling.
+  const reportUsable = normalizeReportJson(report?.report_json) !== null;
   useEffect(() => {
-    if (!isTeacher || !invite?.id || !report?.report_json || acknowledgedInviteRef.current === invite.id) return;
+    if (!isTeacher || !invite?.id || !reportUsable || acknowledgedInviteRef.current === invite.id) return;
     acknowledgedInviteRef.current = invite.id;
     void orgApi.acknowledgeDiagnosticReport(invite.id).catch(() => {
       acknowledgedInviteRef.current = null;
     });
-  }, [invite?.id, isTeacher, report?.report_json]);
+  }, [invite?.id, isTeacher, reportUsable]);
 
   if (loading) {
     return (
@@ -652,9 +644,16 @@ export default function DiagnosticReportPage() {
   const level = rj ? resolveReportLevel(rj) : null;
   // Error-free attempt: a positive scenario (achievements + a development step).
   const errorFree = rj ? isErrorFreeReport(rj) : false;
-  const achievements = reportAchievements(rj) as Achievement[];
+  const achievementsInfo = resolveAchievements(rj);
+  const achievements = achievementsInfo.items as Achievement[];
+  // `strong_skills` fallback (older report) is a model estimate, not a verified fact
+  const achievementsTitle = achievementsInfo.fallback ? "Сильные стороны (по оценке модели)" : "Подтверждённые навыки";
   const tabs = rj ? tabContentState(rj) : null;
   const meta = reportMetaInfo(reportGeneration, rj);
+  const pollExhausted = pollPhase === "exhausted";
+  const breakpoint = breakpointCopy(rj?.diagnostic_boundary, rj?.report_meta);
+  // report_json arrived but is not a report object (string, list ...): not renderable, not poll-able
+  const reportInvalid = !rj && report?.report_json !== null && report?.report_json !== undefined;
   const scorePercent = rj ? reportScorePercent(rj) : null;
   const wrongCount = rj ? reportWrongCount(rj.report_meta) : null;
   const levelText = rj ? ((level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru || null) : null;
@@ -816,7 +815,8 @@ export default function DiagnosticReportPage() {
       {!isPending && !rj && (() => {
         const errInfo = reportError ? loadErrorInfo(reportErrorStatus, reportError, "report") : null;
         const failed = reportGeneration?.status === "failed";
-        const calm = Boolean(errInfo) || pollExhausted || failed;
+        const calm = Boolean(errInfo) || reportInvalid || pollExhausted || failed;
+        const recheck = () => { setPollPhase(null); setReportError(null); setReportErrorStatus(null); setRetryNonce((value) => value + 1); };
         return (
           <div
             data-testid="diagnostic-report-generating"
@@ -826,30 +826,36 @@ export default function DiagnosticReportPage() {
               <AlertTriangle className={`w-9 h-9 ${errInfo ? "text-rose-500" : "text-amber-400"}`} />
             </div>
             <p className={`font-semibold text-sm break-words ${errInfo ? "text-rose-800" : "text-amber-800"}`}>
-              {errInfo ? errInfo.title : pollExhausted ? "Отчёт формируется дольше обычного" : generationCopy.title}
+              {errInfo ? errInfo.title
+                : reportInvalid ? "Данные отчёта недоступны"
+                : pollExhausted ? "Отчёт формируется дольше обычного"
+                : generationCopy.title}
             </p>
             <p className={`text-xs max-w-sm break-words ${errInfo ? "text-rose-700" : "text-amber-700"}`}>
-              {errInfo ? errInfo.text : pollExhausted ? "Отчёт пока не готов. Проверьте ещё раз через некоторое время." : generationCopy.description}
+              {errInfo ? errInfo.text
+                : reportInvalid ? "Отчёт получен в неожиданном формате и не может быть показан. Проверьте ещё раз позже."
+                : pollExhausted ? "Отчёт пока не готов. Проверьте ещё раз через некоторое время."
+                : generationCopy.description}
             </p>
             {errInfo ? (
-              errInfo.retryable && (
+              errInfo.retryable && reportErrorRetryable && (
                 <button
                   type="button"
-                  onClick={() => { setReportError(null); setReportErrorStatus(null); setRetryNonce((value) => value + 1); }}
+                  onClick={recheck}
                   className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 text-xs font-semibold hover:bg-rose-100"
                 >
                   Повторить загрузку
                 </button>
               )
-            ) : pollExhausted ? (
+            ) : (reportInvalid || pollExhausted || failed) ? (
               <button
                 type="button"
-                onClick={() => { setPollExhausted(false); setRetryNonce((value) => value + 1); }}
+                onClick={recheck}
                 className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100"
               >
                 Проверить снова
               </button>
-            ) : !failed && (
+            ) : (
               <p className="text-[11px] text-amber-600">Статус обновляется автоматически — страницу обновлять не нужно.</p>
             )}
           </div>
@@ -867,7 +873,7 @@ export default function DiagnosticReportPage() {
         >
 
           {/* ── Report meta: attempt date, build date, stale / degraded notes ── */}
-          {(meta.attemptDate || meta.generatedOn || meta.legacy || meta.degraded) && (
+          {(meta.attemptDate || meta.generatedOn || meta.legacy || meta.degraded || meta.rebuilding || reportError) && (
             <motion.div variants={fade} data-testid="diagnostic-report-meta" className="min-w-0 space-y-2">
               {(meta.attemptDate || meta.generatedOn) && (
                 <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
@@ -888,7 +894,38 @@ export default function DiagnosticReportPage() {
               {meta.degraded && (
                 <div data-testid="diagnostic-report-degraded" className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
                   <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-px" />
-                  <span className="min-w-0 break-words">При подготовке отчёта часть справочных данных была недоступна: некоторые названия тем могут отображаться неполностью.</span>
+                  <span className="min-w-0 break-words">{degradedNote(meta.degradedReasons)}</span>
+                </div>
+              )}
+              {/* A historical rebuild: the previous report stays visible, the page switches when the new one is ready */}
+              {reportError ? (
+                <div data-testid="diagnostic-report-refresh-error" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-rose-100 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-800">
+                  <span className="min-w-0 flex-1 basis-48 break-words">Не удалось проверить обновление отчёта. Показана прежняя версия.</span>
+                  <button
+                    type="button"
+                    onClick={() => { setPollPhase(null); setReportError(null); setReportErrorStatus(null); setRetryNonce((value) => value + 1); }}
+                    className="px-3 py-1 rounded-lg bg-white border border-rose-200 font-semibold hover:bg-rose-100"
+                  >
+                    Проверить снова
+                  </button>
+                </div>
+              ) : meta.rebuilding && (
+                <div data-testid="diagnostic-report-rebuilding" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                  <Info className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                  <span className="min-w-0 flex-1 basis-48 break-words">
+                    {pollExhausted
+                      ? "Обновление отчёта идёт дольше обычного. Показана прежняя версия."
+                      : "Отчёт обновляется… Пока показана прежняя версия; страница обновится автоматически."}
+                  </span>
+                  {pollExhausted && (
+                    <button
+                      type="button"
+                      onClick={() => { setPollPhase(null); setRetryNonce((value) => value + 1); }}
+                      className="px-3 py-1 rounded-lg bg-white border border-amber-200 font-semibold hover:bg-amber-100"
+                    >
+                      Проверить снова
+                    </button>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -1000,7 +1037,7 @@ export default function DiagnosticReportPage() {
             ))}
           </motion.div>
 
-          <div role="tabpanel" id="report-tabpanel" aria-labelledby={`report-tab-${activeTab}`} className="min-w-0 space-y-6">
+          <div role="tabpanel" id="report-tabpanel" tabIndex={0} aria-labelledby={`report-tab-${activeTab}`} className="min-w-0 space-y-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-200 rounded-2xl">
           {/* ── TAB 1: Error Journal — paginated ──────────────────────────── */}
           {activeTab === "journal" && rj.error_patterns.length > 0 && (() => {
             const totalPages = Math.ceil(rj.error_patterns.length / ERRORS_PER_PAGE);
@@ -1257,7 +1294,7 @@ export default function DiagnosticReportPage() {
                       Дефицит по результатам диагностики не выявлен
                       {(() => {
                         const below = [
-                          achievements.length > 0 ? "подтверждённые навыки" : null,
+                          achievements.length > 0 ? achievementsTitle.toLowerCase() : null,
                           rj.action_plan.length > 0 ? "следующий шаг развития" : null,
                         ].filter(Boolean);
                         return below.length > 0 ? `: ниже — ${below.join(" и ")}.` : ".";
@@ -1270,7 +1307,7 @@ export default function DiagnosticReportPage() {
               {achievements.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                    {unavailable ? "Сильные стороны (по данным отчёта)" : "Подтверждённые навыки"}
+                    {achievementsInfo.fallback ? achievementsTitle : unavailable ? "Сильные стороны (по данным отчёта)" : "Подтверждённые навыки"}
                   </div>
                   <div className="flex flex-wrap gap-2" data-testid="diagnostic-report-achievements">
                     {achievements.map((item) => (
@@ -1304,7 +1341,7 @@ export default function DiagnosticReportPage() {
             <motion.div variants={fade} className="min-w-0 space-y-6">
 
               {tabs?.skills === "empty" && (
-                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={SKILLS_EMPTY_TEXT} />
+                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={skillsEmptyText(meta.legacy)} />
               )}
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
@@ -1329,7 +1366,7 @@ export default function DiagnosticReportPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Базовые темы, решённые стабильно. Служат точкой отсчёта для старта индивидуальной программы.
+                          Темы, по которым были верные ответы в самом раннем классе диагностики.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1351,14 +1388,14 @@ export default function DiagnosticReportPage() {
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
                           <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                            Точка слома понимания
+                            {breakpoint.title}
                           </span>
                           <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200/80">
                             {rj.diagnostic_boundary.breakpoint_level}
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Корневой пререквизит младших классов, где произошло первичное разрушение алгоритмической логики.
+                          {breakpoint.description}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1368,8 +1405,8 @@ export default function DiagnosticReportPage() {
                               {s}
                             </span>
                           ))
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">Глубоких сбоев не выявлено</span>
+                        ) : breakpoint.emptyText && (
+                          <span className="text-xs text-slate-400 italic">{breakpoint.emptyText}</span>
                         )}
                       </div>
                     </div>
@@ -1380,14 +1417,14 @@ export default function DiagnosticReportPage() {
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
                           <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                             <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
-                            Заблокировано
+                            Ошибки в текущем классе
                           </span>
                           <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
                             {rj.diagnostic_boundary.blocked_level}
                           </span>
                         </div>
                         <p className="text-xs text-slate-600 leading-relaxed">
-                          Темы текущего класса, которые невозможно освоить без предварительного закрытия точек слома.
+                          Навыки текущего класса, в которых были ошибки.
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
@@ -1398,7 +1435,7 @@ export default function DiagnosticReportPage() {
                             </span>
                           ))
                         ) : (
-                          <span className="text-xs text-slate-400 italic">Нет заблокированных тем</span>
+                          <span className="text-xs text-slate-400 italic">Ошибок в текущем классе нет</span>
                         )}
                       </div>
                     </div>
@@ -1447,7 +1484,7 @@ export default function DiagnosticReportPage() {
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-md">
-                                {ch.steps_count} {ch.steps_count === 1 ? "шаг" : ch.steps_count < 5 ? "шага" : "шагов"}
+                                {stepsLabel(ch.steps_count)}
                               </span>
                               {isExpanded ? (
                                 <ChevronUp className="w-4 h-4 text-slate-400" />
@@ -1470,7 +1507,8 @@ export default function DiagnosticReportPage() {
                               >
                                 <div className="p-3 sm:p-5 lg:p-6 bg-slate-50/50 space-y-3.5">
                                   {ch.steps.map((st, sIdx) => {
-                                    const isCorrect = st.outcome >= 1.0;
+                                    const outcome = stepOutcomeState(st.outcome);
+                                    const isCorrect = outcome === "correct";
                                     return (
                                       <div key={sIdx} className="min-w-0 bg-white rounded-xl border border-slate-200/90 p-3 sm:p-5 shadow-2xs space-y-3">
                                         <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
@@ -1483,8 +1521,8 @@ export default function DiagnosticReportPage() {
                                               {st.grade} класс {st.is_deep_scan && "· Deep Scan"}
                                             </span>
                                           </div>
-                                          <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-md border ${isCorrect ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
-                                            {isCorrect ? "Верно" : "Ошибка"}
+                                          <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-md border ${outcome === "correct" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : outcome === "wrong" ? "bg-rose-50 text-rose-800 border-rose-200" : "bg-slate-50 text-slate-600 border-slate-200"}`}>
+                                            {outcome === "correct" ? "Верно" : outcome === "wrong" ? "Ошибка" : "нет данных"}
                                           </span>
                                         </div>
 
@@ -1497,7 +1535,7 @@ export default function DiagnosticReportPage() {
                                         {(() => {
                                           const ansText = st.student_answer_latex || st.student_answer || "";
                                           const isLong = ansText.length > 45 || ansText.includes("\n");
-                                          const answerTone = isCorrect ? "text-emerald-700" : "text-rose-700";
+                                          const answerTone = outcome === "correct" ? "text-emerald-700" : outcome === "wrong" ? "text-rose-700" : "text-slate-700";
                                           // Answers render as blocks inside min-w-0 / overflow-x-auto: a wide formula
                                           // scrolls inside its box instead of being cut by the card (overflow-hidden).
                                           if (isLong) {
@@ -1556,7 +1594,7 @@ export default function DiagnosticReportPage() {
               {/* ── Error-free attempt: verified skills instead of a "break point" ── */}
               {errorFree && achievements.length > 0 && (
                 <div className="min-w-0 bg-white rounded-2xl border border-emerald-200/80 p-4 sm:p-6 shadow-2xs space-y-3" data-testid="diagnostic-report-skills-error-free">
-                  <SectionHeader icon={Anchor} title="Подтверждённые навыки" count={achievements.length} />
+                  <SectionHeader icon={Anchor} title={achievementsTitle} count={achievements.length} />
                   <div className="flex flex-wrap gap-2">
                     {achievements.map((item) => (
                       <span key={item.skill_id} className="max-w-full text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg break-words">
@@ -1595,9 +1633,11 @@ export default function DiagnosticReportPage() {
                             <div className="space-y-1.5 flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                                 <span className="min-w-0 break-words text-sm font-bold text-slate-900">{cg.title}</span>
-                                <span className="text-xs font-bold bg-rose-50 text-rose-800 px-2.5 py-0.5 rounded-full border border-rose-200/80 flex-shrink-0">
-                                  {cg.count} {cg.count === 1 ? "ошибка" : cg.count < 5 ? "ошибки" : "ошибок"}
-                                </span>
+                                {typeof cg.count === "number" && (
+                                  <span className="text-xs font-bold bg-rose-50 text-rose-800 px-2.5 py-0.5 rounded-full border border-rose-200/80 flex-shrink-0">
+                                    {errorsLabel(cg.count)}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-xs text-slate-600 leading-relaxed break-words">{cg.description}</p>
                             </div>
@@ -1708,7 +1748,7 @@ export default function DiagnosticReportPage() {
           )}
           {activeTab === "plan" && tabs?.plan === "not_built" && (
             <motion.div variants={fade}>
-              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={PLAN_NOT_BUILT_TEXT} />
+              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={planNotBuiltText(meta.legacy)} />
             </motion.div>
           )}
           {activeTab === "plan" && rj.action_plan.length > 0 && (() => {
@@ -1717,9 +1757,6 @@ export default function DiagnosticReportPage() {
             // One recommended start == the first plan step; no placeholder when it is missing.
             const primaryStart = recommendedStartName(rj) || "—";
             const development = isDevelopmentStep(rj.action_plan[0]);
-            const planSkillNames = rj.action_plan
-              .map((it) => it.skill_name_ru)
-              .filter((name): name is string => Boolean(name));
 
             return (
               <motion.div variants={fade} className="space-y-6">
@@ -1764,7 +1801,7 @@ export default function DiagnosticReportPage() {
                         <div className="text-sm font-bold text-slate-900 line-clamp-2 break-words">
                           {development
                             ? "шаг развития"
-                            : `${rj.action_plan.length} ${rj.action_plan.length === 1 ? "этап" : rj.action_plan.length < 5 ? "этапа" : "этапов"} освоения`}
+                            : `${stagesLabel(rj.action_plan.length)} освоения`}
                         </div>
                       </div>
                     </div>
@@ -1857,41 +1894,11 @@ export default function DiagnosticReportPage() {
                               )
                               .trim()}
                           </p>
-
-                          {/* Milestone Criteria Footer (correction steps only) */}
-                          {!isDevelopmentStep(item) && (
-                            <div className="pt-3 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                              <span>Критерий освоения: серия из 5 задач подряд без ошибок перед переходом к следующей теме</span>
-                            </div>
-                          )}
                         </div>
                       </div>
                     );
                   })}
 
-                  {/* Final Milestone / Goal Node: a learning goal, not a promise of "full readiness" */}
-                  {!development && planSkillNames.length > 0 && (
-                    <div className="relative flex items-start gap-4 sm:gap-6 group">
-                      <div className="relative z-10 -ml-[23px] sm:-ml-[39px] w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md ring-4 ring-emerald-100/80 flex-shrink-0">
-                        <Flag className="w-4 h-4" />
-                      </div>
-
-                      <div className="flex-1 min-w-0 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 p-4 sm:p-6 shadow-2xs space-y-2" data-testid="diagnostic-report-plan-goal">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                            Цель плана
-                          </span>
-                        </div>
-                        <h3 className="font-bold text-slate-900 text-sm sm:text-base break-words">
-                          Решать задачи по темам плана в новом контексте
-                        </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words">
-                          Темы: {planSkillNames.join("; ")}. Освоение каждой темы подтверждается решением новых задач; итог проверяется повторной диагностикой.
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
               </motion.div>
             );
