@@ -1243,7 +1243,14 @@ export default function DiagnosticReportPage() {
                   </h2>
                   {errorFree && (
                     <p className="text-sm text-slate-600 leading-relaxed">
-                      Дефицит по результатам диагностики не выявлен: ниже — подтверждённые навыки и следующий шаг развития.
+                      Дефицит по результатам диагностики не выявлен
+                      {(() => {
+                        const below = [
+                          achievements.length > 0 ? "подтверждённые навыки" : null,
+                          rj.action_plan.length > 0 ? "следующий шаг развития" : null,
+                        ].filter(Boolean);
+                        return below.length > 0 ? `: ниже — ${below.join(" и ")}.` : ".";
+                      })()}
                     </p>
                   )}
                 </div>
