@@ -14,6 +14,7 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
+import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
@@ -65,6 +66,8 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [attendanceMonth, setAttendanceMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [examsError, setExamsError] = useState<string | null>(null);
+  const [examsRetrying, setExamsRetrying] = useState(false);
 
   // Edit notes/phone state
   const [editingNotes, setEditingNotes] = useState(false);
@@ -77,6 +80,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
     try {
       setLoading(true);
       setError(null);
+      setExamsError(null);
       const data = await orgApi.getStudentProfile(studentId);
       // Exam attempts live in exam-service, while the student, diagnostics and
       // group timeline live in auth-service. Do not make the whole profile
@@ -86,6 +90,8 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
         exams = await examsApi.getStudentHistory(studentId);
       } catch (historyError) {
         console.error("Failed to load student exam history:", historyError);
+        // Surface the failure: an empty list must not look like "no exams".
+        setExamsError(getDataLoadErrorMessage(historyError));
       }
       const profileWithHistory: StudentProfile = { ...data, exams };
       setProfile(profileWithHistory);
@@ -102,6 +108,21 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  const retryExams = useCallback(async () => {
+    if (!studentId) return;
+    setExamsRetrying(true);
+    try {
+      const exams = await examsApi.getStudentHistory(studentId);
+      setProfile((prev) => (prev ? { ...prev, exams } : prev));
+      setExamsError(null);
+    } catch (err) {
+      console.error("Failed to load student exam history:", err);
+      setExamsError(getDataLoadErrorMessage(err));
+    } finally {
+      setExamsRetrying(false);
+    }
+  }, [studentId]);
 
   const loadAttendanceSummary = useCallback(async () => {
     if (!studentId || isTeacher) return;
@@ -397,7 +418,14 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
               <h2 className="text-base font-semibold text-slate-800">История экзаменов и срезов</h2>
             </div>
 
-            {exams.length === 0 ? (
+            {examsError ? (
+              <DataLoadError
+                title="Не удалось загрузить экзамены"
+                message={examsError}
+                onRetry={retryExams}
+                isRetrying={examsRetrying}
+              />
+            ) : exams.length === 0 ? (
               <div className="bg-white rounded-2xl border border-slate-100 p-8 text-center space-y-2">
                 <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center mx-auto text-slate-400">
                   <GraduationCap className="w-5 h-5" />
