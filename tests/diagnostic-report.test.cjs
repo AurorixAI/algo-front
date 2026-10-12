@@ -296,13 +296,20 @@ test("report dates: attempt date and build date are formatted, junk is dropped",
 });
 
 const CURRENT5 = { report_meta: { report_schema_version: 5, error_free: false, date: "2026-10-04", generated_on: "2026-10-12" }, level: { status: "below" } };
-const OLD0 = { report_meta: { date: "2026-10-04", generated_on: "2026-10-12" } }; // no marker, none of the schema-5 fields
+const OLD0 = { report_meta: { date: "2026-10-04" } }; // no version marker, none of the schema-5-only keys (generated_on is one)
 
 test("old format is decided by the report's CONTENT, never by generation status", () => {
   assert.equal(R.reportContentSchema(CURRENT5), 5);
   assert.equal(R.reportContentSchema({ report_meta: { report_schema_version: 4 } }), 4);
-  assert.equal(R.reportContentSchema({ report_meta: { error_free: false } }), 5); // no version, but schema-5 fields
-  assert.equal(R.reportContentSchema({ level: { status: "below" } }), 5);
+  // no version marker: only schema-5-only keys make it current
+  assert.equal(R.reportContentSchema({ report_meta: { error_free: false } }), 5);
+  assert.equal(R.reportContentSchema({ report_meta: { generated_on: "2026-10-12" } }), 5);
+  assert.equal(R.reportContentSchema({ achievements: [] }), 5);
+  assert.equal(R.reportContentSchema({ recommended_start: null }), 5);
+  // `level` is written by the schema-4 generator as well: not a marker
+  assert.equal(R.reportContentSchema({ level: { status: "below" } }), 0);
+  assert.equal(R.reportContentSchema({ report_meta: {}, level: { status: "below", solved: 3, total: 8 } }), 0);
+  assert.equal(R.isOldFormatReport({ level: { status: "below" } }), true);
   assert.equal(R.reportContentSchema(OLD0), 0);
   assert.equal(R.reportContentSchema({}), 0);
   assert.equal(R.reportContentSchema(null), 0);

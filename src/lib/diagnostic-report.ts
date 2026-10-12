@@ -613,15 +613,20 @@ export const CURRENT_REPORT_SCHEMA = 5;
 /**
  * Format of the report by its CONTENT, not by generation status (an explicit regeneration
  * stamps a CURRENT report "not current" in the DB, a degraded one is re-queued): the
- * report's own `report_meta.report_schema_version`; a report without the marker is current
- * only if it carries what schema 5 always writes (`report_meta.error_free`, `level`).
+ * report's own `report_meta.report_schema_version` (schema 4 writes it too); a report without
+ * the marker is current only if it carries a schema-5-only key (see below), otherwise old.
  */
 export function reportContentSchema(report: Obj | null | undefined): number {
   const meta = report?.report_meta;
   const v = isObj(meta) ? meta.report_schema_version : undefined;
   if (typeof v === "number" && Number.isFinite(v)) return v;
-  if ((isObj(meta) && typeof meta.error_free === "boolean") || isObj(report?.level)) return CURRENT_REPORT_SCHEMA;
-  return 0;
+  // `level` is NOT a marker: the schema-4 generator writes it too. Schema-5-only keys (absent from the
+  // schema-4 generator): report_meta.error_free / generated_on, `achievements`, `recommended_start`.
+  const schema5 =
+    (isObj(meta) && (typeof meta.error_free === "boolean" || typeof meta.generated_on === "string")) ||
+    Array.isArray(report?.achievements) ||
+    report?.recommended_start !== undefined;
+  return schema5 ? CURRENT_REPORT_SCHEMA : 0;
 }
 
 export const isOldFormatReport = (report: Obj | null | undefined): boolean =>
