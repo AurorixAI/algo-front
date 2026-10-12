@@ -374,12 +374,12 @@ function CircularScore({ score, status }: { score: number | null; status?: strin
 
 function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title: string; count?: number; action?: React.ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2.5 mb-4">
-      <div className="flex items-center gap-2.5 min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-x-2.5 gap-y-2 mb-4 min-w-0">
+      <div className="flex items-center gap-2.5 min-w-0 flex-1 basis-48">
         <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
           <Icon className="w-3.5 h-3.5 text-primary-600" />
         </div>
-        <h2 className="font-bold text-slate-800 text-sm truncate">{title}</h2>
+        <h2 className="font-bold text-slate-800 text-sm min-w-0 break-words" title={title}>{title}</h2>
         {count !== undefined && (
           <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full flex-shrink-0">{count}</span>
         )}
@@ -683,10 +683,10 @@ export default function DiagnosticReportPage() {
   };
 
   return (
-    <div className="space-y-5 w-full max-w-[1200px] mx-auto">
+    <div className="space-y-5 w-full min-w-0 max-w-[1200px] mx-auto">
 
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <button
           type="button"
           onClick={() => {
@@ -696,14 +696,15 @@ export default function DiagnosticReportPage() {
               router.push(isTeacher ? "/teacher/groups" : "/admin/diagnostics");
             }
           }}
-          className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+          className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0"
           title="Назад"
         >
           <ArrowLeft className="w-4 h-4" />
         </button>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold text-slate-900">Отчёт диагностики</h1>
-          <p className="text-xs text-slate-400 truncate mt-0.5">
+        {/* min-w-[12rem]: below it the group button wraps under the title instead of squeezing it */}
+        <div className="flex-1 min-w-[12rem]">
+          <h1 className="text-xl font-bold text-slate-900 break-words">Отчёт диагностики</h1>
+          <p className="text-xs text-slate-400 break-words mt-0.5">
             {invite.student_id ? (
               <Link
                 href={isTeacher ? `/teacher/students/${invite.student_id}` : `/admin/students/${invite.student_id}`}
@@ -725,7 +726,7 @@ export default function DiagnosticReportPage() {
         {!isTeacher && invite.status === "completed" && invite.student_id && (
           <button
             onClick={() => setAssignModalOpen(true)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow ${
+            className={`flex max-w-full items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow ${
               assignedNotification || invite.student_status === "active"
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 shadow-emerald-600/10"
                 : "bg-gradient-to-r from-primary-600 to-indigo-600 text-white hover:opacity-90 shadow-primary-600/20"
@@ -956,9 +957,9 @@ export default function DiagnosticReportPage() {
             <motion.div variants={fade} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
               <div className="flex gap-3">
                 <div className="w-1 rounded-full bg-primary-400 flex-shrink-0 self-stretch" />
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Краткое резюме (сформировано автоматически)</p>
-                  <p className="text-sm text-slate-700 leading-relaxed">{rj.overall.student_summary}</p>
+                  <p className="text-sm text-slate-700 leading-relaxed break-words">{rj.overall.student_summary}</p>
                 </div>
               </div>
             </motion.div>
@@ -1011,7 +1012,7 @@ export default function DiagnosticReportPage() {
               <motion.div variants={fade} className="bg-white rounded-[28px] border border-slate-200/80 shadow-[0_18px_50px_-28px_rgba(15,23,42,0.32)] overflow-hidden">
 
                 {/* ── Journal Header ── */}
-                <div className="flex items-center gap-3 px-6 sm:px-8 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
+                <div className="flex items-center gap-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-slate-50/70">
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
                     <div className="w-10 h-10 rounded-2xl bg-rose-50 ring-1 ring-rose-100 flex items-center justify-center flex-shrink-0">
                       <FileText className="w-4 h-4 text-rose-500" />
@@ -1049,7 +1050,7 @@ export default function DiagnosticReportPage() {
                     const hasMcqOptions = err.answer_options && err.answer_options.length > 0;
 
                     return (
-                      <div key={i} className="px-6 sm:px-8 py-6 sm:py-7 space-y-6 hover:bg-slate-50/30 transition-colors">
+                      <div key={i} className="min-w-0 px-4 sm:px-6 lg:px-8 py-5 sm:py-7 space-y-5 sm:space-y-6 hover:bg-slate-50/30 transition-colors">
 
                         {/* ── Entry Top Bar: number pill + skill name ── */}
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1057,14 +1058,14 @@ export default function DiagnosticReportPage() {
                             № {globalIdx}
                           </span>
                           {err.skill_name_ru && (
-                            <span className="text-xs font-semibold text-slate-500 truncate">
+                            <span className="min-w-0 text-xs font-semibold text-slate-500 break-words">
                               {err.skill_name_ru}
                             </span>
                           )}
                         </div>
 
                         {/* ── Task Question Container ── */}
-                        <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-5 md:p-6 shadow-2xs">
+                        <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
                           <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
                             <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                             Условие задачи
@@ -1103,7 +1104,7 @@ export default function DiagnosticReportPage() {
 
                             return (
                               <div className="space-y-3">
-                                <div className={`grid gap-3 sm:gap-4 ${hasLongOptions ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
+                                <div className={`grid gap-3 sm:gap-4 ${hasLongOptions ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"}`}>
                                   {uniqueOptions.map((item, oi) => {
                                     const isCorrect = matchesOption(err.correct_answer, item.opt, item.latex, oi);
                                     const isStudentAnswer = matchesOption(err.student_answer, item.opt, item.latex, oi);
@@ -1134,10 +1135,12 @@ export default function DiagnosticReportPage() {
                                   })}
                                 </div>
                                 {!hasMatchedStudentOpt && err.student_answer && !["idk", "__wrong__", "test"].includes(err.student_answer.trim().toLowerCase()) && (
-                                  <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs font-medium text-rose-950">
+                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs font-medium text-rose-950">
                                     <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
                                     <span className="font-semibold text-rose-700">Введённый ответ ученика:</span>
-                                    <MathRenderer text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="font-normal text-[14px] text-slate-800" />
+                                    <div className="min-w-0 max-w-full flex-1 basis-40 overflow-x-auto">
+                                      <MathRenderer block text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="min-w-0 max-w-full break-words font-normal text-[14px] text-slate-800" />
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1146,9 +1149,9 @@ export default function DiagnosticReportPage() {
 
                           {/* Text answer comparison (non-MCQ) */}
                           {!hasMcqOptions && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                               {/* Student answer */}
-                              <div className="rounded-xl border bg-white border-rose-200/90 p-4 sm:p-5 shadow-2xs">
+                              <div className="min-w-0 rounded-xl border bg-white border-rose-200/90 p-4 sm:p-5 shadow-2xs">
                                 <div className="flex items-center gap-1.5 mb-2">
                                   <XCircle className="w-3.5 h-3.5 text-rose-400" />
                                   <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Ответ ученика</span>
@@ -1159,7 +1162,7 @@ export default function DiagnosticReportPage() {
                                 }
                               </div>
                               {/* Correct answer */}
-                              <div className="rounded-xl border bg-emerald-50/70 border-emerald-200/90 p-4 sm:p-5 shadow-2xs">
+                              <div className="min-w-0 rounded-xl border bg-emerald-50/70 border-emerald-200/90 p-4 sm:p-5 shadow-2xs">
                                 <div className="flex items-center gap-1.5 mb-2">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                                   <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Верный ответ</span>
@@ -1174,20 +1177,20 @@ export default function DiagnosticReportPage() {
 
                           {/* Distractor explanation (real from DB) */}
                           {isDistractor && err.distractor_explanation && (
-                            <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-5 md:p-6 shadow-2xs">
+                            <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
                               <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
                                 <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                                 Анализ ошибки
                               </div>
-                              <div className="text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal">
-                                    <MathRenderer text={pickAnswerDisplayText(err.distractor_explanation || "", err.distractor_explanation_latex)} className="text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal" />
+                              <div className="min-w-0 text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal">
+                                    <MathRenderer block text={pickAnswerDisplayText(err.distractor_explanation || "", err.distractor_explanation_latex)} className="min-w-0 max-w-full break-words text-[14.5px] sm:text-[15px] text-slate-800 leading-relaxed font-normal" />
                               </div>
                             </div>
                           )}
 
                           {/* Generic distractor notice (no explanation available) */}
                           {isDistractor && !err.distractor_explanation && (
-                            <div className="rounded-2xl bg-slate-50/70 border border-slate-200/80 p-5 md:p-6 shadow-2xs">
+                            <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
                               <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
                                 <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                                 Анализ ошибки
@@ -1203,7 +1206,7 @@ export default function DiagnosticReportPage() {
 
                 {/* ── Journal Footer ── */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between px-6 py-3 border-t border-slate-100 bg-slate-50/50">
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 py-3 border-t border-slate-100 bg-slate-50/50">
                     <span className="text-xs text-slate-400">
                       Записи <span className="font-semibold text-slate-700">{errorPage * ERRORS_PER_PAGE + 1}–{Math.min((errorPage + 1) * ERRORS_PER_PAGE, rj.error_patterns.length)}</span> из <span className="font-semibold text-slate-700">{rj.error_patterns.length}</span>
                     </span>
@@ -1228,14 +1231,14 @@ export default function DiagnosticReportPage() {
             <motion.div
               variants={fade}
               data-testid={errorFree ? "diagnostic-report-error-free" : "diagnostic-report-no-errors"}
-              className="bg-white rounded-2xl border border-emerald-200/80 p-6 shadow-2xs space-y-5"
+              className="bg-white rounded-2xl border border-emerald-200/80 p-4 sm:p-6 shadow-2xs space-y-5"
             >
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
                   <Award className="w-5 h-5 text-emerald-600" />
                 </div>
-                <div className="space-y-1">
-                  <h2 className="font-bold text-slate-900 text-base">
+                <div className="min-w-0 space-y-1">
+                  <h2 className="font-bold text-slate-900 text-base break-words">
                     {errorFree ? "Все выполненные задания решены верно" : "В журнале нет записей об ошибках"}
                   </h2>
                   {errorFree && (
@@ -1251,7 +1254,7 @@ export default function DiagnosticReportPage() {
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Подтверждённые навыки</div>
                   <div className="flex flex-wrap gap-2" data-testid="diagnostic-report-achievements">
                     {achievements.map((item) => (
-                      <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
+                      <span key={item.skill_id} className="max-w-full break-words text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
                         {item.skill_name_ru}
                         {typeof item.correct_answers === "number" && (
                           <span className="ml-1.5 font-normal text-emerald-700/80">· верно: {item.correct_answers}</span>
@@ -1282,21 +1285,22 @@ export default function DiagnosticReportPage() {
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
               {rj.diagnostic_boundary && !errorFree && hasBoundaryData(rj.diagnostic_boundary) && (
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-5">
+                  <div className="min-w-0 w-full pb-3 border-b border-slate-100">
                     <SectionHeader icon={Target} title="Академическая граница знаний (Диагностический срез)" />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5">
+                  {/* 3 columns only from xl: the content area is far narrower than the viewport (sidebar + padding) */}
+                  <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
                     {/* Anchor Foundation */}
-                    <div className="rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors bg-white p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                    <div className="min-w-0 rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
+                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                             <Anchor className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                             Опорный фундамент
                           </span>
-                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80">
+                          <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80">
                             {rj.diagnostic_boundary.anchor_level}
                           </span>
                         </div>
@@ -1307,7 +1311,7 @@ export default function DiagnosticReportPage() {
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
                         {rj.diagnostic_boundary.anchor_skills.length > 0 ? (
                           rj.diagnostic_boundary.anchor_skills.map((s, idx) => (
-                            <span key={idx} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
+                            <span key={idx} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg max-w-full break-words">
                               {s}
                             </span>
                           ))
@@ -1318,14 +1322,14 @@ export default function DiagnosticReportPage() {
                     </div>
 
                     {/* Breakpoint */}
-                    <div className="rounded-xl border border-slate-200 hover:border-rose-300 transition-colors bg-white p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                    <div className="min-w-0 rounded-xl border border-slate-200 hover:border-rose-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
+                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
                             Точка слома понимания
                           </span>
-                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200/80">
+                          <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-rose-50 text-rose-800 border border-rose-200/80">
                             {rj.diagnostic_boundary.breakpoint_level}
                           </span>
                         </div>
@@ -1336,7 +1340,7 @@ export default function DiagnosticReportPage() {
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
                         {rj.diagnostic_boundary.breakpoint_skills.length > 0 ? (
                           rj.diagnostic_boundary.breakpoint_skills.map((s, idx) => (
-                            <span key={idx} className="text-xs font-medium bg-rose-50/80 border border-rose-200/70 text-rose-900 px-2.5 py-1 rounded-lg">
+                            <span key={idx} className="text-xs font-medium bg-rose-50/80 border border-rose-200/70 text-rose-900 px-2.5 py-1 rounded-lg max-w-full break-words">
                               {s}
                             </span>
                           ))
@@ -1347,14 +1351,14 @@ export default function DiagnosticReportPage() {
                     </div>
 
                     {/* Blocked Level */}
-                    <div className="rounded-xl border border-slate-200 hover:border-slate-300 transition-colors bg-white p-5 sm:p-6 flex flex-col justify-between space-y-4">
+                    <div className="min-w-0 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
-                        <div className="flex items-center justify-between gap-2 mb-2.5">
-                          <span className="text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
+                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
                             <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
                             Заблокировано
                           </span>
-                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
+                          <span className="max-w-full break-words text-xs font-bold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-800 border border-slate-200">
                             {rj.diagnostic_boundary.blocked_level}
                           </span>
                         </div>
@@ -1365,7 +1369,7 @@ export default function DiagnosticReportPage() {
                       <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
                         {rj.diagnostic_boundary.blocked_skills.length > 0 ? (
                           rj.diagnostic_boundary.blocked_skills.map((s, idx) => (
-                            <span key={idx} className="text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-1 rounded-lg">
+                            <span key={idx} className="text-xs font-medium bg-slate-100 border border-slate-200 text-slate-700 px-2.5 py-1 rounded-lg max-w-full break-words">
                               {s}
                             </span>
                           ))
@@ -1380,7 +1384,7 @@ export default function DiagnosticReportPage() {
 
               {/* ── Block 2: Root-Cause Descent Chains (Deep Scan) ── */}
               {rj.root_cause_chains && rj.root_cause_chains.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-4">
                   <SectionHeader
                     icon={GitBranch}
                     title="Цепочки диагностического спуска (Deep Scan) — Поиск первопричин"
@@ -1400,18 +1404,22 @@ export default function DiagnosticReportPage() {
                       const isExpanded = expandedChains.includes(idx);
 
                       return (
-                        <div key={idx} id={`chain-card-${idx}`} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs transition-colors hover:border-slate-300">
-                          {/* Clean Minimal Header */}
+                        <div key={idx} id={`chain-card-${idx}`} className="min-w-0 border border-slate-200 rounded-xl overflow-hidden bg-white shadow-2xs transition-colors hover:border-slate-300">
+                          {/* Clean Minimal Header: names wrap (never cut); stacked below lg, a row from lg */}
                           <div
                             onClick={() => toggleChain(idx)}
-                            className="px-5 py-4 cursor-pointer hover:bg-slate-50/70 transition-colors flex items-center justify-between gap-4 select-none"
+                            className="px-4 sm:px-5 py-4 cursor-pointer hover:bg-slate-50/70 transition-colors flex flex-wrap items-center justify-between gap-x-4 gap-y-2 select-none"
                           >
-                            <div className="flex items-center gap-2.5 text-sm font-semibold text-slate-900 flex-1 min-w-0">
-                              <span className="truncate">{ch.source_skill_name}</span>
-                              <span className="text-xs font-medium text-slate-400 flex-shrink-0">({ch.source_grade} кл)</span>
-                              <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                              <span className="font-medium text-rose-600 truncate">{ch.root_gap_skill_name}</span>
-                              <span className="text-xs font-normal text-rose-500/80 flex-shrink-0">({ch.root_gap_grade} кл)</span>
+                            <div className="flex flex-col gap-1 lg:flex-row lg:items-center lg:gap-2.5 text-sm font-semibold text-slate-900 flex-1 basis-60 min-w-0">
+                              <span className="min-w-0 break-words">
+                                {ch.source_skill_name}{" "}
+                                <span className="text-xs font-medium text-slate-400 whitespace-nowrap">({ch.source_grade} кл)</span>
+                              </span>
+                              <ArrowRight className="w-4 h-4 text-slate-400 flex-shrink-0 rotate-90 lg:rotate-0" />
+                              <span className="min-w-0 break-words font-medium text-rose-600">
+                                {ch.root_gap_skill_name}{" "}
+                                <span className="text-xs font-normal text-rose-500/80 whitespace-nowrap">({ch.root_gap_grade} кл)</span>
+                              </span>
                             </div>
                             <div className="flex items-center gap-3 flex-shrink-0">
                               <span className="text-xs font-medium text-slate-500 bg-slate-100 border border-slate-200/80 px-2.5 py-1 rounded-md">
@@ -1436,28 +1444,28 @@ export default function DiagnosticReportPage() {
                                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                                 className="overflow-hidden border-t border-slate-100"
                               >
-                                <div className="p-5 sm:p-6 bg-slate-50/50 space-y-3.5">
+                                <div className="p-3 sm:p-5 lg:p-6 bg-slate-50/50 space-y-3.5">
                                   {ch.steps.map((st, sIdx) => {
                                     const isCorrect = st.outcome >= 1.0;
                                     return (
-                                      <div key={sIdx} className="bg-white rounded-xl border border-slate-200/90 p-4 sm:p-5 shadow-2xs space-y-3">
-                                        <div className="flex items-center justify-between gap-2">
-                                          <div className="flex items-center gap-2.5">
+                                      <div key={sIdx} className="min-w-0 bg-white rounded-xl border border-slate-200/90 p-3 sm:p-5 shadow-2xs space-y-3">
+                                        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+                                          <div className="flex min-w-0 flex-1 basis-40 flex-wrap items-center gap-x-2.5 gap-y-1">
                                             <div className="w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                                               {sIdx + 1}
                                             </div>
-                                            <span className="text-xs sm:text-sm font-semibold text-slate-900">{st.skill_name_ru}</span>
-                                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded">
+                                            <span className="min-w-0 break-words text-xs sm:text-sm font-semibold text-slate-900">{st.skill_name_ru}</span>
+                                            <span className="text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 px-2 py-0.5 rounded whitespace-nowrap">
                                               {st.grade} класс {st.is_deep_scan && "· Deep Scan"}
                                             </span>
                                           </div>
-                                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-md border ${isCorrect ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
+                                          <span className={`flex-shrink-0 text-xs font-bold px-2.5 py-0.5 rounded-md border ${isCorrect ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
                                             {isCorrect ? "Верно" : "Ошибка"}
                                           </span>
                                         </div>
 
                                         {(st.question_latex || st.question_text) && (
-                                          <div className="p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-800 text-sm leading-relaxed">
+                                          <div className="min-w-0 p-3.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-800 text-sm leading-relaxed">
                                             <TaskStatement task={{ question_text: st.question_text || "", question_latex: st.question_latex }} />
                                           </div>
                                         )}
@@ -1465,40 +1473,43 @@ export default function DiagnosticReportPage() {
                                         {(() => {
                                           const ansText = st.student_answer_latex || st.student_answer || "";
                                           const isLong = ansText.length > 45 || ansText.includes("\n");
+                                          const answerTone = isCorrect ? "text-emerald-700" : "text-rose-700";
+                                          // Answers render as blocks inside min-w-0 / overflow-x-auto: a wide formula
+                                          // scrolls inside its box instead of being cut by the card (overflow-hidden).
                                           if (isLong) {
                                             return (
-                                              <div className="space-y-2 pt-1">
-                                                <div className="p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
+                                              <div className="min-w-0 space-y-2 pt-1">
+                                                <div className="min-w-0 p-3 rounded-lg bg-slate-50 border border-slate-200/80 space-y-1">
                                                   <span className="text-xs font-semibold text-slate-500 block">Ответ ученика:</span>
-                                                  <div className={`text-sm sm:text-base font-normal leading-relaxed ${isCorrect ? "text-emerald-700" : "text-rose-700"}`}>
-                                                    <MathRenderer text={ansText || "—"} />
+                                                  <div className={`min-w-0 max-w-full overflow-x-auto text-sm sm:text-base font-normal leading-relaxed ${answerTone}`}>
+                                                    <MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" />
                                                   </div>
                                                 </div>
                                                 {!isCorrect && st.correct_answer && (
-                                                  <div className="inline-flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3.5 py-2 rounded-xl">
+                                                  <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 bg-slate-50 border border-slate-200/80 px-3.5 py-2 rounded-xl">
                                                     <span className="text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                    <span className="font-normal text-sm sm:text-base text-emerald-700">
-                                                      <MathRenderer text={st.correct_answer_latex || st.correct_answer} />
-                                                    </span>
+                                                    <div className="min-w-0 max-w-full flex-1 basis-32 overflow-x-auto font-normal text-sm sm:text-base text-emerald-700">
+                                                      <MathRenderer block text={st.correct_answer_latex || st.correct_answer} className="min-w-0 max-w-full" />
+                                                    </div>
                                                   </div>
                                                 )}
                                               </div>
                                             );
                                           }
                                           return (
-                                            <div className="flex flex-wrap items-center gap-3 pt-1">
-                                              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
-                                                <span className="text-slate-500 font-semibold text-xs">Ответ ученика:</span>
-                                                <span className={`font-normal text-sm sm:text-base ${isCorrect ? "text-emerald-700" : "text-rose-700"}`}>
-                                                  <MathRenderer text={ansText || "—"} />
-                                                </span>
+                                            <div className="flex min-w-0 flex-wrap items-center gap-3 pt-1">
+                                              <div className="flex min-w-0 max-w-full items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
+                                                <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Ответ ученика:</span>
+                                                <div className={`min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base ${answerTone}`}>
+                                                  <MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" />
+                                                </div>
                                               </div>
                                               {!isCorrect && st.correct_answer && (
-                                                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
-                                                  <span className="text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                  <span className="font-normal text-sm sm:text-base text-emerald-700">
-                                                    <MathRenderer text={st.correct_answer_latex || st.correct_answer} />
-                                                  </span>
+                                                <div className="flex min-w-0 max-w-full items-center gap-2 bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl">
+                                                  <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Правильный ответ:</span>
+                                                  <div className="min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base text-emerald-700">
+                                                    <MathRenderer block text={st.correct_answer_latex || st.correct_answer} className="min-w-0 max-w-full" />
+                                                  </div>
                                                 </div>
                                               )}
                                             </div>
@@ -1520,11 +1531,11 @@ export default function DiagnosticReportPage() {
 
               {/* ── Error-free attempt: verified skills instead of a "break point" ── */}
               {errorFree && achievements.length > 0 && (
-                <div className="bg-white rounded-2xl border border-emerald-200/80 p-6 shadow-2xs space-y-3" data-testid="diagnostic-report-skills-error-free">
+                <div className="min-w-0 bg-white rounded-2xl border border-emerald-200/80 p-4 sm:p-6 shadow-2xs space-y-3" data-testid="diagnostic-report-skills-error-free">
                   <SectionHeader icon={Anchor} title="Подтверждённые навыки" count={achievements.length} />
                   <div className="flex flex-wrap gap-2">
                     {achievements.map((item) => (
-                      <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg break-words">
+                      <span key={item.skill_id} className="max-w-full text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg break-words">
                         {item.skill_name_ru}
                       </span>
                     ))}
@@ -1534,7 +1545,7 @@ export default function DiagnosticReportPage() {
 
               {/* ── Block 3: Cognitive Error Patterns ── */}
               {rj.cognitive_error_types && rj.cognitive_error_types.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-6 shadow-2xs space-y-4">
                   <SectionHeader
                     icon={Brain}
                     title="Когнитивные паттерны ошибок (Анализ мышления)"
@@ -1555,16 +1566,16 @@ export default function DiagnosticReportPage() {
                       const hasExamples = cg.examples && cg.examples.length > 0;
 
                       return (
-                        <div key={cg.category} id={`cluster-card-${cg.category}`} className="border border-slate-200 rounded-xl p-5 sm:p-6 bg-white shadow-2xs space-y-4 hover:border-slate-300 transition-colors">
+                        <div key={cg.category} id={`cluster-card-${cg.category}`} className="min-w-0 border border-slate-200 rounded-xl p-4 sm:p-6 bg-white shadow-2xs space-y-4 hover:border-slate-300 transition-colors">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="space-y-1.5 flex-1 min-w-0">
-                              <div className="flex items-center gap-2.5">
-                                <span className="text-sm font-bold text-slate-900">{cg.title}</span>
+                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                                <span className="min-w-0 break-words text-sm font-bold text-slate-900">{cg.title}</span>
                                 <span className="text-xs font-bold bg-rose-50 text-rose-800 px-2.5 py-0.5 rounded-full border border-rose-200/80 flex-shrink-0">
                                   {cg.count} {cg.count === 1 ? "ошибка" : cg.count < 5 ? "ошибки" : "ошибок"}
                                 </span>
                               </div>
-                              <p className="text-xs text-slate-600 leading-relaxed">{cg.description}</p>
+                              <p className="text-xs text-slate-600 leading-relaxed break-words">{cg.description}</p>
                             </div>
 
                             {hasExamples && (
@@ -1589,47 +1600,47 @@ export default function DiagnosticReportPage() {
                                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                                 className="overflow-hidden border-t border-slate-100 pt-4"
                               >
-                                <div className={`grid grid-cols-1 ${cg.examples.length === 2 ? "md:grid-cols-2" : cg.examples.length >= 3 ? "md:grid-cols-3" : ""} gap-4`}>
+                                <div className={`grid grid-cols-1 ${cg.examples.length === 2 ? "lg:grid-cols-2" : cg.examples.length >= 3 ? "lg:grid-cols-2 xl:grid-cols-3" : ""} gap-4`}>
                                   {cg.examples.map((ex, exIdx) => {
                                     const ansText = ex.student_answer_latex || ex.student_answer || "";
                                     const isLong = ansText.length > 35 || ansText.includes("\n");
 
                                     return (
-                                      <div key={exIdx} className="p-4 sm:p-5 rounded-xl bg-slate-50/70 border border-slate-200/90 text-xs flex flex-col h-full space-y-3.5">
-                                        <div className="space-y-3">
-                                          <div className="font-bold text-slate-800 text-xs">{ex.skill_name_ru}</div>
+                                      <div key={exIdx} className="min-w-0 p-3 sm:p-5 rounded-xl bg-slate-50/70 border border-slate-200/90 text-xs flex flex-col h-full space-y-3.5">
+                                        <div className="min-w-0 space-y-3">
+                                          <div className="font-bold text-slate-800 text-xs break-words">{ex.skill_name_ru}</div>
 
                                           {(ex.question_latex || ex.question_text) && (
-                                            <div className="p-3 rounded-lg bg-white border border-slate-200/80 text-slate-900 text-xs leading-relaxed">
+                                            <div className="min-w-0 p-3 rounded-lg bg-white border border-slate-200/80 text-slate-900 text-xs leading-relaxed">
                                               <TaskStatement task={{ question_text: ex.question_text || "", question_latex: ex.question_latex }} />
                                             </div>
                                           )}
 
                                           {isLong ? (
-                                            <div className="space-y-2">
-                                              <div className="p-3 rounded-xl bg-white border border-slate-200/80 space-y-1 shadow-2xs">
+                                            <div className="min-w-0 space-y-2">
+                                              <div className="min-w-0 p-3 rounded-xl bg-white border border-slate-200/80 space-y-1 shadow-2xs">
                                                 <span className="text-xs font-semibold text-slate-500 block">Ответ ученика:</span>
-                                                <div className="text-sm sm:text-base font-normal text-rose-700 leading-relaxed">
-                                                  <MathRenderer text={ansText || "—"} />
+                                                <div className="min-w-0 max-w-full overflow-x-auto text-sm sm:text-base font-normal text-rose-700 leading-relaxed">
+                                                  <MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" />
                                                 </div>
                                               </div>
                                               {ex.correct_answer && (
-                                                <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                                                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-2 gap-y-1 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
                                                   <span className="text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                  <span className="font-normal text-sm sm:text-base text-emerald-700"><MathRenderer text={ex.correct_answer_latex || ex.correct_answer} /></span>
+                                                  <div className="min-w-0 max-w-full flex-1 basis-32 overflow-x-auto font-normal text-sm sm:text-base text-emerald-700"><MathRenderer block text={ex.correct_answer_latex || ex.correct_answer} className="min-w-0 max-w-full" /></div>
                                                 </div>
                                               )}
                                             </div>
                                           ) : (
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                                                <span className="text-slate-500 font-semibold text-xs">Ответ ученика:</span>
-                                                <span className="font-normal text-sm sm:text-base text-rose-700"><MathRenderer text={ansText || "—"} /></span>
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                              <div className="flex min-w-0 max-w-full items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                                                <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Ответ ученика:</span>
+                                                <div className="min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base text-rose-700"><MathRenderer block text={ansText || "—"} className="min-w-0 max-w-full" /></div>
                                               </div>
                                               {ex.correct_answer && (
-                                                <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
-                                                  <span className="text-slate-500 font-semibold text-xs">Правильный ответ:</span>
-                                                  <span className="font-normal text-sm sm:text-base text-emerald-700"><MathRenderer text={ex.correct_answer_latex || ex.correct_answer} /></span>
+                                                <div className="flex min-w-0 max-w-full items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs">
+                                                  <span className="flex-shrink-0 text-slate-500 font-semibold text-xs">Правильный ответ:</span>
+                                                  <div className="min-w-0 max-w-full overflow-x-auto font-normal text-sm sm:text-base text-emerald-700"><MathRenderer block text={ex.correct_answer_latex || ex.correct_answer} className="min-w-0 max-w-full" /></div>
                                                 </div>
                                               )}
                                             </div>
@@ -1637,9 +1648,9 @@ export default function DiagnosticReportPage() {
                                         </div>
 
                                         {(ex.distractor_explanation_latex || ex.distractor_explanation) && (
-                                          <div className="mt-auto pt-3 border-t border-slate-200/70 text-slate-700 text-xs sm:text-sm leading-relaxed">
+                                          <div className="min-w-0 mt-auto pt-3 border-t border-slate-200/70 text-slate-700 text-xs sm:text-sm leading-relaxed">
                                             <span className="font-semibold text-slate-900 block mb-1 text-xs">Причина ошибки:</span>
-                                            <MathRenderer text={ex.distractor_explanation_latex || ex.distractor_explanation || ""} />
+                                            <MathRenderer block text={ex.distractor_explanation_latex || ex.distractor_explanation || ""} className="min-w-0 max-w-full break-words" />
                                           </div>
                                         )}
                                       </div>
@@ -1689,7 +1700,7 @@ export default function DiagnosticReportPage() {
             return (
               <motion.div variants={fade} className="space-y-6">
                 {/* ── Roadmap Header & Strategy Widget ── */}
-                <div className="bg-white rounded-2xl border border-slate-200/80 p-6 sm:p-7 shadow-2xs space-y-5">
+                <div className="min-w-0 bg-white rounded-2xl border border-slate-200/80 p-4 sm:p-7 shadow-2xs space-y-5">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-primary-50 flex items-center justify-center flex-shrink-0">
@@ -1699,7 +1710,7 @@ export default function DiagnosticReportPage() {
                         {development ? "Следующий шаг развития" : "Индивидуальный образовательный маршрут"}
                       </h2>
                     </div>
-                    <p className="text-xs sm:text-sm text-slate-500 pl-9">
+                    <p className="text-xs sm:text-sm text-slate-500 pl-9 break-words">
                       {development
                         ? "Дефицит по результатам диагностики не выявлен: предлагается расширить подтверждённые навыки."
                         : "Пошаговый план отработки навыков, выявленных диагностикой, в порядке приоритета."}
@@ -1707,7 +1718,7 @@ export default function DiagnosticReportPage() {
                   </div>
 
                   {/* Summary Metric Widgets */}
-                  <div className={`grid grid-cols-1 gap-3 pt-2 ${totalHours !== null ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                  <div className={`grid grid-cols-1 gap-3 pt-2 ${totalHours !== null ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
                     {totalHours !== null && (
                       <div className="p-4 rounded-xl bg-slate-50/80 border border-slate-200/70 flex items-center gap-3.5">
                         <div className="w-9 h-9 rounded-lg bg-white border border-slate-200/80 flex items-center justify-center text-slate-700 flex-shrink-0 shadow-2xs">
@@ -1715,7 +1726,7 @@ export default function DiagnosticReportPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-[11px] font-medium text-slate-500">Время по плану</div>
-                          <div className="text-sm font-bold text-slate-900 truncate">{hoursLabel(totalHours)} занятий</div>
+                          <div className="text-sm font-bold text-slate-900 line-clamp-2 break-words" title={`${hoursLabel(totalHours)} занятий`}>{hoursLabel(totalHours)} занятий</div>
                         </div>
                       </div>
                     )}
@@ -1726,7 +1737,7 @@ export default function DiagnosticReportPage() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-slate-500">Структура трека</div>
-                        <div className="text-sm font-bold text-slate-900 truncate">
+                        <div className="text-sm font-bold text-slate-900 line-clamp-2 break-words">
                           {development
                             ? "шаг развития"
                             : `${rj.action_plan.length} ${rj.action_plan.length === 1 ? "этап" : rj.action_plan.length < 5 ? "этапа" : "этапов"} освоения`}
@@ -1740,7 +1751,7 @@ export default function DiagnosticReportPage() {
                       </div>
                       <div className="min-w-0">
                         <div className="text-[11px] font-medium text-slate-500">Стартовая точка</div>
-                        <div className="text-sm font-bold text-slate-900 truncate" title={primaryStart}>
+                        <div className="text-sm font-bold text-slate-900 line-clamp-2 break-words" title={primaryStart}>
                           {primaryStart}
                         </div>
                       </div>
@@ -1772,7 +1783,7 @@ export default function DiagnosticReportPage() {
 
                         {/* Step Content Card */}
                         <div
-                          className={`flex-1 rounded-2xl border transition-all p-5 sm:p-6 space-y-3.5 ${
+                          className={`flex-1 min-w-0 rounded-2xl border transition-all p-4 sm:p-6 space-y-3.5 ${
                             isFirst
                               ? "bg-white border-primary-200/90 shadow-2xs hover:border-primary-300 ring-1 ring-primary-100/50"
                               : "bg-white border-slate-200/80 shadow-2xs hover:border-slate-300"
@@ -1809,12 +1820,12 @@ export default function DiagnosticReportPage() {
                           </div>
 
                           {/* Title */}
-                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug">
+                          <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-snug break-words">
                             {item.action_title || item.skill_name_ru}
                           </h3>
 
                           {/* Description / Practice Strategy */}
-                          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal">
+                          <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-normal break-words">
                             {(item.full_description || "")
                               .replace(
                                 /(?:[\.\s,;–—-]*)?(?:Рекомендуем(?:ое|ый)?\s+(?:количество\s+часов|время|объем)|Время\s+на\s+отработку|Примерное\s+время)\s*:\s*\d+\s*(?:часов|часа|час|ч)?\.?$/i,
@@ -1842,16 +1853,16 @@ export default function DiagnosticReportPage() {
                         <Flag className="w-4 h-4" />
                       </div>
 
-                      <div className="flex-1 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 p-5 sm:p-6 shadow-2xs space-y-2" data-testid="diagnostic-report-plan-goal">
+                      <div className="flex-1 min-w-0 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 p-4 sm:p-6 shadow-2xs space-y-2" data-testid="diagnostic-report-plan-goal">
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                             Цель плана
                           </span>
                         </div>
-                        <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                        <h3 className="font-bold text-slate-900 text-sm sm:text-base break-words">
                           Решать задачи по темам плана в новом контексте
                         </h3>
-                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                        <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words">
                           Темы: {planSkillNames.join("; ")}. Освоение каждой темы подтверждается решением новых задач; итог проверяется повторной диагностикой.
                         </p>
                       </div>
