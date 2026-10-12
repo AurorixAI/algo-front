@@ -106,7 +106,7 @@ async function main(){
   for(const width of [360,768,1280]){await page.setViewportSize({width,height:900});await geometry(page,'teacher-draft',width);}
   await page.goto(base+'/teacher/exams/UI-EXAM/report');await page.getByRole('button',{name:/Разбор проблемных заданий/}).click();await page.getByText('Условие задания',{exact:true}).first().waitFor();
   for(const width of [360,768,1280]){await page.setViewportSize({width,height:900});await geometry(page,'teacher-report',width);}
-  await page.evaluate(()=>localStorage.clear());role='admin';await page.goto(base+'/admin/diagnostics/UI-INVITE/report');await page.getByRole('button',{name:/Журнал ошибок/}).click();await page.locator('.math-renderer').first().waitFor();
+  await page.evaluate(()=>localStorage.clear());role='admin';await page.goto(base+'/admin/diagnostics/UI-INVITE/report');await page.getByRole('tab',{name:/Журнал ошибок/}).click();await page.locator('.math-renderer').first().waitFor();
   for(const width of [360,768,1280]){await page.setViewportSize({width,height:900});await geometry(page,'diagnostic-report',width);}
   if(label!=='before'){
    assert.equal(result.checks.length,30,'All six page surfaces and five formulas must be checked');
