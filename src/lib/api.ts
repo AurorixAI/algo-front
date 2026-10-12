@@ -851,9 +851,9 @@ export const orgApi = {
       if (offset >= response.total || pageItems.length === 0) return allItems;
     }
   },
-  getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${id}`),
+  getDiagnostic: (id: string) => api<any>(`/auth/org/diagnostics/${encodeURIComponent(id)}`),
   acknowledgeDiagnosticReport: (id: string) =>
-    api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${id}/acknowledge-report`, { method: "POST" }),
+    api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${encodeURIComponent(id)}/acknowledge-report`, { method: "POST" }),
 
   // Groups
   createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number }) =>
@@ -1098,7 +1098,7 @@ export const analyticsApi = {
   studentReport: (studentId: string, sessionId?: string | null) => {
     const query = new URLSearchParams({ _t: String(Date.now()) });
     if (sessionId) query.set("session_id", sessionId);
-    return diagApi<any>(`/analytics/students/${studentId}/report?${query.toString()}`);
+    return diagApi<any>(`/analytics/students/${encodeURIComponent(studentId)}/report?${query.toString()}`);
   },
 
   // Group analytics — передаём student_ids списком

@@ -262,3 +262,33 @@ test("error screens: 403 / 404 have their own text and no «Повторить»
   assert.equal(R.loadErrorInfo(null, null, "report").text, "Не удалось загрузить отчёт. Повторите попытку.");
   assert.equal(R.loadErrorInfo(undefined, "  ", "diagnostic").title, "Не удалось открыть диагностику");
 });
+
+test("report page contract (N04a): tabs a11y, no fixed-1800ms poll, no fake task statement, boundaries exist", () => {
+  const root = path.join(__dirname, "..", "src");
+  const page = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  for (const needle of ['role="tablist"', 'role="tab"', "aria-selected", "aria-controls", 'role="tabpanel"']) {
+    assert.ok(page.includes(needle), `missing ${needle}`);
+  }
+  // polling goes through the pure schedule, never a fixed unlimited interval
+  assert.ok(page.includes("nextReportPollStep"));
+  assert.equal(/setTimeout\([^)]*,\s*1800\)/.test(page), false);
+  assert.ok(page.includes("document.hidden"));
+  // placeholders come from the tested constants
+  for (const name of ["PLAN_NOT_NEEDED_TEXT", "PLAN_NOT_BUILT_TEXT", "SKILLS_EMPTY_TEXT"]) assert.ok(page.includes(name), name);
+  // a missing task statement is never replaced by the skill name
+  assert.equal(page.includes("fallbackText={err.skill_name_ru}"), false);
+  assert.ok(page.includes("Условие задания недоступно"));
+  // Tailwind 3.4 has no gap-4.5; the 3-column grids start at xl, not at the viewport md
+  assert.equal(/gap-4\.5\b/.test(page), false);
+  assert.equal(/md:grid-cols-3/.test(page), false);
+  // old / partial JSON is normalised before use
+  assert.ok(page.includes("normalizeReportJson(report?.report_json)"));
+  for (const dir of ["admin", "teacher"]) {
+    const boundary = path.join(root, `app/${dir}/diagnostics/[id]/report/error.tsx`);
+    assert.ok(fs.existsSync(boundary), `${dir} error.tsx`);
+    assert.ok(fs.readFileSync(boundary, "utf8").startsWith('"use client"'));
+  }
+  const api = fs.readFileSync(path.join(root, "lib/api.ts"), "utf8");
+  assert.ok(api.includes("/auth/org/diagnostics/${encodeURIComponent(id)}`"));
+  assert.ok(api.includes("/analytics/students/${encodeURIComponent(studentId)}/report?"));
+});
