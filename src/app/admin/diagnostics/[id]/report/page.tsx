@@ -44,6 +44,7 @@ import {
   Zap,
   User,
   Info,
+  History,
 } from "lucide-react";
 
 import { analyticsApi, orgApi } from "@/lib/api";
@@ -51,6 +52,9 @@ import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { pickAnswerDisplayText } from "@/lib/task-display";
+import {
+  canonicalAnswerKey, findChosenOption, matchesOption, unmatchedAnswerLabel,
+} from "@/lib/answer-match";
 import "katex/dist/katex.min.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -235,124 +239,6 @@ const EVAL_CATEGORY_CFG: Record<string, { label: string; color: string }> = {
   idk:        { label: "Не знал",         color: "bg-slate-100 text-slate-600"  },
   correct:    { label: "Верно",           color: "bg-emerald-100 text-emerald-700" },
 };
-
-// A robust comparison key for math & text options: normalizes LaTeX macros, empty sets, and Unicode symbols
-// (\dfrac, \frac, \sqrt, \left, \right, \emptyset, commas, $, spaces, minuses, \infty, \leq, \geq, \neq, \in, \cup, \cap, \mathbb, \approx, \Delta, \setminus, ^{...}, _{...})
-// to reliably highlight the student's chosen answer and the correct answer without false fallback banners.
-function canonicalAnswerKey(value: string | null | undefined): string {
-  let s = (value || "").trim();
-  if (!s) return "";
-  // 1. Strip outer and inline LaTeX math delimiters
-  s = s.replace(/\$\$/g, "").replace(/\$/g, "");
-  // 2. Normalize mathematical minuses and dashes (U+2212, U+2013, U+2014) to standard hyphen
-  s = s.replace(/\u2212/g, "-").replace(/\u2013/g, "-").replace(/\u2014/g, "-");
-  
-  // 3. Strip structural modifiers FIRST (\left, \right, \displaystyle, \limits, \text{...})
-  s = s.replace(/\\?(?:left|right|displaystyle|limits)\b/g, "");
-  s = s.replace(/\\?text\s*\{([^{}]*)\}/g, "$1");
-  
-  // 4. Empty set & no solution normalization
-  s = s.replace(/\\?(?:emptyset|varnothing|empty)\b|[∅⌀Ø]/g, "emptyset");
-  s = s.replace(/нет\s*(?:действительных\s*)?(?:корней|решений)|(?:корней|решений)\s*нет/gi, "emptyset");
-  
-  // 5. Simplify single-level exponents and subscripts before fractions to avoid nested braces
-  // e.g. e^{x} -> e^x, x_{0} -> x_0, a^{2} -> a^2
-  while (/\^\{([^{}]+)\}/.test(s)) {
-    s = s.replace(/\^\{([^{}]+)\}/g, "^$1");
-  }
-  while (/_\{([^{}]+)\}/.test(s)) {
-    s = s.replace(/_\{([^{}]+)\}/g, "_$1");
-  }
-  
-  // 6. Roots: \sqrt{x} -> sqrt(x), \sqrt[n]{x} -> (x)^(1/n)
-  while (/\\?sqrt\s*\{([^{}]+)\}/.test(s)) {
-    s = s.replace(/\\?sqrt\s*\{([^{}]+)\}/g, "sqrt($1)");
-  }
-  s = s.replace(/\\?sqrt/g, "sqrt").replace(/√/g, "sqrt");
-  
-  // 7. Fractions: recursively resolve \frac{num}{den} and \dfrac{num}{den}
-  while (/\\?(?:dfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/.test(s)) {
-    s = s.replace(/\\?(?:dfrac|frac)\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "($1)/($2)");
-  }
-  s = s.replace(/\\?(?:dfrac|frac)\b/g, "/");
-  
-  // 8. Inequalities, approximations, set operations, and relations
-  s = s.replace(/\\?(?:approx|thickapprox|sim|simeq)\b|≈|~/g, "≈");
-  s = s.replace(/\\?(?:Delta|delta)\b|Δ|δ/g, "Δ");
-  s = s.replace(/\\?(?:prime)\b|'/g, "'");
-  s = s.replace(/\\?(?:leq|le)\b|≤/g, "<=");
-  s = s.replace(/\\?(?:geq|ge)\b|≥/g, ">=");
-  s = s.replace(/\\?(?:neq|ne)\b|≠/g, "!=");
-  s = s.replace(/\\?notin\b|∉/g, "!in");
-  s = s.replace(/\\?(?:setminus|backslash)\b|\\/g, "\\");
-  s = s.replace(/\\?in\b|∈/g, "in");
-  s = s.replace(/\\?infty\b|∞/g, "inf");
-  s = s.replace(/\\?cup\b|∪/g, "U");
-  s = s.replace(/\\?cap\b|∩/g, "cap");
-  s = s.replace(/\\?(?:cdot|times)\b|\*|·/g, "");
-  s = s.replace(/\\?mathbb\{R\}|\\?mathbb\s+R|ℝ/g, "R");
-  s = s.replace(/\\?mathbb\{Z\}|\\?mathbb\s+Z|ℤ/g, "Z");
-  s = s.replace(/\\?mathbb\{Q\}|\\?mathbb\s+Q|ℚ/g, "Q");
-  s = s.replace(/\\?mathbb\{N\}|\\?mathbb\s+N|ℕ/g, "N");
-  s = s.replace(/\\?pi\b|π/g, "pi");
-  s = s.replace(/\^?\\?circ\b|°/g, "");
-  s = s.replace(/\{,\}/g, ".").replace(/,/g, ".");
-  
-  // Russian preamble and helper words normalization
-  s = s.replace(/область\s+определения\s+функци[ияй]/gi, "");
-  s = s.replace(/множество\s+значений\s+функци[ияй]/gi, "");
-  s = s.replace(/функци[ияй]/gi, "");
-  s = s.replace(/\bдля\b/gi, "");
-  s = s.replace(/\bпри\b/gi, "");
-  s = s.replace(/\bгде\b/gi, "");
-  
-  // 9. Strip remaining latex command backslashes, curly braces, and whitespace
-  s = s.replace(/\\[a-zA-Z]+/g, "");
-  s = s.replace(/[{}]/g, "");
-  s = s.replace(/[:;,.]/g, "");
-  s = s.replace(/\s+/g, "");
-  return s.toLowerCase();
-}
-
-function areAnswersEquivalent(a: string | null | undefined, b: string | null | undefined): boolean {
-  if (!a || !b) return false;
-  const ka = canonicalAnswerKey(a);
-  const kb = canonicalAnswerKey(b);
-  if (!ka || !kb) return false;
-  if (ka === kb) return true;
-  // If only difference is extra outer/inner parentheses around terms
-  const stripParens = (str: string) => str.replace(/[()]/g, "");
-  if (stripParens(ka) === stripParens(kb)) return true;
-  return false;
-}
-
-function matchesOption(answer: string | null | undefined, opt: string, latexOpt: string, index: number): boolean {
-  if (!answer) return false;
-  const ans = answer.trim();
-  if (!ans) return false;
-  
-  // 1. Direct / canonical equivalence
-  if (areAnswersEquivalent(ans, opt) || areAnswersEquivalent(ans, latexOpt)) {
-    return true;
-  }
-  
-  const canAns = canonicalAnswerKey(ans);
-  
-  // 2. Letter matches ("A", "B", "C", "D" or "а", "б", "в", "г")
-  const enLetter = String.fromCharCode(65 + index).toLowerCase();
-  const ruLetter = ["а", "б", "в", "г", "д", "е"][index] || "";
-  if (canAns === enLetter || canAns === ruLetter) {
-    return true;
-  }
-
-  // 3. Explicit index patterns ("option_0", "choice_1", "opt_2", "#0")
-  const explicitIndexMatch = ans.match(/^(?:option|choice|opt|ans|idx|#)[_\s-]*([0-9]+)$/i);
-  if (explicitIndexMatch && parseInt(explicitIndexMatch[1], 10) === index) {
-    return true;
-  }
-  
-  return false;
-}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -1173,14 +1059,17 @@ export default function DiagnosticReportPage() {
                               const display = item.latex || item.opt || "";
                               return display.length > 80 || /\\text\{|\n/.test(display);
                             });
-                            const hasMatchedStudentOpt = uniqueOptions.some((item, oi) => matchesOption(err.student_answer, item.opt, item.latex, oi));
+                            // The chosen option: carried index, else the first option whose text matches the stored
+                            // answer (normalised: LaTeX / Unicode forms are the same). -1 = the option was changed after the attempt.
+                            const chosenIdx = findChosenOption(err as any, uniqueOptions, optionsList.length);
+                            const hasMatchedStudentOpt = chosenIdx >= 0;
 
                             return (
                               <div className="space-y-3">
                                 <div className={`grid gap-3 sm:gap-4 ${hasLongOptions ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"}`}>
                                   {uniqueOptions.map((item, oi) => {
                                     const isCorrect = matchesOption(err.correct_answer, item.opt, item.latex, oi);
-                                    const isStudentAnswer = matchesOption(err.student_answer, item.opt, item.latex, oi);
+                                    const isStudentAnswer = oi === chosenIdx;
                                     return (
                                       <div key={oi} className={`flex min-w-0 items-start gap-4 overflow-hidden p-4 rounded-xl border transition-all ${
                                         isCorrect
@@ -1208,12 +1097,19 @@ export default function DiagnosticReportPage() {
                                   })}
                                 </div>
                                 {!hasMatchedStudentOpt && err.student_answer && !["idk", "__wrong__", "test"].includes(err.student_answer.trim().toLowerCase()) && (
-                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 px-4 py-2.5 rounded-xl bg-rose-50/70 border border-rose-200/80 text-xs font-medium text-rose-950">
-                                    <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
-                                    <span className="font-semibold text-rose-700">Введённый ответ ученика:</span>
-                                    <div className="min-w-0 max-w-full flex-1 basis-40 overflow-x-auto">
-                                      <MathRenderer block text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="min-w-0 max-w-full break-words font-normal text-[14px] text-slate-800" />
+                                  // The student SELECTED an option that no longer exists in the task (a content repair
+                                  // changed it): shown as an option-like card, never as an "entered" answer.
+                                  <div data-testid="diagnostic-report-legacy-option" className="flex min-w-0 items-start gap-4 overflow-hidden p-4 rounded-xl border bg-white border-rose-200/90 shadow-2xs">
+                                    <span className="w-7 h-7 min-w-[28px] min-h-[28px] rounded-lg bg-rose-500 text-white flex items-center justify-center flex-shrink-0 shadow-2xs" aria-hidden="true">
+                                      <History className="w-3.5 h-3.5" />
+                                    </span>
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                      <div className="text-[11px] sm:text-xs font-semibold text-rose-700 break-words">{unmatchedAnswerLabel(err.answer_type, uniqueOptions.length)}</div>
+                                      <div className="min-w-0 max-w-full overflow-x-auto overflow-y-hidden no-scrollbar">
+                                        <MathRenderer block text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="min-w-0 max-w-full break-words font-normal text-[14px] sm:text-[14.5px] leading-snug text-slate-800" />
+                                      </div>
                                     </div>
+                                    <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
                                   </div>
                                 )}
                               </div>
