@@ -166,10 +166,39 @@ test("skills tab is never blank: content or the placeholder", () => {
   assert.equal(R.tabContentState({ report_meta: freeMeta, diagnostic_boundary: boundary }).skills, "empty");
 });
 
-test("journal state: errors / positive error-free / no records", () => {
+test("journal state: errors / positive error-free / records unavailable", () => {
   assert.equal(R.tabContentState({ report_meta: errorMeta, error_patterns: [{}] }).journal, "errors");
   assert.equal(R.tabContentState({ report_meta: freeMeta }).journal, "error_free");
-  assert.equal(R.tabContentState({ report_meta: errorMeta }).journal, "no_records");
+  assert.equal(R.tabContentState({ report_meta: errorMeta }).journal, "records_unavailable");
+});
+
+test("journal: wrong answers without error records are never framed as «no errors»", () => {
+  // legacy report with errors (6 of 10): no error_patterns, no flag, no level
+  const legacyWithErrors = { report_meta: { total_questions: 10, questions_correct: 6, score_percent: 60 }, overall: { score_percent: 60 }, strong_skills: [{ skill_id: "S" }] };
+  assert.equal(R.wrongAnswersState(legacyWithErrors), "yes");
+  assert.equal(R.tabContentState(legacyWithErrors).journal, "records_unavailable");
+  // legacy error-free (no flag): every answer solved and no journal - genuinely error-free
+  const legacyFree = { report_meta: { total_questions: 10, questions_correct: 10, score_percent: 100 }, overall: { score_percent: 100 } };
+  assert.equal(R.wrongAnswersState(legacyFree), "no");
+  assert.equal(R.tabContentState(legacyFree).journal, "error_free");
+  // schema 5 with errors but an empty error_patterns list
+  const schema5 = { report_meta: { error_free: false, total_questions: 12, questions_correct: 7 }, error_patterns: [], level: { solved: 7, total: 12 } };
+  assert.equal(R.tabContentState(schema5).journal, "records_unavailable");
+  // every source counts: level alone, score alone
+  assert.equal(R.tabContentState({ level: { solved: 5, total: 8 } }).journal, "records_unavailable");
+  assert.equal(R.tabContentState({ overall: { score_percent: 60 } }).journal, "records_unavailable");
+  assert.equal(R.wrongAnswersState({ overall: { score_percent: 100 } }), "no");
+  // nothing known: the absence of errors is not claimed either
+  assert.equal(R.wrongAnswersState({}), "unknown");
+  assert.equal(R.tabContentState({}).journal, "records_unavailable");
+  assert.equal(R.tabContentState(null).journal, "records_unavailable");
+  // the backend flag wins over counts (error_free: false, zero wrong): the old neutral card
+  assert.equal(R.tabContentState({ report_meta: { error_free: false, total_questions: 10, questions_correct: 10 } }).journal, "no_records");
+  // a true error-free flag keeps the positive framing even with a stale score
+  assert.equal(R.tabContentState({ report_meta: freeMeta, overall: { score_percent: 90 } }).journal, "error_free");
+  // texts
+  assert.equal(R.JOURNAL_UNAVAILABLE_TEXT, "Подробные записи об ошибках для этого отчёта недоступны");
+  assert.equal(R.JOURNAL_UNAVAILABLE_LEGACY_TEXT, "Отчёт сформирован в старом формате.");
 });
 
 test("placeholder texts make no unverified claim (owner decision O4)", () => {
@@ -274,7 +303,7 @@ test("report page contract (N04a): tabs a11y, no fixed-1800ms poll, no fake task
   assert.equal(/setTimeout\([^)]*,\s*1800\)/.test(page), false);
   assert.ok(page.includes("document.hidden"));
   // placeholders come from the tested constants
-  for (const name of ["PLAN_NOT_NEEDED_TEXT", "PLAN_NOT_BUILT_TEXT", "SKILLS_EMPTY_TEXT"]) assert.ok(page.includes(name), name);
+  for (const name of ["PLAN_NOT_NEEDED_TEXT", "PLAN_NOT_BUILT_TEXT", "SKILLS_EMPTY_TEXT", "JOURNAL_UNAVAILABLE_TEXT", "JOURNAL_UNAVAILABLE_LEGACY_TEXT"]) assert.ok(page.includes(name), name);
   // a missing task statement is never replaced by the skill name
   assert.equal(page.includes("fallbackText={err.skill_name_ru}"), false);
   assert.ok(page.includes("Условие задания недоступно"));

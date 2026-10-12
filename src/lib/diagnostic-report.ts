@@ -166,7 +166,15 @@ export function reportAchievements(report: Obj | null | undefined): Obj[] {
 
 // ─── N04a: no blank tab ───────────────────────────────────────────────────────
 
-export type JournalTabState = "errors" | "error_free" | "no_records";
+/**
+ *  errors               - error records to show;
+ *  error_free           - genuinely error-free (isErrorFreeReport): the positive framing;
+ *  records_unavailable  - not error-free, no error records (old report, or records lost):
+ *                         never framed as "no errors" - the wrong answers are real;
+ *  no_records           - not flagged error-free, no records, and the report itself
+ *                         counts zero wrong answers (rare, contradictory flags).
+ */
+export type JournalTabState = "errors" | "error_free" | "records_unavailable" | "no_records";
 export type SkillsTabState = "content" | "empty";
 /**
  *  plan                  - errors and a plan: the roadmap;
@@ -181,6 +189,29 @@ export interface TabContentState {
   skills: SkillsTabState;
   plan: PlanTabState;
 }
+
+/**
+ * Does the report itself count wrong answers? "yes" when any source (asked - correct
+ * of report_meta, solved < total of `level`, or, with no counts at all, a score under
+ * 100) says so; "no" when a count says zero; "unknown" when it carries no numbers.
+ */
+export function wrongAnswersState(report: Obj | null | undefined): "yes" | "no" | "unknown" {
+  const counts: number[] = [];
+  const metaWrong = reportWrongCount(report?.report_meta);
+  if (metaWrong !== null) counts.push(metaWrong);
+  const lv = report?.level;
+  if (isObj(lv) && typeof lv.solved === "number" && typeof lv.total === "number" && Number.isFinite(lv.solved) && Number.isFinite(lv.total) && lv.total > 0) {
+    counts.push(Math.max(0, lv.total - lv.solved));
+  }
+  if (counts.some((n) => n > 0)) return "yes";
+  if (counts.length > 0) return "no";
+  const score = reportScorePercent(report);
+  if (score === null) return "unknown";
+  return score < 100 ? "yes" : "no";
+}
+
+export const JOURNAL_UNAVAILABLE_TEXT = "Подробные записи об ошибках для этого отчёта недоступны";
+export const JOURNAL_UNAVAILABLE_LEGACY_TEXT = "Отчёт сформирован в старом формате.";
 
 /** The boundary card has something to say only if a level or a skill is named. */
 export function hasBoundaryData(boundary: unknown): boolean {
@@ -200,7 +231,11 @@ export function tabContentState(report: Obj | null | undefined): TabContentState
   const plan = asObjArray(report?.action_plan);
   const errorFree = isErrorFreeReport(report as ReportShapeLike | null | undefined);
 
-  const journal: JournalTabState = patterns.length > 0 ? "errors" : errorFree ? "error_free" : "no_records";
+  const journal: JournalTabState =
+    patterns.length > 0 ? "errors"
+      : errorFree ? "error_free"
+        : wrongAnswersState(report) === "no" ? "no_records"
+          : "records_unavailable";
 
   const hasChains = asObjArray(report?.root_cause_chains).length > 0;
   const hasClusters = asObjArray(report?.cognitive_error_types).length > 0;

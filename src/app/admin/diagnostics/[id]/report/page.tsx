@@ -8,7 +8,7 @@ import {
   type LevelToneClasses, type ReportLevel,
 } from "@/lib/diagnostic-level";
 import {
-  PLAN_NOT_BUILT_TEXT, PLAN_NOT_NEEDED_TEXT, SKILLS_EMPTY_TEXT,
+  JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_BUILT_TEXT, PLAN_NOT_NEEDED_TEXT, SKILLS_EMPTY_TEXT,
   hasBoundaryData, hoursLabel, isDevelopmentStep, isErrorFreeReport, knownPlanHours, loadErrorInfo, nextReportPollStep,
   normalizeReportJson, recommendedStartName, reportAchievements, reportMetaInfo, reportScorePercent,
   reportWrongCount, stepHours, tabContentState,
@@ -1226,21 +1226,32 @@ export default function DiagnosticReportPage() {
             );
           })()}
 
-          {/* ── TAB 1 (no errors): positive scenario instead of an empty tab ── */}
-          {activeTab === "journal" && rj.error_patterns.length === 0 && (
+          {/* ── TAB 1 (no error records): never a blank tab, never "no errors" unless the report is error-free ── */}
+          {activeTab === "journal" && rj.error_patterns.length === 0 && (() => {
+            // error_free: positive framing; records_unavailable: wrong answers exist but their
+            // records are not in the report (old format / lost) - neutral card, no "no errors" claim;
+            // no_records: the report itself counts zero wrong answers.
+            const unavailable = tabs?.journal === "records_unavailable";
+            const testId = errorFree ? "diagnostic-report-error-free" : unavailable ? "diagnostic-report-journal-unavailable" : "diagnostic-report-no-errors";
+            return (
             <motion.div
               variants={fade}
-              data-testid={errorFree ? "diagnostic-report-error-free" : "diagnostic-report-no-errors"}
-              className="bg-white rounded-2xl border border-emerald-200/80 p-4 sm:p-6 shadow-2xs space-y-5"
+              data-testid={testId}
+              className={`bg-white rounded-2xl border p-4 sm:p-6 shadow-2xs space-y-5 ${unavailable ? "border-slate-200/80" : "border-emerald-200/80"}`}
             >
               <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <Award className="w-5 h-5 text-emerald-600" />
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${unavailable ? "bg-slate-50 border-slate-200 text-slate-500" : "bg-emerald-50 border-emerald-100 text-emerald-600"}`}>
+                  {unavailable ? <Info className="w-5 h-5" /> : <Award className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0 space-y-1">
                   <h2 className="font-bold text-slate-900 text-base break-words">
-                    {errorFree ? "Все выполненные задания решены верно" : "В журнале нет записей об ошибках"}
+                    {errorFree
+                      ? "Все выполненные задания решены верно"
+                      : unavailable ? JOURNAL_UNAVAILABLE_TEXT : "В журнале нет записей об ошибках"}
                   </h2>
+                  {unavailable && meta.legacy && (
+                    <p className="text-sm text-slate-600 leading-relaxed">{JOURNAL_UNAVAILABLE_LEGACY_TEXT}</p>
+                  )}
                   {errorFree && (
                     <p className="text-sm text-slate-600 leading-relaxed">
                       Дефицит по результатам диагностики не выявлен
@@ -1258,13 +1269,18 @@ export default function DiagnosticReportPage() {
 
               {achievements.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">Подтверждённые навыки</div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    {unavailable ? "Сильные стороны (по данным отчёта)" : "Подтверждённые навыки"}
+                  </div>
                   <div className="flex flex-wrap gap-2" data-testid="diagnostic-report-achievements">
                     {achievements.map((item) => (
-                      <span key={item.skill_id} className="max-w-full break-words text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
+                      <span
+                        key={item.skill_id}
+                        className={`max-w-full break-words text-xs font-medium border px-2.5 py-1 rounded-lg ${unavailable ? "bg-slate-50 border-slate-200 text-slate-800" : "bg-emerald-50/80 border-emerald-200/70 text-emerald-900"}`}
+                      >
                         {item.skill_name_ru}
                         {typeof item.correct_answers === "number" && (
-                          <span className="ml-1.5 font-normal text-emerald-700/80">· верно: {item.correct_answers}</span>
+                          <span className={`ml-1.5 font-normal ${unavailable ? "text-slate-500" : "text-emerald-700/80"}`}>· верно: {item.correct_answers}</span>
                         )}
                       </span>
                     ))}
@@ -1280,7 +1296,8 @@ export default function DiagnosticReportPage() {
                 </div>
               )}
             </motion.div>
-          )}
+            );
+          })()}
 
           {/* ── TAB 2: Skills & Root-Cause Anatomy ─────────────────────────── */}
           {activeTab === "skills" && (
