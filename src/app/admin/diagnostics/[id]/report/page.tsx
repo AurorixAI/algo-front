@@ -8,7 +8,10 @@ import {
   type LevelToneClasses, type ReportLevel,
 } from "@/lib/diagnostic-level";
 import {
-  hoursLabel, isDevelopmentStep, isErrorFreeReport, knownPlanHours, recommendedStartName, stepHours,
+  PLAN_NOT_BUILT_TEXT, PLAN_NOT_NEEDED_TEXT, SKILLS_EMPTY_TEXT,
+  hasBoundaryData, hoursLabel, isDevelopmentStep, isErrorFreeReport, knownPlanHours, loadErrorInfo, nextReportPollStep,
+  normalizeReportJson, recommendedStartName, reportAchievements, reportMetaInfo, reportScorePercent,
+  reportWrongCount, stepHours, tabContentState,
 } from "@/lib/diagnostic-report";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,6 +42,7 @@ import {
   Flag,
   Zap,
   User,
+  Info,
 } from "lucide-react";
 
 import { analyticsApi, orgApi } from "@/lib/api";
@@ -49,6 +53,9 @@ import { pickAnswerDisplayText } from "@/lib/task-display";
 import "katex/dist/katex.min.css";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type ReportTab = "journal" | "skills" | "plan";
+const REPORT_TABS: ReportTab[] = ["journal", "skills", "plan"];
 
 interface InviteInfo {
   id: string; code: string; student_name: string; student_id?: string;
@@ -152,16 +159,27 @@ interface CognitiveErrorCluster {
   }>;
 }
 
+/**
+ * Shape of report_json after normalizeReportJson(): lists are always lists and
+ * report_meta / overall are always objects, but old reports may lack any scalar.
+ */
 interface ReportJson {
   report_meta: {
-    session_id: string; student_name: string; class_level: number;
-    test_code: string; date: string; total_questions: number;
-    questions_correct: number; score_percent: number;
+    session_id?: string; student_name?: string; class_level?: number;
+    test_code?: string;
+    /** Date of the attempt (not of the rebuild). */
+    date?: string | null;
+    /** Date the report was built. */
+    generated_on?: string | null;
+    total_questions?: number | null;
+    questions_correct?: number | null; score_percent?: number | null;
     /** Every answer correct and nothing to correct (schema 5). */
     error_free?: boolean;
+    /** Reasons part of the reference data was unavailable at build time. */
+    degraded?: string[] | null;
   };
   overall: {
-    score_percent: number; status: string; status_label_ru: string;
+    score_percent?: number | null; status?: string; status_label_ru?: string;
     student_summary?: string | null;
   };
   /** New contract (report_json.level); absent in reports built before it. */
@@ -183,8 +201,20 @@ interface ReportJson {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 // Level colours come from the shared dictionary (src/lib/diagnostic-level.ts).
+const NEUTRAL_TONE: LevelToneClasses = {
+  text: "text-slate-700",
+  badge: "bg-slate-100 border-slate-200 text-slate-700",
+  soft: "bg-slate-50",
+  dot: "bg-slate-400",
+  ping: "bg-slate-300",
+  ring: "text-slate-400",
+  track: "#e2e8f0",
+  cardBg: "bg-gradient-to-r from-slate-50 via-white to-white",
+  cardBorder: "border-slate-200/80",
+};
+// A report without a known level is shown neutral, never as a good (green) level.
 const toneForStatus = (status?: string | null): LevelToneClasses =>
-  levelStatusTone(status) ?? LEVEL_TONES.emerald;
+  levelStatusTone(status) ?? NEUTRAL_TONE;
 
 const SKILL_STATUS_CFG = {
   developing: { label: "Развивается", bar: "bg-amber-400",  text: "text-amber-700",  bg: "bg-amber-50/60"  },
@@ -319,22 +349,23 @@ function matchesOption(answer: string | null | undefined, opt: string, latexOpt:
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function CircularScore({ score, status }: { score: number; status: string }) {
+function CircularScore({ score, status }: { score: number | null; status?: string | null }) {
   const cfg = toneForStatus(status);
   const r = 46, circ = 2 * Math.PI * r;
+  const shown = score ?? 0;
   return (
     <div className="relative flex items-center justify-center w-28 h-28 flex-shrink-0">
       <svg viewBox="0 0 112 112" className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-sm">
         <circle cx="56" cy="56" r={r} fill="none" stroke={cfg.track} strokeWidth="10" />
         <circle cx="56" cy="56" r={r} fill="none" stroke="currentColor"
           strokeWidth="10" strokeLinecap="round"
-          strokeDasharray={`${(score / 100) * circ} ${circ}`}
+          strokeDasharray={`${(shown / 100) * circ} ${circ}`}
           className={cfg.ring}
           style={{ transition: "stroke-dasharray 1.2s ease" }}
         />
       </svg>
       <div className="relative text-center select-none">
-        <div className="text-2xl font-black text-slate-900 tracking-tight">{score}%</div>
+        <div className="text-2xl font-black text-slate-900 tracking-tight">{score === null ? "—" : `${score}%`}</div>
         <div className="text-[9px] text-slate-400 font-bold tracking-widest uppercase mt-0.5">Результат</div>
       </div>
     </div>
@@ -362,6 +393,25 @@ function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title:
   );
 }
 
+/** A visible tab never stays blank: honest placeholder instead of an empty panel. */
+function TabNotice({ icon: Icon, title, text, tone = "slate", testId }: {
+  icon: any; title: string; text?: string; tone?: "slate" | "emerald"; testId: string;
+}) {
+  const box = tone === "emerald" ? "border-emerald-200/80 bg-emerald-50/40" : "border-slate-200/80 bg-slate-50/60";
+  const chip = tone === "emerald" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500";
+  return (
+    <div data-testid={testId} className={`min-w-0 rounded-2xl border p-5 sm:p-6 shadow-2xs flex items-start gap-3.5 ${box}`}>
+      <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${chip}`}>
+        <Icon className="w-4.5 h-4.5" />
+      </div>
+      <div className="min-w-0 space-y-1">
+        <h2 className="font-bold text-slate-900 text-sm sm:text-base break-words">{title}</h2>
+        {text && <p className="text-xs sm:text-sm text-slate-600 leading-relaxed break-words">{text}</p>}
+      </div>
+    </div>
+  );
+}
+
 const fade = { hidden: { opacity: 0, y: 14 }, show: { opacity: 1, y: 0, transition: { duration: 0.35 } } };
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -376,6 +426,10 @@ export default function DiagnosticReportPage() {
   const [invite, setInvite]           = useState<InviteInfo | null>(null);
   const [report, setReport]           = useState<any>(null);
   const [reportError, setReportError] = useState<string | null>(null);
+  // HTTP status of the failed load (403 / 404 have their own screens, no «Повторить»).
+  const [reportErrorStatus, setReportErrorStatus] = useState<number | null>(null);
+  // The bounded poll gave up: «Отчёт формируется дольше обычного» + «Проверить снова».
+  const [pollExhausted, setPollExhausted] = useState(false);
   const acknowledgedInviteRef = useRef<string | null>(null);
   const [retryNonce, setRetryNonce]   = useState(0);
   const [loading, setLoading]         = useState(true);
@@ -388,7 +442,7 @@ export default function DiagnosticReportPage() {
     classLevel?: number | null;
   } | null>(null);
   const [errorPage, setErrorPage]     = useState(0);
-  const [activeTab, setActiveTab]     = useState<"journal" | "skills" | "plan">("journal");
+  const [activeTab, setActiveTab]     = useState<ReportTab>("journal");
   const [expandedChains, setExpandedChains]     = useState<number[]>([]);
   const [expandedClusters, setExpandedClusters] = useState<string[]>([]);
 
@@ -425,14 +479,65 @@ export default function DiagnosticReportPage() {
   useEffect(() => {
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
+    let pollAttempt = 0;            // polls made after the initial load
+    let waitingForVisible = false;  // a poll is due but the tab is hidden
+    let target: { studentId: string; sessionId: string } | null = null;
 
-    const load = async (isInitial = false) => {
+    const fail = (e: any) => {
+      console.error(e);
+      if (cancelled) return;
+      setReportErrorStatus(typeof e?.status === "number" ? e.status : null);
+      setReportError(e?.message || "Не удалось загрузить отчёт. Повторите попытку.");
+    };
+
+    // One decision after every response: stop (ready / failed / cap) or poll again.
+    // Polls only the student report endpoint, with backoff, never in a hidden tab.
+    // `{report: null}` and "ready" without report_json poll as well.
+    const afterResponse = (reportData: any) => {
+      const step = nextReportPollStep({
+        attempt: pollAttempt,
+        hasReportJson: Boolean(reportData?.report_json),
+        status: reportData?.report_generation?.status,
+      });
+      if (step.kind === "wait") pollTimer = setTimeout(tick, step.delayMs);
+      else if (step.kind === "exhausted") setPollExhausted(true);
+    };
+
+    const tick = () => {
+      pollTimer = null;
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.hidden) { waitingForVisible = true; return; }
+      void pollReport();
+    };
+
+    const onVisibility = () => {
+      if (cancelled || !waitingForVisible || document.hidden) return;
+      waitingForVisible = false;
+      tick();
+    };
+
+    const pollReport = async () => {
+      if (!target) return;
+      pollAttempt += 1;
+      try {
+        const rep = await analyticsApi.studentReport(target.studentId, target.sessionId);
+        if (cancelled) return;
+        const reportData = rep && "report" in rep && rep.report === null ? null : rep;
+        setReport(reportData);
+        afterResponse(reportData);
+      } catch (e: any) {
+        fail(e);
+      }
+    };
+
+    const load = async () => {
       try {
         const found = await orgApi.getDiagnostic(inviteId) as InviteInfo;
         if (!found) { router.push(isTeacher ? "/teacher/groups" : "/admin/diagnostics"); return; }
         if (cancelled) return;
         setInvite(found);
         if (found.student_id && found.session_id) {
+          target = { studentId: found.student_id, sessionId: found.session_id };
           const [rep, studentData] = await Promise.all([
             analyticsApi.studentReport(found.student_id, found.session_id),
             found.student_id ? orgApi.getStudentProfile(found.student_id).catch(() => null) : null,
@@ -441,6 +546,7 @@ export default function DiagnosticReportPage() {
           const reportData = rep && "report" in rep && rep.report === null ? null : rep;
           setReport(reportData);
           setReportError(null);
+          setReportErrorStatus(null);
           if (studentData) {
             found.student_status = studentData.student.status;
             setCurrentStudentGroup(
@@ -451,25 +557,24 @@ export default function DiagnosticReportPage() {
           } else {
             setCurrentStudentGroup(null);
           }
-          const generationStatus = reportData?.report_generation?.status;
-          if (!reportData?.report_json && ["pending", "generating"].includes(generationStatus)) {
-            pollTimer = setTimeout(() => void load(false), 1800);
-          }
+          afterResponse(reportData);
         } else if (found.status === "completed") {
           setReport(null);
           setReportError("У завершённой диагностики отсутствует идентификатор попытки. Отчёт не может быть подменён другой диагностикой.");
         }
       } catch (e: any) {
-        console.error(e);
-        if (!cancelled) setReportError(e?.message || "Не удалось загрузить отчёт. Повторите попытку.");
+        fail(e);
       }
-      finally { if (isInitial && !cancelled) setLoading(false); }
+      finally { if (!cancelled) setLoading(false); }
     };
 
-    void load(true);
+    setPollExhausted(false);
+    document.addEventListener("visibilitychange", onVisibility);
+    void load();
     return () => {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [inviteId, isTeacher, retryNonce, router]);
 
@@ -493,24 +598,45 @@ export default function DiagnosticReportPage() {
     );
   }
   if (!invite) {
-    return reportError ? (
-      <div className="max-w-xl mx-auto mt-16 bg-white rounded-2xl border border-rose-100 p-8 text-center shadow-sm">
+    // Never `null`: a retry shows the spinner again, a missing invite shows its own error.
+    if (!reportError) {
+      return (
+        <div className="flex flex-col items-center justify-center h-64 gap-3">
+          <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-primary-600" />
+          <p className="text-xs text-slate-400">Загружаем отчёт...</p>
+        </div>
+      );
+    }
+    const info = loadErrorInfo(reportErrorStatus, reportError, "diagnostic");
+    return (
+      <div className="max-w-xl mx-auto mt-16 bg-white rounded-2xl border border-rose-100 p-6 sm:p-8 text-center shadow-sm" data-testid="diagnostic-report-load-error">
         <AlertTriangle className="w-10 h-10 mx-auto mb-3 text-rose-500" />
-        <h1 className="text-lg font-bold text-slate-900">Не удалось открыть диагностику</h1>
-        <p className="text-sm text-slate-500 mt-2">{reportError}</p>
-        <button
-          type="button"
-          onClick={() => { setReportError(null); setRetryNonce((value) => value + 1); }}
-          className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
-        >
-          Повторить
-        </button>
+        <h1 className="text-lg font-bold text-slate-900 break-words">{info.title}</h1>
+        <p className="text-sm text-slate-500 mt-2 break-words">{info.text}</p>
+        {info.retryable ? (
+          <button
+            type="button"
+            onClick={() => { setReportError(null); setReportErrorStatus(null); setLoading(true); setRetryNonce((value) => value + 1); }}
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+          >
+            Повторить
+          </button>
+        ) : (
+          <Link
+            href={isTeacher ? "/teacher/groups" : "/admin/diagnostics"}
+            className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-semibold hover:bg-slate-200"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Назад к списку
+          </Link>
+        )}
       </div>
-    ) : null;
+    );
   }
 
   const isPending = !invite.student_id || invite.status !== "completed";
-  const rj: ReportJson | null = report?.report_json ?? null;
+  // Old / partial report_json is normalised once; the rest of the page reads this object only.
+  const rj = normalizeReportJson(report?.report_json) as ReportJson | null;
   const reportGeneration = report?.report_generation;
   const generationStageCopy: Record<string, { title: string; description: string }> = {
     queued: { title: "Отчёт поставлен в очередь", description: "Ответы уже сохранены. Подготовка начнётся автоматически." },
@@ -526,13 +652,35 @@ export default function DiagnosticReportPage() {
   const level = rj ? resolveReportLevel(rj) : null;
   // Error-free attempt: a positive scenario (achievements + a development step).
   const errorFree = rj ? isErrorFreeReport(rj) : false;
-  const achievements: Achievement[] = rj
-    ? (rj.achievements && rj.achievements.length > 0
-        ? rj.achievements
-        : (rj.strong_skills ?? []).map((item) => ({ skill_id: item.skill_id, skill_name_ru: item.skill_name_ru, mastery_percent: item.mastery_percent })))
-    : [];
+  const achievements = reportAchievements(rj) as Achievement[];
+  const tabs = rj ? tabContentState(rj) : null;
+  const meta = reportMetaInfo(reportGeneration, rj);
+  const scorePercent = rj ? reportScorePercent(rj) : null;
+  const wrongCount = rj ? reportWrongCount(rj.report_meta) : null;
+  const levelText = rj ? ((level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru || null) : null;
   const cfg = rj ? toneForStatus(level?.status) : null;
   const solvedText = level ? formatSolved(level.solved, level.total) : null;
+  const tabDefs: Array<{
+    key: ReportTab; label: string; Icon: any; iconClass: string; badge: number; badgeClass: string;
+  }> = [
+    { key: "journal", label: "Журнал ошибок", Icon: FileText, iconClass: "text-rose-500", badge: rj?.error_patterns.length ?? 0, badgeClass: "bg-rose-100 text-rose-700" },
+    { key: "skills", label: "Анализ навыков и первопричин", Icon: GitBranch, iconClass: "text-indigo-500", badge: rj?.root_cause_chains?.length ?? 0, badgeClass: "bg-indigo-100 text-indigo-700" },
+    { key: "plan", label: "План обучения", Icon: ListChecks, iconClass: "text-emerald-500", badge: 0, badgeClass: "" },
+  ];
+  // Arrow keys / Home / End move between tabs (WAI-ARIA tabs pattern).
+  const onTabKeyDown = (e: React.KeyboardEvent) => {
+    const at = REPORT_TABS.indexOf(activeTab);
+    const n = REPORT_TABS.length;
+    let next = at;
+    if (e.key === "ArrowRight") next = (at + 1) % n;
+    else if (e.key === "ArrowLeft") next = (at + n - 1) % n;
+    else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = n - 1;
+    else return;
+    e.preventDefault();
+    setActiveTab(REPORT_TABS[next]);
+    document.getElementById(`report-tab-${REPORT_TABS[next]}`)?.focus();
+  };
 
   return (
     <div className="space-y-5 w-full max-w-[1200px] mx-auto">
@@ -663,31 +811,49 @@ export default function DiagnosticReportPage() {
         </div>
       )}
 
-      {/* ── Generating ──────────────────────────────────────────────────────── */}
-      {!isPending && !rj && (
-        <div className={`flex flex-col items-center gap-3 py-14 rounded-2xl border text-center ${reportError ? "bg-rose-50 border-rose-100" : "bg-amber-50 border-amber-100"}`}>
-          <div className={reportGeneration?.status === "failed" ? "" : "animate-pulse"}>
-            <AlertTriangle className={`w-9 h-9 ${reportError ? "text-rose-500" : "text-amber-400"}`} />
+      {/* ── Generating / unavailable ──────────────────────────────────────── */}
+      {!isPending && !rj && (() => {
+        const errInfo = reportError ? loadErrorInfo(reportErrorStatus, reportError, "report") : null;
+        const failed = reportGeneration?.status === "failed";
+        const calm = Boolean(errInfo) || pollExhausted || failed;
+        return (
+          <div
+            data-testid="diagnostic-report-generating"
+            className={`flex flex-col items-center gap-3 px-4 py-12 sm:py-14 rounded-2xl border text-center ${errInfo ? "bg-rose-50 border-rose-100" : "bg-amber-50 border-amber-100"}`}
+          >
+            <div className={calm ? "" : "animate-pulse"}>
+              <AlertTriangle className={`w-9 h-9 ${errInfo ? "text-rose-500" : "text-amber-400"}`} />
+            </div>
+            <p className={`font-semibold text-sm break-words ${errInfo ? "text-rose-800" : "text-amber-800"}`}>
+              {errInfo ? errInfo.title : pollExhausted ? "Отчёт формируется дольше обычного" : generationCopy.title}
+            </p>
+            <p className={`text-xs max-w-sm break-words ${errInfo ? "text-rose-700" : "text-amber-700"}`}>
+              {errInfo ? errInfo.text : pollExhausted ? "Отчёт пока не готов. Проверьте ещё раз через некоторое время." : generationCopy.description}
+            </p>
+            {errInfo ? (
+              errInfo.retryable && (
+                <button
+                  type="button"
+                  onClick={() => { setReportError(null); setReportErrorStatus(null); setRetryNonce((value) => value + 1); }}
+                  className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 text-xs font-semibold hover:bg-rose-100"
+                >
+                  Повторить загрузку
+                </button>
+              )
+            ) : pollExhausted ? (
+              <button
+                type="button"
+                onClick={() => { setPollExhausted(false); setRetryNonce((value) => value + 1); }}
+                className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-amber-800 text-xs font-semibold hover:bg-amber-100"
+              >
+                Проверить снова
+              </button>
+            ) : !failed && (
+              <p className="text-[11px] text-amber-600">Статус обновляется автоматически — страницу обновлять не нужно.</p>
+            )}
           </div>
-          <p className={`font-semibold text-sm ${reportError ? "text-rose-800" : "text-amber-800"}`}>
-            {reportError ? "Отчёт временно недоступен" : generationCopy.title}
-          </p>
-          <p className={`text-xs max-w-sm ${reportError ? "text-rose-700" : "text-amber-700"}`}>
-            {reportError || generationCopy.description}
-          </p>
-          {reportError ? (
-            <button
-              type="button"
-              onClick={() => { setReportError(null); setRetryNonce((value) => value + 1); }}
-              className="mt-1 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-rose-200 text-rose-700 text-xs font-semibold hover:bg-rose-100"
-            >
-              Повторить загрузку
-            </button>
-          ) : reportGeneration?.status !== "failed" && (
-            <p className="text-[11px] text-amber-600">Статус обновляется автоматически — страницу обновлять не нужно.</p>
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* ══════════════════════════════════════════════════════════════════
           REPORT BLOCKS
@@ -699,6 +865,34 @@ export default function DiagnosticReportPage() {
           className="space-y-5"
         >
 
+          {/* ── Report meta: attempt date, build date, stale / degraded notes ── */}
+          {(meta.attemptDate || meta.generatedOn || meta.legacy || meta.degraded) && (
+            <motion.div variants={fade} data-testid="diagnostic-report-meta" className="min-w-0 space-y-2">
+              {(meta.attemptDate || meta.generatedOn) && (
+                <p className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                  {meta.attemptDate && (
+                    <span data-testid="diagnostic-report-attempt-date">Диагностика пройдена: <span className="font-semibold text-slate-700">{meta.attemptDate}</span></span>
+                  )}
+                  {meta.generatedOn && (
+                    <span data-testid="diagnostic-report-generated-on">Отчёт сформирован: <span className="font-semibold text-slate-700">{meta.generatedOn}</span></span>
+                  )}
+                </p>
+              )}
+              {meta.legacy && (
+                <div data-testid="diagnostic-report-legacy" className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
+                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-px" />
+                  <span className="min-w-0 break-words"><span className="font-semibold">Отчёт сформирован в старом формате.</span> Некоторые разделы могут быть показаны не полностью.</span>
+                </div>
+              )}
+              {meta.degraded && (
+                <div data-testid="diagnostic-report-degraded" className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs text-slate-700">
+                  <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-px" />
+                  <span className="min-w-0 break-words">При подготовке отчёта часть справочных данных была недоступна: некоторые названия тем могут отображаться неполностью.</span>
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {/* ── BLOCK 1: Hero Score Card ─────────────────── */}
           <motion.div
             variants={fade}
@@ -707,19 +901,21 @@ export default function DiagnosticReportPage() {
           >
             <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
               {/* Circular Score */}
-              <CircularScore score={rj.overall.score_percent} status={level?.status ?? rj.overall.status} />
+              <CircularScore score={scorePercent} status={level?.status ?? rj.overall.status} />
 
               {/* Status Pill Badge */}
               <div className="w-full min-w-0 flex flex-col items-center justify-center sm:w-auto sm:flex-1 sm:items-start">
-                <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badge}`}>
-                  <span className="relative flex h-2.5 w-2.5 shrink-0">
-                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cfg!.ping}`} />
-                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cfg!.dot}`} />
-                  </span>
-                  <span className="min-w-0 break-words text-center sm:text-left">
-                    {(level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru}
-                  </span>
-                </div>
+                {levelText && (
+                  <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badge}`}>
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cfg!.ping}`} />
+                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cfg!.dot}`} />
+                    </span>
+                    <span className="min-w-0 break-words text-center sm:text-left">
+                      {levelText}
+                    </span>
+                  </div>
+                )}
                 <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-600 sm:justify-start">
                   {level?.provisional && (
                     <span data-testid="diagnostic-report-provisional" className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
@@ -737,7 +933,7 @@ export default function DiagnosticReportPage() {
                     <CheckCircle2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-lg font-black text-slate-900 leading-none">{rj.report_meta.questions_correct}</div>
+                    <div className="text-lg font-black text-slate-900 leading-none">{rj.report_meta.questions_correct ?? "—"}</div>
                     <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Верных</div>
                   </div>
                 </div>
@@ -747,7 +943,7 @@ export default function DiagnosticReportPage() {
                     <XCircle className="w-5 h-5" />
                   </div>
                   <div>
-                    <div className="text-lg font-black text-slate-900 leading-none">{rj.report_meta.total_questions - rj.report_meta.questions_correct}</div>
+                    <div className="text-lg font-black text-slate-900 leading-none">{wrongCount ?? "—"}</div>
                     <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mt-1">Ошибок</div>
                   </div>
                 </div>
@@ -769,54 +965,41 @@ export default function DiagnosticReportPage() {
           )}
 
           {/* ── SECTION TABS SWITCHER ── */}
-          <motion.div variants={fade} className="grid grid-cols-1 sm:grid-cols-3 items-stretch gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/70 shadow-2xs">
-            <button
-              onClick={() => setActiveTab("journal")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "journal"
-                  ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/60"
-              }`}
-            >
-              <FileText className="w-4 h-4 text-rose-500" />
-              <span>Журнал ошибок</span>
-              {rj.error_patterns.length > 0 && (
-                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-100 text-rose-700 font-extrabold">
-                  {rj.error_patterns.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("skills")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "skills"
-                  ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/60"
-              }`}
-            >
-              <GitBranch className="w-4 h-4 text-indigo-500" />
-              <span>Анализ навыков и первопричин</span>
-              {(rj.root_cause_chains?.length ?? 0) > 0 && (
-                <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-700 font-extrabold">
-                  {rj.root_cause_chains?.length}
-                </span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("plan")}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-bold transition-all ${
-                activeTab === "plan"
-                  ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
-                  : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/60"
-              }`}
-            >
-              <ListChecks className="w-4 h-4 text-emerald-500" />
-              <span>План обучения</span>
-            </button>
+          <motion.div
+            variants={fade}
+            role="tablist"
+            aria-label="Разделы отчёта"
+            onKeyDown={onTabKeyDown}
+            className="grid grid-cols-1 lg:grid-cols-3 items-stretch gap-1.5 p-1.5 bg-slate-100/90 rounded-2xl border border-slate-200/70 shadow-2xs"
+          >
+            {tabDefs.map(({ key, label, Icon, iconClass, badge, badgeClass }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                id={`report-tab-${key}`}
+                aria-selected={activeTab === key}
+                aria-controls="report-tabpanel"
+                tabIndex={activeTab === key ? 0 : -1}
+                onClick={() => setActiveTab(key)}
+                className={`min-w-0 flex-1 flex items-center justify-center gap-2 py-3 px-3 sm:px-4 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === key
+                    ? "bg-white text-slate-900 shadow-sm border border-slate-200/80"
+                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50/60"
+                }`}
+              >
+                <Icon className={`w-4 h-4 flex-shrink-0 ${iconClass}`} />
+                <span className="min-w-0 break-words text-center">{label}</span>
+                {badge > 0 && (
+                  <span className={`ml-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold flex-shrink-0 ${badgeClass}`}>
+                    {badge}
+                  </span>
+                )}
+              </button>
+            ))}
           </motion.div>
 
+          <div role="tabpanel" id="report-tabpanel" aria-labelledby={`report-tab-${activeTab}`} className="min-w-0 space-y-6">
           {/* ── TAB 1: Error Journal — paginated ──────────────────────────── */}
           {activeTab === "journal" && rj.error_patterns.length > 0 && (() => {
             const totalPages = Math.ceil(rj.error_patterns.length / ERRORS_PER_PAGE);
@@ -891,7 +1074,7 @@ export default function DiagnosticReportPage() {
                               question_text: err.question_text || "",
                               question_latex: err.question_latex || null,
                             }}
-                            fallbackText={err.skill_name_ru}
+                            fallbackText="Условие задания недоступно"
                             className="text-[15px] sm:text-[16px] text-slate-800 leading-relaxed font-normal whitespace-pre-wrap break-words"
                           />
                         </div>
@@ -1091,10 +1274,14 @@ export default function DiagnosticReportPage() {
 
           {/* ── TAB 2: Skills & Root-Cause Anatomy ─────────────────────────── */}
           {activeTab === "skills" && (
-            <motion.div variants={fade} className="space-y-6">
+            <motion.div variants={fade} className="min-w-0 space-y-6">
+
+              {tabs?.skills === "empty" && (
+                <TabNotice testId="diagnostic-report-skills-empty" icon={GitBranch} title={SKILLS_EMPTY_TEXT} />
+              )}
 
               {/* ── Block 1: Academic Boundary & Diagnostic Profile ── */}
-              {rj.diagnostic_boundary && !errorFree && (
+              {rj.diagnostic_boundary && !errorFree && hasBoundaryData(rj.diagnostic_boundary) && (
                 <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                     <SectionHeader icon={Target} title="Академическая граница знаний (Диагностический срез)" />
@@ -1332,20 +1519,16 @@ export default function DiagnosticReportPage() {
               )}
 
               {/* ── Error-free attempt: verified skills instead of a "break point" ── */}
-              {errorFree && (
+              {errorFree && achievements.length > 0 && (
                 <div className="bg-white rounded-2xl border border-emerald-200/80 p-6 shadow-2xs space-y-3" data-testid="diagnostic-report-skills-error-free">
                   <SectionHeader icon={Anchor} title="Подтверждённые навыки" count={achievements.length} />
-                  {achievements.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {achievements.map((item) => (
-                        <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg">
-                          {item.skill_name_ru}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-500">Подтверждённые навыки не определены.</p>
-                  )}
+                  <div className="flex flex-wrap gap-2">
+                    {achievements.map((item) => (
+                      <span key={item.skill_id} className="text-xs font-medium bg-emerald-50/80 border border-emerald-200/70 text-emerald-900 px-2.5 py-1 rounded-lg break-words">
+                        {item.skill_name_ru}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1477,6 +1660,22 @@ export default function DiagnosticReportPage() {
           )}
 
           {/* ── TAB 3: Student Action Plan (Learning Roadmap Timeline) ── */}
+          {activeTab === "plan" && (tabs?.plan === "error_free_no_plan" || tabs?.plan === "error_free_with_step") && (
+            <motion.div variants={fade}>
+              <TabNotice
+                testId="diagnostic-report-plan-not-needed"
+                tone="emerald"
+                icon={Award}
+                title={PLAN_NOT_NEEDED_TEXT}
+                text={tabs.plan === "error_free_with_step" ? "Ниже — следующий шаг развития." : undefined}
+              />
+            </motion.div>
+          )}
+          {activeTab === "plan" && tabs?.plan === "not_built" && (
+            <motion.div variants={fade}>
+              <TabNotice testId="diagnostic-report-plan-empty" icon={ListChecks} title={PLAN_NOT_BUILT_TEXT} />
+            </motion.div>
+          )}
           {activeTab === "plan" && rj.action_plan.length > 0 && (() => {
             // Durations are shown only when the report really carries them (it normally does not).
             const totalHours = knownPlanHours(rj.action_plan);
@@ -1662,6 +1861,8 @@ export default function DiagnosticReportPage() {
               </motion.div>
             );
           })()}
+
+          </div>{/* /tabpanel */}
 
         </motion.div>
       )}

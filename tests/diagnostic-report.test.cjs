@@ -244,3 +244,21 @@ test("stale / degraded notes: legacy only when the backend says not current and 
   assert.equal(R.reportMetaInfo({ is_current_schema: true }, { report_meta: { degraded: [] } }).degraded, false);
   assert.equal(R.reportMetaInfo(null, null).degraded, false);
 });
+
+test("error screens: 403 / 404 have their own text and no «Повторить»; other errors retry", () => {
+  for (const subject of ["diagnostic", "report"]) {
+    const forbidden = R.loadErrorInfo(403, "Forbidden", subject);
+    const missing = R.loadErrorInfo(404, "Not found", subject);
+    assert.equal(forbidden.retryable, false);
+    assert.equal(missing.retryable, false);
+    assert.notEqual(forbidden.title, missing.title);
+    assert.equal(forbidden.text.includes("Forbidden"), false); // backend text is not shown for 403 / 404
+    assert.equal(missing.text.includes("Not found"), false);
+    const server = R.loadErrorInfo(500, "Сервис недоступен", subject);
+    assert.equal(server.retryable, true);
+    assert.equal(server.text, "Сервис недоступен");
+  }
+  assert.equal(R.loadErrorInfo(0, "", "diagnostic").retryable, true);
+  assert.equal(R.loadErrorInfo(null, null, "report").text, "Не удалось загрузить отчёт. Повторите попытку.");
+  assert.equal(R.loadErrorInfo(undefined, "  ", "diagnostic").title, "Не удалось открыть диагностику");
+});

@@ -299,3 +299,38 @@ export function reportMetaInfo(
     degraded,
   };
 }
+
+// ─── N04a: load error screens ─────────────────────────────────────────────────
+
+export interface LoadErrorInfo {
+  title: string;
+  text: string;
+  /** «Повторить» is offered only when repeating can help (not for 403 / 404). */
+  retryable: boolean;
+}
+
+/**
+ * Text of the error screen. `subject` is what failed to load: the diagnostic invite
+ * (the page cannot open) or the report of an opened diagnostic.
+ */
+export function loadErrorInfo(
+  status: number | null | undefined,
+  message: string | null | undefined,
+  subject: "diagnostic" | "report",
+): LoadErrorInfo {
+  if (status === 403) {
+    return subject === "diagnostic"
+      ? { title: "Нет доступа к этой диагностике", text: "У вашей учётной записи нет прав на просмотр этой диагностики. Если это ошибка, обратитесь к администратору.", retryable: false }
+      : { title: "Нет доступа к отчёту", text: "У вашей учётной записи нет прав на просмотр отчёта этого ученика.", retryable: false };
+  }
+  if (status === 404) {
+    return subject === "diagnostic"
+      ? { title: "Диагностика не найдена", text: "Такой диагностики нет или она была удалена. Вернитесь к списку и выберите другую.", retryable: false }
+      : { title: "Отчёт не найден", text: "Для этой попытки отчёт не найден.", retryable: false };
+  }
+  return {
+    title: subject === "diagnostic" ? "Не удалось открыть диагностику" : "Отчёт временно недоступен",
+    text: message?.trim() || "Не удалось загрузить отчёт. Повторите попытку.",
+    retryable: true,
+  };
+}
