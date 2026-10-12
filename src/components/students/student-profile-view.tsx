@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,7 +14,8 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
-import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { DataLoadError } from "@/components/ui/data-load-error";
+import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 
 type ProfileTab = "diagnostics" | "info";
@@ -66,7 +67,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [attendanceMonth, setAttendanceMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
-  const [examsError, setExamsError] = useState<string | null>(null);
+  const [examsError, setExamsError] = useState<ExamHistoryError | null>(null);
   const [examsRetrying, setExamsRetrying] = useState(false);
 
   // Edit notes/phone state
@@ -75,13 +76,23 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [commentVal, setCommentVal] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
 
+  // The student currently on screen.  Responses are asynchronous: one that
+  // belongs to a previously opened student must never overwrite the new profile.
+  const studentIdRef = useRef(studentId);
+  useEffect(() => {
+    studentIdRef.current = studentId;
+  }, [studentId]);
+
   const loadProfile = useCallback(async () => {
     if (!studentId) return;
+    const isCurrent = () => studentIdRef.current === studentId;
     try {
       setLoading(true);
       setError(null);
       setExamsError(null);
+      setExamsRetrying(false);
       const data = await orgApi.getStudentProfile(studentId);
+      if (!isCurrent()) return;
       // Exam attempts live in exam-service, while the student, diagnostics and
       // group timeline live in auth-service. Do not make the whole profile
       // unavailable if the supplementary history request is temporarily down.
@@ -91,17 +102,18 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
       } catch (historyError) {
         console.error("Failed to load student exam history:", historyError);
         // Surface the failure: an empty list must not look like "no exams".
-        setExamsError(getDataLoadErrorMessage(historyError));
+        if (isCurrent()) setExamsError(toExamHistoryError(historyError));
       }
+      if (!isCurrent()) return;
       const profileWithHistory: StudentProfile = { ...data, exams };
       setProfile(profileWithHistory);
       setPhoneVal(profileWithHistory.student.student_phone || "");
       setCommentVal(profileWithHistory.student.comment || "");
     } catch (err: any) {
       console.error("Failed to load student profile:", err);
-      setError(err?.message || "Ученик не найден");
+      if (isCurrent()) setError(err?.message || "Ученик не найден");
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [studentId]);
 
@@ -111,16 +123,20 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
   const retryExams = useCallback(async () => {
     if (!studentId) return;
+    // Id captured at request time: a late answer for a previous student is dropped.
+    const requestedFor = studentId;
+    const isCurrent = () => studentIdRef.current === requestedFor;
     setExamsRetrying(true);
     try {
-      const exams = await examsApi.getStudentHistory(studentId);
+      const exams = await examsApi.getStudentHistory(requestedFor);
+      if (!isCurrent()) return;
       setProfile((prev) => (prev ? { ...prev, exams } : prev));
       setExamsError(null);
     } catch (err) {
       console.error("Failed to load student exam history:", err);
-      setExamsError(getDataLoadErrorMessage(err));
+      if (isCurrent()) setExamsError(toExamHistoryError(err));
     } finally {
-      setExamsRetrying(false);
+      if (isCurrent()) setExamsRetrying(false);
     }
   }, [studentId]);
 
@@ -420,9 +436,9 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
             {examsError ? (
               <DataLoadError
-                title="Не удалось загрузить экзамены"
-                message={examsError}
-                onRetry={retryExams}
+                title={examsError.title}
+                message={examsError.message}
+                onRetry={examsError.retryable ? retryExams : undefined}
                 isRetrying={examsRetrying}
               />
             ) : exams.length === 0 ? (

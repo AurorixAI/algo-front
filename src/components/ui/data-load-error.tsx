@@ -6,7 +6,8 @@ import { cn } from "@/lib/utils";
 interface DataLoadErrorProps {
   title?: string;
   message?: string | null;
-  onRetry: () => void;
+  /** Omit for a failure that repeating the request cannot fix (e.g. HTTP 403): no retry button. */
+  onRetry?: () => void;
   isRetrying?: boolean;
   compact?: boolean;
   className?: string;
@@ -37,7 +38,7 @@ export function DataLoadError({
       <div className={cn(compact ? "min-w-0 flex-1" : "") }>
         <p className="font-semibold">{title}</p>
         {message && <p className="mt-1 text-sm leading-5 text-rose-700">{message}</p>}
-        <button
+        {onRetry && <button
           type="button"
           onClick={onRetry}
           disabled={isRetrying}
@@ -48,7 +49,7 @@ export function DataLoadError({
         >
           <RefreshCw className={cn("h-4 w-4", isRetrying && "animate-spin")} />
           {isRetrying ? "Обновляем…" : "Повторить"}
-        </button>
+        </button>}
       </div>
     </div>
   );
