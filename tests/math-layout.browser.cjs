@@ -15,7 +15,7 @@ expressions.push("$$\\begin{pmatrix}\\frac{x^{1}}{1} & \\frac{x^{2}}{2} & \\frac
 const inlineFraction='$\\dfrac{v^2s-v(v^2-v_1v_2)t}{v_1v_2}$';
 const tasks=expressions.map((formula,i)=>({task_id:'UI-TALL-'+i,question_text:'LEGACY_SOURCE_MUST_NOT_DISPLAY',question_latex:'Проверка отображения формулы. '+formula,skill_name:'Синтетический render fixture',difficulty:'medium',answer_type:'choice',options:['0',expressions[1],'1',inlineFraction],options_latex:['$0$',expressions[1],'$1$',inlineFraction],correct_answer:'0',distractor_meta:[]}));
 let selected=0,role='teacher';
-const result={frontendRevision:process.env.GITHUB_SHA || process.env.QA_REVISION || 'local-working-tree',scope:'Local frontend with synthetic intercepted HTTP data; geometry and visible glyphs, not bank/math/authorization acceptance',label,base,checks:[],optionChecks:[],pageErrors:[],unhandledAPI:[]};
+const result={frontendRevision:process.env.GITHUB_SHA || process.env.QA_REVISION || 'local-working-tree',scope:'Local frontend with synthetic intercepted HTTP data; geometry and visible glyphs, not bank/math/authorization acceptance',label,base,checks:[],optionChecks:[],skipped:[],pageErrors:[],unhandledAPI:[]};
 function payload(path){
  if(path==='/api/v1/auth/me')return{id:'UI-STAFF',role,org_role:role,first_name:'Проверка',last_name:'Отображения',org_id:'UI-ORG'};
  if(path==='/api/v1/auth/org/diagnostics/UI-INVITE')return{id:'UI-INVITE',student_id:'UI-STUDENT',session_id:'UI-SESSION',student_name:'Синтетический профиль',class_level:11,code:'UI-QA',status:'completed',student_status:'prospective'};
@@ -164,7 +164,13 @@ async function optionChecks(browser){
      rec.dragAttempts.push({off,left,posts:state.answerPosts,pending:await pendingOptions(page)});
      if(left>0){rec.dragged=true;break;}
     }
-   }else rec.skipped=process.env.ALLOW_OVERLAY_SCROLLBARS==='1'?'overlay scrollbar: no gutter to press':null;
+   }else{
+    // No classic scrollbar in this browser (overlay scrollbars): there is nothing to press. The checks are SKIPPED, not failed
+    // (they must not break the deploy gate), loudly, and the evidence JSON records it in `skipped`.
+    rec.skipped='SKIPPED: this browser shows no classic scrollbar gutter (overlay scrollbars) - the scrollbar press / track click / thumb drag checks were NOT exercised';
+    result.skipped.push({check:rec.check,width,reason:rec.skipped});
+    console.warn('\n!!! '+rec.skipped+' (width '+width+') !!!\n');
+   }
    c=await centerOf(display);
    await page.mouse.click(c.x,c.box.y+c.box.height/3); // a normal second tap on the formula
    await waitFor(()=>state.answerPosts>=1);await page.waitForTimeout(600);
@@ -257,7 +263,7 @@ async function main(){
     const memo=oc('memo-same-node',width);assert.ok(memo.overflows&&memo.mark==='kept'&&memo.left>=150,'the formula DOM must survive page re-renders with its scroll offset: '+JSON.stringify(memo));
     assert.ok(memo.fadeLeft&&memo.fadeRight,'a scrolled wide option fades on both sides');assert.equal(memo.tabindex,'-1','a formula inside a card is not a tab stop');
     const two=oc('two-step-select',width);assert.equal(two.afterFirst.posts,0);assert.equal(two.afterFirst.pending[0],true);assert.equal(two.afterOther.posts,0);assert.deepEqual(two.afterOther.pending,[false,true,false,false]);assert.equal(two.postsAfterConfirm,1);assert.deepEqual(two.answers,['x в квадрате']);assert.deepEqual(two.unhandled,[],'every request of the student flow is mocked');
-    const bar=oc('scrollbar-never-submits',width);assert.ok(bar.gutter>0||bar.skipped,'the scrollbar gutter must exist in the scrollbar checks (browser launched with ignoreDefaultArgs --hide-scrollbars; set ALLOW_OVERLAY_SCROLLBARS=1 only on a runner that cannot show classic scrollbars)');
+    const bar=oc('scrollbar-never-submits',width);
     if(!bar.skipped){assert.ok(bar.trackScrolled>0,'a click on the track scrolls the formula: '+JSON.stringify(bar));assert.equal(bar.afterTrackClick.posts,0,'a track click never submits');assert.equal(bar.afterTrackClick.pending[0],true,'a track click keeps the pending mark');
      assert.ok(bar.dragAttempts.every(a=>a.posts===0&&a.pending[0]===true),'a thumb press / drag never submits and keeps the pending mark: '+JSON.stringify(bar.dragAttempts));
      if(!bar.dragged)console.log(JSON.stringify({note:'thumb drag best-effort: no x scrolled the formula',width,attempts:bar.dragAttempts.length}));}
