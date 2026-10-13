@@ -47,6 +47,18 @@ test("formatSolved", () => {
   assert.equal(L.formatSolved(3, 0), null);
 });
 
+test("formatSolvedMixed: «Решено N из M заданий разной трудности» with the right genitive after «из»", () => {
+  assert.equal(L.formatSolvedMixed(5, 25), "Решено 5 из 25 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(0, 12), "Решено 0 из 12 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(7, 11), "Решено 7 из 11 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(7, 21), "Решено 7 из 21 задания разной трудности");
+  assert.equal(L.formatSolvedMixed(1, 1), "Решено 1 из 1 задания разной трудности");
+  assert.equal(L.formatSolvedMixed(null, 30), null);
+  assert.equal(L.formatSolvedMixed(3, 0), null);
+  assert.equal(L.formatSolvedMixed(-1, 5), null);
+  assert.equal(L.formatSolvedMixed(3, 12).includes("%"), false);
+});
+
 test("resolveReportLevel prefers report.level, falls back to legacy fields", () => {
   const withLevel = L.resolveReportLevel({
     level: { category: "at_grade", status: "on_level", class_equivalent: "конец 8 класса", provisional: true, solved: 6, total: 30 },

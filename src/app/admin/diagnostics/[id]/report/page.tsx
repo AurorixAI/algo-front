@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import {
-  LEVEL_TONES, PROVISIONAL_LABEL, formatSolved, levelStatusLabel, levelStatusTone, resolveReportLevel,
-  type LevelToneClasses, type ReportLevel,
-} from "@/lib/diagnostic-level";
+import { levelStatusLabel, resolveReportLevel, type ReportLevel } from "@/lib/diagnostic-level";
+import { ReportScoreHeader } from "@/components/diagnostics/report-score-header";
 import {
   CHAIN_INFERRED_TEXT, JOURNAL_UNAVAILABLE_LEGACY_TEXT, JOURNAL_UNAVAILABLE_TEXT, PLAN_NOT_NEEDED_TEXT,
   breakpointCopy, clampPage, createReportPoller, degradedNote, errorsLabel, hasBoundaryData, hoursLabel, isDevelopmentStep,
   isErrorFreeReport, isInferredChain, knownPlanHours, loadErrorInfo, normalizeReportJson, pagerItems, planNotBuiltText, recommendedStartName,
-  reportIdentity, reportJsonState, reportMetaInfo, reportScorePercent, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
+  reportIdentity, reportJsonState, reportMetaInfo, reportWrongCount, resolveAchievements, skillsEmptyText, stagesLabel,
   stepHours, stepOutcomeState, stepsLabel, tabContentState,
   type ReportPollerState,
 } from "@/lib/diagnostic-report";
@@ -212,21 +210,6 @@ interface ReportJson {
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 // Level colours come from the shared dictionary (src/lib/diagnostic-level.ts).
-const NEUTRAL_TONE: LevelToneClasses = {
-  text: "text-slate-700",
-  badge: "bg-slate-100 border-slate-200 text-slate-700",
-  soft: "bg-slate-50",
-  dot: "bg-slate-400",
-  ping: "bg-slate-300",
-  ring: "text-slate-400",
-  track: "#e2e8f0",
-  cardBg: "bg-gradient-to-r from-slate-50 via-white to-white",
-  cardBorder: "border-slate-200/80",
-};
-// A report without a known level is shown neutral, never as a good (green) level.
-const toneForStatus = (status?: string | null): LevelToneClasses =>
-  levelStatusTone(status) ?? NEUTRAL_TONE;
-
 const SKILL_STATUS_CFG = {
   developing: { label: "Развивается", bar: "bg-amber-400",  text: "text-amber-700",  bg: "bg-amber-50/60"  },
   unstable:   { label: "Нестабильно", bar: "bg-orange-400", text: "text-orange-700", bg: "bg-orange-50/60" },
@@ -241,29 +224,6 @@ const EVAL_CATEGORY_CFG: Record<string, { label: string; color: string }> = {
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function CircularScore({ score, status }: { score: number | null; status?: string | null }) {
-  const cfg = toneForStatus(status);
-  const r = 46, circ = 2 * Math.PI * r;
-  const shown = score ?? 0;
-  return (
-    <div className="relative flex items-center justify-center w-28 h-28 flex-shrink-0">
-      <svg viewBox="0 0 112 112" className="absolute inset-0 w-full h-full -rotate-90 drop-shadow-sm">
-        <circle cx="56" cy="56" r={r} fill="none" stroke={cfg.track} strokeWidth="10" />
-        <circle cx="56" cy="56" r={r} fill="none" stroke="currentColor"
-          strokeWidth="10" strokeLinecap="round"
-          strokeDasharray={`${(shown / 100) * circ} ${circ}`}
-          className={cfg.ring}
-          style={{ transition: "stroke-dasharray 1.2s ease" }}
-        />
-      </svg>
-      <div className="relative text-center select-none">
-        <div className="text-2xl font-black text-slate-900 tracking-tight">{score === null ? "—" : `${score}%`}</div>
-        <div className="text-[9px] text-slate-400 font-bold tracking-widest uppercase mt-0.5">Результат</div>
-      </div>
-    </div>
-  );
-}
 
 function SectionHeader({ icon: Icon, title, count, action }: { icon: any; title: string; count?: number; action?: React.ReactNode }) {
   return (
@@ -594,11 +554,8 @@ export default function DiagnosticReportPage() {
   const breakpoint = breakpointCopy(rj?.diagnostic_boundary, rj?.report_meta, rj?.root_cause_chains);
   // report_json arrived but is not a report object (string, list ...): not renderable, not poll-able
   const reportInvalid = !rj && reportJsonState(report?.report_json) === "invalid";
-  const scorePercent = rj ? reportScorePercent(rj) : null;
   const wrongCount = rj ? reportWrongCount(rj.report_meta) : null;
   const levelText = rj ? ((level?.status && levelStatusLabel(level.status)) || rj.overall.status_label_ru || null) : null;
-  const cfg = rj ? toneForStatus(level?.status) : null;
-  const solvedText = level ? formatSolved(level.solved, level.total) : null;
   const tabDefs: Array<{
     key: ReportTab; label: string; Icon: any; iconClass: string; badge: number; badgeClass: string;
   }> = [
@@ -871,62 +828,17 @@ export default function DiagnosticReportPage() {
             </motion.div>
           )}
 
-          {/* ── BLOCK 1: Hero Score Card ─────────────────── */}
-          <motion.div
-            variants={fade}
-            data-testid="diagnostic-report-score-card"
-            className={`rounded-2xl border p-4 sm:p-6 shadow-sm relative overflow-hidden ${cfg!.cardBg} ${cfg!.cardBorder}`}
-          >
-            <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
-              {/* Circular Score */}
-              <CircularScore score={scorePercent} status={level?.status ?? rj.overall.status} />
-
-              {/* Status Pill Badge */}
-              <div className="w-full min-w-0 flex flex-col items-center justify-center sm:w-auto sm:flex-1 sm:items-start">
-                {levelText && (
-                  <div data-testid="diagnostic-report-level" className={`inline-flex max-w-full min-w-0 items-center gap-2.5 px-4 py-2 rounded-full text-sm font-bold border shadow-sm ${cfg!.badge}`}>
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${cfg!.ping}`} />
-                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${cfg!.dot}`} />
-                    </span>
-                    <span className="min-w-0 break-words text-center sm:text-left">
-                      {levelText}
-                    </span>
-                  </div>
-                )}
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs text-slate-600 sm:justify-start">
-                  {level?.provisional && (
-                    <span data-testid="diagnostic-report-provisional" className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
-                      {PROVISIONAL_LABEL}
-                    </span>
-                  )}
-                  {solvedText && <span data-testid="diagnostic-report-solved">{solvedText}</span>}
-                </div>
-              </div>
-
-              {/* Right Stat Cards */}
-              <div className="hidden xl:flex items-center gap-3 flex-shrink-0">
-                <div className="flex items-center gap-3 px-4 py-3 bg-white/90 backdrop-blur border border-emerald-100 rounded-2xl shadow-sm">
-                  <div className="w-9 h-9 rounded-xl bg-emerald-100/80 flex items-center justify-center text-emerald-600">
-                    <CheckCircle2 className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-black text-slate-900 leading-none">{rj.report_meta.questions_correct ?? "—"}</div>
-                    <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Верных</div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 px-4 py-3 bg-white/90 backdrop-blur border border-rose-100 rounded-2xl shadow-sm">
-                  <div className="w-9 h-9 rounded-xl bg-rose-100/80 flex items-center justify-center text-rose-600">
-                    <XCircle className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-lg font-black text-slate-900 leading-none">{wrongCount ?? "—"}</div>
-                    <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mt-1">Ошибок</div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {/* ── BLOCK 1: Hero level card (level first; solved count, no percentage) ── */}
+          <motion.div variants={fade}>
+            <ReportScoreHeader
+              status={level?.status}
+              levelText={levelText}
+              provisional={level?.provisional === true}
+              solved={level?.solved}
+              total={level?.total}
+              correct={rj.report_meta.questions_correct}
+              wrong={wrongCount}
+            />
           </motion.div>
 
           {/* ── BLOCK 2: AI Student Summary ─────────────────────────────────── */}
