@@ -50,7 +50,6 @@ import {
 import { analyticsApi, orgApi } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
-import { ScrollHint } from "@/components/ui/scroll-hint";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { pickAnswerDisplayText } from "@/lib/task-display";
 import {
@@ -1084,13 +1083,13 @@ export default function DiagnosticReportPage() {
                                           isStudentAnswer ? "bg-rose-500 text-white shadow-2xs" :
                                           "bg-slate-100 text-slate-500"
                                         }`}>{String.fromCharCode(65 + oi)}</span>
-                                        <ScrollHint className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar">
+                                        <div className="flex-1 min-w-0 py-0.5">
                                           <MathRenderer
                                             text={pickAnswerDisplayText(item.opt, item.latex)}
                                             block
                                             className="min-w-0 max-w-full text-[14px] sm:text-[14.5px] leading-snug break-words font-normal text-slate-800"
                                           />
-                                        </ScrollHint>
+                                        </div>
                                         {isCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />}
                                         {isStudentAnswer && !isCorrect && <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />}
                                       </div>
@@ -1106,9 +1105,9 @@ export default function DiagnosticReportPage() {
                                     </span>
                                     <div className="flex-1 min-w-0 space-y-1">
                                       <div className="text-[11px] sm:text-xs font-semibold text-rose-700 break-words">{unmatchedAnswerLabel(err.answer_type, uniqueOptions.length)}</div>
-                                      <ScrollHint className="min-w-0 max-w-full overflow-x-auto overflow-y-hidden no-scrollbar">
+                                      <div className="min-w-0 max-w-full">
                                         <MathRenderer block text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="min-w-0 max-w-full break-words font-normal text-[14px] sm:text-[14.5px] leading-snug text-slate-800" />
-                                      </ScrollHint>
+                                      </div>
                                     </div>
                                     <XCircle className="w-4 h-4 text-rose-500 flex-shrink-0" />
                                   </div>

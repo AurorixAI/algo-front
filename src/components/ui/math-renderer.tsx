@@ -605,7 +605,8 @@ export function MathRenderer({
   const ref = useRef<HTMLElement | null>(null);
   useMathFit(ref, html, block);
   // edge fade on the side that hides content + keyboard scroll region while it overflows (scroll-hint.tsx)
-  useScrollHint(ref, html, { selector: ".katex-display", includeRoot: block, focusable });
+  // an inline renderer without display math has nothing that scrolls: no observers for it
+  useScrollHint(ref, html, { selector: ".katex-display", includeRoot: block, focusable, enabled: block || html.includes("katex-display") });
   return (
     <Tag
       ref={ref as React.Ref<HTMLDivElement & HTMLSpanElement>}

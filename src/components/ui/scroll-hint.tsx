@@ -72,23 +72,50 @@ export interface ScrollHintOptions {
   selector?: string;
   /** the root itself scrolls */
   includeRoot?: boolean;
-  /** make an overflowing box a keyboard scroll region (false inside buttons / links) */
+  /**
+   * Make an overflowing box a keyboard scroll region (tabindex 0, role, aria-label). Forced to false
+   * inside a button / link (a focusable region cannot nest in one): there the box gets tabindex -1 so Tab
+   * skips it. KNOWN LIMITATION: inside a button / link the hidden part of a formula cannot be scrolled
+   * with the keyboard - the card itself is the control, its formula is reachable by wheel, touch and the
+   * scrollbar only.
+   */
   focusable?: boolean;
+  /** attach at all (an inline renderer without display math has nothing to scroll) */
+  enabled?: boolean;
+}
+
+// One ResizeObserver for the whole page: every attached root registers a "re-measure" callback, the
+// observer finds it through the observed element or its ancestors. (MutationObserver has no per-target
+// unobserve, so each root keeps its own.)
+const remeasure = new Map<Element, () => void>();
+let sharedResizeObserver: ResizeObserver | null = null;
+function notify(el: Element | null) {
+  for (let node: Element | null = el; node; node = node.parentElement) remeasure.get(node)?.();
+}
+function resizeObserver(): ResizeObserver | null {
+  if (typeof ResizeObserver === "undefined") return null;
+  if (!sharedResizeObserver) sharedResizeObserver = new ResizeObserver((entries) => entries.forEach((entry) => notify(entry.target)));
+  return sharedResizeObserver;
 }
 
 /**
  * Attach the affordance; returns the cleanup (listeners off, attributes removed).
  * Scroll is captured on the root (scroll does not bubble, but it can be captured), and the boxes are
  * re-collected on every measure, so a KaTeX block that is replaced or laid out later is never missed.
+ * Only the scroll boxes themselves are observed for size changes; a content change inside them is
+ * caught by the MutationObserver, new glyph metrics by document.fonts.ready.
  */
 export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions = {}): () => void {
-  const { selector = ".katex-display", includeRoot = true, focusable = true } = options;
+  const { selector = ".katex-display", includeRoot = true } = options;
+  // a focusable scroll region cannot sit inside a button / link
+  const interactive = typeof root.closest === "function" && Boolean(root.closest("button, a"));
+  const focusable = options.focusable !== false && !interactive;
   const marked = new Set<HTMLElement>();
   const observed = new Set<Element>();
+  const ro = resizeObserver();
   let boxes: HTMLElement[] = [];
   let raf = 0;
   let stopped = false;
-  const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => schedule());
 
   const collect = () => {
     boxes = [
@@ -96,12 +123,16 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
       ...(selector ? Array.from(root.querySelectorAll<HTMLElement>(selector)) : []),
     ];
     boxes.forEach((box) => {
-      [box, ...Array.from(box.children)].forEach((el) => {
-        if (!observed.has(el)) {
-          observed.add(el);
-          resizeObserver?.observe(el);
-        }
-      });
+      if (!observed.has(box)) {
+        observed.add(box);
+        ro?.observe(box);
+      }
+    });
+    observed.forEach((box) => {
+      if (!boxes.includes(box as HTMLElement)) {
+        ro?.unobserve(box);
+        observed.delete(box);
+      }
     });
   };
   const measure = () => {
@@ -138,6 +169,7 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
     if (isBox(event.target)) refresh(event.target, focusable);
   };
 
+  remeasure.set(root, schedule);
   root.addEventListener("scroll", onScroll, { capture: true, passive: true });
   const mutationObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(() => schedule());
   mutationObserver?.observe(root, { childList: true, subtree: true });
@@ -148,8 +180,10 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
   return () => {
     stopped = true;
     if (raf) window.cancelAnimationFrame(raf);
+    remeasure.delete(root);
     root.removeEventListener("scroll", onScroll, { capture: true });
-    resizeObserver?.disconnect();
+    observed.forEach((box) => ro?.unobserve(box));
+    observed.clear();
     mutationObserver?.disconnect();
     marked.forEach((box) => {
       box.removeAttribute("data-sh-left");
@@ -160,17 +194,26 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
   };
 }
 
-/** `key` re-attaches when the rendered content changes (e.g. the math HTML). */
+const NO_KEY = Symbol("no key");
+
+/**
+ * `key` re-attaches when the rendered content changes (e.g. the math HTML); a changed key on the same
+ * instance also brings the root back to scrollLeft 0 (new content must not open scrolled to the old offset).
+ */
 export function useScrollHint(
   ref: React.RefObject<HTMLElement | null>,
   key: unknown,
-  { selector = ".katex-display", includeRoot = true, focusable = true }: ScrollHintOptions = {},
+  { selector = ".katex-display", includeRoot = true, focusable = true, enabled = true }: ScrollHintOptions = {},
 ) {
+  const lastKey = useRef<unknown>(NO_KEY);
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    const changed = lastKey.current !== NO_KEY && lastKey.current !== key;
+    lastKey.current = key;
+    if (!el || !enabled) return;
+    if (changed && includeRoot) el.scrollLeft = 0;
     return attachScrollHints(el, { selector, includeRoot, focusable });
-  }, [ref, key, selector, includeRoot, focusable]);
+  }, [ref, key, selector, includeRoot, focusable, enabled]);
 }
 
 /**

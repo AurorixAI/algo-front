@@ -206,6 +206,15 @@ body {
   border-radius: 0.5rem;
 }
 
+/* the edge fade is a screen cue: never print it (a masked edge would print as a cut-off formula) */
+@media print {
+  [data-sh-left],
+  [data-sh-right] {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   .math-renderer.math-block,
   .math-renderer .katex-display,

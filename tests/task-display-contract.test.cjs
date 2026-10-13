@@ -287,12 +287,26 @@ test("contract: every math overflow container uses the affordance", () => {
     }
   })(root);
   assert.deepEqual(offenders, [], "no-scrollbar boxes must be <ScrollHint>");
-  // the student / exam option cards: fade only inside the button, and the formula can be scrolled
+  // the student / exam option cards: the block MathRenderer scrolls itself (no wrapper that never overflows),
+  // fade only inside the button, and the formula can be scrolled
   const grid = fs.readFileSync(path.join(root, "components/ui/option-grid.tsx"), "utf8");
-  assert.ok(grid.includes("<ScrollHint focusable={false}") && grid.includes("focusable={false}"));
-  assert.equal(/pointer-events-none/.test(grid), false, "pointer-events-none would block wheel / touch scrolling of the formula");
+  assert.ok(grid.includes("focusable={false}"));
+  assert.equal(/<ScrollHint|no-scrollbar/.test(grid), false, "OptionGrid: the MathRenderer is the scroller, no redundant wrapper");
+  assert.equal(/pointer-events-none/.test(grid.replace(/\/\*[\s\S]*?\*\//g, "")), false, "pointer-events-none would block wheel / touch scrolling of the formula");
   const report = fs.readFileSync(path.join(root, "app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
-  assert.ok((report.match(/<ScrollHint/g) || []).length >= 2);
+  assert.equal(/<ScrollHint/.test(report), false, "report page: block renderers scroll themselves");
+  // the one wrapper that IS the scroller: an inline renderer inside an overflow box
+  const exam = fs.readFileSync(path.join(root, "app/teacher/exams/[id]/page.tsx"), "utf8");
+  assert.ok(/<ScrollHint[^>]*overflow-x-auto/.test(exam));
+  // print: the fade mask is a screen cue only
+  assert.ok(/@media print\s*\{[^}]*\[data-sh-left\][\s\S]*?mask-image:\s*none/.test(css));
+  // inline renderers without display math are not observed; observers are shared / per root, not per child
+  assert.ok(mathRenderer.includes('enabled: block || html.includes("katex-display")'));
+  const hint = fs.readFileSync(path.join(root, "components/ui/scroll-hint.tsx"), "utf8");
+  assert.equal(/box\.children/.test(hint), false, "only the scroll boxes are observed");
+  assert.ok(hint.includes("sharedResizeObserver") && hint.includes('root.closest("button, a")'));
+  assert.ok(hint.includes("el.scrollLeft = 0"), "new content on the same instance opens at scrollLeft 0");
+  assert.ok(hint.includes("KNOWN LIMITATION"), "the keyboard limitation inside buttons is documented");
 });
 
 test("attachScrollHints: a KaTeX display block inside the renderer gets its own edge flags (scroll captured on the root)", () => {
@@ -332,8 +346,9 @@ test("OptionGrid: the card (button) owns the click; the formula inside keeps poi
   assert.ok(/onClick=\{/.test(button), "onClick is on the <button> card");
   assert.ok(/handleClick\(opt\.key\)/.test(grid));
   // the content inside: no pointer handlers of its own, pointer events not disabled, text not selectable
-  const inner = grid.slice(grid.indexOf("<ScrollHint"), grid.indexOf("</ScrollHint>"));
-  assert.ok(inner.includes("<MathRenderer"));
+  const innerStart = grid.indexOf('<div className={cn("min-w-0 flex-1 py-0.5"');
+  const inner = grid.slice(innerStart, grid.indexOf("</div>", innerStart));
+  assert.ok(innerStart > 0 && inner.includes("<MathRenderer"));
   for (const handler of ["onClick", "onPointerDown", "onMouseDown", "onTouchStart", "onTouchEnd", "stopPropagation", "pointer-events-none"]) {
     assert.equal(inner.includes(handler), false, `the formula must not carry ${handler}`);
   }
@@ -341,6 +356,120 @@ test("OptionGrid: the card (button) owns the click; the formula inside keeps poi
   // the scroller inside a button is not a tab stop (focusable={false}) and the card keeps the focus after a tap
   assert.ok(inner.includes("focusable={false}"));
   assert.ok(/document\.activeElement !== card\) card\.focus/.test(grid));
-  // two-step selection is unchanged: first tap = pending, second tap on the same option = onSelect
-  assert.ok(/if \(pending === answerValue\) \{\s*onSelect\(answerValue\);\s*return;\s*\}\s*setPending\(answerValue\);/.test(grid));
+  // two-step selection: resolveOptionTap (tested): first tap = pending, second tap on the same option = onSelect, mark cleared
+  assert.ok(/const tap = resolveOptionTap\(pending, answerValue, disabled\);\s*setPending\(tap\.pending\);\s*if \(tap\.confirm\) onSelect\(answerValue\);/.test(grid));
+  // a click that comes from a scrollbar / a pan of the formula is not a tap: recorded on press (capture), checked on click
+  assert.ok(/onPointerDownCapture/.test(button) && /onMouseDownCapture/.test(button));
+  assert.ok(/shouldIgnoreCardClick\(\{/.test(grid) && /keyboard: event\.detail === 0/.test(grid));
+});
+
+test("exam page: one advance per pause (a fast extra tap cannot skip a question)", () => {
+  const exam = fs.readFileSync(path.join(__dirname, "..", "src/app/e/[code]/page.tsx"), "utf8");
+  assert.ok(exam.includes("createAdvanceOnce(") && exam.includes("advanceRef.current?.request()"));
+  assert.equal(/setTimeout\(\(\) => goNext\(\), 180\)/.test(exam), false);
+  assert.ok(exam.includes("advanceRef.current?.cancel()"), "pending advance is dropped on unmount");
+});
+
+// ─── Option taps, scrollbar clicks, advance-once ──────────────────────────────
+
+const { resolveOptionTap, createAdvanceOnce } = require(path.join(__dirname, "../src/lib/option-tap.ts"));
+const edgesLib = require(path.join(__dirname, "../src/lib/scroll-edges.ts"));
+
+test("two-step option selection: pending, confirm once, mark cleared", () => {
+  let state = { pending: null, confirm: false };
+  const tap = (value, disabled = false) => { state = resolveOptionTap(state.pending, value, disabled); return state; };
+  assert.deepEqual(tap("A"), { pending: "A", confirm: false });   // 1st tap: pending
+  assert.deepEqual(tap("A"), { pending: null, confirm: true });   // 2nd tap on the same option: confirm, mark cleared
+  assert.deepEqual(tap("A"), { pending: "A", confirm: false });   // a quick 3rd tap starts a new pending step, it does not confirm again
+  assert.deepEqual(tap("B"), { pending: "B", confirm: false });   // another option moves the mark
+  assert.deepEqual(tap("C"), { pending: "C", confirm: false });
+  assert.deepEqual(tap("C"), { pending: null, confirm: true });
+  // count confirms over a burst of 6 taps on one option: 3, not 5
+  state = { pending: null, confirm: false };
+  let confirms = 0;
+  for (let i = 0; i < 6; i++) if (tap("A").confirm) confirms += 1;
+  assert.equal(confirms, 3);
+  // disabled: nothing changes, nothing confirms
+  state = { pending: "A", confirm: false };
+  assert.deepEqual(resolveOptionTap("A", "A", true), { pending: "A", confirm: false });
+  assert.deepEqual(resolveOptionTap(null, "B", true), { pending: null, confirm: false });
+});
+
+test("exam advance: at most one goNext per pause, cancel drops it", () => {
+  const timers = new Map();
+  let id = 0;
+  let advanced = 0;
+  const once = createAdvanceOnce({
+    setTimeout: (fn) => { timers.set(++id, fn); return id; },
+    clearTimeout: (h) => timers.delete(h),
+    delayMs: 180,
+    advance: () => { advanced += 1; },
+  });
+  assert.equal(once.request(), true);
+  assert.equal(once.request(), false); // a fast extra confirm while one advance is scheduled
+  assert.equal(once.request(), false);
+  assert.equal(timers.size, 1);
+  [...timers.values()].forEach((fn) => fn());
+  timers.clear();
+  assert.equal(advanced, 1, "exactly one advance, not three");
+  assert.equal(once.request(), true); // the next pause may schedule again
+  once.cancel();
+  assert.equal(timers.size, 0);
+  assert.equal(advanced, 1);
+  once.cancel(); // idempotent
+});
+
+test("scrollbar clicks and pans are not taps on an option card", () => {
+  const box = { clientWidth: 222, clientHeight: 66, offsetWidth: 222, offsetHeight: 72 }; // 6px horizontal scrollbar
+  const tallBox = { clientWidth: 216, clientHeight: 66, offsetWidth: 222, offsetHeight: 66 }; // 6px vertical scrollbar
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, box), true);   // on the horizontal scrollbar
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 30 }, box), false);  // on the formula
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 65 }, box), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 219, offsetY: 10 }, tallBox), true);
+  // overlay scrollbar (no gutter): only a box that overflows horizontally, only its bottom strip
+  const overlay = { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72, scrollWidth: 1500 };
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, overlay), true);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX }, overlay), true);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX - 1 }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 30 }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, { ...overlay, scrollWidth: 222 }), false); // nothing overflows: no scrollbar
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72 }), false); // scrollWidth unknown
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: Number.NaN, offsetY: 69 }, box), false);
+  assert.equal(edgesLib.scrollMoved([0, 10], [0, 10]), false);
+  assert.equal(edgesLib.scrollMoved([0, 10], [0, 10.3]), false);
+  assert.equal(edgesLib.scrollMoved([0, 10], [80, 10]), true);
+  assert.equal(edgesLib.scrollMoved([0], [0, 0]), true);
+  const down = (over = {}) => ({ at: 1000, inGutter: false, scrolls: [0], ...over });
+  const ignore = (over = {}) => edgesLib.shouldIgnoreCardClick({ keyboard: false, down: down(), clickInGutter: false, scrollsNow: [0], now: 1100, ...over });
+  assert.equal(ignore(), false);                                   // a normal tap
+  assert.equal(ignore({ down: down({ inGutter: true }) }), true);  // pressed on the scrollbar (thumb drag / track click)
+  assert.equal(ignore({ clickInGutter: true }), true);             // clicked on the scrollbar
+  assert.equal(ignore({ scrollsNow: [120] }), true);               // the formula was scrolled between press and click
+  assert.equal(ignore({ down: null }), false);                     // no press recorded
+  assert.equal(ignore({ down: null, clickInGutter: true }), true);
+  assert.equal(ignore({ keyboard: true, down: down({ inGutter: true }), clickInGutter: true, scrollsNow: [500] }), false); // Enter / Space are always real
+  assert.equal(ignore({ down: down({ at: 1000, inGutter: true }), now: 1000 + edgesLib.CARD_PRESS_MAX_AGE_MS + 1 }), false); // a stale press is not this click's press
+});
+
+test("attachScrollHints: a box inside a button / link is never a focusable region, whatever the option says", () => {
+  global.window = { requestAnimationFrame: (fn) => { fn(); return 1; }, cancelAnimationFrame: () => {} };
+  global.document = {};
+  try {
+    const { attachScrollHints } = require(path.join(__dirname, "../src/components/ui/scroll-hint.tsx"));
+    const inCard = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    inCard.closest = (sel) => (/button/.test(sel) ? {} : null);
+    const stop = attachScrollHints(inCard, { selector: "", focusable: true });
+    assert.equal(inCard.getAttribute("tabindex"), "-1");
+    assert.equal(inCard.hasAttribute("aria-label"), false);
+    assert.equal(inCard.hasAttribute("role"), false);
+    stop();
+    const free = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    free.closest = () => null;
+    const stop2 = attachScrollHints(free, { selector: "", focusable: true });
+    assert.equal(free.getAttribute("tabindex"), "0");
+    stop2();
+  } finally {
+    delete global.window;
+    delete global.document;
+  }
 });

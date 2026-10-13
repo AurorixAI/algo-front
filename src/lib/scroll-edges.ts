@@ -36,3 +36,72 @@ export function overflowEdgeState(m: ScrollMetrics, tolerance: number = SCROLL_E
   const at = Math.min(Math.max(0, finite(m.scrollLeft) ? Math.abs(m.scrollLeft) : 0), max);
   return { overflows: true, left: at > tolerance, right: max - at > tolerance };
 }
+
+// ─── Clicks that are not taps on an option card ───────────────────────────────
+
+export interface BoxMetrics {
+  clientWidth: number;
+  clientHeight: number;
+  offsetWidth: number;
+  offsetHeight: number;
+  scrollWidth?: number;
+}
+
+/** Overlay scrollbars (macOS, touch-style) take no gutter: they are painted over the bottom edge of the box. */
+export const OVERLAY_SCROLLBAR_ZONE_PX = 14;
+
+/**
+ * Is a pointer position (offsetX / offsetY of an event whose target is the scroller itself) on the
+ * scrollbar of that scroller? Clicks on a scrollbar are dispatched to the scroller and bubble like a click
+ * on its content; they must never count as a tap on the option inside which it sits.
+ *  - classic scrollbar: the gutter, offsetY in [clientHeight, offsetHeight] (or offsetX on the right);
+ *  - overlay scrollbar (no gutter) on a box that overflows horizontally: the bottom OVERLAY_SCROLLBAR_ZONE_PX
+ *    of the padding box, where the overlay thumb / track is painted.
+ */
+export function isScrollbarGutterHit(hit: { offsetX: number; offsetY: number }, box: BoxMetrics): boolean {
+  if (!hit || !box || !finite(hit.offsetX) || !finite(hit.offsetY)) return false;
+  const bottom = box.offsetHeight > box.clientHeight && hit.offsetY >= box.clientHeight && hit.offsetY <= box.offsetHeight;
+  const right = box.offsetWidth > box.clientWidth && hit.offsetX >= box.clientWidth && hit.offsetX <= box.offsetWidth;
+  const overlay =
+    box.offsetHeight <= box.clientHeight &&
+    finite(box.scrollWidth) && (box.scrollWidth as number) > box.clientWidth + 1 &&
+    hit.offsetY >= box.clientHeight - OVERLAY_SCROLLBAR_ZONE_PX && hit.offsetY <= box.clientHeight;
+  return bottom || right || overlay;
+}
+
+/** Did any of the inner scrollers move between the two snapshots (a scrollbar drag, a pan)? */
+export function scrollMoved(before: number[], after: number[], tolerance = 0.5): boolean {
+  if (before.length !== after.length) return true;
+  return before.some((x, i) => Math.abs(x - after[i]) > tolerance);
+}
+
+export interface CardPointerRecord {
+  /** performance.now() of the pointer / mouse down */
+  at: number;
+  /** the press started in a scrollbar gutter */
+  inGutter: boolean;
+  /** scrollLeft of every inner scroller at that moment */
+  scrolls: number[];
+}
+
+/** A press older than this is not the press of the click that follows. */
+export const CARD_PRESS_MAX_AGE_MS = 3000;
+
+/**
+ * Should the click on an option card be ignored? True for a click that comes from using a scrollbar or
+ * from panning the formula: the press / the click landed in a scrollbar gutter, or an inner scroller moved
+ * between the press and the click. Keyboard-initiated clicks (Enter / Space, detail 0) are always real.
+ */
+export function shouldIgnoreCardClick(args: {
+  keyboard: boolean;
+  down: CardPointerRecord | null;
+  clickInGutter: boolean;
+  scrollsNow: number[];
+  now: number;
+}): boolean {
+  if (args.keyboard) return false;
+  if (args.clickInGutter) return true;
+  const down = args.down;
+  if (!down || args.now - down.at > CARD_PRESS_MAX_AGE_MS) return false;
+  return down.inGutter || scrollMoved(down.scrolls, args.scrollsNow);
+}
