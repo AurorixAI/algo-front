@@ -187,22 +187,35 @@ export function levelStatusTone(code?: string | null): LevelToneClasses | null {
 export const toneForStatus = (status?: string | null): LevelToneClasses =>
   levelStatusTone(status) ?? NEUTRAL_TONE;
 
-/** «решено N из M»; null when the numbers are unknown. */
+/**
+ * «solved of total» is shown only when it can be true: finite numbers, 0 <= solved <= total,
+ * total > 0. Anything else (a broken or half-written report) hides the line rather than
+ * showing «решено 30 из 25».
+ */
+function validCounts(solved?: number | null, total?: number | null): { solved: number; total: number } | null {
+  if (typeof solved !== "number" || typeof total !== "number") return null;
+  if (!Number.isFinite(solved) || !Number.isFinite(total)) return null;
+  return total > 0 && solved >= 0 && solved <= total ? { solved, total } : null;
+}
+
+/** «решено N из M»; null when the numbers are unknown or impossible. */
 export function formatSolved(solved?: number | null, total?: number | null): string | null {
-  if (solved == null || total == null || total <= 0 || solved < 0) return null;
-  return `решено ${solved} из ${total}`;
+  const c = validCounts(solved, total);
+  return c ? `решено ${c.solved} из ${c.total}` : null;
 }
 
 /**
  * Report header line: «Решено N из M заданий разной трудности» (owner decision 13.10, variant b).
  * In the adaptive test tasks get harder after correct answers, so the share of correct
  * answers is not the level and is never shown next to it as a «result». Genitive after
- * «из»: ...1 (not 11) -> «задания», otherwise «заданий». null when the numbers are unknown.
+ * «из»: ...1 (not 11) -> «задания», otherwise «заданий». null when the numbers are unknown
+ * or impossible (not finite, solved > total, total <= 0).
  */
 export function formatSolvedMixed(solved?: number | null, total?: number | null): string | null {
-  if (solved == null || total == null || total <= 0 || solved < 0) return null;
-  const noun = total % 10 === 1 && total % 100 !== 11 ? "задания" : "заданий";
-  return `Решено ${solved} из ${total} ${noun} разной трудности`;
+  const c = validCounts(solved, total);
+  if (!c) return null;
+  const noun = c.total % 10 === 1 && c.total % 100 !== 11 ? "задания" : "заданий";
+  return `Решено ${c.solved} из ${c.total} ${noun} разной трудности`;
 }
 
 /** Shape of the diagnostic report's `level` object (report_json.level). */

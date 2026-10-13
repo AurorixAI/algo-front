@@ -1125,6 +1125,23 @@ test("DIAG-5: header edge cases - unknown numbers hide the line, unknown level s
   assert.equal(unknown.includes("emerald-200/80"), false);
   const prov = headerHtml({ status: "partial_gap", levelText: "Частичные пробелы", provisional: true, solved: 6, total: 30 });
   assert.ok(prov.includes("diagnostic-report-provisional") && textOf(prov).includes("предварительно"));
+  // no level: the medallion says so in words (the pill is absent, so the caption is the only cue)
+  assert.ok(textOf(unknown).includes("Уровень не определён"));
+  const known = headerHtml({ status: "on_level", levelText: "Соответствует уровню", solved: 5, total: 25 });
+  assert.equal(textOf(known).includes("не определён"), false);
+  // medallion caption contrast: slate-500 (>= 4.3:1 on the tinted cards), not the former slate-400 (2.3-2.6:1)
+  for (const html of [known, unknown]) {
+    const caption = html.match(/<div class="([^"]*)">Уровень[^<]*<\/div>/);
+    assert.ok(caption, "ring caption present");
+    assert.ok(caption[1].includes("text-slate-500") && !caption[1].includes("text-slate-400"), caption[1]);
+  }
+  // an impossible count hides the line, the level stays
+  for (const [solved, total] of [[30, 25], [Number.NaN, 25], [5, Infinity], [5, 0], [5, -2]]) {
+    const bad = headerHtml({ status: "below", levelText: "Ниже уровня класса", solved, total });
+    assert.equal(bad.includes("diagnostic-report-solved"), false, `${solved}/${total}`);
+    assert.equal(textOf(bad).includes("Решено"), false, `${solved}/${total}`);
+    assert.ok(textOf(bad).includes("Ниже уровня класса"));
+  }
   // every level gets a ring glyph
   for (const status of ["critical", "below", "partial_gap", "on_level", "above", "legacy-unknown", null]) {
     assert.ok(headerHtml({ status, levelText: "x", solved: 1, total: 2 }).includes("<svg"), String(status));

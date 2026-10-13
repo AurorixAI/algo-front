@@ -38,7 +38,9 @@ export function LevelRing({ status }: { status?: string | null }) {
       </svg>
       <div className="relative flex flex-col items-center text-center select-none">
         <Icon aria-hidden="true" className={`w-9 h-9 ${tone.ring}`} />
-        <div className="text-[9px] text-slate-400 font-bold tracking-widest uppercase mt-1">Уровень</div>
+        <div className={`text-[9px] text-slate-500 font-bold tracking-widest uppercase mt-1 leading-tight${code ? "" : " max-w-[4.75rem]"}`}>
+          {code ? "Уровень" : "Уровень не определён"}
+        </div>
       </div>
     </div>
   );
