@@ -17,6 +17,7 @@ import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
 import { examsApi, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
@@ -325,6 +326,9 @@ export default function ExamHubPage() {
       setTimeRemaining(null);
       return;
     }
+    // Пока данные экзамена не загружены, тип выдачи неизвестен: не угадываем, иначе
+    // печатный экзамен получит 409 уже на первом запросе (и ошибку в консоли браузера).
+    if (!examHasLobby(exam)) return;
 
     const pollStatus = async () => {
       try {
@@ -344,7 +348,18 @@ export default function ExamHubPage() {
           setExam((prev) => (prev ? { ...prev, status: lobbyData.status, access_code: lobbyData.access_code || prev.access_code } : null));
         }
       } catch (err) {
-        // silent polling error
+        // 409 = у экзамена нет лобби (стал печатным): больше не опрашиваем (эффект
+        // перезапустится по смене delivery_mode и уйдёт в печатную ветку).
+        // Остальные ошибки опроса — тихие, следующий тик повторит запрос.
+        if (isNoLobbyConflict(err)) {
+          if (interval) clearInterval(interval);
+          interval = null;
+          setLobbyStudents([]);
+          setTimeRemaining(null);
+          // Экзамен печатный, а страница считала его онлайн-экзаменом: переключаем
+          // интерфейс на печатный режим (кнопки лобби/запуска онлайн-сессий уходят).
+          setExam((prev) => (prev && prev.delivery_mode !== "print" ? { ...prev, delivery_mode: "print" } : prev));
+        }
       }
     };
 
