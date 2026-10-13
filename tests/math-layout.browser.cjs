@@ -146,7 +146,7 @@ async function optionChecks(browser){
     rec.afterDrag={posts:state.answerPosts,pending:await pendingOptions(page),left:await display.evaluate(el=>Math.round(el.scrollLeft))};
     await page.mouse.click(box.x+4,sy);await page.waitForTimeout(250); // click on the track, left of the thumb
     rec.afterTrackClick={posts:state.answerPosts,pending:await pendingOptions(page)};
-   }else rec.skipped='overlay scrollbar: no gutter to press';
+   }else rec.skipped=process.env.ALLOW_OVERLAY_SCROLLBARS==='1'?'overlay scrollbar: no gutter to press':null;
    box=await display.boundingBox();
    await page.mouse.click(box.x+box.width/2,box.y+box.height/3);await page.waitForTimeout(900); // a normal second tap on the formula
    rec.postsAfterNormalSecondTap=state.answerPosts;rec.answers=state.answers.slice();
@@ -160,19 +160,21 @@ async function optionChecks(browser){
    result.optionChecks.push({check:'tab-visits-cards',width,visited,postsAfterFirstEnter:afterEnter,postsAfterSecondEnter:state.answerPosts});
    await context.close();}
  }
- // 5. touch: a horizontal pan inside the wide option scrolls it and selects nothing; a tap afterwards still works
+// 5. touch: a horizontal pan inside the wide option scrolls it and selects nothing; a tap in the bottom strip of
+ // the formula (where a mouse scrollbar would be) is a REAL tap for a finger: pending, then exactly one POST
  {const {context,page,state,display}=await openWide(browser,{width:360,hasTouch:true});
   const cdp=await context.newCDPSession(page),box=await display.boundingBox(),y=box.y+box.height/2,x0=box.x+box.width*0.85,x1=box.x+box.width*0.15;
+  const leftBefore=await display.evaluate(el=>Math.round(el.scrollLeft));
   await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:x0,y}]});
   for(let i=1;i<=10;i++)await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x0+(x1-x0)*i/10,y}]});
   await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   await page.waitForTimeout(500);
-  const rec={check:'touch-pan-no-select',width:360,left:await display.evaluate(el=>Math.round(el.scrollLeft)),postsAfterPan:state.answerPosts,pendingAfterPan:await pendingOptions(page)};
-  const b2=await display.boundingBox();
-  await page.touchscreen.tap(b2.x+b2.width/2,b2.y+b2.height/2);await page.waitForTimeout(250);
-  rec.pendingAfterTap=await pendingOptions(page);rec.postsAfterTap=state.answerPosts;
-  await page.touchscreen.tap(b2.x+b2.width/2,b2.y+b2.height/2);await page.waitForTimeout(900);
-  rec.postsAfterSecondTap=state.answerPosts;result.optionChecks.push(rec);await context.close();}
+  const rec={check:'touch-pan-no-select',width:360,leftBefore,left:await display.evaluate(el=>Math.round(el.scrollLeft)),postsAfterPan:state.answerPosts,pendingAfterPan:await pendingOptions(page)};
+  const b2=await display.boundingBox(),clientH=await display.evaluate(el=>el.clientHeight),sx=b2.x+b2.width/2,sy=b2.y+Math.min(b2.height,clientH)-8; // 8px above the bottom edge of the CLIENT area (never inside a gutter)
+  await page.touchscreen.tap(sx,sy);await page.waitForTimeout(250);
+  rec.pendingAfterStripTap=await pendingOptions(page);rec.postsAfterStripTap=state.answerPosts;
+  await page.touchscreen.tap(sx,sy);await page.waitForTimeout(900);
+  rec.postsAfterSecondStripTap=state.answerPosts;rec.answers=state.answers.slice();result.optionChecks.push(rec);await context.close();}
 }
 async function main(){
  const browser=await chromium.launch({...(process.env.CHROME_EXECUTABLE_PATH ? {executablePath:process.env.CHROME_EXECUTABLE_PATH} : {}),headless:true});
@@ -202,7 +204,11 @@ async function main(){
   for(const width of [360,768,1280]){await page.setViewportSize({width,height:900});await geometry(page,'teacher-report',width);}
   await page.evaluate(()=>localStorage.clear());role='admin';await page.goto(base+'/admin/diagnostics/UI-INVITE/report');await page.getByRole('tab',{name:/Журнал ошибок/}).click();await page.locator('.math-renderer').first().waitFor();
   for(const width of [360,768,1280]){await page.setViewportSize({width,height:900});await geometry(page,'diagnostic-report',width);}
-  await optionChecks(browser);
+  // The option-card checks need REAL scrollbars (headless Chromium hides them with --hide-scrollbars): the scrollbar
+  // protection of the cards is only exercised when the scroller has a gutter. Own browser, the geometry checks above
+  // keep the default launch.
+  {const optionBrowser=await chromium.launch({...(process.env.CHROME_EXECUTABLE_PATH ? {executablePath:process.env.CHROME_EXECUTABLE_PATH} : {}),headless:true,ignoreDefaultArgs:['--hide-scrollbars']});
+   try{await optionChecks(optionBrowser);}finally{await optionBrowser.close();}}
   if(label!=='before'){
    assert.equal(result.checks.length,30,'All six page surfaces and five formulas must be checked');
    assert.equal(result.pageErrors.length,0,JSON.stringify(result.pageErrors));
@@ -215,11 +221,11 @@ async function main(){
     const memo=oc('memo-same-node',width);assert.ok(memo.overflows&&memo.mark==='kept'&&memo.left>=150,'the formula DOM must survive page re-renders with its scroll offset: '+JSON.stringify(memo));
     assert.ok(memo.fadeLeft&&memo.fadeRight,'a scrolled wide option fades on both sides');assert.equal(memo.tabindex,'-1','a formula inside a card is not a tab stop');
     const two=oc('two-step-select',width);assert.equal(two.afterFirst.posts,0);assert.equal(two.afterFirst.pending[0],true);assert.equal(two.afterOther.posts,0);assert.deepEqual(two.afterOther.pending,[false,true,false,false]);assert.equal(two.postsAfterConfirm,1);assert.deepEqual(two.answers,['x в квадрате']);assert.deepEqual(two.unhandled,[],'every request of the student flow is mocked');
-    const bar=oc('scrollbar-never-submits',width);if(!bar.skipped){assert.equal(bar.afterDrag.posts,0);assert.equal(bar.afterDrag.pending[0],true);assert.ok(bar.afterDrag.left>0,'the thumb drag scrolled the formula');assert.equal(bar.afterTrackClick.posts,0);assert.equal(bar.afterTrackClick.pending[0],true);}
+    const bar=oc('scrollbar-never-submits',width);assert.ok(bar.gutter>0||bar.skipped,'the scrollbar gutter must exist in the option checks (browser launched with ignoreDefaultArgs --hide-scrollbars; set ALLOW_OVERLAY_SCROLLBARS=1 only on a runner that cannot show classic scrollbars)');if(!bar.skipped){assert.equal(bar.afterDrag.posts,0);assert.equal(bar.afterDrag.pending[0],true);assert.ok(bar.afterDrag.left>0,'the thumb drag scrolled the formula');assert.equal(bar.afterTrackClick.posts,0);assert.equal(bar.afterTrackClick.pending[0],true);}
     assert.equal(bar.postsAfterNormalSecondTap,1,'a normal second tap submits exactly once');assert.deepEqual(bar.answers,['Широкая матрица']);
     const tab=oc('tab-visits-cards',width);assert.ok(tab.visited.every((v,i)=>v.card&&!v.inFormula&&v.index===i),'Tab visits only the option cards, in order: '+JSON.stringify(tab.visited));assert.equal(tab.postsAfterFirstEnter,0);assert.equal(tab.postsAfterSecondEnter,1);
    }
-   const touch=oc('touch-pan-no-select',360);assert.ok(touch.left>20,'a touch pan scrolls the wide option');assert.equal(touch.postsAfterPan,0);assert.ok(touch.pendingAfterPan.every(v=>!v),'a pan selects nothing');assert.equal(touch.pendingAfterTap[0],true);assert.equal(touch.postsAfterTap,0);assert.equal(touch.postsAfterSecondTap,1);
+   const touch=oc('touch-pan-no-select',360);assert.ok(touch.left>touch.leftBefore,'a touch pan scrolls the wide option: '+JSON.stringify(touch));assert.equal(touch.postsAfterPan,0);assert.ok(touch.pendingAfterPan.every(v=>!v),'a pan selects nothing');assert.equal(touch.pendingAfterStripTap[0],true,'a finger tap in the bottom strip of the formula is a tap');assert.equal(touch.postsAfterStripTap,0);assert.equal(touch.postsAfterSecondStripTap,1);assert.deepEqual(touch.answers,['Широкая матрица']);
    assert.ok(result.checks.every(c=>c.mathErrors===0&&!c.legacyVisible&&c.renderers>0&&c.glyphs>0&&c.pageWidth<=c.viewport+1&&c.bodyWidth<=c.viewport+1&&c.verticalClipCount===0&&c.rowOverlapCount===0&&!c.rawTeXVisible),'Visible geometry/overflow regression failed');
   }
  }finally{fs.writeFileSync(`${root}/p09-${label}-math-surfaces-2026-10-04.json`,JSON.stringify(result,null,2)+'\n');await browser.close();}

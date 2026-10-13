@@ -506,6 +506,9 @@ export default function ExamPage() {
   const goNext = () => setCurrentQuestion((c) => Math.min(tasks.length - 1, c + 1));
   const goPrev = () => setCurrentQuestion((c) => Math.max(0, c - 1));
   goNextRef.current = goNext;
+  // manual navigation drops a pending automatic advance (it would move one question further)
+  const goNextManual = () => { advanceRef.current?.cancel(); goNext(); };
+  const goPrevManual = () => { advanceRef.current?.cancel(); goPrev(); };
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -948,7 +951,7 @@ export default function ExamPage() {
                   <TextInputAnswer
                     value={answers[task.task_id] || ""}
                     onChange={(val) => handleAnswer(task.task_id, val)}
-                    onSubmit={goNext}
+                    onSubmit={goNextManual}
                     answerType={task.answer_type}
                   />
                 )}
@@ -956,7 +959,7 @@ export default function ExamPage() {
                 {/* Navigation buttons */}
                 <div className="flex justify-between items-center px-2">
                   <button
-                    onClick={goPrev}
+                    onClick={goPrevManual}
                     disabled={currentQuestion === 0}
                     className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/40 text-slate-500 hover:text-slate-900 hover:bg-white/90 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                   >
@@ -985,7 +988,7 @@ export default function ExamPage() {
 
                   {currentQuestion < tasks.length - 1 ? (
                     <button
-                      onClick={goNext}
+                      onClick={goNextManual}
                       className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/40 text-slate-500 hover:text-slate-900 hover:bg-white/90 transition-all"
                     >
                       <span className="text-sm font-medium hidden md:inline">Далее</span>

@@ -303,7 +303,8 @@ test("contract: every math overflow container uses the affordance", () => {
   // inline renderers without display math are not observed; observers are shared / per root, not per child
   assert.ok(mathRenderer.includes('enabled: block || html.includes("katex-display")'));
   const hint = fs.readFileSync(path.join(root, "components/ui/scroll-hint.tsx"), "utf8");
-  assert.equal(/box\.children/.test(hint), false, "only the scroll boxes are observed");
+  assert.ok(hint.includes("firstElementChild"), "the formula inside a box is observed too (late fonts, --math-fit)");
+  assert.ok(hint.includes("watchers") && hint.includes("function unwatch"), "observations are reference-counted");
   assert.ok(hint.includes("sharedResizeObserver") && hint.includes('root.closest("button, a")'));
   assert.ok(hint.includes("el.scrollLeft = 0"), "new content on the same instance opens at scrollLeft 0");
   assert.ok(hint.includes("KNOWN LIMITATION"), "the keyboard limitation inside buttons is documented");
@@ -428,12 +429,12 @@ test("scrollbar clicks and pans are not taps on an option card", () => {
   assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 219, offsetY: 10 }, tallBox), true);
   // overlay scrollbar (no gutter): only a box that overflows horizontally, only its bottom strip
   const overlay = { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72, scrollWidth: 1500 };
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, overlay), true);
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX }, overlay), true);
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX - 1 }, overlay), false);
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 30 }, overlay), false);
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, { ...overlay, scrollWidth: 222 }), false); // nothing overflows: no scrollbar
-  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69 }, { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72 }), false); // scrollWidth unknown
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69, pointerType: "mouse" }, overlay), true);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX, pointerType: "mouse" }, overlay), true);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 72 - edgesLib.OVERLAY_SCROLLBAR_ZONE_PX - 1, pointerType: "mouse" }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 30, pointerType: "mouse" }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69, pointerType: "mouse" }, { ...overlay, scrollWidth: 222 }), false); // nothing overflows: no scrollbar
+  assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69, pointerType: "mouse" }, { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72 }), false); // scrollWidth unknown
   assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: Number.NaN, offsetY: 69 }, box), false);
   assert.equal(edgesLib.scrollMoved([0, 10], [0, 10]), false);
   assert.equal(edgesLib.scrollMoved([0, 10], [0, 10.3]), false);
@@ -472,4 +473,75 @@ test("attachScrollHints: a box inside a button / link is never a focusable regio
     delete global.window;
     delete global.document;
   }
+});
+
+// ─── pointer types: a finger / pen tap in the overlay-scrollbar strip is a real tap ───────────
+
+test("overlay scrollbar zone applies to a MOUSE only; the classic gutter to every pointer type", () => {
+  const overlay = { clientWidth: 222, clientHeight: 72, offsetWidth: 222, offsetHeight: 72, scrollWidth: 1500 };
+  const inStrip = { offsetX: 100, offsetY: 69 };
+  assert.equal(edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType: "mouse" }, overlay), true);
+  assert.equal(edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType: "touch" }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType: "pen" }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType: "" }, overlay), false);
+  assert.equal(edgesLib.isScrollbarGutterHit(inStrip, overlay), false); // unknown type: never swallow a tap
+  const classic = { clientWidth: 222, clientHeight: 66, offsetWidth: 222, offsetHeight: 72, scrollWidth: 1500 };
+  for (const pointerType of ["mouse", "touch", "pen", undefined]) {
+    assert.equal(edgesLib.isScrollbarGutterHit({ offsetX: 100, offsetY: 69, pointerType }, classic), true, String(pointerType));
+  }
+  // the whole decision: a touch tap in the strip is not ignored, the same press with a mouse is
+  const press = (pointerType) => ({ at: 1000, pointerType, inGutter: edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType }, overlay), scrolls: [0] });
+  const decide = (pointerType) => edgesLib.shouldIgnoreCardClick({ keyboard: false, down: press(pointerType), clickInGutter: edgesLib.isScrollbarGutterHit({ ...inStrip, pointerType }, overlay), scrollsNow: [0], now: 1100 });
+  assert.equal(decide("touch"), false);
+  assert.equal(decide("pen"), false);
+  assert.equal(decide("mouse"), true);
+});
+
+test("the compatibility mousedown after a touch / pen press does not overwrite its record", () => {
+  const touch = { at: 1000, pointerType: "touch", inGutter: false, scrolls: [0] };
+  assert.equal(edgesLib.isCompatMouseAfterTouch(touch, 1020), true);
+  assert.equal(edgesLib.isCompatMouseAfterTouch({ ...touch, pointerType: "pen" }, 1500), true);
+  assert.equal(edgesLib.isCompatMouseAfterTouch(touch, 1000 + edgesLib.COMPAT_MOUSE_WINDOW_MS + 1), false); // a later, real mouse press
+  assert.equal(edgesLib.isCompatMouseAfterTouch({ ...touch, pointerType: "mouse" }, 1020), false);
+  assert.equal(edgesLib.isCompatMouseAfterTouch(null, 1020), false);
+  assert.equal(edgesLib.isCompatMouseAfterTouch(null, 1020, true), true); // sourceCapabilities.firesTouchEvents
+});
+
+test("shared ResizeObserver: nested owners of one element never drop each other's observation; the formula inside is observed too", () => {
+  const live = new Set();
+  const calls = [];
+  global.ResizeObserver = class { constructor() {} observe(el) { live.add(el); calls.push(["observe", el.name]); } unobserve(el) { live.delete(el); calls.push(["unobserve", el.name]); } disconnect() {} };
+  global.window = { requestAnimationFrame: (fn) => { fn(); return 1; }, cancelAnimationFrame: () => {} };
+  global.document = {};
+  try {
+    const { attachScrollHints } = require(path.join(__dirname, "../src/components/ui/scroll-hint.tsx"));
+    const formula = { name: "formula" };
+    const box = fakeBox({ scrollWidth: 600, clientWidth: 300 });
+    box.name = "box";
+    box.firstElementChild = formula;
+    const a = attachScrollHints(box, { selector: "", focusable: true });
+    const b = attachScrollHints(box, { selector: "", focusable: true });
+    assert.ok(live.has(box) && live.has(formula), "the box and its first element are observed");
+    a();
+    assert.ok(live.has(box) && live.has(formula), "owner A stopping keeps owner B's observation");
+    b();
+    assert.equal(live.size, 0, "the last owner releases it");
+  } finally {
+    delete global.ResizeObserver;
+    delete global.window;
+    delete global.document;
+  }
+});
+
+test("source contracts: pointer types in OptionGrid, manual navigation cancels the exam advance", () => {
+  const root = path.join(__dirname, "..", "src");
+  const grid = fs.readFileSync(path.join(root, "components/ui/option-grid.tsx"), "utf8");
+  assert.ok(grid.includes("event.pointerType") && grid.includes("isCompatMouseAfterTouch(") && grid.includes("firesTouchEvents"));
+  assert.ok(/hitsScrollbar\(event\.target, event\.nativeEvent, pointerType\)/.test(grid));
+  assert.ok(grid.includes("needs to be confirmed again with two taps"), "the re-confirm after a failed submit is documented");
+  const exam = fs.readFileSync(path.join(root, "app/e/[code]/page.tsx"), "utf8");
+  assert.ok(/goNextManual = \(\) => \{ advanceRef\.current\?\.cancel\(\); goNext\(\); \}/.test(exam));
+  assert.ok(/goPrevManual = \(\) => \{ advanceRef\.current\?\.cancel\(\); goPrev\(\); \}/.test(exam));
+  assert.ok(exam.includes("onClick={goPrevManual}") && exam.includes("onClick={goNextManual}") && exam.includes("onSubmit={goNextManual}"));
+  assert.equal(/onClick=\{goNext\}|onClick=\{goPrev\}/.test(exam), false);
 });

@@ -6,7 +6,7 @@ import { Check } from "lucide-react";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection } from "@/lib/task-display";
 import { resolveOptionTap } from "@/lib/option-tap";
-import { isScrollbarGutterHit, shouldIgnoreCardClick, type CardPointerRecord } from "@/lib/scroll-edges";
+import { isCompatMouseAfterTouch, isScrollbarGutterHit, shouldIgnoreCardClick, type CardPointerRecord } from "@/lib/scroll-edges";
 
 export interface OptionItem {
   id: string;
@@ -29,13 +29,17 @@ interface OptionGridProps {
 const SCROLLERS = ".math-renderer, .katex-display";
 const scrollsOf = (card: HTMLElement) => Array.from(card.querySelectorAll<HTMLElement>(SCROLLERS)).map((box) => box.scrollLeft);
 
-/** Did this event land in the scrollbar gutter of a formula's scroller? (A click on the scrollbar is
- *  dispatched to the scroller and bubbles to the card: it must never count as a tap on the option.) */
-function hitsScrollbar(target: EventTarget | null, native: Event): boolean {
+/** Did this event land on the scrollbar of a formula's scroller? (A click on the scrollbar is dispatched to the
+ *  scroller and bubbles to the card: it must never count as a tap on the option. An overlay scrollbar - no gutter -
+ *  counts for a mouse only: a finger / pen scrolls by panning, a tap on the strip is a real tap.) */
+function hitsScrollbar(target: EventTarget | null, native: Event, pointerType: string | null | undefined): boolean {
   const box = target as HTMLElement | null;
   if (!box || typeof box.matches !== "function" || !box.matches(SCROLLERS)) return false;
   const { offsetX, offsetY } = native as MouseEvent;
-  return isScrollbarGutterHit({ offsetX, offsetY }, { clientWidth: box.clientWidth, clientHeight: box.clientHeight, offsetWidth: box.offsetWidth, offsetHeight: box.offsetHeight, scrollWidth: box.scrollWidth });
+  return isScrollbarGutterHit(
+    { offsetX, offsetY, pointerType },
+    { clientWidth: box.clientWidth, clientHeight: box.clientHeight, offsetWidth: box.offsetWidth, offsetHeight: box.offsetHeight, scrollWidth: box.scrollWidth },
+  );
 }
 
 /**
@@ -76,6 +80,9 @@ export function OptionGrid({
     setPending(null);
   }, [resetKey]);
 
+  // Deliberate: the mark is cleared when an answer is confirmed. If the submit then FAILS (the student page shows
+  // the error and offers a retry), the option needs to be confirmed again with two taps - a safer behaviour than
+  // leaving a pending mark that a stray tap would submit at once.
   function handleClick(answerValue: string) {
     const tap = resolveOptionTap(pending, answerValue, disabled);
     setPending(tap.pending);
@@ -96,17 +103,22 @@ export function OptionGrid({
             key={opt.id}
             type="button"
             onPointerDownCapture={(event) => {
-              pressRef.current = { at: performance.now(), inGutter: hitsScrollbar(event.target, event.nativeEvent), scrolls: scrollsOf(event.currentTarget) };
+              const pointerType = event.pointerType || "mouse";
+              pressRef.current = { at: performance.now(), pointerType, inGutter: hitsScrollbar(event.target, event.nativeEvent, pointerType), scrolls: scrollsOf(event.currentTarget) };
             }}
             onMouseDownCapture={(event) => {
-              pressRef.current = { at: performance.now(), inGutter: hitsScrollbar(event.target, event.nativeEvent), scrolls: scrollsOf(event.currentTarget) };
+              // the emulated mousedown that follows a touch / pen press must not replace its record
+              const caps = (event.nativeEvent as unknown as { sourceCapabilities?: { firesTouchEvents?: boolean } }).sourceCapabilities;
+              if (isCompatMouseAfterTouch(pressRef.current, performance.now(), caps?.firesTouchEvents === true)) return;
+              pressRef.current = { at: performance.now(), pointerType: "mouse", inGutter: hitsScrollbar(event.target, event.nativeEvent, "mouse"), scrolls: scrollsOf(event.currentTarget) };
             }}
             onClick={(event) => {
               const card = event.currentTarget;
+              const pointerType = (event.nativeEvent as PointerEvent).pointerType || pressRef.current?.pointerType || "mouse";
               const ignore = shouldIgnoreCardClick({
                 keyboard: event.detail === 0, // Enter / Space on the focused card
                 down: pressRef.current,
-                clickInGutter: hitsScrollbar(event.target, event.nativeEvent),
+                clickInGutter: hitsScrollbar(event.target, event.nativeEvent, pointerType),
                 scrollsNow: scrollsOf(card),
                 now: performance.now(),
               });

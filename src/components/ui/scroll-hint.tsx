@@ -88,6 +88,9 @@ export interface ScrollHintOptions {
 // observer finds it through the observed element or its ancestors. (MutationObserver has no per-target
 // unobserve, so each root keeps its own.)
 const remeasure = new Map<Element, () => void>();
+// how many attached roots watch an element: nested roots can watch the same box, and one owner stopping
+// must not drop the other's observation
+const watchers = new Map<Element, number>();
 let sharedResizeObserver: ResizeObserver | null = null;
 function notify(el: Element | null) {
   for (let node: Element | null = el; node; node = node.parentElement) remeasure.get(node)?.();
@@ -97,13 +100,27 @@ function resizeObserver(): ResizeObserver | null {
   if (!sharedResizeObserver) sharedResizeObserver = new ResizeObserver((entries) => entries.forEach((entry) => notify(entry.target)));
   return sharedResizeObserver;
 }
+function watch(el: Element) {
+  const n = watchers.get(el) ?? 0;
+  watchers.set(el, n + 1);
+  if (n === 0) resizeObserver()?.observe(el);
+}
+function unwatch(el: Element) {
+  const n = watchers.get(el) ?? 0;
+  if (n <= 1) {
+    watchers.delete(el);
+    sharedResizeObserver?.unobserve(el);
+  } else {
+    watchers.set(el, n - 1);
+  }
+}
 
 /**
  * Attach the affordance; returns the cleanup (listeners off, attributes removed).
  * Scroll is captured on the root (scroll does not bubble, but it can be captured), and the boxes are
  * re-collected on every measure, so a KaTeX block that is replaced or laid out later is never missed.
- * Only the scroll boxes themselves are observed for size changes; a content change inside them is
- * caught by the MutationObserver, new glyph metrics by document.fonts.ready.
+ * Observed for size changes: the scroll boxes and the first element inside each (the formula itself: late
+ * fonts, the --math-fit scale); a content change is caught by the MutationObserver.
  */
 export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions = {}): () => void {
   const { selector = ".katex-display", includeRoot = true } = options;
@@ -111,8 +128,7 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
   const interactive = typeof root.closest === "function" && Boolean(root.closest("button, a"));
   const focusable = options.focusable !== false && !interactive;
   const marked = new Set<HTMLElement>();
-  const observed = new Set<Element>();
-  const ro = resizeObserver();
+  const observed = new Set<Element>(); // what THIS attach watches (reference-counted in `watchers`)
   let boxes: HTMLElement[] = [];
   let raf = 0;
   let stopped = false;
@@ -122,16 +138,21 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
       ...(includeRoot ? [root] : []),
       ...(selector ? Array.from(root.querySelectorAll<HTMLElement>(selector)) : []),
     ];
+    const wanted = new Set<Element>();
     boxes.forEach((box) => {
-      if (!observed.has(box)) {
-        observed.add(box);
-        ro?.observe(box);
+      wanted.add(box);
+      if (box.firstElementChild) wanted.add(box.firstElementChild);
+    });
+    wanted.forEach((el) => {
+      if (!observed.has(el)) {
+        observed.add(el);
+        watch(el);
       }
     });
-    observed.forEach((box) => {
-      if (!boxes.includes(box as HTMLElement)) {
-        ro?.unobserve(box);
-        observed.delete(box);
+    observed.forEach((el) => {
+      if (!wanted.has(el)) {
+        observed.delete(el);
+        unwatch(el);
       }
     });
   };
@@ -182,7 +203,7 @@ export function attachScrollHints(root: HTMLElement, options: ScrollHintOptions 
     if (raf) window.cancelAnimationFrame(raf);
     remeasure.delete(root);
     root.removeEventListener("scroll", onScroll, { capture: true });
-    observed.forEach((box) => ro?.unobserve(box));
+    observed.forEach((el) => unwatch(el));
     observed.clear();
     mutationObserver?.disconnect();
     marked.forEach((box) => {
