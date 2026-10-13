@@ -108,6 +108,19 @@ export const LEVEL_STATUS_META: Record<LevelStatus, { label: string; tone: Level
 
 export const PROVISIONAL_LABEL = "предварительно";
 
+/** Tone of a report without a known level: neutral, never a good (green) level. */
+export const NEUTRAL_TONE: LevelToneClasses = {
+  text: "text-slate-700",
+  badge: "bg-slate-100 border-slate-200 text-slate-700",
+  soft: "bg-slate-50",
+  dot: "bg-slate-400",
+  ping: "bg-slate-300",
+  ring: "text-slate-400",
+  track: "#e2e8f0",
+  cardBg: "bg-gradient-to-r from-slate-50 via-white to-white",
+  cardBorder: "border-slate-200/80",
+};
+
 /** Codes written by older report versions / old UI maps -> current status codes. */
 const LEGACY_STATUS: Record<string, LevelStatus> = {
   below_level: "below",
@@ -171,10 +184,38 @@ export function levelStatusTone(code?: string | null): LevelToneClasses | null {
   return s ? LEVEL_TONES[LEVEL_STATUS_META[s].tone] : null;
 }
 
-/** «решено N из M»; null when the numbers are unknown. */
+export const toneForStatus = (status?: string | null): LevelToneClasses =>
+  levelStatusTone(status) ?? NEUTRAL_TONE;
+
+/**
+ * «solved of total» is shown only when it can be true: finite numbers, 0 <= solved <= total,
+ * total > 0. Anything else (a broken or half-written report) hides the line rather than
+ * showing «решено 30 из 25».
+ */
+function validCounts(solved?: number | null, total?: number | null): { solved: number; total: number } | null {
+  if (typeof solved !== "number" || typeof total !== "number") return null;
+  if (!Number.isFinite(solved) || !Number.isFinite(total)) return null;
+  return total > 0 && solved >= 0 && solved <= total ? { solved, total } : null;
+}
+
+/** «решено N из M»; null when the numbers are unknown or impossible. */
 export function formatSolved(solved?: number | null, total?: number | null): string | null {
-  if (solved == null || total == null || total <= 0 || solved < 0) return null;
-  return `решено ${solved} из ${total}`;
+  const c = validCounts(solved, total);
+  return c ? `решено ${c.solved} из ${c.total}` : null;
+}
+
+/**
+ * Report header line: «Решено N из M заданий разной трудности» (owner decision 13.10, variant b).
+ * In the adaptive test tasks get harder after correct answers, so the share of correct
+ * answers is not the level and is never shown next to it as a «result». Genitive after
+ * «из»: ...1 (not 11) -> «задания», otherwise «заданий». null when the numbers are unknown
+ * or impossible (not finite, solved > total, total <= 0).
+ */
+export function formatSolvedMixed(solved?: number | null, total?: number | null): string | null {
+  const c = validCounts(solved, total);
+  if (!c) return null;
+  const noun = c.total % 10 === 1 && c.total % 100 !== 11 ? "задания" : "заданий";
+  return `Решено ${c.solved} из ${c.total} ${noun} разной трудности`;
 }
 
 /** Shape of the diagnostic report's `level` object (report_json.level). */

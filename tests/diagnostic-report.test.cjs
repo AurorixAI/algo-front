@@ -9,6 +9,11 @@ require.extensions[".ts"] = (mod, filename) => {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText, filename);
 };
+require.extensions[".tsx"] = (mod, filename) => {
+  mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText, filename);
+};
 const R = require(path.join(__dirname, "../src/lib/diagnostic-report.ts"));
 
 test("a step has a duration only if the report carries a real one", () => {
@@ -1080,4 +1085,74 @@ test("report page contract: the unmatched MCQ answer is a legacy-option card, ma
   assert.ok(page.includes("findChosenOption(err"));
   assert.equal(page.includes("function canonicalAnswerKey"), false, "the normaliser lives in src/lib/answer-match.ts");
   assert.ok(fs.readFileSync(path.join(root, "lib/diagnostic-report.ts"), "utf8").includes('export * from "./answer-match"'));
+});
+
+// ─── DIAG-5: the header shows the level and «решено N из M», never a percentage ───
+
+const renderHeader = (props) => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { ReportScoreHeader } = require(path.join(__dirname, "../src/components/diagnostics/report-score-header.tsx"));
+  return renderToStaticMarkup(React.createElement(ReportScoreHeader, props));
+};
+const textOf = (html) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+const headerHtml = renderHeader;
+
+test("DIAG-5: header reads «Решено N из M заданий разной трудности» next to the level, without any percent", () => {
+  const html = headerHtml({ status: "on_level", levelText: "Соответствует уровню", provisional: false, solved: 5, total: 25, correct: 5, wrong: 20 });
+  const text = textOf(html);
+  assert.ok(text.includes("Соответствует уровню"));
+  assert.ok(text.includes("Решено 5 из 25 заданий разной трудности"), text);
+  assert.ok(html.includes('data-testid="diagnostic-report-solved"'));
+  // the ring is a level medallion, not a gauge: no percent anywhere in the visible text or attributes
+  assert.equal(text.includes("%"), false, `percent sign in the header text: ${text}`);
+  assert.equal(/\d\s*%/.test(html), false);
+  assert.equal(html.includes("Результат"), false, "the «Результат» caption of the old ring must be gone");
+  assert.ok(html.includes("Уровень"));
+  assert.ok(html.includes('data-testid="diagnostic-report-level-ring"') && html.includes('aria-hidden="true"'));
+  // a full closed ring (no partial dash arc that reads as a share)
+  assert.equal(html.includes("stroke-dasharray"), false);
+});
+
+test("DIAG-5: header edge cases - unknown numbers hide the line, unknown level stays neutral, provisional badge kept", () => {
+  const noNumbers = headerHtml({ status: "below", levelText: "Ниже уровня класса", solved: null, total: null });
+  assert.equal(noNumbers.includes("diagnostic-report-solved"), false);
+  assert.equal(textOf(noNumbers).includes("Решено"), false);
+  const unknown = headerHtml({ status: null, levelText: null, solved: 3, total: 12 });
+  assert.ok(textOf(unknown).includes("Решено 3 из 12 заданий разной трудности"));
+  assert.equal(unknown.includes("diagnostic-report-level\""), false, "no level pill without a level");
+  assert.ok(unknown.includes("border-slate-200/80"), "neutral card, never a green one");
+  assert.equal(unknown.includes("emerald-200/80"), false);
+  const prov = headerHtml({ status: "partial_gap", levelText: "Частичные пробелы", provisional: true, solved: 6, total: 30 });
+  assert.ok(prov.includes("diagnostic-report-provisional") && textOf(prov).includes("предварительно"));
+  // no level: the medallion says so in words (the pill is absent, so the caption is the only cue)
+  assert.ok(textOf(unknown).includes("Уровень не определён"));
+  const known = headerHtml({ status: "on_level", levelText: "Соответствует уровню", solved: 5, total: 25 });
+  assert.equal(textOf(known).includes("не определён"), false);
+  // medallion caption contrast: slate-500 (>= 4.3:1 on the tinted cards), not the former slate-400 (2.3-2.6:1)
+  for (const html of [known, unknown]) {
+    const caption = html.match(/<div class="([^"]*)">Уровень[^<]*<\/div>/);
+    assert.ok(caption, "ring caption present");
+    assert.ok(caption[1].includes("text-slate-500") && !caption[1].includes("text-slate-400"), caption[1]);
+  }
+  // an impossible count hides the line, the level stays
+  for (const [solved, total] of [[30, 25], [Number.NaN, 25], [5, Infinity], [5, 0], [5, -2]]) {
+    const bad = headerHtml({ status: "below", levelText: "Ниже уровня класса", solved, total });
+    assert.equal(bad.includes("diagnostic-report-solved"), false, `${solved}/${total}`);
+    assert.equal(textOf(bad).includes("Решено"), false, `${solved}/${total}`);
+    assert.ok(textOf(bad).includes("Ниже уровня класса"));
+  }
+  // every level gets a ring glyph
+  for (const status of ["critical", "below", "partial_gap", "on_level", "above", "legacy-unknown", null]) {
+    assert.ok(headerHtml({ status, levelText: "x", solved: 1, total: 2 }).includes("<svg"), String(status));
+  }
+});
+
+test("DIAG-5: the report page renders the header component and no longer has a percent ring", () => {
+  const page = fs.readFileSync(path.join(__dirname, "..", "src/app/admin/diagnostics/[id]/report/page.tsx"), "utf8");
+  assert.ok(page.includes("<ReportScoreHeader"));
+  assert.equal(page.includes("CircularScore"), false);
+  assert.equal(page.includes("reportScorePercent"), false, "the page must not read score_percent for the header");
+  const header = fs.readFileSync(path.join(__dirname, "..", "src/components/diagnostics/report-score-header.tsx"), "utf8");
+  assert.equal(header.includes("score_percent") || header.includes("scorePercent") || /\}\s*%/.test(header), false, "no percent in the header component");
 });

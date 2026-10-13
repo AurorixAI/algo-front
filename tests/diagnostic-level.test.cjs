@@ -47,6 +47,34 @@ test("formatSolved", () => {
   assert.equal(L.formatSolved(3, 0), null);
 });
 
+test("formatSolvedMixed: «Решено N из M заданий разной трудности» with the right genitive after «из»", () => {
+  assert.equal(L.formatSolvedMixed(5, 25), "Решено 5 из 25 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(0, 12), "Решено 0 из 12 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(7, 11), "Решено 7 из 11 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(7, 21), "Решено 7 из 21 задания разной трудности");
+  assert.equal(L.formatSolvedMixed(1, 1), "Решено 1 из 1 задания разной трудности");
+  // genitive after «из»: only ...1 (not ...11) is singular
+  assert.equal(L.formatSolvedMixed(1, 2), "Решено 1 из 2 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(1, 4), "Решено 1 из 4 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(1, 22), "Решено 1 из 22 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(1, 111), "Решено 1 из 111 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(3, 1000), "Решено 3 из 1000 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(null, 30), null);
+  assert.equal(L.formatSolvedMixed(3, 0), null);
+  assert.equal(L.formatSolvedMixed(-1, 5), null);
+  assert.equal(L.formatSolvedMixed(3, 12).includes("%"), false);
+});
+
+test("solved/total are shown only when they can be true (finite, 0 <= solved <= total, total > 0)", () => {
+  for (const [solved, total] of [[30, 25], [26, 25], [Number.NaN, 10], [5, Number.NaN], [Infinity, 10], [5, Infinity], [5, -3], [0, 0], [-1, 10], [undefined, 10], [5, undefined]]) {
+    assert.equal(L.formatSolvedMixed(solved, total), null, `mixed ${solved}/${total}`);
+    assert.equal(L.formatSolved(solved, total), null, `plain ${solved}/${total}`);
+  }
+  assert.equal(L.formatSolvedMixed(25, 25), "Решено 25 из 25 заданий разной трудности");
+  assert.equal(L.formatSolvedMixed(0, 25), "Решено 0 из 25 заданий разной трудности");
+  assert.equal(L.formatSolved(25, 25), "решено 25 из 25");
+});
+
 test("resolveReportLevel prefers report.level, falls back to legacy fields", () => {
   const withLevel = L.resolveReportLevel({
     level: { category: "at_grade", status: "on_level", class_equivalent: "конец 8 класса", provisional: true, solved: 6, total: 30 },
