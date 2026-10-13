@@ -499,9 +499,17 @@ test("overlay scrollbar zone applies to a MOUSE only; the classic gutter to ever
 
 test("the compatibility mousedown after a touch / pen press does not overwrite its record", () => {
   const touch = { at: 1000, pointerType: "touch", inGutter: false, scrolls: [0] };
+  // no pointerup recorded (cancelled press): a generous window from the pointerdown
   assert.equal(edgesLib.isCompatMouseAfterTouch(touch, 1020), true);
   assert.equal(edgesLib.isCompatMouseAfterTouch({ ...touch, pointerType: "pen" }, 1500), true);
-  assert.equal(edgesLib.isCompatMouseAfterTouch(touch, 1000 + edgesLib.COMPAT_MOUSE_WINDOW_MS + 1), false); // a later, real mouse press
+  assert.equal(edgesLib.isCompatMouseAfterTouch(touch, 1000 + edgesLib.COMPAT_MOUSE_NO_UP_WINDOW_MS + 1), false);
+  // with a pointerup the window is measured from IT: a long press (down 2.5 s, then up) still gets its compat mousedown ...
+  const longPress = { ...touch, upAt: 3500 };
+  assert.equal(edgesLib.isCompatMouseAfterTouch(longPress, 3530), true);
+  assert.equal(edgesLib.isCompatMouseAfterTouch(longPress, 3500 + edgesLib.COMPAT_MOUSE_WINDOW_MS), true);
+  // ... and a real mouse press shortly after the tap's window is a mouse press
+  assert.equal(edgesLib.isCompatMouseAfterTouch(longPress, 3500 + edgesLib.COMPAT_MOUSE_WINDOW_MS + 1), false);
+  assert.equal(edgesLib.isCompatMouseAfterTouch({ ...touch, pointerType: "" }, 1020), false); // unknown type: not a touch press
   assert.equal(edgesLib.isCompatMouseAfterTouch({ ...touch, pointerType: "mouse" }, 1020), false);
   assert.equal(edgesLib.isCompatMouseAfterTouch(null, 1020), false);
   assert.equal(edgesLib.isCompatMouseAfterTouch(null, 1020, true), true); // sourceCapabilities.firesTouchEvents
@@ -537,6 +545,9 @@ test("source contracts: pointer types in OptionGrid, manual navigation cancels t
   const root = path.join(__dirname, "..", "src");
   const grid = fs.readFileSync(path.join(root, "components/ui/option-grid.tsx"), "utf8");
   assert.ok(grid.includes("event.pointerType") && grid.includes("isCompatMouseAfterTouch(") && grid.includes("firesTouchEvents"));
+  assert.ok(grid.includes("onPointerUpCapture"), "the compat window starts at the pointerup");
+  assert.equal(/pointerType \|\| "mouse"/.test(grid), false, "an unknown pointer type is never treated as a mouse");
+  assert.equal((grid.match(/pointerType \|\| (pressRef\.current\?\.pointerType \|\| )?""/g) || []).length, 2);
   assert.ok(/hitsScrollbar\(event\.target, event\.nativeEvent, pointerType\)/.test(grid));
   assert.ok(grid.includes("needs to be confirmed again with two taps"), "the re-confirm after a failed submit is documented");
   const exam = fs.readFileSync(path.join(root, "app/e/[code]/page.tsx"), "utf8");

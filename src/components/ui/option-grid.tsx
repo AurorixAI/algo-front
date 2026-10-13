@@ -103,8 +103,12 @@ export function OptionGrid({
             key={opt.id}
             type="button"
             onPointerDownCapture={(event) => {
-              const pointerType = event.pointerType || "mouse";
+              const pointerType = event.pointerType || ""; // unknown is never treated as a mouse
               pressRef.current = { at: performance.now(), pointerType, inGutter: hitsScrollbar(event.target, event.nativeEvent, pointerType), scrolls: scrollsOf(event.currentTarget) };
+            }}
+            onPointerUpCapture={() => {
+              // the compatibility mouse events of a touch / pen tap follow the pointerup: the window starts here
+              if (pressRef.current) pressRef.current = { ...pressRef.current, upAt: performance.now() };
             }}
             onMouseDownCapture={(event) => {
               // the emulated mousedown that follows a touch / pen press must not replace its record
@@ -114,7 +118,7 @@ export function OptionGrid({
             }}
             onClick={(event) => {
               const card = event.currentTarget;
-              const pointerType = (event.nativeEvent as PointerEvent).pointerType || pressRef.current?.pointerType || "mouse";
+              const pointerType = (event.nativeEvent as PointerEvent).pointerType || pressRef.current?.pointerType || "";
               const ignore = shouldIgnoreCardClick({
                 keyboard: event.detail === 0, // Enter / Space on the focused card
                 down: pressRef.current,

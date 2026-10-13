@@ -81,8 +81,10 @@ export function scrollMoved(before: number[], after: number[], tolerance = 0.5):
 export interface CardPointerRecord {
   /** performance.now() of the pointer / mouse down */
   at: number;
-  /** "mouse" | "touch" | "pen" of the press (a compatibility mousedown after a touch is recorded as "mouse" only when no touch press precedes it) */
+  /** "mouse" | "touch" | "pen" of the press ("" = unknown, never treated as a mouse) */
   pointerType?: string;
+  /** performance.now() of the pointerup that ended the press (the compat mouse events follow it) */
+  upAt?: number;
   /** the press started in a scrollbar gutter */
   inGutter: boolean;
   /** scrollLeft of every inner scroller at that moment */
@@ -111,8 +113,10 @@ export function shouldIgnoreCardClick(args: {
   return down.inGutter || scrollMoved(down.scrolls, args.scrollsNow);
 }
 
-/** A touch / pen tap is followed by emulated (compatibility) mouse events within about this long. */
+/** A touch / pen tap is followed by emulated (compatibility) mouse events within about this long after its pointerup. */
 export const COMPAT_MOUSE_WINDOW_MS = 1000;
+/** Without a recorded pointerup (cancelled press) the window is measured from the pointerdown, generously. */
+export const COMPAT_MOUSE_NO_UP_WINDOW_MS = 3000;
 
 /**
  * Is this mousedown only the compatibility event of a touch / pen press that was just recorded? It must
@@ -120,5 +124,8 @@ export const COMPAT_MOUSE_WINDOW_MS = 1000;
  */
 export function isCompatMouseAfterTouch(prev: CardPointerRecord | null, now: number, firesTouchEvents = false): boolean {
   if (firesTouchEvents) return true;
-  return Boolean(prev && prev.pointerType && prev.pointerType !== "mouse" && now - prev.at >= 0 && now - prev.at <= COMPAT_MOUSE_WINDOW_MS);
+  if (!prev || !prev.pointerType || prev.pointerType === "mouse") return false;
+  const from = prev.upAt ?? prev.at; // a long press must not outlive the window: measured from the pointerup
+  const window = prev.upAt !== undefined ? COMPAT_MOUSE_WINDOW_MS : COMPAT_MOUSE_NO_UP_WINDOW_MS;
+  return now - from >= 0 && now - from <= window;
 }
