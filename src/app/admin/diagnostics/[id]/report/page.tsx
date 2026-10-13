@@ -1083,7 +1083,7 @@ export default function DiagnosticReportPage() {
                                           isStudentAnswer ? "bg-rose-500 text-white shadow-2xs" :
                                           "bg-slate-100 text-slate-500"
                                         }`}>{String.fromCharCode(65 + oi)}</span>
-                                        <div className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden py-0.5 no-scrollbar">
+                                        <div className="flex-1 min-w-0 py-0.5">
                                           <MathRenderer
                                             text={pickAnswerDisplayText(item.opt, item.latex)}
                                             block
@@ -1105,7 +1105,7 @@ export default function DiagnosticReportPage() {
                                     </span>
                                     <div className="flex-1 min-w-0 space-y-1">
                                       <div className="text-[11px] sm:text-xs font-semibold text-rose-700 break-words">{unmatchedAnswerLabel(err.answer_type, uniqueOptions.length)}</div>
-                                      <div className="min-w-0 max-w-full overflow-x-auto overflow-y-hidden no-scrollbar">
+                                      <div className="min-w-0 max-w-full">
                                         <MathRenderer block text={pickAnswerDisplayText(err.student_answer || "", err.student_answer_latex)} className="min-w-0 max-w-full break-words font-normal text-[14px] sm:text-[14.5px] leading-snug text-slate-800" />
                                       </div>
                                     </div>

@@ -4,6 +4,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import katex from "katex";
 import { cn } from "../../lib/utils";
 import { fitMathElement } from "./math-fit";
+import { useScrollHint } from "./scroll-hint";
 
 interface MathRendererProps {
   text: string;
@@ -16,6 +17,12 @@ interface MathRendererProps {
    * LaTeX.  Raw/legacy fields must stay on the default mode.
    */
   renderMode?: MathRenderMode;
+  /**
+   * An overflowing formula box becomes a keyboard scroll region (tabindex 0, aria-label). Pass
+   * `false` where the renderer sits inside a button or link: a focusable region cannot be
+   * nested in one (the edge fade is shown either way).
+   */
+  focusable?: boolean;
 }
 
 export type MathRenderMode = "legacy" | "trusted";
@@ -583,15 +590,23 @@ export function MathRenderer({
   className = "",
   block = false,
   renderMode = "legacy",
+  focusable = true,
 }: MathRendererProps) {
   const html = useMemo(() => renderMathText(text, block, renderMode), [text, block, renderMode]);
   const standalone = useMemo(
     () => isStandaloneMath(tokenize(renderMode === "trusted" ? text : text.trim(), renderMode)),
     [text, renderMode],
   );
+  // A new `{ __html }` object on every render makes React (canary used by Next 14) re-write innerHTML on EVERY
+  // re-render of the parent (the student pages tick every second): the formula DOM was replaced each second, which
+  // reset the horizontal scroll position of a wide formula and dropped the scroll hint. Keep the object stable.
+  const innerHtml = useMemo(() => ({ __html: html }), [html]);
   const Tag = block ? "div" : "span";
   const ref = useRef<HTMLElement | null>(null);
   useMathFit(ref, html, block);
+  // edge fade on the side that hides content + keyboard scroll region while it overflows (scroll-hint.tsx)
+  // an inline renderer without display math has nothing that scrolls: no observers for it
+  useScrollHint(ref, html, { selector: ".katex-display", includeRoot: block, focusable, enabled: block || html.includes("katex-display") });
   return (
     <Tag
       ref={ref as React.Ref<HTMLDivElement & HTMLSpanElement>}
@@ -606,7 +621,7 @@ export function MathRenderer({
           : "inline [&_.katex]:inline",
         className
       )}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={innerHtml}
     />
   );
 }
