@@ -60,7 +60,8 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     due: count(summary?.due),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
-    active: count(summary?.active) + count(summary?.free),
+    // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.
+    active: count(summary?.active),
     trackedTotal: count(summary?.tracked_total),
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,

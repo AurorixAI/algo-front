@@ -299,7 +299,7 @@ test("summary store: 200 makes payments available and counts due; one request", 
   const usePaymentsSummary = store();
   usePaymentsSummary.getState().reset();
   await withFetch(() => reply(200, {
-    as_of: TODAY, due: 5, ends_today: 2, expired: 3, expiring: 4, none: 6, active: 20, free: 2, tracked_total: 37, period_mode: "lessons",
+    as_of: TODAY, due: 5, ends_today: 2, expired: 3, expiring: 4, none: 6, active: 20, free: 2, tracked_total: 35, period_mode: "lessons",
   }), async (calls) => {
     await usePaymentsSummary.getState().refresh(true);
     const state = usePaymentsSummary.getState();
@@ -307,7 +307,7 @@ test("summary store: 200 makes payments available and counts due; one request", 
     assert.equal(state.due, 5);
     assert.equal(state.expiring, 4);
     assert.equal(state.none, 6);
-    assert.equal(state.active, 22); // paid + free
+    assert.equal(state.active, 20); // the whole «Оплачено» tab; `free` (2) is a sub-count, not added again
     assert.equal(state.periodMode, "lessons");
     assert.equal(calls.length, 1);
     assert.match(calls[0], /\/auth\/org\/payments\/summary$/);
