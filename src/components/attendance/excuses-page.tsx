@@ -447,7 +447,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
       {/* Filters */}
       <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-end">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-end">
             <label className="block text-xs font-semibold text-slate-500">
               С
               <input
@@ -471,7 +471,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
             <button
               type="button"
               onClick={() => { setDateFrom(monthRange.from); setDateTo(monthRange.to); resetPaging(); }}
-              className="col-span-2 rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 sm:col-span-1"
+              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               Этот месяц
             </button>
@@ -516,7 +516,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
             type="button"
             disabled={selected.size === 0 || bulkBusy}
             onClick={() => void confirmSelected()}
-            className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
             Подтвердить выбранные{selected.size > 0 ? ` (${selected.size})` : ""}
@@ -584,7 +584,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                     </div>
 
                     <div className="min-w-0">
-                      <Link href={`${studentProfileBasePath}/${item.student.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-primary-700" title="Открыть профиль ученика">
+                      <Link href={`${studentProfileBasePath}/${item.student.id}`} className="block break-words text-sm font-semibold text-slate-900 hover:text-primary-700" title="Открыть профиль ученика">
                         {item.student.full_name}
                       </Link>
                       {item.student.display_id && <p className="text-[11px] font-mono text-slate-400">{item.student.display_id}</p>}
@@ -654,12 +654,12 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                             aria-label="Примечание к решению"
                             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
                           />
-                          <div className="flex gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
                               type="button"
                               disabled={busy}
                               onClick={() => void review(item, "confirmed")}
-                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                              className="flex min-w-[120px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                             >
                               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                               Подтвердить
@@ -668,7 +668,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                               type="button"
                               disabled={busy}
                               onClick={() => void review(item, "rejected")}
-                              className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                              className="flex min-w-[120px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
                             >
                               <X className="h-3.5 w-3.5" />
                               Отклонить

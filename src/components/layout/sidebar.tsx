@@ -233,8 +233,8 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                 <span
                   className={cn(
                     "whitespace-nowrap overflow-hidden transition-all duration-300 ml-3",
-                    item.label.length > 18 && "text-[13px]",
-                    collapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[150px] opacity-100"
+                    item.label.length > 18 && "text-[12.5px] tracking-tight",
+                    collapsed ? "max-w-0 opacity-0 ml-0" : item.label.length > 18 ? "max-w-[164px] opacity-100" : "max-w-[150px] opacity-100"
                   )}
                 >
                   {item.label}
