@@ -446,6 +446,8 @@ export default function OwnerGroupDetailPage() {
               adminMode
               studentProfileBasePath="/admin/students"
               initialMonth={searchParams?.get("month")}
+              highlightLessonId={searchParams?.get("lesson")}
+              highlightDate={searchParams?.get("date")}
             />
           </motion.div>
         )}

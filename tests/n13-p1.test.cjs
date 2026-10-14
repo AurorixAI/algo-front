@@ -341,16 +341,16 @@ test("open lessons are sorted newest date first, later lesson first within a day
 });
 
 test("open lesson status and time wording", () => {
-  assert.equal(openLessons.openLessonStatus(action({})), "Не начат");
+  assert.equal(openLessons.openLessonStatus(action({})), "Посещаемость не отмечена");
   assert.equal(
     openLessons.openLessonStatus(action({ actionType: "in_progress", markedCount: 4, rosterCount: 9 })),
-    "Не завершён · отмечено 4 из 9",
+    "Урок не завершён · отмечено 4 из 9",
   );
   assert.equal(openLessons.openLessonTime(action({})), "10:00–11:00");
 });
 
 test("journal link opens the group attendance tab on the lesson's month, per role", () => {
-  const a = action({ groupId: "G-7", lessonDate: "2026-09-30" });
+  const a = action({ groupId: "G-7", lessonDate: "2026-09-30", lessonId: undefined });
   assert.equal(openLessons.journalHref("/owner/groups", a), "/owner/groups/G-7?tab=attendance&month=2026-09");
   assert.equal(openLessons.journalHref("/admin/groups", a), "/admin/groups/G-7?tab=attendance&month=2026-09");
   assert.equal(openLessons.journalHref("/admin/groups", action({ groupId: "G-7", lessonDate: "bad" })), "/admin/groups/G-7?tab=attendance");

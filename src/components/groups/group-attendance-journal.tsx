@@ -29,7 +29,7 @@ import {
   orgApi,
   type StudentInGroup,
 } from "@/lib/api";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, formatUtcNaiveAsBusinessDate, utcNaiveToBusinessIsoDate } from "@/lib/business-time";
 import {
   collectExcuseReasons,
   CORRECTION_REASON_MAX,
@@ -50,8 +50,9 @@ import {
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
-import { parseJournalMonth } from "@/lib/open-lessons";
+import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -66,6 +67,9 @@ interface GroupAttendanceJournalProps {
   adminMode?: boolean;
   /** `YYYY-MM`: open on that month instead of the current week (initial value only). */
   initialMonth?: string | null;
+  /** `?lesson=` / `?date=` of a deep link (open-lessons list): this lesson's column is highlighted. */
+  highlightLessonId?: string | null;
+  highlightDate?: string | null;
 }
 
 type ViewMode = "week" | "month";
@@ -237,7 +241,7 @@ function statusOption(value: AttendanceStatus | "") {
 
 function formatMembershipEvent(event: MembershipEvent): string {
   const date = event.joined_at
-    ? new Date(event.joined_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+    ? formatUtcNaiveAsBusinessDate(event.joined_at, { day: "numeric", month: "short" })
     : null;
   return `Переведён${event.source_group_name ? ` из «${event.source_group_name}»` : " в эту группу"}${date ? ` · ${date}` : ""}`;
 }
@@ -311,8 +315,12 @@ export function GroupAttendanceJournal({
   studentProfileBasePath,
   adminMode = false,
   initialMonth = null,
+  highlightLessonId = null,
+  highlightDate = null,
 }: GroupAttendanceJournalProps) {
-  const requestedMonth = parseJournalMonth(initialMonth);
+  const highlightTarget = parseJournalHighlight(highlightLessonId, highlightDate);
+  const requestedMonth = parseJournalMonth(initialMonth)
+    ?? (highlightTarget ? parseJournalMonth(highlightTarget.date.slice(0, 7)) : null);
   const [viewMode, setViewMode] = useState<ViewMode>(requestedMonth ? "month" : "week");
   const [anchorDate, setAnchorDate] = useState(() =>
     requestedMonth ? new Date(requestedMonth.year, requestedMonth.month - 1, 1, 12) : businessTodayAtLocalNoon(),
@@ -326,8 +334,7 @@ export function GroupAttendanceJournal({
   const { showToast, toastNode } = useToast();
   const [columnMenu, setColumnMenu] = useState<{ key: string; anchor: MenuAnchor } | null>(null);
   const [columnBusyKey, setColumnBusyKey] = useState<string | null>(null);
-  const [cancelMissed, setCancelMissed] = useState<{ lesson: Lesson; reason: string; error: string | null } | null>(null);
-  const [cancelling, setCancelling] = useState(false);
+  const [cancelMissed, setCancelMissed] = useState<CancelMissedTarget | null>(null);
   const [correcting, setCorrecting] = useState<CorrectionState | null>(null);
   const [correctionDialog, setCorrectionDialog] = useState<{ reason: string; error: string | null } | null>(null);
   const [correctionSaving, setCorrectionSaving] = useState(false);
@@ -485,6 +492,42 @@ export function GroupAttendanceJournal({
     [attendanceData?.lessons],
   );
 
+  // Deep link: highlight the lesson column once it is on screen and bring it into view.
+  // Applied once per page visit; ignored when the lesson is not in the loaded period.
+  const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
+  const highlightAppliedRef = useRef(false);
+  const targetLessonId = highlightTarget?.lessonId;
+  const targetLessonDate = highlightTarget?.date;
+  useEffect(() => {
+    if (highlightAppliedRef.current || !targetLessonId || !targetLessonDate) return;
+    const found = lessons.find((lesson) => lesson.id === targetLessonId && lesson.date === targetLessonDate);
+    if (!found) return;
+    highlightAppliedRef.current = true;
+    const key = instanceKey(found);
+    setHighlightedKey(key);
+    const frame = window.requestAnimationFrame(() => {
+      const container = journalScrollRef.current;
+      const column = Array.from(container?.querySelectorAll<HTMLElement>("th[data-lesson-key]") ?? [])
+        .find((element) => element.dataset.lessonKey === key);
+      if (!container || !column) return;
+      // The student column is sticky (~235px): leave it visible, put the lesson right after it.
+      container.scrollTo({ left: Math.max(0, column.offsetLeft - 235 - 8), behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [lessons, targetLessonId, targetLessonDate]);
+  useEffect(() => {
+    if (!highlightedKey) return;
+    const clear = () => setHighlightedKey(null);
+    const timer = window.setTimeout(clear, 8000);
+    document.addEventListener("pointerdown", clear, true);
+    document.addEventListener("keydown", clear, true);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointerdown", clear, true);
+      document.removeEventListener("keydown", clear, true);
+    };
+  }, [highlightedKey]);
+
   // The active roster belongs at the top.  Students transferred out remain
   // below it only when this period contains their real attendance history.
   const membershipEventsByStudentId = useMemo(
@@ -532,7 +575,7 @@ export function GroupAttendanceJournal({
     }
     // Scheduled rows have no frozen roster yet.  A student who joined after
     // the date must not be shown as missing from a lesson they could not take.
-    return !student.joined_at || lesson.date >= student.joined_at.slice(0, 10);
+    return !student.joined_at || lesson.date >= (utcNaiveToBusinessIsoDate(student.joined_at) || student.joined_at.slice(0, 10));
   }, [attendanceData?.rosterStudentIds, localRecords]);
 
   const getStatus = useCallback(
@@ -807,7 +850,7 @@ export function GroupAttendanceJournal({
     setSaveError(null);
 
     if (action === "cancel_missed") {
-      setCancelMissed({ lesson, reason: "", error: null });
+      setCancelMissed({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
       return;
     }
     if (action === "correct") {
@@ -858,34 +901,6 @@ export function GroupAttendanceJournal({
       setSaveError(error instanceof Error ? error.message : "Не удалось выполнить действие");
     } finally {
       setColumnBusyKey(null);
-    }
-  };
-
-  const submitCancelMissed = async () => {
-    if (!cancelMissed) return;
-    const reason = cancelMissed.reason.trim();
-    if (reason.length < 3) {
-      setCancelMissed({ ...cancelMissed, error: "Укажите причину — не менее 3 символов." });
-      return;
-    }
-    const { lesson } = cancelMissed;
-    setCancelling(true);
-    try {
-      await orgApi.cancelMissedGroupAttendance(groupId, {
-        lessonDate: lesson.date,
-        lessonId: lesson.id,
-        cancellationReason: reason,
-      });
-      setCancelMissed(null);
-      await loadAttendanceRef.current(true);
-      showToast(`Урок ${formatDateRu(lesson.date)} отмечен как не состоявшийся`);
-    } catch (error) {
-      setCancelMissed({
-        ...cancelMissed,
-        error: error instanceof Error ? error.message : "Не удалось сохранить. Данные не изменены.",
-      });
-    } finally {
-      setCancelling(false);
     }
   };
 
@@ -1045,8 +1060,9 @@ export function GroupAttendanceJournal({
                       <th
                         key={key}
                         scope="col"
+                        data-lesson-key={key}
                         title={presentation.description}
-                        className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : lesson.date === today ? "bg-primary-50" : ""}`}
+                        className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : highlightedKey === key ? "bg-primary-100 ring-2 ring-inset ring-primary-300" : lesson.date === today ? "bg-primary-50" : ""}`}
                       >
                         {adminActions.length > 0 && (
                           <button
@@ -1217,7 +1233,7 @@ export function GroupAttendanceJournal({
                         const menuAvailable = isOpen && (!locked || reviewable);
 
                         return (
-                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className={`relative border-r border-slate-100 p-2 text-center ${inCorrection ? "bg-amber-50/60" : ""}`}>
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className={`relative border-r border-slate-100 p-2 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50/60" : highlightedKey === key ? "bg-primary-50" : ""}`}>
                             {wasInLesson ? <button
                               type="button"
                               disabled={locked && !reviewable}
@@ -1359,7 +1375,7 @@ export function GroupAttendanceJournal({
               <tbody className="divide-y divide-slate-200">
                 {historicalStudents.map((student) => {
                   const fullName = `${student.last_name || ""} ${student.first_name || ""}`.trim() || student.full_name || "Ученик";
-                  const transferDescription = `Ученик переведён${student.transferredToGroupName ? ` в «${student.transferredToGroupName}»` : " в другую группу"}${student.transferredAt ? ` ${new Date(student.transferredAt).toLocaleDateString("ru-RU")}` : ""}.`;
+                  const transferDescription = `Ученик переведён${student.transferredToGroupName ? ` в «${student.transferredToGroupName}»` : " в другую группу"}${student.transferredAt ? ` ${formatUtcNaiveAsBusinessDate(student.transferredAt)}` : ""}.`;
                   const studentProfileHref = studentProfileBasePath ? `${studentProfileBasePath}/${student.id}` : null;
                   return (
                     <tr key={student.id} className="bg-white">
@@ -1538,44 +1554,14 @@ export function GroupAttendanceJournal({
       </Modal>
 
       {/* "Lesson did not take place" for a forgotten past lesson */}
-      <Modal
-        open={cancelMissed !== null}
-        title="Урока не было"
-        description={cancelMissed ? `Урок ${formatDateRu(cancelMissed.lesson.date)} будет отмечен как не состоявшийся` : undefined}
+      <CancelMissedLessonModal
+        target={cancelMissed}
         onClose={() => setCancelMissed(null)}
-        busy={cancelling}
-        footer={
-          <>
-            <button type="button" onClick={() => setCancelMissed(null)} disabled={cancelling} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
-            <button
-              type="button"
-              onClick={() => void submitCancelMissed()}
-              disabled={cancelling || (cancelMissed?.reason.trim().length ?? 0) < 3}
-              className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-            >
-              {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
-              Урока не было
-            </button>
-          </>
-        }
-      >
-        {cancelMissed && (
-          <div className="space-y-2 pb-2">
-            <label htmlFor="cancel-missed-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина</label>
-            <textarea
-              id="cancel-missed-reason"
-              value={cancelMissed.reason}
-              onChange={(event) => setCancelMissed({ ...cancelMissed, reason: event.target.value, error: null })}
-              rows={3}
-              maxLength={300}
-              autoFocus
-              placeholder="Например: преподаватель заболел, урок не проводился"
-              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
-            />
-            {cancelMissed.error && <p role="alert" className="text-xs font-medium text-rose-600">{cancelMissed.error}</p>}
-          </div>
-        )}
-      </Modal>
+        onCancelled={async (done) => {
+          await loadAttendanceRef.current(true);
+          showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`);
+        }}
+      />
 
       {/* Correction of a completed lesson */}
       <Modal

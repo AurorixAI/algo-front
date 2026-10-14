@@ -25,6 +25,8 @@ import {
   type ExcuseReviewStatus,
 } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { excuseDeadlineHint } from "@/lib/excuse-deadline";
+import { telHref } from "@/lib/phone";
 import {
   checkExcuseFile,
   EXCUSE_FILE_MAX_BYTES,
@@ -164,6 +166,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const { showToast, toastNode } = useToast();
   // The list covers one calendar month on the business clock (Asia/Tashkent).
   const currentMonth = useMemo(() => monthOf(formatBusinessDate()), []);
+  const businessToday = formatBusinessDate();
 
   const [tab, setTab] = useState<Tab>("pending");
   const [month, setMonth] = useState(currentMonth);
@@ -462,6 +465,8 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                 const busy = busyIds.has(item.id);
                 const badge = STATUS_BADGE[item.status];
                 const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
+                const phoneHref = telHref(item.student.phone);
+                const deadline = excuseDeadlineHint(item.lesson_date, item.status, businessToday);
                 return (
                   <li key={item.id} className={`flex flex-col gap-3 px-4 py-4 sm:px-5 xl:items-start ${GRID_COLUMNS}`}>
                     <div className="flex flex-wrap items-center gap-2 xl:block">
@@ -476,6 +481,11 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                         {item.student.full_name}
                       </Link>
                       {item.student.display_id && <p className="text-[11px] font-mono text-slate-400">{item.student.display_id}</p>}
+                      {phoneHref && (
+                        <a href={phoneHref} className="block break-all text-xs tabular-nums text-slate-500 hover:text-primary-700 hover:underline" title="Позвонить">
+                          {item.student.phone}
+                        </a>
+                      )}
                       <p className="mt-0.5 text-xs text-slate-600">{item.group.name}</p>
                       <p className="text-xs text-slate-400">{item.teacher?.name || "—"}</p>
                     </div>
@@ -534,6 +544,9 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                     <div className="min-w-0 space-y-2">
                       {item.status === "pending" ? (
                         <>
+                          {deadline && (
+                            <p className={`text-[11px] ${deadline.overdue ? "font-medium text-amber-700" : "text-slate-400"}`}>{deadline.text}</p>
+                          )}
                           <input
                             value={notes[item.id] || ""}
                             onChange={(event) => setNotes((previous) => ({ ...previous, [item.id]: event.target.value }))}

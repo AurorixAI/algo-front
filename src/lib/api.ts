@@ -465,7 +465,7 @@ export interface AttendanceExcuseItem {
   lesson_key: string;
   group: { id: string; name: string };
   teacher: { id: string; name: string } | null;
-  student: { id: string; full_name: string; display_id: string | null };
+  student: { id: string; full_name: string; display_id: string | null; phone?: string | null };
   reason: string;
   reason_by: { id: string; name: string } | null;
   reason_at: string | null;

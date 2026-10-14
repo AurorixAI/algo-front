@@ -34,3 +34,14 @@ export function isValidUzPhone(value: string): boolean {
   const digits = value.replace(/\D/g, "");
   return digits.length === 12 && digits.startsWith("998");
 }
+
+/**
+ * `tel:` link for a stored phone («+998 90 123 45 67», «90 123-45-67»), or null when there is nothing
+ * dialable (empty, or fewer than 7 digits). Spaces and punctuation are dropped; a leading «+» is kept.
+ */
+export function telHref(value: string | null | undefined): string | null {
+  const raw = (value ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 7 || digits.length > 15) return null;
+  return `tel:${raw.startsWith("+") ? "+" : ""}${digits}`;
+}
