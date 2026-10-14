@@ -135,10 +135,11 @@ test("dates are shown as ДД.ММ.ГГГГ and times on the Tashkent clock", ()
   assert.equal(rules.formatDateRu("2026-10-14"), "14.10.2026");
   assert.equal(rules.formatDateRu("2026-01-05T10:00:00"), "05.01.2026");
   assert.equal(rules.formatDateRu(null), "");
-  // 19:30 UTC is already the next day, 00:30, in Tashkent (UTC+5)
+  // a value with an explicit zone is converted: 19:30 UTC is 00:30 next day in Tashkent (UTC+5)
   assert.equal(rules.formatDateTimeRu("2026-10-13T19:30:00Z"), "14.10.2026 00:30");
-  // the server sends naive timestamps in UTC
-  assert.equal(rules.formatDateTimeRu("2026-10-13T19:30:00"), "14.10.2026 00:30");
+  // the server sends naive timestamps that are already Tashkent time: no shift
+  assert.equal(rules.formatDateTimeRu("2026-10-13T19:30:00"), "13.10.2026 19:30");
+  assert.equal(rules.formatDateTimeRu("2026-10-14T00:05:12.123456"), "14.10.2026 00:05");
   assert.equal(rules.formatDateTimeRu(""), "");
 });
 

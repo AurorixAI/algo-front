@@ -589,7 +589,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                       </Link>
                       {item.student.display_id && <p className="text-[11px] font-mono text-slate-400">{item.student.display_id}</p>}
                       <p className="mt-0.5 text-xs text-slate-600">{item.group.name}</p>
-                      <p className="text-xs text-slate-400">{item.teacher?.name || "Преподаватель не указан"}</p>
+                      <p className="text-xs text-slate-400">{item.teacher?.name || "—"}</p>
                     </div>
 
                     <div className="min-w-0">
@@ -682,6 +682,28 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                             {[item.reviewed_by?.name, formatDateTimeRu(item.reviewed_at)].filter(Boolean).join(", ") || "—"}
                           </p>
                           {item.review_note && <p className="break-words text-xs text-slate-500">Примечание: {item.review_note}</p>}
+                          <div className="flex flex-wrap gap-2">
+                          {item.status === "rejected" ? (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void review(item, "confirmed")}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Подтвердить
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={busy}
+                              onClick={() => void review(item, "rejected")}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              Отклонить
+                            </button>
+                          )}
                           <button
                             type="button"
                             disabled={busy}
@@ -691,6 +713,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
                             Сбросить решение
                           </button>
+                          </div>
                         </>
                       )}
                     </div>

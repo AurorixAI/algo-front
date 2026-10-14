@@ -74,12 +74,18 @@ function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
 
-/** ISO timestamp -> "ДД.ММ.ГГГГ ЧЧ:ММ" in Asia/Tashkent (the business clock). */
+/**
+ * ISO timestamp -> "ДД.ММ.ГГГГ ЧЧ:ММ" on the business clock (Asia/Tashkent).
+ * The server sends naive timestamps that are ALREADY Tashkent wall time, so they
+ * are shown as written; only a value with an explicit zone is converted.
+ */
 export function formatDateTimeRu(value: string | null | undefined): string {
   if (!value) return "";
-  // The server stores naive timestamps; treat a value without a zone as UTC.
-  const hasZone = /(Z|[+-]\d{2}:?\d{2})$/.test(value);
-  const date = new Date(hasZone ? value : `${value}Z`);
+  const naive = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(value);
+  if (naive && !/(Z|[+-]\d{2}:?\d{2})$/.test(value)) {
+    return `${naive[3]}.${naive[2]}.${naive[1]} ${naive[4]}:${naive[5]}`;
+  }
+  const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Tashkent",

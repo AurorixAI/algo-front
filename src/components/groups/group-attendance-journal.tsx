@@ -526,6 +526,16 @@ export function GroupAttendanceJournal({
           instanceKey(item) === lessonKey ? { ...item, status: "in_progress" } : item,
         ),
       } : previous);
+      // The server deletes the excuse (and its files) when "excused" is replaced.
+      if (previousStatus === "excused" && status !== "excused") {
+        setAttendanceData((previous) => {
+          const forLesson = previous?.excuses?.[lessonKey];
+          if (!previous || !forLesson?.[student.id]) return previous;
+          const rest = { ...forLesson };
+          delete rest[student.id];
+          return { ...previous, excuses: { ...previous.excuses, [lessonKey]: rest } };
+        });
+      }
       // The excuse record lives on the server; fetch its id and review state.
       if (status === "excused" || previousStatus === "excused") {
         void loadAttendance(true);
