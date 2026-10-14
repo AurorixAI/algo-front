@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, CalendarDays,
+  ArrowLeft, Users, CalendarDays, UserPlus,
   GraduationCap, Loader2, Edit2, Check, X,
   Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
@@ -15,6 +15,8 @@ import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
 import { Select } from "@/components/ui/select";
+import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
+import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
 type Tab = "students" | "schedule" | "attendance";
@@ -54,15 +56,11 @@ export default function AdminGroupDetailPage() {
     name: "", class_level: "", teacher_id: "", description: "", max_students: "30",
   });
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const { showToast, toastNode } = useToast();
+  const [addOpen, setAddOpen] = useState(false);
 
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
-
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [g, s, m] = await Promise.all([
         orgApi.getGroup(groupId),
@@ -87,6 +85,18 @@ export default function AdminGroupDetailPage() {
   }, [groupId, router]);
 
   useEffect(() => { if (groupId) load(); }, [load]);
+
+  const handleStudentsAdded = (result: AddStudentsResult) => {
+    setAddOpen(false);
+    void load(true);
+    if (result.added > 0 && result.skipped === 0) {
+      showToast(`Добавлено учеников: ${result.added}`);
+    } else if (result.added > 0) {
+      showToast(`Добавлено: ${result.added}, не добавлено: ${result.skipped}`, "warning", result.skippedLines);
+    } else {
+      showToast("Ни одного ученика не добавлено", "error", result.skippedLines);
+    }
+  };
 
   const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
     id: m.user_id || m.id,
@@ -140,7 +150,7 @@ export default function AdminGroupDetailPage() {
 
   const handleRemoveStudent = async (studentId: string) => {
     if (!group) return;
-    if (!confirm("Удалить ученика из группы?")) return;
+    // The confirmation is the modal of GroupStudentTable.
     try {
       await orgApi.removeStudentFromGroup(groupId, studentId);
       setGroup((prev) => prev ? {
@@ -148,9 +158,10 @@ export default function AdminGroupDetailPage() {
         students: prev.students.filter((s) => s.id !== studentId),
         student_count: prev.student_count - 1,
       } : null);
-      showToast("Ученик удалён из группы");
+      showToast("Ученик убран из группы");
     } catch (e: any) {
-      showToast(e.message || "Ошибка", "error");
+      showToast(e.message || "Не удалось убрать ученика", "error");
+      throw e;
     }
   };
 
@@ -407,6 +418,16 @@ export default function AdminGroupDetailPage() {
                 Состав группы
                 <span className="ml-2 text-sm font-normal text-slate-400">({group.student_count})</span>
               </p>
+              {group.status === "active" && (
+                <button
+                  type="button"
+                  onClick={() => setAddOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Добавить ученика
+                </button>
+              )}
             </div>
             <GroupStudentTable
               students={group.students}
@@ -427,28 +448,24 @@ export default function AdminGroupDetailPage() {
             <GroupAttendanceJournal
               groupId={groupId}
               students={group.students || []}
-              canEdit={false}
+              canEdit
+              adminMode
               studentProfileBasePath="/admin/students"
             />
           </motion.div>
         )}
       </div>
 
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-lg text-sm font-medium ${
-              toast.type === "success" ? "bg-slate-900 text-white" : "bg-red-600 text-white"
-            }`}
-          >
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <AddStudentDrawer
+        open={addOpen}
+        groupId={groupId}
+        groupClassLevel={group.class_level}
+        existingStudentIds={existingIds}
+        onClose={() => setAddOpen(false)}
+        onAdded={handleStudentsAdded}
+      />
+
+      {toastNode}
     </div>
   );
 }

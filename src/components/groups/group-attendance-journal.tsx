@@ -2,19 +2,27 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import {
   AlertCircle,
+  Ban,
   CalendarDays,
   Check,
+  CheckCheck,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   FileWarning,
   Loader2,
+  MoreHorizontal,
+  Pencil,
   RotateCcw,
+  Undo2,
   Users,
   X,
 } from "lucide-react";
 import {
+  type AttendanceExcuseInfo,
   type AttendanceStatus,
   type GroupAttendance,
   type Lesson,
@@ -22,6 +30,23 @@ import {
   type StudentInGroup,
 } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import {
+  collectExcuseReasons,
+  CORRECTION_REASON_MAX,
+  diffAttendance,
+  EXCUSE_REASON_MAX,
+  excuseCellView,
+  finishBlockedHint,
+  formatDateRu,
+  formatDateTimeRu,
+  lessonAdminActions,
+  validateCorrectionReason,
+  validateExcuseReason,
+  type AdminLessonAction,
+} from "@/lib/attendance-excuses";
+import { useExcuseBadge } from "@/lib/excuse-badge";
+import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
 
 interface GroupAttendanceJournalProps {
   groupId: string;
@@ -30,6 +55,8 @@ interface GroupAttendanceJournalProps {
   canEdit?: boolean;
   /** Передаётся только ролям, которым разрешено открывать профиль ученика. */
   studentProfileBasePath?: string;
+  /** Administrator / owner: lesson-column actions, correction mode and excuse review. */
+  adminMode?: boolean;
 }
 
 type ViewMode = "week" | "month";
@@ -39,6 +66,13 @@ type OpenAttendanceCell = {
   lessonKey: string;
   placement: AttendanceMenuPlacement;
 };
+type CorrectionState = {
+  key: string;
+  draft: Record<string, AttendanceStatus>;
+  /** Reasons typed for students newly marked "excused" during the correction. */
+  reasons: Record<string, string>;
+};
+type ReviewAction = "confirmed" | "rejected" | "reset";
 type MembershipEvent = NonNullable<GroupAttendance["membershipEvents"]>[number];
 type DiagnosticReportNotice = NonNullable<GroupAttendance["diagnosticReportNotices"]>[number];
 type AttendanceJournalStudent = StudentInGroup & {
@@ -166,11 +200,33 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
   };
 }
 
+function excuseTooltip(excuse: AttendanceExcuseInfo): string {
+  const lines = [`Причина: ${excuse.reason}`];
+  const marked = [excuse.reason_by_name, formatDateTimeRu(excuse.reason_at)].filter(Boolean).join(", ");
+  if (marked) lines.push(`Отметил(а): ${marked}`);
+  if (excuse.status !== "pending") {
+    const verb = excuse.status === "confirmed" ? "Подтвердил(а)" : "Отклонил(а)";
+    const reviewed = [excuse.reviewed_by_name, formatDateTimeRu(excuse.reviewed_at)].filter(Boolean).join(", ");
+    lines.push(reviewed ? `${verb}: ${reviewed}` : verb);
+    if (excuse.review_note) lines.push(`Примечание: ${excuse.review_note}`);
+  } else {
+    lines.push("Ожидает решения администратора");
+  }
+  return lines.join("\n");
+}
+
+const EXCUSE_TONE_CLASS = {
+  pending: "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100",
+  confirmed: "border-emerald-300 bg-sky-50 text-emerald-700 hover:bg-sky-100",
+  rejected: "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100",
+} as const;
+
 export function GroupAttendanceJournal({
   groupId,
   students,
   canEdit = false,
   studentProfileBasePath,
+  adminMode = false,
 }: GroupAttendanceJournalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [anchorDate, setAnchorDate] = useState(businessTodayAtLocalNoon);
@@ -180,6 +236,17 @@ export function GroupAttendanceJournal({
   const [savingLessonKey, setSavingLessonKey] = useState<string | null>(null);
   const [openCell, setOpenCell] = useState<OpenAttendanceCell | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const { showToast, toastNode } = useToast();
+  const [columnMenu, setColumnMenu] = useState<{ key: string; top: number; left: number } | null>(null);
+  const [columnBusyKey, setColumnBusyKey] = useState<string | null>(null);
+  const [cancelMissed, setCancelMissed] = useState<{ lesson: Lesson; reason: string; error: string | null } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+  const [correcting, setCorrecting] = useState<CorrectionState | null>(null);
+  const [correctionDialog, setCorrectionDialog] = useState<{ reason: string; error: string | null } | null>(null);
+  const [correctionSaving, setCorrectionSaving] = useState(false);
+  const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
+  const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
+  const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const journalScrollRef = useRef<HTMLDivElement | null>(null);
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
@@ -210,9 +277,9 @@ export function GroupAttendanceJournal({
     };
   }, [anchorDate, viewMode]);
 
-  const loadAttendance = useCallback(async () => {
+  const loadAttendance = useCallback(async (silent = false) => {
     if (!groupId) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     try {
       const data = await orgApi.getGroupAttendance(groupId, {
         dateFrom: period.start,
@@ -230,6 +297,33 @@ export function GroupAttendanceJournal({
   useEffect(() => {
     void loadAttendance();
   }, [loadAttendance]);
+
+  // Leaving the period while a correction is open would silently drop the edits.
+  useEffect(() => { setCorrecting(null); setColumnMenu(null); }, [period.start, period.end]);
+
+  useEffect(() => {
+    if (!columnMenu) return;
+    const close = () => setColumnMenu(null);
+    const closeWhenClickedOutside = (event: PointerEvent) => {
+      const target = event.target as Element;
+      // The trigger toggles the menu itself; closing here would reopen it on click.
+      if (target.closest?.("[data-column-menu-trigger]")) return;
+      if (!columnMenuRef.current?.contains(target)) close();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", closeWhenClickedOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeWhenClickedOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [columnMenu]);
 
   useEffect(() => {
     if (!openCell) return;
@@ -307,9 +401,13 @@ export function GroupAttendanceJournal({
   }, [attendanceData?.rosterStudentIds, localRecords]);
 
   const getStatus = useCallback(
-    (studentId: string, lesson: Lesson): AttendanceStatus | "" =>
-      lesson.date > today ? "" : localRecords[instanceKey(lesson)]?.[studentId] || "",
-    [localRecords, today],
+    (studentId: string, lesson: Lesson): AttendanceStatus | "" => {
+      if (lesson.date > today) return "";
+      const key = instanceKey(lesson);
+      if (correcting?.key === key) return correcting.draft[studentId] || "";
+      return localRecords[key]?.[studentId] || "";
+    },
+    [correcting, localRecords, today],
   );
 
   const movePeriod = (direction: -1 | 1) => {
@@ -350,22 +448,60 @@ export function GroupAttendanceJournal({
     [],
   );
 
+  const excusesOf = useCallback(
+    (lessonKey: string) => attendanceData?.excuses?.[lessonKey],
+    [attendanceData?.excuses],
+  );
+
   const handleSelectStatus = async (
     status: AttendanceStatus | "",
     student: StudentInGroup,
     lesson: Lesson,
+    reason?: string,
   ) => {
     const lessonKey = instanceKey(lesson);
     const lessonStatus = attendanceData?.statuses?.[lessonKey] || lesson.status || "scheduled";
+    const inCorrection = correcting?.key === lessonKey;
     if (
       !canEdit
       || lesson.date > today
       || lessonStatus === "scheduled"
-      || lessonStatus === "completed"
       || lessonStatus === "cancelled"
+      || (lessonStatus === "completed" && !inCorrection)
     ) return;
 
+    // "Excused" is saved only together with a reason (3..300): ask for it first.
+    if (status === "excused" && reason === undefined) {
+      setOpenCell(null);
+      setReasonEditor({
+        student,
+        lesson,
+        text: excusesOf(lessonKey)?.[student.id]?.reason
+          ?? (inCorrection ? correcting?.reasons[student.id] : undefined)
+          ?? "",
+        error: null,
+      });
+      return;
+    }
+
+    // Correction of a completed lesson: edits pile up locally until "Сохранить исправление".
+    if (inCorrection && correcting) {
+      setOpenCell(null);
+      setCorrecting((previous) => {
+        if (!previous) return previous;
+        const draft = { ...previous.draft };
+        const reasons = { ...previous.reasons };
+        if (status) draft[student.id] = status;
+        else delete draft[student.id];
+        if (status === "excused" && reason) reasons[student.id] = reason;
+        else delete reasons[student.id];
+        return { ...previous, draft, reasons };
+      });
+      return;
+    }
+
     const previousRecords = localRecords;
+    const previousStatus = localRecords[lessonKey]?.[student.id] || "";
     const updatedRecords = { ...(localRecords[lessonKey] || {}) };
     if (status) updatedRecords[student.id] = status;
     else delete updatedRecords[student.id];
@@ -381,6 +517,7 @@ export function GroupAttendanceJournal({
         topic: lesson.topic,
         status: lessonStatus,
         records: updatedRecords,
+        ...(status === "excused" && reason ? { excuseReasons: { [student.id]: reason } } : {}),
       });
       setAttendanceData((previous) => previous ? {
         ...previous,
@@ -389,11 +526,220 @@ export function GroupAttendanceJournal({
           instanceKey(item) === lessonKey ? { ...item, status: "in_progress" } : item,
         ),
       } : previous);
+      // The excuse record lives on the server; fetch its id and review state.
+      if (status === "excused" || previousStatus === "excused") {
+        void loadAttendance(true);
+        void useExcuseBadge.getState().refresh();
+      }
     } catch (error) {
       setLocalRecords(previousRecords);
       setSaveError(error instanceof Error ? error.message : "Не удалось сохранить отметку");
     } finally {
       setSavingLessonKey(null);
+    }
+  };
+
+  const submitReasonEditor = () => {
+    if (!reasonEditor) return;
+    const error = validateExcuseReason(reasonEditor.text);
+    if (error) {
+      setReasonEditor({ ...reasonEditor, error });
+      return;
+    }
+    const { student, lesson, text } = reasonEditor;
+    setReasonEditor(null);
+    void handleSelectStatus("excused", student, lesson, text.trim());
+  };
+
+  const handleReview = async (
+    excuse: AttendanceExcuseInfo,
+    lessonKey: string,
+    studentId: string,
+    action: ReviewAction,
+  ) => {
+    setOpenCell(null);
+    setSaveError(null);
+    setReviewBusyId(excuse.id);
+    try {
+      const item = action === "reset"
+        ? await orgApi.resetAttendanceExcuse(excuse.id)
+        : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action });
+      setAttendanceData((previous) => {
+        const current = previous?.excuses?.[lessonKey]?.[studentId];
+        if (!previous || !current) return previous;
+        return {
+          ...previous,
+          excuses: {
+            ...previous.excuses,
+            [lessonKey]: {
+              ...previous.excuses?.[lessonKey],
+              [studentId]: {
+                ...current,
+                status: item.status,
+                reviewed_by_name: item.reviewed_by?.name ?? null,
+                reviewed_at: item.reviewed_at ?? null,
+                review_note: item.review_note ?? null,
+              },
+            },
+          },
+        };
+      });
+      void useExcuseBadge.getState().refresh();
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Не удалось сохранить решение");
+    } finally {
+      setReviewBusyId(null);
+    }
+  };
+
+  // ── Lesson column actions (administrator / owner) ─────────────────────
+  const openColumnMenu = (event: ReactMouseEvent<HTMLButtonElement>, key: string) => {
+    if (columnMenu?.key === key) {
+      setColumnMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = 240;
+    setOpenCell(null);
+    setColumnMenu({
+      key,
+      top: rect.bottom + 6,
+      left: Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8)),
+    });
+  };
+
+  const markedInLesson = (lesson: Lesson) => {
+    const key = instanceKey(lesson);
+    const roster = activeStudents.filter((student) => belongsToLesson(student, lesson));
+    const marked = roster.filter((student) => Boolean(localRecords[key]?.[student.id])).length;
+    return { rosterCount: roster.length, markedCount: marked };
+  };
+
+  const runColumnAction = async (action: AdminLessonAction, lesson: Lesson) => {
+    const key = instanceKey(lesson);
+    setColumnMenu(null);
+    setSaveError(null);
+
+    if (action === "cancel_missed") {
+      setCancelMissed({ lesson, reason: "", error: null });
+      return;
+    }
+    if (action === "correct") {
+      setCorrecting({ key, draft: { ...(localRecords[key] || {}) }, reasons: {} });
+      return;
+    }
+
+    setColumnBusyKey(key);
+    try {
+      if (action === "reconcile") {
+        await orgApi.reconcileMissedGroupAttendance(groupId, {
+          lessonDate: lesson.date,
+          lessonId: lesson.id,
+          topic: lesson.topic,
+        });
+        await loadAttendance(true);
+        showToast("Урок открыт: отметьте учеников в столбце");
+      } else if (action === "finish") {
+        const { rosterCount, markedCount } = markedInLesson(lesson);
+        const hint = finishBlockedHint(markedCount, rosterCount);
+        if (hint) {
+          showToast(hint, "warning");
+          return;
+        }
+        await orgApi.saveGroupAttendance(groupId, {
+          lessonDate: lesson.date,
+          lessonId: lesson.id,
+          topic: lesson.topic,
+          status: "completed",
+          records: localRecords[key] || {},
+        });
+        await loadAttendance(true);
+        void useExcuseBadge.getState().refresh();
+        showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
+      }
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Не удалось выполнить действие");
+    } finally {
+      setColumnBusyKey(null);
+    }
+  };
+
+  const submitCancelMissed = async () => {
+    if (!cancelMissed) return;
+    const reason = cancelMissed.reason.trim();
+    if (reason.length < 3) {
+      setCancelMissed({ ...cancelMissed, error: "Укажите причину — не менее 3 символов." });
+      return;
+    }
+    const { lesson } = cancelMissed;
+    setCancelling(true);
+    try {
+      await orgApi.cancelMissedGroupAttendance(groupId, {
+        lessonDate: lesson.date,
+        lessonId: lesson.id,
+        cancellationReason: reason,
+      });
+      setCancelMissed(null);
+      await loadAttendance(true);
+      showToast(`Урок ${formatDateRu(lesson.date)} отмечен как не состоявшийся`);
+    } catch (error) {
+      setCancelMissed({
+        ...cancelMissed,
+        error: error instanceof Error ? error.message : "Не удалось сохранить. Данные не изменены.",
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const correctingLesson = correcting
+    ? lessons.find((lesson) => instanceKey(lesson) === correcting.key) || null
+    : null;
+  const correctionChanges = correcting
+    ? diffAttendance(localRecords[correcting.key] || {}, correcting.draft)
+    : [];
+  const studentNameById = useMemo(() => {
+    const names = new Map<string, string>();
+    [...activeStudents, ...historicalStudents].forEach((student) => {
+      names.set(
+        student.id,
+        `${student.last_name || ""} ${student.first_name || ""}`.trim() || student.full_name || "Ученик",
+      );
+    });
+    return names;
+  }, [activeStudents, historicalStudents]);
+
+  const submitCorrection = async () => {
+    if (!correcting || !correctionDialog || !correctingLesson) return;
+    const error = validateCorrectionReason(correctionDialog.reason);
+    if (error) {
+      setCorrectionDialog({ ...correctionDialog, error });
+      return;
+    }
+    setCorrectionSaving(true);
+    try {
+      await orgApi.saveGroupAttendance(groupId, {
+        lessonDate: correctingLesson.date,
+        lessonId: correctingLesson.id,
+        topic: correctingLesson.topic,
+        status: "completed",
+        records: correcting.draft,
+        correctionReason: correctionDialog.reason.trim(),
+        excuseReasons: collectExcuseReasons(correcting.draft, correcting.reasons, excusesOf(correcting.key)),
+      });
+      const date = formatDateRu(correctingLesson.date);
+      setCorrecting(null);
+      setCorrectionDialog(null);
+      await loadAttendance(true);
+      void useExcuseBadge.getState().refresh();
+      showToast(`Урок ${date} исправлен`);
+    } catch (err) {
+      setCorrectionDialog({
+        ...correctionDialog,
+        error: err instanceof Error ? err.message : "Не удалось сохранить исправление. Данные не изменены.",
+      });
+    } finally {
+      setCorrectionSaving(false);
     }
   };
 
@@ -403,6 +749,15 @@ export function GroupAttendanceJournal({
         <div role="alert" className="flex items-start justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           <div className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{saveError}</div>
           <button type="button" onClick={() => setSaveError(null)} aria-label="Закрыть сообщение об ошибке" className="rounded p-0.5 hover:bg-rose-100"><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
+      {correcting && correctingLesson && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <Pencil className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            Исправление урока {formatDateRu(correctingLesson.date)}. Меняйте отметки в подсвеченном столбце, затем нажмите «Сохранить исправление» в его заголовке.
+          </span>
         </div>
       )}
 
@@ -479,13 +834,33 @@ export function GroupAttendanceJournal({
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                     const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
+                    const inCorrection = correcting?.key === key;
+                    const correction = attendanceData?.corrections?.[key];
+                    const adminActions = adminMode && canEdit && !correcting
+                      ? lessonAdminActions(lessonStatus, lesson.date, today)
+                      : [];
                     return (
                       <th
                         key={key}
                         scope="col"
                         title={presentation.description}
-                        className={`min-w-[132px] border-r border-slate-200 px-3 py-3 text-center ${lesson.date === today ? "bg-primary-50" : ""}`}
+                        className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : lesson.date === today ? "bg-primary-50" : ""}`}
                       >
+                        {adminActions.length > 0 && (
+                          <button
+                            type="button"
+                            data-column-menu-trigger
+                            onClick={(event) => openColumnMenu(event, key)}
+                            disabled={columnBusyKey === key}
+                            aria-label={`Действия с уроком ${formatDateRu(lesson.date)}`}
+                            aria-haspopup="menu"
+                            aria-expanded={columnMenu?.key === key}
+                            title="Действия с уроком"
+                            className="absolute right-1 top-1 rounded-lg p-1 text-slate-500 hover:bg-white hover:text-slate-900 disabled:opacity-60"
+                          >
+                            {columnBusyKey === key ? <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> : <MoreHorizontal className="h-4 w-4" />}
+                          </button>
+                        )}
                         <div className="space-y-0.5">
                           <div className="font-bold text-slate-900">
                             {dateValue.getDate()} {MONTHS_GENITIVE[dateValue.getMonth()].slice(0, 3)}
@@ -506,6 +881,39 @@ export function GroupAttendanceJournal({
                           <div className={`text-[10px] font-semibold ${presentation.className}`}>
                             {presentation.label}
                           </div>
+                          {correction && lessonStatus === "completed" && (
+                            <div>
+                              <span
+                                title={[
+                                  `Исправлено: ${[correction.by_name, formatDateTimeRu(correction.at)].filter(Boolean).join(", ")}`,
+                                  correction.reason ? `Причина: ${correction.reason}` : "",
+                                ].filter(Boolean).join("\n")}
+                                className="inline-flex cursor-help rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                              >
+                                Исправлено
+                              </span>
+                            </div>
+                          )}
+                          {inCorrection && (
+                            <div className="flex flex-col gap-1 pt-1.5">
+                              <button
+                                type="button"
+                                disabled={correctionChanges.length === 0}
+                                onClick={() => setCorrectionDialog({ reason: "", error: null })}
+                                title={correctionChanges.length === 0 ? "Измените хотя бы одну отметку" : undefined}
+                                className="rounded-lg bg-primary-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                Сохранить исправление{correctionChanges.length > 0 ? ` (${correctionChanges.length})` : ""}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => { setCorrecting(null); setOpenCell(null); }}
+                                className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-50"
+                              >
+                                Отмена
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </th>
                     );
@@ -579,8 +987,17 @@ export function GroupAttendanceJournal({
                         const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                         const isFutureLesson = lesson.date > today;
                         const wasInLesson = belongsToLesson(student, lesson);
-                        const locked = !wasInLesson || !canEdit || isFutureLesson || lessonStatus === "scheduled" || lessonStatus === "completed" || lessonStatus === "cancelled";
+                        const inCorrection = correcting?.key === key;
+                        const locked = !wasInLesson || !canEdit || isFutureLesson || lessonStatus === "scheduled" || (lessonStatus === "completed" && !inCorrection) || lessonStatus === "cancelled";
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
+                        // The excuse record belongs to the saved mark, not to an unsaved correction.
+                        const savedIsExcused = localRecords[key]?.[student.id] === "excused";
+                        const excuse = value === "excused" && savedIsExcused ? excusesOf(key)?.[student.id] : undefined;
+                        const reviewable = adminMode && !inCorrection && Boolean(excuse);
+                        const excuseView = value === "excused" ? excuseCellView(excuse?.status) : null;
+                        const cellClassName = excuseView && excuseView.tone !== "plain"
+                          ? EXCUSE_TONE_CLASS[excuseView.tone]
+                          : option?.className;
                         const lockedTitle = !wasInLesson
                             ? "Ученик ещё не состоял в группе на дату этого занятия"
                           : isFutureLesson
@@ -588,38 +1005,42 @@ export function GroupAttendanceJournal({
                           : lessonStatus === "scheduled"
                             ? "Сначала начните урок в расписании или на панели «Сегодня»"
                           : lessonStatus === "completed"
-                            ? "Завершённый урок защищён от случайного изменения"
+                            ? (adminMode && canEdit ? "Завершённый урок: для изменения выберите «⋯ → Исправить» в заголовке столбца" : "Завершённый урок защищён от случайного изменения")
                             : lessonStatus === "cancelled"
                               ? "Отменённый урок нельзя отмечать"
                               : "Режим просмотра";
+                        const baseTitle = locked ? lockedTitle : "Выбрать отметку";
+                        const cellTitle = excuse ? `${excuseTooltip(excuse)}${locked && !reviewable ? "" : `\n${baseTitle}`}` : baseTitle;
+                        const cellBusy = Boolean(excuse && reviewBusyId === excuse.id);
+                        const menuAvailable = isOpen && (!locked || reviewable);
 
                         return (
-                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className="relative border-r border-slate-100 p-2 text-center">
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className={`relative border-r border-slate-100 p-2 text-center ${inCorrection ? "bg-amber-50/60" : ""}`}>
                             {wasInLesson ? <button
                               type="button"
-                              disabled={locked}
+                              disabled={locked && !reviewable}
                               onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
-                              title={locked ? lockedTitle : "Выбрать отметку"}
+                              title={cellTitle}
                               aria-expanded={isOpen}
                               aria-controls={isOpen ? `attendance-menu-${student.id}-${key}` : undefined}
-                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"} ${locked ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
                             >
                               {option ? (
                                 <>
                                   <span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />
-                                  {option.short}
+                                  {excuseView ? excuseView.label : option.short}
                                 </>
                               ) : "—"}
                             </button> : (
                               <span title="Ученик ещё не состоял в группе" className="mx-auto flex min-h-8 min-w-[92px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-300">—</span>
                             )}
-                            {isOpen && !locked && (
+                            {menuAvailable && openCell && (
                               <div
                                 id={`attendance-menu-${student.id}-${key}`}
                                 role="menu"
                                 className={`absolute left-1/2 z-30 w-56 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${openCell.placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
                               >
-                                {STATUS_OPTIONS.map((item) => (
+                                {!locked && STATUS_OPTIONS.map((item) => (
                                   <button
                                     key={item.value}
                                     type="button"
@@ -630,12 +1051,12 @@ export function GroupAttendanceJournal({
                                   >
                                     <span className="flex min-w-0 items-center gap-2 whitespace-nowrap">
                                       <span className={`h-2 w-2 shrink-0 rounded-full ${item.dotClassName}`} />
-                                      <span>{item.label}</span>
+                                      <span>{item.value === "excused" && value === "excused" ? "Уважительная · изменить причину" : item.label}</span>
                                     </span>
                                     {value === item.value && <Check className="h-3.5 w-3.5 text-primary-600" />}
                                   </button>
                                 ))}
-                                {value && (
+                                {!locked && value && !inCorrection && (
                                   <>
                                     <div className="my-1 h-px bg-slate-100" />
                                     <button
@@ -648,7 +1069,49 @@ export function GroupAttendanceJournal({
                                     </button>
                                   </>
                                 )}
+                                {reviewable && excuse && (
+                                  <>
+                                    {!locked && <div className="my-1 h-px bg-slate-100" />}
+                                    <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Уважительный пропуск</p>
+                                    {excuse.status !== "confirmed" && (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => void handleReview(excuse, key, student.id, "confirmed")}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                      >
+                                        <Check className="h-3.5 w-3.5" />
+                                        Подтвердить
+                                      </button>
+                                    )}
+                                    {excuse.status !== "rejected" && (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => void handleReview(excuse, key, student.id, "rejected")}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                        Отклонить
+                                      </button>
+                                    )}
+                                    {excuse.status !== "pending" && (
+                                      <button
+                                        type="button"
+                                        role="menuitem"
+                                        onClick={() => void handleReview(excuse, key, student.id, "reset")}
+                                        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                                      >
+                                        <Undo2 className="h-3.5 w-3.5" />
+                                        Сбросить решение
+                                      </button>
+                                    )}
+                                  </>
+                                )}
                               </div>
+                            )}
+                            {cellBusy && (
+                              <Loader2 className="absolute right-1 top-1 h-3.5 w-3.5 animate-spin text-primary-600" />
                             )}
                             {savingLessonKey === key && (
                               <Loader2 className="absolute right-1 top-1 h-3.5 w-3.5 animate-spin text-primary-600" />
@@ -744,6 +1207,207 @@ export function GroupAttendanceJournal({
           </div>
         </section>
       )}
+
+      {/* Lesson column menu (administrator) */}
+      {columnMenu && typeof document !== "undefined" && (() => {
+        const lesson = lessons.find((item) => instanceKey(item) === columnMenu.key);
+        if (!lesson) return null;
+        const lessonStatus = attendanceData?.statuses?.[columnMenu.key] || lesson.status || "scheduled";
+        const actions = lessonAdminActions(lessonStatus, lesson.date, today);
+        const { rosterCount, markedCount } = markedInLesson(lesson);
+        const finishHint = finishBlockedHint(markedCount, rosterCount);
+        return createPortal(
+          <div
+            ref={columnMenuRef}
+            role="menu"
+            style={{ position: "fixed", top: columnMenu.top, left: columnMenu.left, width: 240 }}
+            className="z-[90] rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-xl"
+          >
+            <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Урок {formatDateRu(lesson.date)}
+            </p>
+            {actions.includes("reconcile") && (
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <ClipboardCheck className="h-4 w-4 text-primary-600" />
+                Отметить посещаемость
+              </button>
+            )}
+            {actions.includes("cancel_missed") && (
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("cancel_missed", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Ban className="h-4 w-4 text-slate-500" />
+                Урока не было
+              </button>
+            )}
+            {actions.includes("finish") && (
+              <button
+                type="button"
+                role="menuitem"
+                aria-disabled={Boolean(finishHint)}
+                onClick={() => {
+                  if (finishHint) {
+                    setColumnMenu(null);
+                    showToast(finishHint, "warning");
+                  } else {
+                    void runColumnAction("finish", lesson);
+                  }
+                }}
+                className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${finishHint ? "text-slate-400" : "text-slate-700"}`}
+              >
+                <span className="flex items-center gap-2"><CheckCheck className={`h-4 w-4 ${finishHint ? "text-slate-300" : "text-emerald-600"}`} />Завершить урок</span>
+                {finishHint && <span className="pl-6 text-[11px] font-medium text-amber-700">{finishHint}</span>}
+              </button>
+            )}
+            {actions.includes("correct") && (
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <Pencil className="h-4 w-4 text-amber-600" />
+                Исправить
+              </button>
+            )}
+          </div>,
+          document.body,
+        );
+      })()}
+
+      {/* Reason for an excused absence */}
+      <Modal
+        open={reasonEditor !== null}
+        title="Причина уважительного пропуска"
+        description={reasonEditor ? `${reasonEditor.student.full_name || `${reasonEditor.student.last_name} ${reasonEditor.student.first_name}`.trim()} · урок ${formatDateRu(reasonEditor.lesson.date)}` : undefined}
+        onClose={() => setReasonEditor(null)}
+        footer={
+          <>
+            <button type="button" onClick={() => setReasonEditor(null)} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Отмена</button>
+            <button type="button" onClick={submitReasonEditor} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Сохранить</button>
+          </>
+        }
+      >
+        {reasonEditor && (
+          <div className="space-y-2 pb-2">
+            <label htmlFor="excuse-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина</label>
+            <textarea
+              id="excuse-reason"
+              value={reasonEditor.text}
+              onChange={(event) => setReasonEditor({ ...reasonEditor, text: event.target.value, error: null })}
+              onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) submitReasonEditor(); }}
+              rows={3}
+              maxLength={EXCUSE_REASON_MAX}
+              autoFocus
+              placeholder="Например: заболел, написал в Telegram"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
+            />
+            <div className="flex items-start justify-between gap-3 text-xs">
+              <span className={reasonEditor.error ? "font-medium text-rose-600" : "text-slate-400"}>
+                {reasonEditor.error || "От 3 до 300 символов. Администратор подтвердит или отклонит пропуск."}
+              </span>
+              <span className="shrink-0 text-slate-400">{reasonEditor.text.trim().length}/{EXCUSE_REASON_MAX}</span>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* "Lesson did not take place" for a forgotten past lesson */}
+      <Modal
+        open={cancelMissed !== null}
+        title="Урока не было"
+        description={cancelMissed ? `Урок ${formatDateRu(cancelMissed.lesson.date)} будет отмечен как не состоявшийся` : undefined}
+        onClose={() => setCancelMissed(null)}
+        busy={cancelling}
+        footer={
+          <>
+            <button type="button" onClick={() => setCancelMissed(null)} disabled={cancelling} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
+            <button
+              type="button"
+              onClick={() => void submitCancelMissed()}
+              disabled={cancelling || (cancelMissed?.reason.trim().length ?? 0) < 3}
+              className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
+            >
+              {cancelling && <Loader2 className="h-4 w-4 animate-spin" />}
+              Урока не было
+            </button>
+          </>
+        }
+      >
+        {cancelMissed && (
+          <div className="space-y-2 pb-2">
+            <label htmlFor="cancel-missed-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина</label>
+            <textarea
+              id="cancel-missed-reason"
+              value={cancelMissed.reason}
+              onChange={(event) => setCancelMissed({ ...cancelMissed, reason: event.target.value, error: null })}
+              rows={3}
+              maxLength={300}
+              autoFocus
+              placeholder="Например: преподаватель заболел, урок не проводился"
+              className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
+            />
+            {cancelMissed.error && <p role="alert" className="text-xs font-medium text-rose-600">{cancelMissed.error}</p>}
+          </div>
+        )}
+      </Modal>
+
+      {/* Correction of a completed lesson */}
+      <Modal
+        open={correctionDialog !== null && correcting !== null}
+        title={correctingLesson ? `Исправление урока ${formatDateRu(correctingLesson.date)}` : "Исправление урока"}
+        description="Исправление попадёт в журнал изменений с вашим именем и причиной"
+        onClose={() => setCorrectionDialog(null)}
+        busy={correctionSaving}
+        maxWidthClassName="max-w-[560px]"
+        footer={
+          <>
+            <button type="button" onClick={() => setCorrectionDialog(null)} disabled={correctionSaving} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
+            <button
+              type="button"
+              onClick={() => void submitCorrection()}
+              disabled={correctionSaving || correctionChanges.length === 0}
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+            >
+              {correctionSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Сохранить исправление
+            </button>
+          </>
+        }
+      >
+        {correctionDialog && correcting && (
+          <div className="space-y-4 pb-2">
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500">Изменения ({correctionChanges.length})</p>
+              <ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
+                {correctionChanges.map((change) => (
+                  <li key={change.studentId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate font-medium text-slate-800">{studentNameById.get(change.studentId) || "Ученик"}</span>
+                    <span className="text-xs text-slate-600">
+                      {statusOption(change.from as AttendanceStatus)?.label || "нет отметки"} → <strong>{statusOption(change.to as AttendanceStatus)?.label || "нет отметки"}</strong>
+                      {change.to === "excused" && correcting.reasons[change.studentId] ? ` (${correcting.reasons[change.studentId]})` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <label htmlFor="correction-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина исправления</label>
+              <textarea
+                id="correction-reason"
+                value={correctionDialog.reason}
+                onChange={(event) => setCorrectionDialog({ reason: event.target.value, error: null })}
+                rows={3}
+                maxLength={CORRECTION_REASON_MAX}
+                autoFocus
+                placeholder="Например: преподаватель ошибся при отметке, ученик был на уроке"
+                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
+              />
+              <div className="flex items-start justify-between gap-3 text-xs">
+                <span role={correctionDialog.error ? "alert" : undefined} className={correctionDialog.error ? "font-medium text-rose-600" : "text-slate-400"}>
+                  {correctionDialog.error || "От 10 до 500 символов."}
+                </span>
+                <span className="shrink-0 text-slate-400">{correctionDialog.reason.trim().length}/{CORRECTION_REASON_MAX}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {toastNode}
     </div>
   );
 }

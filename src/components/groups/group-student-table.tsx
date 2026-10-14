@@ -2,22 +2,27 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, ChevronDown, GraduationCap, User, Check, Copy } from "lucide-react";
+import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentInGroup } from "@/lib/api";
+import { Modal } from "@/components/ui/modal";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 
 interface GroupStudentTableProps {
   students: StudentInGroup[];
   studentBasePath?: string;
-  onRemove?: (studentId: string) => void;
+  /** Called after the administrator confirms; a rejected promise keeps the dialog open. */
+  onRemove?: (studentId: string) => void | Promise<void>;
   onViewProfile?: (studentId: string) => void;
   canRemove?: boolean;
 }
 
-export function GroupStudentTable({ students, studentBasePath }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath, onRemove, canRemove }: GroupStudentTableProps) {
+  const removable = Boolean(canRemove && onRemove);
+  const [removeTarget, setRemoveTarget] = useState<StudentInGroup | null>(null);
+  const [removing, setRemoving] = useState(false);
   const pathname = usePathname();
   const isTeacher = pathname?.startsWith("/teacher");
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
@@ -32,6 +37,19 @@ export function GroupStudentTable({ students, studentBasePath }: GroupStudentTab
     navigator.clipboard.writeText(displayId);
     setCopiedId(displayId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const confirmRemove = async () => {
+    if (!removeTarget || !onRemove) return;
+    setRemoving(true);
+    try {
+      await onRemove(removeTarget.id);
+      setRemoveTarget(null);
+    } catch {
+      // The page shows the error; keep the dialog so the action can be repeated.
+    } finally {
+      setRemoving(false);
+    }
   };
 
   const handleSort = (key: SortKey) => {
@@ -102,13 +120,14 @@ export function GroupStudentTable({ students, studentBasePath }: GroupStudentTab
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse table-fixed">
+      <table className={`w-full text-left border-collapse table-fixed ${removable ? "min-w-[860px]" : ""}`}>
         <colgroup>
-          <col className="w-[36%]" />
-          <col className="w-[16%]" />
-          <col className="w-[10%]" />
-          <col className="w-[18%]" />
-          <col className="w-[20%]" />
+          <col className={removable ? "w-[30%]" : "w-[36%]"} />
+          <col className={removable ? "w-[14%]" : "w-[16%]"} />
+          <col className={removable ? "w-[9%]" : "w-[10%]"} />
+          <col className={removable ? "w-[16%]" : "w-[18%]"} />
+          <col className={removable ? "w-[16%]" : "w-[20%]"} />
+          {removable && <col className="w-[15%]" />}
         </colgroup>
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-100">
@@ -116,7 +135,8 @@ export function GroupStudentTable({ students, studentBasePath }: GroupStudentTab
             <Th col="display_id" label="ID Ученика" />
             <Th col="class_level" label="Класс" />
             <Th col="phone" label="Телефон" align="text-center" />
-            <Th col="joined_at" label="Дата зачисления" align="text-center" className="pr-6" />
+            <Th col="joined_at" label="Дата зачисления" align="text-center" className={removable ? "" : "pr-6"} />
+            {removable && <th className="px-4 py-3.5 pr-6 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Действия</th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -184,18 +204,63 @@ export function GroupStudentTable({ students, studentBasePath }: GroupStudentTab
                 </td>
 
                 {/* Joined at */}
-                <td className="px-4 py-4 pr-6 text-xs text-slate-500 font-medium align-middle whitespace-nowrap text-center">
+                <td className={`px-4 py-4 ${removable ? "" : "pr-6"} text-xs text-slate-500 font-medium align-middle whitespace-nowrap text-center`}>
                   {s.joined_at ? (
                     new Date(s.joined_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })
                   ) : (
                     <span className="text-slate-300 font-mono">—</span>
                   )}
                 </td>
+
+                {removable && (
+                  <td className="px-4 py-4 pr-6 align-middle text-right">
+                    <button
+                      type="button"
+                      onClick={() => setRemoveTarget(s)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <UserMinus className="h-3.5 w-3.5" />
+                      Убрать из группы
+                    </button>
+                  </td>
+                )}
               </motion.tr>
             );
           })}
         </tbody>
       </table>
+      <Modal
+        open={removeTarget !== null}
+        title="Убрать ученика из группы?"
+        description={removeTarget ? (removeTarget.full_name || `${removeTarget.last_name} ${removeTarget.first_name}`) : undefined}
+        onClose={() => setRemoveTarget(null)}
+        busy={removing}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setRemoveTarget(null)}
+              disabled={removing}
+              className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+            >
+              Отмена
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmRemove()}
+              disabled={removing}
+              className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {removing && <Loader2 className="h-4 w-4 animate-spin" />}
+              Убрать из группы
+            </button>
+          </>
+        }
+      >
+        <p className="pb-2 text-sm text-slate-600">
+          Ученик останется в системе, но перестанет числиться в этой группе.
+        </p>
+      </Modal>
     </div>
   );
 }

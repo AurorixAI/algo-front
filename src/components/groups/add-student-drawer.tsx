@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { X, Search, UserPlus, Check, Loader2, AlertTriangle } from "lucide-react";
 import { orgApi, StudentInGroup } from "@/lib/api";
 
 interface Student {
@@ -13,6 +13,16 @@ interface Student {
   full_name?: string;
   class_level: number;
   status: string;
+  /** Current (primary) group of the student; null when not enrolled. */
+  group_id?: string | null;
+}
+
+/** Result handed to the page so it can show one summary toast. */
+export interface AddStudentsResult {
+  added: number;
+  skipped: number;
+  /** "Фамилия Имя — причина" for every student the server refused. */
+  skippedLines: string[];
 }
 
 interface AddStudentDrawerProps {
@@ -21,7 +31,7 @@ interface AddStudentDrawerProps {
   groupClassLevel?: number | null;
   existingStudentIds: Set<string>;
   onClose: () => void;
-  onAdded: () => void;
+  onAdded: (result: AddStudentsResult) => void;
 }
 
 export function AddStudentDrawer({
@@ -35,10 +45,27 @@ export function AddStudentDrawer({
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [groupNames, setGroupNames] = useState<Record<string, string>>({});
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Group names for the "currently in ..." hints; a failure only drops the hints.
+  useEffect(() => {
+    if (!open) return;
+    setAddError(null);
+    let cancelled = false;
+    orgApi.listGroups()
+      .then((list) => {
+        if (cancelled) return;
+        const items = Array.isArray(list) ? list : (list as any)?.items || [];
+        setGroupNames(Object.fromEntries(items.map((g: any) => [g.id, g.name])));
+      })
+      .catch(() => { if (!cancelled) setGroupNames({}); });
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Debounce search
   useEffect(() => {
@@ -81,12 +108,22 @@ export function AddStudentDrawer({
   const handleAdd = async () => {
     if (selected.size === 0) return;
     setAdding(true);
+    setAddError(null);
     try {
-      await orgApi.bulkAddStudents(groupId, Array.from(selected));
+      const picked = students.filter((s) => selected.has(s.id));
+      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected));
+      const nameOf = (id: string) => {
+        const s = picked.find((item) => item.id === id);
+        return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
+      };
       setSelected(new Set());
-      onAdded();
+      onAdded({
+        added: result.added,
+        skipped: result.skipped,
+        skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
+      });
     } catch (e: any) {
-      alert(e.message || "Ошибка добавления учеников");
+      setAddError(e.message || "Ошибка добавления учеников");
     } finally {
       setAdding(false);
     }
@@ -94,6 +131,15 @@ export function AddStudentDrawer({
 
   // Students not already in group
   const available = students.filter((s) => !existingStudentIds.has(s.id));
+
+  // Selected students who are enrolled elsewhere: adding moves them.
+  const transfers = available
+    .filter((s) => selected.has(s.id) && s.group_id && s.group_id !== groupId)
+    .map((s) => ({
+      id: s.id,
+      name: s.full_name || `${s.last_name} ${s.first_name}`.trim(),
+      from: groupNames[s.group_id as string] || "другой группы",
+    }));
 
   const statusColors: Record<string, string> = {
     new:       "bg-blue-50 text-blue-700",
@@ -182,7 +228,12 @@ export function AddStudentDrawer({
                           <p className="text-sm font-medium text-slate-900 truncate">
                             {s.full_name || `${s.last_name} ${s.first_name}`}
                           </p>
-                          <p className="text-xs text-slate-400">{s.class_level} класс</p>
+                          <p className="text-xs text-slate-400 truncate">
+                            {s.class_level} класс
+                            {s.group_id && s.group_id !== groupId && (
+                              <span className="text-amber-700"> · сейчас в «{groupNames[s.group_id] || "другой группе"}»</span>
+                            )}
+                          </p>
                         </div>
 
                         <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[s.status] || statusColors.new}`}>
@@ -201,7 +252,23 @@ export function AddStudentDrawer({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100">
+            <div className="p-4 border-t border-slate-100 space-y-3">
+              {transfers.length > 0 && (
+                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+                  <p className="flex items-center gap-1.5 font-semibold">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Ученик состоит только в одной группе: {transfers.length === 1 ? "он будет переведён" : `будут переведены (${transfers.length})`}
+                  </p>
+                  <ul className="mt-1.5 max-h-24 list-disc space-y-0.5 overflow-y-auto pl-5">
+                    {transfers.map((t) => (
+                      <li key={t.id}>{t.name} — из «{t.from}»</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {addError && (
+                <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
+              )}
               <button
                 onClick={handleAdd}
                 disabled={selected.size === 0 || adding}
