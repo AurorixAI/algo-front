@@ -4,7 +4,18 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Settings, Building2, Save, CheckCircle, Shield, Key, LucideIcon } from "lucide-react";
+import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, LucideIcon } from "lucide-react";
+import {
+  DEFAULT_PAYMENT_SETTINGS,
+  diffPaymentSettings,
+  EXPIRING_DAYS_RANGE,
+  EXPIRING_LESSONS_RANGE,
+  LESSONS_PER_PAYMENT_RANGE,
+  validatePaymentSettings,
+  type PaymentSettings,
+  type PeriodMode,
+} from "@/lib/payments";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 interface SettingsSectionProps {
   title: string;
@@ -69,8 +80,170 @@ function SettingsSection({
 const inputClasses = "w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium text-slate-900";
 const labelClasses = "block text-sm font-semibold text-slate-700 mb-1.5";
 
+const numberInputClasses = `${inputClasses} !w-24`;
+
+const PERIOD_MODES: Array<{ key: PeriodMode; title: string; hint: string }> = [
+  { key: "calendar", title: "Календарный период", hint: "Оплата действует до выбранной даты" },
+  { key: "lessons", title: "По урокам", hint: "Оплата закрывает заданное число проведённых уроков" },
+];
+
+/** «Оплаты»: how the center counts the paid period and whether administrators may enter payments. */
+function PaymentsSettingsSection() {
+  const [loaded, setLoaded] = useState<PaymentSettings | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const [form, setForm] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const refreshSummary = usePaymentsSummary((state) => state.refresh);
+
+  useEffect(() => {
+    let cancelled = false;
+    orgApi.getPaymentSettings()
+      .then((data) => {
+        if (cancelled) return;
+        const next = { ...DEFAULT_PAYMENT_SETTINGS, ...data };
+        setLoaded(next);
+        setForm(next);
+      })
+      .catch(() => { if (!cancelled) setUnavailable(true); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Nothing is shown until the server confirms the owner may read the settings.
+  if (unavailable || !loaded) return null;
+
+  const patch = (next: Partial<PaymentSettings>) => {
+    setSaved(false);
+    setError(null);
+    setForm((previous) => ({ ...previous, ...next }));
+  };
+
+  const handleSave = async () => {
+    const problem = validatePaymentSettings(form);
+    if (problem) { setError(problem); return; }
+    const changes = diffPaymentSettings(loaded, form);
+    if (Object.keys(changes).length === 0) { setSaved(true); setTimeout(() => setSaved(false), 3000); return; }
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await orgApi.updatePaymentSettings(changes);
+      const next = { ...DEFAULT_PAYMENT_SETTINGS, ...updated };
+      setLoaded(next);
+      setForm(next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+      void refreshSummary(true);
+    } catch (e: any) {
+      setError(e.message || "Ошибка сохранения");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SettingsSection
+      title="Оплаты"
+      description="Как центр считает оплаченный период и кто может вносить оплаты."
+      icon={Wallet}
+      onSave={handleSave}
+      saving={saving}
+      saved={saved}
+    >
+      <div>
+        <p className={labelClasses}>Период оплаты</p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {PERIOD_MODES.map((option) => (
+            <label
+              key={option.key}
+              className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${form.period_mode === option.key ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
+            >
+              <input
+                type="radio"
+                name="payments-period-mode"
+                checked={form.period_mode === option.key}
+                onChange={() => patch({ period_mode: option.key })}
+                className="mt-1 h-4 w-4 accent-primary-600"
+              />
+              <span>
+                <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
+                <span className="block text-xs text-slate-500">{option.hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {form.period_mode === "lessons" ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <label htmlFor="payments-lessons" className={labelClasses}>Уроков в одной оплате</label>
+            <input
+              id="payments-lessons"
+              type="number"
+              min={LESSONS_PER_PAYMENT_RANGE.min}
+              max={LESSONS_PER_PAYMENT_RANGE.max}
+              value={Number.isNaN(form.lessons_per_payment) ? "" : form.lessons_per_payment}
+              onChange={(e) => patch({ lessons_per_payment: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+          </div>
+          <div>
+            <label htmlFor="payments-expiring-lessons" className={labelClasses}>Предупреждать, когда останется уроков</label>
+            <input
+              id="payments-expiring-lessons"
+              type="number"
+              min={EXPIRING_LESSONS_RANGE.min}
+              max={EXPIRING_LESSONS_RANGE.max}
+              value={Number.isNaN(form.expiring_lessons) ? "" : form.expiring_lessons}
+              onChange={(e) => patch({ expiring_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+          </div>
+        </div>
+      ) : (
+        <div>
+          <label htmlFor="payments-expiring-days" className={labelClasses}>Предупреждать за сколько дней до конца оплаты</label>
+          <input
+            id="payments-expiring-days"
+            type="number"
+            min={EXPIRING_DAYS_RANGE.min}
+            max={EXPIRING_DAYS_RANGE.max}
+            value={Number.isNaN(form.expiring_days) ? "" : form.expiring_days}
+            onChange={(e) => patch({ expiring_days: e.target.value === "" ? NaN : Number(e.target.value) })}
+            className={numberInputClasses}
+          />
+        </div>
+      )}
+
+      <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
+        <div>
+          <p id="payments-admin-label" className="text-sm font-semibold text-slate-900">Администратор может вносить оплаты</p>
+          <p className="mt-0.5 text-xs text-slate-500">Администратор увидит суммы оплат; зарплата остаётся скрытой.</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={form.admin_can_manage}
+          aria-labelledby="payments-admin-label"
+          onClick={() => patch({ admin_can_manage: !form.admin_can_manage })}
+          className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${form.admin_can_manage ? "bg-primary-600" : "bg-slate-300"}`}
+        >
+          <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form.admin_can_manage ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+
+      {error && (
+        <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p>
+      )}
+    </SettingsSection>
+  );
+}
+
 export default function OwnerSettingsPage() {
   const { org, user } = useAuthStore();
+  // The route is open to administrators too; payments settings belong to the owner only.
+  const isOwner = (user?.role || user?.org_role) === "owner";
 
   // Forms
   const [orgForm, setOrgForm] = useState({ name: "", city: "", phone: "" });
@@ -195,6 +368,8 @@ export default function OwnerSettingsPage() {
             </div>
           </div>
         </SettingsSection>
+
+        {isOwner && <PaymentsSettingsSection />}
 
         {/* Profile Section */}
         <SettingsSection
