@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
+import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
@@ -65,6 +66,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const [activeTab, setActiveTab] = useState<ProfileTab>("diagnostics");
   const [copiedId, setCopiedId] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignMode, setAssignMode] = useState<"transfer" | "add">("transfer");
   const [attendanceMonth, setAttendanceMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -234,6 +236,8 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   }
 
   const { student, group, group_history, diagnostics, exams = [] } = profile;
+  const memberships = profileMemberships(profile);
+  const openAssign = (mode: "transfer" | "add") => { setAssignMode(mode); setAssignModalOpen(true); };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
@@ -271,17 +275,20 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
 
               {/* Meta row */}
               <div className="flex items-center gap-4 text-xs text-slate-500 flex-wrap pt-1">
-                {group ? (
-                  <Link
-                    href={`${groupsBasePath}/${group.id}`}
-                    className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium transition-colors"
-                  >
-                    <Users className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Группа: «{group.name}»</span>
-                    {group.teacher_name && (
-                      <span className="text-emerald-600/80">({group.teacher_name})</span>
-                    )}
-                  </Link>
+                {memberships.length > 0 ? (
+                  memberships.map((item) => (
+                    <Link
+                      key={item.membership_id || item.group_id}
+                      href={`${groupsBasePath}/${item.group_id}`}
+                      className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>{memberships.length > 1 ? "" : "Группа: "}«{item.group_name}»</span>
+                      {item.teacher_name && (
+                        <span className="text-emerald-600/80">({item.teacher_name})</span>
+                      )}
+                    </Link>
+                  ))
                 ) : (
                   <span className="flex items-center gap-1 text-slate-400 italic">
                     <Users className="w-3.5 h-3.5" />
@@ -528,61 +535,12 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
       {/* ── Tab 2: Learning, Group & Information ───────────────────────── */}
       {activeTab === "info" && (
         <div className="space-y-6">
-          {/* Current Group */}
-          <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-4">
-            <h2 className="text-base font-semibold text-slate-800">Текущая группа</h2>
-
-            {group ? (
-              <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-slate-900">{group.name}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-white border border-slate-200 font-medium text-slate-600">
-                      {group.class_level} класс
-                    </span>
-                  </div>
-                  <p className="text-sm text-slate-500">
-                    Преподаватель: <span className="font-medium text-slate-800">{group.teacher_name || "Не назначен"}</span>
-                  </p>
-                  {group.description && (
-                    <p className="text-xs text-slate-400 mt-1">{group.description}</p>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2 self-stretch sm:self-auto">
-                  <Link
-                    href={`${groupsBasePath}/${group.id}`}
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold shadow-sm transition-all"
-                  >
-                    <span>Перейти в группу</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </Link>
-
-                  {!isTeacher && (
-                    <button
-                      onClick={() => setAssignModalOpen(true)}
-                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Перевести в другую группу</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <div className="p-6 rounded-2xl bg-amber-50/60 border border-amber-200/60 text-center space-y-3">
-                <p className="text-sm font-medium text-amber-900">Ученик ещё не зачислен ни в одну группу</p>
-                {!isTeacher && (
-                  <button
-                    onClick={() => setAssignModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-xl text-xs font-semibold hover:bg-primary-700 shadow-sm"
-                  >
-                    <Users className="w-4 h-4" /> Зачислить в группу
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+          <StudentGroupsBlock
+            profile={profile}
+            groupsBasePath={groupsBasePath}
+            isTeacher={isTeacher}
+            onAssign={openAssign}
+          />
 
           {/* Contacts and Notes */}
           {!isTeacher && (
@@ -791,8 +749,10 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
           studentId={student.id}
           studentName={student.full_name}
           studentGrade={student.class_level}
+          mode={assignMode}
           currentGroupId={student.group_id}
-          currentGroupName={group?.name || null}
+          currentGroupName={assignMode === "add" ? memberships.map((item) => item.group_name).join(", ") || null : group?.name || null}
+          excludeGroupIds={memberships.map((item) => item.group_id)}
           onClose={() => setAssignModalOpen(false)}
           onAssigned={() => {
             setAssignModalOpen(false);

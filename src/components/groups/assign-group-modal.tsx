@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   RotateCcw,
 } from "lucide-react";
-import { orgApi } from "@/lib/api";
+import { orgApi, type GroupJoinMode } from "@/lib/api";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 export interface GroupInfo {
@@ -44,9 +44,16 @@ interface AssignGroupModalProps {
   studentId: string;
   studentName: string;
   studentGrade?: number;
+  /**
+   * "transfer" (default) closes the other memberships and makes the chosen group the main one;
+   * "add" keeps them: the student attends one more group.
+   */
+  mode?: GroupJoinMode;
   /** When supplied, this is a transfer rather than first enrolment. */
   currentGroupId?: string | null;
   currentGroupName?: string | null;
+  /** Every group the student already attends: none of them is a valid destination. */
+  excludeGroupIds?: string[];
   onClose: () => void;
   onAssigned: (group?: GroupInfo | null) => void;
 }
@@ -56,12 +63,16 @@ export function AssignGroupModal({
   studentId,
   studentName,
   studentGrade,
+  mode = "transfer",
   currentGroupId = null,
   currentGroupName = null,
+  excludeGroupIds,
   onClose,
   onAssigned,
 }: AssignGroupModalProps) {
-  const isTransfer = Boolean(currentGroupId || currentGroupName);
+  const isAdd = mode === "add";
+  const isTransfer = !isAdd && Boolean(currentGroupId || currentGroupName);
+  const excluded = useMemo(() => new Set([...(excludeGroupIds ?? []), ...(currentGroupId ? [currentGroupId] : [])]), [excludeGroupIds, currentGroupId]);
   const [mounted, setMounted] = useState(false);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [teachers, setTeachers] = useState<TeacherInfo[]>([]);
@@ -72,6 +83,7 @@ export function AssignGroupModal({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [assignedSuccessGroup, setAssignedSuccessGroup] = useState<GroupInfo | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [serverWarnings, setServerWarnings] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -104,6 +116,7 @@ export function AssignGroupModal({
       setLoading(true);
       setSelectedGroupId(null);
       setAssignedSuccessGroup(null);
+      setServerWarnings([]);
       setAssignmentError(null);
       setLoadError(null);
       setSearch("");
@@ -147,14 +160,14 @@ export function AssignGroupModal({
     [groups, currentGroupId],
   );
 
-  const currentGroupLabel = currentGroup?.name || currentGroupName;
+  const currentGroupLabel = isAdd ? currentGroupName : (currentGroup?.name || currentGroupName);
 
   // The current group remains visible in its own context card.  It is never a
   // valid destination for a transfer and therefore does not appear among
   // selectable target groups.
   const filteredGroups = useMemo(() => {
     return groups.filter((g) => {
-      if (g.id === currentGroupId) {
+      if (excluded.has(g.id)) {
         return false;
       }
       if (selectedTeacherId && g.teacher_id !== selectedTeacherId) {
@@ -171,27 +184,28 @@ export function AssignGroupModal({
       }
       return true;
     });
-  }, [groups, currentGroupId, selectedTeacherId, search]);
+  }, [groups, excluded, selectedTeacherId, search]);
 
   const handleAssign = async () => {
     if (!selectedGroupId || assigning) return;
-    if (selectedGroupId === currentGroupId) {
-      setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу для перевода.");
+    if (excluded.has(selectedGroupId)) {
+      setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
     }
     setAssigning(true);
     setAssignmentError(null);
     try {
-      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId);
+      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, { mode });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
-        setAssignmentError("Ученик уже состоит в этой группе. Перевод не выполнен.");
+        setAssignmentError(isAdd ? "Ученик уже состоит в этой группе." : "Ученик уже состоит в этой группе. Перевод не выполнен.");
         return;
       }
+      setServerWarnings((result.warnings ?? []).map((warning) => warning.message).filter(Boolean));
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
-      setAssignmentError(e.message || (isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
+      setAssignmentError(e.message || (isAdd ? "Не удалось добавить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
     } finally {
       setAssigning(false);
     }
@@ -242,10 +256,10 @@ export function AssignGroupModal({
                     </div>
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                        {isTransfer ? "Ученик переведён" : "Ученик зачислен"}
+                        {isAdd ? "Ученик добавлен в группу" : isTransfer ? "Ученик переведён" : "Ученик зачислен"}
                       </h2>
                       <p className="text-xs text-emerald-600 font-semibold mt-0.5">
-                        {isTransfer ? "Текущая группа и журнал обновлены" : "Успешно распределен в группу"}
+                        {isAdd ? "Прежние группы сохранены" : isTransfer ? "Текущая группа и журнал обновлены" : "Успешно распределен в группу"}
                       </p>
                     </div>
                   </div>
@@ -279,7 +293,7 @@ export function AssignGroupModal({
                       transition={{ delay: 0.1 }}
                       className="text-xl font-bold text-slate-900"
                     >
-                      {isTransfer ? "Перевод подтверждён!" : "Зачисление подтверждено!"}
+                      {isAdd ? "Добавление подтверждено!" : isTransfer ? "Перевод подтверждён!" : "Зачисление подтверждено!"}
                     </motion.h3>
                     <motion.p
                       initial={{ opacity: 0, y: 6 }}
@@ -287,10 +301,17 @@ export function AssignGroupModal({
                       transition={{ delay: 0.15 }}
                       className="text-sm text-slate-500 leading-relaxed"
                     >
-                      {isTransfer
-                        ? "Предыдущая группа сохранена в истории, а ученик добавлен в журнал новой группы."
-                        : "Ученик успешно зачислен в группу и добавлен в журнал занятий."}
+                      {isAdd
+                        ? "Ученик занимается и в прежних группах; основная группа не изменилась."
+                        : isTransfer
+                          ? "Предыдущая группа сохранена в истории, а ученик добавлен в журнал новой группы."
+                          : "Ученик успешно зачислен в группу и добавлен в журнал занятий."}
                     </motion.p>
+                    {serverWarnings.length > 0 && (
+                      <ul role="status" className="mt-3 list-disc space-y-0.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 pl-8 text-left text-xs text-amber-900">
+                        {serverWarnings.map((text, index) => <li key={index}>{text}</li>)}
+                      </ul>
+                    )}
                   </div>
                 </div>
 
@@ -319,7 +340,7 @@ export function AssignGroupModal({
                     </div>
                     <div>
                       <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                        {isTransfer ? "Перевести в другую группу" : "Зачисление в группу"}
+                        {isAdd ? "Добавить в ещё одну группу" : isTransfer ? "Перевести в другую группу" : "Зачисление в группу"}
                       </h2>
                       <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1.5">
                         <span>Ученик:</span>
@@ -342,19 +363,22 @@ export function AssignGroupModal({
 
             {/* Current membership is context, not a selectable destination. */}
             <div className="px-6 pt-5 pb-4 bg-slate-50/80 border-b border-slate-100 space-y-3 flex-shrink-0">
-              {isTransfer && (
+              {(isTransfer || (isAdd && currentGroupLabel)) && (
                 <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/70 px-3.5 py-3">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
                     <Users className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Текущая группа</p>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
                     <p className="truncate text-sm font-bold text-indigo-950">
                       {currentGroupLabel || "Определяем группу ученика…"}
-                      {currentGroup?.class_level ? ` · ${currentGroup.class_level} класс` : ""}
+                      {!isAdd && currentGroup?.class_level ? ` · ${currentGroup.class_level} класс` : ""}
                     </p>
-                    {currentGroup?.teacher_name && (
+                    {!isAdd && currentGroup?.teacher_name && (
                       <p className="truncate text-xs text-indigo-700">Преподаватель: {currentGroup.teacher_name}</p>
+                    )}
+                    {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
+                      <p className="text-xs text-amber-700">Членство во всех текущих группах будет закрыто</p>
                     )}
                   </div>
                 </div>
@@ -425,7 +449,7 @@ export function AssignGroupModal({
                     <GraduationCap className="w-7 h-7 text-slate-300" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-800 mb-1">
-                    {search || selectedTeacherId ? "Группы не найдены" : isTransfer ? "Нет группы для перевода" : "Нет активных групп"}
+                    {search || selectedTeacherId ? "Группы не найдены" : isTransfer ? "Нет группы для перевода" : isAdd ? "Нет других групп" : "Нет активных групп"}
                   </h4>
                   <p className="text-xs text-slate-500 max-w-xs mb-4">
                     {search || selectedTeacherId
@@ -450,7 +474,7 @@ export function AssignGroupModal({
               ) : (
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between px-1 mb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    <span>{isTransfer ? "Группы для перевода" : "Доступные группы"} ({filteredGroups.length})</span>
+                    <span>{isTransfer ? "Группы для перевода" : isAdd ? "Группы для добавления" : "Доступные группы"} ({filteredGroups.length})</span>
                     <span>Заполняемость</span>
                   </div>
 
@@ -548,9 +572,9 @@ export function AssignGroupModal({
               <button
                 type="button"
                 onClick={handleAssign}
-                disabled={!selectedGroupId || selectedGroupId === currentGroupId || assigning}
+                disabled={!selectedGroupId || excluded.has(selectedGroupId) || assigning}
                 className={`w-full flex items-center justify-center gap-2 py-2.5 sm:py-3 px-4 rounded-xl text-sm font-semibold transition-all active:scale-[0.98] ${
-                  !selectedGroupId || selectedGroupId === currentGroupId
+                  !selectedGroupId || excluded.has(selectedGroupId)
                     ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed shadow-none"
                     : "bg-gradient-to-r from-primary-600 to-indigo-600 text-white shadow-md shadow-primary-600/20 hover:from-primary-700 hover:to-indigo-700 cursor-pointer"
                 }`}
@@ -558,12 +582,12 @@ export function AssignGroupModal({
                 {assigning ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>{isTransfer ? "Переводим..." : "Зачисление..."}</span>
+                    <span>{isAdd ? "Добавляем..." : isTransfer ? "Переводим..." : "Зачисление..."}</span>
                   </>
                 ) : (
                   <>
                     <UserCheck className="w-4 h-4" />
-                    <span>{isTransfer ? "Перевести в группу" : "Зачислить в группу"}</span>
+                    <span>{isAdd ? "Добавить в группу" : isTransfer ? "Перевести в группу" : "Зачислить в группу"}</span>
                   </>
                 )}
               </button>
