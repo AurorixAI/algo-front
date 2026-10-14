@@ -230,7 +230,7 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
           paid_until: row.paid_until,
         }}
         payment={form?.payment ?? null}
-        periodMode={row.period_mode ?? periodMode}
+        periodMode={periodMode}
         lessonsDefault={lessonsDefault}
         onClose={() => setForm(null)}
         onSaved={onSaved}

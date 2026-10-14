@@ -116,6 +116,7 @@ export interface PaymentsStatusList {
 // ── Limits (spec §0.10, §3) ────────────────────────────────────────────────
 
 export const MAX_MONEY = 10_000_000_000;
+/** Backend rule: `valid_to - valid_from` may be at most 400 days (the inclusive length is then at most 401). */
 export const MAX_PERIOD_DAYS = 400;
 export const MAX_LESSONS = 120;
 export const NOTE_MAX = 500;
@@ -423,7 +424,7 @@ export function validatePaymentForm(values: PaymentFormValues, mode: PeriodMode,
   if (mode === "calendar") {
     if (!isIsoDate(values.validTo)) return "Укажите, до какого числа оплачено";
     if (values.validTo < values.validFrom) return "«Оплачено до» не может быть раньше начала периода";
-    if (periodDays(values.validFrom, values.validTo) > MAX_PERIOD_DAYS) return `Период не может быть длиннее ${MAX_PERIOD_DAYS} дней`;
+    if (daysBetween(values.validFrom, values.validTo) > MAX_PERIOD_DAYS) return `Период не может быть длиннее ${MAX_PERIOD_DAYS} дней`;
   } else if (values.lessons.trim()) {
     const lessons = Number(values.lessons);
     if (!Number.isInteger(lessons) || lessons < 1 || lessons > MAX_LESSONS) return `Уроков должно быть от 1 до ${MAX_LESSONS}`;
