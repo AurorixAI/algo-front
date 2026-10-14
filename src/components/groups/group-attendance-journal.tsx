@@ -41,12 +41,16 @@ import {
   correctionWarnings,
   diffCorrection,
   lessonAdminActions,
+  mergeLoadedRecords,
+  pendingLessonKeys,
+  recordsForSave,
   rosterProgress,
   validateCorrectionReason,
   validateExcuseReason,
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 
@@ -257,6 +261,11 @@ export function GroupAttendanceJournal({
   const inflightSavesRef = useRef(0);
   const dirtyEpochRef = useRef(0);
   const reloadWantedRef = useRef(false);
+  // Lessons that have queued or in-flight saves (count per lesson key) and the lesson being finished.
+  const pendingByLessonRef = useRef<Record<string, number>>({});
+  const finishingKeyRef = useRef<string | null>(null);
+  // Latest-load-wins: an answer for an older period or group is dropped.
+  const loadSequenceRef = useRef(createRequestSequence());
   const journalScrollRef = useRef<HTMLDivElement | null>(null);
   const historyScrollRef = useRef<HTMLDivElement | null>(null);
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
@@ -290,6 +299,7 @@ export function GroupAttendanceJournal({
 
   const loadAttendance = useCallback(async (silent = false) => {
     if (!groupId) return;
+    const token = loadSequenceRef.current.next();
     if (!silent) setLoading(true);
     const epoch = dirtyEpochRef.current;
     try {
@@ -297,22 +307,32 @@ export function GroupAttendanceJournal({
         dateFrom: period.start,
         dateTo: period.end,
       });
-      setAttendanceData(data);
+      if (!loadSequenceRef.current.isCurrent(token)) return;
+      const pendingKeys = pendingLessonKeys(pendingByLessonRef.current);
       // A quiet reload must not overwrite marks that are still on their way to
-      // the server: keep the local ones and read again once the queue is empty.
+      // the server, and its snapshot is older than the local state: drop it and
+      // read again once the queue is empty (right away if it already is).
       if (silent && (inflightSavesRef.current > 0 || dirtyEpochRef.current !== epoch)) {
-        reloadWantedRef.current = true;
-      } else {
-        recordsRef.current = data.records || {};
-        confirmedRef.current = data.records || {};
-        setLocalRecords(data.records || {});
+        if (inflightSavesRef.current > 0) reloadWantedRef.current = true;
+        else void loadAttendanceRef.current(true);
+        return;
       }
+      setAttendanceData(data);
+      // A period/group switch must not lose lessons that still have pending saves.
+      const merged = mergeLoadedRecords(data.records, recordsRef.current, pendingKeys);
+      recordsRef.current = merged;
+      confirmedRef.current = mergeLoadedRecords(data.records, confirmedRef.current, pendingKeys);
+      setLocalRecords(merged);
+      if (pendingKeys.length > 0) reloadWantedRef.current = true;
     } catch (error) {
+      if (!loadSequenceRef.current.isCurrent(token)) return;
       setSaveError(error instanceof Error ? error.message : "Не удалось загрузить журнал");
     } finally {
-      setLoading(false);
+      if (loadSequenceRef.current.isCurrent(token)) setLoading(false);
     }
   }, [groupId, period.end, period.start]);
+  const loadAttendanceRef = useRef(loadAttendance);
+  loadAttendanceRef.current = loadAttendance;
 
   useEffect(() => {
     void loadAttendance();
@@ -483,6 +503,8 @@ export function GroupAttendanceJournal({
     const lessonKey = instanceKey(lesson);
     const lessonStatus = attendanceData?.statuses?.[lessonKey] || lesson.status || "scheduled";
     const inCorrection = correcting?.key === lessonKey;
+    // The lesson is being closed: a mark sent in parallel would race with the finish.
+    if (finishingKeyRef.current === lessonKey) return;
     if (
       !canEdit
       || lesson.date > today
@@ -521,6 +543,12 @@ export function GroupAttendanceJournal({
       return;
     }
 
+    // Baseline for a rollback: the state the server holds before the first unsent change.
+    if (!pendingByLessonRef.current[lessonKey]) {
+      confirmedRef.current = { ...confirmedRef.current, [lessonKey]: { ...(recordsRef.current[lessonKey] || {}) } };
+    }
+    pendingByLessonRef.current[lessonKey] = (pendingByLessonRef.current[lessonKey] || 0) + 1;
+
     // Optimistic update first; the request itself waits for the earlier ones.
     const previousStatus = recordsRef.current[lessonKey]?.[student.id] || "";
     const updatedRecords = { ...(recordsRef.current[lessonKey] || {}) };
@@ -543,14 +571,20 @@ export function GroupAttendanceJournal({
     inflightSavesRef.current += 1;
 
     saveQueueRef.current = saveQueueRef.current.then(async () => {
-      // The newest local marks of this lesson go out, not the snapshot of the click.
-      const records = recordsRef.current[lessonKey] || {};
-      const reasons = pendingReasonsRef.current[lessonKey] || {};
-      const sentReasons = Object.fromEntries(
-        Object.entries(reasons).filter(([studentId]) => records[studentId] === "excused"),
-      );
-      pendingReasonsRef.current[lessonKey] = {};
+      // The newest local marks of THIS lesson go out (a reload of another period
+      // keeps pending lessons, see mergeLoadedRecords); never an invented object.
       try {
+        const records = recordsForSave(recordsRef.current, lessonKey);
+        if (!records) {
+          // Unknown local state of the lesson: send nothing, read the server state instead.
+          reloadWantedRef.current = true;
+          return;
+        }
+        const reasons = pendingReasonsRef.current[lessonKey] || {};
+        const sentReasons = Object.fromEntries(
+          Object.entries(reasons).filter(([studentId]) => records[studentId] === "excused"),
+        );
+        pendingReasonsRef.current[lessonKey] = {};
         await orgApi.saveGroupAttendance(groupId, {
           lessonDate: lesson.date,
           lessonId: lesson.id,
@@ -584,8 +618,9 @@ export function GroupAttendanceJournal({
         }
       } catch (error) {
         // Show exactly what the server holds: later queued marks of this lesson are dropped too.
-        const confirmed = confirmedRef.current[lessonKey] || {};
-        recordsRef.current = { ...recordsRef.current, [lessonKey]: confirmed };
+        const confirmed = confirmedRef.current[lessonKey];
+        if (confirmed) recordsRef.current = { ...recordsRef.current, [lessonKey]: confirmed };
+        reloadWantedRef.current = true;
         pendingReasonsRef.current[lessonKey] = {};
         setLocalRecords(recordsRef.current);
         const message = error instanceof Error ? error.message : "";
@@ -596,11 +631,13 @@ export function GroupAttendanceJournal({
         );
       } finally {
         inflightSavesRef.current -= 1;
+        pendingByLessonRef.current[lessonKey] = Math.max(0, (pendingByLessonRef.current[lessonKey] || 1) - 1);
         if (inflightSavesRef.current === 0) {
           setSavingLessonKey(null);
           if (reloadWantedRef.current) {
             reloadWantedRef.current = false;
-            void loadAttendance(true);
+            // The current render's loader (period / group), not the one of the click.
+            void loadAttendanceRef.current(true);
           }
         }
       }
@@ -712,21 +749,30 @@ export function GroupAttendanceJournal({
         await loadAttendance(true);
         showToast("Урок открыт: отметьте учеников в столбце");
       } else if (action === "finish") {
-        // Marks still on their way must reach the server before the lesson is closed.
-        await saveQueueRef.current;
-        const { rosterCount, markedCount } = markedInLesson(lesson);
-        const hint = finishBlockedHint(markedCount, rosterCount);
-        if (hint) {
-          showToast(hint, "warning");
-          return;
-        }
-        await orgApi.saveGroupAttendance(groupId, {
-          lessonDate: lesson.date,
-          lessonId: lesson.id,
-          topic: lesson.topic,
-          status: "completed",
-          records: recordsRef.current[key] || localRecords[key] || {},
+        // Cells of this lesson stay locked while it is being closed, and the
+        // finish itself waits behind every mark already queued.
+        finishingKeyRef.current = key;
+        const task = saveQueueRef.current.then(async () => {
+          const { rosterCount, markedCount } = markedInLesson(lesson);
+          const hint = finishBlockedHint(markedCount, rosterCount);
+          if (hint) {
+            showToast(hint, "warning");
+            return false;
+          }
+          const records = recordsForSave(recordsRef.current, key);
+          if (!records) throw new Error("Не удалось определить отметки урока. Обновите страницу и повторите.");
+          await orgApi.saveGroupAttendance(groupId, {
+            lessonDate: lesson.date,
+            lessonId: lesson.id,
+            topic: lesson.topic,
+            status: "completed",
+            records,
+          });
+          return true;
         });
+        saveQueueRef.current = task.then(() => undefined, () => undefined);
+        const finished = await task.finally(() => { finishingKeyRef.current = null; });
+        if (!finished) return;
         await loadAttendance(true);
         void useExcuseBadge.getState().refresh();
         showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
@@ -1067,7 +1113,7 @@ export function GroupAttendanceJournal({
                         const isFutureLesson = lesson.date > today;
                         const wasInLesson = belongsToLesson(student, lesson);
                         const inCorrection = correcting?.key === key;
-                        const locked = !wasInLesson || !canEdit || isFutureLesson || lessonStatus === "scheduled" || (lessonStatus === "completed" && !inCorrection) || lessonStatus === "cancelled";
+                        const locked = !wasInLesson || !canEdit || columnBusyKey === key || isFutureLesson || lessonStatus === "scheduled" || (lessonStatus === "completed" && !inCorrection) || lessonStatus === "cancelled";
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         // The excuse record belongs to the saved mark, not to an unsaved correction.
                         const savedIsExcused = localRecords[key]?.[student.id] === "excused";
@@ -1271,7 +1317,7 @@ export function GroupAttendanceJournal({
                         const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                         const inCorrection = correcting?.key === key;
                         // A student transferred out later is still on the roster frozen for this lesson.
-                        const editable = wasInLesson && canEdit && lesson.date <= today
+                        const editable = wasInLesson && canEdit && columnBusyKey !== key && lesson.date <= today
                           && (lessonStatus === "in_progress" || (lessonStatus === "completed" && inCorrection));
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         return (

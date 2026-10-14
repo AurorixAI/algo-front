@@ -323,3 +323,40 @@ export function rosterProgress(
     markedCount: unique.filter((id) => Boolean(records?.[id])).length,
   };
 }
+
+type RecordsByLesson = Record<string, Record<string, string>>;
+
+/**
+ * Records after a (non-quiet) reload: everything the server returned, except
+ * that a lesson with unsent or in-flight marks keeps its local records, so a
+ * month/group switch cannot erase them.
+ */
+export function mergeLoadedRecords<T extends string>(
+  loaded: Record<string, Record<string, T>> | undefined,
+  local: Record<string, Record<string, T>>,
+  pendingKeys: string[],
+): Record<string, Record<string, T>> {
+  const merged: Record<string, Record<string, T>> = { ...(loaded || {}) };
+  pendingKeys.forEach((key) => {
+    if (local[key]) merged[key] = local[key];
+  });
+  return merged;
+}
+
+/**
+ * Records a queued save of lesson `key` may send: a copy of that lesson's own
+ * local records, or null when they are unknown.  A save is never sent with an
+ * empty object made up on the spot or with another lesson's marks.
+ */
+export function recordsForSave<T extends string>(
+  drafts: Record<string, Record<string, T>>,
+  key: string,
+): Record<string, T> | null {
+  const own = drafts[key];
+  return own ? { ...own } : null;
+}
+
+/** Keys of lessons that still have queued or in-flight saves. */
+export function pendingLessonKeys(pending: Record<string, number>): string[] {
+  return Object.keys(pending).filter((key) => pending[key] > 0);
+}

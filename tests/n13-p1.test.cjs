@@ -241,3 +241,32 @@ test("correction warnings name what a change destroys", () => {
   assert.equal(rules.WARN_EXCUSE_REMOVED, "Подтверждение пропуска и прикреплённые справки будут удалены");
   assert.equal(rules.WARN_EXCUSE_REPENDING, "Пропуск вернётся на подтверждение");
 });
+
+test("a period switch cannot wipe marks of a lesson with pending saves", () => {
+  // click A (in flight) and click B (queued) on lesson L1, then the user opens another month
+  const local = { L1: { a: "present", b: "late" }, L0: { a: "absent" } };
+  const loadedForNewMonth = { L2: { a: "present" } }; // the server answer has no L1 at all
+  const merged = rules.mergeLoadedRecords(loadedForNewMonth, local, ["L1"]);
+  assert.deepEqual(merged.L1, { a: "present", b: "late" });
+  assert.deepEqual(merged.L2, { a: "present" });
+  assert.equal(merged.L0, undefined); // lessons without pending work follow the server
+  // the queued task of L1 sends exactly its own marks
+  assert.deepEqual(rules.recordsForSave(merged, "L1"), { a: "present", b: "late" });
+  // the copy is detached: later local edits do not change a request already built
+  const sent = rules.recordsForSave(merged, "L1");
+  merged.L1.a = "absent";
+  assert.equal(sent.a, "present");
+  // unknown lesson: nothing is sent instead of an empty or foreign object
+  assert.equal(rules.recordsForSave(merged, "L9"), null);
+  assert.equal(rules.recordsForSave({}, "L1"), null);
+  // a lesson whose marks were all reset legitimately has its own empty record
+  assert.deepEqual(rules.recordsForSave({ L1: {} }, "L1"), {});
+  // no pending lessons: the server state is taken as is
+  assert.deepEqual(rules.mergeLoadedRecords({ L2: { a: "late" } }, local, []), { L2: { a: "late" } });
+  assert.deepEqual(rules.mergeLoadedRecords(undefined, local, ["L1"]), { L1: local.L1 });
+});
+
+test("pending lesson keys are the ones with a positive counter", () => {
+  assert.deepEqual(rules.pendingLessonKeys({ L1: 2, L2: 0, L3: 1 }).sort(), ["L1", "L3"]);
+  assert.deepEqual(rules.pendingLessonKeys({}), []);
+});
