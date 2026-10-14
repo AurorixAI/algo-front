@@ -201,9 +201,9 @@ test("payment form validation", () => {
   assert.match(rules.validatePaymentForm({ ...ok, paidOn: "2023-10-13" }, "calendar", TODAY), /3 лет/);
   assert.match(rules.validatePaymentForm({ ...ok, validTo: "2026-10-13" }, "calendar", TODAY), /раньше/);
   assert.ok(rules.validatePaymentForm({ ...ok, validTo: "" }, "calendar", TODAY));
-  // 400 days at most, both ends included
-  assert.equal(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-04" }, "calendar", TODAY), null); // 400 days
-  assert.match(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-05" }, "calendar", TODAY), /400/);
+  // the backend rule: valid_to - valid_from <= 400 days (inclusive length 401)
+  assert.equal(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-05" }, "calendar", TODAY), null); // 400
+  assert.match(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-06" }, "calendar", TODAY), /400/); // 401
   // lessons mode: the count is optional (server default) but bounded
   const byLessons = { ...ok, validTo: "", lessons: "12" };
   assert.equal(rules.validatePaymentForm(byLessons, "lessons", TODAY), null);
@@ -319,7 +319,7 @@ test("summary store: 200 makes payments available and counts due; one request", 
   });
 });
 
-test("summary store: 403, 404 and a network error hide everything, quietly", async () => {
+test("summary store: 403 and 404 hide everything quietly and are remembered", async () => {
   const usePaymentsSummary = store();
   const warnings = [];
   const originalWarn = console.warn;
@@ -327,26 +327,99 @@ test("summary store: 403, 404 and a network error hide everything, quietly", asy
   try {
     for (const make of [() => reply(403, { detail: "Нет доступа" }), () => reply(404, { detail: "Not found" })]) {
       usePaymentsSummary.getState().reset();
-      await withFetch(make, async () => {
+      await withFetch(make, async (calls) => {
         await usePaymentsSummary.getState().refresh(true);
+        const state = usePaymentsSummary.getState();
+        assert.equal(state.available, false);
+        assert.equal(state.due, 0);
+        assert.equal(state.loaded, true);
+        // route change / tab visible / a forced refresh do not ask again
+        await usePaymentsSummary.getState().refresh();
+        await usePaymentsSummary.getState().refresh(true);
+        assert.equal(calls.length, 1);
+        // the 5-minute timer and saving the settings re-check
+        await usePaymentsSummary.getState().refresh(true, { recheck: true });
+        assert.equal(calls.length, 2);
       });
-      const state = usePaymentsSummary.getState();
-      assert.equal(state.available, false);
-      assert.equal(state.due, 0);
-      assert.equal(state.loaded, true);
     }
     assert.equal(warnings.length, 0, "403 / 404 are expected answers: no console noise");
-
-    usePaymentsSummary.getState().reset();
-    await withFetch(() => { throw new TypeError("network"); }, async () => {
-      await usePaymentsSummary.getState().refresh(true);
-      assert.equal(usePaymentsSummary.getState().available, false);
-      await usePaymentsSummary.getState().refresh(true);
-    });
-    assert.equal(warnings.length, 1, "a network failure is warned about once, not on every refresh");
   } finally {
     console.warn = originalWarn;
   }
+});
+
+test("summary store: a recheck that succeeds (the owner enabled the right) lifts the refusal; logout forgets it", async () => {
+  const usePaymentsSummary = store();
+  usePaymentsSummary.getState().reset();
+  let status = 403;
+  await withFetch(() => (status === 403 ? reply(403, {}) : reply(200, { due: 1, period_mode: "calendar" })), async (calls) => {
+    await usePaymentsSummary.getState().refresh(true);
+    assert.equal(usePaymentsSummary.getState().available, false);
+    status = 200;
+    await usePaymentsSummary.getState().refresh(true); // still remembered: not asked
+    assert.equal(calls.length, 1);
+    await usePaymentsSummary.getState().refresh(true, { recheck: true });
+    assert.equal(usePaymentsSummary.getState().available, true);
+    assert.equal(usePaymentsSummary.getState().due, 1);
+    status = 403;
+    await usePaymentsSummary.getState().refresh(true, { recheck: true });
+    assert.equal(usePaymentsSummary.getState().available, false);
+    usePaymentsSummary.getState().reset(); // logout / login
+    status = 200;
+    await usePaymentsSummary.getState().refresh(true);
+    assert.equal(usePaymentsSummary.getState().available, true);
+  });
+});
+
+test("summary store: a network error or 5xx keeps the last state and warns once", async () => {
+  const usePaymentsSummary = store();
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try {
+    usePaymentsSummary.getState().reset();
+    await withFetch(() => reply(200, { due: 3, period_mode: "lessons" }), async () => {
+      await usePaymentsSummary.getState().refresh(true);
+    });
+    await withFetch(() => { throw new TypeError("network"); }, async () => {
+      await usePaymentsSummary.getState().refresh(true);
+      await usePaymentsSummary.getState().refresh(true);
+    });
+    await withFetch(() => reply(503, { detail: "down" }), async () => {
+      await usePaymentsSummary.getState().refresh(true);
+    });
+    const state = usePaymentsSummary.getState();
+    assert.equal(state.available, true, "open dialogs and the menu item must not vanish");
+    assert.equal(state.due, 3);
+    assert.equal(state.periodMode, "lessons");
+    assert.equal(warnings.length, 1, "warned once, not on every refresh");
+    // and the next good answer is taken
+    await withFetch(() => reply(200, { due: 0, period_mode: "calendar" }), async () => {
+      await usePaymentsSummary.getState().refresh(true);
+    });
+    assert.equal(usePaymentsSummary.getState().due, 0);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test("summary store: a forced refresh during a request queues exactly one more", async () => {
+  const usePaymentsSummary = store();
+  usePaymentsSummary.getState().reset();
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  let served = 0;
+  await withFetch(async () => { const n = ++served; if (n === 1) await gate; return reply(200, { due: n, period_mode: "calendar" }); }, async (calls) => {
+    const first = usePaymentsSummary.getState().refresh(true);
+    usePaymentsSummary.getState().refresh(true);
+    usePaymentsSummary.getState().refresh(true);
+    usePaymentsSummary.getState().refresh();
+    assert.equal(calls.length, 1);
+    release();
+    await first;
+    assert.equal(calls.length, 2, "one more read, not one per call");
+    assert.equal(usePaymentsSummary.getState().due, 2, "the answer after the action wins");
+  });
 });
 
 test("summary store: an answer that arrives after reset (logout) is dropped", async () => {
