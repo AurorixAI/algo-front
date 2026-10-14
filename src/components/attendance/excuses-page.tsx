@@ -13,7 +13,6 @@ import {
   Image as ImageIcon,
   Loader2,
   Paperclip,
-  Search,
   Trash2,
   Undo2,
   X,
@@ -49,7 +48,7 @@ import { useToast } from "@/components/ui/toast";
 const PAGE_SIZE = 50;
 
 /** Same columns for the header row and every entry on wide screens. */
-const GRID_COLUMNS = "xl:grid xl:grid-cols-[28px_104px_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] xl:gap-x-4";
+const GRID_COLUMNS = "xl:grid xl:grid-cols-[104px_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] xl:gap-x-4";
 
 type Tab = ExcuseReviewStatus;
 
@@ -167,8 +166,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const [dateFrom, setDateFrom] = useState(monthRange.from);
   const [dateTo, setDateTo] = useState(monthRange.to);
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(0);
 
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
@@ -180,10 +177,8 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
-  const [bulkBusy, setBulkBusy] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [fileBusyId, setFileBusyId] = useState<string | null>(null);
 
@@ -193,11 +188,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const requests = useRef(createRequestSequence());
   const viewerRequests = useRef(createRequestSequence());
   const periodError = validateExcusePeriod(dateFrom, dateTo);
-
-  useEffect(() => {
-    const timer = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(0); }, 300);
-    return () => clearTimeout(timer);
-  }, [search]);
 
   // Teacher -> group directory for the cascading filter.
   useEffect(() => {
@@ -241,7 +231,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         dateTo,
         groupId: filter.groupId || undefined,
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
-        search: debouncedSearch || undefined,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
       });
@@ -254,17 +243,13 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
       setItems(data.items || []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pending_total ?? 0);
-      setSelected((previous) => {
-        const ids = new Set((data.items || []).map((item) => item.id));
-        return new Set(Array.from(previous).filter((id) => ids.has(id)));
-      });
     } catch (error) {
       if (!requests.current.isCurrent(token)) return;
       setLoadError(error instanceof Error ? error.message : "Не удалось загрузить список");
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [dateFrom, dateTo, debouncedSearch, filter.groupId, filter.teacherId, page, periodError, tab]);
+  }, [dateFrom, dateTo, filter.groupId, filter.teacherId, page, periodError, tab]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -272,7 +257,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   useEffect(() => () => { if (viewer?.url) URL.revokeObjectURL(viewer.url); }, [viewer?.url]);
 
   const resetPaging = () => setPage(0);
-  const switchTab = (next: Tab) => { setTab(next); setSelected(new Set()); resetPaging(); };
+  const switchTab = (next: Tab) => { setTab(next); resetPaging(); };
 
   const markBusy = (id: string, on: boolean) =>
     setBusyIds((previous) => {
@@ -313,38 +298,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
       markBusy(item.id, false);
     }
   };
-
-  const confirmSelected = async () => {
-    const ids = Array.from(selected);
-    if (ids.length === 0) return;
-    setBulkBusy(true);
-    try {
-      const result = await orgApi.reviewAttendanceExcusesBulk({ ids, decision: "confirmed" });
-      const byId = new Map(items.map((item) => [item.id, item]));
-      const skipped = (result.skipped || []).map(
-        (entry) => `${byId.get(entry.id)?.student.full_name || "Пропуск"} — ${entry.reason}`,
-      );
-      if (skipped.length > 0) {
-        showToast(`Подтверждено: ${result.updated}, пропущено: ${skipped.length}`, "warning", skipped);
-      } else {
-        showToast(`Подтверждено: ${result.updated}`);
-      }
-      setSelected(new Set());
-      await load(true);
-      refreshBadge();
-    } catch (error) {
-      showToast(error instanceof Error ? error.message : "Не удалось подтвердить выбранные", "error");
-    } finally {
-      setBulkBusy(false);
-    }
-  };
-
-  const toggleSelected = (id: string) =>
-    setSelected((previous) => {
-      const next = new Set(previous);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
 
   // ── Files ───────────────────────────────────────────────────────────────
   const attachFile = async (item: AttendanceExcuseItem, picked: File | null | undefined) => {
@@ -421,7 +374,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const allSelected = items.length > 0 && items.every((item) => selected.has(item.id));
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "pending", label: `Ожидают (${pendingTotal})` },
     { key: "confirmed", label: "Подтверждено" },
@@ -491,15 +443,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
             </button>
           </div>
           <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="relative min-w-0 flex-1 sm:max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Поиск по ученику…"
-                className={`${fieldClass} w-full pl-9`}
-              />
-            </div>
             <CascadingFilter
               teachers={teachers}
               groups={groups}
@@ -513,30 +456,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
           {periodError && <span role="alert" className="ml-2 font-medium text-rose-600">{periodError}</span>}
         </p>
       </section>
-
-      {/* Bulk bar */}
-      {tab === "pending" && items.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700">
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={() => setSelected(allSelected ? new Set() : new Set(items.map((item) => item.id)))}
-              className="h-4 w-4 rounded border-slate-300 text-primary-600"
-            />
-            Выбрать все на странице
-          </label>
-          <button
-            type="button"
-            disabled={selected.size === 0 || bulkBusy}
-            onClick={() => void confirmSelected()}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          >
-            {bulkBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            Подтвердить выбранные{selected.size > 0 ? ` (${selected.size})` : ""}
-          </button>
-        </div>
-      )}
 
       {/* List */}
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -564,7 +483,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         ) : (
           <div>
             <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_COLUMNS}`}>
-              <span />
               <span>Дата урока</span>
               <span>Ученик</span>
               <span>Причина</span>
@@ -578,23 +496,11 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                 const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
                 return (
                   <li key={item.id} className={`flex flex-col gap-3 px-4 py-4 sm:px-5 xl:items-start ${GRID_COLUMNS}`}>
-                    {/* checkbox + date (inline on phones, separate columns on wide screens) */}
-                    <div className="flex items-center gap-3 xl:contents">
-                      {tab === "pending" ? (
-                        <input
-                          type="checkbox"
-                          checked={selected.has(item.id)}
-                          onChange={() => toggleSelected(item.id)}
-                          aria-label={`Выбрать: ${item.student.full_name}`}
-                          className="h-4 w-4 shrink-0 rounded border-slate-300 text-primary-600 xl:mt-1"
-                        />
-                      ) : <span className="hidden xl:block" />}
-                      <div className="flex flex-wrap items-center gap-2 xl:block">
-                        <p className="text-sm font-bold text-slate-900">{formatDateRu(item.lesson_date)}</p>
-                        {tab !== "pending" && (
-                          <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.label}</span>
-                        )}
-                      </div>
+                    <div className="flex flex-wrap items-center gap-2 xl:block">
+                      <p className="text-sm font-bold text-slate-900">{formatDateRu(item.lesson_date)}</p>
+                      {tab !== "pending" && (
+                        <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.label}</span>
+                      )}
                     </div>
 
                     <div className="min-w-0">

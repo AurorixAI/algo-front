@@ -476,7 +476,6 @@ export interface AttendanceExcuseQuery {
   dateTo?: string;
   groupId?: string;
   teacherId?: string;
-  search?: string;
   limit?: number;
   offset?: number;
 }
@@ -1082,7 +1081,6 @@ export const orgApi = {
     if (q.dateTo) params.set("date_to", q.dateTo);
     if (q.groupId) params.set("group_id", q.groupId);
     if (q.teacherId) params.set("teacher_id", q.teacherId);
-    if (q.search) params.set("search", q.search);
     params.set("limit", String(q.limit ?? 50));
     params.set("offset", String(q.offset ?? 0));
     return api<AttendanceExcuseList>(`/auth/org/attendance/excuses?${params.toString()}`);
@@ -1091,11 +1089,6 @@ export const orgApi = {
     api<{ pending_total: number }>("/auth/org/attendance/excuses/summary"),
   reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string }) =>
     api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review`, { method: "POST", body: data }),
-  reviewAttendanceExcusesBulk: (data: { ids: string[]; decision: "confirmed" | "rejected"; note?: string }) =>
-    api<{ updated: number; skipped: Array<{ id: string; reason: string }> }>(
-      "/auth/org/attendance/excuses/review-bulk",
-      { method: "POST", body: data },
-    ),
   resetAttendanceExcuse: (id: string) =>
     api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset`, { method: "POST" }),
   uploadAttendanceExcuseFile: (id: string, file: Blob, filename: string) =>

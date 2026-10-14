@@ -182,6 +182,11 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
   assert.match(section, /key: "excuses"/);
   assert.match(section, /searchParams\?\.get\("tab"\)/);
   assert.match(section, /Журнал по всем группам: что требует действий администратора/);
+  // decisions are made one by one: no bulk selection, no student search on the excuses tab
+  const excusesPage = read("src/components/attendance/excuses-page.tsx");
+  assert.doesNotMatch(excusesPage, /Выбрать все|Подтвердить выбранные|checkbox|reviewAttendanceExcusesBulk|Поиск по ученику/);
+  assert.match(excusesPage, /CascadingFilter/);
+  assert.doesNotMatch(read("src/lib/api.ts"), /reviewAttendanceExcusesBulk|review-bulk/);
   // the badge store does not request anything in demo mode
   assert.match(read("src/lib/excuse-badge.ts"), /if \(DEMO_MODE\) return Promise\.resolve\(\)/);
   // the admin journal is editable and in admin mode on both group cards
