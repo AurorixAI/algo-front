@@ -133,7 +133,7 @@ function PaymentsSettingsSection() {
       setForm(next);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-      void refreshSummary(true);
+      void refreshSummary(true, { recheck: true });
     } catch (e: any) {
       setError(e.message || "Ошибка сохранения");
     } finally {

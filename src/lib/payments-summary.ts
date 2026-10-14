@@ -23,9 +23,11 @@ interface PaymentsSummaryState {
   /**
    * Re-read the summary; a failure never throws.  Without `force`, a call within a second
    * of the previous one is skipped (mount and route change fire together); pass `force`
-   * after an action that changed the numbers.
+   * after an action that changed the numbers.  A `force` call during a request queues exactly
+   * one more read after it.  After a 403/404 nothing is requested again until `recheck`
+   * (the 5-minute timer, saving the payment settings); `reset` (logout) forgets the refusal.
    */
-  refresh: (force?: boolean) => Promise<void>;
+  refresh: (force?: boolean, options?: { recheck?: boolean }) => Promise<void>;
   /** Forget everything (logout / another account). */
   reset: () => void;
 }
@@ -47,6 +49,10 @@ const EMPTY = {
 let inFlight: Promise<void> | null = null;
 let lastStartedAt = 0;
 let warned = false;
+/** The server answered 403/404: this user has no payments; stop asking until a recheck. */
+let denied = false;
+/** A forced refresh asked for while one was in flight. */
+let queued = false;
 /** Bumped by `reset` so an answer that arrives after logout is dropped. */
 let epoch = 0;
 const MIN_GAP_MS = 1000;
@@ -68,40 +74,60 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
   };
 }
 
-export const usePaymentsSummary = create<PaymentsSummaryState>((set) => ({
+export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
   ...EMPTY,
   reset: () => {
     epoch += 1;
     inFlight = null;
+    denied = false;
+    queued = false;
     lastStartedAt = 0;
     set({ ...EMPTY });
   },
-  refresh: (force = false) => {
+  refresh: (force = false, options) => {
     // The demo API has no such endpoint; nothing is requested there.
     if (DEMO_MODE) {
       set({ ...EMPTY, loaded: true });
       return Promise.resolve();
     }
-    if (inFlight) return inFlight;
+    if (denied && !options?.recheck) return Promise.resolve();
+    if (inFlight) {
+      if (force) queued = true;
+      return inFlight;
+    }
     if (!force && Date.now() - lastStartedAt < MIN_GAP_MS) return Promise.resolve();
     lastStartedAt = Date.now();
     const myEpoch = epoch;
-    inFlight = orgApi.getPaymentsSummary()
+    const request = orgApi.getPaymentsSummary()
       .then((summary) => {
-        if (myEpoch === epoch) set(summaryToState(summary));
+        if (myEpoch !== epoch) return;
+        denied = false;
+        set(summaryToState(summary));
       })
       .catch((error: unknown) => {
         if (myEpoch !== epoch) return;
-        // 403 (no right / flag off), 404 (old server), a network error: no money anywhere, no alerts.
-        set({ ...EMPTY, loaded: true });
         const status = (error as { status?: number } | null)?.status;
-        if (!warned && status !== 403 && status !== 404) {
+        if (status === 403 || status === 404) {
+          // No right (or the flag is off, or an old server): no money anywhere, no alerts.
+          denied = true;
+          set({ ...EMPTY, loaded: true });
+          return;
+        }
+        // Network error / 5xx: keep what is known, so open dialogs and the menu do not vanish.
+        if (!warned) {
           warned = true;
           console.warn("Payments summary is unavailable");
         }
       })
-      .finally(() => { if (myEpoch === epoch) inFlight = null; });
-    return inFlight;
+      .then(() => {
+        if (myEpoch !== epoch) return undefined;
+        inFlight = null;
+        if (!queued) return undefined;
+        queued = false;
+        return get().refresh(true, options);
+      });
+    inFlight = request;
+    return request;
   },
 }));
 
@@ -121,7 +147,10 @@ export function usePaymentsSummarySync(enabled: boolean, pathname: string | null
       if (document.visibilityState === "visible") void refresh();
     };
     document.addEventListener("visibilitychange", refreshIfVisible);
-    const timer = window.setInterval(refreshIfVisible, 5 * 60 * 1000);
+    // The timer is the only periodic way back after a refusal (the owner may have enabled the right).
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refresh(false, { recheck: true });
+    }, 5 * 60 * 1000);
     return () => {
       document.removeEventListener("visibilitychange", refreshIfVisible);
       window.clearInterval(timer);
