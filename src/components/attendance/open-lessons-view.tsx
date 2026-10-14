@@ -42,6 +42,10 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   const [items, setItems] = useState<OpenAttendanceAction[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
+  // True while any list request is running: the badge-mismatch rule waits for it to finish.
+  const [refreshing, setRefreshing] = useState(false);
+  const loadedRef = useRef(false);
+  const refreshingRef = useRef(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<CancelMissedTarget | null>(null);
   const sequence = useMemo(() => createRequestSequence(), []);
@@ -59,7 +63,11 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
     const token = sequence.next();
     lastStartedAtRef.current = Date.now();
-    if (!silent) {
+    // Before the first successful load nothing is on screen to keep: show the spinner / the error.
+    const quiet = silent && loadedRef.current;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    if (!quiet) {
       setLoading(true);
       setLoadError(null);
     }
@@ -70,13 +78,18 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
       ]);
       if (!mountedRef.current || !sequence.isCurrent(token)) return;
       setItems(Array.isArray(data) ? data : []);
+      loadedRef.current = true;
       setLoaded(true);
       setLoadError(null);
     } catch (error) {
       if (!mountedRef.current || !sequence.isCurrent(token)) return;
-      if (!silent) setLoadError(error instanceof Error ? error.message : "Не удалось загрузить уроки");
+      if (!quiet) setLoadError(error instanceof Error ? error.message : "Не удалось загрузить уроки");
     } finally {
-      if (mountedRef.current && sequence.isCurrent(token)) setLoading(false);
+      if (mountedRef.current && sequence.isCurrent(token)) {
+        refreshingRef.current = false;
+        setRefreshing(false);
+        setLoading(false);
+      }
     }
   }, [sequence]);
 
@@ -91,7 +104,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   useEffect(() => {
     const refetch = () => {
       if (document.visibilityState === "hidden") return;
-      if (Date.now() - lastStartedAtRef.current < FOCUS_REFETCH_GAP_MS) return;
+      if (refreshingRef.current || Date.now() - lastStartedAtRef.current < FOCUS_REFETCH_GAP_MS) return;
       void load({ silent: true });
     };
     window.addEventListener("focus", refetch);
@@ -103,7 +116,10 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   }, [load]);
 
   // The badge (polled by the layout) knows a different number than the list shows: the list is stale.
+  // Judged only between loads (the badge is applied a moment before the list inside a load), so one
+  // focus is one list request and one summary request.
   useEffect(() => {
+    if (refreshing) return;
     if (badgeCount === items.length) {
       handledBadgeRef.current = null;
       return;
@@ -111,7 +127,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     if (!shouldRefetchForBadge(loaded, badgeCount, items.length, handledBadgeRef.current)) return;
     handledBadgeRef.current = badgeCount;
     void load({ silent: true });
-  }, [badgeCount, items.length, loaded, load]);
+  }, [badgeCount, items.length, loaded, refreshing, load]);
 
   const groups = useMemo(() => groupOpenLessonsByTeacher(items), [items]);
 
@@ -153,11 +169,11 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     );
   }
 
-  if (loadError && !loaded) {
+  if (!loaded) {
     return (
       <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
         <AlertCircle className="h-8 w-8 text-rose-500" />
-        <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
+        <p className="max-w-md text-sm font-medium text-rose-800">{loadError ?? "Не удалось загрузить уроки"}</p>
         <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
       </div>
     );

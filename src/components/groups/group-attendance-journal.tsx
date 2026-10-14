@@ -319,8 +319,10 @@ export function GroupAttendanceJournal({
   highlightDate = null,
 }: GroupAttendanceJournalProps) {
   const highlightTarget = parseJournalHighlight(highlightLessonId, highlightDate);
-  const requestedMonth = parseJournalMonth(initialMonth)
-    ?? (highlightTarget ? parseJournalMonth(highlightTarget.date.slice(0, 7)) : null);
+  // A valid deep link decides the period by its date, so a disagreeing ?month= cannot hide the lesson.
+  const requestedMonth = highlightTarget
+    ? parseJournalMonth(highlightTarget.date.slice(0, 7))
+    : parseJournalMonth(initialMonth);
   const [viewMode, setViewMode] = useState<ViewMode>(requestedMonth ? "month" : "week");
   const [anchorDate, setAnchorDate] = useState(() =>
     requestedMonth ? new Date(requestedMonth.year, requestedMonth.month - 1, 1, 12) : businessTodayAtLocalNoon(),
@@ -510,8 +512,11 @@ export function GroupAttendanceJournal({
       const column = Array.from(container?.querySelectorAll<HTMLElement>("th[data-lesson-key]") ?? [])
         .find((element) => element.dataset.lessonKey === key);
       if (!container || !column) return;
-      // The student column is sticky (~235px): leave it visible, put the lesson right after it.
-      container.scrollTo({ left: Math.max(0, column.offsetLeft - 235 - 8), behavior: "smooth" });
+      // The student column is sticky: leave it visible and put the lesson right after it.
+      // Positions come from bounding boxes (the th's offsetParent is not this container).
+      const stickyWidth = container.querySelector<HTMLElement>("thead th")?.getBoundingClientRect().width ?? 235;
+      const offset = column.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+      container.scrollTo({ left: Math.max(0, offset - stickyWidth - 8), behavior: "smooth" });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [lessons, targetLessonId, targetLessonDate]);

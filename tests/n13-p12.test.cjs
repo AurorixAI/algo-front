@@ -233,3 +233,59 @@ test("enrolment dates use the business-calendar formatter, not the browser's", (
   }
   assert.doesNotMatch(read("src/components/groups/group-attendance-journal.tsx"), /new Date\([^)]*(joined_at|transferredAt)[^)]*\)\.toLocale/);
 });
+
+// ---- R3 follow-ups ----------------------------------------------------------
+
+test("a forced badge refresh after an action is not answered by a request that started before it", async () => {
+  const Module = require("node:module");
+  let calls = 0;
+  const releases = [];
+  const values = [3, 2]; // before the cancel, after the cancel
+  const originalLoad = Module._load;
+  Module._load = function (request, ...rest) {
+    if (request === "./api") {
+      return {
+        DEMO_MODE: false,
+        orgApi: {
+          getAttendanceExcuseSummary: () => {
+            const value = values[calls++];
+            return new Promise((resolve) => releases.push(() => resolve({ pending_total: 0, open_lessons_total: value })));
+          },
+        },
+      };
+    }
+    return originalLoad.call(this, request, ...rest);
+  };
+  let badge;
+  try {
+    badge = require(path.join(__dirname, "../src/lib/excuse-badge.ts"));
+  } finally {
+    Module._load = originalLoad;
+  }
+  const store = badge.useExcuseBadge;
+  const poll = store.getState().refresh(true); // a poll already in flight (answered "before the cancel")
+  const afterAction = store.getState().refresh(true);
+  const again = store.getState().refresh(true); // forced callers meanwhile share the one queued request
+  releases[0]();
+  await poll;
+  assert.equal(store.getState().openLessons, 3);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(releases.length, 2);
+  releases[1]();
+  await Promise.all([afterAction, again]);
+  assert.equal(store.getState().openLessons, 2);
+  assert.equal(calls, 2);
+});
+
+test("R3: no empty state before a successful load, one request per focus, deep link by date, scroll by bounding box", () => {
+  const view = read("src/components/attendance/open-lessons-view.tsx");
+  assert.match(view, /const quiet = silent && loadedRef\.current/);
+  assert.match(view, /if \(!loaded\) \{/);
+  assert.match(view, /if \(refreshing\) return;/);
+  assert.match(view, /refreshingRef\.current \|\|/);
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.doesNotMatch(journal, /column\.offsetLeft/);
+  assert.match(journal, /getBoundingClientRect\(\)\.left - container\.getBoundingClientRect\(\)\.left \+ container\.scrollLeft/);
+  assert.match(journal, /requestedMonth = highlightTarget\s*\? parseJournalMonth\(highlightTarget\.date\.slice\(0, 7\)\)/);
+  assert.match(read("src/lib/business-time.ts"), /const BUSINESS_PARTS_FORMAT = new Intl\.DateTimeFormat/);
+});

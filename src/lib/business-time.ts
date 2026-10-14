@@ -12,16 +12,19 @@ type BusinessDateParts = {
   minute: number;
 };
 
+// Created once: building an Intl formatter is expensive and this runs per table cell.
+const BUSINESS_PARTS_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: BUSINESS_TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 function businessParts(value = new Date()): BusinessDateParts {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(value);
+  const parts = BUSINESS_PARTS_FORMAT.formatToParts(value);
   const get = (type: Intl.DateTimeFormatPartTypes) =>
     Number(parts.find((part) => part.type === type)?.value || 0);
 

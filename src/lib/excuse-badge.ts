@@ -22,6 +22,7 @@ export const selectBadgeTotal = (state: Pick<ExcuseBadgeState, "pending" | "open
   state.pending + state.openLessons;
 
 let inFlight: Promise<void> | null = null;
+let queued: Promise<void> | null = null;
 let lastStartedAt = 0;
 const MIN_GAP_MS = 1000;
 
@@ -32,19 +33,31 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   refresh: (force = false) => {
     // The demo API has no such endpoint; nothing is requested there.
     if (DEMO_MODE) return Promise.resolve();
-    if (inFlight) return inFlight;
+    const start = (): Promise<void> => {
+      lastStartedAt = Date.now();
+      const request: Promise<void> = orgApi.getAttendanceExcuseSummary()
+        .then((summary) => {
+          const open = summary?.open_lessons_total;
+          // null/absent = not counted (server hiccup, or an older backend): keep the last value.
+          set(open == null
+            ? { pending: count(summary?.pending_total) }
+            : { pending: count(summary?.pending_total), openLessons: count(open) });
+        })
+        .catch(() => undefined)
+        .finally(() => { if (inFlight === request) inFlight = null; });
+      inFlight = request;
+      return request;
+    };
+    if (inFlight) {
+      if (!force) return inFlight;
+      // A forced refresh follows an action: the request already in flight may have been answered
+      // before it, so one more is queued behind it (and shared by every forced caller meanwhile).
+      if (!queued) {
+        queued = inFlight.then(() => { queued = null; return start(); });
+      }
+      return queued;
+    }
     if (!force && Date.now() - lastStartedAt < MIN_GAP_MS) return Promise.resolve();
-    lastStartedAt = Date.now();
-    inFlight = orgApi.getAttendanceExcuseSummary()
-      .then((summary) => {
-        const open = summary?.open_lessons_total;
-        // null/absent = not counted (server hiccup, or an older backend): keep the last value.
-        set(open == null
-          ? { pending: count(summary?.pending_total) }
-          : { pending: count(summary?.pending_total), openLessons: count(open) });
-      })
-      .catch(() => undefined)
-      .finally(() => { inFlight = null; });
-    return inFlight;
+    return start();
   },
 }));
