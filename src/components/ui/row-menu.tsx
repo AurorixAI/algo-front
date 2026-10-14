@@ -57,6 +57,19 @@ export function RowMenu({
     setPos({ top, left, maxHeight, width: menuWidth });
   }, [anchor, width, items.length]);
 
+  const closeAndFocus = () => {
+    setAnchor(null);
+    triggerRef.current?.focus();
+  };
+
+  // Focus moves into the menu when it opens (keyboard and screen-reader users).
+  useEffect(() => {
+    if (!pos || !menuRef.current) return;
+    menuRef.current.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+    // Only when the menu has just been placed, not on every reposition.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pos !== null]);
+
   useEffect(() => {
     if (!anchor) return;
     const close = () => setAnchor(null);
@@ -66,16 +79,37 @@ export function RowMenu({
       if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       close();
     };
-    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { closeAndFocus(); return; }
+      const menu = menuRef.current;
+      if (!menu || !menu.contains(document.activeElement)) return;
+      const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])'));
+      if (items.length === 0) return;
+      const index = items.indexOf(document.activeElement as HTMLElement);
+      let next: number | null = null;
+      if (event.key === "ArrowDown") next = (index + 1) % items.length;
+      else if (event.key === "ArrowUp") next = (index - 1 + items.length) % items.length;
+      else if (event.key === "Home") next = 0;
+      else if (event.key === "End") next = items.length - 1;
+      else if (event.key === "Tab") { setAnchor(null); return; }
+      if (next === null) return;
+      event.preventDefault();
+      items[next].focus();
+    };
+    // A resize (the mobile URL bar showing / hiding) only re-places the menu under its button.
+    const onResize = () => {
+      const rect = triggerRef.current?.getBoundingClientRect();
+      if (rect) setAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
+    };
     const onScroll = (event: Event) => { if (!menuRef.current?.contains(event.target as Node)) close(); };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKey);
-    window.addEventListener("resize", close);
+    window.addEventListener("resize", onResize);
     window.addEventListener("scroll", onScroll, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKey);
-      window.removeEventListener("resize", close);
+      window.removeEventListener("resize", onResize);
       window.removeEventListener("scroll", onScroll, true);
     };
   }, [anchor]);
@@ -124,7 +158,7 @@ export function RowMenu({
                 type="button"
                 role="menuitem"
                 disabled={item.disabled}
-                onClick={() => { setAnchor(null); item.onSelect(); }}
+                onClick={() => { closeAndFocus(); item.onSelect(); }}
                 className={`flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 disabled:opacity-50 ${item.danger ? "text-rose-700" : "text-slate-700"}`}
               >
                 {Icon && <Icon className={`h-4 w-4 ${item.danger ? "text-rose-500" : "text-slate-500"}`} />}
