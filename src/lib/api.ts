@@ -479,7 +479,8 @@ export interface AttendanceExcuseItem {
 /** Sidebar counters: excuses to decide and lessons to close. */
 export interface AttendanceExcuseSummary {
   pending_total: number;
-  open_lessons_total?: number;
+  /** null/absent: not counted right now; keep the previous value. */
+  open_lessons_total?: number | null;
 }
 
 export interface AttendanceExcuseList {

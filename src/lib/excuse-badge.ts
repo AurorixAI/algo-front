@@ -13,7 +13,6 @@ interface ExcuseBadgeState {
    */
   refresh: (force?: boolean) => Promise<void>;
   setPending: (value: number) => void;
-  setOpenLessons: (value: number) => void;
 }
 
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
@@ -30,7 +29,6 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   pending: 0,
   openLessons: 0,
   setPending: (value) => set({ pending: count(value) }),
-  setOpenLessons: (value) => set({ openLessons: count(value) }),
   refresh: (force = false) => {
     // The demo API has no such endpoint; nothing is requested there.
     if (DEMO_MODE) return Promise.resolve();
@@ -38,10 +36,13 @@ export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
     if (!force && Date.now() - lastStartedAt < MIN_GAP_MS) return Promise.resolve();
     lastStartedAt = Date.now();
     inFlight = orgApi.getAttendanceExcuseSummary()
-      .then((summary) => set({
-        pending: count(summary?.pending_total),
-        openLessons: count(summary?.open_lessons_total),
-      }))
+      .then((summary) => {
+        const open = summary?.open_lessons_total;
+        // null/absent = not counted (server hiccup, or an older backend): keep the last value.
+        set(open == null
+          ? { pending: count(summary?.pending_total) }
+          : { pending: count(summary?.pending_total), openLessons: count(open) });
+      })
       .catch(() => undefined)
       .finally(() => { inFlight = null; });
     return inFlight;
