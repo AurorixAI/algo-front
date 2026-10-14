@@ -80,6 +80,8 @@ function QuickEntry({
   const [lessons, setLessons] = useState(lessonsDefault ? String(lessonsDefault) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // The fee the server already holds: a retry after a failed payment does not send it again.
+  const [savedFee, setSavedFee] = useState<number | null>(row.monthly_fee);
 
   const changePaidOn = (value: string) => {
     setError(null);
@@ -99,12 +101,20 @@ function QuickEntry({
     if (problem) { setError(problem); return; }
     setBusy(true);
     setError(null);
+    let feeSavedNow = false;
     try {
-      if (parsed.value !== row.monthly_fee) await orgApi.setMembershipFee(row.membership_id, parsed.value);
+      if (parsed.value !== savedFee) {
+        await orgApi.setMembershipFee(row.membership_id, parsed.value);
+        setSavedFee(parsed.value);
+        feeSavedNow = true;
+      }
       const result = await orgApi.createPayment(row.membership_id, buildPaymentPayload(values, periodMode));
       onDone(result.row, result.warnings || []);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить оплату");
+      const reason = (cause instanceof Error ? cause.message : "Не удалось сохранить оплату").replace(/[.\s]+$/, "");
+      setError(feeSavedNow
+        ? `Оплата в месяц сохранена, но оплата не внесена: ${reason}. Нажмите «Сохранить» ещё раз.`
+        : reason);
       setBusy(false);
     }
   };

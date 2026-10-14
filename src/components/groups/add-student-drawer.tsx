@@ -274,58 +274,50 @@ export function AddStudentDrawer({
             </div>
 
             {/* Footer */}
-            <div className="p-4 border-t border-slate-100 space-y-3">
+            <div className="p-3 sm:p-4 border-t border-slate-100 space-y-2 sm:space-y-3">
               {transfers.length > 0 && (
-                <fieldset className="space-y-1.5">
+                <fieldset>
                   <legend className="mb-1 text-xs font-semibold text-slate-600">
                     {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}
                   </legend>
-                  {([
-                    ["transfer", "Перевести сюда", "Прошлая группа закроется, эта станет основной"],
-                    ["add", "Добавить ещё и в эту группу", "Прошлые группы останутся, основная не изменится"],
-                  ] as const).map(([value, title, hint]) => (
-                    <label
-                      key={value}
-                      className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2 ${mode === value ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
-                    >
-                      <input
-                        type="radio"
-                        name="join-mode"
-                        value={value}
-                        checked={mode === value}
-                        onChange={() => setMode(value)}
-                        className="mt-0.5 h-4 w-4 accent-primary-600"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-slate-900">{title}</span>
-                        <span className="block text-xs text-slate-500">{hint}</span>
-                      </span>
-                    </label>
-                  ))}
-                  <ul className="max-h-20 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs text-slate-500">
-                    {transfers.map((t) => (
-                      <li key={t.id}>{t.name} — из «{t.from}»</li>
+                  <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
+                    {([
+                      ["transfer", "Перевести сюда"],
+                      ["add", "Добавить ещё и в эту группу"],
+                    ] as const).map(([value, title]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={mode === value}
+                        onClick={() => setMode(value)}
+                        className={`rounded-lg px-2 py-1.5 text-xs font-semibold leading-tight transition-all ${mode === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                      >
+                        {title}
+                      </button>
                     ))}
-                  </ul>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
+                  </p>
+                  <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
+                    {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
+                  </p>
                 </fieldset>
               )}
               {moneyAvailable && (
-                <div>
-                  <label htmlFor="add-student-fee" className="mb-1 block text-xs font-semibold text-slate-600">
-                    Оплата в месяц <span className="font-normal text-slate-400">(необязательно{selected.size > 1 ? ", одна сумма для всех" : ""})</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      id="add-student-fee"
-                      value={feeText}
-                      onChange={(e) => { setAddError(null); setFeeText(reformatMoneyTyping(e.target.value)); }}
-                      inputMode="numeric"
-                      autoComplete="off"
-                      placeholder="450 000"
-                      className="w-full rounded-xl border border-slate-200 py-2.5 pl-3 pr-12 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-                    />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
-                  </div>
+                <div className="relative">
+                  <input
+                    id="add-student-fee"
+                    value={feeText}
+                    onChange={(e) => { setAddError(null); setFeeText(reformatMoneyTyping(e.target.value)); }}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    aria-label="Оплата в месяц, сум (необязательно)"
+                    placeholder={selected.size > 1 ? "Оплата в месяц, сум — одна для всех" : "Оплата в месяц, сум (необязательно)"}
+                    className="w-full rounded-xl border border-slate-200 py-2 pl-3 pr-12 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
                 </div>
               )}
               {addError && (
