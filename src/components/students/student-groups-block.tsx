@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ExternalLink, Plus, Users } from "lucide-react";
 import { DEMO_MODE, orgApi, type StudentGroupMembership, type StudentProfile } from "@/lib/api";
-import { formatDateRu, type MembershipPaymentRow } from "@/lib/payments";
+import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { type MembershipPaymentRow } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { MembershipPayments } from "@/components/payments/membership-payments";
@@ -130,7 +131,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
                     </div>
                     <p className="text-sm text-slate-500">
                       Преподаватель: <span className="font-medium text-slate-800">{item.teacher_name || "Не назначен"}</span>
-                      {item.joined_at && <span className="text-slate-400"> · с {formatDateRu(item.joined_at)}</span>}
+                      {item.joined_at && <span className="text-slate-400"> · с {formatUtcNaiveAsBusinessDate(item.joined_at)}</span>}
                     </p>
                   </div>
                   <Link

@@ -61,6 +61,51 @@ export function formatIsoDateLabel(
   }).format(new Date(`${isoDate}T12:00:00Z`));
 }
 
+const NAIVE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
+const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
+
+/**
+ * Some API timestamps (membership `joined_at`, `created_at`) are naive UTC:
+ * "2026-10-14T19:40:00" is 15.10 00:40 in Tashkent. The browser would read such a string as
+ * its own local time, so the day can be wrong near midnight. Returns the instant, or null.
+ * A date-only value ("2026-10-14") is a calendar day, not an instant: also null.
+ */
+export function parseUtcNaive(value: string | null | undefined): Date | null {
+  if (!value || !NAIVE_TIMESTAMP.test(value)) return null;
+  const text = value.trim().replace(" ", "T");
+  const date = new Date(HAS_ZONE.test(text) ? text : `${text}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** YYYY-MM-DD of a naive-UTC timestamp on the business calendar; a date-only value is returned as is; "" if invalid. */
+export function utcNaiveToBusinessIsoDate(value: string | null | undefined): string {
+  const instant = parseUtcNaive(value);
+  if (instant) return formatBusinessDate(instant);
+  const dateOnly = /^(\d{4}-\d{2}-\d{2})$/.exec(value ?? "");
+  return dateOnly ? dateOnly[1] : "";
+}
+
+/**
+ * Day of a naive-UTC timestamp (or an ISO instant with a zone) on the Tashkent calendar.
+ * Default «ДД.ММ.ГГГГ»; pass Intl options for another look («14 окт. 2026 г.»).
+ * "" for empty/invalid input.
+ */
+export function formatUtcNaiveAsBusinessDate(
+  value: string | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const instant = parseUtcNaive(value);
+  if (instant) {
+    return new Intl.DateTimeFormat("ru-RU", {
+      timeZone: BUSINESS_TIME_ZONE,
+      ...(options ?? { day: "2-digit", month: "2-digit", year: "numeric" }),
+    }).format(instant);
+  }
+  const iso = utcNaiveToBusinessIsoDate(value);
+  if (!iso) return "";
+  return formatIsoDateLabel(iso, options ?? { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export function businessTimeMinutes(value = new Date()): number {
   const { hour, minute } = businessParts(value);
   return hour * 60 + minute;

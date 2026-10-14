@@ -14,7 +14,7 @@ import { examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/li
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { useAuthStore } from "@/lib/store";
-import { formatBusinessDate } from "@/lib/business-time";
+import { formatBusinessDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
@@ -693,7 +693,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                 <div className="p-4 rounded-xl bg-slate-50 space-y-1 sm:col-span-2">
                   <p className="text-xs text-slate-400 font-medium">Дата регистрации в системе</p>
                   <p className="text-sm font-medium text-slate-800">
-                    {student.created_at ? new Date(student.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" }) : "—"}
+                    {student.created_at ? formatUtcNaiveAsBusinessDate(student.created_at, { day: "numeric", month: "long", year: "numeric" }) : "—"}
                   </p>
                 </div>
 
@@ -730,7 +730,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                         <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Текущая группа</span>
                       ) : (
                         <span>
-                          {gh.joined_at ? new Date(gh.joined_at).toLocaleDateString("ru-RU") : "—"} — {gh.left_at ? new Date(gh.left_at).toLocaleDateString("ru-RU") : "переведён"}
+                          {gh.joined_at ? formatUtcNaiveAsBusinessDate(gh.joined_at) : "—"} — {gh.left_at ? formatUtcNaiveAsBusinessDate(gh.left_at) : "переведён"}
                         </span>
                       )}
                     </div>

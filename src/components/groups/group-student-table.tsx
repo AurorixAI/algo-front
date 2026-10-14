@@ -6,6 +6,7 @@ import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, Loader2 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { StudentInGroup } from "@/lib/api";
+import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
@@ -206,7 +207,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
                 {/* Joined at */}
                 <td className={`px-4 py-4 ${removable ? "" : "pr-6"} text-xs text-slate-500 font-medium align-middle whitespace-nowrap text-center`}>
                   {s.joined_at ? (
-                    new Date(s.joined_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" })
+                    formatUtcNaiveAsBusinessDate(s.joined_at, { day: "numeric", month: "short", year: "numeric" })
                   ) : (
                     <span className="text-slate-300 font-mono">—</span>
                   )}
