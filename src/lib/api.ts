@@ -1,4 +1,16 @@
 import { encodePathId } from "./encode-id";
+import type {
+  MembershipPaymentRow,
+  PaymentCreate,
+  PaymentOut,
+  PaymentSaveResult,
+  PaymentSettings,
+  PaymentSettingsUpdate,
+  PaymentsStatusList,
+  PaymentsSummary,
+  PaymentBucket,
+  PaymentWarning,
+} from "./payments";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
@@ -639,6 +651,19 @@ export interface AttendancePeriod {
   dateTo?: string;
 }
 
+export type GroupJoinMode = "transfer" | "add";
+
+export interface StudentGroupMembership {
+  membership_id: string;
+  group_id: string;
+  group_name: string;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  class_level: number | null;
+  is_primary: boolean;
+  joined_at: string | null;
+}
+
 export interface StudentProfile {
   student: {
     id: string;
@@ -664,6 +689,8 @@ export interface StudentProfile {
     teacher_name: string | null;
     description?: string | null;
   } | null;
+  /** All active memberships (N13 P2); older servers do not send it. No money here. */
+  groups?: StudentGroupMembership[];
   group_history: Array<{
     group_id: string;
     group_name: string;
@@ -952,26 +979,43 @@ export const orgApi = {
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "archived" } }),
   unarchiveGroup: (id: string) =>
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "active" } }),
-  addStudentToGroup: (groupId: string, studentId: string) =>
-    api<{
+  /**
+   * `mode: "transfer"` (default) closes the other memberships and makes this group the main one;
+   * `"add"` keeps them.  `monthly_fee` is sent only by roles that may see money (the server answers 403 otherwise).
+   */
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; monthly_fee?: number | null }) => {
+    const query = options?.mode ? `?mode=${options.mode}` : "";
+    const body = options?.monthly_fee !== undefined && options.monthly_fee !== null ? { monthly_fee: options.monthly_fee } : undefined;
+    return api<{
       student_id: string;
       group_id: string;
       status: "added" | "unchanged";
       reason?: "already_in_target_group";
       display_id?: string | null;
-    }>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "POST" }),
+      /** Server hints (third group, class mismatch); never a refusal. */
+      warnings?: PaymentWarning[];
+    }>(`/auth/org/groups/${groupId}/students/${studentId}${query}`, { method: "POST", body });
+  },
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
-  bulkAddStudents: (groupId: string, studentIds: string[]) =>
+  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; monthly_fee?: number | null }) =>
     api<{
       group_id: string;
       added: number;
       skipped: number;
       /** Older servers do not send it. */
       skipped_details?: Array<{ student_id: string; reason: string }>;
+      /** Hints per student (`student_id` when the server names one). */
+      warnings?: Array<PaymentWarning & { student_id?: string }>;
     }>(
-      `/auth/org/groups/${groupId}/students/bulk`,
-      { method: "POST", body: { student_ids: studentIds } }
+      `/auth/org/groups/${groupId}/students/bulk${options?.mode ? `?mode=${options.mode}` : ""}`,
+      {
+        method: "POST",
+        body: {
+          student_ids: studentIds,
+          ...(options?.monthly_fee !== undefined && options.monthly_fee !== null ? { monthly_fee: options.monthly_fee } : {}),
+        },
+      }
     ),
 
   // ── Schedule ──────────────────────────────────────────────────────────
@@ -1112,6 +1156,37 @@ export const orgApi = {
   /** Binary certificate for the viewer; private, never cached by the browser. */
   fetchAttendanceExcuseFile: (fileId: string) =>
     fetchBinary(`/auth/org/attendance/excuses/files/${encodePathId(fileId)}`, "Не удалось открыть файл"),
+
+  // ── Payments (owner; admin only when the owner enabled it) ─────────────
+  getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
+  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; limit?: number; offset?: number }) => {
+    const params = new URLSearchParams({ bucket: q.bucket });
+    if (q.groupId) params.set("group_id", q.groupId);
+    if (q.teacherId) params.set("teacher_id", q.teacherId);
+    if (q.search) params.set("search", q.search);
+    params.set("limit", String(q.limit ?? 50));
+    params.set("offset", String(q.offset ?? 0));
+    return api<PaymentsStatusList>(`/auth/org/payments/status?${params.toString()}`);
+  },
+  getStudentMemberships: (studentId: string) =>
+    api<MembershipPaymentRow[]>(`/auth/org/students/${encodePathId(studentId)}/memberships`),
+  setMembershipFee: (membershipId: string, monthlyFee: number | null) =>
+    api<MembershipPaymentRow>(`/auth/org/memberships/${encodePathId(membershipId)}/fee`, {
+      method: "PUT", body: { monthly_fee: monthlyFee },
+    }),
+  listMembershipPayments: (membershipId: string, includeVoided = true) =>
+    api<PaymentOut[]>(`/auth/org/memberships/${encodePathId(membershipId)}/payments?include_voided=${includeVoided}`),
+  createPayment: (membershipId: string, data: PaymentCreate) =>
+    api<PaymentSaveResult>(`/auth/org/memberships/${encodePathId(membershipId)}/payments`, { method: "POST", body: data }),
+  replacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }) =>
+    api<PaymentSaveResult>(`/auth/org/payments/${encodePathId(paymentId)}/replace`, { method: "POST", body: data }),
+  voidPayment: (paymentId: string, reason: string) =>
+    api<{ payment: PaymentOut; row: MembershipPaymentRow }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
+      method: "POST", body: { reason },
+    }),
+  getPaymentSettings: () => api<PaymentSettings>("/auth/org/settings/payments"),
+  updatePaymentSettings: (data: PaymentSettingsUpdate) =>
+    api<PaymentSettings>("/auth/org/settings/payments", { method: "PUT", body: data }),
 
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
