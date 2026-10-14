@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode, type MutableRefObject } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import {
@@ -66,12 +66,86 @@ interface GroupAttendanceJournalProps {
 }
 
 type ViewMode = "week" | "month";
-type AttendanceMenuPlacement = "up" | "down";
+/** Viewport rectangle of the control a floating menu belongs to. */
+type MenuAnchor = { top: number; bottom: number; left: number; right: number };
 type OpenAttendanceCell = {
   studentId: string;
   lessonKey: string;
-  placement: AttendanceMenuPlacement;
+  anchor: MenuAnchor;
 };
+
+function anchorOf(element: Element): MenuAnchor {
+  const rect = element.getBoundingClientRect();
+  return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right };
+}
+
+/**
+ * Menu rendered in <body> with position: fixed, so no overflow of the journal
+ * table can clip it.  It opens below the anchor when it fits, otherwise above,
+ * otherwise on the roomier side with its own scroll, and is shifted into the screen.
+ */
+function FloatingMenu({
+  anchor, width = 224, align = "center", menuRef, id, className = "", children,
+}: {
+  anchor: MenuAnchor;
+  width?: number;
+  align?: "center" | "end";
+  menuRef?: MutableRefObject<HTMLDivElement | null>;
+  id?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  const innerRef = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; maxHeight: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const element = innerRef.current;
+    if (!element) return;
+    const pad = 8;
+    const gap = 6;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const menuWidth = Math.min(width, viewportWidth - pad * 2);
+    const height = element.scrollHeight;
+    const below = viewportHeight - anchor.bottom - gap - pad;
+    const above = anchor.top - gap - pad;
+    let top: number;
+    let maxHeight: number;
+    if (height <= below) { top = anchor.bottom + gap; maxHeight = below; }
+    else if (height <= above) { top = anchor.top - gap - height; maxHeight = above; }
+    else if (below >= above) { top = anchor.bottom + gap; maxHeight = Math.max(below, 120); }
+    else { maxHeight = Math.max(above, 120); top = anchor.top - gap - Math.min(height, maxHeight); }
+    top = Math.max(pad, top);
+    const wanted = align === "end" ? anchor.right - menuWidth : (anchor.left + anchor.right) / 2 - menuWidth / 2;
+    const left = Math.min(Math.max(pad, wanted), viewportWidth - menuWidth - pad);
+    setPos({ top, left, maxHeight, width: menuWidth });
+  }, [anchor, width, align]);
+
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      ref={(node) => {
+        innerRef.current = node;
+        if (menuRef) menuRef.current = node;
+      }}
+      id={id}
+      role="menu"
+      style={{
+        position: "fixed",
+        top: pos?.top ?? 0,
+        left: pos?.left ?? 0,
+        width: pos?.width ?? width,
+        maxHeight: pos?.maxHeight,
+        overflowY: "auto",
+        visibility: pos ? "visible" : "hidden",
+      }}
+      className={`z-[90] rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-xl ${className}`}
+    >
+      {children}
+    </div>,
+    document.body,
+  );
+}
 type CorrectionState = {
   key: string;
   draft: Record<string, AttendanceStatus>;
@@ -243,7 +317,7 @@ export function GroupAttendanceJournal({
   const [openCell, setOpenCell] = useState<OpenAttendanceCell | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const { showToast, toastNode } = useToast();
-  const [columnMenu, setColumnMenu] = useState<{ key: string; top: number; left: number } | null>(null);
+  const [columnMenu, setColumnMenu] = useState<{ key: string; anchor: MenuAnchor } | null>(null);
   const [columnBusyKey, setColumnBusyKey] = useState<string | null>(null);
   const [cancelMissed, setCancelMissed] = useState<{ lesson: Lesson; reason: string; error: string | null } | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -253,6 +327,7 @@ export function GroupAttendanceJournal({
   const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const columnMenuRef = useRef<HTMLDivElement | null>(null);
+  const cellMenuRef = useRef<HTMLDivElement | null>(null);
   // Attendance saves of one journal go out one at a time, in click order.
   const recordsRef = useRef<Record<string, Record<string, AttendanceStatus>>>({});
   const confirmedRef = useRef<Record<string, Record<string, AttendanceStatus>>>({});
@@ -355,13 +430,16 @@ export function GroupAttendanceJournal({
     };
     document.addEventListener("pointerdown", closeWhenClickedOutside);
     document.addEventListener("keydown", closeOnEscape);
+    const closeOnOuterScroll = (event: Event) => {
+      if (!columnMenuRef.current?.contains(event.target as Node)) close();
+    };
     window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
+    window.addEventListener("scroll", closeOnOuterScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeWhenClickedOutside);
       document.removeEventListener("keydown", closeOnEscape);
       window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("scroll", closeOnOuterScroll, true);
     };
   }, [columnMenu]);
 
@@ -369,19 +447,29 @@ export function GroupAttendanceJournal({
     if (!openCell) return;
 
     const closeWhenClickedOutside = (event: PointerEvent) => {
-      if (!openCellContainerRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node;
+      // The menu lives in <body>; the cell holds only its trigger.
+      if (!openCellContainerRef.current?.contains(target) && !cellMenuRef.current?.contains(target)) {
         setOpenCell(null);
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpenCell(null);
     };
+    const close = () => setOpenCell(null);
+    const closeOnOuterScroll = (event: Event) => {
+      if (!cellMenuRef.current?.contains(event.target as Node)) close();
+    };
 
     document.addEventListener("pointerdown", closeWhenClickedOutside);
     document.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", closeOnOuterScroll, true);
     return () => {
       document.removeEventListener("pointerdown", closeWhenClickedOutside);
       document.removeEventListener("keydown", closeOnEscape);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", closeOnOuterScroll, true);
     };
   }, [openCell]);
 
@@ -466,25 +554,13 @@ export function GroupAttendanceJournal({
       studentId: string,
       lessonKey: string,
       isOpen: boolean,
-      containerRef: { current: HTMLElement | null } = journalScrollRef,
     ) => {
       if (isOpen) {
         setOpenCell(null);
         return;
       }
-
-      // The journal is often taller than the viewport.  Opening toward the
-      // larger visible side prevents the lower rows from being clipped by the
-      // journal container and avoids an unnecessary page scroll.
-      const triggerRect = event.currentTarget.getBoundingClientRect();
-      const journalRect = containerRef.current?.getBoundingClientRect();
-      const visibleTop = Math.max(0, journalRect?.top ?? 0);
-      const visibleBottom = Math.min(window.innerHeight, journalRect?.bottom ?? window.innerHeight);
-      const roomAbove = triggerRect.top - visibleTop;
-      const roomBelow = visibleBottom - triggerRect.bottom;
-      const placement: AttendanceMenuPlacement = roomAbove >= roomBelow ? "up" : "down";
-
-      setOpenCell({ studentId, lessonKey, placement });
+      setColumnMenu(null);
+      setOpenCell({ studentId, lessonKey, anchor: anchorOf(event.currentTarget) });
     },
     [],
   );
@@ -604,7 +680,7 @@ export function GroupAttendanceJournal({
         // The excuse record lives on the server; fetch its id and review state.
         if (Object.keys(sentReasons).length > 0 || previousStatus === "excused") {
           reloadWantedRef.current = true;
-          void useExcuseBadge.getState().refresh();
+          void useExcuseBadge.getState().refresh(true);
         }
         // The server deletes the excuse (and its files) when "excused" is replaced.
         if (previousStatus === "excused" && status !== "excused") {
@@ -689,7 +765,7 @@ export function GroupAttendanceJournal({
           },
         };
       });
-      void useExcuseBadge.getState().refresh();
+      void useExcuseBadge.getState().refresh(true);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Не удалось сохранить решение");
     } finally {
@@ -703,14 +779,8 @@ export function GroupAttendanceJournal({
       setColumnMenu(null);
       return;
     }
-    const rect = event.currentTarget.getBoundingClientRect();
-    const width = 240;
     setOpenCell(null);
-    setColumnMenu({
-      key,
-      top: rect.bottom + 6,
-      left: Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8)),
-    });
+    setColumnMenu({ key, anchor: anchorOf(event.currentTarget) });
   };
 
   // The server judges completeness by the roster frozen at the start of the
@@ -774,7 +844,7 @@ export function GroupAttendanceJournal({
         const finished = await task.finally(() => { finishingKeyRef.current = null; });
         if (!finished) return;
         await loadAttendanceRef.current(true);
-        void useExcuseBadge.getState().refresh();
+        void useExcuseBadge.getState().refresh(true);
         showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
       }
     } catch (error) {
@@ -856,7 +926,7 @@ export function GroupAttendanceJournal({
       setCorrecting(null);
       setCorrectionDialog(null);
       await loadAttendanceRef.current(true);
-      void useExcuseBadge.getState().refresh();
+      void useExcuseBadge.getState().refresh(true);
       showToast(`Урок ${date} исправлен`);
     } catch (err) {
       setCorrectionDialog({
@@ -1160,11 +1230,7 @@ export function GroupAttendanceJournal({
                               <span title="Ученик ещё не состоял в группе" className="mx-auto flex min-h-8 min-w-[92px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-300">—</span>
                             )}
                             {menuAvailable && openCell && (
-                              <div
-                                id={`attendance-menu-${student.id}-${key}`}
-                                role="menu"
-                                className={`absolute left-1/2 z-30 w-56 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${openCell.placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
-                              >
+                              <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef} id={`attendance-menu-${student.id}-${key}`}>
                                 {!locked && STATUS_OPTIONS.map((item) => (
                                   <button
                                     key={item.value}
@@ -1233,7 +1299,7 @@ export function GroupAttendanceJournal({
                                     )}
                                   </>
                                 )}
-                              </div>
+                              </FloatingMenu>
                             )}
                             {cellBusy && (
                               <Loader2 className="absolute right-1 top-1 h-3.5 w-3.5 animate-spin text-primary-600" />
@@ -1326,7 +1392,7 @@ export function GroupAttendanceJournal({
                               editable ? (
                                 <button
                                   type="button"
-                                  onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen, historyScrollRef)}
+                                  onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
                                   title={`${transferDescription} Пока урок открыт, отметку можно поставить или изменить.`}
                                   aria-expanded={isOpen}
                                   className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"}`}
@@ -1342,10 +1408,7 @@ export function GroupAttendanceJournal({
                               <span title={transferDescription} className="mx-auto flex min-h-8 min-w-[92px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-300">—</span>
                             )}
                             {isOpen && editable && openCell && (
-                              <div
-                                role="menu"
-                                className={`absolute left-1/2 z-30 w-56 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${openCell.placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
-                              >
+                              <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef}>
                                 {STATUS_OPTIONS.map((item) => (
                                   <button
                                     key={item.value}
@@ -1362,7 +1425,7 @@ export function GroupAttendanceJournal({
                                     {value === item.value && <Check className="h-3.5 w-3.5 text-primary-600" />}
                                   </button>
                                 ))}
-                              </div>
+                              </FloatingMenu>
                             )}
                           </td>
                         );
@@ -1384,13 +1447,8 @@ export function GroupAttendanceJournal({
         const actions = lessonAdminActions(lessonStatus, lesson.date, today);
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const finishHint = finishBlockedHint(markedCount, rosterCount);
-        return createPortal(
-          <div
-            ref={columnMenuRef}
-            role="menu"
-            style={{ position: "fixed", top: columnMenu.top, left: columnMenu.left, width: 240 }}
-            className="z-[90] rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-xl"
-          >
+        return (
+          <FloatingMenu anchor={columnMenu.anchor} width={240} align="end" menuRef={columnMenuRef}>
             <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Урок {formatDateRu(lesson.date)}
             </p>
@@ -1431,8 +1489,7 @@ export function GroupAttendanceJournal({
                 Исправить
               </button>
             )}
-          </div>,
-          document.body,
+          </FloatingMenu>
         );
       })()}
 

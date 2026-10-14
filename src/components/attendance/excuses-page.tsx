@@ -281,7 +281,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
       return next;
     });
 
-  const refreshBadge = () => { void useExcuseBadge.getState().refresh(); };
+  const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
   const review = async (item: AttendanceExcuseItem, decision: "confirmed" | "rejected") => {
     markBusy(item.id, true);
