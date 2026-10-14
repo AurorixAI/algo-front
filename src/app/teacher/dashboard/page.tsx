@@ -45,6 +45,8 @@ import {
   TimerReset,
 } from "lucide-react";
 import Link from "next/link";
+import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
+import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { useRouter } from "next/navigation";
 
 const DAYS = [
@@ -246,6 +248,10 @@ export default function TeacherDashboardPage() {
   const [activeCancellationReason, setActiveCancellationReason] = useState<string | null>(null);
   const [groupStudents, setGroupStudents] = useState<StudentInGroup[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
+  // Reasons for "Ув." typed in this dialog, and excuses the server already holds for the lesson.
+  const [excuseReasons, setExcuseReasons] = useState<Record<string, string>>({});
+  const [savedExcuses, setSavedExcuses] = useState<Record<string, { reason: string }>>({});
+  const [excuseReasonInvalidId, setExcuseReasonInvalidId] = useState<string | null>(null);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
@@ -446,6 +452,9 @@ export default function TeacherDashboardPage() {
     setLessonExamBinding(null);
     setGroupStudents([]);
     setAttendance({});
+    setExcuseReasons({});
+    setSavedExcuses({});
+    setExcuseReasonInvalidId(null);
     const lessonDate = activeLesson.occurrenceDate || businessDate;
     const isTodayLesson = lessonDate === businessDate;
     const lessonKey = `${lessonDate}_${activeLesson.id}`;
@@ -504,6 +513,12 @@ export default function TeacherDashboardPage() {
           setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: status }));
         }
 
+        setSavedExcuses(
+          Object.fromEntries(
+            Object.entries(att?.excuses?.[lessonKey] || {}).map(([studentId, info]) => [studentId, { reason: info.reason }]),
+          ),
+        );
+
         if (status === "cancelled") {
           setAttendance({});
           setIsAttendanceSaved(false);
@@ -541,6 +556,15 @@ export default function TeacherDashboardPage() {
       }
       return { ...prev, [studentId]: status };
     });
+    // Leaving "Ув." drops the typed reason; the server removes the excuse on save.
+    if (status !== "excused" || attendance[studentId] === "excused") {
+      setExcuseReasons((prev) => {
+        if (!(studentId in prev)) return prev;
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
+      });
+    }
     setIsAttendanceDirty(true);
     setAttendanceError(null);
   };
@@ -676,6 +700,31 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  /** Reasons to send with the save, or an error text when an "Ув." mark has no valid reason. */
+  const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
+    const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
+    if (missing) {
+      setExcuseReasonInvalidId(missing.studentId);
+      const name = groupStudents.find((st) => st.id === missing.studentId)?.full_name;
+      return { error: `${name ? `${name}: ` : ""}${missing.error}` };
+    }
+    setExcuseReasonInvalidId(null);
+    return { reasons: collectExcuseReasons(attendance, excuseReasons, savedExcuses) };
+  };
+
+  const rememberSavedExcuses = (sent: Record<string, string>) => {
+    setSavedExcuses((prev) => {
+      const next: Record<string, { reason: string }> = {};
+      Object.keys(attendance).forEach((studentId) => {
+        if (attendance[studentId] !== "excused") return;
+        const reason = sent[studentId] ?? prev[studentId]?.reason;
+        if (reason) next[studentId] = { reason };
+      });
+      return next;
+    });
+    setExcuseReasons({});
+  };
+
   const handleSaveAttendance = async () => {
     if (!activeLesson) return;
 
@@ -689,6 +738,12 @@ export default function TeacherDashboardPage() {
 
     setAttendanceError(null);
 
+    const prepared = prepareExcuseReasons();
+    if ("error" in prepared) {
+      setAttendanceError(prepared.error);
+      return;
+    }
+
     setSavingAttendance(true);
     try {
       await orgApi.saveGroupAttendance(activeLesson.groupId, {
@@ -697,7 +752,9 @@ export default function TeacherDashboardPage() {
         topic: activeLesson.topic,
         status: "in_progress",
         records: attendance,
+        ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
       });
+      rememberSavedExcuses(prepared.reasons);
       setIsAttendanceSaved(true);
       setIsAttendanceDirty(false);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
@@ -750,6 +807,12 @@ export default function TeacherDashboardPage() {
     }
 
     setAttendanceError(null);
+    const prepared = prepareExcuseReasons();
+    if ("error" in prepared) {
+      setAttendanceError(prepared.error);
+      return;
+    }
+
     setSavingAttendance(true);
     try {
       await orgApi.saveGroupAttendance(activeLesson.groupId, {
@@ -758,7 +821,9 @@ export default function TeacherDashboardPage() {
         topic: activeLesson.topic,
         status: "completed",
         records: attendance,
+        ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
       });
+      rememberSavedExcuses(prepared.reasons);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
@@ -2284,7 +2349,7 @@ export default function TeacherDashboardPage() {
                           return (
                             <div
                               key={st.id}
-                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all ${
+                              className={`flex flex-wrap items-center justify-between p-2.5 rounded-xl border transition-all ${
                                 isUnmarked && attendanceError
                                   ? "bg-rose-50/50 border-rose-300 ring-1 ring-rose-400/20"
                                   : "bg-slate-50/70 hover:bg-slate-50 border-slate-100"
@@ -2354,6 +2419,14 @@ export default function TeacherDashboardPage() {
                                 Ув.
                               </button>
                               </div>
+                              {status === "excused" && (
+                                <ExcuseReasonField
+                                  value={excuseReasons[st.id] ?? savedExcuses[st.id]?.reason ?? ""}
+                                  saved={excuseReasons[st.id] === undefined && Boolean(savedExcuses[st.id])}
+                                  invalid={excuseReasonInvalidId === st.id}
+                                  onChange={(value) => { setExcuseReasons((prev) => ({ ...prev, [st.id]: value })); setIsAttendanceDirty(true); setAttendanceError(null); setExcuseReasonInvalidId(null); }}
+                                />
+                              )}
                             </div>
                           );
                         })}
