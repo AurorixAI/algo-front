@@ -1,6 +1,6 @@
 import { encodePathId } from "./encode-id";
 
-const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 function demoApiV1(): string {
   if (typeof window !== "undefined") return "/api/demo/v1";
@@ -437,6 +437,50 @@ export interface EndRecurringLessonResult extends RecurringLessonEndImpact {
   releasedExamIds: string[];
 }
 
+export type ExcuseReviewStatus = "pending" | "confirmed" | "rejected";
+
+export interface AttendanceExcuseFile {
+  id: string;
+  filename: string | null;
+  content_type: string;
+  size_bytes: number;
+}
+
+export interface AttendanceExcuseItem {
+  id: string;
+  attendance_id: string;
+  lesson_date: string; // YYYY-MM-DD
+  lesson_key: string;
+  group: { id: string; name: string };
+  teacher: { id: string; name: string } | null;
+  student: { id: string; full_name: string; display_id: string | null };
+  reason: string;
+  reason_by: { id: string; name: string } | null;
+  reason_at: string | null;
+  status: ExcuseReviewStatus;
+  reviewed_by: { id: string; name: string } | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  files: AttendanceExcuseFile[];
+}
+
+export interface AttendanceExcuseList {
+  items: AttendanceExcuseItem[];
+  total: number;
+  pending_total: number;
+}
+
+export interface AttendanceExcuseQuery {
+  status?: ExcuseReviewStatus | "all";
+  dateFrom?: string;
+  dateTo?: string;
+  groupId?: string;
+  teacherId?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface StudentInGroup {
   id: string;
   first_name: string;
@@ -502,8 +546,32 @@ export interface AttendanceRecord {
   status: AttendanceStatus;
 }
 
+/** Review state of one "excused" mark (N13 P1). `review_note` is hidden from teachers. */
+export interface AttendanceExcuseInfo {
+  id: string;
+  status: "pending" | "confirmed" | "rejected";
+  reason: string;
+  reason_by_name: string | null;
+  reason_at: string | null;
+  reviewed_by_name: string | null;
+  reviewed_at: string | null;
+  review_note?: string | null;
+  has_files: boolean;
+}
+
+/** Last correction of a completed lesson. */
+export interface AttendanceCorrectionInfo {
+  by_name: string | null;
+  at: string | null;
+  reason: string | null;
+}
+
 export interface GroupAttendance {
   groupId?: string;
+  /** lessonKey -> student_id -> excuse. */
+  excuses?: Record<string, Record<string, AttendanceExcuseInfo>>;
+  /** lessonKey -> last correction. */
+  corrections?: Record<string, AttendanceCorrectionInfo>;
   month?: string | null;
   lessons: Lesson[];
   records: Record<string, Record<string, AttendanceStatus>>; // instance_key -> student_id -> status
@@ -887,7 +955,13 @@ export const orgApi = {
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
   bulkAddStudents: (groupId: string, studentIds: string[]) =>
-    api<{ group_id: string; added: number; skipped: number }>(
+    api<{
+      group_id: string;
+      added: number;
+      skipped: number;
+      /** Older servers do not send it. */
+      skipped_details?: Array<{ student_id: string; reason: string }>;
+    }>(
       `/auth/org/groups/${groupId}/students/bulk`,
       { method: "POST", body: { student_ids: studentIds } }
     ),
@@ -976,6 +1050,8 @@ export const orgApi = {
       records: Record<string, AttendanceStatus>;
       correctionReason?: string;
       cancellationReason?: string;
+      /** student_id -> reason (3..300) for every newly "excused" student. */
+      excuseReasons?: Record<string, string>;
     }
   ) =>
     api<{ ok: boolean; saved: boolean }>(`/auth/org/groups/${groupId}/attendance`, { method: "POST", body: data }),
@@ -997,6 +1073,43 @@ export const orgApi = {
     data: { lessonDate: string; lessonId: string; cancellationReason: string },
   ) =>
     api<{ ok: boolean; cancelled: boolean }>(`/auth/org/groups/${groupId}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+
+  // ── Excused absences (admin / owner) ──────────────────────────────────
+  listAttendanceExcuses: (q: AttendanceExcuseQuery = {}) => {
+    const params = new URLSearchParams();
+    params.set("status", q.status ?? "pending");
+    if (q.dateFrom) params.set("date_from", q.dateFrom);
+    if (q.dateTo) params.set("date_to", q.dateTo);
+    if (q.groupId) params.set("group_id", q.groupId);
+    if (q.teacherId) params.set("teacher_id", q.teacherId);
+    if (q.search) params.set("search", q.search);
+    params.set("limit", String(q.limit ?? 50));
+    params.set("offset", String(q.offset ?? 0));
+    return api<AttendanceExcuseList>(`/auth/org/attendance/excuses?${params.toString()}`);
+  },
+  getAttendanceExcuseSummary: () =>
+    api<{ pending_total: number }>("/auth/org/attendance/excuses/summary"),
+  reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string }) =>
+    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review`, { method: "POST", body: data }),
+  reviewAttendanceExcusesBulk: (data: { ids: string[]; decision: "confirmed" | "rejected"; note?: string }) =>
+    api<{ updated: number; skipped: Array<{ id: string; reason: string }> }>(
+      "/auth/org/attendance/excuses/review-bulk",
+      { method: "POST", body: data },
+    ),
+  resetAttendanceExcuse: (id: string) =>
+    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset`, { method: "POST" }),
+  uploadAttendanceExcuseFile: (id: string, file: Blob, filename: string) =>
+    uploadMultipart<AttendanceExcuseFile>(
+      `/auth/org/attendance/excuses/${encodePathId(id)}/files`,
+      file,
+      filename,
+      "Не удалось загрузить файл",
+    ),
+  deleteAttendanceExcuseFile: (fileId: string) =>
+    api<{ ok: boolean }>(`/auth/org/attendance/excuses/files/${encodePathId(fileId)}`, { method: "DELETE" }),
+  /** Binary certificate for the viewer; private, never cached by the browser. */
+  fetchAttendanceExcuseFile: (fileId: string) =>
+    fetchBinary(`/auth/org/attendance/excuses/files/${encodePathId(fileId)}`, "Не удалось открыть файл"),
 
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
@@ -1050,6 +1163,55 @@ export interface ImportCommitResult {
   counts: ImportCounts;
   issues: ImportIssue[];
   credentials: TeacherCredential[];
+}
+
+/** Server error text for a non-OK Response: string detail, {message}, or validation list. */
+async function readErrorMessage(res: Response, fallback: string): Promise<{ message: string; code?: string }> {
+  const text = await res.text().catch(() => "");
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON */ }
+  const detail = data?.detail;
+  if (typeof detail === "string") return { message: detail };
+  if (Array.isArray(detail)) return { message: detail.map((e: any) => e?.msg || String(e)).join("; ") || fallback };
+  if (detail && typeof detail === "object") return { message: detail.message || fallback, code: detail.code };
+  return { message: fallback };
+}
+
+/** Multipart upload of one file field named "file" (the browser sets the boundary). */
+async function uploadMultipart<T>(endpoint: string, file: Blob, filename: string, fallback: string): Promise<T> {
+  const form = new FormData();
+  form.append("file", file, filename);
+  let res: Response;
+  try {
+    res = await fetch(`${AUTH_API_V1}${endpoint}`, {
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      body: form,
+    });
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
+  if (!res.ok) {
+    const { message, code } = await readErrorMessage(res, fallback);
+    throw new ApiError(res.status, message, code);
+  }
+  return (await res.json()) as T;
+}
+
+/** Authenticated binary GET, modelled on downloadExamPrintPdf. */
+async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
+  let res: Response;
+  try {
+    res = await fetch(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
+  if (!res.ok) {
+    const { message, code } = await readErrorMessage(res, fallback);
+    throw new ApiError(res.status, message, code);
+  }
+  return res.blob();
 }
 
 async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
