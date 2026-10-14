@@ -34,6 +34,8 @@ function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBa
         <p className="text-sm text-slate-500">Журнал по всем группам: что требует действий администратора</p>
       </div>
 
+      {/* One tab needs no tab row; it appears by itself with the second tab. */}
+      {tabs.length > 1 && (
       <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit" role="tablist">
         {tabs.map((tab) => (
           <button
@@ -55,6 +57,7 @@ function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBa
           </button>
         ))}
       </div>
+      )}
 
       <div role="tabpanel">{active.content}</div>
     </div>

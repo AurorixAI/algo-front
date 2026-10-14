@@ -35,9 +35,11 @@ import {
   formatDateRu,
   formatDateTimeRu,
   formatFileSize,
+  monthLabelRu,
+  monthOf,
   monthRangeOf,
   REVIEW_NOTE_MAX,
-  validateExcusePeriod,
+  shiftMonth,
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
@@ -160,11 +162,12 @@ export function ExcusesPage(props: { studentProfileBasePath: string }) {
 
 function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath: string }) {
   const { showToast, toastNode } = useToast();
-  const monthRange = useMemo(() => monthRangeOf(formatBusinessDate()), []);
+  // The list covers one calendar month on the business clock (Asia/Tashkent).
+  const currentMonth = useMemo(() => monthOf(formatBusinessDate()), []);
 
   const [tab, setTab] = useState<Tab>("pending");
-  const [dateFrom, setDateFrom] = useState(monthRange.from);
-  const [dateTo, setDateTo] = useState(monthRange.to);
+  const [month, setMonth] = useState(currentMonth);
+  const { from: dateFrom, to: dateTo } = useMemo(() => monthRangeOf(`${month}-01`), [month]);
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
   const [page, setPage] = useState(0);
 
@@ -187,7 +190,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
 
   const requests = useRef(createRequestSequence());
   const viewerRequests = useRef(createRequestSequence());
-  const periodError = validateExcusePeriod(dateFrom, dateTo);
 
   // Teacher -> group directory for the cascading filter.
   useEffect(() => {
@@ -215,12 +217,6 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   }, []);
 
   const load = useCallback(async (silent = false) => {
-    if (periodError) {
-      setItems([]);
-      setTotal(0);
-      setLoading(false);
-      return;
-    }
     const token = requests.current.next();
     if (!silent) setLoading(true);
     setLoadError(null);
@@ -249,7 +245,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [dateFrom, dateTo, filter.groupId, filter.teacherId, page, periodError, tab]);
+  }, [dateFrom, dateTo, filter.groupId, filter.teacherId, page, tab]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -380,105 +376,77 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
     { key: "rejected", label: "Отклонено" },
   ];
 
-  const fieldClass = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
-
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      <div className="min-w-0">
-        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-          <ClipboardCheck className="h-4 w-4 text-primary-600" />
-          Уважительные пропуски
-        </h2>
-        <p className="mt-0.5 text-xs text-slate-500">Подтвердите или отклоните причины, которые указали преподаватели</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit" role="tablist">
-        {tabs.map(({ key, label }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => switchTab(key)}
-            className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-              tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3.5 sm:p-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          <div className="grid grid-cols-1 gap-2 sm:flex sm:items-end">
-            <label className="block text-xs font-semibold text-slate-500">
-              С
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo || undefined}
-                onChange={(event) => { setDateFrom(event.target.value); resetPaging(); }}
-                className={`${fieldClass} mt-1 block w-full`}
-              />
-            </label>
-            <label className="block text-xs font-semibold text-slate-500">
-              По
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || undefined}
-                onChange={(event) => { setDateTo(event.target.value); resetPaging(); }}
-                className={`${fieldClass} mt-1 block w-full`}
-              />
-            </label>
+      {/* Toolbar: statuses on the left, month and filter on the right */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">
+          {tabs.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => switchTab(key)}
+              className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                tab === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
             <button
               type="button"
-              onClick={() => { setDateFrom(monthRange.from); setDateTo(monthRange.to); resetPaging(); }}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              onClick={() => { setMonth((m) => shiftMonth(m, -1)); resetPaging(); }}
+              aria-label="Предыдущий месяц"
+              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
             >
-              Этот месяц
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-[132px] px-2 text-center text-sm font-semibold text-slate-800" aria-live="polite">
+              {monthLabelRu(month)}
+            </div>
+            <button
+              type="button"
+              onClick={() => { setMonth((m) => shiftMonth(m, 1)); resetPaging(); }}
+              aria-label="Следующий месяц"
+              className="rounded-lg p-1.5 text-slate-600 hover:bg-white hover:text-slate-950"
+            >
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-            <CascadingFilter
-              teachers={teachers}
-              groups={groups}
-              value={filter}
-              onChange={(value) => { setFilter(value); resetPaging(); }}
-            />
-          </div>
+          <CascadingFilter
+            teachers={teachers}
+            groups={groups}
+            value={filter}
+            onChange={(value) => { setFilter(value); resetPaging(); }}
+          />
         </div>
-        <p className="text-xs text-slate-500">
-          Период: {formatDateRu(dateFrom) || "—"} — {formatDateRu(dateTo) || "—"}
-          {periodError && <span role="alert" className="ml-2 font-medium text-rose-600">{periodError}</span>}
-        </p>
-      </section>
+      </div>
 
       {/* List */}
-      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      <section className={!loading && !loadError && items.length > 0 ? "overflow-hidden rounded-2xl border border-slate-200 bg-white" : ""}>
         {loading ? (
-          <div className="flex min-h-[260px] flex-col items-center justify-center gap-3 text-sm text-slate-500">
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
             Загрузка…
           </div>
         ) : loadError ? (
-          <div role="alert" className="flex min-h-[200px] flex-col items-center justify-center gap-3 p-6 text-center">
+          <div role="alert" className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <AlertCircle className="h-8 w-8 text-rose-500" />
             <p className="max-w-md text-sm font-medium text-rose-800">{loadError}</p>
             <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
-        ) : periodError ? (
-          <div className="flex min-h-[200px] items-center justify-center p-6 text-center text-sm text-slate-500">{periodError}</div>
         ) : items.length === 0 ? (
-          <div className="flex min-h-[260px] flex-col items-center justify-center gap-2 p-6 text-center text-slate-500">
-            <ClipboardCheck className="h-10 w-10 text-slate-300" />
-            <p className="font-semibold text-slate-800">
+          <div className="flex flex-col items-center justify-center gap-1.5 py-14 text-center">
+            <ClipboardCheck className="h-6 w-6 text-slate-300" />
+            <p className="text-sm font-medium text-slate-700">
               {tab === "pending" ? "Нет пропусков, ожидающих решения" : tab === "confirmed" ? "Подтверждённых пропусков нет" : "Отклонённых пропусков нет"}
             </p>
-            <p className="max-w-sm text-sm">В выбранном периоде и с выбранными фильтрами ничего не найдено.</p>
+            <p className="text-xs text-slate-400">За выбранный месяц и с этими фильтрами ничего не найдено.</p>
           </div>
         ) : (
           <div>

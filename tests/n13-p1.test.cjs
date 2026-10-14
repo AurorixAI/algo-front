@@ -282,3 +282,26 @@ test("pending lesson keys are the ones with a positive counter", () => {
   assert.deepEqual(rules.pendingLessonKeys({ L1: 2, L2: 0, L3: 1 }).sort(), ["L1", "L3"]);
   assert.deepEqual(rules.pendingLessonKeys({}), []);
 });
+
+test("month switcher: label, neighbours across the year edge, list range", () => {
+  assert.equal(rules.monthOf("2026-10-14"), "2026-10");
+  assert.equal(rules.monthLabelRu("2026-10"), "Октябрь 2026");
+  assert.equal(rules.monthLabelRu("2027-01"), "Январь 2027");
+  assert.equal(rules.shiftMonth("2026-10", 1), "2026-11");
+  assert.equal(rules.shiftMonth("2026-12", 1), "2027-01");
+  assert.equal(rules.shiftMonth("2027-01", -1), "2026-12");
+  assert.equal(rules.shiftMonth("2026-01", -13), "2024-12");
+  // the request range is the month's boundaries
+  assert.deepEqual(rules.monthRangeOf("2026-12-01"), { from: "2026-12-01", to: "2026-12-31" });
+  assert.deepEqual(rules.monthRangeOf("2028-02-01"), { from: "2028-02-01", to: "2028-02-29" });
+});
+
+test("excuses tab: month switcher instead of date fields, one tab needs no tab row", () => {
+  const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /Предыдущий месяц/);
+  assert.doesNotMatch(page, /type="date"|Этот месяц|Период:/);
+  const section = read("src/components/attendance/attendance-section.tsx");
+  assert.match(section, /tabs\.length > 1/);
+  assert.doesNotMatch(page, /<h2/);
+});

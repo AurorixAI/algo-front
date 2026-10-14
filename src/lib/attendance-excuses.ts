@@ -360,3 +360,28 @@ export function recordsForSave<T extends string>(
 export function pendingLessonKeys(pending: Record<string, number>): string[] {
   return Object.keys(pending).filter((key) => pending[key] > 0);
 }
+
+const MONTH_NAMES_NOMINATIVE = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+];
+
+/** "2026-10" for a YYYY-MM-DD date. */
+export function monthOf(isoDate: string): string {
+  return /^(\d{4}-\d{2})/.exec(isoDate)?.[1] ?? isoDate;
+}
+
+/** The month `delta` months away: shiftMonth("2026-12", 1) -> "2027-01". */
+export function shiftMonth(month: string, delta: number): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return month;
+  const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
+  return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+}
+
+/** "2026-10" -> "Октябрь 2026". */
+export function monthLabelRu(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) return month;
+  return `${MONTH_NAMES_NOMINATIVE[Number(match[2]) - 1] ?? match[2]} ${match[1]}`;
+}
