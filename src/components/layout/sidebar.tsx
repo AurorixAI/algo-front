@@ -16,12 +16,15 @@ import {
   Calendar,
   Building2,
   Plus,
+  ClipboardCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
 import { useAuthStore } from "@/lib/store";
 import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
+import { DEMO_MODE } from "@/lib/api";
+import { useExcuseBadge } from "@/lib/excuse-badge";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -37,6 +40,8 @@ interface NavItem {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   comingSoon?: boolean;
+  /** Counter shown over the icon (hidden when 0 or undefined). */
+  badge?: number;
 }
 
 export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
@@ -64,12 +69,40 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   // Organisation display name
   const orgName = org?.name || user?.org_name || "ALGO";
 
+  // Excused absences waiting for a decision: administrators and owners only,
+  // never in the demo build (the demo API has no such endpoint).
+  const showExcuses = !DEMO_MODE && (rawRole === "owner" || role === "admin");
+  const pendingExcuses = useExcuseBadge((state) => state.pending);
+  const refreshExcuses = useExcuseBadge((state) => state.refresh);
+  useEffect(() => {
+    if (!showExcuses) return;
+    void refreshExcuses();
+  }, [showExcuses, pathname, refreshExcuses]);
+  useEffect(() => {
+    if (!showExcuses) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refreshExcuses();
+    };
+    const onFocus = () => void refreshExcuses();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    const timer = window.setInterval(() => void refreshExcuses(), 5 * 60 * 1000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.clearInterval(timer);
+    };
+  }, [showExcuses, refreshExcuses]);
+
   const adminNav: NavItem[] = [
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
     { href: "/admin/exams", label: "Экзамены", icon: FileText },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
+    ...(showExcuses
+      ? [{ href: "/admin/attendance-excuses", label: "Уважительные пропуски", icon: ClipboardCheck, badge: pendingExcuses }]
+      : []),
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
   ];
 
@@ -77,6 +110,9 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/owner/dashboard", label: "Панель управления", icon: LayoutDashboard },
     { href: "/owner/analytics", label: "Аналитика", icon: BarChart3 },
     { href: "/owner/groups", label: "Группы", icon: Users },
+    ...(showExcuses
+      ? [{ href: "/owner/attendance-excuses", label: "Уважительные пропуски", icon: ClipboardCheck, badge: pendingExcuses }]
+      : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];
 
@@ -175,7 +211,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                     ? "bg-primary-50 text-primary-700 font-bold"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
-                title={collapsed ? item.label : undefined}
+                title={collapsed ? (item.badge ? `${item.label} · ожидают: ${item.badge}` : item.label) : undefined}
               >
                 {isActive && (
                   <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary-600" />
@@ -186,9 +222,18 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                     isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
                   )}
                 />
+                {item.badge ? (
+                  <span
+                    aria-label={`Ожидают решения: ${item.badge}`}
+                    className="absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white"
+                  >
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
                 <span
                   className={cn(
                     "whitespace-nowrap overflow-hidden transition-all duration-300 ml-3",
+                    item.label.length > 18 && "text-[13px]",
                     collapsed ? "max-w-0 opacity-0 ml-0" : "max-w-[150px] opacity-100"
                   )}
                 >

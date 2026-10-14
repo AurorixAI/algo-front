@@ -214,3 +214,33 @@ export function firstMissingExcuseReason(
   }
   return null;
 }
+
+export const EXCUSE_MAX_PERIOD_DAYS = 93;
+
+function isoToUtcDay(iso: string): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return NaN;
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])) / 86_400_000;
+}
+
+/** First and last day (YYYY-MM-DD) of the month that contains `today`. */
+export function monthRangeOf(today: string): { from: string; to: string } {
+  const match = /^(\d{4})-(\d{2})/.exec(today);
+  if (!match) return { from: today, to: today };
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return { from: `${match[1]}-${match[2]}-01`, to: `${match[1]}-${match[2]}-${pad(lastDay)}` };
+}
+
+/** null when the period is acceptable for the list endpoint, otherwise the text to show. */
+export function validateExcusePeriod(from: string, to: string): string | null {
+  const start = isoToUtcDay(from);
+  const end = isoToUtcDay(to);
+  if (Number.isNaN(start) || Number.isNaN(end)) return "Укажите даты периода";
+  if (end < start) return "Дата «по» раньше даты «с»";
+  if (end - start + 1 > EXCUSE_MAX_PERIOD_DAYS) {
+    return `Период не может быть длиннее ${EXCUSE_MAX_PERIOD_DAYS} дней`;
+  }
+  return null;
+}
