@@ -17,6 +17,7 @@ const tasks=expressions.map((formula,i)=>({task_id:'UI-TALL-'+i,question_text:'L
 let selected=0,role='teacher';
 const result={frontendRevision:process.env.GITHUB_SHA || process.env.QA_REVISION || 'local-working-tree',scope:'Local frontend with synthetic intercepted HTTP data; geometry and visible glyphs, not bank/math/authorization acceptance',label,base,checks:[],optionChecks:[],skipped:[],pageErrors:[],unhandledAPI:[]};
 function payload(path){
+ if(path==='/api/v1/auth/org/attendance/excuses/summary')return{pending_total:0}; // N13 P1: menu badge of admin/owner layouts
  if(path==='/api/v1/auth/me')return{id:'UI-STAFF',role,org_role:role,first_name:'Проверка',last_name:'Отображения',org_id:'UI-ORG'};
  if(path==='/api/v1/auth/org/diagnostics/UI-INVITE')return{id:'UI-INVITE',student_id:'UI-STUDENT',session_id:'UI-SESSION',student_name:'Синтетический профиль',class_level:11,code:'UI-QA',status:'completed',student_status:'prospective'};
  if(path==='/api/v1/auth/org/students/UI-STUDENT/profile')return{student:{id:'UI-STUDENT',status:'prospective',first_name:'Проверка',last_name:'UI',class_level:11},group:null,teacher:null};
