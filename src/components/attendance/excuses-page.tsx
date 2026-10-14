@@ -191,6 +191,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const [fileToDelete, setFileToDelete] = useState<{ excuseId: string; file: AttendanceExcuseFile } | null>(null);
 
   const requests = useRef(createRequestSequence());
+  const viewerRequests = useRef(createRequestSequence());
   const periodError = validateExcusePeriod(dateFrom, dateTo);
 
   useEffect(() => {
@@ -245,6 +246,11 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         offset: page * PAGE_SIZE,
       });
       if (!requests.current.isCurrent(token)) return;
+      // The last item of a later page was handled: step back instead of showing an empty page.
+      if ((data.items || []).length === 0 && page > 0) {
+        setPage(Math.min(page - 1, Math.max(0, Math.ceil((data.total ?? 0) / PAGE_SIZE) - 1)));
+        return;
+      }
       setItems(data.items || []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pending_total ?? 0);
@@ -376,14 +382,24 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   };
 
   const openFile = async (file: AttendanceExcuseFile) => {
+    // Only the latest request may fill the viewer: a slow answer for a file that
+    // was closed or replaced by another one is dropped.
+    const token = viewerRequests.current.next();
     setViewer({ file, url: null, error: null });
     try {
       const blob = await orgApi.fetchAttendanceExcuseFile(file.id);
+      if (!viewerRequests.current.isCurrent(token)) return;
       const typed = blob.type ? blob : new Blob([blob], { type: file.content_type });
       setViewer({ file, url: URL.createObjectURL(typed), error: null });
     } catch (error) {
+      if (!viewerRequests.current.isCurrent(token)) return;
       setViewer({ file, url: null, error: error instanceof Error ? error.message : "Не удалось открыть файл" });
     }
+  };
+
+  const closeViewer = () => {
+    viewerRequests.current.next(); // invalidates a request still in flight
+    setViewer(null);
   };
 
   const deleteFile = async () => {
@@ -742,7 +758,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         open={viewer !== null}
         title={viewer?.file.filename || "Справка"}
         description={viewer ? formatFileSize(viewer.file.size_bytes) : undefined}
-        onClose={() => setViewer(null)}
+        onClose={closeViewer}
         maxWidthClassName="max-w-[760px]"
         footer={
           viewer?.url ? (

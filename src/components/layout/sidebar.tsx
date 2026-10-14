@@ -80,16 +80,21 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   }, [showExcuses, pathname, refreshExcuses]);
   useEffect(() => {
     if (!showExcuses) return;
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void refreshExcuses();
+    // Returning to the tab fires both "focus" and "visibilitychange": one request is enough.
+    let lastRun = 0;
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const now = Date.now();
+      if (now - lastRun < 1000) return;
+      lastRun = now;
+      void refreshExcuses();
     };
-    const onFocus = () => void refreshExcuses();
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisible);
-    const timer = window.setInterval(() => void refreshExcuses(), 5 * 60 * 1000);
+    window.addEventListener("focus", refreshIfVisible);
+    document.addEventListener("visibilitychange", refreshIfVisible);
+    const timer = window.setInterval(refreshIfVisible, 5 * 60 * 1000);
     return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", refreshIfVisible);
+      document.removeEventListener("visibilitychange", refreshIfVisible);
       window.clearInterval(timer);
     };
   }, [showExcuses, refreshExcuses]);

@@ -184,3 +184,60 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
     assert.match(page, /AddStudentDrawer/, role);
   }
 });
+
+test("finishing is judged by the frozen roster, transferred students included", () => {
+  // frozen roster has 3 students (one was transferred out later); only 2 are marked
+  const frozen = ["a", "b", "t"];
+  assert.deepEqual(rules.rosterProgress(frozen, ["a", "b"], { a: "present", b: "late" }), { rosterCount: 3, markedCount: 2 });
+  assert.equal(rules.finishBlockedHint(2, 3), "Отметьте всех: осталось 1");
+  // marking the transferred student unblocks the finish
+  const done = rules.rosterProgress(frozen, ["a", "b"], { a: "present", b: "late", t: "excused" });
+  assert.equal(rules.finishBlockedHint(done.markedCount, done.rosterCount), null);
+  // marks of people outside the roster do not count
+  assert.deepEqual(rules.rosterProgress(frozen, [], { x: "present" }), { rosterCount: 3, markedCount: 0 });
+  // no frozen roster yet: fall back to the active list; duplicates are counted once
+  assert.deepEqual(rules.rosterProgress(undefined, ["a", "a", "b"], { a: "present" }), { rosterCount: 2, markedCount: 1 });
+  assert.deepEqual(rules.rosterProgress([], ["a"], {}), { rosterCount: 0, markedCount: 0 });
+});
+
+test("a correction that only edits the reason of an excused mark is a change", () => {
+  const before = { a: "excused", b: "present" };
+  const existing = { a: { reason: "болел" } };
+  // same mark, same reason typed again: nothing changed
+  assert.deepEqual(rules.diffCorrection(before, { ...before }, { a: "болел" }, existing), []);
+  assert.deepEqual(rules.diffCorrection(before, { ...before }, { a: "  болел " }, existing), []);
+  // same mark, new reason: one change flagged reasonChanged, and the reason is sent
+  const changes = rules.diffCorrection(before, { ...before }, { a: "уехал к врачу" }, existing);
+  assert.deepEqual(changes, [{ studentId: "a", from: "excused", to: "excused", reasonChanged: true }]);
+  assert.deepEqual(rules.collectExcuseReasons({ ...before }, { a: "уехал к врачу" }, existing), { a: "уехал к врачу" });
+  // a mark change plus an edited reason is reported once
+  const both = rules.diffCorrection(before, { a: "excused", b: "excused" }, { a: "x y z", b: "насморк" }, existing);
+  assert.equal(both.length, 2);
+  assert.equal(both.find((c) => c.studentId === "b").reasonChanged, false);
+  assert.equal(both.find((c) => c.studentId === "a").reasonChanged, true);
+});
+
+test("correction warnings name what a change destroys", () => {
+  const existing = {
+    a: { status: "confirmed", has_files: false },
+    b: { status: "pending", has_files: true },
+    c: { status: "pending", has_files: false },
+    d: { status: "rejected", has_files: false },
+  };
+  const changes = [
+    { studentId: "a", from: "excused", to: "present", reasonChanged: false },
+    { studentId: "b", from: "excused", to: "absent", reasonChanged: false },
+    { studentId: "c", from: "excused", to: "late", reasonChanged: false },
+    { studentId: "d", from: "excused", to: "excused", reasonChanged: true },
+    { studentId: "c", from: "excused", to: "excused", reasonChanged: true },
+  ];
+  const w = rules.correctionWarnings(changes, existing);
+  const byStudent = (id) => w.filter((x) => x.studentId === id).map((x) => x.text);
+  assert.deepEqual(byStudent("a"), [rules.WARN_EXCUSE_REMOVED]); // decided
+  assert.deepEqual(byStudent("b"), [rules.WARN_EXCUSE_REMOVED]); // has files
+  assert.deepEqual(byStudent("d"), [rules.WARN_EXCUSE_REPENDING]); // decided, only reason edited
+  // a pending excuse without files loses nothing worth a warning, nor does editing its reason
+  assert.deepEqual(byStudent("c"), []);
+  assert.equal(rules.WARN_EXCUSE_REMOVED, "Подтверждение пропуска и прикреплённые справки будут удалены");
+  assert.equal(rules.WARN_EXCUSE_REPENDING, "Пропуск вернётся на подтверждение");
+});

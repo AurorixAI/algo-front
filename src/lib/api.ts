@@ -1177,21 +1177,44 @@ async function readErrorMessage(res: Response, fallback: string): Promise<{ mess
   return { message: fallback };
 }
 
+/**
+ * fetch with one token refresh on 401, like api(): after a successful refresh
+ * the same request is repeated once; a second 401 sends the user to the login.
+ */
+async function fetchAuthed(url: string, init: RequestInit): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(url, init);
+  } catch {
+    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+  }
+  if (res.status !== 401) return res;
+  const refreshed = await tryRefreshToken();
+  if (refreshed) {
+    try {
+      res = await fetch(url, init);
+    } catch {
+      throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
+    }
+    if (res.status !== 401) return res;
+  }
+  if (typeof window !== "undefined") {
+    localStorage.removeItem("algo-auth");
+    window.location.href = "/login";
+  }
+  return res;
+}
+
 /** Multipart upload of one file field named "file" (the browser sets the boundary). */
 async function uploadMultipart<T>(endpoint: string, file: Blob, filename: string, fallback: string): Promise<T> {
   const form = new FormData();
   form.append("file", file, filename);
-  let res: Response;
-  try {
-    res = await fetch(`${AUTH_API_V1}${endpoint}`, {
-      method: "POST",
-      credentials: "include",
-      cache: "no-store",
-      body: form,
-    });
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    body: form,
+  });
   if (!res.ok) {
     const { message, code } = await readErrorMessage(res, fallback);
     throw new ApiError(res.status, message, code);
@@ -1201,12 +1224,7 @@ async function uploadMultipart<T>(endpoint: string, file: Blob, filename: string
 
 /** Authenticated binary GET, modelled on downloadExamPrintPdf. */
 async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
-  let res: Response;
-  try {
-    res = await fetch(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
   if (!res.ok) {
     const { message, code } = await readErrorMessage(res, fallback);
     throw new ApiError(res.status, message, code);

@@ -700,6 +700,16 @@ export default function TeacherDashboardPage() {
     }
   };
 
+  /** Server refused an "Ув." without a reason (old mark with no record): say what to do. */
+  const excuseReasonHint = (err: unknown): string | null => {
+    const message = err instanceof Error ? err.message : "";
+    if (/причин/i.test(message) && /ув|уважит/i.test(message)) {
+      setIsMarkingAttendance(true);
+      return "Для уважительного пропуска нужна причина. Впишите причину в поле под учеником с отметкой «Ув.» и сохраните снова.";
+    }
+    return null;
+  };
+
   /** Reasons to send with the save, or an error text when an "Ув." mark has no valid reason. */
   const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
     const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
@@ -780,9 +790,10 @@ export default function TeacherDashboardPage() {
     } catch (err) {
       console.error("Failed to save attendance:", err);
       setAttendanceError(
-        err instanceof Error && err.message
+        excuseReasonHint(err)
+          ?? (err instanceof Error && err.message
           ? err.message
-          : "Не удалось сохранить посещаемость. Данные не изменены."
+          : "Не удалось сохранить посещаемость. Данные не изменены.")
       );
     } finally {
       setSavingAttendance(false);
@@ -810,6 +821,8 @@ export default function TeacherDashboardPage() {
     const prepared = prepareExcuseReasons();
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
+      // Reopen the marking panel: the missing reason field is there.
+      setIsMarkingAttendance(true);
       return;
     }
 
@@ -834,7 +847,7 @@ export default function TeacherDashboardPage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      setAttendanceError("Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
+      setAttendanceError(excuseReasonHint(err) ?? "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
     } finally {
       setSavingAttendance(false);
     }

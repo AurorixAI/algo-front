@@ -33,13 +33,15 @@ import { formatBusinessDate } from "@/lib/business-time";
 import {
   collectExcuseReasons,
   CORRECTION_REASON_MAX,
-  diffAttendance,
   EXCUSE_REASON_MAX,
   excuseCellView,
   finishBlockedHint,
   formatDateRu,
   formatDateTimeRu,
+  correctionWarnings,
+  diffCorrection,
   lessonAdminActions,
+  rosterProgress,
   validateCorrectionReason,
   validateExcuseReason,
   type AdminLessonAction,
@@ -247,7 +249,16 @@ export function GroupAttendanceJournal({
   const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const columnMenuRef = useRef<HTMLDivElement | null>(null);
+  // Attendance saves of one journal go out one at a time, in click order.
+  const recordsRef = useRef<Record<string, Record<string, AttendanceStatus>>>({});
+  const confirmedRef = useRef<Record<string, Record<string, AttendanceStatus>>>({});
+  const pendingReasonsRef = useRef<Record<string, Record<string, string>>>({});
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const inflightSavesRef = useRef(0);
+  const dirtyEpochRef = useRef(0);
+  const reloadWantedRef = useRef(false);
   const journalScrollRef = useRef<HTMLDivElement | null>(null);
+  const historyScrollRef = useRef<HTMLDivElement | null>(null);
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
   const today = formatBusinessDate();
@@ -280,13 +291,22 @@ export function GroupAttendanceJournal({
   const loadAttendance = useCallback(async (silent = false) => {
     if (!groupId) return;
     if (!silent) setLoading(true);
+    const epoch = dirtyEpochRef.current;
     try {
       const data = await orgApi.getGroupAttendance(groupId, {
         dateFrom: period.start,
         dateTo: period.end,
       });
       setAttendanceData(data);
-      setLocalRecords(data.records || {});
+      // A quiet reload must not overwrite marks that are still on their way to
+      // the server: keep the local ones and read again once the queue is empty.
+      if (silent && (inflightSavesRef.current > 0 || dirtyEpochRef.current !== epoch)) {
+        reloadWantedRef.current = true;
+      } else {
+        recordsRef.current = data.records || {};
+        confirmedRef.current = data.records || {};
+        setLocalRecords(data.records || {});
+      }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Не удалось загрузить журнал");
     } finally {
@@ -426,6 +446,7 @@ export function GroupAttendanceJournal({
       studentId: string,
       lessonKey: string,
       isOpen: boolean,
+      containerRef: { current: HTMLElement | null } = journalScrollRef,
     ) => {
       if (isOpen) {
         setOpenCell(null);
@@ -436,7 +457,7 @@ export function GroupAttendanceJournal({
       // larger visible side prevents the lower rows from being clipped by the
       // journal container and avoids an unnecessary page scroll.
       const triggerRect = event.currentTarget.getBoundingClientRect();
-      const journalRect = journalScrollRef.current?.getBoundingClientRect();
+      const journalRect = containerRef.current?.getBoundingClientRect();
       const visibleTop = Math.max(0, journalRect?.top ?? 0);
       const visibleBottom = Math.min(window.innerHeight, journalRect?.bottom ?? window.innerHeight);
       const roomAbove = triggerRect.top - visibleTop;
@@ -500,53 +521,90 @@ export function GroupAttendanceJournal({
       return;
     }
 
-    const previousRecords = localRecords;
-    const previousStatus = localRecords[lessonKey]?.[student.id] || "";
-    const updatedRecords = { ...(localRecords[lessonKey] || {}) };
+    // Optimistic update first; the request itself waits for the earlier ones.
+    const previousStatus = recordsRef.current[lessonKey]?.[student.id] || "";
+    const updatedRecords = { ...(recordsRef.current[lessonKey] || {}) };
     if (status) updatedRecords[student.id] = status;
     else delete updatedRecords[student.id];
+    recordsRef.current = { ...recordsRef.current, [lessonKey]: updatedRecords };
+    dirtyEpochRef.current += 1;
+    if (status === "excused" && reason) {
+      pendingReasonsRef.current[lessonKey] = { ...(pendingReasonsRef.current[lessonKey] || {}), [student.id]: reason };
+    } else if (pendingReasonsRef.current[lessonKey]) {
+      const rest = { ...pendingReasonsRef.current[lessonKey] };
+      delete rest[student.id];
+      pendingReasonsRef.current[lessonKey] = rest;
+    }
 
     setSaveError(null);
     setOpenCell(null);
-    setLocalRecords((previous) => ({ ...previous, [lessonKey]: updatedRecords }));
+    setLocalRecords(recordsRef.current);
     setSavingLessonKey(lessonKey);
-    try {
-      await orgApi.saveGroupAttendance(groupId, {
-        lessonDate: lesson.date,
-        lessonId: lesson.id,
-        topic: lesson.topic,
-        status: lessonStatus,
-        records: updatedRecords,
-        ...(status === "excused" && reason ? { excuseReasons: { [student.id]: reason } } : {}),
-      });
-      setAttendanceData((previous) => previous ? {
-        ...previous,
-        statuses: { ...previous.statuses, [lessonKey]: "in_progress" },
-        lessons: previous.lessons.map((item) =>
-          instanceKey(item) === lessonKey ? { ...item, status: "in_progress" } : item,
-        ),
-      } : previous);
-      // The server deletes the excuse (and its files) when "excused" is replaced.
-      if (previousStatus === "excused" && status !== "excused") {
-        setAttendanceData((previous) => {
-          const forLesson = previous?.excuses?.[lessonKey];
-          if (!previous || !forLesson?.[student.id]) return previous;
-          const rest = { ...forLesson };
-          delete rest[student.id];
-          return { ...previous, excuses: { ...previous.excuses, [lessonKey]: rest } };
+    inflightSavesRef.current += 1;
+
+    saveQueueRef.current = saveQueueRef.current.then(async () => {
+      // The newest local marks of this lesson go out, not the snapshot of the click.
+      const records = recordsRef.current[lessonKey] || {};
+      const reasons = pendingReasonsRef.current[lessonKey] || {};
+      const sentReasons = Object.fromEntries(
+        Object.entries(reasons).filter(([studentId]) => records[studentId] === "excused"),
+      );
+      pendingReasonsRef.current[lessonKey] = {};
+      try {
+        await orgApi.saveGroupAttendance(groupId, {
+          lessonDate: lesson.date,
+          lessonId: lesson.id,
+          topic: lesson.topic,
+          status: lessonStatus,
+          records,
+          ...(Object.keys(sentReasons).length ? { excuseReasons: sentReasons } : {}),
         });
+        confirmedRef.current = { ...confirmedRef.current, [lessonKey]: records };
+        setAttendanceData((previous) => previous ? {
+          ...previous,
+          statuses: { ...previous.statuses, [lessonKey]: "in_progress" },
+          lessons: previous.lessons.map((item) =>
+            instanceKey(item) === lessonKey ? { ...item, status: "in_progress" } : item,
+          ),
+        } : previous);
+        // The excuse record lives on the server; fetch its id and review state.
+        if (Object.keys(sentReasons).length > 0 || previousStatus === "excused") {
+          reloadWantedRef.current = true;
+          void useExcuseBadge.getState().refresh();
+        }
+        // The server deletes the excuse (and its files) when "excused" is replaced.
+        if (previousStatus === "excused" && status !== "excused") {
+          setAttendanceData((previous) => {
+            const forLesson = previous?.excuses?.[lessonKey];
+            if (!previous || !forLesson?.[student.id]) return previous;
+            const rest = { ...forLesson };
+            delete rest[student.id];
+            return { ...previous, excuses: { ...previous.excuses, [lessonKey]: rest } };
+          });
+        }
+      } catch (error) {
+        // Show exactly what the server holds: later queued marks of this lesson are dropped too.
+        const confirmed = confirmedRef.current[lessonKey] || {};
+        recordsRef.current = { ...recordsRef.current, [lessonKey]: confirmed };
+        pendingReasonsRef.current[lessonKey] = {};
+        setLocalRecords(recordsRef.current);
+        const message = error instanceof Error ? error.message : "";
+        setSaveError(
+          /причин/i.test(message) && /ув|уважит/i.test(message)
+            ? "Для уважительного пропуска нужна причина. Нажмите на отметку «Ув.» у ученика и введите причину."
+            : message || "Не удалось сохранить отметку",
+        );
+      } finally {
+        inflightSavesRef.current -= 1;
+        if (inflightSavesRef.current === 0) {
+          setSavingLessonKey(null);
+          if (reloadWantedRef.current) {
+            reloadWantedRef.current = false;
+            void loadAttendance(true);
+          }
+        }
       }
-      // The excuse record lives on the server; fetch its id and review state.
-      if (status === "excused" || previousStatus === "excused") {
-        void loadAttendance(true);
-        void useExcuseBadge.getState().refresh();
-      }
-    } catch (error) {
-      setLocalRecords(previousRecords);
-      setSaveError(error instanceof Error ? error.message : "Не удалось сохранить отметку");
-    } finally {
-      setSavingLessonKey(null);
-    }
+    });
   };
 
   const submitReasonEditor = () => {
@@ -618,11 +676,15 @@ export function GroupAttendanceJournal({
     });
   };
 
+  // The server judges completeness by the roster frozen at the start of the
+  // lesson (it includes students transferred out later), so count the same way.
   const markedInLesson = (lesson: Lesson) => {
     const key = instanceKey(lesson);
-    const roster = activeStudents.filter((student) => belongsToLesson(student, lesson));
-    const marked = roster.filter((student) => Boolean(localRecords[key]?.[student.id])).length;
-    return { rosterCount: roster.length, markedCount: marked };
+    return rosterProgress(
+      attendanceData?.rosterStudentIds?.[key],
+      activeStudents.filter((student) => belongsToLesson(student, lesson)).map((student) => student.id),
+      recordsRef.current[key] || localRecords[key],
+    );
   };
 
   const runColumnAction = async (action: AdminLessonAction, lesson: Lesson) => {
@@ -650,6 +712,8 @@ export function GroupAttendanceJournal({
         await loadAttendance(true);
         showToast("Урок открыт: отметьте учеников в столбце");
       } else if (action === "finish") {
+        // Marks still on their way must reach the server before the lesson is closed.
+        await saveQueueRef.current;
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const hint = finishBlockedHint(markedCount, rosterCount);
         if (hint) {
@@ -661,7 +725,7 @@ export function GroupAttendanceJournal({
           lessonId: lesson.id,
           topic: lesson.topic,
           status: "completed",
-          records: localRecords[key] || {},
+          records: recordsRef.current[key] || localRecords[key] || {},
         });
         await loadAttendance(true);
         void useExcuseBadge.getState().refresh();
@@ -706,8 +770,13 @@ export function GroupAttendanceJournal({
     ? lessons.find((lesson) => instanceKey(lesson) === correcting.key) || null
     : null;
   const correctionChanges = correcting
-    ? diffAttendance(localRecords[correcting.key] || {}, correcting.draft)
+    ? diffCorrection(localRecords[correcting.key] || {}, correcting.draft, correcting.reasons, excusesOf(correcting.key))
     : [];
+  const correctionWarningById = new Map<string, string>();
+  if (correcting) {
+    correctionWarnings(correctionChanges, attendanceData?.excuses?.[correcting.key])
+      .forEach((warning) => correctionWarningById.set(warning.studentId, warning.text));
+  }
   const studentNameById = useMemo(() => {
     const names = new Map<string, string>();
     [...activeStudents, ...historicalStudents].forEach((student) => {
@@ -1142,9 +1211,9 @@ export function GroupAttendanceJournal({
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-50/70">
           <div className="border-b border-slate-200 bg-slate-100/80 px-5 py-4">
             <h3 className="text-sm font-bold text-slate-800">История переведённых учеников</h3>
-            <p className="mt-1 text-xs text-slate-500">Отметки сохранены по фактическим занятиям. Эта история доступна только для просмотра.</p>
+            <p className="mt-1 text-xs text-slate-500">Отметки сохранены по фактическим занятиям. Пока урок открыт, переведённого ученика из его состава можно отметить так же, как остальных.</p>
           </div>
-          <div className="overflow-x-auto">
+          <div ref={historyScrollRef} className="overflow-x-auto">
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
@@ -1171,7 +1240,7 @@ export function GroupAttendanceJournal({
               <tbody className="divide-y divide-slate-200">
                 {historicalStudents.map((student) => {
                   const fullName = `${student.last_name || ""} ${student.first_name || ""}`.trim() || student.full_name || "Ученик";
-                  const transferDescription = `Ученик переведён${student.transferredToGroupName ? ` в «${student.transferredToGroupName}»` : " в другую группу"}${student.transferredAt ? ` ${new Date(student.transferredAt).toLocaleDateString("ru-RU")}` : ""}. Исторические отметки доступны только для просмотра.`;
+                  const transferDescription = `Ученик переведён${student.transferredToGroupName ? ` в «${student.transferredToGroupName}»` : " в другую группу"}${student.transferredAt ? ` ${new Date(student.transferredAt).toLocaleDateString("ru-RU")}` : ""}.`;
                   const studentProfileHref = studentProfileBasePath ? `${studentProfileBasePath}/${student.id}` : null;
                   return (
                     <tr key={student.id} className="bg-white">
@@ -1195,16 +1264,59 @@ export function GroupAttendanceJournal({
                         )}
                       </td>
                       {lessons.map((lesson) => {
+                        const key = instanceKey(lesson);
                         const wasInLesson = belongsToLesson(student, lesson);
-                        const option = statusOption(getStatus(student.id, lesson));
+                        const value = getStatus(student.id, lesson);
+                        const option = statusOption(value);
+                        const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
+                        const inCorrection = correcting?.key === key;
+                        // A student transferred out later is still on the roster frozen for this lesson.
+                        const editable = wasInLesson && canEdit && lesson.date <= today
+                          && (lessonStatus === "in_progress" || (lessonStatus === "completed" && inCorrection));
+                        const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         return (
-                          <td key={instanceKey(lesson)} className="border-r border-slate-100 p-2 text-center">
+                          <td ref={isOpen ? openCellContainerRef : undefined} key={key} className="relative border-r border-slate-100 p-2 text-center">
                             {wasInLesson ? (
-                              <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-400"}`}>
-                                {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
-                              </span>
+                              editable ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen, historyScrollRef)}
+                                  title={`${transferDescription} Пока урок открыт, отметку можно поставить или изменить.`}
+                                  aria-expanded={isOpen}
+                                  className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"}`}
+                                >
+                                  {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
+                                </button>
+                              ) : (
+                                <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-400"}`}>
+                                  {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
+                                </span>
+                              )
                             ) : (
                               <span title={transferDescription} className="mx-auto flex min-h-8 min-w-[92px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-300">—</span>
+                            )}
+                            {isOpen && editable && openCell && (
+                              <div
+                                role="menu"
+                                className={`absolute left-1/2 z-30 w-56 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-1.5 text-left shadow-lg ${openCell.placement === "up" ? "bottom-full mb-2" : "top-full mt-2"}`}
+                              >
+                                {STATUS_OPTIONS.map((item) => (
+                                  <button
+                                    key={item.value}
+                                    type="button"
+                                    role="menuitemradio"
+                                    aria-checked={value === item.value}
+                                    onClick={() => void handleSelectStatus(item.value, student, lesson)}
+                                    className="flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                  >
+                                    <span className="flex min-w-0 items-center gap-2 whitespace-nowrap">
+                                      <span className={`h-2 w-2 shrink-0 rounded-full ${item.dotClassName}`} />
+                                      <span>{item.label}</span>
+                                    </span>
+                                    {value === item.value && <Check className="h-3.5 w-3.5 text-primary-600" />}
+                                  </button>
+                                ))}
+                              </div>
                             )}
                           </td>
                         );
@@ -1384,12 +1496,24 @@ export function GroupAttendanceJournal({
               <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500">Изменения ({correctionChanges.length})</p>
               <ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
                 {correctionChanges.map((change) => (
-                  <li key={change.studentId} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 px-3 py-2 text-sm">
-                    <span className="min-w-0 truncate font-medium text-slate-800">{studentNameById.get(change.studentId) || "Ученик"}</span>
-                    <span className="text-xs text-slate-600">
-                      {statusOption(change.from as AttendanceStatus)?.label || "нет отметки"} → <strong>{statusOption(change.to as AttendanceStatus)?.label || "нет отметки"}</strong>
-                      {change.to === "excused" && correcting.reasons[change.studentId] ? ` (${correcting.reasons[change.studentId]})` : ""}
-                    </span>
+                  <li key={change.studentId} className="px-3 py-2 text-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                      <span className="min-w-0 truncate font-medium text-slate-800">{studentNameById.get(change.studentId) || "Ученик"}</span>
+                      <span className="text-xs text-slate-600">
+                        {change.reasonChanged ? (
+                          <strong>{statusOption("excused")?.label}: причина изменена</strong>
+                        ) : (
+                          <>{statusOption(change.from as AttendanceStatus)?.label || "нет отметки"} → <strong>{statusOption(change.to as AttendanceStatus)?.label || "нет отметки"}</strong></>
+                        )}
+                        {change.to === "excused" && correcting.reasons[change.studentId] ? ` (${correcting.reasons[change.studentId]})` : ""}
+                      </span>
+                    </div>
+                    {correctionWarningById.get(change.studentId) && (
+                      <p className="mt-1 flex items-start gap-1.5 text-xs font-medium text-amber-800">
+                        <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                        {correctionWarningById.get(change.studentId)}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>

@@ -250,3 +250,76 @@ export function validateExcusePeriod(from: string, to: string): string | null {
   }
   return null;
 }
+
+export interface CorrectionChangeEx extends CorrectionChange {
+  /** "excused" stays "excused", only the reason text was edited. */
+  reasonChanged: boolean;
+}
+
+/**
+ * Changes of a correction: every differing mark, plus an "excused" mark whose
+ * reason was edited (the mark itself is unchanged).
+ */
+export function diffCorrection(
+  before: AttendanceMarks,
+  after: AttendanceMarks,
+  reasons: Record<string, string>,
+  existing: Record<string, { reason: string }> | undefined,
+): CorrectionChangeEx[] {
+  const result: CorrectionChangeEx[] = diffAttendance(before, after).map((change) => ({ ...change, reasonChanged: false }));
+  const changed = new Set(result.map((change) => change.studentId));
+  Object.keys(after).forEach((studentId) => {
+    if (changed.has(studentId) || after[studentId] !== "excused" || before[studentId] !== "excused") return;
+    const typed = (reasons[studentId] ?? "").trim();
+    const current = (existing?.[studentId]?.reason ?? "").trim();
+    if (typed && typed !== current) {
+      result.push({ studentId, from: "excused", to: "excused", reasonChanged: true });
+    }
+  });
+  return result;
+}
+
+export interface CorrectionWarning {
+  studentId: string;
+  text: string;
+}
+
+export const WARN_EXCUSE_REMOVED = "Подтверждение пропуска и прикреплённые справки будут удалены";
+export const WARN_EXCUSE_REPENDING = "Пропуск вернётся на подтверждение";
+
+/**
+ * Warnings for the correction dialog.  `excuses` is the server state of the
+ * lesson: status and has_files of every existing excuse.
+ */
+export function correctionWarnings(
+  changes: CorrectionChangeEx[],
+  excuses: Record<string, { status: string; has_files?: boolean }> | undefined,
+): CorrectionWarning[] {
+  const warnings: CorrectionWarning[] = [];
+  changes.forEach((change) => {
+    const excuse = excuses?.[change.studentId];
+    if (!excuse) return;
+    if (change.from === "excused" && change.to !== "excused") {
+      if (excuse.status !== "pending" || excuse.has_files) {
+        warnings.push({ studentId: change.studentId, text: WARN_EXCUSE_REMOVED });
+      }
+    } else if (change.reasonChanged && excuse.status !== "pending") {
+      warnings.push({ studentId: change.studentId, text: WARN_EXCUSE_REPENDING });
+    }
+  });
+  return warnings;
+}
+
+/** Students of the frozen roster (or of the fallback list) and how many of them are marked. */
+export function rosterProgress(
+  rosterIds: string[] | null | undefined,
+  fallbackIds: string[],
+  records: Record<string, string> | undefined,
+): { rosterCount: number; markedCount: number } {
+  const ids = Array.isArray(rosterIds) ? rosterIds : fallbackIds;
+  const unique = Array.from(new Set(ids));
+  return {
+    rosterCount: unique.length,
+    markedCount: unique.filter((id) => Boolean(records?.[id])).length,
+  };
+}

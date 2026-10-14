@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+
+const FOCUSABLE = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
 
 interface ModalProps {
   open: boolean;
@@ -27,16 +29,81 @@ export function Modal({
   open, title, description, onClose, children, footer, maxWidthClassName = "max-w-[480px]", busy = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
   useEffect(() => setMounted(true), []);
 
+  // Remember the control the user used last outside the dialog.  An autoFocus
+  // field inside the dialog takes focus before any effect runs, and Safari does
+  // not focus buttons on click, so reading activeElement on open is not reliable.
+  useEffect(() => {
+    const remember = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element) || dialogRef.current?.contains(target)) return;
+      const control = target.closest<HTMLElement>("button, a[href], input, textarea, select, [tabindex]");
+      if (control) openerRef.current = control;
+    };
+    document.addEventListener("focusin", remember);
+    document.addEventListener("pointerdown", remember, true);
+    return () => {
+      document.removeEventListener("focusin", remember);
+      document.removeEventListener("pointerdown", remember, true);
+    };
+  }, []);
+
+  // Keyboard: Escape closes; Tab and Shift+Tab stay inside the dialog.
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) onClose();
+      if (event.key === "Escape" && !busy) {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true" && el.offsetParent !== null,
+      );
+      if (items.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      if (!active || !dialog.contains(active)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, busy, onClose]);
+
+  // On open focus the first field (or the first control); on close return focus to the opener.
+  useEffect(() => {
+    if (!open || !mounted) return;
+    const opener = openerRef.current;
+    const dialog = dialogRef.current;
+    if (dialog) {
+      const field = dialog.querySelector<HTMLElement>("input:not([disabled]), textarea:not([disabled]), select:not([disabled])");
+      const target = field
+        || Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).find((el) => el.getAttribute("aria-label") !== "Закрыть")
+        || dialog;
+      target.focus();
+    }
+    return () => {
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open, mounted]);
 
   const content = (
     <AnimatePresence>
@@ -52,6 +119,8 @@ export function Modal({
           />
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
             <motion.div
+              ref={dialogRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label={title}
@@ -59,7 +128,7 @@ export function Modal({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 10 }}
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-[calc(100vh-1.5rem)] pointer-events-auto overflow-hidden flex flex-col`}
+              className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-[calc(100vh-1.5rem)] pointer-events-auto overflow-hidden flex flex-col outline-none`}
             >
               <div className="h-1 w-full shrink-0 bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
               <div className="flex items-start justify-between gap-3 p-5 sm:p-6 pb-3 sm:pb-4 shrink-0">
