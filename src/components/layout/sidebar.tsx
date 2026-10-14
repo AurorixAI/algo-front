@@ -17,6 +17,7 @@ import {
   Building2,
   Plus,
   ClipboardCheck,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -25,6 +26,7 @@ import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
 import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -42,6 +44,8 @@ interface NavItem {
   comingSoon?: boolean;
   /** Counter shown over the icon (hidden when 0 or undefined). */
   badge?: number;
+  /** What the counter counts, for the tooltip. */
+  badgeLabel?: string;
 }
 
 export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
@@ -99,6 +103,13 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     };
   }, [showExcuses, refreshExcuses]);
 
+  // Payments: the item exists only while the server lets this user see them (owner always,
+  // administrator once the owner enabled it). The summary itself is kept fresh by the banner
+  // in the layout; a teacher never reads it.
+  const paymentsAvailable = usePaymentsSummary((state) => state.available);
+  const paymentsDue = usePaymentsSummary((state) => state.due);
+  const showPayments = !DEMO_MODE && (rawRole === "owner" || role === "admin") && paymentsAvailable;
+
   const adminNav: NavItem[] = [
     { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
@@ -107,6 +118,9 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/admin/groups", label: "Группы", icon: Users },
     ...(showExcuses
       ? [{ href: "/admin/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
+      : []),
+    ...(showPayments
+      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Оплата закончилась" }]
       : []),
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
   ];
@@ -117,6 +131,9 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/owner/groups", label: "Группы", icon: Users },
     ...(showExcuses
       ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
+      : []),
+    ...(showPayments
+      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Оплата закончилась" }]
       : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];
@@ -136,6 +153,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     : user?.full_name || displayRole;
 
   const handleLogout = () => {
+    usePaymentsSummary.getState().reset();
     logout();
     router.push("/login");
   };
@@ -216,7 +234,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                     ? "bg-primary-50 text-primary-700 font-bold"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
-                title={collapsed ? (item.badge ? `${item.label} · требуют действий: ${item.badge}` : item.label) : undefined}
+                title={collapsed ? (item.badge ? `${item.label} · ${(item.badgeLabel ?? "требуют действий").toLowerCase()}: ${item.badge}` : item.label) : undefined}
               >
                 {isActive && (
                   <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary-600" />
@@ -229,8 +247,8 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                 />
                 {item.badge ? (
                   <span
-                    aria-label={`Требуют действий: ${item.badge}`}
-                    title={`Требуют действий: ${item.badge}`}
+                    aria-label={`${item.badgeLabel ?? "Требуют действий"}: ${item.badge}`}
+                    title={`${item.badgeLabel ?? "Требуют действий"}: ${item.badge}`}
                     className="absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white"
                   >
                     {item.badge > 99 ? "99+" : item.badge}
