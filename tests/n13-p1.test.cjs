@@ -359,7 +359,9 @@ test("journal link opens the group attendance tab on the lesson's month, per rol
 test("?month= is read as the journal's initial month only when valid", () => {
   assert.deepEqual(openLessons.parseJournalMonth("2026-09"), { year: 2026, month: 9 });
   assert.deepEqual(openLessons.parseJournalMonth("2026-12"), { year: 2026, month: 12 });
-  for (const bad of ["2026-13", "2026-00", "2026-9", "2026-09-01", "sept", "", null, undefined]) {
+  assert.deepEqual(openLessons.parseJournalMonth("2000-01"), { year: 2000, month: 1 });
+  assert.deepEqual(openLessons.parseJournalMonth("2100-12"), { year: 2100, month: 12 });
+  for (const bad of ["1999-12", "2101-01", "0001-01", "9999-01", "2026-13", "2026-00", "2026-9", "2026-09-01", "sept", "", null, undefined]) {
     assert.equal(openLessons.parseJournalMonth(bad), null, String(bad));
   }
 });
@@ -394,13 +396,18 @@ test("menu badge = pending excuses + open lessons, from ONE summary request", as
   assert.equal(store.getState().openLessons, 5);
   assert.equal(badge.selectBadgeTotal(store.getState()), 7);
 
-  // an older backend without the field: only excuses count
-  summary = { pending_total: 3 };
+  // not counted (null) or an older backend without the field: excuses update, open lessons keep their value
+  summary = { pending_total: 3, open_lessons_total: null };
   await store.getState().refresh(true);
-  assert.equal(badge.selectBadgeTotal(store.getState()), 3);
+  assert.equal(store.getState().openLessons, 5);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 8);
+  summary = { pending_total: 1 };
+  await store.getState().refresh(true);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 6);
 
-  // the open lessons list keeps the counter in line without another request
-  store.getState().setOpenLessons(4);
-  assert.equal(badge.selectBadgeTotal(store.getState()), 7);
-  assert.equal(calls, 2);
+  // a real zero is applied
+  summary = { pending_total: 0, open_lessons_total: 0 };
+  await store.getState().refresh(true);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 0);
+  assert.equal(calls, 4);
 });

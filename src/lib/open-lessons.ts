@@ -47,8 +47,10 @@ export function journalHref(groupsBasePath: string, action: Pick<OpenAttendanceA
   return `${groupsBasePath}/${action.groupId}${query}`;
 }
 
-/** `?month=YYYY-MM` of the group page -> first day of that month, or null when absent/invalid. */
+/** `?month=YYYY-MM` of the group page (years 2000-2100) -> year and month, or null when absent/invalid. */
 export function parseJournalMonth(value: string | null | undefined): { year: number; month: number } | null {
   const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(value ?? "");
-  return match ? { year: Number(match[1]), month: Number(match[2]) } : null;
+  if (!match) return null;
+  const year = Number(match[1]);
+  return year >= 2000 && year <= 2100 ? { year, month: Number(match[2]) } : null;
 }

@@ -37,8 +37,8 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
       if (isCancelled()) return;
       const list = Array.isArray(data) ? data : [];
       setItems(sortOpenLessons(list));
-      // The tab counter and the menu badge show what this very list holds.
-      useExcuseBadge.getState().setOpenLessons(list.length);
+      // Counters (tab, menu badge) come from the summary only: re-read it, do not derive it here.
+      void useExcuseBadge.getState().refresh(true);
     } catch (error) {
       if (isCancelled()) return;
       setLoadError(error instanceof Error ? error.message : "Не удалось загрузить уроки");
@@ -56,9 +56,10 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
-        <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
-        Загрузка…
+      <div role="status" className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
+        <Loader2 className="h-7 w-7 animate-spin text-primary-600" aria-hidden="true" />
+        <span className="sr-only">Загрузка уроков</span>
+        <span aria-hidden="true">Загрузка…</span>
       </div>
     );
   }
@@ -108,6 +109,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
 
             <Link
               href={journalHref(groupsBasePath, item)}
+              aria-label={`Открыть журнал: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
               className="text-sm font-semibold text-primary-700 hover:underline md:justify-self-end"
             >
               Открыть журнал
