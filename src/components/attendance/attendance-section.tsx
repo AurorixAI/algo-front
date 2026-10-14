@@ -4,6 +4,7 @@ import { Suspense, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { ExcusesPage } from "@/components/attendance/excuses-page";
+import { OpenLessonsView } from "@/components/attendance/open-lessons-view";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 
 interface SectionTab {
@@ -14,14 +15,23 @@ interface SectionTab {
   content: ReactNode;
 }
 
-function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBasePath: string }) {
+interface AttendanceSectionProps {
+  /** Where a student profile lives for this role. */
+  studentProfileBasePath: string;
+  /** Where group pages live for this role (the journal of a lesson opens there). */
+  groupsBasePath: string;
+}
+
+function AttendanceSectionContent({ studentProfileBasePath, groupsBasePath }: AttendanceSectionProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pending = useExcuseBadge((state) => state.pending);
+  const openLessons = useExcuseBadge((state) => state.openLessons);
 
   // A new tab is one more entry here.
   const tabs: SectionTab[] = [
-    { key: "excuses", label: "Уважительные пропуски", count: pending, content: <ExcusesPage studentProfileBasePath={studentProfileBasePath} /> },
+    { key: "excuses", label: "Пропуски", count: pending, content: <ExcusesPage studentProfileBasePath={studentProfileBasePath} /> },
+    { key: "open", label: "Незакрытые уроки", count: openLessons, content: <OpenLessonsView groupsBasePath={groupsBasePath} /> },
   ];
 
   const requested = searchParams?.get("tab");
@@ -34,9 +44,8 @@ function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBa
         <p className="text-sm text-slate-500">Журнал по всем группам: что требует действий администратора</p>
       </div>
 
-      {/* One tab needs no tab row; it appears by itself with the second tab. */}
       {tabs.length > 1 && (
-      <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 sm:w-fit" role="tablist">
+      <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-0.5 sm:w-fit sm:p-1" role="tablist">
         {tabs.map((tab) => (
           <button
             key={tab.key}
@@ -44,7 +53,7 @@ function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBa
             role="tab"
             aria-selected={active.key === tab.key}
             onClick={() => router.replace(`?tab=${tab.key}`, { scroll: false })}
-            className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+            className={`flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:flex-none sm:gap-2 sm:px-4 sm:text-sm ${
               active.key === tab.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
             }`}
           >
@@ -65,12 +74,12 @@ function AttendanceSectionContent({ studentProfileBasePath }: { studentProfileBa
 }
 
 /** "Посещаемость": a section with tabs; the path differs by role only in the profile link base. */
-export function AttendanceSection({ studentProfileBasePath }: { studentProfileBasePath: string }) {
+export function AttendanceSection(props: AttendanceSectionProps) {
   return (
     <Suspense
       fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}
     >
-      <AttendanceSectionContent studentProfileBasePath={studentProfileBasePath} />
+      <AttendanceSectionContent {...props} />
     </Suspense>
   );
 }

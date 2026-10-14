@@ -305,3 +305,102 @@ test("excuses tab: month switcher instead of date fields, one tab needs no tab r
   assert.match(section, /tabs\.length > 1/);
   assert.doesNotMatch(page, /<h2/);
 });
+
+// ---- N13 P1.1: "Незакрытые уроки" -------------------------------------------
+
+const openLessons = require(path.join(__dirname, "../src/lib/open-lessons.ts"));
+
+const action = (over) => ({
+  actionType: "missed", groupId: "g1", groupName: "Группа А", classLevel: 9, lessonId: "s1",
+  lessonDate: "2026-10-13", subject: "Математика", startTime: "10:00", endTime: "11:00",
+  markedCount: 0, rosterCount: 0, remainingCount: 0, ...over,
+});
+
+test("open lesson date reads «Пн, 13 окт» without timezone drift", () => {
+  assert.equal(openLessons.formatLessonDate("2026-10-13"), "Вт, 13 окт");
+  assert.equal(openLessons.formatLessonDate("2026-10-12"), "Пн, 12 окт");
+  assert.equal(openLessons.formatLessonDate("2026-01-01"), "Чт, 1 янв");
+  assert.equal(openLessons.formatLessonDate("2026-12-31"), "Чт, 31 дек");
+  assert.equal(openLessons.formatLessonDate("2026-10-13T00:00:00"), "Вт, 13 окт");
+  assert.equal(openLessons.formatLessonDate(""), "");
+  assert.equal(openLessons.formatLessonDate(null), "");
+});
+
+test("open lessons are sorted newest date first, later lesson first within a day", () => {
+  const sorted = openLessons.sortOpenLessons([
+    action({ lessonId: "a", lessonDate: "2026-10-01" }),
+    action({ lessonId: "b", lessonDate: "2026-10-13", startTime: "09:00" }),
+    action({ lessonId: "c", lessonDate: "2026-10-13", startTime: "15:00" }),
+    action({ lessonId: "d", lessonDate: "2026-10-13", startTime: "15:00", groupName: "Алгебра" }),
+  ]);
+  assert.deepEqual(sorted.map((i) => i.lessonId), ["d", "c", "b", "a"]);
+  // the input is not mutated
+  const input = [action({ lessonDate: "2026-10-01" }), action({ lessonDate: "2026-10-05" })];
+  openLessons.sortOpenLessons(input);
+  assert.equal(input[0].lessonDate, "2026-10-01");
+});
+
+test("open lesson status and time wording", () => {
+  assert.equal(openLessons.openLessonStatus(action({})), "Не начат");
+  assert.equal(
+    openLessons.openLessonStatus(action({ actionType: "in_progress", markedCount: 4, rosterCount: 9 })),
+    "Не завершён · отмечено 4 из 9",
+  );
+  assert.equal(openLessons.openLessonTime(action({})), "10:00–11:00");
+});
+
+test("journal link opens the group attendance tab on the lesson's month, per role", () => {
+  const a = action({ groupId: "G-7", lessonDate: "2026-09-30" });
+  assert.equal(openLessons.journalHref("/owner/groups", a), "/owner/groups/G-7?tab=attendance&month=2026-09");
+  assert.equal(openLessons.journalHref("/admin/groups", a), "/admin/groups/G-7?tab=attendance&month=2026-09");
+  assert.equal(openLessons.journalHref("/admin/groups", action({ groupId: "G-7", lessonDate: "bad" })), "/admin/groups/G-7?tab=attendance");
+});
+
+test("?month= is read as the journal's initial month only when valid", () => {
+  assert.deepEqual(openLessons.parseJournalMonth("2026-09"), { year: 2026, month: 9 });
+  assert.deepEqual(openLessons.parseJournalMonth("2026-12"), { year: 2026, month: 12 });
+  for (const bad of ["2026-13", "2026-00", "2026-9", "2026-09-01", "sept", "", null, undefined]) {
+    assert.equal(openLessons.parseJournalMonth(bad), null, String(bad));
+  }
+});
+
+test("open lesson keys differ between a missed and a started lesson of the same slot", () => {
+  const missed = action({ actionType: "missed" });
+  const started = action({ actionType: "in_progress" });
+  assert.notEqual(openLessons.openLessonKey(missed), openLessons.openLessonKey(started));
+});
+
+test("menu badge = pending excuses + open lessons, from ONE summary request", async () => {
+  const Module = require("node:module");
+  let calls = 0;
+  let summary = { pending_total: 2, open_lessons_total: 5 };
+  const originalLoad = Module._load;
+  Module._load = function (request, ...rest) {
+    if (request === "./api") {
+      return { DEMO_MODE: false, orgApi: { getAttendanceExcuseSummary: async () => { calls += 1; return summary; } } };
+    }
+    return originalLoad.call(this, request, ...rest);
+  };
+  let badge;
+  try {
+    badge = require(path.join(__dirname, "../src/lib/excuse-badge.ts"));
+  } finally {
+    Module._load = originalLoad;
+  }
+  const store = badge.useExcuseBadge;
+  await store.getState().refresh(true);
+  assert.equal(calls, 1);
+  assert.equal(store.getState().pending, 2);
+  assert.equal(store.getState().openLessons, 5);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 7);
+
+  // an older backend without the field: only excuses count
+  summary = { pending_total: 3 };
+  await store.getState().refresh(true);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 3);
+
+  // the open lessons list keeps the counter in line without another request
+  store.getState().setOpenLessons(4);
+  assert.equal(badge.selectBadgeTotal(store.getState()), 7);
+  assert.equal(calls, 2);
+});

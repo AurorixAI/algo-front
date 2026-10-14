@@ -451,6 +451,7 @@ export default function AdminGroupDetailPage() {
               canEdit
               adminMode
               studentProfileBasePath="/admin/students"
+              initialMonth={searchParams?.get("month")}
             />
           </motion.div>
         )}

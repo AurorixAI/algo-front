@@ -50,6 +50,7 @@ import {
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { parseJournalMonth } from "@/lib/open-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
@@ -63,6 +64,8 @@ interface GroupAttendanceJournalProps {
   studentProfileBasePath?: string;
   /** Administrator / owner: lesson-column actions, correction mode and excuse review. */
   adminMode?: boolean;
+  /** `YYYY-MM`: open on that month instead of the current week (initial value only). */
+  initialMonth?: string | null;
 }
 
 type ViewMode = "week" | "month";
@@ -307,9 +310,13 @@ export function GroupAttendanceJournal({
   canEdit = false,
   studentProfileBasePath,
   adminMode = false,
+  initialMonth = null,
 }: GroupAttendanceJournalProps) {
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
-  const [anchorDate, setAnchorDate] = useState(businessTodayAtLocalNoon);
+  const requestedMonth = parseJournalMonth(initialMonth);
+  const [viewMode, setViewMode] = useState<ViewMode>(requestedMonth ? "month" : "week");
+  const [anchorDate, setAnchorDate] = useState(() =>
+    requestedMonth ? new Date(requestedMonth.year, requestedMonth.month - 1, 1, 12) : businessTodayAtLocalNoon(),
+  );
   const [attendanceData, setAttendanceData] = useState<GroupAttendance | null>(null);
   const [localRecords, setLocalRecords] = useState<Record<string, Record<string, AttendanceStatus>>>({});
   const [loading, setLoading] = useState(true);

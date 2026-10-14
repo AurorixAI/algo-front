@@ -464,6 +464,12 @@ export interface AttendanceExcuseItem {
   files: AttendanceExcuseFile[];
 }
 
+/** Sidebar counters: excuses to decide and lessons to close. */
+export interface AttendanceExcuseSummary {
+  pending_total: number;
+  open_lessons_total?: number;
+}
+
 export interface AttendanceExcuseList {
   items: AttendanceExcuseItem[];
   total: number;
@@ -622,6 +628,9 @@ export interface OpenAttendanceAction {
   markedCount: number;
   rosterCount: number;
   remainingCount: number;
+  /** Lesson snapshot teacher, else the group's teacher (administrators' list). */
+  teacherId?: string | null;
+  teacherName?: string | null;
 }
 
 export interface AttendancePeriod {
@@ -1086,7 +1095,7 @@ export const orgApi = {
     return api<AttendanceExcuseList>(`/auth/org/attendance/excuses?${params.toString()}`);
   },
   getAttendanceExcuseSummary: () =>
-    api<{ pending_total: number }>("/auth/org/attendance/excuses/summary"),
+    api<AttendanceExcuseSummary>("/auth/org/attendance/excuses/summary"),
   reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string }) =>
     api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review`, { method: "POST", body: data }),
   resetAttendanceExcuse: (id: string) =>

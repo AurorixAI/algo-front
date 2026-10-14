@@ -443,6 +443,7 @@ export default function OwnerGroupDetailPage() {
               canEdit
               adminMode
               studentProfileBasePath="/admin/students"
+              initialMonth={searchParams?.get("month")}
             />
           </motion.div>
         )}

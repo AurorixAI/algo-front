@@ -24,7 +24,7 @@ import { useAuthStore } from "@/lib/store";
 import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
 import { DEMO_MODE } from "@/lib/api";
-import { useExcuseBadge } from "@/lib/excuse-badge";
+import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -72,7 +72,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   // Excused absences waiting for a decision: administrators and owners only,
   // never in the demo build (the demo API has no such endpoint).
   const showExcuses = !DEMO_MODE && (rawRole === "owner" || role === "admin");
-  const pendingExcuses = useExcuseBadge((state) => state.pending);
+  const pendingExcuses = useExcuseBadge(selectBadgeTotal);
   const refreshExcuses = useExcuseBadge((state) => state.refresh);
   useEffect(() => {
     if (!showExcuses) return;
@@ -216,7 +216,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                     ? "bg-primary-50 text-primary-700 font-bold"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 )}
-                title={collapsed ? (item.badge ? `${item.label} · ожидают: ${item.badge}` : item.label) : undefined}
+                title={collapsed ? (item.badge ? `${item.label} · требуют действий: ${item.badge}` : item.label) : undefined}
               >
                 {isActive && (
                   <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary-600" />
@@ -229,7 +229,8 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                 />
                 {item.badge ? (
                   <span
-                    aria-label={`Ожидают решения: ${item.badge}`}
+                    aria-label={`Требуют действий: ${item.badge}`}
+                    title={`Требуют действий: ${item.badge}`}
                     className="absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white"
                   >
                     {item.badge > 99 ? "99+" : item.badge}
