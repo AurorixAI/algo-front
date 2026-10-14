@@ -165,16 +165,23 @@ test("excuse list period: current month by default, at most 93 days", () => {
 test("new screens exist and follow the contract (routes, menu, demo guard)", () => {
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
   for (const role of ["admin", "owner"]) {
-    assert.ok(fs.existsSync(path.join(__dirname, `../src/app/${role}/attendance-excuses/page.tsx`)), role);
+    assert.ok(fs.existsSync(path.join(__dirname, `../src/app/${role}/attendance/page.tsx`)), role);
+    // the old bookmark redirects into the new section
+    assert.match(read(`src/app/${role}/attendance-excuses/page.tsx`), new RegExp(`redirect\\("/${role}/attendance\\?tab=excuses"\\)`), role);
   }
   const sidebar = read("src/components/layout/sidebar.tsx");
-  assert.match(sidebar, /\/admin\/attendance-excuses/);
-  assert.match(sidebar, /\/owner\/attendance-excuses/);
+  assert.match(sidebar, /href: "\/admin\/attendance", label: "Посещаемость"/);
+  assert.match(sidebar, /href: "\/owner\/attendance", label: "Посещаемость"/);
   assert.match(sidebar, /showExcuses = !DEMO_MODE/);
   assert.match(sidebar, /badge\?: number/);
   // the teacher menu never gets the item
   const teacherNav = sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems"));
-  assert.doesNotMatch(teacherNav, /attendance-excuses/);
+  assert.doesNotMatch(teacherNav, /\/attendance/);
+  // the section keeps the excuses tab first and the default, tabs come from one list
+  const section = read("src/components/attendance/attendance-section.tsx");
+  assert.match(section, /key: "excuses"/);
+  assert.match(section, /searchParams\?\.get\("tab"\)/);
+  assert.match(section, /Журнал по всем группам: что требует действий администратора/);
   // the badge store does not request anything in demo mode
   assert.match(read("src/lib/excuse-badge.ts"), /if \(DEMO_MODE\) return Promise\.resolve\(\)/);
   // the admin journal is editable and in admin mode on both group cards

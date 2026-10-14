@@ -1,8 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ExcusesPage } from "@/components/attendance/excuses-page";
-
-export default function AdminAttendanceExcusesPage() {
-  // The student profile lives under /admin for both roles (the admin layout admits owners).
-  return <ExcusesPage studentProfileBasePath="/admin/students" />;
+// Old bookmarks of the excused-absences page.
+export default function LegacyAdminAttendanceExcusesRedirect() {
+  redirect("/admin/attendance?tab=excuses");
 }

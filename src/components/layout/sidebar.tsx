@@ -106,7 +106,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
     ...(showExcuses
-      ? [{ href: "/admin/attendance-excuses", label: "Уважительные пропуски", icon: ClipboardCheck, badge: pendingExcuses }]
+      ? [{ href: "/admin/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
   ];
@@ -116,7 +116,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/owner/analytics", label: "Аналитика", icon: BarChart3 },
     { href: "/owner/groups", label: "Группы", icon: Users },
     ...(showExcuses
-      ? [{ href: "/owner/attendance-excuses", label: "Уважительные пропуски", icon: ClipboardCheck, badge: pendingExcuses }]
+      ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];

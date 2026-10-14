@@ -432,14 +432,12 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-primary-100 bg-primary-50">
-          <ClipboardCheck className="h-5 w-5 text-primary-600" />
-        </div>
-        <div className="min-w-0">
-          <h1 className="text-xl font-bold text-slate-900">Уважительные пропуски</h1>
-          <p className="text-sm text-slate-500">Подтвердите или отклоните причины, которые указали преподаватели</p>
-        </div>
+      <div className="min-w-0">
+        <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+          <ClipboardCheck className="h-4 w-4 text-primary-600" />
+          Уважительные пропуски
+        </h2>
+        <p className="mt-0.5 text-xs text-slate-500">Подтвердите или отклоните причины, которые указали преподаватели</p>
       </div>
 
       {/* Tabs */}
