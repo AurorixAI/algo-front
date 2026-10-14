@@ -746,7 +746,7 @@ export function GroupAttendanceJournal({
           lessonId: lesson.id,
           topic: lesson.topic,
         });
-        await loadAttendance(true);
+        await loadAttendanceRef.current(true);
         showToast("Урок открыт: отметьте учеников в столбце");
       } else if (action === "finish") {
         // Cells of this lesson stay locked while it is being closed, and the
@@ -773,7 +773,7 @@ export function GroupAttendanceJournal({
         saveQueueRef.current = task.then(() => undefined, () => undefined);
         const finished = await task.finally(() => { finishingKeyRef.current = null; });
         if (!finished) return;
-        await loadAttendance(true);
+        await loadAttendanceRef.current(true);
         void useExcuseBadge.getState().refresh();
         showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
       }
@@ -800,7 +800,7 @@ export function GroupAttendanceJournal({
         cancellationReason: reason,
       });
       setCancelMissed(null);
-      await loadAttendance(true);
+      await loadAttendanceRef.current(true);
       showToast(`Урок ${formatDateRu(lesson.date)} отмечен как не состоявшийся`);
     } catch (error) {
       setCancelMissed({
@@ -855,7 +855,7 @@ export function GroupAttendanceJournal({
       const date = formatDateRu(correctingLesson.date);
       setCorrecting(null);
       setCorrectionDialog(null);
-      await loadAttendance(true);
+      await loadAttendanceRef.current(true);
       void useExcuseBadge.getState().refresh();
       showToast(`Урок ${date} исправлен`);
     } catch (err) {
