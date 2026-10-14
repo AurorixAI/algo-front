@@ -18,6 +18,8 @@ interface StudentInfo {
   status: string;
   display_id?: string | null;
   group_id?: string | null;
+  /** Active memberships, when the list API exposes it (older servers do not): the column shows «ещё N». */
+  groups_count?: number | null;
   student_phone?: string;
   comment?: string;
   created_at: string | null;
@@ -262,12 +264,17 @@ export default function AdminStudentsPage() {
                       </td>
                       <td className="px-6 py-4">
                         {group ? (
-                          <Link
-                            href={`/admin/groups/${group.id}`}
-                            className="text-sm text-slate-700 hover:text-primary-600 font-medium transition-colors"
-                          >
-                            {group.name}
-                          </Link>
+                          <div className="flex flex-wrap items-baseline gap-x-1.5">
+                            <Link
+                              href={`/admin/groups/${group.id}`}
+                              className="text-sm text-slate-700 hover:text-primary-600 font-medium transition-colors"
+                            >
+                              {group.name}
+                            </Link>
+                            {(s.groups_count ?? 0) > 1 && (
+                              <span className="text-xs text-slate-400">ещё {(s.groups_count as number) - 1}</span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-xs text-slate-400 italic">Без группы</span>
                         )}

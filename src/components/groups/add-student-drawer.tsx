@@ -3,8 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, UserPlus, Check, Loader2, AlertTriangle } from "lucide-react";
-import { orgApi, StudentInGroup } from "@/lib/api";
+import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { orgApi, type GroupJoinMode } from "@/lib/api";
+import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 interface Student {
   id: string;
@@ -23,6 +25,8 @@ export interface AddStudentsResult {
   skipped: number;
   /** "Фамилия Имя — причина" for every student the server refused. */
   skippedLines: string[];
+  /** Server hints that are not refusals (third group, class mismatch). */
+  warnings: string[];
 }
 
 interface AddStudentDrawerProps {
@@ -47,10 +51,21 @@ export function AddStudentDrawer({
   const [mounted, setMounted] = useState(false);
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
+  // Students already in another group: move them here or keep both groups.
+  const [mode, setMode] = useState<GroupJoinMode>("transfer");
+  // Money is offered only to users the server lets see it (owner; administrator when allowed).
+  const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const [feeText, setFeeText] = useState("");
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    setMode("transfer");
+    setFeeText("");
+  }, [open]);
 
   // Group names for the "currently in ..." hints; a failure only drops the hints.
   useEffect(() => {
@@ -105,30 +120,6 @@ export function AddStudentDrawer({
     });
   };
 
-  const handleAdd = async () => {
-    if (selected.size === 0) return;
-    setAdding(true);
-    setAddError(null);
-    try {
-      const picked = students.filter((s) => selected.has(s.id));
-      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected));
-      const nameOf = (id: string) => {
-        const s = picked.find((item) => item.id === id);
-        return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
-      };
-      setSelected(new Set());
-      onAdded({
-        added: result.added,
-        skipped: result.skipped,
-        skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
-      });
-    } catch (e: any) {
-      setAddError(e.message || "Ошибка добавления учеников");
-    } finally {
-      setAdding(false);
-    }
-  };
-
   // Students not already in group
   const available = students.filter((s) => !existingStudentIds.has(s.id));
 
@@ -140,6 +131,37 @@ export function AddStudentDrawer({
       name: s.full_name || `${s.last_name} ${s.first_name}`.trim(),
       from: groupNames[s.group_id as string] || "другой группы",
     }));
+
+  const handleAdd = async () => {
+    if (selected.size === 0) return;
+    const fee = moneyAvailable ? parseMonthlyFee(feeText) : { value: null, error: null };
+    if (fee.error) { setAddError(fee.error); return; }
+    setAdding(true);
+    setAddError(null);
+    try {
+      const picked = students.filter((s) => selected.has(s.id));
+      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected), {
+        // The mode only matters for students who are already in another group.
+        mode: transfers.length > 0 ? mode : undefined,
+        monthly_fee: fee.value,
+      });
+      const nameOf = (id: string) => {
+        const s = picked.find((item) => item.id === id);
+        return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
+      };
+      setSelected(new Set());
+      onAdded({
+        added: result.added,
+        skipped: result.skipped,
+        skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
+        warnings: (result.warnings || []).map((w) => (w.student_id ? `${nameOf(w.student_id)} — ${w.message}` : w.message)),
+      });
+    } catch (e: any) {
+      setAddError(e.message || "Ошибка добавления учеников");
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const statusColors: Record<string, string> = {
     new:       "bg-blue-50 text-blue-700",
@@ -254,16 +276,56 @@ export function AddStudentDrawer({
             {/* Footer */}
             <div className="p-4 border-t border-slate-100 space-y-3">
               {transfers.length > 0 && (
-                <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
-                  <p className="flex items-center gap-1.5 font-semibold">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                    Ученик состоит только в одной группе: {transfers.length === 1 ? "он будет переведён" : `будут переведены (${transfers.length})`}
-                  </p>
-                  <ul className="mt-1.5 max-h-24 list-disc space-y-0.5 overflow-y-auto pl-5">
+                <fieldset className="space-y-1.5">
+                  <legend className="mb-1 text-xs font-semibold text-slate-600">
+                    {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}
+                  </legend>
+                  {([
+                    ["transfer", "Перевести сюда", "Прошлая группа закроется, эта станет основной"],
+                    ["add", "Добавить ещё и в эту группу", "Прошлые группы останутся, основная не изменится"],
+                  ] as const).map(([value, title, hint]) => (
+                    <label
+                      key={value}
+                      className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3 py-2 ${mode === value ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="join-mode"
+                        value={value}
+                        checked={mode === value}
+                        onChange={() => setMode(value)}
+                        className="mt-0.5 h-4 w-4 accent-primary-600"
+                      />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-slate-900">{title}</span>
+                        <span className="block text-xs text-slate-500">{hint}</span>
+                      </span>
+                    </label>
+                  ))}
+                  <ul className="max-h-20 list-disc space-y-0.5 overflow-y-auto pl-5 text-xs text-slate-500">
                     {transfers.map((t) => (
                       <li key={t.id}>{t.name} — из «{t.from}»</li>
                     ))}
                   </ul>
+                </fieldset>
+              )}
+              {moneyAvailable && (
+                <div>
+                  <label htmlFor="add-student-fee" className="mb-1 block text-xs font-semibold text-slate-600">
+                    Оплата в месяц <span className="font-normal text-slate-400">(необязательно{selected.size > 1 ? ", одна сумма для всех" : ""})</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="add-student-fee"
+                      value={feeText}
+                      onChange={(e) => { setAddError(null); setFeeText(reformatMoneyTyping(e.target.value)); }}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="450 000"
+                      className="w-full rounded-xl border border-slate-200 py-2.5 pl-3 pr-12 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+                  </div>
                 </div>
               )}
               {addError && (

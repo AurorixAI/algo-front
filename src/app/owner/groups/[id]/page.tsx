@@ -88,12 +88,14 @@ export default function OwnerGroupDetailPage() {
   const handleStudentsAdded = (result: AddStudentsResult) => {
     setAddOpen(false);
     void load(true);
+    const notes = [...result.skippedLines, ...result.warnings];
     if (result.added > 0 && result.skipped === 0) {
-      showToast(`Добавлено учеников: ${result.added}`);
+      if (result.warnings.length > 0) showToast(`Добавлено учеников: ${result.added}`, "warning", result.warnings);
+      else showToast(`Добавлено учеников: ${result.added}`);
     } else if (result.added > 0) {
-      showToast(`Добавлено: ${result.added}, не добавлено: ${result.skipped}`, "warning", result.skippedLines);
+      showToast(`Добавлено: ${result.added}, не добавлено: ${result.skipped}`, "warning", notes);
     } else {
-      showToast("Ни одного ученика не добавлено", "error", result.skippedLines);
+      showToast("Ни одного ученика не добавлено", "error", notes);
     }
   };
 
