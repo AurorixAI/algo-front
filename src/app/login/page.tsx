@@ -17,8 +17,12 @@ const ROLE_OPTIONS = [
   { value: "teacher", label: "Учитель" },
 ];
 
+// ONE text for "no such account", "wrong password", "account switched off" (the server answers all three alike)
+// and "this account has another role": the page must not tell which of them it was.
+const INVALID_CREDENTIALS_MESSAGE = "Неверная почта или пароль";
+
 export default function LoginPage() {
-  const { login, isLoading, error, errorCode, clearError } = useAuthStore();
+  const { login, isLoading, error, clearError } = useAuthStore();
   const [role, setRole] = useState("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,7 +48,7 @@ export default function LoginPage() {
       // The role dropdown isn't just cosmetic — the account's real role must
       // match what was selected, otherwise a teacher picking "Владелец" (or
       // vice versa) would silently land in someone else's dashboard context.
-      // Message is deliberately identical to "no account" — don't reveal
+      // Message is deliberately identical to a wrong password — don't reveal
       // that the email exists under a different role.
       if (actualRole && actualRole !== role) {
         await useAuthStore.getState().logout();
@@ -74,12 +78,7 @@ export default function LoginPage() {
   };
 
   const isOwner = role === "owner";
-  const accountNotFound = errorCode === "ACCOUNT_NOT_FOUND" || roleMismatch;
-  const errorMessage = accountNotFound
-    ? isOwner
-      ? "Аккаунт с таким email не найден."
-      : "Аккаунт с таким email не найден. Обратитесь к владельцу или администратору вашей организации — они выдадут вам логин и пароль."
-    : error;
+  const errorMessage = roleMismatch ? INVALID_CREDENTIALS_MESSAGE : error;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 relative overflow-hidden">
@@ -117,17 +116,7 @@ export default function LoginPage() {
             {errorMessage && (
               <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
                 <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>
-                  {errorMessage}
-                  {accountNotFound && isOwner && (
-                    <>
-                      {" "}
-                      <Link href="/register" className="font-medium underline hover:no-underline">
-                        Зарегистрировать организацию
-                      </Link>
-                    </>
-                  )}
-                </span>
+                <span>{errorMessage}</span>
               </div>
             )}
 

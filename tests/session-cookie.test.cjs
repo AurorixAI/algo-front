@@ -109,6 +109,19 @@ test("the login page follows ?redirect= only through postLoginTarget", () => {
   assert.doesNotMatch(page, /location\.href = (?!postLoginTarget)/);
 });
 
+test("the login page gives ONE answer to every refused sign-in (no account enumeration)", () => {
+  const page = read("src/app/login/page.tsx");
+  // the server answers unknown e-mail / switched-off account / wrong password alike; a role that does not match
+  // the account gets the very same text
+  assert.match(page, /const INVALID_CREDENTIALS_MESSAGE = "Неверная почта или пароль";/);
+  assert.match(page, /const errorMessage = roleMismatch \? INVALID_CREDENTIALS_MESSAGE : error;/);
+  // nothing branches on "no such account" / "blocked" any more
+  assert.doesNotMatch(page, /ACCOUNT_NOT_FOUND|ACCOUNT_INACTIVE|INVALID_PASSWORD|errorCode|accountNotFound|не найден/);
+  // the only registration link is the footer's, shown whatever the server answered (not inside the error box)
+  assert.equal((page.match(/href="\/register"/g) || []).length, 1);
+  assert.ok(page.indexOf('href="/register"') > page.indexOf("Footer hint"));
+});
+
 // ---- 2. the middleware ----------------------------------------------------------------------
 
 // The URL is glued, not resolved: a request line "GET //evil.com/x" on host algo.example stays on that host.
