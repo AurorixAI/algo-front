@@ -9,6 +9,21 @@ export interface GroupThetaSummary {
 }
 
 /**
+ * θ of the whole centre for the dashboard: the server's `avg_theta` (each diagnosed student once,
+ * even in two groups) when it sends one, else the weighted group averages of an older server.
+ */
+export function centreTheta(overview: {
+  groups: GroupThetaSummary[];
+  avg_theta?: number | null;
+} | null | undefined): number | null {
+  if (!overview) return null;
+  if (overview.avg_theta !== undefined) {
+    return typeof overview.avg_theta === "number" && Number.isFinite(overview.avg_theta) ? overview.avg_theta : null;
+  }
+  return weightedAverageTheta(overview.groups ?? []);
+}
+
+/**
  * Average θ of the whole centre: the groups' averages weighted by how many students stand behind
  * each, so a group of two does not weigh as much as a group of twenty. `null` when no group has
  * a θ - the dashboard then shows «—» instead of a made-up 0.00.

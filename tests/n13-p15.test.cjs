@@ -390,7 +390,13 @@ test("the centre's average θ is weighted by diagnosed students and is «—» w
   assert.equal(overview.weightedAverageTheta([{ avg_theta: 1, diagnosed_count: 1 }, { avg_theta: -1, diagnosed_count: 3 }]), -0.5);
   assert.equal(overview.weightedAverageTheta([{ avg_theta: 1 }, { avg_theta: 0 }, { avg_theta: null, diagnosed_count: 4 }]), 0.5); // older server: one each
   assert.equal(overview.weightedAverageTheta([{ avg_theta: 0, diagnosed_count: 5 }]), 0); // a real zero is a number, not "no data"
+  // the server's centre-wide figure (each student once) wins; the weighted groups are the older-server fallback
+  assert.equal(overview.centreTheta({ groups: [{ avg_theta: 0, diagnosed_count: 2 }, { avg_theta: 1, diagnosed_count: 1 }], avg_theta: 0 }), 0);
+  assert.equal(overview.centreTheta({ groups: [{ avg_theta: 0, diagnosed_count: 2 }, { avg_theta: 1, diagnosed_count: 1 }] }), 1 / 3);
+  assert.equal(overview.centreTheta({ groups: [{ avg_theta: 1, diagnosed_count: 1 }], avg_theta: null }), null);
+  assert.equal(overview.centreTheta(null), null);
   const page = read("app/owner/dashboard/page.tsx");
+  assert.match(page, /centreTheta\(\{ groups, avg_theta: serverTheta \}\)/);
   assert.match(page, /orgApi\.groupsOverview\(\)/);
   assert.doesNotMatch(page, /analyticsApi/);
   assert.match(page, /globalTheta === null \? "—"/);

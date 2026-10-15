@@ -881,6 +881,10 @@ export const orgApi = {
         diagnosed_count: number;
         avg_theta: number | null;
       }>;
+      /** Centre-wide figures: every diagnosed student counted once, however many groups he is in. */
+      avg_theta?: number | null;
+      diagnosed_count?: number;
+      student_count?: number;
     }>("/auth/org/groups-overview"),
   update: (data: { name?: string; city?: string; phone?: string }) =>
     api<OrgInfo>("/auth/org", { method: "PUT", body: data }),

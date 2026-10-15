@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { businessGreeting, formatBusinessDateLabel } from "@/lib/business-time";
 import { isAtRisk } from "@/lib/diagnostic-level";
-import { weightedAverageTheta } from "@/lib/owner-overview";
+import { centreTheta } from "@/lib/owner-overview";
 
 interface OrgStats {
   total_students: number;
@@ -35,6 +35,7 @@ export default function OwnerDashboard() {
   const { org, user } = useAuthStore();
   const [stats, setStats] = useState<OrgStats | null>(null);
   const [groups, setGroups] = useState<GroupSummary[]>([]);
+  const [serverTheta, setServerTheta] = useState<number | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,6 +48,7 @@ export default function OwnerDashboard() {
         setStats(statsData as OrgStats);
         if (overviewData?.groups) {
           setGroups(overviewData.groups);
+          setServerTheta(overviewData.avg_theta);
         }
       } catch (err) {
         console.error("Failed to load owner dashboard:", err);
@@ -75,7 +77,7 @@ export default function OwnerDashboard() {
 
   // Average θ over the diagnosed students of all groups; null (shown as «—») when nobody is diagnosed.
   const groupsWithTheta = groups.filter(g => g.avg_theta !== null);
-  const globalTheta = weightedAverageTheta(groups);
+  const globalTheta = centreTheta({ groups, avg_theta: serverTheta });
   const globalAtRisk = globalTheta !== null && isAtRisk({ theta: globalTheta });
 
   // Smart Lists
