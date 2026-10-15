@@ -52,6 +52,13 @@ export interface CarriedFrom {
   group_name: string;
 }
 
+/** The payment moved to another group with the student; it covers only the days before `date`. */
+export interface CarriedOut {
+  date: string;
+  /** Null when the carry-over is gone (cancelled or replaced). */
+  group_name: string | null;
+}
+
 export interface PaymentOut {
   id: string;
   membership_id: string;
@@ -65,6 +72,8 @@ export interface PaymentOut {
   replaces_payment_id: string | null;
   /** Set on a carry-over; an older server does not send it. */
   carried_from?: CarriedFrom | null;
+  /** Set on the original once it moved (older servers do not send it). */
+  carried_out?: CarriedOut | null;
   created_by: string | null;
   created_by_name: string | null;
   created_at: string | null;
@@ -366,6 +375,14 @@ export function isCarryOver(payment: Pick<PaymentOut, "carried_from"> | null | u
 export function carryOverLabel(payment: Pick<PaymentOut, "carried_from">): string {
   const name = payment.carried_from?.group_name?.trim();
   return name ? `перенос из «${name}»` : "перенос из другой группы";
+}
+
+/** «перенесено в «Алгебра 9Б» 15.10.2026» on the original that moved with the student; "" otherwise. */
+export function carriedOutLabel(payment: Pick<PaymentOut, "carried_out"> | null | undefined): string {
+  const out = payment?.carried_out;
+  if (!out) return "";
+  const name = out.group_name?.trim();
+  return `перенесено в ${name ? `«${name}»` : "другую группу"} ${formatDateRu(out.date)}`;
 }
 
 /** «450 000 сум», or «перенос из «Алгебра 7А»» for a carry-over (never «0 сум»). */

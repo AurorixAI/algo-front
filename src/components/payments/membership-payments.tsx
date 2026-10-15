@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronDown, Loader2, Pencil, X, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
+  carriedOutLabel,
   formatDateRu,
   formatMoney,
   formatMoneyInput,
@@ -270,6 +271,7 @@ function HistoryItem({
           {carried ? "оплата от" : "оплачено"} {formatDateRu(payment.paid_on)}
         </p>
         <p className={voided ? "line-through" : "text-slate-500"}>{paymentPeriodLabel(payment)}</p>
+        {!voided && payment.carried_out && <p className="text-[11px] text-slate-500">{carriedOutLabel(payment)}</p>}
         {/* The note of a carry-over only repeats «перенос из …». */}
         {payment.note && !carried && <p className="break-words text-slate-500">{payment.note}</p>}
         <p className="text-[11px] text-slate-400">

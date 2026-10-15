@@ -88,6 +88,9 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
         {payment && !isCarryOver(payment) && (
           <p className="text-xs text-slate-400">Если оплата переносилась при переводе в другую группу, перенос тоже отменится.</p>
         )}
+        {payment && isCarryOver(payment) && (
+          <p className="text-xs text-slate-400">Исходная оплата в «{payment.carried_from?.group_name}» снова начнёт действовать.</p>
+        )}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

@@ -41,6 +41,13 @@ test("last payment label shows the carry-over instead of an amount", () => {
   assert.equal(payments.lastPaymentLabel(null), "—");
 });
 
+test("the original that moved reads «перенесено в «Группа» дата»", () => {
+  const moved = { carried_out: { date: "2026-10-15", group_name: "Алгебра 9Б" } };
+  assert.equal(payments.carriedOutLabel(moved), "перенесено в «Алгебра 9Б» 15.10.2026");
+  assert.equal(payments.carriedOutLabel({ carried_out: { date: "2026-10-15", group_name: null } }), "перенесено в другую группу 15.10.2026");
+  for (const none of [{ carried_out: null }, {}, null, undefined]) assert.equal(payments.carriedOutLabel(none), "");
+});
+
 test("the hint appears only for a transfer and only for users who see money", () => {
   assert.equal(payments.transferPaymentHint({ transfer: true, moneyAvailable: true }), "Действующая оплата перейдёт в новую группу");
   assert.equal(payments.transferPaymentHint({ transfer: true, moneyAvailable: false }), null);
@@ -97,12 +104,14 @@ test("payment history, payments page and the void dialog never print «0 сум�
   assert.match(history, /paymentAmountLabel\(payment\)/);
   assert.doesNotMatch(history, /formatMoney\(payment\.amount\)/);
   assert.match(history, /payment\.note && !carried/);
+  assert.match(history, /carriedOutLabel\(payment\)/);
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /paymentAmountLabel\(last\)/);
   assert.doesNotMatch(page, /formatMoney\(last\.amount\)/);
   const voidModal = read("src/components/payments/payment-void-modal.tsx");
   assert.match(voidModal, /paymentAmountLabel\(payment\)/);
   assert.match(voidModal, /!isCarryOver\(payment\)/);
+  assert.match(voidModal, /снова начнёт действовать/);
 });
 
 test("transfer hint: drawer and «Перевести» modal, only via transferPaymentHint", () => {
