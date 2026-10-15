@@ -258,8 +258,9 @@ function HistoryItem({
 }) {
   const voided = Boolean(payment.voided_at);
   const carried = isCarryOver(payment);
+  // A carry-over is not corrected - the payment it was made from is; it can only be cancelled.
   const items: RowMenuItem[] = voided || !editable ? [] : [
-    { key: "correct", label: "Исправить", icon: Pencil, onSelect: onCorrect },
+    ...(carried ? [] : [{ key: "correct", label: "Исправить", icon: Pencil, onSelect: onCorrect } as RowMenuItem]),
     { key: "void", label: "Отменить", icon: XCircle, danger: true, onSelect: onVoid },
   ];
   return (
