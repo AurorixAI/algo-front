@@ -63,7 +63,7 @@ export function loginReturnTarget(pathname: string, search: string | null | unde
 }
 
 /** Pages a signed-out visitor may open: coming back to them after a sign-in is meaningless. */
-const PUBLIC_PAGES = /^\/($|(login|register|forgot-password|activate)(\/|$)|invite\/|d\/|e\/|diagnostic\/)/;
+const PUBLIC_PAGES = /^\/($|(login|register|forgot-password|reset-password|activate)(\/|$)|invite\/|d\/|e\/|diagnostic\/)/;
 
 /**
  * The sign-in address a CLIENT-side redirect uses (a dead session found by a failed request): `/login` with
