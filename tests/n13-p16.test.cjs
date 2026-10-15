@@ -58,16 +58,34 @@ test("certificate link: «справка, N фото», PDF counted apart, «с�
   assert.equal(row.excuseFilesLabel([img, img, pdf]), "справка, 2 фото, 1 PDF");
 });
 
-test("decided tabs: «Подтвердил: test admin · 15.10», the note goes to the tooltip", () => {
-  const item = (over) => ({ status: "confirmed", reviewed_by: { name: "test admin" }, reviewed_at: "2026-10-15T16:35:12", ...over });
-  assert.equal(row.excuseDecisionLabel(item({})), "Подтвердил: test admin · 15.10");
-  assert.equal(row.excuseDecisionLabel(item({ status: "rejected" })), "Отклонил: test admin · 15.10");
-  assert.equal(row.excuseDecisionLabel(item({ reviewed_by: null })), "Подтвердил: 15.10");
-  assert.equal(row.excuseDecisionLabel(item({ reviewed_at: null })), "Подтвердил: test admin");
-  assert.equal(row.excuseDecisionLabel(item({ reviewed_by: null, reviewed_at: null })), "Подтвердил");
+test("decided tabs: «Подтвердил: test admin», then the time and the note as muted text", () => {
+  const item = (over) => ({ status: "confirmed", reviewed_by: { name: "test admin" }, reviewed_at: "2026-10-15T16:35:12", review_note: null, ...over });
+  assert.equal(row.excuseDecisionLabel(item({})), "Подтвердил: test admin");
+  assert.equal(row.excuseDecisionLabel(item({ status: "rejected" })), "Отклонил: test admin");
+  assert.equal(row.excuseDecisionLabel(item({ reviewed_by: null })), "Подтвердил");
   assert.equal(row.excuseDecisionLabel(item({ status: "pending" })), "");
+  // the year appears only when it is not the current one
+  assert.equal(row.excuseDecisionWhen(item({}), "2026"), "15.10 16:35");
+  assert.equal(row.excuseDecisionWhen(item({}), "2027"), "15.10.2026 16:35");
+  assert.equal(row.excuseDecisionWhen(item({ reviewed_at: "2025-12-31T23:59:00" }), "2026"), "31.12.2025 23:59");
   // an explicit zone is shown on the Tashkent clock: 19:30Z on the 14th is 00:30 on the 15th there
-  assert.equal(row.excuseDecisionLabel(item({ reviewed_at: "2026-10-14T19:30:00Z" })), "Подтвердил: test admin · 15.10");
+  assert.equal(row.excuseDecisionWhen(item({ reviewed_at: "2026-10-14T19:30:00Z" }), "2026"), "15.10 00:30");
+  for (const bad of [null, undefined, "", "nope"]) assert.equal(row.excuseDecisionWhen(item({ reviewed_at: bad }), "2026"), "", String(bad));
+  // the note is inline, not only in a tooltip
+  assert.equal(row.excuseDecisionDetail(item({ review_note: "Справка принесена в офис" }), "2026"), "15.10 16:35 · «Справка принесена в офис»");
+  assert.equal(row.excuseDecisionDetail(item({ review_note: "  " }), "2026"), "15.10 16:35");
+  assert.equal(row.excuseDecisionDetail(item({ reviewed_at: null, review_note: "Только примечание" }), "2026"), "«Только примечание»");
+  assert.equal(row.excuseDecisionDetail(item({ reviewed_at: null }), "2026"), "");
+});
+
+test("the certificate picker offers photos only on a touch screen so Android shows the camera", () => {
+  assert.equal(row.excusePickerAccept(false), "image/*,application/pdf");
+  assert.equal(row.excusePickerAccept(true), "image/*");
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /matchMedia\("\(pointer: coarse\)"\)/);
+  assert.match(page, /accept=\{excusePickerAccept\(coarsePointer\)\}/);
+  assert.equal((page.match(/type="file"/g) || []).length, 1); // still one picker, one «Приложить справку»
+  assert.equal((page.match(/Приложить справку/g) || []).length, 1);
 });
 
 test("journal deep link keeps tab, month, lesson and date from the lesson key", () => {
@@ -180,9 +198,22 @@ test("«Пропуски»: one outline «Подтвердить» + «⋯», no
   assert.doesNotMatch(page, /Снять фото|capture=|Camera/);
   assert.match(page, /справки нет|excuseFilesLabel/);
   assert.match(page, /xl:line-clamp-2/); // reason clamps to two lines on the wide layout
-  // the reason's author and time live in the tooltip of the reason
-  assert.match(page, /title=\{reasonTitle\}/);
+  // the reason is in full on a card, two lines + click-to-expand on the wide table; author and time under it
+  assert.match(page, /<ExpandableText text=\{item\.reason\} meta=\{reasonMeta\(item\)\} \/>/);
+  assert.match(page, /aria-expanded=\{interactive \? expanded : undefined\}/);
+  assert.match(page, /expanded \? "" : "xl:line-clamp-2"/);
+  assert.doesNotMatch(page, /line-clamp-3/);
   assert.match(page, /formatDateTimeRu\(item\.reason_at\)/);
+  // ...and at the top of both decision dialogs
+  assert.match(page, /Причина пропуска/);
+  assert.match(page, /reasonMeta\(dialog\.item\)/);
+  // phone: a visible tel: link on its own line on cards, the icon (32px, 8px from the name) on the wide table
+  assert.match(page, /xl:hidden"\s*>\s*<Phone className="h-3 w-3" \/>\s*\{item\.student\.phone\}/);
+  assert.match(page, /flex items-center gap-2">\s*<Link/);
+  assert.match(page, /h-8 w-8 shrink-0[^"]*xl:inline-flex/);
+  // the decided tabs show the time and the note inline
+  assert.match(page, /excuseDecisionDetail\(item, businessToday\.slice\(0, 4\)\)/);
+  assert.doesNotMatch(page, /decisionTitle|cursor-help/);
   // the lesson cell shows the short teacher name
   assert.match(page, /shortPersonName\(item\.teacher\?\.name\)/);
   // the decided tabs show the decision instead of the deadline

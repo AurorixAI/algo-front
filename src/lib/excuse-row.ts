@@ -45,18 +45,45 @@ export function excuseFilesLabel(files: ReadonlyArray<{ content_type: string }> 
   return `справка, ${parts.join(", ")}`;
 }
 
-/** The decided tabs: «Подтвердил: test admin · 15.10» (the time and the note go to the tooltip). */
+/** The decided tabs, first line: «Подтвердил: test admin» (the time and the note follow as muted text). */
 export function excuseDecisionLabel(item: {
   status: string;
   reviewed_by?: { name: string } | null;
-  reviewed_at?: string | null;
 }): string {
   if (item.status !== "confirmed" && item.status !== "rejected") return "";
   const verb = item.status === "confirmed" ? "Подтвердил" : "Отклонил";
   const who = item.reviewed_by?.name?.trim();
-  const day = formatDateTimeRu(item.reviewed_at).slice(0, 5);
-  const tail = [who, day].filter(Boolean).join(" · ");
-  return tail ? `${verb}: ${tail}` : verb;
+  return who ? `${verb}: ${who}` : verb;
+}
+
+/**
+ * When the decision was made: «15.10 16:35», with the year («15.10.2025 16:35») when it is not
+ * `currentYear` (the year of the business "today"). "" when the time is missing or unreadable.
+ */
+export function excuseDecisionWhen(item: { reviewed_at?: string | null }, currentYear: string): string {
+  const full = formatDateTimeRu(item.reviewed_at); // ДД.ММ.ГГГГ ЧЧ:ММ
+  const match = /^(\d{2}\.\d{2})\.(\d{4}) (\d{2}:\d{2})$/.exec(full);
+  if (!match) return "";
+  return match[2] === currentYear ? `${match[1]} ${match[3]}` : `${match[1]}.${match[2]} ${match[3]}`;
+}
+
+/** The secondary line of a decided excuse: «15.10 16:35 · «Справка принесена в офис»» (no note -> just the time). */
+export function excuseDecisionDetail(
+  item: { reviewed_at?: string | null; review_note?: string | null },
+  currentYear: string,
+): string {
+  const when = excuseDecisionWhen(item, currentYear);
+  const note = item.review_note?.trim();
+  return [when, note ? `«${note}»` : ""].filter(Boolean).join(" · ");
+}
+
+export const EXCUSE_PICKER_ACCEPT = "image/*,application/pdf";
+/** A touch screen: «image/*» alone makes Android offer the camera next to the gallery (a PDF in the list hides it). */
+export const EXCUSE_PICKER_ACCEPT_TOUCH = "image/*";
+
+/** `accept` of the one certificate picker: photos and PDF on a desktop, photos only where the main pointer is a finger. */
+export function excusePickerAccept(coarsePointer: boolean): string {
+  return coarsePointer ? EXCUSE_PICKER_ACCEPT_TOUCH : EXCUSE_PICKER_ACCEPT;
 }
 
 /** `lesson_key` is `<date>_<lessonId>`: the id the journal highlights, or null when the key has another shape. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -29,9 +29,11 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineChip } from "@/lib/excuse-deadline";
 import {
+  excuseDecisionDetail,
   excuseDecisionLabel,
   excuseFilesLabel,
   excuseJournalHref,
+  excusePickerAccept,
   lessonShortLabel,
   shortPersonName,
 } from "@/lib/excuse-row";
@@ -130,6 +132,58 @@ async function downscaleToJpeg(file: File): Promise<{ blob: Blob; name: string }
   }
 }
 
+/** «Дилноза Каримова · 09.10.2026 16:35»: who wrote the reason and when (shown as written, Tashkent clock). */
+function reasonMeta(item: AttendanceExcuseItem): string {
+  return [item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · ");
+}
+
+/**
+ * A text that a card (< xl) shows in full and the wide table cuts to two lines. When something is cut
+ * off the whole cell is a toggle (click, Enter, Space; `aria-expanded`) that shows the rest and the
+ * optional muted `meta` line; when everything fits it is plain text.
+ */
+function ExpandableText({
+  text,
+  meta,
+  className = "text-sm text-slate-800",
+  metaClassName = "text-xs text-slate-400",
+}: {
+  text: string;
+  meta?: string;
+  className?: string;
+  metaClassName?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [cut, setCut] = useState(false);
+  const textRef = useRef<HTMLSpanElement | null>(null);
+
+  useLayoutEffect(() => {
+    const element = textRef.current;
+    if (!element || expanded) return;
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [text, expanded]);
+
+  const interactive = cut || expanded;
+  return (
+    <button
+      type="button"
+      disabled={!interactive}
+      aria-expanded={interactive ? expanded : undefined}
+      title={interactive ? (expanded ? "Свернуть" : "Показать полностью") : undefined}
+      onClick={() => setExpanded((value) => !value)}
+      className="block w-full cursor-default rounded text-left enabled:cursor-pointer enabled:hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
+    >
+      <span ref={textRef} className={`block break-words ${className} ${expanded ? "" : "xl:line-clamp-2"}`}>{text}</span>
+      {meta && <span className={`block ${metaClassName} ${expanded ? "" : "xl:hidden"}`}>{meta}</span>}
+    </button>
+  );
+}
+
 export function ExcusesPage(props: { studentProfileBasePath: string; groupsBasePath: string }) {
   // The demo API has no excuse endpoints: show a note and request nothing.
   if (DEMO_MODE) {
@@ -179,6 +233,17 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   const [viewer, setViewer] = useState<{ excuseId: string; file: AttendanceExcuseFile; url: string | null; error: string | null } | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{ excuseId: string; file: AttendanceExcuseFile } | null>(null);
+
+  // A finger as the main pointer (phone, tablet): the picker lists photos only, so Android offers the camera.
+  const [coarsePointer, setCoarsePointer] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia("(pointer: coarse)");
+    const sync = () => setCoarsePointer(query.matches);
+    sync();
+    query.addEventListener?.("change", sync);
+    return () => query.removeEventListener?.("change", sync);
+  }, []);
 
   const requests = useRef(createRequestSequence());
   const viewerRequests = useRef(createRequestSequence());
@@ -512,14 +577,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                 const phoneHref = telHref(item.student.phone);
                 const chip = pendingTab ? excuseDeadlineChip(item, businessToday) : null;
                 const teacherShort = shortPersonName(item.teacher?.name) || "—";
-                const reasonTitle = [
-                  item.reason,
-                  [item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · "),
-                ].filter(Boolean).join("\n\n");
-                const decisionTitle = [
-                  formatDateTimeRu(item.reviewed_at),
-                  item.review_note ? `Примечание: ${item.review_note}` : "",
-                ].filter(Boolean).join("\n");
+                const decisionDetail = excuseDecisionDetail(item, businessToday.slice(0, 4));
                 return (
                   <li
                     key={item.id}
@@ -527,7 +585,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                   >
                     {/* Ученик */}
                     <div className={`min-w-0 ${pendingTab ? "" : "pr-8 xl:pr-0"}`}>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         <Link
                           href={`${studentProfileBasePath}/${item.student.id}`}
                           className="min-w-0 break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate"
@@ -540,7 +598,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                             href={phoneHref}
                             title={item.student.phone || undefined}
                             aria-label={`Позвонить: ${item.student.phone}`}
-                            className="-my-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-700"
+                            className="-my-1.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-700 xl:inline-flex"
                           >
                             <Phone className="h-3.5 w-3.5" />
                           </a>
@@ -549,6 +607,16 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                       <p className="break-words text-xs text-slate-500 xl:truncate" title={item.group.name}>
                         {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
                       </p>
+                      {phoneHref && (
+                        <a
+                          href={phoneHref}
+                          title={item.student.phone || undefined}
+                          className="mt-0.5 inline-flex items-center gap-1 py-0.5 text-xs tabular-nums text-primary-700 hover:underline xl:hidden"
+                        >
+                          <Phone className="h-3 w-3" />
+                          {item.student.phone}
+                        </a>
+                      )}
                     </div>
 
                     {/* Урок */}
@@ -562,7 +630,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
                     {/* Причина */}
                     <div className="min-w-0">
-                      <p className="line-clamp-3 break-words text-sm text-slate-800 xl:line-clamp-2" title={reasonTitle}>{item.reason}</p>
+                      <ExpandableText text={item.reason} meta={reasonMeta(item)} />
                       <p className="text-xs">
                         {uploading ? (
                           <span className="inline-flex items-center gap-1 text-slate-500"><Loader2 className="h-3 w-3 animate-spin" />загрузка…</span>
@@ -595,15 +663,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                       </div>
                     ) : (
                       <div className="min-w-0">
-                        <p
-                          className={`line-clamp-2 break-words text-xs text-slate-600 xl:text-sm ${item.review_note ? "cursor-help" : ""}`}
-                          title={decisionTitle || undefined}
-                        >
+                        <p className="break-words text-xs text-slate-700 xl:text-sm" title={formatDateTimeRu(item.reviewed_at) || undefined}>
                           {excuseDecisionLabel(item) || "—"}
                         </p>
-                        {item.review_note && (
-                          <p className="line-clamp-2 break-words text-xs text-slate-500 xl:hidden">Примечание: {item.review_note}</p>
-                        )}
+                        {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" />}
                       </div>
                     )}
 
@@ -647,7 +710,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,application/pdf"
+        accept={excusePickerAccept(coarsePointer)}
         tabIndex={-1}
         aria-hidden="true"
         className="sr-only"
@@ -678,6 +741,13 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
           </>
         }
       >
+        {dialog && (
+          <div className="mb-3 rounded-xl bg-slate-50 px-3 py-2.5">
+            <p className="text-xs font-medium text-slate-500">Причина пропуска</p>
+            <p className="mt-0.5 whitespace-pre-line break-words text-sm text-slate-800">{dialog.item.reason}</p>
+            {reasonMeta(dialog.item) && <p className="mt-1 text-xs text-slate-400">{reasonMeta(dialog.item)}</p>}
+          </div>
+        )}
         <div className="space-y-1.5 pb-2">
           <label htmlFor="excuse-decision-note" className="block text-xs font-medium text-slate-600">
             {dialog?.decision === "rejected" ? "Причина отказа (необязательно)" : "Примечание"}
