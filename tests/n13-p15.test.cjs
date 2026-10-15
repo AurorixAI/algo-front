@@ -188,8 +188,9 @@ test("settings carry the excuse deadline: defaults, limits, PATCH diff", () => {
     excuse_deadline_days: 1, excuse_deadline_lessons: 4,
   });
   const settings = read("app/owner/settings/page.tsx");
-  assert.match(settings, /Подтверждать уважительный пропуск за/);
-  assert.match(settings, /или когда в пакете осталось/);
+  // N13 P2.2: the fields moved to the «Посещаемость» section, both rules visible with their own captions
+  assert.match(settings, /Оплата по месяцам: за/);
+  assert.match(settings, /Пакет уроков: когда осталось/);
   assert.match(settings, /до конца оплаты/);
 });
 

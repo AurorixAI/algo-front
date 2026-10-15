@@ -454,9 +454,12 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   assert.match(read("src/lib/payments-summary.ts"), /if \(DEMO_MODE\)/);
   assert.doesNotMatch(read("src/app/teacher/layout.tsx"), /Payments/);
   // the student card asks for money only when it is not a teacher and the server allowed it
+  // (N13 P2.2: money moved from the «Группы» block to its own «Оплаты» tab; «Обучение» holds none)
   const groups = read("src/components/students/student-groups-block.tsx");
-  assert.match(groups, /moneyEnabled = !isTeacher && !DEMO_MODE && available/);
-  assert.match(groups, /if \(!moneyEnabled\) \{ setRows\(null\); return; \}/);
+  assert.doesNotMatch(groups, /MembershipPayments|getStudentMemberships|usePaymentsSummary/);
+  const moneyBlock = read("src/components/students/student-payments-block.tsx");
+  assert.match(moneyBlock, /moneyEnabled = !isTeacher && !DEMO_MODE && available/);
+  assert.match(moneyBlock, /if \(!moneyEnabled\) \{ setRows\(null\); return; \}/);
   // the add-student drawer offers the fee only when payments are available
   const drawer = read("src/components/groups/add-student-drawer.tsx");
   assert.match(drawer, /moneyAvailable &&/);
@@ -464,7 +467,7 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   assert.match(drawer, /Перевести сюда/);
   assert.match(drawer, /Добавить ещё и в эту группу/);
   // the owner settings block belongs to the owner only
-  assert.match(read("src/app/owner/settings/page.tsx"), /isOwner && <PaymentsSettingsSection \/>/);
+  assert.match(read("src/app/owner/settings/page.tsx"), /visibleSettingsSections\(\{ isOwner, paymentSettingsReadable/);
   // the quiet style of the attendance section: no select-all, no bulk actions on the list
   const page = read("src/components/payments/payments-page.tsx");
   assert.doesNotMatch(page, /Выбрать все|checkbox|bulk/i);

@@ -106,7 +106,7 @@ test("payment history, payments page and the void dialog never print «0 сум�
   assert.match(history, /payment\.note && !carried/);
   assert.match(history, /carriedOutLabel\(payment\)/);
   // a carry-over can only be cancelled: no «Исправить» for it, neither in the history nor on the payments page
-  assert.match(history, /\.\.\.\(carried \? \[\] : \[\{ key: "correct"/);
+  assert.match(history, /if \(!carried\) items\.push\(\{ key: "correct"/);
   assert.match(read("src/components/payments/payments-page.tsx"), /if \(!isCarryOver\(last\)\) menu\.push\(\{ key: "correct"/);
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /paymentAmountLabel\(last\)/);
