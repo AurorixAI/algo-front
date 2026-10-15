@@ -7,6 +7,7 @@
  */
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
+import { CHIP_TONE_CLASS } from "./chip-tone";
 
 // ── API contract (spec §3) ─────────────────────────────────────────────────
 
@@ -331,12 +332,13 @@ export function statusTone(status: PaymentStatus): StatusTone {
   }
 }
 
+/** Same grey / amber / red as the deadline chips of «Пропуски»; paid, free and no-data states stay grey. */
 export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
-  danger: "border-rose-200 bg-rose-50 text-rose-700",
-  warning: "border-amber-200 bg-amber-50 text-amber-800",
-  ok: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  free: "border-sky-200 bg-sky-50 text-sky-700",
-  muted: "border-slate-200 bg-slate-50 text-slate-600",
+  danger: CHIP_TONE_CLASS.danger,
+  warning: CHIP_TONE_CLASS.warn,
+  ok: CHIP_TONE_CLASS.neutral,
+  free: CHIP_TONE_CLASS.neutral,
+  muted: CHIP_TONE_CLASS.neutral,
 };
 
 /** «05.10.2026 — 04.11.2026» (calendar) or «12 уроков с 05.10.2026» (by lessons). */

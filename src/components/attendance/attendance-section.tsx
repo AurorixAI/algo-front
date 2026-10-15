@@ -30,7 +30,7 @@ function AttendanceSectionContent({ studentProfileBasePath, groupsBasePath }: At
 
   // A new tab is one more entry here.
   const tabs: SectionTab[] = [
-    { key: "excuses", label: "Пропуски", count: pending, content: <ExcusesPage studentProfileBasePath={studentProfileBasePath} /> },
+    { key: "excuses", label: "Пропуски", count: pending, content: <ExcusesPage studentProfileBasePath={studentProfileBasePath} groupsBasePath={groupsBasePath} /> },
     { key: "open", label: "Незакрытые уроки", count: openLessons, content: <OpenLessonsView groupsBasePath={groupsBasePath} /> },
   ];
 

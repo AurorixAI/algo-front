@@ -4,6 +4,8 @@
  * business date of "today" (`formatBusinessDate()`), so nothing here depends on the browser zone.
  */
 
+import type { ChipTone } from "./chip-tone";
+
 const DAY_MS = 86_400_000;
 
 function utcDay(iso: string): number {
@@ -117,4 +119,66 @@ export function excuseDeadlineView(
   }
   const fallback = excuseDeadlineHint(item.lesson_date, item.status, today);
   return fallback ? { text: fallback.text, warn: fallback.overdue } : null;
+}
+
+// ── Compact chip of the «Срок» column (N13 P1.6) ─────────────────────────────
+
+export interface ExcuseDeadlineChip {
+  /** «до 31.10 · 16 дн.», «пакет: осталось 2 урока», «срок прошёл», «пакет закончился». */
+  text: string;
+  /** neutral (grey) by default, warn (amber) when it is close, danger (red) when it is over. */
+  tone: ChipTone;
+  /** The longer sentence of `excuseDeadlineView` for the tooltip. */
+  title: string;
+}
+
+/** Amber from this many days (or lessons flagged `urgent` by the server) before the deadline. */
+export const EXCUSE_DEADLINE_WARN_DAYS = 3;
+
+function dayMonth(date: string): string {
+  return `${date.slice(8, 10)}.${date.slice(5, 7)}`;
+}
+
+function upperFirst(text: string): string {
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : text;
+}
+
+/**
+ * Short form of the deadline for the table and the cards. The server value wins (same checks as
+ * `excuseDeadlineView`); an older server without `deadline` falls back to the month end.
+ * null for anything but a pending excuse. Confirming after the deadline stays allowed - this is only a hint.
+ */
+export function excuseDeadlineChip(
+  item: { lesson_date: string | null | undefined; status: string; deadline?: ServerExcuseDeadline | null },
+  today: string,
+): ExcuseDeadlineChip | null {
+  const view = excuseDeadlineView(item, today);
+  if (!view) return null;
+  const title = upperFirst(view.text);
+  const server = item.deadline as unknown as Record<string, unknown> | null | undefined;
+
+  if (server && server.kind === "date" && isoDay(server.date)) {
+    const left = typeof server.days_left === "number" && Number.isFinite(server.days_left)
+      ? server.days_left
+      : utcDay(server.date) - utcDay(today);
+    return dateChip(server.date, left, server.overdue === true, title);
+  }
+  if (server && server.kind === "lessons" && typeof server.lessons_left === "number" && Number.isFinite(server.lessons_left)) {
+    const left = Math.max(0, server.lessons_left);
+    if (server.overdue === true || left === 0) return { text: "пакет закончился", tone: "danger", title };
+    return { text: `пакет: осталось ${left} ${lessonsWord(left)}`, tone: server.urgent === true ? "warn" : "neutral", title };
+  }
+  // No usable server value: the last day of the lesson's month.
+  const date = excuseDeadline(item.lesson_date);
+  if (!date) return null;
+  const left = utcDay(date) - utcDay(today);
+  if (Number.isNaN(left)) return null;
+  return dateChip(date, left, false, title);
+}
+
+function dateChip(date: string, left: number, overdue: boolean, title: string): ExcuseDeadlineChip {
+  if (overdue || left < 0) return { text: "срок прошёл", tone: "danger", title };
+  const label = `до ${dayMonth(date)}`;
+  if (left === 0) return { text: `${label} · сегодня`, tone: "warn", title };
+  return { text: `${label} · ${left} дн.`, tone: left <= EXCUSE_DEADLINE_WARN_DAYS ? "warn" : "neutral", title };
 }

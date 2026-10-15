@@ -10,6 +10,7 @@ import {
   addMonthMinusDay,
   bucketCount,
   buildPaymentPayload,
+  formatDateRu,
   formatMoney,
   lastPaymentLabel,
   PAYMENT_BUCKETS,
@@ -41,7 +42,7 @@ import { PaymentVoidModal } from "./payment-void-modal";
 const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
-const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.1fr)_132px_minmax(0,1.2fr)_minmax(0,1.1fr)_auto] xl:items-center xl:gap-x-4";
+const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_120px_minmax(0,1.4fr)_112px_124px] xl:items-center xl:gap-x-4";
 const GRID_NONE = "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,2.6fr)] xl:items-center xl:gap-x-4";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -373,20 +374,17 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
           <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
         </div>
       ) : items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-1.5 py-14 text-center">
-          <Wallet className="h-6 w-6 text-slate-300" />
-          <p className="text-sm font-medium text-slate-700">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
-        </div>
+        <p className="py-14 text-center text-sm text-slate-400">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
         <section className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
           {bucket !== "none" && (
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_DEFAULT}`}>
+            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_DEFAULT}`}>
               <span>Ученик</span>
               <span>Группа</span>
               <span>Оплата в месяц</span>
               <span>Статус</span>
               <span>Последняя оплата</span>
-              <span className="w-[140px]" />
+              <span />
             </div>
           )}
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
@@ -477,59 +475,60 @@ function PaymentRow({
 
   const student = (
     <div className="min-w-0">
-      <Link href={`${studentProfileBasePath}/${row.student_id}`} className="block break-words text-sm font-semibold text-slate-900 hover:text-primary-700" title="Открыть карточку ученика">
+      <Link href={`${studentProfileBasePath}/${row.student_id}`} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate" title="Открыть карточку ученика">
         {row.student_name}
       </Link>
-      <p className="text-[11px] text-slate-400">
-        {row.display_id && <span className="font-mono">{row.display_id}</span>}
-        {row.display_id && row.class_level ? " · " : ""}
-        {row.class_level ? `${row.class_level} класс` : ""}
+      <p className="truncate text-xs text-slate-500">
+        {[row.display_id, row.class_level ? `${row.class_level} класс` : ""].filter(Boolean).join(" · ")}
       </p>
     </div>
   );
   const group = (
     <div className="min-w-0">
-      <p className="break-words text-sm text-slate-800">{row.group_name}</p>
-      <p className="break-words text-xs text-slate-400">{row.teacher_name || "—"}</p>
+      <p className="break-words text-sm text-slate-800 xl:truncate" title={row.group_name}>{row.group_name}</p>
+      <p className="truncate text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
   );
 
   return (
-    <li className={`rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-5 xl:py-3.5 ${quick ? GRID_NONE : GRID_DEFAULT}`}>
-      <div className="flex items-start justify-between gap-3 xl:block">
-        {student}
-        {!quick && (
-          <div className="flex shrink-0 items-center gap-1 xl:hidden">
-            <PayButton row={row} onPay={onPay} />
-            <RowMenu items={menu} />
-          </div>
-        )}
-      </div>
-
-      <div className="mt-2 xl:mt-0">{group}</div>
+    <li className={`flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-5 xl:py-2.5 ${quick ? GRID_NONE : GRID_DEFAULT}`}>
+      {student}
+      {group}
 
       {quick ? (
-        <div className="mt-3 xl:mt-0">
+        <div className="mt-1.5 xl:mt-0">
           <QuickEntry row={row} periodMode={periodMode} lessonsDefault={lessonsDefault} onDone={onQuickDone} />
         </div>
       ) : (
         <>
-          <div className="mt-3 flex items-baseline justify-between gap-3 text-sm xl:mt-0 xl:block">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
             <span className="text-xs text-slate-400 xl:hidden">Оплата в месяц</span>
-            <span className="font-medium tabular-nums text-slate-800">{row.monthly_fee !== null ? formatMoney(row.monthly_fee) : "—"}</span>
+            {row.monthly_fee === null || row.monthly_fee === undefined ? (
+              <span className="text-slate-400">не задана</span>
+            ) : (
+              <span className="font-medium tabular-nums text-slate-800">{formatMoney(row.monthly_fee)}</span>
+            )}
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:mt-0 xl:block">
-            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${tone}`}>{statusLabel(row)}</span>
-            {detail && <p className="text-[11px] text-slate-400 xl:mt-0.5">{detail}</p>}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block">
+            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{statusLabel(row)}</span>
+            {detail && <p className="text-xs text-slate-500">{detail}</p>}
           </div>
 
-          <div className="mt-2 flex items-baseline justify-between gap-3 text-xs text-slate-500 xl:mt-0 xl:block">
-            <span className="text-slate-400 xl:hidden">Последняя оплата</span>
-            <span className="tabular-nums">{lastPaymentLabel(last)}</span>
+          <div className="flex items-baseline justify-between gap-3 text-xs text-slate-500 xl:block">
+            <span className="shrink-0 text-slate-400 xl:hidden">Последняя оплата</span>
+            {last ? (
+              <span className="text-right tabular-nums xl:text-left" title={lastPaymentLabel(last)}>
+                <span className="xl:block">{formatDateRu(last.paid_on)}</span>
+                <span className="xl:hidden"> · </span>
+                <span className="xl:block xl:text-slate-400">{formatMoney(last.amount)}</span>
+              </span>
+            ) : (
+              <span className="text-slate-400">—</span>
+            )}
           </div>
 
-          <div className="hidden w-[140px] items-center justify-end gap-1 xl:flex">
+          <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
             <PayButton row={row} onPay={onPay} />
             <RowMenu items={menu} />
           </div>
@@ -544,7 +543,7 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
     <button
       type="button"
       onClick={onPay}
-      className="rounded-lg border border-primary-200 px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-50"
+      className="flex-1 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:flex-none"
     >
       {row.last_payment ? "Продлить" : "Внести"}
     </button>

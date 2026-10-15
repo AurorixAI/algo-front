@@ -2,20 +2,21 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  Camera,
+  BookOpen,
   Check,
   ChevronLeft,
   ChevronRight,
-  ClipboardCheck,
-  FileText,
-  Image as ImageIcon,
   Loader2,
+  MessageSquare,
   Paperclip,
+  Phone,
   Trash2,
   Undo2,
-  X,
+  UserRound,
+  XCircle,
 } from "lucide-react";
 import {
   DEMO_MODE,
@@ -25,7 +26,15 @@ import {
   type ExcuseReviewStatus,
 } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { excuseDeadlineView } from "@/lib/excuse-deadline";
+import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
+import { excuseDeadlineChip } from "@/lib/excuse-deadline";
+import {
+  excuseDecisionLabel,
+  excuseFilesLabel,
+  excuseJournalHref,
+  lessonShortLabel,
+  shortPersonName,
+} from "@/lib/excuse-row";
 import { telHref } from "@/lib/phone";
 import {
   checkExcuseFile,
@@ -34,7 +43,6 @@ import {
   EXCUSE_IMAGE_JPEG_QUALITY,
   EXCUSE_IMAGE_MAX_SIDE,
   fitWithin,
-  formatDateRu,
   formatDateTimeRu,
   formatFileSize,
   monthLabelRu,
@@ -47,19 +55,24 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { Modal } from "@/components/ui/modal";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 
 const PAGE_SIZE = 50;
 
-/** Same columns for the header row and every entry on wide screens. */
-const GRID_COLUMNS = "xl:grid xl:grid-cols-[104px_minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1.1fr)_minmax(0,1.3fr)] xl:gap-x-4";
+/**
+ * Columns of the wide layout (cards below `xl`: the sidebar takes 240 px from a tablet up, so a
+ * five-column row only fits from 1280 px). Pending tabs show the deadline, decided ones the decision.
+ */
+const GRID_PENDING = "xl:grid xl:grid-cols-[minmax(0,1.45fr)_96px_minmax(0,1.55fr)_168px_164px] xl:items-center xl:gap-x-3";
+const GRID_DECIDED = "xl:grid xl:grid-cols-[minmax(0,1.45fr)_96px_minmax(0,1.55fr)_minmax(0,1.3fr)_40px] xl:items-center xl:gap-x-3";
 
 type Tab = ExcuseReviewStatus;
 
-const STATUS_BADGE: Record<ExcuseReviewStatus, { label: string; className: string }> = {
-  pending: { label: "Ожидает", className: "border-amber-300 bg-amber-50 text-amber-800" },
-  confirmed: { label: "Подтверждён", className: "border-emerald-300 bg-emerald-50 text-emerald-700" },
-  rejected: { label: "Отклонён", className: "border-rose-300 bg-rose-50 text-rose-700" },
+const EMPTY_TEXT: Record<Tab, string> = {
+  pending: "Нет пропусков, ожидающих решения",
+  confirmed: "Подтверждённых пропусков нет",
+  rejected: "Отклонённых пропусков нет",
 };
 
 /** Shrink a photo so the longer side is at most 1600 px and re-encode it as JPEG. */
@@ -117,40 +130,7 @@ async function downscaleToJpeg(file: File): Promise<{ blob: Blob; name: string }
   }
 }
 
-function FileChip({
-  file,
-  onOpen,
-  onDelete,
-  busy,
-}: {
-  file: AttendanceExcuseFile;
-  onOpen: () => void;
-  onDelete: () => void;
-  busy: boolean;
-}) {
-  const isPdf = file.content_type === "application/pdf";
-  return (
-    <li className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs">
-      {isPdf ? <FileText className="h-4 w-4 shrink-0 text-rose-500" /> : <ImageIcon className="h-4 w-4 shrink-0 text-sky-600" />}
-      <button type="button" onClick={onOpen} className="min-w-0 flex-1 truncate text-left font-medium text-slate-700 hover:text-primary-700" title="Открыть">
-        {file.filename || (isPdf ? "Справка.pdf" : "Справка")}
-        <span className="ml-1 font-normal text-slate-400">{formatFileSize(file.size_bytes)}</span>
-      </button>
-      <button
-        type="button"
-        onClick={onDelete}
-        disabled={busy}
-        aria-label="Удалить файл"
-        title="Удалить файл"
-        className="shrink-0 rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50"
-      >
-        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-      </button>
-    </li>
-  );
-}
-
-export function ExcusesPage(props: { studentProfileBasePath: string }) {
+export function ExcusesPage(props: { studentProfileBasePath: string; groupsBasePath: string }) {
   // The demo API has no excuse endpoints: show a note and request nothing.
   if (DEMO_MODE) {
     return (
@@ -162,7 +142,14 @@ export function ExcusesPage(props: { studentProfileBasePath: string }) {
   return <ExcusesPageContent {...props} />;
 }
 
-function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath: string }) {
+/** Decision dialog: «Отклонить…» (note optional) or «Подтвердить с примечанием…» (note required). */
+interface DecisionDialog {
+  item: AttendanceExcuseItem;
+  decision: "confirmed" | "rejected";
+}
+
+function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
+  const router = useRouter();
   const { showToast, toastNode } = useToast();
   // The list covers one calendar month on the business clock (Asia/Tashkent).
   const currentMonth = useMemo(() => monthOf(formatBusinessDate()), []);
@@ -183,16 +170,21 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [fileBusyId, setFileBusyId] = useState<string | null>(null);
 
-  const [viewer, setViewer] = useState<{ file: AttendanceExcuseFile; url: string | null; error: string | null } | null>(null);
+  const [dialog, setDialog] = useState<DecisionDialog | null>(null);
+  const [dialogNote, setDialogNote] = useState("");
+
+  const [viewer, setViewer] = useState<{ excuseId: string; file: AttendanceExcuseFile; url: string | null; error: string | null } | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{ excuseId: string; file: AttendanceExcuseFile } | null>(null);
 
   const requests = useRef(createRequestSequence());
   const viewerRequests = useRef(createRequestSequence());
+  // One hidden picker for the whole list: the menu item of a row points it at that row's excuse.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const uploadTargetId = useRef<string | null>(null);
 
   // Teacher -> group directory for the cascading filter.
   useEffect(() => {
@@ -267,18 +259,20 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
 
   const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
-  const review = async (item: AttendanceExcuseItem, decision: "confirmed" | "rejected") => {
+  /** true when the decision was saved (the dialog closes only then, so a typed note survives an error). */
+  const review = async (item: AttendanceExcuseItem, decision: "confirmed" | "rejected", noteText = ""): Promise<boolean> => {
     markBusy(item.id, true);
     try {
-      const note = (notes[item.id] || "").trim();
+      const note = noteText.trim();
       await orgApi.reviewAttendanceExcuse(item.id, { decision, ...(note ? { note } : {}) });
       showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён");
-      setNotes((previous) => { const next = { ...previous }; delete next[item.id]; return next; });
       await load(true);
       refreshBadge();
+      return true;
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Не удалось сохранить решение", "error");
       void load(true);
+      return false;
     } finally {
       markBusy(item.id, false);
     }
@@ -298,7 +292,23 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
     }
   };
 
+  const openDialog = (item: AttendanceExcuseItem, decision: "confirmed" | "rejected") => {
+    setDialogNote("");
+    setDialog({ item, decision });
+  };
+  const closeDialog = () => { setDialog(null); setDialogNote(""); };
+  const submitDialog = async () => {
+    if (!dialog) return;
+    if (dialog.decision === "confirmed" && !dialogNote.trim()) return;
+    if (await review(dialog.item, dialog.decision, dialogNote)) closeDialog();
+  };
+
   // ── Files ───────────────────────────────────────────────────────────────
+  const pickFile = (item: AttendanceExcuseItem) => {
+    uploadTargetId.current = item.id;
+    fileInputRef.current?.click();
+  };
+
   const attachFile = async (item: AttendanceExcuseItem, picked: File | null | undefined) => {
     if (!picked) return;
     const check = checkExcuseFile(picked, item.files.length);
@@ -333,19 +343,25 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
     }
   };
 
-  const openFile = async (file: AttendanceExcuseFile) => {
+  const onFilePicked = (picked: File | null | undefined) => {
+    const target = items.find((entry) => entry.id === uploadTargetId.current);
+    uploadTargetId.current = null;
+    if (target) void attachFile(target, picked);
+  };
+
+  const openFile = async (excuseId: string, file: AttendanceExcuseFile) => {
     // Only the latest request may fill the viewer: a slow answer for a file that
     // was closed or replaced by another one is dropped.
     const token = viewerRequests.current.next();
-    setViewer({ file, url: null, error: null });
+    setViewer({ excuseId, file, url: null, error: null });
     try {
       const blob = await orgApi.fetchAttendanceExcuseFile(file.id);
       if (!viewerRequests.current.isCurrent(token)) return;
       const typed = blob.type ? blob : new Blob([blob], { type: file.content_type });
-      setViewer({ file, url: URL.createObjectURL(typed), error: null });
+      setViewer({ excuseId, file, url: URL.createObjectURL(typed), error: null });
     } catch (error) {
       if (!viewerRequests.current.isCurrent(token)) return;
-      setViewer({ file, url: null, error: error instanceof Error ? error.message : "Не удалось открыть файл" });
+      setViewer({ excuseId, file, url: null, error: error instanceof Error ? error.message : "Не удалось открыть файл" });
     }
   };
 
@@ -372,12 +388,47 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
     }
   };
 
+  // The files of the excuse that is open in the viewer (they change when one is deleted or added elsewhere).
+  const viewerFiles = viewer ? (items.find((entry) => entry.id === viewer.excuseId)?.files ?? [viewer.file]) : [];
+  const viewerIndex = viewer ? Math.max(0, viewerFiles.findIndex((file) => file.id === viewer.file.id)) : 0;
+  const stepViewer = (delta: number) => {
+    if (!viewer) return;
+    const next = viewerFiles[viewerIndex + delta];
+    if (next) void openFile(viewer.excuseId, next);
+  };
+
+  const menuFor = (item: AttendanceExcuseItem): RowMenuItem[] => {
+    const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
+    const attach: RowMenuItem = atLimit
+      ? { key: "attach", label: `Максимум файлов: ${EXCUSE_FILE_MAX_COUNT}`, icon: Paperclip, disabled: true, onSelect: () => undefined }
+      : { key: "attach", label: "Приложить справку", icon: Paperclip, onSelect: () => pickFile(item) };
+    const reject: RowMenuItem = { key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: () => openDialog(item, "rejected") };
+    const confirmWithNote: RowMenuItem = { key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: () => openDialog(item, "confirmed") };
+    const journal: RowMenuItem = { key: "journal", label: "Открыть журнал", icon: BookOpen, onSelect: () => router.push(excuseJournalHref(groupsBasePath, item)) };
+    const card: RowMenuItem = { key: "card", label: "Карточка ученика", icon: UserRound, onSelect: () => router.push(`${studentProfileBasePath}/${item.student.id}`) };
+    const reset: RowMenuItem = { key: "reset", label: "Сбросить решение", icon: Undo2, onSelect: () => void resetDecision(item) };
+
+    if (item.status === "pending") return [reject, attach, confirmWithNote, journal, card];
+    if (item.status === "confirmed") return [reject, reset, attach, journal, card];
+    return [
+      { key: "confirm", label: "Подтвердить", icon: Check, onSelect: () => void review(item, "confirmed") },
+      confirmWithNote,
+      reset,
+      attach,
+      journal,
+      card,
+    ];
+  };
+
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "pending", label: `Ожидают (${pendingTotal})` },
     { key: "confirmed", label: "Подтверждено" },
     { key: "rejected", label: "Отклонено" },
   ];
+  const pendingTab = tab === "pending";
+  const grid = pendingTab ? GRID_PENDING : GRID_DECIDED;
+  const dialogBusy = dialog ? busyIds.has(dialog.item.id) : false;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -431,7 +482,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
       </div>
 
       {/* List */}
-      <section className={!loading && !loadError && items.length > 0 ? "overflow-hidden rounded-2xl border border-slate-200 bg-white" : ""}>
+      <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
             <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
@@ -444,185 +495,139 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
             <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
         ) : items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-1.5 py-14 text-center">
-            <ClipboardCheck className="h-6 w-6 text-slate-300" />
-            <p className="text-sm font-medium text-slate-700">
-              {tab === "pending" ? "Нет пропусков, ожидающих решения" : tab === "confirmed" ? "Подтверждённых пропусков нет" : "Отклонённых пропусков нет"}
-            </p>
-            <p className="text-xs text-slate-400">За выбранный месяц и с этими фильтрами ничего не найдено.</p>
-          </div>
+          <p className="py-14 text-center text-sm text-slate-400">{EMPTY_TEXT[tab]}</p>
         ) : (
-          <div>
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_COLUMNS}`}>
-              <span>Дата урока</span>
+          <>
+            <div className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${grid}`}>
               <span>Ученик</span>
+              <span>Урок</span>
               <span>Причина</span>
-              <span>Справки</span>
-              <span>Решение</span>
+              <span>{pendingTab ? "Срок" : "Решение"}</span>
+              <span />
             </div>
-            <ul className="divide-y divide-slate-100">
+            <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {items.map((item) => {
                 const busy = busyIds.has(item.id);
-                const badge = STATUS_BADGE[item.status];
-                const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
+                const uploading = uploadingId === item.id;
                 const phoneHref = telHref(item.student.phone);
-                const deadline = excuseDeadlineView(item, businessToday);
+                const chip = pendingTab ? excuseDeadlineChip(item, businessToday) : null;
+                const teacherShort = shortPersonName(item.teacher?.name) || "—";
+                const reasonTitle = [
+                  item.reason,
+                  [item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · "),
+                ].filter(Boolean).join("\n\n");
+                const decisionTitle = [
+                  formatDateTimeRu(item.reviewed_at),
+                  item.review_note ? `Примечание: ${item.review_note}` : "",
+                ].filter(Boolean).join("\n");
                 return (
-                  <li key={item.id} className={`flex flex-col gap-3 px-4 py-4 sm:px-5 xl:items-start ${GRID_COLUMNS}`}>
-                    <div className="flex flex-wrap items-center gap-2 xl:block">
-                      <p className="text-sm font-bold text-slate-900">{formatDateRu(item.lesson_date)}</p>
-                      {tab !== "pending" && (
-                        <span className={`inline-flex rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${badge.className}`}>{badge.label}</span>
-                      )}
-                    </div>
-
-                    <div className="min-w-0">
-                      <Link href={`${studentProfileBasePath}/${item.student.id}`} className="block break-words text-sm font-semibold text-slate-900 hover:text-primary-700" title="Открыть профиль ученика">
-                        {item.student.full_name}
-                      </Link>
-                      {item.student.display_id && <p className="text-[11px] font-mono text-slate-400">{item.student.display_id}</p>}
-                      {phoneHref && (
-                        <a href={phoneHref} className="block break-all text-xs tabular-nums text-slate-500 hover:text-primary-700 hover:underline" title="Позвонить">
-                          {item.student.phone}
-                        </a>
-                      )}
-                      <p className="mt-0.5 text-xs text-slate-600">{item.group.name}</p>
-                      <p className="text-xs text-slate-400">{item.teacher?.name || "—"}</p>
-                    </div>
-
-                    <div className="min-w-0">
-                      <p className="break-words text-sm text-slate-800">{item.reason}</p>
-                      <p className="mt-1 text-[11px] text-slate-400">
-                        {[item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · ")}
+                  <li
+                    key={item.id}
+                    className={`relative flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-2.5 ${grid}`}
+                  >
+                    {/* Ученик */}
+                    <div className={`min-w-0 ${pendingTab ? "" : "pr-8 xl:pr-0"}`}>
+                      <div className="flex items-center gap-1.5">
+                        <Link
+                          href={`${studentProfileBasePath}/${item.student.id}`}
+                          className="min-w-0 break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate"
+                          title="Открыть карточку ученика"
+                        >
+                          {item.student.full_name}
+                        </Link>
+                        {phoneHref && (
+                          <a
+                            href={phoneHref}
+                            title={item.student.phone || undefined}
+                            aria-label={`Позвонить: ${item.student.phone}`}
+                            className="-my-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-700"
+                          >
+                            <Phone className="h-3.5 w-3.5" />
+                          </a>
+                        )}
+                      </div>
+                      <p className="break-words text-xs text-slate-500 xl:truncate" title={item.group.name}>
+                        {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
                       </p>
                     </div>
 
-                    <div className="min-w-0 space-y-2">
-                      {item.files.length > 0 && (
-                        <ul className="space-y-1.5">
-                          {item.files.map((file) => (
-                            <FileChip
-                              key={file.id}
-                              file={file}
-                              busy={fileBusyId === file.id}
-                              onOpen={() => void openFile(file)}
-                              onDelete={() => setFileToDelete({ excuseId: item.id, file })}
-                            />
-                          ))}
-                        </ul>
-                      )}
-                      {item.files.length === 0 && <p className="text-xs text-slate-400">Справка не приложена</p>}
-                      {!atLimit && (
-                        <div className="flex flex-wrap gap-1.5">
-                          <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 ${uploadingId === item.id ? "pointer-events-none opacity-60" : ""}`}>
-                            {uploadingId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
-                            Приложить справку
-                            <input
-                              type="file"
-                              accept="image/*,application/pdf"
-                              className="sr-only"
-                              onChange={(event) => { void attachFile(item, event.target.files?.[0]); event.target.value = ""; }}
-                            />
-                          </label>
-                          {/* Opens the camera directly on a phone; hidden on desktop where it is meaningless. */}
-                          <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 md:hidden ${uploadingId === item.id ? "pointer-events-none opacity-60" : ""}`}>
-                            <Camera className="h-3.5 w-3.5" />
-                            Снять фото
-                            <input
-                              type="file"
-                              accept="image/*"
-                              capture="environment"
-                              className="sr-only"
-                              onChange={(event) => { void attachFile(item, event.target.files?.[0]); event.target.value = ""; }}
-                            />
-                          </label>
-                        </div>
-                      )}
-                      {atLimit && <p className="text-[11px] text-slate-400">Максимум файлов: {EXCUSE_FILE_MAX_COUNT}</p>}
+                    {/* Урок */}
+                    <div className="min-w-0 text-xs text-slate-500 xl:text-sm">
+                      <p className="xl:truncate">
+                        <span className="font-medium text-slate-800">{lessonShortLabel(item.lesson_date)}</span>
+                        <span className="xl:hidden"> · {teacherShort}</span>
+                      </p>
+                      <p className="hidden truncate text-xs text-slate-500 xl:block" title={item.teacher?.name || undefined}>{teacherShort}</p>
                     </div>
 
-                    <div className="min-w-0 space-y-2">
-                      {item.status === "pending" ? (
-                        <>
-                          {deadline && (
-                            <p className={`text-[11px] ${deadline.warn ? "font-medium text-amber-700" : "text-slate-400"}`}>{deadline.text}</p>
-                          )}
-                          <input
-                            value={notes[item.id] || ""}
-                            onChange={(event) => setNotes((previous) => ({ ...previous, [item.id]: event.target.value }))}
-                            maxLength={REVIEW_NOTE_MAX}
-                            placeholder="Примечание (необязательно)"
-                            aria-label="Примечание к решению"
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-                          />
-                          <div className="flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void review(item, "confirmed")}
-                              className="flex min-w-[120px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
-                            >
-                              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                              Подтвердить
-                            </button>
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void review(item, "rejected")}
-                              className="flex min-w-[120px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Отклонить
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-xs text-slate-600">
-                            <span className="font-semibold">{item.status === "confirmed" ? "Подтвердил(а)" : "Отклонил(а)"}:</span>{" "}
-                            {[item.reviewed_by?.name, formatDateTimeRu(item.reviewed_at)].filter(Boolean).join(", ") || "—"}
-                          </p>
-                          {item.review_note && <p className="break-words text-xs text-slate-500">Примечание: {item.review_note}</p>}
-                          <div className="flex flex-wrap gap-2">
-                          {item.status === "rejected" ? (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void review(item, "confirmed")}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                            >
-                              <Check className="h-3.5 w-3.5" />
-                              Подтвердить
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              disabled={busy}
-                              onClick={() => void review(item, "rejected")}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 px-2.5 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-50"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                              Отклонить
-                            </button>
-                          )}
+                    {/* Причина */}
+                    <div className="min-w-0">
+                      <p className="line-clamp-3 break-words text-sm text-slate-800 xl:line-clamp-2" title={reasonTitle}>{item.reason}</p>
+                      <p className="text-xs">
+                        {uploading ? (
+                          <span className="inline-flex items-center gap-1 text-slate-500"><Loader2 className="h-3 w-3 animate-spin" />загрузка…</span>
+                        ) : item.files.length > 0 ? (
                           <button
                             type="button"
-                            disabled={busy}
-                            onClick={() => void resetDecision(item)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                            onClick={() => void openFile(item.id, item.files[0])}
+                            className="text-primary-700 hover:underline"
+                            title="Открыть справку"
                           >
-                            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
-                            Сбросить решение
+                            {excuseFilesLabel(item.files)}
                           </button>
-                          </div>
-                        </>
+                        ) : (
+                          <span className="text-slate-400">{excuseFilesLabel(item.files)}</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Срок / Решение */}
+                    {pendingTab ? (
+                      <div className="min-w-0">
+                        {chip && (
+                          <span
+                            className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${CHIP_TONE_CLASS[chip.tone]}`}
+                            title={chip.title}
+                          >
+                            {chip.text}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="min-w-0">
+                        <p
+                          className={`line-clamp-2 break-words text-xs text-slate-600 xl:text-sm ${item.review_note ? "cursor-help" : ""}`}
+                          title={decisionTitle || undefined}
+                        >
+                          {excuseDecisionLabel(item) || "—"}
+                        </p>
+                        {item.review_note && (
+                          <p className="line-clamp-2 break-words text-xs text-slate-500 xl:hidden">Примечание: {item.review_note}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Действия */}
+                    {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
+                    <div className={`flex items-center justify-end gap-1.5 ${pendingTab ? "mt-1 xl:mt-0" : "absolute right-2 top-2 xl:static"}`}>
+                      {pendingTab && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => void review(item, "confirmed")}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 xl:flex-none"
+                        >
+                          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                          Подтвердить
+                        </button>
                       )}
+                      <RowMenu items={menuFor(item)} busy={busy || uploading} width={264} />
                     </div>
                   </li>
                 );
               })}
             </ul>
-          </div>
+          </>
         )}
       </section>
 
@@ -638,6 +643,56 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         </div>
       )}
 
+      {/* One picker for every row: images offer the camera on a phone by themselves */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+        onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; onFilePicked(picked); }}
+      />
+
+      {/* Reject / confirm with a note */}
+      <Modal
+        open={dialog !== null}
+        title={dialog?.decision === "rejected" ? "Отклонить пропуск?" : "Подтвердить с примечанием"}
+        description={dialog ? `${dialog.item.student.full_name} · ${lessonShortLabel(dialog.item.lesson_date)}` : undefined}
+        onClose={closeDialog}
+        busy={dialogBusy}
+        footer={
+          <>
+            <button type="button" onClick={closeDialog} disabled={dialogBusy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
+            <button
+              type="button"
+              onClick={() => void submitDialog()}
+              disabled={dialogBusy || (dialog?.decision === "confirmed" && !dialogNote.trim())}
+              className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
+                dialog?.decision === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
+              }`}
+            >
+              {dialogBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {dialog?.decision === "rejected" ? "Отклонить" : "Подтвердить"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-1.5 pb-2">
+          <label htmlFor="excuse-decision-note" className="block text-xs font-medium text-slate-600">
+            {dialog?.decision === "rejected" ? "Причина отказа (необязательно)" : "Примечание"}
+          </label>
+          <textarea
+            id="excuse-decision-note"
+            value={dialogNote}
+            onChange={(event) => setDialogNote(event.target.value)}
+            maxLength={REVIEW_NOTE_MAX}
+            rows={3}
+            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
+          />
+        </div>
+      </Modal>
+
       {/* Certificate viewer */}
       <Modal
         open={viewer !== null}
@@ -646,14 +701,37 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
         onClose={closeViewer}
         maxWidthClassName="max-w-[760px]"
         footer={
-          viewer?.url ? (
-            <a href={viewer.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 px-5 py-2.5 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">
-              Открыть в новой вкладке
-            </a>
+          viewer ? (
+            <>
+              <button
+                type="button"
+                onClick={() => { setFileToDelete({ excuseId: viewer.excuseId, file: viewer.file }); closeViewer(); }}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium text-rose-700 hover:bg-rose-50 sm:mr-auto"
+              >
+                <Trash2 className="h-4 w-4" />
+                Удалить файл
+              </button>
+              {viewer.url && (
+                <a href={viewer.url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-slate-200 px-5 py-2.5 text-center text-sm font-medium text-slate-700 hover:bg-slate-50">
+                  Открыть в новой вкладке
+                </a>
+              )}
+            </>
           ) : undefined
         }
       >
         <div className="pb-2">
+          {viewerFiles.length > 1 && (
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-slate-500">
+              <button type="button" onClick={() => stepViewer(-1)} disabled={viewerIndex === 0} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40">
+                <ChevronLeft className="h-3.5 w-3.5" />Назад
+              </button>
+              <span>{viewerIndex + 1} из {viewerFiles.length}</span>
+              <button type="button" onClick={() => stepViewer(1)} disabled={viewerIndex >= viewerFiles.length - 1} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40">
+                Вперёд<ChevronRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
           {viewer && !viewer.url && !viewer.error && (
             <div className="flex min-h-[200px] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-600" /></div>
           )}

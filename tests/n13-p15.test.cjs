@@ -235,10 +235,10 @@ test("deadline line: nothing for decided excuses, month end when the server sent
     assert.equal(deadline.excuseDeadlineView(item({ deadline: broken }), today).text, "подтвердить до 31.10 · осталось 16 дн.", JSON.stringify(broken));
   }
   assert.equal(deadline.excuseDeadlineView(item({ lesson_date: "nope" }), today), null);
-  // the page still uses one line and the amber class for a warning
+  // the page shows the short chip (N13 P1.6); the long sentence of excuseDeadlineView is its tooltip
   const page = read("components/attendance/excuses-page.tsx");
-  assert.match(page, /excuseDeadlineView\(item, businessToday\)/);
-  assert.match(page, /deadline\.warn \? "font-medium text-amber-700"/);
+  assert.match(page, /excuseDeadlineChip\(item, businessToday\)/);
+  assert.match(page, /CHIP_TONE_CLASS\[chip\.tone\]/);
   // old callers of the month-end helpers keep working
   assert.equal(deadline.excuseDeadline("2026-10-03"), "2026-10-31");
 });
