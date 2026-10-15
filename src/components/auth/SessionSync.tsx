@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { loginUrlForPage } from "@/lib/safe-redirect";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { useToast } from "@/components/ui/toast";
@@ -20,6 +21,16 @@ import {
 
 /** A returning tab asks the server who is signed in at most this often (focus and visibilitychange share it). */
 const RECHECK_MIN_GAP_MS = 30_000;
+
+/**
+ * The login keeps the page the user was on (`?redirect=`): api() has sent the tab there already when the
+ * session is dead, and this must not undo it with a bare /login.
+ */
+function withReturnUrl(verdict: Extract<SessionVerdict, { action: "redirect" }>): Extract<SessionVerdict, { action: "redirect" }> {
+  return verdict.target === "/login"
+    ? { ...verdict, target: loginUrlForPage(window.location.pathname, window.location.search) }
+    : verdict;
+}
 
 async function askServer(): Promise<MeOutcome> {
   try {
@@ -84,7 +95,7 @@ export function SessionSync() {
       void askServer()
         .then((outcome) => {
           const verdict = sessionVerdict(tabUser, outcome);
-          if (verdict.action === "redirect" && !handled.current) redirect(verdict);
+          if (verdict.action === "redirect" && !handled.current) redirect(withReturnUrl(verdict));
         })
         .finally(() => {
           inFlight = false;

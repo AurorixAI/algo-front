@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Lock, KeyRound, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
-import { authApi } from "@/lib/api";
+import { authApi, REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { roleHome } from "@/lib/role-home";
 
 export default function ChangePasswordPage() {
@@ -19,12 +19,18 @@ export default function ChangePasswordPage() {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   // Verify the session and whether this is a forced (temp-password) change.
   useEffect(() => {
     (async () => {
       try {
-        await refreshProfile();
+        // "unavailable" = no verdict on the session (no network, limiter, server error): stay and offer a retry
+        if ((await refreshProfile()) === "unavailable") {
+          setUnavailable(true);
+          return;
+        }
       } catch {
         router.replace("/login");
         return;
@@ -38,7 +44,7 @@ export default function ChangePasswordPage() {
       setReady(true);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [attempt]);
 
   const submit = async () => {
     setError(null);
@@ -62,6 +68,26 @@ export default function ChangePasswordPage() {
       setBusy(false);
     }
   };
+
+  if (unavailable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 text-center px-6" role="alert">
+          <p className="text-sm text-slate-600">{REFRESH_UNAVAILABLE_MESSAGE}</p>
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            onClick={() => {
+              setUnavailable(false);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Повторить
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!ready) {
     return (

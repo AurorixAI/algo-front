@@ -1,4 +1,5 @@
 import { encodePathId } from "./encode-id";
+import { loginUrlForPage } from "./safe-redirect";
 import type {
   MembershipPaymentRow,
   PaymentCreate,
@@ -93,10 +94,15 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
 
   // Handle 401: the access JWT in the (30-day) cookie has expired. Refresh once, repeat the request once.
   if (response.status === 401 && !noAuth) {
-    const refreshed = await tryRefreshToken();
-    if (refreshed) {
+    const refresh = await tryRefreshToken();
+    if (refresh.kind === "transient") {
+      // The session is NOT known to be over (refresh limiter, server hiccup, no network): keep the
+      // sign-in, the cookies and the page, and let the caller show the message.
+      throw new ApiError(refresh.status, REFRESH_UNAVAILABLE_MESSAGE);
+    }
+    if (refresh.kind === "ok") {
       // Retry with the new cookie (and the new token as a header, in case the cookie jar did not take it)
-      headers["Authorization"] = `Bearer ${refreshed}`;
+      headers["Authorization"] = `Bearer ${refresh.accessToken}`;
       try {
         response = await fetch(`${AUTH_API_V1}${endpoint}`, {
           method,
@@ -109,12 +115,9 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
         throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
       }
     }
-    if (!refreshed || response.status === 401) {
-      // Refresh failed (or the retry is refused too) — redirect to login
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("algo-auth");
-        window.location.href = "/login";
-      }
+    if (refresh.kind === "dead" || response.status === 401) {
+      // The session is over (refresh refused with 401/403, or the retry is refused too) — to the login
+      await endDeadSession();
       return undefined as any;
     }
     // Refreshed: any other answer of the retry (200, but also 403/404/409/422) is the answer to the
@@ -139,11 +142,48 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   return response.json();
 }
 
+/** Shown when the session could not be renewed for a reason that does not end it (limiter, server, network). */
+export const REFRESH_UNAVAILABLE_MESSAGE = "Не удалось продлить вход — проверьте связь и повторите";
+
+/** One /auth/refresh must not hang a page: after this the attempt counts as a network failure. */
+const REFRESH_TIMEOUT_MS = 15_000;
+/** Longest a tab waits for another tab's refresh before refreshing on its own. */
+const REFRESH_LOCK_WAIT_MS = 20_000;
+/** The best-effort logout that clears the stale cookies must not delay the redirect to the login. */
+const CLEAR_COOKIES_TIMEOUT_MS = 4_000;
+
+/**
+ * What /auth/refresh said. ONLY a 401 (or 403) means the session is dead; anything else (429 from the
+ * limiter, 5xx, no network, a timeout) is "unavailable right now" and must neither sign the user out nor
+ * touch the stored sign-in.
+ */
+export type RefreshOutcome =
+  | { kind: "ok"; accessToken: string }
+  | { kind: "dead" }
+  | { kind: "transient"; status: number };
+
+/** A request failure that says nothing about the session itself: no answer, the limiter, a server error. */
+export function isTransientApiError(error: unknown): boolean {
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  return typeof status === "number" && (status === 0 || status === 408 || status === 429 || status >= 500);
+}
+
+/** `AbortSignal.timeout` where it exists, an AbortController timer elsewhere; `done` clears the timer. */
+function timeoutSignal(ms: number): { signal: AbortSignal | undefined; done: () => void } {
+  if (typeof AbortSignal !== "undefined" && typeof AbortSignal.timeout === "function") {
+    return { signal: AbortSignal.timeout(ms), done: () => {} };
+  }
+  if (typeof AbortController === "undefined") return { signal: undefined, done: () => {} };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return { signal: controller.signal, done: () => clearTimeout(timer) };
+}
+
 /** Name of the Web Lock that serialises the refresh of one browser profile (all its tabs). */
 const REFRESH_LOCK_NAME = "algo-auth-refresh";
 
 /** The refresh in progress: every request that gets a 401 meanwhile waits for this one call. */
-let refreshInFlight: Promise<string | null> | null = null;
+let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
 /**
  * Refresh the session through the httpOnly refresh cookie. ONE call at a time:
@@ -152,18 +192,23 @@ let refreshInFlight: Promise<string | null> | null = null;
  *   refused with 401 and would throw the user out of a session that the first call has just renewed;
  * - across tabs (browser restore, two tabs of the app): the Web Lock makes the second tab wait and then
  *   refresh with the cookie the first tab has just received. Browsers without Web Locks keep the
- *   per-tab behaviour.
+ *   per-tab behaviour. The lock is held only while the (time-limited) request runs.
  */
-function tryRefreshToken(): Promise<string | null> {
-  if (typeof window === "undefined") return Promise.resolve(null);
+function tryRefreshToken(): Promise<RefreshOutcome> {
+  if (typeof window === "undefined") return Promise.resolve({ kind: "dead" });
   if (!refreshInFlight) {
-    const run = async (): Promise<string | null> => {
+    const run = async (): Promise<RefreshOutcome> => {
       const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
       if (!locks?.request) return requestRefresh();
+      const wait = timeoutSignal(REFRESH_LOCK_WAIT_MS);
       try {
-        return (await locks.request(REFRESH_LOCK_NAME, () => requestRefresh())) as string | null;
+        const options = wait.signal ? { signal: wait.signal } : {};
+        return (await locks.request(REFRESH_LOCK_NAME, options, () => requestRefresh())) as RefreshOutcome;
       } catch {
-        return requestRefresh(); // the lock could not be taken (e.g. a sandboxed frame): refresh without it
+        // The lock could not be taken (a sandboxed frame, or the other tab took too long): refresh without it
+        return requestRefresh();
+      } finally {
+        wait.done();
       }
     };
     refreshInFlight = run().finally(() => {
@@ -173,7 +218,8 @@ function tryRefreshToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
-async function requestRefresh(): Promise<string | null> {
+async function requestRefresh(): Promise<RefreshOutcome> {
+  const timeout = timeoutSignal(REFRESH_TIMEOUT_MS);
   try {
     // Refresh via httpOnly cookie (sent automatically with credentials: include)
     const resp = await fetch(`${AUTH_API_V1}/auth/refresh`, {
@@ -181,17 +227,69 @@ async function requestRefresh(): Promise<string | null> {
       headers: { "Content-Type": "application/json" },
       credentials: "include",
       body: JSON.stringify({}),
+      signal: timeout.signal,
     });
 
-    if (!resp.ok) return null;
+    if (resp.status === 401 || resp.status === 403) return { kind: "dead" };
+    if (!resp.ok) return { kind: "transient", status: resp.status };
 
     const data = await resp.json();
     // New cookies are set by the backend response.
     // Return access_token for the immediate retry.
-    return data.access_token;
+    if (!data || typeof data.access_token !== "string") return { kind: "transient", status: 502 };
+    return { kind: "ok", accessToken: data.access_token };
   } catch {
-    return null;
+    // network error, timeout (AbortError) or an unreadable body: no verdict on the session
+    return { kind: "transient", status: 0 };
+  } finally {
+    timeout.done();
   }
+}
+
+/** The page's own address as the sign-in page's return target (nothing for public pages). */
+function loginUrlHere(): string {
+  return loginUrlForPage(window.location.pathname, window.location.search);
+}
+
+let sessionEnding: Promise<void> | null = null;
+
+/**
+ * The session is over (the refresh was refused, or the retried request was): ask the server to drop the stale
+ * cookies (the access cookie lives 30 days - left alone it would keep letting the middleware wave the user
+ * through to a page that cannot load), forget the stored sign-in and go to the login WITH the page the user
+ * was on as `?redirect=`. Several failing requests share one run.
+ */
+function endDeadSession(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  if (!sessionEnding) {
+    sessionEnding = (async () => {
+      const timeout = timeoutSignal(CLEAR_COOKIES_TIMEOUT_MS);
+      try {
+        await fetch(`${AUTH_API_V1}/auth/logout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          cache: "no-store",
+          signal: timeout.signal,
+        });
+      } catch {
+        // best effort: the redirect below happens anyway
+      } finally {
+        timeout.done();
+      }
+      try {
+        localStorage.removeItem("algo-auth");
+      } catch {
+        // storage can be unavailable: the redirect still happens
+      }
+      window.location.href = loginUrlHere();
+    })();
+    // The page is leaving; if it does not (a blocked navigation), a later dead session may run again.
+    setTimeout(() => {
+      sessionEnding = null;
+    }, 3000);
+  }
+  return sessionEnding;
 }
 
 /**
@@ -1357,8 +1455,9 @@ async function fetchAuthed(url: string, init: RequestInit): Promise<Response> {
     throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
   }
   if (res.status !== 401) return res;
-  const refreshed = await tryRefreshToken();
-  if (refreshed) {
+  const refresh = await tryRefreshToken();
+  if (refresh.kind === "transient") throw new ApiError(refresh.status, REFRESH_UNAVAILABLE_MESSAGE);
+  if (refresh.kind === "ok") {
     try {
       res = await fetch(url, init);
     } catch {
@@ -1366,10 +1465,7 @@ async function fetchAuthed(url: string, init: RequestInit): Promise<Response> {
     }
     if (res.status !== 401) return res;
   }
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("algo-auth");
-    window.location.href = "/login";
-  }
+  await endDeadSession();
   return res;
 }
 

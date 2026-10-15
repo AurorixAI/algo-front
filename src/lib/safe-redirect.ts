@@ -62,6 +62,20 @@ export function loginReturnTarget(pathname: string, search: string | null | unde
   return safeRedirectPath(`${pathname}${withoutInternalParams(search)}`);
 }
 
+/** Pages a signed-out visitor may open: coming back to them after a sign-in is meaningless. */
+const PUBLIC_PAGES = /^\/($|(login|register|forgot-password|activate)(\/|$)|invite\/|d\/|e\/|diagnostic\/)/;
+
+/**
+ * The sign-in address a CLIENT-side redirect uses (a dead session found by a failed request): `/login` with
+ * the page the user was on as `?redirect=`, exactly like the middleware does for a server-side one. Public
+ * pages and unsafe addresses get the bare `/login`.
+ */
+export function loginUrlForPage(pathname: string, search: string | null | undefined): string {
+  if (PUBLIC_PAGES.test(pathname)) return "/login";
+  const target = loginReturnTarget(pathname, search);
+  return target ? `/login?${new URLSearchParams({ redirect: target }).toString()}` : "/login";
+}
+
 /**
  * Where the sign-in page sends the user after a successful login: the page they were bounced from if it
  * is a safe path AND a workspace this role may open (a teacher who followed an `/owner/...` link lands

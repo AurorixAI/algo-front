@@ -2,7 +2,15 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { authApi, type AuthUser, type OrgInfo } from "./api";
+import { authApi, isTransientApiError, type AuthUser, type OrgInfo } from "./api";
+
+/**
+ * How the check of the stored sign-in against the server ended:
+ * - ok: the server knows the user (the store holds the fresh profile);
+ * - ended: the server says the session is over (the store was cleared; api() is sending the tab to the login);
+ * - unavailable: no verdict (no network, the limiter, a server error): the store is left exactly as it was.
+ */
+export type ProfileRefresh = "ok" | "ended" | "unavailable";
 
 interface AuthState {
   user: AuthUser | null;
@@ -34,7 +42,7 @@ interface AuthState {
     last_name: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<ProfileRefresh>;
   updateUser: (updates: Partial<AuthUser>) => void;
   clearError: () => void;
   setFromTokens: (user: AuthUser, accessToken: string, refreshToken: string, org?: OrgInfo | null) => void;
@@ -134,17 +142,27 @@ export const useAuthStore = create<AuthState>()(
       },
 
       refreshProfile: async () => {
+        const signedOut = {
+          user: null,
+          org: null,
+          token: null,
+          refreshToken: null,
+          isAuthenticated: false,
+        };
         try {
           const user = await authApi.me();
+          // api() answers `undefined` after it has sent the tab to the login itself (the session is over)
+          if (!user) {
+            set(signedOut);
+            return "ended";
+          }
           set({ user, isAuthenticated: true });
-        } catch {
-          set({
-            user: null,
-            org: null,
-            token: null,
-            refreshToken: null,
-            isAuthenticated: false,
-          });
+          return "ok";
+        } catch (err) {
+          // A hiccup says nothing about the session: keep the stored sign-in and let the caller retry.
+          if (isTransientApiError(err)) return "unavailable";
+          set(signedOut);
+          return "ended";
         }
       },
 

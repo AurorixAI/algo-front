@@ -181,12 +181,15 @@ function loadApi() {
 }
 
 /** A browser + server in miniature: fetch answers 401 while the cookie is stale, /auth/refresh renews it once per token. */
-function world({ refreshWorks = true, otherStatus = null, locks = null } = {}) {
-  const state = { cookie: "stale", refreshCalls: 0, refreshToken: "r1", log: [], locationHref: null, removed: [], assigned: 0 };
+function world({
+  refreshWorks = true, refreshStatus = null, refreshThrows = false, refreshHangs = false, logoutThrows = false,
+  otherStatus = null, locks = null, pathname = "/owner/settings", search = "?section=payments",
+} = {}) {
+  const state = { cookie: "stale", refreshCalls: 0, refreshToken: "r1", log: [], locationHref: null, removed: [], assigned: 0, logoutCalls: 0, aborts: 0 };
   global.window = {
     location: {
-      pathname: "/owner/settings",
-      search: "?section=payments",
+      pathname,
+      search,
       get href() { return state.locationHref; },
       set href(value) { state.assigned += 1; state.locationHref = value; },
     },
@@ -197,9 +200,26 @@ function world({ refreshWorks = true, otherStatus = null, locks = null } = {}) {
   global.fetch = async (url, init = {}) => {
     const u = new URL(url);
     state.log.push(`${init.method || "GET"} ${u.pathname} cookie=${state.cookie}`);
+    if (u.pathname.endsWith("/auth/logout")) {
+      state.logoutCalls += 1;
+      assert.equal(init.credentials, "include", "the cookies must travel to be cleared");
+      if (logoutThrows) throw new TypeError("network down");
+      state.cookie = null;
+      return reply(200, { message: "ok" });
+    }
     if (u.pathname.endsWith("/auth/refresh")) {
       state.refreshCalls += 1;
+      if (refreshThrows) throw new TypeError("network down");
+      if (refreshHangs) {
+        // never answers: only the abort signal ends it
+        await new Promise((_, reject) => {
+          const abort = () => { state.aborts += 1; reject(Object.assign(new Error("aborted"), { name: "AbortError" })); };
+          if (init.signal && init.signal.aborted) return abort();
+          if (init.signal) init.signal.addEventListener("abort", abort);
+        });
+      }
       await new Promise((resolve) => setTimeout(resolve, 10)); // the server takes a moment
+      if (refreshStatus) return reply(refreshStatus, { detail: "x" });
       if (!refreshWorks || state.refreshToken !== "r1") return reply(401, { detail: "Refresh token отозван" });
       state.refreshToken = "r2"; // ROTATED: the old token is dead from now on
       state.cookie = "fresh";
@@ -267,14 +287,224 @@ test("the refresh runs under a cross-tab Web Lock when the browser has one", asy
   assert.equal(state.refreshCalls, 1);
 });
 
-test("refresh refused (revoked or 30 days gone): to /login, persisted sign-in dropped, nothing thrown", async () => {
+test("refresh refused (revoked or 30 days gone): cookies cleared, to /login WITH the page, sign-in dropped, nothing thrown", async () => {
   const state = world({ refreshWorks: false });
   const { authApi } = loadApi();
   const answer = await authApi.me();
   assert.equal(answer, undefined);
-  assert.equal(state.locationHref, "/login");
+  assert.equal(state.locationHref, "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
   assert.deepEqual(state.removed, ["algo-auth"]);
   assert.equal(state.refreshCalls, 1);
+  assert.equal(state.logoutCalls, 1, "the stale 30-day access cookie is cleared by the server before the redirect");
+  assert.equal(state.cookie, null);
+  const order = state.log.map((l) => l.replace(/ cookie=.*/, ""));
+  assert.deepEqual(order, ["GET /api/v1/auth/me", "POST /api/v1/auth/refresh", "POST /api/v1/auth/logout"]);
+  // and the sign-in page takes the user straight back
+  const back = new URL(state.locationHref, "https://algo.example").searchParams.get("redirect");
+  assert.equal(R.postLoginTarget(back, "owner"), "/owner/settings?section=payments");
+});
+
+test("403 from /auth/refresh is a dead session too", async () => {
+  const state = world({ refreshStatus: 403 });
+  const { authApi } = loadApi();
+  assert.equal(await authApi.me(), undefined);
+  assert.match(state.locationHref, /^\/login\?redirect=/);
+  assert.equal(state.logoutCalls, 1);
+});
+
+test("several requests failing at once end the session ONCE: one logout call, one redirect", async () => {
+  const state = world({ refreshWorks: false });
+  const { authApi } = loadApi();
+  const answers = await Promise.all([authApi.me(), authApi.me(), authApi.me()]);
+  assert.deepEqual(answers, [undefined, undefined, undefined]);
+  assert.equal(state.refreshCalls, 1);
+  assert.equal(state.logoutCalls, 1);
+  assert.equal(state.assigned, 1);
+});
+
+test("a failing best-effort logout does not keep the user on a dead page", async () => {
+  const state = world({ refreshWorks: false, logoutThrows: true });
+  const { authApi } = loadApi();
+  await authApi.me();
+  assert.equal(state.logoutCalls, 1);
+  assert.match(state.locationHref, /^\/login\?redirect=/);
+  assert.deepEqual(state.removed, ["algo-auth"]);
+});
+
+test("a dead session on a public page goes to the bare /login", async () => {
+  for (const pathname of ["/e/ABC123", "/d/ABC123", "/register", "/"]) {
+    const state = world({ refreshWorks: false, pathname, search: "?x=1" });
+    const { authApi } = loadApi();
+    await authApi.me();
+    assert.equal(state.locationHref, "/login", pathname);
+  }
+});
+
+// ---- 3b. no verdict is not a dead session: 429 / 5xx / no network / timeout ------------------
+
+async function assertKept(state, run, expectedStatus) {
+  await assert.rejects(run(), (error) => {
+    assert.equal(error.name, "ApiError");
+    assert.equal(error.status, expectedStatus);
+    assert.equal(error.message, "Не удалось продлить вход — проверьте связь и повторите");
+    return true;
+  });
+  assert.equal(state.assigned, 0, "no redirect");
+  assert.deepEqual(state.removed, [], "the stored sign-in is untouched");
+  assert.equal(state.logoutCalls, 0, "the cookies are NOT cleared");
+  assert.equal(state.cookie, "stale", "the cookies are untouched");
+}
+
+test("refresh answered 429 / 500 / 502 / 503 / 504: the sign-in, the cookies and the page are kept", async () => {
+  for (const status of [429, 500, 502, 503, 504]) {
+    const state = world({ refreshStatus: status });
+    const { authApi } = loadApi();
+    await assertKept(state, () => authApi.me(), status);
+    assert.equal(state.refreshCalls, 1);
+  }
+});
+
+test("no network during the refresh: kept, the status is 0", async () => {
+  const state = world({ refreshThrows: true });
+  const { authApi } = loadApi();
+  await assertKept(state, () => authApi.me(), 0);
+});
+
+test("a refresh that never answers times out (AbortSignal.timeout) and is a transient failure, not a logout", async () => {
+  const realTimeout = AbortSignal.timeout;
+  const asked = [];
+  AbortSignal.timeout = (ms) => { asked.push(ms); return realTimeout.call(AbortSignal, 20); };
+  try {
+    let held = 0, released = 0;
+    const locks = { request: async (name, options, callback) => { held += 1; try { return await callback(); } finally { released += 1; } } };
+    const state = world({ refreshHangs: true, locks });
+    const { authApi } = loadApi();
+    await assertKept(state, () => authApi.me(), 0);
+    assert.ok(asked.includes(15000), "the refresh is limited to 15 s");
+    assert.equal(state.aborts, 1);
+    assert.equal(held, 1);
+    assert.equal(released, 1, "the lock is always released");
+  } finally {
+    AbortSignal.timeout = realTimeout;
+  }
+});
+
+test("without AbortSignal.timeout the same limit comes from an AbortController timer", async () => {
+  const realTimeout = AbortSignal.timeout;
+  const realSetTimeout = global.setTimeout;
+  const delays = [];
+  AbortSignal.timeout = undefined;
+  global.setTimeout = (fn, ms, ...rest) => { delays.push(ms); return realSetTimeout(fn, ms === 15000 ? 20 : ms, ...rest); };
+  try {
+    const state = world({ refreshHangs: true });
+    const { authApi } = loadApi();
+    await assertKept(state, () => authApi.me(), 0);
+    assert.ok(delays.includes(15000));
+    assert.equal(state.aborts, 1);
+  } finally {
+    AbortSignal.timeout = realTimeout;
+    global.setTimeout = realSetTimeout;
+  }
+});
+
+test("a transient failure does not poison the next attempt", async () => {
+  world({ refreshStatus: 429 });
+  let { authApi } = loadApi();
+  await assert.rejects(authApi.me());
+  // the limiter lets go: a fresh page load against a healthy server
+  const healthy = world();
+  ({ authApi } = loadApi());
+  assert.equal((await authApi.me()).id, "u1");
+  assert.equal(healthy.refreshCalls, 1);
+  assert.equal(healthy.assigned, 0);
+});
+
+test("fetchAuthed (uploads, downloads) follows the same rules: transient keeps, dead clears and returns", () => {
+  const api = read("src/lib/api.ts");
+  const body = api.slice(api.indexOf("async function fetchAuthed"), api.indexOf("/** Multipart upload of one file field"));
+  assert.match(body, /refresh\.kind === "transient"\) throw new ApiError\(refresh\.status, REFRESH_UNAVAILABLE_MESSAGE\)/);
+  assert.match(body, /await endDeadSession\(\);\s*return res;/);
+  assert.doesNotMatch(api, /window\.location\.href = "\/login"/, "every dead-session redirect keeps the return URL");
+});
+
+// ---- 3c. the screens: store, AuthGuard, SessionSync -------------------------------------------
+
+function loadStore() {
+  for (const f of ["src/lib/store.ts", "src/lib/api.ts"]) delete require.cache[path.join(root, f)];
+  return require(path.join(root, "src/lib/store.ts"));
+}
+
+test("refreshProfile: ok sets the user; unavailable leaves the stored sign-in alone; ended clears it", async () => {
+  world();
+  let { useAuthStore } = loadStore();
+  assert.equal(await useAuthStore.getState().refreshProfile(), "ok");
+  assert.equal(useAuthStore.getState().user.id, "u1");
+  assert.equal(useAuthStore.getState().isAuthenticated, true);
+
+  // unavailable: the user the tab already knows stays
+  for (const opts of [{ refreshStatus: 429 }, { refreshStatus: 503 }, { refreshThrows: true }]) {
+    world(opts);
+    ({ useAuthStore } = loadStore());
+    useAuthStore.setState({ user: { id: "u1", role: "owner" }, isAuthenticated: true });
+    assert.equal(await useAuthStore.getState().refreshProfile(), "unavailable");
+    assert.deepEqual(useAuthStore.getState().user, { id: "u1", role: "owner" });
+    assert.equal(useAuthStore.getState().isAuthenticated, true);
+  }
+
+  // ended: refresh refused -> cleared
+  world({ refreshWorks: false });
+  ({ useAuthStore } = loadStore());
+  useAuthStore.setState({ user: { id: "u1", role: "owner" }, isAuthenticated: true });
+  assert.equal(await useAuthStore.getState().refreshProfile(), "ended");
+  assert.equal(useAuthStore.getState().user, null);
+  assert.equal(useAuthStore.getState().isAuthenticated, false);
+
+  // ended: the server refuses the profile itself (403 after a good refresh)
+  world({ otherStatus: 403 });
+  ({ useAuthStore } = loadStore());
+  useAuthStore.setState({ user: { id: "u1", role: "owner" }, isAuthenticated: true });
+  assert.equal(await useAuthStore.getState().refreshProfile(), "ended");
+  assert.equal(useAuthStore.getState().user, null);
+});
+
+test("AuthGuard: no verdict -> retry panel, never the login; a dead session -> the login with the page", () => {
+  const guard = read("src/components/auth/AuthGuard.tsx");
+  assert.match(guard, /const outcome = await refreshProfile\(\);\s*if \(outcome === "unavailable"\) \{[^}]*setUnavailable\(true\);\s*return;/);
+  assert.match(guard, /REFRESH_UNAVAILABLE_MESSAGE/);
+  assert.match(guard, /Повторить/);
+  assert.match(guard, /loginUrlForPage\(window\.location\.pathname, window\.location\.search\)/);
+  assert.equal((guard.match(/router\.replace\(loginPath\)/g) || []).length, 0, "no bare login redirect is left");
+  assert.equal((guard.match(/router\.replace\(signIn\(\)\)/g) || []).length, 2);
+});
+
+test("the change-password page does not treat a hiccup as a lost session", () => {
+  const page = read("src/app/change-password/page.tsx");
+  assert.match(page, /\(await refreshProfile\(\)\) === "unavailable"/);
+  assert.match(page, /REFRESH_UNAVAILABLE_MESSAGE/);
+});
+
+test("SessionSync's redirect to the login keeps the page (api() already sent the tab there with ?redirect=)", () => {
+  const component = read("src/components/auth/SessionSync.tsx");
+  assert.match(component, /redirect\(withReturnUrl\(verdict\)\)/);
+  assert.match(component, /verdict\.target === "\/login"\s*\?\s*\{ \.\.\.verdict, target: loginUrlForPage\(window\.location\.pathname, window\.location\.search\) \}\s*:\s*verdict/);
+  // the pure verdict is unchanged
+  assert.deepEqual(S.sessionVerdict({ id: "u1", role: "owner" }, { ok: false, status: 401 }), { action: "redirect", target: "/login", notice: null });
+  // a hiccup (what a transient refresh failure becomes) is still "do nothing"
+  for (const status of [0, 429, 500, 503, null]) {
+    assert.deepEqual(S.sessionVerdict({ id: "u1", role: "owner" }, { ok: false, status }), { action: "none" });
+  }
+});
+
+test("loginUrlForPage: the page asked for travels to the login, public pages do not", () => {
+  assert.equal(R.loginUrlForPage("/owner/settings", "?section=payments"), "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
+  assert.equal(R.loginUrlForPage("/teacher/groups", ""), "/login?redirect=%2Fteacher%2Fgroups");
+  assert.equal(R.loginUrlForPage("/teacher/groups", "?_rsc=a1&tab=x"), "/login?redirect=%2Fteacher%2Fgroups%3Ftab%3Dx");
+  for (const pathname of ["/", "/login", "/login/", "/register", "/forgot-password", "/activate", "/e/ABC", "/d/ABC", "/invite/X", "/diagnostic/Y"]) {
+    assert.equal(R.loginUrlForPage(pathname, "?a=1"), "/login", pathname);
+  }
+  assert.equal(R.loginUrlForPage("/loginx", ""), "/login?redirect=%2Floginx");
+  assert.equal(R.loginUrlForPage("//evil", ""), "/login");
+  assert.equal(R.loginUrlForPage("/api/v1/x", ""), "/login");
 });
 
 test("after a good refresh, a refusal of the request itself (403) is an error, not a lost session", async () => {

@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
+import { REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { forbiddenTarget, isRoleAllowed } from "@/lib/role-home";
+import { loginUrlForPage } from "@/lib/safe-redirect";
 
 type UserRole = "owner" | "admin" | "teacher" | "superadmin";
 
@@ -25,7 +27,9 @@ interface AuthGuardProps {
  * - Checks if user is authenticated via Zustand store
  * - Optionally checks user role against allowedRoles
  * - Shows loading spinner while checking
- * - Redirects to login if unauthenticated
+ * - Redirects to login if unauthenticated - with the page asked for as `?redirect=` (the sign-in page returns there)
+ * - No answer from the server (no network, rate limit, server error) is NOT "unauthenticated": the stored
+ *   sign-in stays, the page shows a retry instead of throwing the user out
  * - Wrong role: redirects to that role's own home (the sign-in table), not the landing page
  */
 export function AuthGuard({
@@ -39,10 +43,16 @@ export function AuthGuard({
   const { refreshProfile } = useAuthStore();
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   const rolesKey = JSON.stringify(allowedRoles);
 
   useEffect(() => {
+    // The sign-in address for a visitor without a session: the page asked for travels along.
+    const signIn = () =>
+      loginPath === "/login" ? loginUrlForPage(window.location.pathname, window.location.search) : loginPath;
+
     async function checkAuth() {
       // Always ask the server via the httpOnly-cookie-backed /auth/me —
       // never gate on the zustand-persisted `user`/`isAuthenticated` first.
@@ -53,16 +63,21 @@ export function AuthGuard({
       // was bouncing a freshly-logged-in user straight back to /login
       // before refreshProfile() ever got a chance to run.
       try {
-        await refreshProfile();
+        const outcome = await refreshProfile();
+        if (outcome === "unavailable") {
+          // No verdict on the session: stay put, keep the stored sign-in, offer a retry.
+          setUnavailable(true);
+          return;
+        }
       } catch {
-        router.replace(loginPath);
+        router.replace(signIn());
         return;
       }
 
       const currentUser = useAuthStore.getState().user;
 
       if (!currentUser) {
-        router.replace(loginPath);
+        router.replace(signIn());
         return;
       }
 
@@ -95,7 +110,27 @@ export function AuthGuard({
 
     checkAuth();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolesKey, loginPath, forbiddenPath, router, refreshProfile]);
+  }, [rolesKey, loginPath, forbiddenPath, router, refreshProfile, attempt]);
+
+  if (unavailable) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4 text-center px-6" role="alert">
+          <p className="text-sm text-slate-600">{REFRESH_UNAVAILABLE_MESSAGE}</p>
+          <button
+            type="button"
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            onClick={() => {
+              setUnavailable(false);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Повторить
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isChecking && !isAuthorized) {
     return (
