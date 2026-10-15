@@ -36,6 +36,7 @@ import {
   type PeriodMode,
 } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -86,6 +87,9 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
   const fileInput = useRef<HTMLInputElement | null>(null);
   const uploadTarget = useRef<string | null>(null);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  // One upload at a time, and the file count is read from the latest history (a picker can stay open for a while).
+  const uploadBusy = useRef(false);
+  const historyNow = useRef<PaymentOut[] | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{ payment: PaymentOut; file: PaymentFileOut } | null>(null);
   const [fileBusy, setFileBusy] = useState(false);
 
@@ -139,20 +143,25 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
     onNotify(form?.kind === "replace" ? "Оплата исправлена" : "Оплата внесена");
   };
 
+  historyNow.current = history;
+
   const patchPayment = (paymentId: string, update: (payment: PaymentOut) => PaymentOut) =>
     setHistory((previous) => previous?.map((item) => (item.id === paymentId ? update(item) : item)) ?? previous);
 
   const pickFile = (payment: PaymentOut) => {
+    if (uploadBusy.current) return;
     uploadTarget.current = payment.id;
     fileInput.current?.click();
   };
 
   const attachFile = async (paymentId: string, picked: File | null | undefined) => {
     if (!picked) return;
-    const payment = history?.find((item) => item.id === paymentId);
+    if (uploadBusy.current) { onNotify("Дождитесь окончания загрузки предыдущего файла", "warning"); return; }
+    const payment = historyNow.current?.find((item) => item.id === paymentId);
     if (!payment) return;
     const check = checkPaymentFile(picked, payment.files?.length ?? 0);
     if (!check.ok) { onNotify(check.error || "Файл не подходит", "error"); return; }
+    uploadBusy.current = true;
     setUploadingId(paymentId);
     try {
       const saved = await orgApi.uploadPaymentFile(paymentId, picked, picked.name || "cheque");
@@ -162,6 +171,7 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
       // 409 / 413 / 415 come with the server's own Russian text.
       onNotify(error instanceof Error ? error.message : "Не удалось загрузить файл", "error");
     } finally {
+      uploadBusy.current = false;
       setUploadingId(null);
     }
   };
@@ -293,9 +303,13 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
                       payment={payment}
                       editable={editable}
                       uploading={uploadingId === payment.id}
+                      uploadRunning={uploadingId !== null}
                       onCorrect={() => setForm({ kind: "replace", payment })}
                       onVoid={() => setVoidTarget(payment)}
-                      onReceipt={() => router.push(receiptHref(paymentsBasePath, payment.id))}
+                      onReceipt={() => {
+                        markReceiptNavigation(payment.id);
+                        router.push(receiptHref(paymentsBasePath, payment.id));
+                      }}
                       onAttach={() => pickFile(payment)}
                       onOpenFile={(file) => void openFile(payment, file)}
                       onDeleteFile={(file) => setFileToDelete({ payment, file })}
@@ -376,11 +390,13 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
 }
 
 function HistoryItem({
-  payment, editable, uploading, onCorrect, onVoid, onReceipt, onAttach, onOpenFile, onDeleteFile,
+  payment, editable, uploading, uploadRunning, onCorrect, onVoid, onReceipt, onAttach, onOpenFile, onDeleteFile,
 }: {
   payment: PaymentOut;
   editable: boolean;
   uploading: boolean;
+  /** Any row is uploading: «Прикрепить чек» waits in all of them. */
+  uploadRunning: boolean;
   onCorrect: () => void;
   onVoid: () => void;
   onReceipt: () => void;
@@ -399,7 +415,9 @@ function HistoryItem({
   if (canAttachFile(payment)) {
     items.push(atLimit
       ? { key: "attach", label: `Максимум файлов: ${PAYMENT_FILE_MAX_COUNT}`, icon: Paperclip, disabled: true, onSelect: () => undefined }
-      : { key: "attach", label: "Прикрепить чек", icon: Paperclip, onSelect: onAttach });
+      : uploadRunning
+        ? { key: "attach", label: "Идёт загрузка файла…", icon: Paperclip, disabled: true, onSelect: () => undefined }
+        : { key: "attach", label: "Прикрепить чек", icon: Paperclip, onSelect: onAttach });
   }
   if (!voided && editable) {
     // A carry-over is not corrected - the payment it was made from is; it can only be cancelled.

@@ -18,6 +18,7 @@ import {
   type ReceiptOut,
 } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 
 /**
@@ -116,7 +117,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
 }
 
 /** The receipt of one payment: loads it, shows the sheet and the «Печать / Сохранить PDF» button. */
-export function ReceiptView() {
+export function ReceiptView({ paymentsHref }: { /** The payments page of this workspace: where «Назад» goes when there is no page of ours to go back to. */ paymentsHref: string }) {
   const params = useParams();
   const router = useRouter();
   const paymentId = String(params?.id ?? "");
@@ -166,6 +167,18 @@ export function ReceiptView() {
     return () => { document.title = previous; };
   }, [receipt]);
 
+  const goBack = () => {
+    const inApp = canGoBack({
+      historyLength: window.history.length,
+      referrer: document.referrer,
+      origin: window.location.origin,
+      cameFromApp: receiptNavigationMarked(paymentId),
+    });
+    clearReceiptNavigationMark();
+    if (inApp) router.back();
+    else router.push(paymentsHref);
+  };
+
   const message = noRight ? receiptErrorText(403, undefined) : failure?.message ?? null;
 
   return (
@@ -176,7 +189,7 @@ export function ReceiptView() {
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={goBack}
           className="inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />

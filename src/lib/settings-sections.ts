@@ -38,3 +38,14 @@ export function visibleSettingsSections(input: { isOwner: boolean; paymentSettin
 export function settingsSectionHref(section: SettingsSection): string {
   return `?section=${section}`;
 }
+
+/**
+ * The next value of a form that is filled from the server's record.  A form the user has not touched (it still equals
+ * the record it was last filled from, `base`) takes the new record; a form with unsaved typing is returned as it is.
+ * `base` is null before the first fill.
+ */
+export function reconcileDraft<T extends Record<string, unknown>>(draft: T, base: T | null, next: T): T {
+  if (base === null) return next;
+  const untouched = (Object.keys(base) as Array<keyof T>).every((key) => draft[key] === base[key]);
+  return untouched ? next : draft;
+}

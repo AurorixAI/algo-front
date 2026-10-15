@@ -142,6 +142,8 @@ export interface PaymentQuoteQuery {
   valid_from?: string;
   valid_to?: string;
   lessons_count?: number;
+  /** Whole сум: replaces the membership's saved fee for this calculation only (a fee typed but not saved yet). */
+  monthly_fee?: number;
 }
 
 /** `GET /auth/org/payments/{id}/receipt`. */
@@ -747,6 +749,8 @@ export interface QuoteInputs {
   /** The user typed the field, so it is sent and never overwritten. */
   fromTouched: boolean;
   toTouched: boolean;
+  /** A fee typed in the form but not saved yet; sent so the suggestion is made for it. Omit when the saved fee counts. */
+  monthlyFee?: number | null;
 }
 
 /**
@@ -758,6 +762,9 @@ export interface QuoteInputs {
 export function buildQuoteQuery(input: QuoteInputs): PaymentQuoteQuery | null {
   if (!isIsoDate(input.paidOn)) return null;
   const query: PaymentQuoteQuery = { paid_on: input.paidOn };
+  if (typeof input.monthlyFee === "number" && Number.isSafeInteger(input.monthlyFee) && input.monthlyFee > 0 && input.monthlyFee <= MAX_MONEY) {
+    query.monthly_fee = input.monthlyFee;
+  }
   if (input.mode === "calendar") {
     if (!input.fromTouched && !input.toTouched) return query;
     if (!isIsoDate(input.validFrom) || !isIsoDate(input.validTo) || input.validTo < input.validFrom) return null;
@@ -781,7 +788,7 @@ export function buildQuoteQuery(input: QuoteInputs): PaymentQuoteQuery | null {
 /** Stable text of a query: two requests with the same text ask the same thing. */
 export function quoteQueryKey(query: PaymentQuoteQuery | null): string {
   if (!query) return "";
-  return [query.paid_on, query.valid_from ?? "", query.valid_to ?? "", query.lessons_count ?? ""].join("|");
+  return [query.paid_on, query.valid_from ?? "", query.valid_to ?? "", query.lessons_count ?? "", query.monthly_fee ?? ""].join("|");
 }
 
 export interface QuoteTouched {
@@ -792,8 +799,8 @@ export interface QuoteTouched {
 
 /**
  * What an answer may write into the form: only fields the user has not touched.  An answer without a
- * suggested amount leaves the amount alone, except a custom period, where the old suggestion no longer
- * fits and the field is emptied so the user has to state the amount.
+ * suggested amount leaves the amount alone, except a custom period or a part of a month, where the old amount
+ * (the full fee, an earlier suggestion) no longer fits and the field is emptied so the user has to state it.
  */
 export function quotePrefill(quote: PaymentQuote, touched: QuoteTouched, mode: PeriodMode): Partial<PaymentFormValues> {
   const patch: Partial<PaymentFormValues> = {};
@@ -801,7 +808,7 @@ export function quotePrefill(quote: PaymentQuote, touched: QuoteTouched, mode: P
   if (mode === "calendar" && !touched.to && quote.valid_to && isIsoDate(quote.valid_to)) patch.validTo = quote.valid_to;
   if (!touched.amount) {
     if (quote.suggested_amount !== null && quote.suggested_amount !== undefined) patch.amount = formatMoneyInput(quote.suggested_amount);
-    else if (quote.basis === "custom") patch.amount = "";
+    else if (quote.basis === "custom" || quote.partial) patch.amount = "";
   }
   return patch;
 }
@@ -810,6 +817,49 @@ export function quotePrefill(quote: PaymentQuote, touched: QuoteTouched, mode: P
 export const PARTIAL_PERIOD_BADGE = "Неполный месяц";
 /** The same fact in the history, in lower case. */
 export const PARTIAL_PERIOD_TAG = "неполный месяц";
+
+/** Under the amount while the server could not be asked (offline, 5xx, timeout). */
+export const QUOTE_FAILED_NOTE = "Подсказка суммы недоступна — проверьте даты и сумму";
+/** A part of a center period has no price until the quote (or the user) states one. */
+export const PARTIAL_AMOUNT_PROMPT = "Для неполного месяца введите сумму";
+
+/**
+ * Caption under the amount.  Where the answer says there is no price, the wording is built here from the
+ * fee name of the mode («Стоимость пакета не указана»), so it is right whatever an older server writes;
+ * everything else is the server's own explanation.
+ */
+export function quoteCaption(
+  quote: Pick<PaymentQuote, "basis" | "monthly_fee" | "explanation" | "partial" | "suggested_amount">,
+  mode: PeriodMode,
+): string {
+  if (quote.monthly_fee === 0) return "Бесплатно — сумма 0";
+  if (quote.basis === "none") return `${feeTexts(mode).label} ${feeTexts(mode).unset}`;
+  if (quote.partial && quote.suggested_amount === null) return PARTIAL_AMOUNT_PROMPT;
+  return quote.explanation || "";
+}
+
+/**
+ * True when a fixed-day payment covers only a part of a center period: «с» is not the start of its period
+ * or «до» is not the end of its period (mirrors `is_partial_period` of the server).
+ */
+export function isPartialPeriod(validFrom: string, validTo: string, billingDay: number): boolean {
+  if (!isIsoDate(validFrom) || !isIsoDate(validTo)) return false;
+  return validFrom !== billingPeriodStart(validFrom, billingDay) || validTo !== billingPeriodEndOf(validTo, billingDay);
+}
+
+/**
+ * «С» of a fixed-day payment when the server cannot be asked: the day after the previous «оплачено до» if that
+ * is later than the start of the center period of the payment date, otherwise that start; a first payment
+ * counts from the payment date (the server uses the enrolment date, which the form does not know).
+ */
+export function fixedDayFallbackFrom(paidOn: string, previousPaidUntil: string | null | undefined, billingDay: number): string {
+  if (previousPaidUntil && isIsoDate(previousPaidUntil)) {
+    const anchor = billingPeriodStart(paidOn, billingDay);
+    const next = addDays(previousPaidUntil, 1);
+    return next > anchor ? next : anchor;
+  }
+  return paidOn;
+}
 
 // ── Receipts and attached files (N13 P2.2) ─────────────────────────────────
 
@@ -923,22 +973,39 @@ export const ATTENDANCE_SCOPE_KEYS = ["excuse_deadline_days", "excuse_deadline_l
 
 type SettingsKey = (typeof PAYMENTS_SCOPE_KEYS)[number] | (typeof ATTENDANCE_SCOPE_KEYS)[number];
 
+/**
+ * The fields of the «Оплаты» section that the chosen card shows (and therefore may change): the model itself
+ * and the admin switch always, then the day of a fixed-day center, the warning in days for a calendar one,
+ * the package size and its warning for a package center.  The others are hidden and are neither validated nor sent.
+ */
+export function paymentsScopeKeys(model: PaymentModel): SettingsKey[] {
+  const common: SettingsKey[] = ["period_mode", "billing_anchor", "admin_can_manage"];
+  if (model === "lessons") return [...common, "lessons_per_payment", "expiring_lessons"];
+  if (model === "fixed_day") return [...common, "billing_day", "expiring_days"];
+  return [...common, "expiring_days"];
+}
+
 export function validatePaymentSettings(
   settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
-    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day">>,
+    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day" | "period_mode" | "billing_anchor">>,
   scope?: PaymentSettingsScope,
 ): string | null {
   if (scope !== "attendance") {
-    if (!inRange(settings.lessons_per_payment, LESSONS_PER_PAYMENT_RANGE)) {
+    // For the «Оплаты» section only what its card shows is checked (a hidden field with a leftover value must not block the save).
+    const shown = scope === "payments" && settings.period_mode
+      ? paymentsScopeKeys(paymentModelOf({ period_mode: settings.period_mode, billing_anchor: settings.billing_anchor ?? "payment_date" }))
+      : null;
+    const check = (key: SettingsKey) => shown === null || shown.includes(key);
+    if (check("lessons_per_payment") && !inRange(settings.lessons_per_payment, LESSONS_PER_PAYMENT_RANGE)) {
       return `Число уроков в оплате: от ${LESSONS_PER_PAYMENT_RANGE.min} до ${LESSONS_PER_PAYMENT_RANGE.max}`;
     }
-    if (!inRange(settings.expiring_days, EXPIRING_DAYS_RANGE)) {
+    if (check("expiring_days") && !inRange(settings.expiring_days, EXPIRING_DAYS_RANGE)) {
       return `Порог «скоро» в днях: от ${EXPIRING_DAYS_RANGE.min} до ${EXPIRING_DAYS_RANGE.max}`;
     }
-    if (!inRange(settings.expiring_lessons, EXPIRING_LESSONS_RANGE)) {
+    if (check("expiring_lessons") && !inRange(settings.expiring_lessons, EXPIRING_LESSONS_RANGE)) {
       return `Порог «скоро» в уроках: от ${EXPIRING_LESSONS_RANGE.min} до ${EXPIRING_LESSONS_RANGE.max}`;
     }
-    if (settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
+    if (check("billing_day") && settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
       return `Единый день оплаты: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
     }
   }

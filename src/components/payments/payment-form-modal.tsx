@@ -11,10 +11,13 @@ import {
   buildQuoteQuery,
   defaultValidFrom,
   fixedDayChips,
+  fixedDayFallbackFrom,
   formatDateRu,
   paymentFormDefaults,
   periodHint,
   periodModeOf,
+  QUOTE_FAILED_NOTE,
+  quoteCaption,
   quotePrefill,
   quoteQueryKey,
   reformatMoneyTyping,
@@ -137,14 +140,20 @@ export function PaymentFormModal({
   const fixedDay = mode === "calendar" && quote?.billing_anchor === "fixed_day" ? quote.billing_day : null;
   const defaultTo = (from: string) => (fixedDay ? billingPeriodEndOf(from, fixedDay) : addMonthMinusDay(from));
 
-  // Without an answer the form falls back to the local calculation (the first guess of a new form).
+  // Without an answer the form falls back to a local calculation: the center's day once an answer has told it,
+  // otherwise a month from the payment date.  An amount that came from an answer about other dates is not kept.
   const paidOnNow = values.paidOn;
   useEffect(() => {
     if (!quoteFailed || !membership || !paidOnNow) return;
     setValues((previous) => {
       const next: PaymentFormValues = { ...previous };
-      if (!fromTouched) next.validFrom = mode === "calendar" ? defaultValidFrom(paidOnNow, membership.paid_until) : paidOnNow;
-      if (mode === "calendar" && !toTouched && next.validFrom) next.validTo = addMonthMinusDay(next.validFrom);
+      if (!fromTouched) {
+        next.validFrom = mode !== "calendar"
+          ? paidOnNow
+          : fixedDay ? fixedDayFallbackFrom(paidOnNow, membership.paid_until, fixedDay) : defaultValidFrom(paidOnNow, membership.paid_until);
+      }
+      if (mode === "calendar" && !toTouched && next.validFrom) next.validTo = defaultTo(next.validFrom);
+      if (!amountTouched && quote) next.amount = "";
       return next;
     });
     // Only a new failure restarts the fallback.
@@ -279,7 +288,9 @@ export function PaymentFormModal({
             <p id="payment-amount-note" aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">
               {waitingForQuote ? (
                 <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
-              ) : fresh && fresh.explanation ? fresh.explanation : ""}
+              ) : quoteFailed ? (
+                <span className="text-amber-700">{QUOTE_FAILED_NOTE}</span>
+              ) : fresh ? quoteCaption(fresh, mode) : ""}
             </p>
           </div>
 

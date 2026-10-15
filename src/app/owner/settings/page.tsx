@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
@@ -19,9 +19,9 @@ import {
   FIXED_DAY_HINT,
   LESSONS_PER_PAYMENT_RANGE,
   PAYMENT_MODELS,
-  PAYMENTS_SCOPE_KEYS,
   paymentModelOf,
   paymentModelPatch,
+  paymentsScopeKeys,
   validatePaymentSettings,
   type PaymentModel,
   type PaymentSettings,
@@ -32,6 +32,7 @@ import { daysWord, lessonsWord } from "@/lib/excuse-deadline";
 import { effectiveRole } from "@/lib/role-home";
 import {
   parseSettingsSection,
+  reconcileDraft,
   SETTINGS_SECTIONS,
   settingsSectionHref,
   visibleSettingsSections,
@@ -145,7 +146,8 @@ function usePaymentSettingsDraft(enabled: boolean) {
   const save = async (scope: PaymentSettingsScope) => {
     const problem = validatePaymentSettings(form, scope);
     if (problem) { setSave(scope, { saving: false, saved: false, error: problem }); return; }
-    const keys = scope === "payments" ? PAYMENTS_SCOPE_KEYS : ATTENDANCE_SCOPE_KEYS;
+    // Only the fields this section shows: a hidden leftover (the other model's size, say) is not sent.
+    const keys = scope === "payments" ? paymentsScopeKeys(paymentModelOf(form)) : ATTENDANCE_SCOPE_KEYS;
     const changes = diffPaymentSettings(loaded, form, keys);
     const flashSaved = () => {
       setSave(scope, { saving: false, saved: true, error: null });
@@ -444,10 +446,24 @@ function OwnerSettingsContent() {
   const [savedProfile, setSavedProfile] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
+  // A form is filled from the store, but never over unsaved typing: the session sync replaces `user` whenever
+  // the tab gets focus, and saving one section changes only that section's record.
+  const orgBase = useRef<typeof orgForm | null>(null);
+  const profileBase = useRef<typeof profileForm | null>(null);
   useEffect(() => {
-    if (org) setOrgForm({ name: org.name || "", city: org.city || "", phone: org.phone || "" });
-    if (user) setProfileForm({ first_name: user.first_name || "", last_name: user.last_name || "", language: user.language || "ru" });
-  }, [org, user]);
+    if (!org) return;
+    const next = { name: org.name || "", city: org.city || "", phone: org.phone || "" };
+    const base = orgBase.current;
+    orgBase.current = next;
+    setOrgForm((draft) => reconcileDraft(draft, base, next));
+  }, [org]);
+  useEffect(() => {
+    if (!user) return;
+    const next = { first_name: user.first_name || "", last_name: user.last_name || "", language: user.language || "ru" };
+    const base = profileBase.current;
+    profileBase.current = next;
+    setProfileForm((draft) => reconcileDraft(draft, base, next));
+  }, [user]);
 
   const handleSaveOrg = async () => {
     setSavingOrg(true);

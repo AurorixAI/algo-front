@@ -8,6 +8,7 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
   addMonthMinusDay,
+  billingPeriodEndOf,
   bucketCount,
   buildPaymentPayload,
   buildQuoteQuery,
@@ -18,12 +19,16 @@ import {
   formatDateRu,
   formatMoney,
   isCarryOver,
+  isPartialPeriod,
   lastPaymentLabel,
   paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
   parseMonthlyFee,
+  PARTIAL_AMOUNT_PROMPT,
   PARTIAL_PERIOD_BADGE,
+  QUOTE_FAILED_NOTE,
+  quoteCaption,
   quotePrefill,
   quoteQueryKey,
   reformatMoneyTyping,
@@ -123,9 +128,11 @@ function QuickEntry({
   const formRef = useRef<HTMLFormElement | null>(null);
   useOnceVisible(formRef, () => setSeen(true));
 
+  // The fee typed in this row (not saved yet) goes into the question, so a part of a month is priced from it.
+  const feeValue = parseMonthlyFee(fee).value;
   const query = useMemo(() => buildQuoteQuery({
-    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched,
-  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched]);
+    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched, monthlyFee: feeValue,
+  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched, feeValue]);
   const queryKey = quoteQueryKey(query);
   const quoteState = usePaymentQuote({
     enabled: seen,
@@ -142,23 +149,29 @@ function QuickEntry({
   const fresh = quote && quoteState.quoteKey === queryKey ? quote : null;
   const fixedDay = periodMode === "calendar" && quote?.billing_anchor === "fixed_day" ? quote.billing_day : null;
 
-  // No answer: the first guess stays (from the payment date, a month long).
+  // No answer: the period is worked out here, from the payment date; the center's day is used once an answer has told it.
   useEffect(() => {
     if (!quoteFailed) return;
     setValidFrom(paidOn);
-    if (!toTouched) setValidTo(addMonthMinusDay(paidOn));
+    if (!toTouched) setValidTo(fixedDay !== null ? billingPeriodEndOf(paidOn, fixedDay) : addMonthMinusDay(paidOn));
   }, [quoteFailed, paidOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const feeValue = parseMonthlyFee(fee).value;
-  // The suggestion was made for the fee the server holds; a fee edited in this row is not covered by it.
-  const feeUnchanged = feeValue !== null && feeValue === savedFee;
-  const suggestion = feeUnchanged && fresh && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
+  // The answer counts only if it was made for the fee on screen (a server that ignores `monthly_fee` answers for the saved one).
+  const answered = fresh !== null && (fresh.monthly_fee ?? null) === feeValue;
+  const suggestion = answered && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
   // A period of an odd length has no price: the amount is stated by hand, not taken from the fee.
   const custom = fresh?.basis === "custom";
-  const defaultAmount = custom ? null : suggestion ?? feeValue;
-  const showAmount = amountTouched || custom || Boolean(fresh?.partial) || (suggestion !== null && suggestion !== feeValue);
+  const partial = fresh ? fresh.partial : fixedDay !== null && isPartialPeriod(validFrom, validTo, fixedDay);
+  // Never the full fee for a part of a month: without a suggestion the field stays empty.
+  const defaultAmount = custom ? null : suggestion ?? (partial ? null : feeValue);
+  const showAmount = amountTouched || custom || partial || (suggestion !== null && suggestion !== feeValue);
   const amountText = amountTouched ? amount : formatMoneyInput(defaultAmount);
   const waiting = seen && quoteLoading && !(amountTouched && toTouched);
+  const caption = quoteFailed
+    ? QUOTE_FAILED_NOTE
+    : partial && defaultAmount === null && !amountTouched
+      ? PARTIAL_AMOUNT_PROMPT
+      : answered && fresh ? quoteCaption(fresh, feeModeOf(row, periodMode)) : "";
 
   const changePaidOn = (value: string) => {
     setError(null);
@@ -288,15 +301,11 @@ function QuickEntry({
         </div>
       )}
 
-      <p aria-live="polite" className="min-h-[1rem] text-[11px] text-slate-500">
+      <p aria-live="polite" className={`min-h-[1rem] text-[11px] ${quoteFailed && !waiting ? "text-amber-700" : "text-slate-500"}`}>
         {waiting ? (
           <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
-        ) : fresh && (feeUnchanged || custom) && fresh.explanation ? (
-          fresh.explanation
-        ) : fresh?.partial ? (
-          `${texts.label} изменена — сумму за неполный месяц укажите сами`
-        ) : ""}
-        {fresh?.partial && (
+        ) : caption}
+        {!waiting && !quoteFailed && fresh?.partial && (
           <span className="ml-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-amber-800">{PARTIAL_PERIOD_BADGE}</span>
         )}
       </p>

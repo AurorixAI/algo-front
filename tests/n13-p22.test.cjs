@@ -180,7 +180,9 @@ test("an answer fills only the fields the user has not touched", () => {
 
 test("an answer without a suggestion leaves the amount, except for a custom period (state the amount)", () => {
   const none = { from: false, to: false, amount: false };
-  assert.equal("amount" in P.quotePrefill(answer({ suggested_amount: null, basis: "none" }), none, "calendar"), false);
+  assert.equal("amount" in P.quotePrefill(answer({ suggested_amount: null, basis: "none", partial: false }), none, "calendar"), false);
+  // a part of a month without a price: the full fee must not stay in the field
+  assert.equal(P.quotePrefill(answer({ suggested_amount: null, basis: "none", partial: true }), none, "calendar").amount, "");
   assert.equal(P.quotePrefill(answer({ suggested_amount: null, basis: "custom", partial: false }), none, "calendar").amount, "");
   // typed by the user: still theirs
   assert.equal("amount" in P.quotePrefill(answer({ suggested_amount: null, basis: "custom" }), { ...none, amount: true }, "calendar"), false);
@@ -188,6 +190,7 @@ test("an answer without a suggestion leaves the amount, except for a custom peri
 
 const quoteHook = require(path.join(root, "src/lib/use-payment-quote.ts"));
 const { createRequestSequence } = require(path.join(root, "src/lib/request-sequence.ts"));
+const nav = require(path.join(root, "src/lib/receipt-nav.ts"));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 /** A deferred fetch: the test decides when (and whether) each request answers. */
@@ -325,7 +328,7 @@ test("the billing day is 1..28, with a hint in words", () => {
 test("each settings section validates and saves only its own fields", () => {
   const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
   const badAttendance = { ...ok, excuse_deadline_days: 99 };
-  const badPayments = { ...ok, lessons_per_payment: 0 };
+  const badPayments = { ...ok, period_mode: "lessons", lessons_per_payment: 0 };
   assert.match(P.validatePaymentSettings(badAttendance, "attendance"), /пропуска/);
   assert.equal(P.validatePaymentSettings(badAttendance, "payments"), null); // not this section's problem
   assert.match(P.validatePaymentSettings(badPayments, "payments"), /Число уроков/);
@@ -475,7 +478,7 @@ test("the history row: number, «неполный месяц», receipt + cheque
 test("receipt pages exist for the owner and the administrator and share one component", () => {
   for (const role of ["owner", "admin"]) {
     const page = read(`src/app/${role}/payments/receipt/[id]/page.tsx`);
-    assert.match(page, /<ReceiptView \/>/, role);
+    assert.match(page, new RegExp(`<ReceiptView paymentsHref="/${role}/payments" />`), role);
   }
   const view = read("src/components/payments/receipt-view.tsx");
   assert.match(view, /window\.print\(\)/);
@@ -550,4 +553,155 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
   assert.ok(voided.includes("Заменяет квитанцию № 11"));
   assert.ok(voided.includes("8 уроков с 15.10.2026"));
   assert.doesNotMatch(voided, /неполный месяц/);
+});
+
+// ---- R3 follow-ups -----------------------------------------------------------------------------
+
+test("the caption under the amount is worded by the mode, whatever an older server writes", () => {
+  const quote = (over) => ({ basis: "full", monthly_fee: 500000, explanation: "Полный месяц", partial: false, suggested_amount: 500000, ...over });
+  assert.equal(P.quoteCaption(quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Оплата в месяц не задана" }), "lessons"), "Стоимость пакета не указана");
+  assert.equal(P.quoteCaption(quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Стоимость пакета не задана" }), "calendar"), "Оплата в месяц не указана");
+  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, suggested_amount: 0 }), "calendar"), "Бесплатно — сумма 0");
+  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, basis: "none", suggested_amount: null }), "lessons"), "Бесплатно — сумма 0");
+  assert.equal(P.quoteCaption(quote({ explanation: "Неполный месяц: 6 уроков из 12" }), "calendar"), "Неполный месяц: 6 уроков из 12");
+  // a part of a month with no price asks for an amount instead of repeating the full fee
+  assert.equal(P.quoteCaption(quote({ partial: true, suggested_amount: null, basis: "days" }), "calendar"), "Для неполного месяца введите сумму");
+  assert.equal(P.PARTIAL_AMOUNT_PROMPT, "Для неполного месяца введите сумму");
+  assert.equal(P.QUOTE_FAILED_NOTE, "Подсказка суммы недоступна — проверьте даты и сумму");
+});
+
+test("a fee typed but not saved goes into the quote question (and into its key)", () => {
+  const inputs = { mode: "calendar", paidOn: "2026-10-15", validFrom: "2026-10-15", validTo: "2026-11-14", lessons: "", fromTouched: false, toTouched: false };
+  assert.deepEqual(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 }), { paid_on: "2026-10-15", monthly_fee: 500000 });
+  assert.deepEqual(P.buildQuoteQuery({ ...inputs, toTouched: true, validTo: "2026-10-31", monthlyFee: 400000 }),
+    { paid_on: "2026-10-15", monthly_fee: 400000, valid_from: "2026-10-15", valid_to: "2026-10-31" });
+  assert.deepEqual(P.buildQuoteQuery({ ...inputs, mode: "lessons", lessons: "8", monthlyFee: 600000 }),
+    { paid_on: "2026-10-15", monthly_fee: 600000, lessons_count: 8 });
+  // nothing typed or nonsense: the saved fee counts, so the parameter is left out
+  for (const none of [null, undefined, 0, -5, 1.5, NaN, 10_000_000_001]) {
+    assert.equal("monthly_fee" in P.buildQuoteQuery({ ...inputs, monthlyFee: none }), false, String(none));
+  }
+  // a different fee is a different question (it re-asks after the debounce)
+  assert.notEqual(P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 })), P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 600000 })));
+  assert.notEqual(P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 })), P.quoteQueryKey(P.buildQuoteQuery(inputs)));
+  assert.match(read("src/lib/api.ts"), /params\.set\("monthly_fee", String\(q\.monthly_fee\)\)/);
+});
+
+test("quick pay prices a new student from the typed fee and never prefills the full fee for a part of a month", () => {
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.match(page, /monthlyFee: feeValue,/);
+  assert.match(page, /\(fresh\.monthly_fee \?\? null\) === feeValue/); // an answer for another fee (older server) is not used
+  assert.match(page, /const defaultAmount = custom \? null : suggestion \?\? \(partial \? null : feeValue\);/);
+  assert.match(page, /PARTIAL_AMOUNT_PROMPT/);
+  assert.match(page, /QUOTE_FAILED_NOTE/);
+  assert.doesNotMatch(page, /изменена — сумму за неполный месяц/); // the misleading hint is gone
+  assert.doesNotMatch(page, /feeUnchanged/);
+  // when the quote fails the center's day is used for «до» once it is known
+  assert.match(page, /fixedDay !== null \? billingPeriodEndOf\(paidOn, fixedDay\) : addMonthMinusDay\(paidOn\)/);
+});
+
+test("a part of a center period, and the fallback «с» of a fixed-day payment", () => {
+  assert.equal(P.isPartialPeriod("2026-10-15", "2026-10-31", 1), true);
+  assert.equal(P.isPartialPeriod("2026-10-01", "2026-10-20", 1), true);
+  assert.equal(P.isPartialPeriod("2026-10-01", "2026-10-31", 1), false);
+  assert.equal(P.isPartialPeriod("2026-10-01", "2026-11-30", 1), false); // two whole periods
+  assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-09", 10), false);
+  assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-10", 10), true);
+  assert.equal(P.isPartialPeriod("", "2026-11-09", 10), false);
+  // previous payment ran to 31.10, paid 17.11: from 01.11 (no gap), not from the payment date
+  assert.equal(P.fixedDayFallbackFrom("2026-11-17", "2026-10-31", 1), "2026-11-01");
+  // paid ahead: the continuation
+  assert.equal(P.fixedDayFallbackFrom("2026-10-20", "2026-11-30", 1), "2026-12-01");
+  // a first payment counts from the payment date
+  assert.equal(P.fixedDayFallbackFrom("2026-10-17", null, 1), "2026-10-17");
+  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "", 10), "2026-10-17");
+});
+
+test("the payment form falls back to the center's day, says the quote is unavailable and drops an old suggestion", () => {
+  const modal = read("src/components/payments/payment-form-modal.tsx");
+  assert.match(modal, /fixedDay \? fixedDayFallbackFrom\(paidOnNow, membership\.paid_until, fixedDay\)/);
+  assert.match(modal, /next\.validTo = defaultTo\(next\.validFrom\)/);
+  assert.match(modal, /if \(!amountTouched && quote\) next\.amount = "";/);
+  assert.match(modal, /QUOTE_FAILED_NOTE/);
+  assert.match(modal, /quoteCaption\(fresh, mode\)/);
+});
+
+test("«Оплаты» validates and sends only the fields its card shows", () => {
+  const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
+  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "expiring_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "billing_day", "expiring_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "lessons_per_payment", "expiring_lessons"]);
+  const junk = { lessons_per_payment: NaN, expiring_lessons: 99, expiring_days: NaN, billing_day: 40 };
+  // a calendar card: the package fields and the day are hidden, a leftover in them does not block
+  assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), null);
+  assert.match(P.validatePaymentSettings({ ...ok, ...junk, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), /в днях/);
+  // fixed day: the day counts
+  assert.match(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "fixed_day" }, "payments"), /Единый день оплаты/);
+  assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, billing_day: 10, period_mode: "calendar", billing_anchor: "fixed_day" }, "payments"), null);
+  // a package: the days are hidden
+  assert.equal(P.validatePaymentSettings({ ...ok, ...junk, lessons_per_payment: 12, expiring_lessons: 3, period_mode: "lessons" }, "payments"), null);
+  assert.match(P.validatePaymentSettings({ ...ok, ...junk, period_mode: "lessons" }, "payments"), /Число уроков/);
+  // without a scope everything is still checked (older callers)
+  assert.match(P.validatePaymentSettings({ ...ok, lessons_per_payment: 0 }), /Число уроков/);
+  // the diff for a calendar card ignores a changed hidden field
+  const after = { ...ok, lessons_per_payment: NaN, expiring_lessons: 9, expiring_days: 5 };
+  assert.deepEqual(P.diffPaymentSettings(ok, after, P.paymentsScopeKeys("payment_date")), { expiring_days: 5 });
+  const page = read("src/app/owner/settings/page.tsx");
+  assert.match(page, /paymentsScopeKeys\(paymentModelOf\(form\)\)/);
+});
+
+test("«Назад» of the receipt: back only inside the app, otherwise the payments page", () => {
+  const here = "http://localhost:3000";
+  // no history (a link opened in a new tab)
+  assert.equal(nav.canGoBack({ historyLength: 1, referrer: here + "/owner/students/1", origin: here, cameFromApp: true }), false);
+  assert.equal(nav.canGoBack({ historyLength: 0, referrer: "", origin: here, cameFromApp: false }), false);
+  // history, but the previous page is not ours (a pasted link): no mark, no same-origin referrer
+  assert.equal(nav.canGoBack({ historyLength: 5, referrer: "", origin: here, cameFromApp: false }), false);
+  assert.equal(nav.canGoBack({ historyLength: 5, referrer: "https://t.me/x", origin: here, cameFromApp: false }), false);
+  assert.equal(nav.canGoBack({ historyLength: 5, referrer: "http://localhost:30001/x", origin: here, cameFromApp: false }), false); // not the same origin
+  // came from the app: a same-origin referrer, or the mark of the history row that opened the receipt
+  assert.equal(nav.canGoBack({ historyLength: 2, referrer: here + "/owner/payments", origin: here, cameFromApp: false }), true);
+  assert.equal(nav.canGoBack({ historyLength: 3, referrer: "", origin: here, cameFromApp: true }), true);
+  // the mark belongs to one payment and is cleared after use
+  const store = new Map();
+  const fake = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  nav.markReceiptNavigation("p1", fake);
+  assert.equal(nav.receiptNavigationMarked("p1", fake), true);
+  assert.equal(nav.receiptNavigationMarked("p2", fake), false);
+  nav.clearReceiptNavigationMark(fake);
+  assert.equal(nav.receiptNavigationMarked("p1", fake), false);
+  // blocked storage never throws
+  const broken = { getItem: () => { throw new Error("x"); }, setItem: () => { throw new Error("x"); }, removeItem: () => { throw new Error("x"); } };
+  assert.doesNotThrow(() => { nav.markReceiptNavigation("p", broken); nav.clearReceiptNavigationMark(broken); });
+  assert.equal(nav.receiptNavigationMarked("p", broken), false);
+  const view = read("src/components/payments/receipt-view.tsx");
+  assert.match(view, /if \(inApp\) router\.back\(\);\s*else router\.push\(paymentsHref\);/);
+  assert.match(read("src/components/payments/membership-payments.tsx"), /markReceiptNavigation\(payment\.id\)/);
+});
+
+test("cheque uploads run one at a time and count files from the latest history", () => {
+  const history = read("src/components/payments/membership-payments.tsx");
+  assert.match(history, /uploadBusy\.current/);
+  assert.match(history, /historyNow\.current\?\.find/);
+  assert.match(history, /uploadRunning=\{uploadingId !== null\}/);
+  assert.match(history, /label: "Идёт загрузка файла…"/);
+  assert.match(history, /uploadBusy\.current = false;/);
+});
+
+test("a settings form is refilled from the store only when it has no unsaved typing", () => {
+  const record = { first_name: "Арслан", last_name: "Т", language: "ru" };
+  // untouched (equals what it was filled from): takes the new record
+  assert.deepEqual(sections.reconcileDraft(record, record, { ...record, last_name: "Новый" }), { ...record, last_name: "Новый" });
+  // typed: kept, even though the store changed (session sync on tab focus)
+  const typed = { ...record, first_name: "Арсл" };
+  assert.equal(sections.reconcileDraft(typed, record, { ...record, last_name: "Новый" }), typed);
+  // the first fill
+  assert.deepEqual(sections.reconcileDraft({ first_name: "", last_name: "", language: "ru" }, null, record), record);
+  const page = read("src/app/owner/settings/page.tsx");
+  assert.match(page, /setOrgForm\(\(draft\) => reconcileDraft\(draft, base, next\)\)/);
+  assert.match(page, /setProfileForm\(\(draft\) => reconcileDraft\(draft, base, next\)\)/);
+  // one store record per effect: saving the organisation does not refill the profile form
+  assert.match(page, /\}, \[org\]\);/);
+  assert.match(page, /\}, \[user\]\);/);
+  assert.doesNotMatch(page, /\[org, user\]/);
 });

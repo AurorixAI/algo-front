@@ -1220,6 +1220,7 @@ export const orgApi = {
     if (q.valid_from) params.set("valid_from", q.valid_from);
     if (q.valid_to) params.set("valid_to", q.valid_to);
     if (q.lessons_count !== undefined) params.set("lessons_count", String(q.lessons_count));
+    if (q.monthly_fee !== undefined) params.set("monthly_fee", String(q.monthly_fee));
     return api<PaymentQuote>(`/auth/org/memberships/${encodePathId(membershipId)}/payments/quote?${params.toString()}`);
   },
   getPaymentReceipt: (paymentId: string) =>
