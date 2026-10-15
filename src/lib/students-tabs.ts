@@ -47,3 +47,21 @@ export function studentsSubtitle(counts: StudentTabCounts, tab: StudentTab, open
     : openTotal;
   return sum > 0 ? studentsPlural(sum) : "";
 }
+
+/** «ещё 2» for a student in several groups (`groups_count` counts the shown group too); empty for one group or none. */
+export function extraGroupsLabel(groupsCount: number | null | undefined): string {
+  return typeof groupsCount === "number" && groupsCount > 1 ? `ещё ${groupsCount - 1}` : "";
+}
+
+/**
+ * The muted line of a student card on a phone: «TE-010 · 7 класс». The ID is returned apart so the
+ * card can make it tap-to-copy; either part may be missing (no ID yet, no class).
+ */
+export function studentCardMeta(
+  displayId: string | null | undefined,
+  classLevel: number | null | undefined,
+): { id: string; classLabel: string; line: string } {
+  const id = (displayId ?? "").trim();
+  const classLabel = classLevel ? `${classLevel} класс` : "";
+  return { id, classLabel, line: [id, classLabel].filter(Boolean).join(" · ") };
+}

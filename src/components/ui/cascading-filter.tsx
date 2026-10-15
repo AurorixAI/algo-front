@@ -63,18 +63,18 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
   };
 
   return (
-    <div className="relative inline-block text-left" ref={containerRef}>
+    <div className="relative inline-block max-w-full text-left" ref={containerRef}>
       {/* Trigger Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500 transition-all shadow-sm"
+        className="flex max-w-full items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500 transition-all shadow-sm"
       >
-        <Filter className="w-4 h-4 text-slate-400" />
-        {getActiveFilterLabel()}
+        <Filter className="w-4 h-4 shrink-0 text-slate-400" />
+        <span className="min-w-0 truncate">{getActiveFilterLabel()}</span>
         {(value.teacherId || value.groupId) && (
           <div 
             role="button"
-            className="ml-1 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
+            className="ml-1 shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
             onClick={(e) => {
               e.stopPropagation();
               onChange({ teacherId: "", groupId: "" });
