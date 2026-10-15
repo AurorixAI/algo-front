@@ -16,6 +16,7 @@ import { GroupAttendanceJournal } from "@/components/groups/group-attendance-jou
 import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
+import { enrolToast } from "@/lib/group-enrol";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
@@ -89,15 +90,8 @@ export default function AdminGroupDetailPage() {
   const handleStudentsAdded = (result: AddStudentsResult) => {
     setAddOpen(false);
     void load(true);
-    const notes = [...result.skippedLines, ...result.warnings];
-    if (result.added > 0 && result.skipped === 0) {
-      if (result.warnings.length > 0) showToast(`Добавлено учеников: ${result.added}`, "warning", result.warnings);
-      else showToast(`Добавлено учеников: ${result.added}`);
-    } else if (result.added > 0) {
-      showToast(`Добавлено: ${result.added}, не добавлено: ${result.skipped}`, "warning", notes);
-    } else {
-      showToast("Ни одного ученика не добавлено", "error", notes);
-    }
+    const toast = enrolToast(result);
+    showToast(toast.text, toast.type, toast.details);
   };
 
   const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({

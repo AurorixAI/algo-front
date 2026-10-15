@@ -13,6 +13,7 @@ import {
   formatDateRu,
   formatMoney,
   lastPaymentLabel,
+  paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
   parseMonthlyFee,
@@ -521,7 +522,7 @@ function PaymentRow({
               <span className="text-right tabular-nums xl:text-left" title={lastPaymentLabel(last)}>
                 <span className="xl:block">{formatDateRu(last.paid_on)}</span>
                 <span className="xl:hidden"> · </span>
-                <span className="xl:block xl:text-slate-400">{formatMoney(last.amount)}</span>
+                <span className="xl:block xl:text-slate-400">{paymentAmountLabel(last)}</span>
               </span>
             ) : (
               <span className="text-slate-400">—</span>

@@ -18,6 +18,8 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
+import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 export interface GroupInfo {
@@ -84,6 +86,10 @@ export function AssignGroupModal({
   const [assignedSuccessGroup, setAssignedSuccessGroup] = useState<GroupInfo | null>(null);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
   const [serverWarnings, setServerWarnings] = useState<string[]>([]);
+  // Calm notes of the server, e.g. "оплата перенесена в новую группу" (N13 P2.1).
+  const [serverInfos, setServerInfos] = useState<string[]>([]);
+  const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const paymentHint = transferPaymentHint({ transfer: isTransfer, moneyAvailable });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -117,6 +123,7 @@ export function AssignGroupModal({
       setSelectedGroupId(null);
       setAssignedSuccessGroup(null);
       setServerWarnings([]);
+      setServerInfos([]);
       setAssignmentError(null);
       setLoadError(null);
       setSearch("");
@@ -201,7 +208,9 @@ export function AssignGroupModal({
         setAssignmentError(isAdd ? "Ученик уже состоит в этой группе." : "Ученик уже состоит в этой группе. Перевод не выполнен.");
         return;
       }
-      setServerWarnings((result.warnings ?? []).map((warning) => warning.message).filter(Boolean));
+      const notes = splitTransferNotes(result.warnings);
+      setServerWarnings(notes.warnings);
+      setServerInfos(notes.infos);
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
@@ -307,6 +316,11 @@ export function AssignGroupModal({
                           ? "Предыдущая группа сохранена в истории, а ученик добавлен в журнал новой группы."
                           : "Ученик успешно зачислен в группу и добавлен в журнал занятий."}
                     </motion.p>
+                    {serverInfos.length > 0 && (
+                      <ul role="status" className="mt-3 list-disc space-y-0.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 pl-8 text-left text-xs text-emerald-900">
+                        {serverInfos.map((text, index) => <li key={index}>{text}</li>)}
+                      </ul>
+                    )}
                     {serverWarnings.length > 0 && (
                       <ul role="status" className="mt-3 list-disc space-y-0.5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 pl-8 text-left text-xs text-amber-900">
                         {serverWarnings.map((text, index) => <li key={index}>{text}</li>)}
@@ -380,6 +394,7 @@ export function AssignGroupModal({
                     {isTransfer && (excludeGroupIds?.length ?? 0) > 1 && (
                       <p className="text-xs text-amber-700">Членство во всех текущих группах будет закрыто</p>
                     )}
+                    {paymentHint && <p className="text-xs text-indigo-600/80">{paymentHint}</p>}
                   </div>
                 </div>
               )}

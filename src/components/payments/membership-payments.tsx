@@ -7,6 +7,8 @@ import {
   formatDateRu,
   formatMoney,
   formatMoneyInput,
+  isCarryOver,
+  paymentAmountLabel,
   paymentPeriodLabel,
   parseMonthlyFee,
   reformatMoneyTyping,
@@ -254,6 +256,7 @@ function HistoryItem({
   onVoid: () => void;
 }) {
   const voided = Boolean(payment.voided_at);
+  const carried = isCarryOver(payment);
   const items: RowMenuItem[] = voided || !editable ? [] : [
     { key: "correct", label: "Исправить", icon: Pencil, onSelect: onCorrect },
     { key: "void", label: "Отменить", icon: XCircle, danger: true, onSelect: onVoid },
@@ -262,12 +265,13 @@ function HistoryItem({
     <li className="flex items-start justify-between gap-3 py-2">
       <div className={`min-w-0 text-xs ${voided ? "text-slate-400" : "text-slate-700"}`}>
         <p className={voided ? "line-through" : ""}>
-          <span className="font-semibold tabular-nums">{formatMoney(payment.amount)}</span>
+          <span className={`font-semibold ${carried ? "" : "tabular-nums"}`}>{paymentAmountLabel(payment)}</span>
           <span className="mx-1.5 text-slate-300">·</span>
-          оплачено {formatDateRu(payment.paid_on)}
+          {carried ? "оплата от" : "оплачено"} {formatDateRu(payment.paid_on)}
         </p>
         <p className={voided ? "line-through" : "text-slate-500"}>{paymentPeriodLabel(payment)}</p>
-        {payment.note && <p className="break-words text-slate-500">{payment.note}</p>}
+        {/* The note of a carry-over only repeats «перенос из …». */}
+        {payment.note && !carried && <p className="break-words text-slate-500">{payment.note}</p>}
         <p className="text-[11px] text-slate-400">
           {[payment.created_by_name, payment.replaces_payment_id ? "исправление" : ""].filter(Boolean).join(" · ")}
         </p>
