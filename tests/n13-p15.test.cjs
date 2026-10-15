@@ -210,14 +210,23 @@ test("deadline line: the server value wins", () => {
     { text: "подтвердить до 12.10 · срок прошёл", warn: true });
   // the server's `overdue` is trusted over the client's guess
   assert.equal(view({ kind: "date", date: "2026-10-25", overdue: true, days_left: 10 }).text, "подтвердить до 25.10 · срок прошёл");
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 5, urgent: false, overdue: false }),
+  // lessons package, N = 2: more than N left is calm, exactly N is the last lesson to confirm in, fewer is over
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false }),
     { text: "подтвердить до конца пакета · осталось 5 уроков", warn: false });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }),
-    { text: "подтвердить до конца пакета · осталось 2 урока", warn: true });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 1, urgent: true, overdue: false }),
-    { text: "подтвердить до конца пакета · осталось 1 урок", warn: true });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }),
-    { text: "пакет закончился", warn: true });
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 3, urgent: false, due_now: false, overdue: false }),
+    { text: "подтвердить до конца пакета · осталось 3 урока", warn: false });
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }),
+    { text: "последний урок для подтверждения", warn: true });
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 1, urgent: true, due_now: false, overdue: true }),
+    { text: "подтвердить до конца пакета · срок прошёл", warn: true });
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true }),
+    { text: "подтвердить до конца пакета · срок прошёл", warn: true });
+  // N = 0: an empty package is the last moment, not yet overdue
+  assert.deepEqual(view({ kind: "lessons", lessons_left: 0, urgent: true, due_now: true, overdue: false }),
+    { text: "последний урок для подтверждения", warn: true });
+  // a server that has no `due_now` yet: urgent is read as the last lesson, an empty package as over
+  assert.equal(view({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }).text, "последний урок для подтверждения");
+  assert.equal(view({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }).text, "подтвердить до конца пакета · срок прошёл");
 });
 
 test("deadline line: nothing for decided excuses, month end when the server sent nothing usable", () => {
@@ -252,34 +261,78 @@ test("the API type has an optional deadline and no money", () => {
 
 // ---- 6. other tab signs in as somebody else ----------------------------------------
 
-test("session change: who goes where", () => {
-  const owner = { id: "u1", role: "owner", org_role: "owner" };
-  const teacher = { id: "u2", role: "teacher", org_role: "teacher" };
-  const admin = { id: "u3", role: "admin", org_role: "admin" };
-  const change = session.sessionChange;
-  assert.deepEqual(change(owner, teacher), { action: "redirect", target: "/teacher/dashboard", notice: "Вы вошли как другой пользователь в другой вкладке" });
-  assert.deepEqual(change(teacher, owner), { action: "redirect", target: "/owner/dashboard", notice: session.SESSION_CHANGED_NOTICE });
-  assert.equal(change(owner, admin).target, "/admin/diagnostics");
-  // the same person, another effective role (owner demoted to admin)
-  assert.equal(change(owner, { id: "u1", role: "owner", org_role: "admin" }).target, "/admin/diagnostics");
-  // signed out elsewhere: to the login, quietly
-  assert.deepEqual(change(owner, null), { action: "redirect", target: "/login", notice: null });
-  assert.deepEqual(change(owner, undefined), { action: "redirect", target: "/login", notice: null });
-  // nothing to do: same person and role (a profile edit, a refresh), or this tab was not signed in
-  assert.deepEqual(change(owner, { ...owner, first_name: "New" }), { action: "none" });
-  assert.deepEqual(change(owner, { id: "u1", role: "owner", org_role: null }), { action: "none" });
-  assert.deepEqual(change(null, teacher), { action: "none" });
-  assert.deepEqual(change(null, null), { action: "none" });
-  assert.deepEqual(change({ id: null }, teacher), { action: "none" });
-  // a user with no home of his own (superadmin) is sent to the login
-  assert.equal(change(owner, { id: "u9", role: "superadmin", org_role: null }).target, "/login");
+const U = {
+  owner: { id: "u1", role: "owner", org_role: "owner" },
+  teacher: { id: "u2", role: "teacher", org_role: "teacher" },
+  admin: { id: "u3", role: "admin", org_role: "admin" },
+};
+
+test("identity change: nobody, another person, another role, signed out", () => {
+  const change = session.identityChange;
+  assert.equal(change(U.owner, U.teacher), "other_user");
+  assert.equal(change(U.owner, { id: "u1", role: "owner", org_role: "admin" }), "other_role"); // the same person, demoted
+  assert.equal(change(U.owner, null), "signed_out");
+  assert.equal(change(U.owner, undefined), "signed_out");
+  assert.equal(change(U.owner, { ...U.owner, first_name: "New" }), "none");              // a profile edit
+  assert.equal(change(U.owner, { id: "u1", role: "owner", org_role: null }), "none");   // org_role absent: the account role is the same
+  assert.equal(change(null, U.teacher), "none");                                        // this tab was not signed in
+  assert.equal(change({ id: null }, U.teacher), "none");
+  assert.equal(session.eventNeedsVerification(U.owner, U.teacher), true);
+  assert.equal(session.eventNeedsVerification(U.owner, null), true);
+  assert.equal(session.eventNeedsVerification(U.owner, { ...U.owner }), false);
 });
 
-test("session change never loops: applying it to its own result is a no-op", () => {
-  const owner = { id: "u1", role: "owner", org_role: "owner" };
-  const teacher = { id: "u2", role: "teacher", org_role: "teacher" };
-  assert.equal(session.sessionChange(teacher, teacher).action, "none"); // the tab after the redirect
-  assert.equal(session.sessionChange(owner, owner).action, "none");
+test("verdict: another user goes to the new role's home with a notice", () => {
+  const verdict = session.sessionVerdict;
+  assert.deepEqual(verdict(U.owner, { ok: true, user: U.teacher }),
+    { action: "redirect", target: "/teacher/dashboard", notice: "Вы вошли как другой пользователь в другой вкладке" });
+  assert.equal(verdict(U.teacher, { ok: true, user: U.owner }).target, "/owner/dashboard");
+  assert.equal(verdict(U.owner, { ok: true, user: U.admin }).target, "/admin/diagnostics");
+  assert.equal(verdict(U.owner, { ok: true, user: U.teacher }).notice, session.SESSION_CHANGED_NOTICE);
+  // a role without a workspace of its own signs in again
+  assert.equal(verdict(U.owner, { ok: true, user: { id: "u9", role: "superadmin", org_role: null } }).target, "/login");
+});
+
+test("verdict: the same user with another role gets the role notice", () => {
+  const demoted = { id: "u1", role: "owner", org_role: "admin" };
+  assert.deepEqual(session.sessionVerdict(U.owner, { ok: true, user: demoted }),
+    { action: "redirect", target: "/admin/diagnostics", notice: "Ваша роль изменилась" });
+  assert.equal(session.ROLE_CHANGED_NOTICE, "Ваша роль изменилась");
+  const promoted = { id: "u3", role: "admin", org_role: "owner" };
+  assert.deepEqual(session.sessionVerdict(U.admin, { ok: true, user: promoted }),
+    { action: "redirect", target: "/owner/dashboard", notice: "Ваша роль изменилась" });
+});
+
+test("verdict: only the server's 401/403 sends the tab to the login; a network error or 5xx keeps the page", () => {
+  const verdict = session.sessionVerdict;
+  assert.deepEqual(verdict(U.owner, { ok: false, status: 401 }), { action: "redirect", target: "/login", notice: null });
+  assert.deepEqual(verdict(U.owner, { ok: false, status: 403 }), { action: "redirect", target: "/login", notice: null });
+  for (const status of [null, 0, 500, 502, 503, 504, 404, 408, 429]) {
+    assert.deepEqual(verdict(U.owner, { ok: false, status }), { action: "none" }, String(status)); // offline, server down: stay
+  }
+  // the server confirms the same user and role: an event that wiped the record changes nothing
+  assert.deepEqual(verdict(U.owner, { ok: true, user: { ...U.owner, first_name: "x" } }), { action: "none" });
+  // an unreadable answer (no id) is no reason to move anybody
+  assert.deepEqual(verdict(U.owner, { ok: true, user: {} }), { action: "none" });
+  assert.deepEqual(verdict(U.owner, { ok: true, user: null }), { action: "none" });
+  // a tab that was not signed in has nothing to correct, whatever the server says
+  assert.deepEqual(verdict(null, { ok: true, user: U.teacher }), { action: "none" });
+  assert.deepEqual(verdict(null, { ok: false, status: 401 }), { action: "none" });
+});
+
+test("the /me failure is reduced to its HTTP status", () => {
+  assert.deepEqual(session.meOutcomeFromError({ status: 401, message: "x" }), { ok: false, status: 401 });
+  assert.deepEqual(session.meOutcomeFromError({ status: 0 }), { ok: false, status: 0 });
+  assert.deepEqual(session.meOutcomeFromError(new Error("Failed to fetch")), { ok: false, status: null });
+  assert.deepEqual(session.meOutcomeFromError(null), { ok: false, status: null });
+  assert.deepEqual(session.meOutcomeFromError({ status: "401" }), { ok: false, status: null });
+  // a network error never reads as "signed out"
+  assert.deepEqual(session.sessionVerdict(U.owner, session.meOutcomeFromError(new TypeError("Failed to fetch"))), { action: "none" });
+});
+
+test("session sync never loops: the verdict for the page it led to is a no-op", () => {
+  assert.equal(session.sessionVerdict(U.teacher, { ok: true, user: U.teacher }).action, "none"); // the tab after the redirect
+  assert.equal(session.sessionVerdict(U.owner, { ok: true, user: U.owner }).action, "none");
 });
 
 test("only staff workspaces follow a sign-in change, never a student's page", () => {
@@ -300,17 +353,25 @@ test("the persisted auth record is read defensively", () => {
   assert.match(read("lib/store.ts"), /name: "algo-auth"/);
 });
 
-test("the tab listens for the auth record and resets the per-user stores", () => {
+test("the tab asks the server before it moves, and listens to focus as well as visibilitychange", () => {
   const component = read("components/auth/SessionSync.tsx");
   assert.match(component, /addEventListener\("storage", onStorage\)/);
   assert.match(component, /event\.key !== AUTH_STORAGE_KEY/);
   assert.match(component, /event\.storageArea !== window\.localStorage/);
-  assert.match(component, /visibilitychange/);
+  assert.match(component, /addEventListener\("focus", onReturn\)/);
+  assert.match(component, /addEventListener\("visibilitychange", onReturn\)/);
+  assert.match(component, /RECHECK_MIN_GAP_MS/);
   assert.match(component, /authApi\.me\(\)/);
+  assert.match(component, /sessionVerdict\(tabUser, outcome\)/);
+  // the event alone never redirects: it only asks for a check
+  const onStorage = component.slice(component.indexOf("const onStorage"), component.indexOf("// Coming back to the tab"));
+  assert.doesNotMatch(onStorage, /redirect\(|location/);
+  assert.match(onStorage, /eventNeedsVerification\(/);
   assert.match(component, /usePaymentsSummary\.getState\(\)\.reset\(\)/);
   assert.match(component, /useExcuseBadge\.getState\(\)\.reset\(\)/);
-  assert.match(component, /window\.location\.replace\(decision\.target\)/);
+  assert.match(component, /window\.location\.replace\(verdict\.target\)/);
   assert.match(component, /handled\.current/); // one redirect per page life
+  assert.match(component, /inFlight/);          // one check at a time
   assert.match(read("app/providers.tsx"), /<SessionSync \/>/);
   assert.match(read("lib/excuse-badge.ts"), /reset: \(\) =>/);
 });

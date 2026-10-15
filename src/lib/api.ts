@@ -462,7 +462,8 @@ export interface AttendanceExcuseFile {
 
 export type ExcuseServerDeadline =
   | { kind: "date"; date: string; overdue: boolean; days_left: number }
-  | { kind: "lessons"; lessons_left: number; urgent: boolean; overdue: boolean };
+  // N = excuse_deadline_lessons: lessons_left > N normal, == N `due_now`, < N `overdue`; `urgent` = lessons_left <= N.
+  | { kind: "lessons"; lessons_left: number; urgent: boolean; due_now?: boolean; overdue: boolean };
 
 export interface AttendanceExcuseItem {
   id: string;

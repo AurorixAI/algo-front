@@ -51,11 +51,30 @@ export function excuseDeadlineHint(
 /** `deadline` of an excuses-list item: dates and lesson counts only, never money. */
 export type ServerExcuseDeadline =
   | { kind: "date"; date: string; overdue: boolean; days_left: number }
-  | { kind: "lessons"; lessons_left: number; urgent: boolean; overdue: boolean };
+  | { kind: "lessons"; lessons_left: number; urgent: boolean; due_now?: boolean; overdue: boolean };
+
+/** Words of a lessons package at the threshold (N = the owner's «осталось N урока(ов)» setting). */
+export const LAST_LESSON_TO_CONFIRM = "последний урок для подтверждения";
+export const DEADLINE_PASSED = "срок прошёл";
+
+type LessonsPhase = "ok" | "due" | "overdue";
+
+/**
+ * Where a lessons package stands: more than N lessons left is `ok`, exactly N is `due` (the last lesson to
+ * confirm in), fewer is `overdue`. `due_now` / `overdue` come from the server; an older server that sent
+ * only `urgent` is read as `due`, and an empty package that nobody called due counts as `overdue`.
+ */
+function lessonsPhase(server: Record<string, unknown>, left: number): LessonsPhase {
+  if (server.overdue === true) return "overdue";
+  if (server.due_now === true) return "due";
+  if (left === 0) return "overdue";
+  if (server.due_now === undefined && server.urgent === true) return "due";
+  return "ok";
+}
 
 export interface ExcuseDeadlineView {
   text: string;
-  /** Amber: the date has passed, the package is used up, or it is about to be. */
+  /** Amber: the date has passed, or the last lesson to confirm in has come. */
   warn: boolean;
 }
 
@@ -88,7 +107,8 @@ function isoDay(value: unknown): value is string {
 /**
  * The line under a pending excuse. The server value wins: «подтвердить до 25.10 · осталось 10 дн.»,
  * «… · последний день», «… · срок прошёл» (calendar payment, or the month end when nothing was paid),
- * «подтвердить до конца пакета · осталось 2 урока» / «пакет закончился» (lessons package).
+ * «подтвердить до конца пакета · осталось 5 уроков» / «последний урок для подтверждения» / «… · срок прошёл»
+ * (lessons package: more than N left / exactly N / fewer).
  * An older server sends no `deadline` (or something unreadable): the month-end rule is used instead.
  * Decided excuses have no line. Confirming after the deadline stays allowed - this is only a hint.
  */
@@ -111,11 +131,10 @@ export function excuseDeadlineView(
   }
   if (server && server.kind === "lessons" && typeof server.lessons_left === "number" && Number.isFinite(server.lessons_left)) {
     const left = Math.max(0, server.lessons_left);
-    if (server.overdue === true || left === 0) return { text: "пакет закончился", warn: true };
-    return {
-      text: `подтвердить до конца пакета · осталось ${left} ${lessonsWord(left)}`,
-      warn: server.urgent === true,
-    };
+    const phase = lessonsPhase(server, left);
+    if (phase === "overdue") return { text: `подтвердить до конца пакета · ${DEADLINE_PASSED}`, warn: true };
+    if (phase === "due") return { text: LAST_LESSON_TO_CONFIRM, warn: true };
+    return { text: `подтвердить до конца пакета · осталось ${left} ${lessonsWord(left)}`, warn: false };
   }
   const fallback = excuseDeadlineHint(item.lesson_date, item.status, today);
   return fallback ? { text: fallback.text, warn: fallback.overdue } : null;
@@ -124,7 +143,7 @@ export function excuseDeadlineView(
 // ── Compact chip of the «Срок» column (N13 P1.6) ─────────────────────────────
 
 export interface ExcuseDeadlineChip {
-  /** «до 31.10 · 16 дн.», «пакет: осталось 2 урока», «срок прошёл», «пакет закончился». */
+  /** «до 31.10 · 16 дн.», «пакет: осталось 5 уроков», «последний урок для подтверждения», «срок прошёл». */
   text: string;
   /** neutral (grey) by default, warn (amber) when it is close, danger (red) when it is over. */
   tone: ChipTone;
@@ -132,7 +151,7 @@ export interface ExcuseDeadlineChip {
   title: string;
 }
 
-/** Amber from this many days (or lessons flagged `urgent` by the server) before the deadline. */
+/** Amber from this many days before a calendar deadline (a lessons package is amber exactly at N lessons). */
 export const EXCUSE_DEADLINE_WARN_DAYS = 3;
 
 function dayMonth(date: string): string {
@@ -165,8 +184,10 @@ export function excuseDeadlineChip(
   }
   if (server && server.kind === "lessons" && typeof server.lessons_left === "number" && Number.isFinite(server.lessons_left)) {
     const left = Math.max(0, server.lessons_left);
-    if (server.overdue === true || left === 0) return { text: "пакет закончился", tone: "danger", title };
-    return { text: `пакет: осталось ${left} ${lessonsWord(left)}`, tone: server.urgent === true ? "warn" : "neutral", title };
+    const phase = lessonsPhase(server, left);
+    if (phase === "overdue") return { text: DEADLINE_PASSED, tone: "danger", title };
+    if (phase === "due") return { text: LAST_LESSON_TO_CONFIRM, tone: "warn", title };
+    return { text: `пакет: осталось ${left} ${lessonsWord(left)}`, tone: "neutral", title };
   }
   // No usable server value: the last day of the lesson's month.
   const date = excuseDeadline(item.lesson_date);
@@ -177,7 +198,7 @@ export function excuseDeadlineChip(
 }
 
 function dateChip(date: string, left: number, overdue: boolean, title: string): ExcuseDeadlineChip {
-  if (overdue || left < 0) return { text: "срок прошёл", tone: "danger", title };
+  if (overdue || left < 0) return { text: DEADLINE_PASSED, tone: "danger", title };
   const label = `до ${dayMonth(date)}`;
   if (left === 0) return { text: `${label} · сегодня`, tone: "warn", title };
   return { text: `${label} · ${left} дн.`, tone: left <= EXCUSE_DEADLINE_WARN_DAYS ? "warn" : "neutral", title };

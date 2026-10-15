@@ -112,14 +112,23 @@ test("calendar deadline: grey far away, amber in 3 days or less, red when over",
   assert.equal(chip({ kind: "date", date: "2026-10-10", overdue: false }).tone, "danger");
 });
 
-test("lessons package: urgent is amber, used up is red", () => {
+test("lessons package (N = threshold): more than N grey, exactly N amber, fewer red", () => {
   const pick = (value) => { const c = chip(value); return { text: c.text, tone: c.tone }; };
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 8, urgent: false, overdue: false }), { text: "пакет: осталось 8 уроков", tone: "neutral" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }), { text: "пакет: осталось 2 урока", tone: "warn" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 1, urgent: true, overdue: false }), { text: "пакет: осталось 1 урок", tone: "warn" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }), { text: "пакет закончился", tone: "danger" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: false, overdue: false }), { text: "пакет закончился", tone: "danger" });
-  assert.equal(chip({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }).title, "Подтвердить до конца пакета · осталось 2 урока");
+  // N = 2
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 8, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 8 уроков", tone: "neutral" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 3, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 3 урока", tone: "neutral" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 1, urgent: true, due_now: false, overdue: true }), { text: "срок прошёл", tone: "danger" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true }), { text: "срок прошёл", tone: "danger" });
+  // N = 1 and N = 0
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 2 урока", tone: "neutral" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 1, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
+  // an empty package nobody flagged is over; a server without due_now reads urgent as the last lesson
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: false, overdue: false }), { text: "срок прошёл", tone: "danger" });
+  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
+  assert.equal(chip({ kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false }).title, "Подтвердить до конца пакета · осталось 5 уроков");
+  assert.equal(chip({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }).title, "Последний урок для подтверждения");
 });
 
 test("no server value or a broken one: the month end of the lesson is used", () => {
