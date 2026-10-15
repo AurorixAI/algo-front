@@ -42,6 +42,12 @@ export function weightedAverageTheta(groups: GroupThetaSummary[]): number | null
   return weight > 0 ? sum / weight : null;
 }
 
+/** θ at the precision the dashboard prints (two decimals); `-0` is read as `0`. */
+export function roundTheta(theta: number): number {
+  const rounded = Number(theta.toFixed(2)); // exactly what `toFixed(2)` prints on the dashboard
+  return rounded === 0 ? 0 : rounded;
+}
+
 /** A group row of the dashboard; `group_id` tells two groups apart. */
 export interface DashboardGroup extends GroupThetaSummary {
   group_id: string;
@@ -70,25 +76,29 @@ export interface DashboardGroupLists<T> {
  *  - fewer than two groups with θ: no comparison, so no leaders («Мало данных для сравнения»); an
  *    absolute risk (θ below −0.5) can still be named.
  * `centre` is the centre's θ (the server's student-weighted value); without one the plain average of
- * the groups' θ is used.
+ * the groups' θ is used. Every comparison is made on θ rounded to two decimals, as the dashboard prints
+ * it, so groups that read the same land in the same list.
  */
 export function splitDashboardGroups<T extends DashboardGroup>(groups: T[], centre: number | null | undefined): DashboardGroupLists<T> {
   const finite = (value: number | null | undefined): value is number => typeof value === "number" && Number.isFinite(value);
+  // Everything is compared at the precision the dashboard shows (two decimals): two groups that read
+  // «θ = 0.30» are never split into different lists by a hidden third decimal.
+  const shown = (g: T) => roundTheta(g.avg_theta as number);
   const withTheta = groups.filter((g) => finite(g.avg_theta));
   const comparable = withTheta.length >= 2;
   const average = finite(centre)
-    ? centre
+    ? roundTheta(centre)
     : withTheta.length > 0
-      ? withTheta.reduce((sum, g) => sum + (g.avg_theta as number), 0) / withTheta.length
+      ? roundTheta(withTheta.reduce((sum, g) => sum + (g.avg_theta as number), 0) / withTheta.length)
       : null;
   const byName = (a: T, b: T) => a.name.localeCompare(b.name, "ru");
-  const best = [...withTheta].sort((a, b) => (b.avg_theta as number) - (a.avg_theta as number) || byName(a, b));
-  const worst = [...withTheta].sort((a, b) => (a.avg_theta as number) - (b.avg_theta as number) || byName(a, b));
+  const best = [...withTheta].sort((a, b) => shown(b) - shown(a) || byName(a, b));
+  const worst = [...withTheta].sort((a, b) => shown(a) - shown(b) || byName(a, b));
 
-  // The level policy's «below grade» (θ below −0.5) - the same test as everywhere else.
-  const atRisk = (g: T) => isAtRisk({ theta: g.avg_theta });
+  // The level policy's «below grade» (θ below −0.5) - the same test as everywhere else, on the shown value.
+  const atRisk = (g: T) => isAtRisk({ theta: shown(g) });
   const leaders = comparable && average !== null
-    ? best.filter((g) => (g.avg_theta as number) > average && !atRisk(g)).slice(0, 3)
+    ? best.filter((g) => shown(g) > average && !atRisk(g)).slice(0, 3)
     : [];
   const leaderIds = new Set(leaders.map((g) => g.group_id));
   const risk = worst.filter((g) => atRisk(g) && !leaderIds.has(g.group_id)).slice(0, 3);

@@ -5,16 +5,28 @@
  */
 
 export interface StudentGroupFacts {
-  /** Current (primary) group; null when the student is in none. */
+  /** The stored primary group; it can be empty or stale, so the list API's memberships win over it. */
   group_id?: string | null;
-  /** Number of active memberships; sent by the list API only (older servers omit it). */
+  /** Active memberships in live (not archived) groups; sent by the list API only (older servers omit it). */
   groups_count?: number | null;
+  /** The group the student is in now, from the memberships; sent together with `groups_count`. */
+  current_group_id?: string | null;
 }
 
-/** True when the student is in a group: a primary group or any active membership (the server's `has_group`). */
+/**
+ * True when the student is in a group: an active membership in a live group (the server's `has_group`).
+ * A stale `group_id` without such a membership, or a membership in an archived group only, is NOT
+ * «in a group». An older server sends no `groups_count`; then only the stored `group_id` is known.
+ */
 export function studentHasGroup(student: StudentGroupFacts): boolean {
-  if (student.group_id) return true;
-  return typeof student.groups_count === "number" && student.groups_count > 0;
+  if (typeof student.groups_count === "number") return student.groups_count > 0;
+  return Boolean(student.group_id);
+}
+
+/** The group to show for the student («сейчас в …»): from the memberships, else the stored primary group. */
+export function studentGroupId(student: StudentGroupFacts): string | null {
+  if (typeof student.groups_count === "number") return student.current_group_id || null;
+  return student.group_id || null;
 }
 
 /** Stored statuses plus «no_group» (active, but in no group). */

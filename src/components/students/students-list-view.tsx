@@ -10,7 +10,7 @@ import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { studentTabQuery, studentTabLabel, studentsSubtitle, type StudentTab, type StudentTabCounts } from "@/lib/students-tabs";
-import { studentHasGroup } from "@/lib/student-status";
+import { studentGroupId, studentHasGroup } from "@/lib/student-status";
 
 interface StudentInfo {
   id: string;
@@ -21,8 +21,10 @@ interface StudentInfo {
   status: string;
   display_id?: string | null;
   group_id?: string | null;
-  /** Active memberships, when the list API exposes it (older servers do not): the column shows «ещё N». */
+  /** Active memberships in live groups, when the list API exposes it (older servers do not): the column shows «ещё N». */
   groups_count?: number | null;
+  /** The group the student is in now (from the memberships). */
+  current_group_id?: string | null;
   student_phone?: string;
   comment?: string;
   created_at: string | null;
@@ -40,6 +42,9 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
+  // A tab / search / page change: the old rows are hidden at once, never shown under the new tab.
+  const [refreshing, setRefreshing] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterTeacher, setFilterTeacher] = useState<string>("");
@@ -86,6 +91,8 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   // count comes from a one-row request with the same search.
   const loadStudents = useCallback(async () => {
     const token = listSeq.next();
+    setRefreshing(true);
+    setListError(null);
     try {
       const search = debouncedSearch || undefined;
       const [data, other] = await Promise.all([
@@ -109,8 +116,14 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
           : { grouped: other ? other.total : null, ungrouped: data.total });
     } catch (e) {
       console.error(e);
+      if (!listSeq.isCurrent(token)) return;
+      // Never leave the rows of another tab on screen under an error.
+      setStudents([]);
+      setTotal(0);
+      setCounts({ grouped: null, ungrouped: null });
+      setListError("Не удалось загрузить список учеников");
     } finally {
-      if (listSeq.isCurrent(token)) setLoading(false);
+      if (listSeq.isCurrent(token)) { setLoading(false); setRefreshing(false); }
     }
   }, [debouncedSearch, filterGroup, page, activeTab, listSeq]);
 
@@ -137,7 +150,6 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
     );
   }
 
-  const totalCount = showStudents ? total : 0;
   const subtitle = showStudents ? studentsSubtitle(counts, activeTab, total, !!filterGroup) : "";
   const showTabs = showStudents && !filterGroup;
 
@@ -198,7 +210,18 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
       </div>
 
       {/* Content Area */}
-      {filterTeacher && !filterGroup ? (
+      {showStudents && refreshing ? (
+        <div className="flex justify-center py-16" role="status" aria-label="Загрузка списка">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600" />
+        </div>
+      ) : showStudents && listError ? (
+        <div role="alert" className="py-10 text-center text-sm text-slate-500">
+          {listError}.{" "}
+          <button type="button" onClick={() => void loadStudents()} className="font-medium text-primary-700 hover:underline">
+            Повторить
+          </button>
+        </div>
+      ) : filterTeacher && !filterGroup ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {groups.filter((g) => g.teacher_id === filterTeacher).length === 0 ? (
             <div className="col-span-full bg-white rounded-2xl border border-slate-100 p-16 text-center">
@@ -263,7 +286,8 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
             <tbody className="divide-y divide-slate-50">
               <AnimatePresence mode="popLayout" initial={false}>
                 {students.map((s, i) => {
-                  const group = s.group_id ? groupsById[s.group_id] : null;
+                  const currentGroupId = studentGroupId(s);
+                  const group = currentGroupId ? groupsById[currentGroupId] : null;
                   return (
                     <motion.tr
                       key={s.id}

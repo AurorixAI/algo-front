@@ -9,7 +9,7 @@ import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
-import { studentStatusKey, studentStatusLabel } from "@/lib/student-status";
+import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 
 interface Student {
   id: string;
@@ -20,8 +20,10 @@ interface Student {
   status: string;
   /** Current (primary) group of the student; null when not enrolled. */
   group_id?: string | null;
-  /** Active memberships (list API); older servers omit it. */
+  /** Active memberships in live groups (list API); older servers omit it. */
   groups_count?: number | null;
+  /** The group the student is in now, from the memberships (students.group_id may be empty or stale). */
+  current_group_id?: string | null;
 }
 
 /** Result handed to the page so it can show one summary toast. */
@@ -105,6 +107,9 @@ export function AddStudentDrawer({
   // group are listed; a search of two or more characters looks through all non-archived ones.
   const searchTerm = poolSearchTerm(debouncedSearch);
   const searching = searchTerm !== "";
+  // One typed character is too little to search: say so instead of silently showing the free students.
+  const tooShort = !searching && debouncedSearch.trim() !== "";
+  const currentGroupOf = (s: Student) => studentGroupId(s);
 
   const loadStudents = useCallback(async () => {
     const token = listSeq.next();
@@ -144,11 +149,11 @@ export function AddStudentDrawer({
 
   // Selected students who are enrolled elsewhere: adding moves them.
   const transfers = Array.from(selected.values())
-    .filter((s) => s.group_id && s.group_id !== groupId)
+    .filter((s) => { const current = studentGroupId(s); return current && current !== groupId; })
     .map((s) => ({
       id: s.id,
       name: s.full_name || `${s.last_name} ${s.first_name}`.trim(),
-      from: groupNames[s.group_id as string] || "другой группы",
+      from: groupNames[studentGroupId(s) as string] || "другой группы",
     }));
 
   const handleAdd = async () => {
@@ -189,6 +194,9 @@ export function AddStudentDrawer({
     archived:  "bg-slate-100 text-slate-500",
     no_group:  "bg-slate-100 text-slate-600",
   };
+
+  // The class filter is on: the group has a class and «Все классы» is off.
+  const classFilterOn = Boolean(groupClassLevel) && !allClasses;
 
   const drawerContent = (
     <AnimatePresence>
@@ -251,6 +259,7 @@ export function AddStudentDrawer({
 
             {/* Student list */}
             <div className="flex-1 overflow-y-auto">
+              {tooShort && <p className="px-4 pt-3 text-xs text-slate-400">Введите минимум 2 символа</p>}
               {loading ? (
                 <div className="flex items-center justify-center h-32">
                   <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
@@ -258,7 +267,7 @@ export function AddStudentDrawer({
               ) : available.length === 0 ? (
                 <p className="px-6 py-10 text-center text-sm text-slate-400">
                   {searching
-                    ? "Ничего не найдено"
+                    ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
                     : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
                 </p>
               ) : (
@@ -284,8 +293,8 @@ export function AddStudentDrawer({
                           </p>
                           <p className="text-xs text-slate-400 truncate">
                             {s.class_level} класс
-                            {s.group_id && s.group_id !== groupId && (
-                              <span className="text-amber-700"> · сейчас в «{groupNames[s.group_id] || "другой группе"}»</span>
+                            {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
+                              <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
                             )}
                           </p>
                         </div>

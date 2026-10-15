@@ -173,6 +173,6 @@ test("the drawer shows the quiet «Все классы» switch only for a group
   // transfer / add-more behaviour and the picked students survive a class switch
   assert.match(drawer, /\["transfer", "Перевести сюда"\]/);
   assert.match(drawer, /\["add", "Добавить ещё и в эту группу"\]/);
-  assert.match(drawer, /Array\.from\(selected\.values\(\)\)\s*\.filter\(\(s\) => s\.group_id && s\.group_id !== groupId\)/);
+  assert.match(drawer, /Array\.from\(selected\.values\(\)\)\s*\.filter\(\(s\) => \{ const current = studentGroupId\(s\); return current && current !== groupId; \}\)/);
   assert.match(drawer, /bulkAddStudents\(groupId, Array\.from\(selected\.keys\(\)\)/);
 });
