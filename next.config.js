@@ -4,7 +4,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // /reset-password?token=... carries a one-time secret in its address: no Referer for anything the
+        // /reset-password#token=... carries a one-time secret in its address: no Referer for anything the
         // page opens or loads (the page also sets <meta name="referrer">), and no cache of it.
         source: '/reset-password',
         headers: [

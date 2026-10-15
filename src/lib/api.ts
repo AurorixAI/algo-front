@@ -1012,11 +1012,13 @@ export const authApi = {
       noAuth: true,
     }),
 
+  /** A POST with the token in the body (never in the address): the server's access log must not see it. */
   checkResetToken: (token: string) =>
-    api<{ valid: boolean; email_masked?: string; expires_at?: string }>(
-      `/auth/password/reset/check?token=${encodeURIComponent(token)}`,
-      { noAuth: true },
-    ),
+    api<{ valid: boolean; email_masked?: string; expires_at?: string }>("/auth/password/reset/check", {
+      method: "POST",
+      body: { token },
+      noAuth: true,
+    }),
 
   resetPassword: (token: string, new_password: string) =>
     api<{ ok: boolean }>("/auth/password/reset", {

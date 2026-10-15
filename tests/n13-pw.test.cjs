@@ -53,15 +53,20 @@ test("the forgot-password notice depends on the server's global switch only, nev
   assert.equal(PR.forgotPasswordNotice.length, 1, "no other input");
 });
 
-test("the token is read from the address bar only when it can be ours, and taken out of the address", () => {
-  assert.equal(PR.readResetToken(`?token=${TOKEN}`), TOKEN);
-  assert.equal(PR.readResetToken(`?a=1&token=${TOKEN}&b=2`), TOKEN);
-  for (const bad of ["", null, undefined, "?token=", "?token=short", `?token=${"a".repeat(129)}`, "?token=%2e%2e%2fadmin", "?token=a b c d e f g h i j k", "?x=1", "?token=" + "é".repeat(30)]) {
+test("the token is read from the address-bar FRAGMENT only when it can be ours, and taken out of the address", () => {
+  assert.equal(PR.readResetToken(`#token=${TOKEN}`), TOKEN);
+  assert.equal(PR.readResetToken(`#a=1&token=${TOKEN}&b=2`), TOKEN);
+  assert.equal(PR.readResetToken(`token=${TOKEN}`), TOKEN, "location.hash without the # is read the same");
+  for (const bad of ["", "#", null, undefined, "#token=", "#token=short", `#token=${"a".repeat(129)}`, "#token=%2e%2e%2fadmin", "#token=a b c d e f g h i j k", "#x=1", "#token=" + "é".repeat(30)]) {
     assert.equal(PR.readResetToken(bad), null, String(bad));
   }
-  assert.equal(PR.addressWithoutToken("/reset-password", `?token=${TOKEN}`), "/reset-password");
-  assert.equal(PR.addressWithoutToken("/reset-password", `?lang=ru&token=${TOKEN}`), "/reset-password?lang=ru");
+  // a QUERY token is not read: that form is never issued and would end up in server logs
+  assert.equal(PR.readResetToken(`?token=${TOKEN}`), null);
+  // what is left in the bar: the page and its query, no fragment, no token parameter
   assert.equal(PR.addressWithoutToken("/reset-password", ""), "/reset-password");
+  assert.equal(PR.addressWithoutToken("/reset-password", "?lang=ru"), "/reset-password?lang=ru");
+  assert.equal(PR.addressWithoutToken("/reset-password", `?lang=ru&token=${TOKEN}`), "/reset-password?lang=ru");
+  assert.equal(PR.addressWithoutToken("/reset-password", `?token=${TOKEN}`), "/reset-password");
   assert.doesNotMatch(PR.addressWithoutToken("/reset-password", `?token=${TOKEN}`), new RegExp(TOKEN));
 });
 
@@ -80,7 +85,7 @@ test("who is offered «Ссылка для нового пароля»: owner ->
 });
 
 test("the Telegram share address carries exactly the link, encoded", () => {
-  const link = `https://algolab.me/reset-password?token=${TOKEN}`;
+  const link = `https://algolab.me/reset-password#token=${TOKEN}`;
   const url = PR.telegramShareUrl(link);
   assert.equal(url, `https://t.me/share/url?url=${encodeURIComponent(link)}`);
   const parsed = new URL(url);
@@ -128,7 +133,7 @@ test("login sends remember (true unless the box is cleared); the public calls ca
   assert.deepEqual(calls.map((c) => c.body.email), ["a@b.kz", "a@b.kz", "a@b.kz"]);
 });
 
-test("forgot / check / reset: the right routes, the token only in the body or the query of ITS call", async () => {
+test("forgot / check / reset: the right routes, the token only in the BODY of its call (never in an address)", async () => {
   const calls = stubFetch({ status: 200, body: { ok: true, email_delivery: false, valid: true } });
   const { authApi } = loadApi();
   assert.deepEqual(await authApi.forgotPassword("t@school.kz"), { ok: true, email_delivery: false, valid: true });
@@ -139,8 +144,9 @@ test("forgot / check / reset: the right routes, the token only in the body or th
   assert.equal(forgot.method, "POST");
   assert.deepEqual(forgot.body, { email: "t@school.kz" });
   assert.equal(check.url.pathname, "/api/v1/auth/password/reset/check");
-  assert.equal(check.method, "GET");
-  assert.equal(check.url.searchParams.get("token"), TOKEN);
+  assert.equal(check.method, "POST", "the check is a POST: a GET would put the token into the server's access log");
+  assert.deepEqual(check.body, { token: TOKEN });
+  assert.equal(check.url.search, "", "the token is not in the address of the check");
   assert.equal(reset.url.pathname, "/api/v1/auth/password/reset");
   assert.deepEqual(reset.body, { token: TOKEN, new_password: "NewPass-123" });
   assert.equal(reset.url.search, "", "the token is not repeated in the address of the POST");
@@ -158,10 +164,10 @@ test("a dead link is a 400 with the server's own sentence", async () => {
 });
 
 test("issuing a staff link is one authenticated POST to the person's route, the id encoded", async () => {
-  const calls = stubFetch({ status: 200, body: { url: "https://algolab.me/reset-password?token=x", expires_at: "2026-10-16T10:42:00+00:00" } });
+  const calls = stubFetch({ status: 200, body: { url: "https://algolab.me/reset-password#token=x", expires_at: "2026-10-16T10:42:00+00:00" } });
   const { authApi } = loadApi();
   const answer = await authApi.issuePasswordResetLink("3f1c9e0e-5b57-4c3e-9a4e-0d9f3c8a7b11");
-  assert.equal(answer.url, "https://algolab.me/reset-password?token=x");
+  assert.equal(answer.url, "https://algolab.me/reset-password#token=x");
   assert.equal(calls.length, 1);
   assert.equal(calls[0].method, "POST");
   assert.equal(calls[0].url.pathname, "/api/v1/auth/staff/3f1c9e0e-5b57-4c3e-9a4e-0d9f3c8a7b11/password-reset-link");
@@ -189,12 +195,13 @@ const visit = (url, cookie) =>
   middleware(new NextRequest(`https://algo.example${url}`, cookie ? { headers: { cookie } } : undefined));
 
 test("/forgot-password and /reset-password are open to somebody who cannot sign in - and never bounce through /login?redirect=", () => {
-  for (const url of ["/forgot-password", "/reset-password", `/reset-password?token=${TOKEN}`]) {
+  for (const url of ["/forgot-password", "/reset-password", `/reset-password#token=${TOKEN}`]) {
     const response = visit(url);
     assert.equal(response.status, 200, url);
     assert.equal(response.headers.get("location"), null, `${url} must not redirect (the redirect value would carry the token)`);
   }
   // as a return target after a dead session: the bare login, never the page with its secret
+  assert.equal(R.loginUrlForPage("/reset-password", ""), "/login");
   assert.equal(R.loginUrlForPage("/reset-password", `?token=${TOKEN}`), "/login");
   assert.equal(R.loginUrlForPage("/forgot-password", ""), "/login");
   // a neighbouring path is not public by accident
@@ -225,7 +232,8 @@ test("/forgot-password: an e-mail field, the send button and the way back to the
 
 test("/reset-password: reads the token once, removes it from the address, keeps it in memory only", () => {
   const src = read("src/app/reset-password/page.tsx");
-  assert.match(src, /readResetToken\(window\.location\.search\)/);
+  assert.match(src, /readResetToken\(window\.location\.hash\)/);
+  assert.doesNotMatch(src, /location\.search\)\s*;?\s*$|readResetToken\(window\.location\.search/m, "the token is read from the fragment only");
   assert.match(src, /window\.history\.replaceState\(null, "", addressWithoutToken\(RESET_PATH, window\.location\.search\)\)/);
   assert.ok(src.indexOf("readResetToken(") < src.indexOf("replaceState("), "read first, then remove");
   assert.equal((src.match(/readResetToken\(/g) || []).length, 1, "read exactly once");
@@ -316,4 +324,35 @@ test("administrator «Учителя»: teachers only, one action, in the sideba
   assert.match(adminNav, /\{ href: "\/admin\/teachers", label: "Учителя", icon: UserCog \}/);
   // the admin workspace guard lets administrators (and owners) in, nobody else
   assert.match(read("src/app/admin/layout.tsx"), /allowedRoles=\{\["admin", "owner"\]\}/);
+});
+
+// ---- 6. /activate for a visitor who is not signed in -----------------------------------------------
+
+test("/activate is open without a cookie (the owner clicks the e-mail link before any sign-in)", () => {
+  for (const url of ["/activate", "/activate?token=abc123"]) {
+    const response = visit(url);
+    assert.equal(response.status, 200, url);
+    assert.equal(response.headers.get("location"), null, url);
+  }
+  assert.equal(visit("/activate-x").status, 307, "a neighbouring path is not public by accident");
+  assert.equal(R.loginUrlForPage("/activate", "?token=abc"), "/login", "never a sign-in return target");
+});
+
+test("the activation page works for a signed-out visitor: one public POST that signs the owner in", async () => {
+  const src = read("src/app/activate/page.tsx");
+  assert.doesNotMatch(src, /AuthGuard/);
+  assert.match(src, /authApi\.activate\(activeToken\)/);
+  assert.match(src, /setFromTokens\(/);
+  const calls = stubFetch({ status: 200, body: { user: { id: "u1", role: "owner" }, tokens: { access_token: "a", refresh_token: "r" }, org: { name: "Центр" } } });
+  const { authApi } = loadApi();
+  const answer = await authApi.activate("activation-token-123");
+  assert.equal(answer.user.id, "u1");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url.pathname, "/api/v1/auth/activate");
+  assert.equal(calls[0].method, "POST");
+  assert.deepEqual(calls[0].body, { token: "activation-token-123" });
+  assert.equal(calls[0].headers.Authorization, undefined, "no session is needed");
+  assert.equal(calls[0].credentials, "include", "the cookies the server sets must be accepted");
+  // after success the page goes on to the admin area, which the new cookie now opens
+  assert.match(src, /router\.push\("\/admin\/diagnostics"\)/);
 });

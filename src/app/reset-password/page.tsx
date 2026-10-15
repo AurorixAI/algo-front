@@ -36,7 +36,7 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     if (tokenRef.current === undefined) {
-      tokenRef.current = readResetToken(window.location.search);
+      tokenRef.current = readResetToken(window.location.hash);
       window.history.replaceState(null, "", addressWithoutToken(RESET_PATH, window.location.search));
     }
     const token = tokenRef.current;
