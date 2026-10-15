@@ -169,7 +169,7 @@ test("deadline hint: days left, the last day, overdue in amber, nothing for deci
   assert.equal(hint("nope", "pending", "2026-10-15"), null);
   assert.equal(hint("2026-10-03", "pending", "nope"), null);
   const page = read("src/components/attendance/excuses-page.tsx");
-  assert.match(page, /excuseDeadlineHint\(item\.lesson_date, item\.status, businessToday\)/);
+  assert.match(page, /excuseDeadlineView\(item, businessToday\)/);
   assert.match(page, /text-amber-700/);
 });
 

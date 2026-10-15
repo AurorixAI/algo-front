@@ -19,12 +19,14 @@ import {
 } from "@/lib/api";
 import {
   businessDayOfWeek,
+  businessGreeting,
   businessTimeMinutes,
   formatBusinessDate,
   formatBusinessDateLabel,
   formatIsoDateLabel,
   formatMinutesUntil,
 } from "@/lib/business-time";
+import { openLessonBadge } from "@/lib/open-lessons";
 import {
   Users,
   GraduationCap,
@@ -1185,8 +1187,7 @@ export default function TeacherDashboardPage() {
   // in this action centre.
   const actionCount = dashboardError || openAttendanceActionsAvailable === false ? null : lessonActions.length;
 
-  const currentBusinessHour = Math.floor(businessTimeMinutes() / 60);
-  const greeting = currentBusinessHour < 12 ? "Доброе утро" : currentBusinessHour < 18 ? "Добрый день" : "Добрый вечер";
+  const greeting = businessGreeting(); // Tashkent hour, whatever the browser zone is
   const displayName = user?.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : "Преподаватель";
 
   const statCards = [
@@ -1947,7 +1948,7 @@ export default function TeacherDashboardPage() {
                                 </p>
                               </div>
                               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
-                                {isMissed ? "Не начат" : isHistorical ? "Просрочено" : "Открыт урок"}
+                                {action.actionType ? openLessonBadge(action.actionType) : "Идёт сейчас"}
                               </span>
                             </div>
                             <p className="mt-2 text-sm font-semibold text-slate-800">{action.label}</p>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
-import { forbiddenTarget } from "@/lib/role-home";
+import { forbiddenTarget, isRoleAllowed } from "@/lib/role-home";
 
 type UserRole = "owner" | "admin" | "teacher" | "superadmin";
 
@@ -73,11 +73,10 @@ export function AuthGuard({
         return;
       }
 
-      // Check role if allowedRoles specified (check both role and org_role)
+      // Check role if allowedRoles specified
       if (allowedRoles.length > 0) {
-        const hasRole = allowedRoles.includes(currentUser.role as UserRole) ||
-          allowedRoles.includes(currentUser.org_role as UserRole);
-        if (!hasRole) {
+        // The live membership role decides (org_role, else the account role).
+        if (!isRoleAllowed(allowedRoles, currentUser)) {
           const orgRole = currentUser.org_role as UserRole;
           const accountRole = currentUser.role as UserRole;
           router.replace(

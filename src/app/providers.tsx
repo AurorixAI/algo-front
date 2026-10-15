@@ -3,6 +3,7 @@
 import { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { LanguageProvider } from "@/lib/language";
+import { SessionSync } from "@/components/auth/SessionSync";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -16,7 +17,10 @@ const queryClient = new QueryClient({
 export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>{children}</LanguageProvider>
+      <LanguageProvider>
+        <SessionSync />
+        {children}
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

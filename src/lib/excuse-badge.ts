@@ -13,6 +13,8 @@ interface ExcuseBadgeState {
    */
   refresh: (force?: boolean) => Promise<void>;
   setPending: (value: number) => void;
+  /** Forget everything (another user signed in): counters back to 0, answers still in flight are dropped. */
+  reset: () => void;
 }
 
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
@@ -24,19 +26,30 @@ export const selectBadgeTotal = (state: Pick<ExcuseBadgeState, "pending" | "open
 let inFlight: Promise<void> | null = null;
 let queued: Promise<void> | null = null;
 let lastStartedAt = 0;
+/** Bumped by `reset` so an answer that arrives after it is dropped. */
+let epoch = 0;
 const MIN_GAP_MS = 1000;
 
 export const useExcuseBadge = create<ExcuseBadgeState>((set) => ({
   pending: 0,
   openLessons: 0,
   setPending: (value) => set({ pending: count(value) }),
+  reset: () => {
+    epoch += 1;
+    inFlight = null;
+    queued = null;
+    lastStartedAt = 0;
+    set({ pending: 0, openLessons: 0 });
+  },
   refresh: (force = false) => {
     // The demo API has no such endpoint; nothing is requested there.
     if (DEMO_MODE) return Promise.resolve();
     const start = (): Promise<void> => {
       lastStartedAt = Date.now();
+      const myEpoch = epoch;
       const request: Promise<void> = orgApi.getAttendanceExcuseSummary()
         .then((summary) => {
+          if (myEpoch !== epoch) return;
           const open = summary?.open_lessons_total;
           // null/absent = not counted (server hiccup, or an older backend): keep the last value.
           set(open == null

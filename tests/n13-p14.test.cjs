@@ -49,15 +49,22 @@ test("start request: an ID-only entry never goes out with an empty name", () => 
   assert.deepEqual(entry.startIdentity({ name: "тимур рахимов", id: "" }, { name: "Рахимов Тимур", display_id: null }), {
     student_name: "Рахимов Тимур", student_id: undefined, display_id: undefined,
   });
-  // the pre-check could not run (network error): the typed ID stands in for the name, never ""
-  const offline = entry.startIdentity({ name: "", id: " TE-031 " }, null);
-  assert.deepEqual(offline, { student_name: "TE-031", student_id: "TE-031", display_id: "TE-031" });
+  // the pre-check could not run (N13 P1.5): an ID is never turned into a name - nothing starts
+  assert.equal(entry.startIdentity({ name: "", id: " TE-031 " }, null), null);
+  assert.equal(entry.startIdentity({ name: "", id: "31" }, undefined), null);
   assert.deepEqual(entry.startIdentity({ name: "Тимур Рахимов", id: "" }, undefined), {
     student_name: "Тимур Рахимов", student_id: undefined, display_id: undefined,
   });
+  // an exam without a group has no roster to check: the typed ID is all there is
+  assert.deepEqual(entry.startIdentity({ name: "", id: " 31 " }, null, { idStandsInForName: true }), {
+    student_name: "31", student_id: "31", display_id: "31",
+  });
   for (const typed of [{ name: "", id: "31" }, { name: "Тимур Рахимов", id: "" }, { name: "", id: "TE-031" }]) {
     for (const c of [null, undefined, confirmed, { name: "", display_id: "TE-031" }]) {
-      assert.ok(entry.startIdentity(typed, c).student_name.length > 0, JSON.stringify([typed, c]));
+      const identity = entry.startIdentity(typed, c);
+      // either a real name goes out, or nothing does - never an empty name
+      assert.ok(identity === null || identity.student_name.length > 0, JSON.stringify([typed, c]));
+      if (typed.name === "" && !c?.name) assert.equal(identity, null, JSON.stringify([typed, c]));
     }
   }
 });
@@ -67,7 +74,7 @@ test("the lobby path starts with the confirmed student passed as an argument, no
   assert.match(page, /const executeStartExam = async \(confirmed\?: ConfirmedStudent \| null\) =>/);
   assert.match(page, /executeStartExam\(confirmed\);/);
   assert.match(page, /onClick=\{\(\) => executeStartExam\(\)\}/); // the click event is not an argument
-  assert.match(page, /startIdentity\(\{ name: studentName, id: studentId \}, confirmed \?\? confirmedStudent\)/);
+  assert.match(page, /startIdentity\(\s*\{ name: studentName, id: studentId \},\s*confirmed \?\? confirmedStudent,/);
   assert.match(page, /examsApi\.startSession\(code, identity\)/);
 });
 

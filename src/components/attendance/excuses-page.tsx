@@ -25,7 +25,7 @@ import {
   type ExcuseReviewStatus,
 } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { excuseDeadlineHint } from "@/lib/excuse-deadline";
+import { excuseDeadlineView } from "@/lib/excuse-deadline";
 import { telHref } from "@/lib/phone";
 import {
   checkExcuseFile,
@@ -466,7 +466,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                 const badge = STATUS_BADGE[item.status];
                 const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
                 const phoneHref = telHref(item.student.phone);
-                const deadline = excuseDeadlineHint(item.lesson_date, item.status, businessToday);
+                const deadline = excuseDeadlineView(item, businessToday);
                 return (
                   <li key={item.id} className={`flex flex-col gap-3 px-4 py-4 sm:px-5 xl:items-start ${GRID_COLUMNS}`}>
                     <div className="flex flex-wrap items-center gap-2 xl:block">
@@ -545,7 +545,7 @@ function ExcusesPageContent({ studentProfileBasePath }: { studentProfileBasePath
                       {item.status === "pending" ? (
                         <>
                           {deadline && (
-                            <p className={`text-[11px] ${deadline.overdue ? "font-medium text-amber-700" : "text-slate-400"}`}>{deadline.text}</p>
+                            <p className={`text-[11px] ${deadline.warn ? "font-medium text-amber-700" : "text-slate-400"}`}>{deadline.text}</p>
                           )}
                           <input
                             value={notes[item.id] || ""}

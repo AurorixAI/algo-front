@@ -460,6 +460,10 @@ export interface AttendanceExcuseFile {
   size_bytes: number;
 }
 
+export type ExcuseServerDeadline =
+  | { kind: "date"; date: string; overdue: boolean; days_left: number }
+  | { kind: "lessons"; lessons_left: number; urgent: boolean; overdue: boolean };
+
 export interface AttendanceExcuseItem {
   id: string;
   attendance_id: string;
@@ -476,6 +480,8 @@ export interface AttendanceExcuseItem {
   reviewed_at: string | null;
   review_note: string | null;
   files: AttendanceExcuseFile[];
+  /** Pending excuses: when to confirm by (a date or the lessons left in a package). Absent on an older server. */
+  deadline?: ExcuseServerDeadline | null;
 }
 
 /** Sidebar counters: excuses to decide and lessons to close. */
@@ -863,6 +869,18 @@ export const authApi = {
 export const orgApi = {
   get: () => api<OrgInfo>("/auth/org"),
   stats: () => api<Record<string, any>>("/auth/org/stats"),
+  /** Groups with their average θ (latest result of every active student) - owner dashboard. */
+  groupsOverview: () =>
+    api<{
+      groups: Array<{
+        group_id: string;
+        name: string;
+        class_level: number | null;
+        student_count: number;
+        diagnosed_count: number;
+        avg_theta: number | null;
+      }>;
+    }>("/auth/org/groups-overview"),
   update: (data: { name?: string; city?: string; phone?: string }) =>
     api<OrgInfo>("/auth/org", { method: "PUT", body: data }),
 

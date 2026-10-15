@@ -19,6 +19,10 @@ export interface PaymentSettings {
   lessons_per_payment: number;
   expiring_days: number;
   expiring_lessons: number;
+  /** An excuse is confirmed this many days before the end of the paid period... */
+  excuse_deadline_days: number;
+  /** ...or when this many lessons are left in a lessons package. */
+  excuse_deadline_lessons: number;
   admin_can_manage: boolean;
   updated_by: string | null;
   updated_at: string | null;
@@ -475,12 +479,16 @@ export function parseMonthlyFee(text: string): { value: number | null; error: st
 export const LESSONS_PER_PAYMENT_RANGE = { min: 1, max: 60 } as const;
 export const EXPIRING_DAYS_RANGE = { min: 0, max: 14 } as const;
 export const EXPIRING_LESSONS_RANGE = { min: 0, max: 10 } as const;
+export const EXCUSE_DEADLINE_DAYS_RANGE = { min: 0, max: 30 } as const;
+export const EXCUSE_DEADLINE_LESSONS_RANGE = { min: 0, max: 12 } as const;
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   period_mode: "calendar",
   lessons_per_payment: 12,
   expiring_days: 3,
   expiring_lessons: 3,
+  excuse_deadline_days: 5,
+  excuse_deadline_lessons: 2,
   admin_can_manage: false,
   updated_by: null,
   updated_at: null,
@@ -491,7 +499,8 @@ function inRange(value: number, range: { min: number; max: number }): boolean {
 }
 
 export function validatePaymentSettings(
-  settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons">,
+  settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
+    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons">>,
 ): string | null {
   if (!inRange(settings.lessons_per_payment, LESSONS_PER_PAYMENT_RANGE)) {
     return `Число уроков в оплате: от ${LESSONS_PER_PAYMENT_RANGE.min} до ${LESSONS_PER_PAYMENT_RANGE.max}`;
@@ -502,12 +511,21 @@ export function validatePaymentSettings(
   if (!inRange(settings.expiring_lessons, EXPIRING_LESSONS_RANGE)) {
     return `Порог «скоро» в уроках: от ${EXPIRING_LESSONS_RANGE.min} до ${EXPIRING_LESSONS_RANGE.max}`;
   }
+  if (settings.excuse_deadline_days !== undefined && !inRange(settings.excuse_deadline_days, EXCUSE_DEADLINE_DAYS_RANGE)) {
+    return `Срок подтверждения пропуска в днях: от ${EXCUSE_DEADLINE_DAYS_RANGE.min} до ${EXCUSE_DEADLINE_DAYS_RANGE.max}`;
+  }
+  if (settings.excuse_deadline_lessons !== undefined && !inRange(settings.excuse_deadline_lessons, EXCUSE_DEADLINE_LESSONS_RANGE)) {
+    return `Срок подтверждения пропуска в уроках: от ${EXCUSE_DEADLINE_LESSONS_RANGE.min} до ${EXCUSE_DEADLINE_LESSONS_RANGE.max}`;
+  }
   return null;
 }
 
 /** Only changed fields go to the server (PATCH semantics). */
 export function diffPaymentSettings(before: PaymentSettings, after: PaymentSettings): PaymentSettingsUpdate {
-  const keys = ["period_mode", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage"] as const;
+  const keys = [
+    "period_mode", "lessons_per_payment", "expiring_days", "expiring_lessons",
+    "excuse_deadline_days", "excuse_deadline_lessons", "admin_can_manage",
+  ] as const;
   const patch: Record<string, unknown> = {};
   for (const key of keys) {
     if (before[key] !== after[key]) patch[key] = after[key];

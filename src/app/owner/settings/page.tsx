@@ -8,6 +8,8 @@ import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, LucideIcon
 import {
   DEFAULT_PAYMENT_SETTINGS,
   diffPaymentSettings,
+  EXCUSE_DEADLINE_DAYS_RANGE,
+  EXCUSE_DEADLINE_LESSONS_RANGE,
   EXPIRING_DAYS_RANGE,
   EXPIRING_LESSONS_RANGE,
   LESSONS_PER_PAYMENT_RANGE,
@@ -16,6 +18,8 @@ import {
   type PeriodMode,
 } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { daysWord, lessonsWord } from "@/lib/excuse-deadline";
+import { effectiveRole } from "@/lib/role-home";
 
 interface SettingsSectionProps {
   title: string;
@@ -216,6 +220,39 @@ function PaymentsSettingsSection() {
         </div>
       )}
 
+      <div className="space-y-4 text-sm text-slate-700">
+        <div>
+          <label htmlFor="payments-excuse-days" className="block">Подтверждать уважительный пропуск за</label>
+          <div className="mt-1.5 flex items-center gap-2">
+            <input
+              id="payments-excuse-days"
+              type="number"
+              min={EXCUSE_DEADLINE_DAYS_RANGE.min}
+              max={EXCUSE_DEADLINE_DAYS_RANGE.max}
+              value={Number.isNaN(form.excuse_deadline_days) ? "" : form.excuse_deadline_days}
+              onChange={(e) => patch({ excuse_deadline_days: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+            <span>{daysWord(form.excuse_deadline_days)} до конца оплаты</span>
+          </div>
+        </div>
+        <div>
+          <label htmlFor="payments-excuse-lessons" className="block">или когда в пакете осталось</label>
+          <div className="mt-1.5 flex items-center gap-2">
+            <input
+              id="payments-excuse-lessons"
+              type="number"
+              min={EXCUSE_DEADLINE_LESSONS_RANGE.min}
+              max={EXCUSE_DEADLINE_LESSONS_RANGE.max}
+              value={Number.isNaN(form.excuse_deadline_lessons) ? "" : form.excuse_deadline_lessons}
+              onChange={(e) => patch({ excuse_deadline_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+            <span>{lessonsWord(form.excuse_deadline_lessons)}</span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>
           <p id="payments-admin-label" className="text-sm font-semibold text-slate-900">Администратор может вносить оплаты</p>
@@ -242,8 +279,8 @@ function PaymentsSettingsSection() {
 
 export default function OwnerSettingsPage() {
   const { org, user } = useAuthStore();
-  // The route is open to administrators too; payments settings belong to the owner only.
-  const isOwner = (user?.role || user?.org_role) === "owner";
+  // /owner/* is for the owner only (N13 P1.5); the check stays as a second line behind the layout guard.
+  const isOwner = effectiveRole(user) === "owner";
 
   // Forms
   const [orgForm, setOrgForm] = useState({ name: "", city: "", phone: "" });

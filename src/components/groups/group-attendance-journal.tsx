@@ -29,7 +29,12 @@ import {
   orgApi,
   type StudentInGroup,
 } from "@/lib/api";
-import { formatBusinessDate, formatUtcNaiveAsBusinessDate, utcNaiveToBusinessIsoDate } from "@/lib/business-time";
+import {
+  formatBusinessDate,
+  formatUtcNaiveAsBusinessDate,
+  formatUtcNaiveAsBusinessDateTime,
+  utcNaiveToBusinessIsoDate,
+} from "@/lib/business-time";
 import {
   collectExcuseReasons,
   CORRECTION_REASON_MAX,
@@ -1108,7 +1113,7 @@ export function GroupAttendanceJournal({
                             <div>
                               <span
                                 title={[
-                                  `Исправлено: ${[correction.by_name, formatDateTimeRu(correction.at)].filter(Boolean).join(", ")}`,
+                                  `Исправлено: ${[correction.by_name, formatUtcNaiveAsBusinessDateTime(correction.at)].filter(Boolean).join(", ")}`,
                                   correction.reason ? `Причина: ${correction.reason}` : "",
                                 ].filter(Boolean).join("\n")}
                                 className="inline-flex cursor-help rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"

@@ -2,16 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { orgApi, analyticsApi } from "@/lib/api";
+import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import {
   Users, GraduationCap, Brain,
   Activity, Calendar, MapPin, Building,
-  AlertCircle, Trophy, Clock, Video, Shield
+  AlertCircle, Trophy, Shield
 } from "lucide-react";
-import Link from "next/link";
-import { FeatureLock } from "@/components/ui/feature-lock";
+import { businessGreeting, formatBusinessDateLabel } from "@/lib/business-time";
 import { isAtRisk } from "@/lib/diagnostic-level";
+import { weightedAverageTheta } from "@/lib/owner-overview";
 
 interface OrgStats {
   total_students: number;
@@ -27,6 +27,7 @@ interface GroupSummary {
   name: string;
   class_level: number | null;
   student_count: number;
+  diagnosed_count: number;
   avg_theta: number | null;
 }
 
@@ -41,7 +42,7 @@ export default function OwnerDashboard() {
       try {
         const [statsData, overviewData] = await Promise.all([
           orgApi.stats(),
-          analyticsApi.orgOverview().catch(() => null),
+          orgApi.groupsOverview().catch(() => null),
         ]);
         setStats(statsData as OrgStats);
         if (overviewData?.groups) {
@@ -69,16 +70,13 @@ export default function OwnerDashboard() {
     );
   }
 
-  const now = new Date();
-  const greeting = now.getHours() < 12 ? "Доброе утро" : now.getHours() < 18 ? "Добрый день" : "Добрый вечер";
+  // The greeting and the date follow the centre's clock (Tashkent), not the browser's.
+  const greeting = businessGreeting();
 
-  // Calculate global average theta across all groups
+  // Average θ over the diagnosed students of all groups; null (shown as «—») when nobody is diagnosed.
   const groupsWithTheta = groups.filter(g => g.avg_theta !== null);
-  const globalTheta = groupsWithTheta.length > 0 
-    ? groupsWithTheta.reduce((acc, g) => acc + (g.avg_theta || 0), 0) / groupsWithTheta.length 
-    : 0;
-
-  const globalAtRisk = isAtRisk({ theta: globalTheta });
+  const globalTheta = weightedAverageTheta(groups);
+  const globalAtRisk = globalTheta !== null && isAtRisk({ theta: globalTheta });
 
   // Smart Lists
   const sortedGroups = [...groupsWithTheta].sort((a, b) => (b.avg_theta || 0) - (a.avg_theta || 0));
@@ -94,7 +92,7 @@ export default function OwnerDashboard() {
     { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
     {
       label: "Средний уровень (θ)",
-      value: globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2),
+      value: globalTheta === null ? "—" : globalTheta > 0 ? `+${globalTheta.toFixed(2)}` : globalTheta.toFixed(2),
       icon: Activity,
       color: !globalAtRisk ? "from-emerald-400 to-emerald-600" : "from-rose-400 to-red-500",
       bg: !globalAtRisk ? "bg-emerald-50" : "bg-rose-50",
@@ -121,7 +119,7 @@ export default function OwnerDashboard() {
             className="text-slate-500 mt-1.5 flex items-center gap-2 text-sm font-medium"
           >
             <Calendar className="w-4 h-4 text-slate-400" />
-            {now.toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+            {formatBusinessDateLabel({ weekday: "long", day: "numeric", month: "long", year: "numeric" })}
           </motion.p>
         </div>
       </div>
@@ -192,7 +190,7 @@ export default function OwnerDashboard() {
         </div>
       </motion.div>
 
-      {/* Smart Lists (Top & At-Risk) — real data from analyticsApi.orgOverview(),
+      {/* Smart Lists (Top & At-Risk) — real data from the monolith (orgApi.groupsOverview),
           no reason to hide this behind a "coming soon" lock. */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
         {/* Top Performers */}
@@ -270,39 +268,6 @@ export default function OwnerDashboard() {
           </div>
         </motion.div>
       </div>
-
-      {/* Full-width Live Classes Board — no lesson/schedule module exists yet,
-          so this stays locked with an honest empty state (no invented names). */}
-      <FeatureLock
-        title="Уроки сейчас"
-        description="Модуль откроется после завершения 1-2 этапа подключения центра."
-      >
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="bg-white rounded-[1.5rem] border border-slate-200/60 shadow-sm flex flex-col overflow-hidden w-full">
-          <div className="p-6 md:p-8 md:pr-28 border-b border-slate-100 bg-slate-50/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-xl font-bold text-slate-900 flex items-center gap-3">
-                <span className="relative flex h-3.5 w-3.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
-                </span>
-                Уроки сейчас
-              </h3>
-              <p className="text-sm font-medium text-slate-500 mt-1">Актуальное расписание занятий в реальном времени</p>
-            </div>
-            <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-xl border border-slate-200 shadow-sm">
-              <Clock className="w-5 h-5 text-slate-400" />
-              <span className="text-xl font-bold font-mono text-slate-900 tracking-tight">
-                {now.getHours()}:{now.getMinutes().toString().padStart(2, "0")}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-10 flex flex-col items-center justify-center text-slate-400 bg-slate-50/30">
-            <Video className="w-8 h-8 mb-2 opacity-40" />
-            <p className="text-sm">Откроется после этапов подключения</p>
-          </div>
-        </motion.div>
-      </FeatureLock>
     </div>
   );
 }

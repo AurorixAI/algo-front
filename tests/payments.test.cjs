@@ -447,7 +447,7 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /href: "\/admin\/payments", label: "Оплаты"/);
   assert.match(sidebar, /href: "\/owner\/payments", label: "Оплаты"/);
-  assert.match(sidebar, /showPayments = !DEMO_MODE && \(rawRole === "owner" \|\| role === "admin"\) && paymentsAvailable/);
+  assert.match(sidebar, /showPayments = !DEMO_MODE && \(rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)\)/);
   const teacherNav = sidebar.slice(sidebar.indexOf("const teacherNav"), sidebar.indexOf("const navItems"));
   assert.doesNotMatch(teacherNav, /payments|Оплаты/);
   // the store does not request anything in the demo build and is fed only by owner/admin layouts

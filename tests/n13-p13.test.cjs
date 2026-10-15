@@ -150,7 +150,7 @@ test("a role without a home, or a loop, falls back to the configured path", () =
 });
 
 test("the three layouts keep their allowed roles; the teacher layout has no per-role override of the login table", () => {
-  assert.match(read("app/owner/layout.tsx"), /allowedRoles=\{\["owner", "admin"\]\}/);
+  assert.match(read("app/owner/layout.tsx"), /allowedRoles=\{\["owner"\]\}/); // owner only since N13 P1.5
   assert.match(read("app/admin/layout.tsx"), /allowedRoles=\{\["admin", "owner"\]\}/);
   assert.match(read("app/teacher/layout.tsx"), /allowedRoles=\{\["teacher"\]\}/);
   assert.doesNotMatch(read("app/teacher/layout.tsx"), /forbiddenRolePaths/);

@@ -26,6 +26,7 @@ import { create } from "zustand";
 import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { effectiveRole } from "@/lib/role-home";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -65,7 +66,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const rawRole = user?.role || user?.org_role || "teacher";
+  const rawRole = effectiveRole(user) || "teacher";
   const role = rawRole === "owner" ? "admin" : rawRole;
   const isTeacher = rawRole === "teacher";
 
@@ -107,7 +108,9 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   // in the layout; a teacher never reads it.
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
   const paymentsDue = usePaymentsSummary((state) => state.due);
-  const showPayments = !DEMO_MODE && (rawRole === "owner" || role === "admin") && paymentsAvailable;
+  // The owner always has access, so the item is there from the first paint (no jump when the
+  // summary arrives); an administrator sees it once the server confirms the access.
+  const showPayments = !DEMO_MODE && (rawRole === "owner" || (role === "admin" && paymentsAvailable));
 
   const adminNav: NavItem[] = [
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
@@ -242,13 +245,19 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                     isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
                   )}
                 />
-                {item.badge ? (
+                {item.badge !== undefined ? (
+                  // The slot exists from the first paint and only fades in: a counter that arrives
+                  // late neither pops in nor moves anything (it is positioned over the icon).
                   <span
-                    aria-label={`${item.badgeLabel ?? "Требуют действий"}: ${item.badge}`}
-                    title={`${item.badgeLabel ?? "Требуют действий"}: ${item.badge}`}
-                    className="absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white"
+                    aria-hidden={item.badge ? undefined : true}
+                    aria-label={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
+                    title={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
+                    className={cn(
+                      "pointer-events-none absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white transition-opacity duration-300",
+                      item.badge ? "opacity-100" : "opacity-0",
+                    )}
                   >
-                    {item.badge > 99 ? "99+" : item.badge}
+                    {item.badge ? (item.badge > 99 ? "99+" : item.badge) : ""}
                   </span>
                 ) : null}
                 <span

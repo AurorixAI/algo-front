@@ -49,3 +49,31 @@ export function forbiddenTarget(
   if (here && (target === here || here.startsWith(`${target}/`))) return options.forbiddenPath;
   return target;
 }
+
+/**
+ * The role a signed-in user acts with: the live membership role of the organisation
+ * (`org_role`) wins, the account role is the fallback (a superadmin has no membership).
+ */
+export function effectiveRole(user?: { role?: string | null; org_role?: string | null } | null): string | null {
+  return user?.org_role || user?.role || null;
+}
+
+/** Whether `user` may open a workspace that allows `allowedRoles` (empty list: any signed-in user). */
+export function isRoleAllowed(
+  allowedRoles: readonly string[],
+  user?: { role?: string | null; org_role?: string | null } | null,
+): boolean {
+  if (allowedRoles.length === 0) return true;
+  const role = effectiveRole(user);
+  return role !== null && allowedRoles.includes(role);
+}
+
+/**
+ * Workspaces and who may enter them. `/owner/*` is for the owner only: an administrator has his
+ * own `/admin/*` (same screens that he is allowed to use), a teacher has `/teacher/*`.
+ */
+export const WORKSPACE_ROLES = {
+  owner: ["owner"],
+  admin: ["admin", "owner"],
+  teacher: ["teacher"],
+} as const;

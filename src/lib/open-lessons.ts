@@ -25,11 +25,20 @@ export function sortOpenLessons(items: OpenAttendanceAction[]): OpenAttendanceAc
   );
 }
 
+/** The two words for an open lesson - the same in the administrators' list and the teacher's action centre. */
+export const OPEN_LESSON_MISSED_LABEL = "Посещаемость не отмечена";
+export const OPEN_LESSON_IN_PROGRESS_LABEL = "Урок не завершён";
+
+/** Short chip: «Посещаемость не отмечена» (never started) or «Урок не завершён» (started, not closed). */
+export function openLessonBadge(actionType: OpenAttendanceAction["actionType"]): string {
+  return actionType === "missed" ? OPEN_LESSON_MISSED_LABEL : OPEN_LESSON_IN_PROGRESS_LABEL;
+}
+
 /** Chip text: what is actually wrong with the lesson, in the words of an administrator. */
 export function openLessonStatus(action: Pick<OpenAttendanceAction, "actionType" | "markedCount" | "rosterCount">): string {
   return action.actionType === "missed"
-    ? "Посещаемость не отмечена"
-    : `Урок не завершён · отмечено ${action.markedCount} из ${action.rosterCount}`;
+    ? OPEN_LESSON_MISSED_LABEL
+    : `${OPEN_LESSON_IN_PROGRESS_LABEL} · отмечено ${action.markedCount} из ${action.rosterCount}`;
 }
 
 /** Tooltip of the chip. */

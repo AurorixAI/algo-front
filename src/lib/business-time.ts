@@ -109,6 +109,37 @@ export function formatUtcNaiveAsBusinessDate(
   return formatIsoDateLabel(iso, options ?? { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/**
+ * «ДД.ММ.ГГГГ ЧЧ:ММ» of a naive-UTC timestamp (or an ISO instant with a zone) on the Tashkent clock:
+ * "2026-10-15T08:55:00" is «15.10.2026 13:55». "" for empty/invalid input and for a date-only
+ * value (a calendar day has no time of day).
+ *
+ * Only for timestamps the server really writes in UTC (journal correction time, payment
+ * `created_at` / `voided_at`, payment settings `updated_at`). The excuse times (`reason_at`,
+ * `reviewed_at`) are already Tashkent wall time: they go through `formatDateTimeRu` unchanged.
+ */
+export function formatUtcNaiveAsBusinessDateTime(value: string | null | undefined): string {
+  const instant = parseUtcNaive(value);
+  if (!instant) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUSINESS_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("day")}.${get("month")}.${get("year")} ${get("hour")}:${get("minute")}`;
+}
+
+/** «Доброе утро» / «Добрый день» / «Добрый вечер» by the Tashkent hour, never the browser's. */
+export function businessGreeting(value = new Date()): string {
+  const hour = Math.floor(businessTimeMinutes(value) / 60);
+  return hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
+}
+
 export function businessTimeMinutes(value = new Date()): number {
   const { hour, minute } = businessParts(value);
   return hour * 60 + minute;

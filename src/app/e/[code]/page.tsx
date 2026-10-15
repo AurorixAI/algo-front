@@ -37,7 +37,15 @@ import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { createAdvanceOnce } from "@/lib/option-tap";
-import { ID_PLACEHOLDER, IDENTITY_HINT, canSubmitIdentity, startIdentity, type ConfirmedStudent } from "@/lib/exam-entry";
+import {
+  CHECK_FAILED_MESSAGE,
+  ID_PLACEHOLDER,
+  IDENTITY_HINT,
+  canSubmitIdentity,
+  checkFailureMessage,
+  startIdentity,
+  type ConfirmedStudent,
+} from "@/lib/exam-entry";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -307,6 +315,7 @@ export default function ExamPage() {
   // ── Handlers ─────────────────────────────────────────────────────────────
 
   const handleStartClick = async () => {
+    setConfirmedStudent(null); // a confirmation from an earlier attempt never carries over
     setGroupWarning(null);
     setAlreadySubmitted(false);
     const sName = studentName.trim();
@@ -351,9 +360,13 @@ export default function ExamPage() {
           name: check.student?.full_name || sName,
           display_id: check.student?.display_id,
         };
-        setConfirmedStudent(confirmed.display_id ? confirmed : null);
+        setConfirmedStudent(confirmed);
       } catch (err: any) {
+        // The roster could not be checked (network, server failure): do not start with whatever was
+        // typed - stay on the form and ask to try again.
         console.error("Check student error:", err);
+        setGroupWarning(checkFailureMessage(err));
+        return;
       }
     }
 
@@ -367,10 +380,18 @@ export default function ExamPage() {
 
   const executeStartExam = async (confirmed?: ConfirmedStudent | null) => {
     setShowStartConfirm(false);
+    const identity = startIdentity(
+      { name: studentName, id: studentId },
+      confirmed ?? confirmedStudent,
+      { idStandsInForName: !examInfo?.group_id }, // no group, no roster: the typed ID is all there is
+    );
+    if (!identity) {
+      // Nobody was confirmed for a group exam: never start it under a typed ID.
+      setGroupWarning(CHECK_FAILED_MESSAGE);
+      return;
+    }
     setPhase("starting");
     try {
-      const identity = startIdentity({ name: studentName, id: studentId }, confirmed ?? confirmedStudent);
-
       const res = await examsApi.startSession(code, identity);
 
       if (res.already_submitted) {
