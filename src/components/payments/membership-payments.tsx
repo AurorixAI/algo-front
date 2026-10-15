@@ -278,7 +278,7 @@ function HistoryItem({
           </p>
         )}
       </div>
-      <RowMenu items={items} label="Действия с оплатой" width={200} />
+      <RowMenu items={items} label={`Действия с оплатой от ${formatDateRu(payment.paid_on)}`} width={200} />
     </li>
   );
 }

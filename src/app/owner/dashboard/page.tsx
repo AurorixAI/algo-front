@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { businessGreeting, formatBusinessDateLabel } from "@/lib/business-time";
 import { isAtRisk } from "@/lib/diagnostic-level";
-import { centreTheta } from "@/lib/owner-overview";
+import { centreTheta, splitDashboardGroups } from "@/lib/owner-overview";
 
 interface OrgStats {
   total_students: number;
@@ -76,14 +76,11 @@ export default function OwnerDashboard() {
   const greeting = businessGreeting();
 
   // Average θ over the diagnosed students of all groups; null (shown as «—») when nobody is diagnosed.
-  const groupsWithTheta = groups.filter(g => g.avg_theta !== null);
   const globalTheta = centreTheta({ groups, avg_theta: serverTheta });
   const globalAtRisk = globalTheta !== null && isAtRisk({ theta: globalTheta });
 
-  // Smart Lists
-  const sortedGroups = [...groupsWithTheta].sort((a, b) => (b.avg_theta || 0) - (a.avg_theta || 0));
-  const topGroups = sortedGroups.slice(0, 3);
-  const riskGroups = sortedGroups.slice().reverse().slice(0, 3).filter(g => isAtRisk({ theta: g.avg_theta })); // level policy: below_grade, theta < -0.5
+  // Smart Lists: leaders (above the centre average) and risk (θ < -0.5, level policy) never share a group.
+  const { leaders: topGroups, risk: riskGroups, withData, comparable } = splitDashboardGroups(groups, globalTheta);
 
   // 4 Core KPIs — real values only. No trend/delta shown: there is no
   // historical snapshot to compute a real "+12%"-style change against, and
@@ -228,7 +225,7 @@ export default function OwnerDashboard() {
             )) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
                 <GraduationCap className="w-8 h-8 mb-2 opacity-50" />
-                <p className="text-sm">Нет данных для анализа</p>
+                <p className="text-sm">{withData === 0 ? "Нет данных для анализа" : !comparable ? "Мало данных для сравнения" : "Нет групп выше среднего уровня"}</p>
               </div>
             )}
           </div>
@@ -264,7 +261,7 @@ export default function OwnerDashboard() {
             )) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
                 <Shield className="w-8 h-8 mb-2 opacity-50" />
-                <p className="text-sm">Нет отстающих групп. Отлично!</p>
+                <p className="text-sm">{withData === 0 ? "Нет данных для анализа" : "Нет отстающих групп. Отлично!"}</p>
               </div>
             )}
           </div>

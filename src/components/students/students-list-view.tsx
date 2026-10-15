@@ -8,6 +8,9 @@ import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
+import { createRequestSequence } from "@/lib/request-sequence";
+import { studentTabQuery, studentTabLabel, studentsSubtitle, type StudentTab, type StudentTabCounts } from "@/lib/students-tabs";
+import { studentHasGroup } from "@/lib/student-status";
 
 interface StudentInfo {
   id: string;
@@ -44,6 +47,11 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   const [teachers, setTeachers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet.
+  const [tab, setTab] = useState<StudentTab>("grouped");
+  const [counts, setCounts] = useState<StudentTabCounts>({ grouped: null, ungrouped: null });
+  // Latest-request-wins: a slow answer for the previous tab / search must not replace the current list.
+  const [listSeq] = useState(() => createRequestSequence());
 
   const handleCopyId = (displayId: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -69,25 +77,42 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
     }
   }, []);
 
-  // Server-side paging: only the current page is fetched; `total` is the exact
-  // size of the filtered set (only students enrolled in a group are listed).
+  // A chosen group means «in a group», whatever tab was open.
+  const activeTab: StudentTab = filterGroup ? "grouped" : tab;
+
+  // Server-side paging: only the current page is fetched; `total` is the exact size of the
+  // filtered set. Archived students are in neither tab (the dashboard total leaves them out too),
+  // so «В группах» + «Без группы» add up to the dashboard «Всего учеников». The other tab's
+  // count comes from a one-row request with the same search.
   const loadStudents = useCallback(async () => {
+    const token = listSeq.next();
     try {
-      const data = await orgApi.listStudentsPage({
-        search: debouncedSearch || undefined,
-        group_id: filterGroup || undefined,
-        has_primary_group: true,
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
-      });
+      const search = debouncedSearch || undefined;
+      const [data, other] = await Promise.all([
+        orgApi.listStudentsPage({
+          ...studentTabQuery(activeTab, search),
+          group_id: filterGroup || undefined,
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+        }),
+        filterGroup
+          ? Promise.resolve(null)
+          : orgApi.listStudentsPage({ ...studentTabQuery(activeTab === "grouped" ? "ungrouped" : "grouped", search), limit: 1 }).catch(() => null),
+      ]);
+      if (!listSeq.isCurrent(token)) return;
       setStudents(data.items as StudentInfo[]);
       setTotal(data.total);
+      setCounts(filterGroup
+        ? { grouped: data.total, ungrouped: null }
+        : activeTab === "grouped"
+          ? { grouped: data.total, ungrouped: other ? other.total : null }
+          : { grouped: other ? other.total : null, ungrouped: data.total });
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (listSeq.isCurrent(token)) setLoading(false);
     }
-  }, [debouncedSearch, filterGroup, page]);
+  }, [debouncedSearch, filterGroup, page, activeTab, listSeq]);
 
   const loadAll = () => { loadDirectories(); loadStudents(); };
 
@@ -113,6 +138,8 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   }
 
   const totalCount = showStudents ? total : 0;
+  const subtitle = showStudents ? studentsSubtitle(counts, activeTab, total, !!filterGroup) : "";
+  const showTabs = showStudents && !filterGroup;
 
   return (
     <div className="space-y-6">
@@ -121,13 +148,29 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Ученики</h1>
           <p className="text-slate-500 text-sm mt-0.5">
-            {totalCount > 0
-              ? `${totalCount} ${totalCount === 1 ? "ученик" : totalCount < 5 ? "ученика" : "учеников"}`
-              : "В списке отображаются ученики, зачисленные в группы"}
+            {subtitle || "Ученики центра: в группах и без группы"}
           </p>
         </div>
         <ImportButton variant="solid" onImported={loadAll} />
       </div>
+
+      {/* «В группах (N) · Без группы (M)» */}
+      {showTabs && (
+        <div role="tablist" aria-label="Ученики" className="inline-flex max-w-full rounded-lg bg-slate-100 p-0.5">
+          {(["grouped", "ungrouped"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === value}
+              onClick={() => { setTab(value); setPage(0); }}
+              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              {studentTabLabel(value, counts[value])}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex items-center gap-3">
@@ -136,7 +179,7 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по имени..."
+            placeholder="Поиск по имени или ID…"
             className="w-full pl-10 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
           />
         </div>
@@ -148,6 +191,7 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
           onChange={({ teacherId, groupId }) => {
             setFilterTeacher(teacherId);
             setFilterGroup(groupId);
+            if (groupId) setTab("grouped");
             setPage(0);
           }}
         />
@@ -172,6 +216,10 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
             ))
           )}
         </div>
+      ) : students.length === 0 && activeTab === "ungrouped" ? (
+        <p className="py-10 text-center text-sm text-slate-400">
+          {search ? "Ученики не найдены" : "Все ученики распределены по группам"}
+        </p>
       ) : students.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 p-16 text-center">
           <div className="w-16 h-16 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
@@ -183,7 +231,7 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
           <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
             {search || filterGroup || filterTeacher
               ? "Попробуйте изменить параметры поиска или фильтры."
-              : "В этом разделе отображаются только зачисленные ученики центра. После прохождения диагностики распределите учеников по группам."}
+              : "Ученики центра, зачисленные в группы, появятся здесь. После прохождения диагностики распределите учеников по группам."}
           </p>
           <div className="flex items-center justify-center gap-3">
             <Link
@@ -280,6 +328,8 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
                               <span className="text-xs text-slate-400">ещё {(s.groups_count as number) - 1}</span>
                             )}
                           </div>
+                        ) : studentHasGroup(s) ? (
+                          <span className="text-xs text-slate-400">В группе</span>
                         ) : (
                           <span className="text-xs text-slate-400 italic">Без группы</span>
                         )}

@@ -684,7 +684,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                           Подтвердить
                         </button>
                       )}
-                      <RowMenu items={menuFor(item)} busy={busy || uploading} width={264} />
+                      <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />
                     </div>
                   </li>
                 );

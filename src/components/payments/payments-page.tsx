@@ -530,7 +530,7 @@ function PaymentRow({
 
           <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
             <PayButton row={row} onPay={onPay} />
-            <RowMenu items={menu} />
+            <RowMenu items={menu} label={`Действия: ${row.student_name}`} />
           </div>
         </>
       )}

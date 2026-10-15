@@ -8,7 +8,8 @@ import { orgApi, type GroupJoinMode } from "@/lib/api";
 import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
-import { availableStudents, studentPoolQuery } from "@/lib/student-pool";
+import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
+import { studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 
 interface Student {
   id: string;
@@ -19,6 +20,8 @@ interface Student {
   status: string;
   /** Current (primary) group of the student; null when not enrolled. */
   group_id?: string | null;
+  /** Active memberships (list API); older servers omit it. */
+  groups_count?: number | null;
 }
 
 /** Result handed to the page so it can show one summary toast. */
@@ -98,12 +101,17 @@ export function AddStudentDrawer({
     return () => clearTimeout(t);
   }, [search]);
 
+  // The drawer enrols NEW students: without a search (under two characters) only students with no
+  // group are listed; a search of two or more characters looks through all non-archived ones.
+  const searchTerm = poolSearchTerm(debouncedSearch);
+  const searching = searchTerm !== "";
+
   const loadStudents = useCallback(async () => {
     const token = listSeq.next();
     setLoading(true);
     try {
       const data = await orgApi.listStudentsPage(
-        studentPoolQuery({ search: debouncedSearch, groupClassLevel, allClasses }),
+        studentPoolQuery({ search: searchTerm, groupClassLevel, allClasses }),
       );
       if (!listSeq.isCurrent(token)) return;
       setStudents(data.items);
@@ -115,7 +123,7 @@ export function AddStudentDrawer({
     } finally {
       if (listSeq.isCurrent(token)) setLoading(false);
     }
-  }, [debouncedSearch, groupClassLevel, allClasses, listSeq]);
+  }, [searchTerm, groupClassLevel, allClasses, listSeq]);
 
   useEffect(() => {
     if (open) loadStudents();
@@ -130,8 +138,9 @@ export function AddStudentDrawer({
     });
   };
 
-  // Students not already in the group; archived ones are never offered.
-  const available = availableStudents(students, existingStudentIds);
+  // Students not already in the group; archived ones are never offered, and without a search
+  // neither are students of other groups.
+  const available = availableStudents(students, existingStudentIds, { ungroupedOnly: !searching });
 
   // Selected students who are enrolled elsewhere: adding moves them.
   const transfers = Array.from(selected.values())
@@ -178,9 +187,7 @@ export function AddStudentDrawer({
     diagnosed: "bg-amber-50 text-amber-700",
     active:    "bg-emerald-50 text-emerald-700",
     archived:  "bg-slate-100 text-slate-500",
-  };
-  const statusLabels: Record<string, string> = {
-    new: "Новый", diagnosed: "Диагностирован", active: "Активный", archived: "Архив",
+    no_group:  "bg-slate-100 text-slate-600",
   };
 
   const drawerContent = (
@@ -221,7 +228,7 @@ export function AddStudentDrawer({
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Поиск по имени…"
+                  placeholder="Поиск по имени или ID…"
                   autoFocus
                   className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
@@ -249,10 +256,11 @@ export function AddStudentDrawer({
                   <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
                 </div>
               ) : available.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-32 text-slate-400">
-                  <UserPlus className="w-8 h-8 mb-2 opacity-40" />
-                  <p className="text-sm">{search ? "Ничего не найдено" : allClasses || !groupClassLevel ? "Все ученики уже в группе" : `Нет доступных учеников ${groupClassLevel} класса`}</p>
-                </div>
+                <p className="px-6 py-10 text-center text-sm text-slate-400">
+                  {searching
+                    ? "Ничего не найдено"
+                    : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
+                </p>
               ) : (
                 <div className="divide-y divide-slate-50">
                   {available.map((s) => {
@@ -282,8 +290,8 @@ export function AddStudentDrawer({
                           </p>
                         </div>
 
-                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[s.status] || statusColors.new}`}>
-                          {statusLabels[s.status] || s.status}
+                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
+                          {studentStatusLabel(s)}
                         </span>
                       </button>
                     );

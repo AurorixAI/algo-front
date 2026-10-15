@@ -133,7 +133,7 @@ test("owner student routes render the shared components and keep links in the ow
 
 test("the drawer asks for the group's class by default, «Все классы» drops it, archived never", () => {
   const base = { search: "", groupClassLevel: 9, allClasses: false };
-  assert.deepEqual(pool.studentPoolQuery(base), { search: undefined, class_level: 9, exclude_status: "archived", limit: 500 });
+  assert.deepEqual(pool.studentPoolQuery(base), { search: undefined, class_level: 9, exclude_status: "archived", has_group: false, limit: 500 });
   assert.equal(pool.studentPoolQuery({ ...base, allClasses: true }).class_level, undefined);
   assert.equal(pool.studentPoolQuery({ ...base, allClasses: true }).exclude_status, "archived");
   assert.equal(pool.studentPoolQuery({ ...base, search: "али" }).search, "али");
@@ -164,8 +164,8 @@ test("a slow answer for an old filter cannot replace the current list", () => {
 
 test("the drawer shows the quiet «Все классы» switch only for a group with a class and keeps the rest", () => {
   const drawer = read("components/groups/add-student-drawer.tsx");
-  assert.match(drawer, /studentPoolQuery\(\{ search: debouncedSearch, groupClassLevel, allClasses \}\)/);
-  assert.match(drawer, /availableStudents\(students, existingStudentIds\)/);
+  assert.match(drawer, /studentPoolQuery\(\{ search: searchTerm, groupClassLevel, allClasses \}\)/);
+  assert.match(drawer, /availableStudents\(students, existingStudentIds, \{ ungroupedOnly: !searching \}\)/);
   assert.match(drawer, /\{groupClassLevel \? \(/);
   assert.match(drawer, /role="switch"/);
   assert.match(drawer, /Все классы\n/);
