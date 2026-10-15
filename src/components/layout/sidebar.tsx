@@ -17,6 +17,7 @@ import {
   Plus,
   ClipboardCheck,
   Wallet,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -134,6 +135,10 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       : []),
     ...(showPayments
       ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
+      : []),
+    // Payroll is the owner's alone (N13 P3): no item for an administrator or a teacher, and none in the demo.
+    ...(!DEMO_MODE && rawRole === "owner"
+      ? [{ href: "/owner/payroll", label: "Зарплата", icon: Banknote }]
       : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];

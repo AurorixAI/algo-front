@@ -1,0 +1,248 @@
+"use client";
+
+import { useMemo } from "react";
+import { MAX_MONEY, formatMoney, formatMoneyInput, parseMoneyInput } from "@/lib/payments";
+import {
+  buildBlocks,
+  buildLineViews,
+  formatDayMonth,
+  lessonTypeLabel,
+  markCell,
+  markFor,
+  percentLabel,
+  setFeeEdit,
+  setIncludeEdit,
+  sheetTotal,
+  type LineView,
+  type PayrollSheet,
+  type SheetEdits,
+} from "@/lib/payroll";
+
+const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
+const HEAD = "px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+/** The first column keeps its place while the dates scroll; on paper there is nothing to scroll. */
+const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
+
+function FeeCell({
+  view, editable, onChange,
+}: {
+  view: LineView;
+  editable: boolean;
+  onChange: (fee: number | null) => void;
+}) {
+  const { line } = view;
+  const marked = view.fee !== line.monthly_fee || line.fee_overridden;
+  const label = `Оплата в месяц: ${line.student_name}, ${line.group_name}`;
+  const text = formatMoneyInput(view.fee);
+  return (
+    <div className="flex flex-col items-end gap-0.5">
+      {editable ? (
+        <input
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          aria-label={label}
+          placeholder="не задана"
+          value={text}
+          onChange={(event) => {
+            const parsed = parseMoneyInput(event.target.value);
+            onChange(parsed === null ? null : Math.min(parsed, MAX_MONEY));
+          }}
+          className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-sm tabular-nums text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 print:hidden"
+        />
+      ) : null}
+      <span className={`${editable ? "hidden print:inline" : ""} whitespace-nowrap tabular-nums`}>
+        {view.fee !== null ? formatMoney(view.fee) : "не задана"}
+      </span>
+      {marked && <span className="text-[10px] font-medium text-primary-700 print:text-black">изменена</span>}
+    </div>
+  );
+}
+
+function IncludeCell({
+  view, editable, onChange,
+}: {
+  view: LineView;
+  editable: boolean;
+  onChange: (include: boolean) => void;
+}) {
+  const { line } = view;
+  if (line.unpaid <= 0) return <span className="text-slate-300">—</span>;
+  const label = `Включить неоплаченные уроки (${line.unpaid}): ${line.student_name}, ${line.group_name}`;
+  return (
+    <label className={`inline-flex items-center gap-1.5 whitespace-nowrap ${editable ? "cursor-pointer" : ""}`}>
+      <span className="font-semibold tabular-nums text-slate-700">{line.unpaid}</span>
+      {editable ? (
+        <>
+          <input
+            type="checkbox"
+            checked={view.include}
+            onChange={(event) => onChange(event.target.checked)}
+            aria-label={label}
+            className="h-4 w-4 accent-primary-600 print:hidden"
+          />
+          <span className="text-xs text-slate-500 print:hidden">включить</span>
+        </>
+      ) : null}
+      <span className={`${editable ? "hidden print:inline" : ""} text-xs text-slate-600`}>{view.include ? "включены" : "не включены"}</span>
+    </label>
+  );
+}
+
+/**
+ * The sheet as the partner keeps it: a block per group - the students in rows, the lessons of the month in
+ * columns (1 counted, 0 red, «Ув.?» yellow, empty not in the group, grey not paid) - then the fee, the
+ * percent, the counted and unpaid lessons and the pay of each line, a subtotal per group and the sheet's «ИТОГО».
+ *
+ * The amounts are the server's; a line the owner has edited is previewed with the same formula until saved.
+ * On a phone every block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
+ */
+export function PayrollSheetTable({
+  sheet, edits, editable = true, onEdits,
+}: {
+  sheet: PayrollSheet;
+  edits: SheetEdits;
+  editable?: boolean;
+  onEdits?: (update: (previous: SheetEdits) => SheetEdits) => void;
+}) {
+  const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
+  const blocks = useMemo(() => buildBlocks(views), [views]);
+  const total = sheetTotal(sheet, views, edits);
+  const canEdit = editable && Boolean(onEdits);
+
+  if (sheet.lines.length === 0) {
+    return (
+      <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">
+        В этом месяце у преподавателя нет учеников с засчитанными уроками.
+      </p>
+    );
+  }
+
+  return (
+    <div className="min-w-0 space-y-5 print:space-y-4">
+      {blocks.map((block) => {
+        const span = 3 + block.columns.length;
+        return (
+          <section
+            key={block.groupId || block.groupName}
+            aria-label={`Группа ${block.groupName}`}
+            className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white print:overflow-visible print:break-inside-avoid-page print:rounded-none print:border-slate-400"
+          >
+            <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-3 print:bg-transparent">
+              <h3 className="min-w-0 break-words text-base font-bold text-slate-900">{block.groupName}</h3>
+              <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{lessonTypeLabel(block.lessonType)}</span>
+              {block.lessonTime && <span className="text-sm text-slate-500">{block.lessonTime}</span>}
+            </header>
+
+            <div
+              role="region"
+              tabIndex={0}
+              aria-label={`Таблица группы ${block.groupName}: прокручивается вбок`}
+              className="max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible"
+            >
+              <table className="w-full border-collapse text-sm print:text-[11px]">
+                <thead className="print:table-header-group">
+                  <tr className="border-b border-slate-200 bg-slate-50">
+                    <th scope="col" className={`${HEAD} ${STICKY} bg-slate-50`}>Ученик</th>
+                    <th scope="col" className={`${HEAD} text-right`}>Оплата в месяц</th>
+                    <th scope="col" className={`${HEAD} text-right`}>%</th>
+                    {block.columns.map((column) => (
+                      <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-[11px] font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
+                        {formatDayMonth(column.date)}
+                      </th>
+                    ))}
+                    <th scope="col" className={`${HEAD} text-right`}>Засчитано</th>
+                    <th scope="col" className={HEAD}>Не оплачено</th>
+                    <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {block.lines.map((view) => {
+                    const { line } = view;
+                    const id = line.membership_id;
+                    return (
+                      <tr key={id} className="border-b border-slate-100 last:border-b-0 print:break-inside-avoid">
+                        <th scope="row" className={`${CELL} ${STICKY} bg-white text-left font-medium text-slate-900 shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none`}>
+                          <span className="block break-words leading-tight">{line.student_name}</span>
+                          {line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-400">{line.display_id}</span>}
+                          {line.pending_excused > 0 && (
+                            <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
+                          )}
+                          {line.warnings.map((warning) => (
+                            <span key={warning} className="block text-[11px] font-normal leading-tight text-amber-700">{warning}</span>
+                          ))}
+                        </th>
+                        <td className={`${CELL} text-right`}>
+                          <FeeCell
+                            view={view}
+                            editable={canEdit}
+                            onChange={(fee) => onEdits?.((previous) => setFeeEdit(previous, sheet, id, fee))}
+                          />
+                        </td>
+                        <td className={`${CELL} whitespace-nowrap text-right tabular-nums text-slate-600`}>{percentLabel(view.percent)}</td>
+                        {block.columns.map((column) => {
+                          const mark = markFor(line, column);
+                          const cell = markCell(mark ? mark.mark : null, mark ? mark.state : "not_in_group", { includeUnpaid: view.include });
+                          return (
+                            <td
+                              key={column.key}
+                              className="px-1 py-2 text-center align-middle text-sm print:px-0.5 print:py-1"
+                              title={`${line.student_name}, ${formatDayMonth(column.date)}: ${cell.title}`}
+                            >
+                              <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
+                                {cell.label}
+                                <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
+                              </span>
+                            </td>
+                          );
+                        })}
+                        <td className={`${CELL} text-right font-semibold tabular-nums text-slate-900`}>{view.lessons}</td>
+                        <td className={CELL}>
+                          <IncludeCell
+                            view={view}
+                            editable={canEdit}
+                            onChange={(include) => onEdits?.((previous) => setIncludeEdit(previous, sheet, id, include))}
+                          />
+                        </td>
+                        <td className={`${CELL} whitespace-nowrap text-right font-semibold tabular-nums text-slate-900`}>
+                          {formatMoney(view.amount)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800 print:bg-transparent">
+                    <th scope="row" className={`${CELL} ${STICKY} bg-slate-50 text-left print:bg-transparent`}>Итого по группе</th>
+                    <td colSpan={span - 1} />
+                    <td className={`${CELL} text-right tabular-nums`}>{block.counted}</td>
+                    <td className={`${CELL} tabular-nums`}>{block.unpaid}</td>
+                    <td className={`${CELL} whitespace-nowrap text-right tabular-nums`}>{formatMoney(block.amount)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+        );
+      })}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-900 bg-slate-900 px-5 py-4 text-white print:rounded-none print:border-black print:bg-transparent print:text-black">
+        <span className="text-sm font-semibold uppercase tracking-wider">ИТОГО</span>
+        <span className="text-xl font-bold tabular-nums" data-testid="payroll-total">{formatMoney(total)}</span>
+      </div>
+
+      <ul aria-label="Обозначения" className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">
+        <li><span className="font-semibold text-slate-800">1</span> — засчитан</li>
+        <li><span className="font-bold text-rose-600 print:text-black">0</span> — не засчитан</li>
+        <li><span className="rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black">Ув.?</span> — уважительная ждёт подтверждения (засчитан)</li>
+        <li><span className="rounded border border-dashed border-slate-300 px-1 text-slate-400">1</span> — урок не оплачен (в сумму не входит)</li>
+        <li>пусто — ученика ещё нет в группе</li>
+      </ul>
+      {blocks.some((block) => block.unpaid > 0) && (
+        <p className="text-xs text-slate-500 print:hidden">
+          Неоплаченные уроки входят в сумму строки, только если поставить «включить».
+        </p>
+      )}
+    </div>
+  );
+}

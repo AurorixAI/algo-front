@@ -280,11 +280,12 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/payments/membership-payments.tsx"), /label=\{`Действия с оплатой от \$\{formatDateRu\(payment\.paid_on\)\}`\}/);
   assert.match(read("components/groups/group-student-table.tsx"), /label=\{`Действия: \$\{s\.full_name/);
   assert.match(read("components/attendance/open-lessons-view.tsx"), /label=\{`Действия: \$\{item\.groupName\}, /);
-  // all five files that use <RowMenu> are listed above
+  assert.match(read("components/payroll/payroll-month-page.tsx"), /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
+  // all six files that use <RowMenu> are listed above
   const users = fs.readdirSync(src("components"), { recursive: true }).filter((f) => /\.tsx$/.test(f) && !/row-menu\.tsx$/.test(f))
     .filter((f) => read(`components/${f}`).includes("<RowMenu")).map((f) => f.replace(/\\/g, "/")).sort();
   assert.deepEqual(users, [
     "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-student-table.tsx",
-    "payments/membership-payments.tsx", "payments/payments-page.tsx",
+    "payments/membership-payments.tsx", "payments/payments-page.tsx", "payroll/payroll-month-page.tsx",
   ]);
 });
