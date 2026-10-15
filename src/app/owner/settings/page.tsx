@@ -1,25 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, LucideIcon } from "lucide-react";
+import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, ClipboardCheck, Loader2, LucideIcon } from "lucide-react";
 import {
+  ATTENDANCE_SCOPE_KEYS,
+  BILLING_DAY_RANGE,
+  billingDayHint,
   DEFAULT_PAYMENT_SETTINGS,
   diffPaymentSettings,
   EXCUSE_DEADLINE_DAYS_RANGE,
   EXCUSE_DEADLINE_LESSONS_RANGE,
   EXPIRING_DAYS_RANGE,
   EXPIRING_LESSONS_RANGE,
+  FIXED_DAY_HINT,
   LESSONS_PER_PAYMENT_RANGE,
+  PAYMENT_MODELS,
+  PAYMENTS_SCOPE_KEYS,
+  paymentModelOf,
+  paymentModelPatch,
   validatePaymentSettings,
+  type PaymentModel,
   type PaymentSettings,
-  type PeriodMode,
+  type PaymentSettingsScope,
 } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { daysWord, lessonsWord } from "@/lib/excuse-deadline";
 import { effectiveRole } from "@/lib/role-home";
+import {
+  parseSettingsSection,
+  SETTINGS_SECTIONS,
+  settingsSectionHref,
+  visibleSettingsSections,
+  type SettingsSection as SectionKey,
+} from "@/lib/settings-sections";
 
 interface SettingsSectionProps {
   title: string;
@@ -38,22 +55,23 @@ function SettingsSection({
   onSave, saving, saved, saveText = "Сохранить", disabledSave = false
 }: SettingsSectionProps) {
   return (
-    <motion.div
+    <motion.section
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="flex flex-col lg:flex-row gap-8 py-8 border-b border-slate-200 last:border-0"
+      aria-labelledby="settings-section-title"
+      className="min-w-0 space-y-5"
     >
-      <div className="lg:w-1/3 shrink-0">
+      <div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm shrink-0">
             <Icon className="w-5 h-5 text-slate-600" />
           </div>
-          <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+          <h2 id="settings-section-title" className="text-lg font-bold text-slate-900">{title}</h2>
         </div>
-        <p className="text-sm text-slate-500 leading-relaxed ml-[52px]">{description}</p>
+        <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
       </div>
 
-      <div className="lg:w-2/3 bg-white rounded-2xl shadow-sm border border-slate-200/60 p-6 sm:p-8">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-5 sm:p-8">
         <div className="space-y-6">
           {children}
 
@@ -77,7 +95,7 @@ function SettingsSection({
           </div>
         </div>
       </div>
-    </motion.div>
+    </motion.section>
   );
 }
 
@@ -86,22 +104,23 @@ const labelClasses = "block text-sm font-semibold text-slate-700 mb-1.5";
 
 const numberInputClasses = `${inputClasses} !w-24`;
 
-const PERIOD_MODES: Array<{ key: PeriodMode; title: string; hint: string }> = [
-  { key: "calendar", title: "Календарный период", hint: "Оплата действует до выбранной даты" },
-  { key: "lessons", title: "По урокам", hint: "Оплата закрывает заданное число проведённых уроков" },
-];
+type SaveState = { saving: boolean; saved: boolean; error: string | null };
+const IDLE_SAVE: SaveState = { saving: false, saved: false, error: null };
 
-/** «Оплаты»: how the center counts the paid period and whether administrators may enter payments. */
-function PaymentsSettingsSection() {
-  const [loaded, setLoaded] = useState<PaymentSettings | null>(null);
-  const [unavailable, setUnavailable] = useState(false);
+/**
+ * The payment settings are one record on the server but two sections on the screen («Оплаты»,
+ * «Посещаемость»).  The draft lives here, so switching sections never loses typing, and each section
+ * saves only its own fields.
+ */
+function usePaymentSettingsDraft(enabled: boolean) {
+  const [status, setStatus] = useState<"loading" | "ready" | "unavailable">(enabled ? "loading" : "unavailable");
+  const [loaded, setLoaded] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
   const [form, setForm] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [saves, setSaves] = useState<Record<PaymentSettingsScope, SaveState>>({ payments: IDLE_SAVE, attendance: IDLE_SAVE });
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
 
   useEffect(() => {
+    if (!enabled) { setStatus("unavailable"); return; }
     let cancelled = false;
     orgApi.getPaymentSettings()
       .then((data) => {
@@ -109,149 +128,170 @@ function PaymentsSettingsSection() {
         const next = { ...DEFAULT_PAYMENT_SETTINGS, ...data };
         setLoaded(next);
         setForm(next);
+        setStatus("ready");
       })
-      .catch(() => { if (!cancelled) setUnavailable(true); });
+      .catch(() => { if (!cancelled) setStatus("unavailable"); });
     return () => { cancelled = true; };
-  }, []);
+  }, [enabled]);
 
-  // Nothing is shown until the server confirms the owner may read the settings.
-  if (unavailable || !loaded) return null;
-
-  const patch = (next: Partial<PaymentSettings>) => {
-    setSaved(false);
-    setError(null);
+  const patch = (scope: PaymentSettingsScope, next: Partial<PaymentSettings>) => {
+    setSaves((previous) => ({ ...previous, [scope]: IDLE_SAVE }));
     setForm((previous) => ({ ...previous, ...next }));
   };
 
-  const handleSave = async () => {
-    const problem = validatePaymentSettings(form);
-    if (problem) { setError(problem); return; }
-    const changes = diffPaymentSettings(loaded, form);
-    if (Object.keys(changes).length === 0) { setSaved(true); setTimeout(() => setSaved(false), 3000); return; }
-    setSaving(true);
-    setError(null);
+  const setSave = (scope: PaymentSettingsScope, state: SaveState) =>
+    setSaves((previous) => ({ ...previous, [scope]: state }));
+
+  const save = async (scope: PaymentSettingsScope) => {
+    const problem = validatePaymentSettings(form, scope);
+    if (problem) { setSave(scope, { saving: false, saved: false, error: problem }); return; }
+    const keys = scope === "payments" ? PAYMENTS_SCOPE_KEYS : ATTENDANCE_SCOPE_KEYS;
+    const changes = diffPaymentSettings(loaded, form, keys);
+    const flashSaved = () => {
+      setSave(scope, { saving: false, saved: true, error: null });
+      setTimeout(() => setSaves((previous) => ({ ...previous, [scope]: { ...previous[scope], saved: false } })), 3000);
+    };
+    if (Object.keys(changes).length === 0) { flashSaved(); return; }
+    setSave(scope, { saving: true, saved: false, error: null });
     try {
       const updated = await orgApi.updatePaymentSettings(changes);
       const next = { ...DEFAULT_PAYMENT_SETTINGS, ...updated };
       setLoaded(next);
-      setForm(next);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      // Only this section's fields are taken from the answer: what the other section has typed stays.
+      setForm((previous) => {
+        const merged: Record<string, unknown> = { ...previous, updated_by: next.updated_by, updated_at: next.updated_at };
+        for (const key of keys) merged[key] = next[key];
+        return merged as unknown as PaymentSettings;
+      });
+      flashSaved();
       void refreshSummary(true, { recheck: true });
     } catch (e: any) {
-      setError(e.message || "Ошибка сохранения");
-    } finally {
-      setSaving(false);
+      setSave(scope, { saving: false, saved: false, error: e.message || "Ошибка сохранения" });
     }
   };
+
+  return { status, form, saves, patch, save };
+}
+
+type PaymentSettingsDraft = ReturnType<typeof usePaymentSettingsDraft>;
+
+function NumberField({
+  id, label, value, range, onChange, suffix,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  range: { min: number; max: number };
+  onChange: (value: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className={labelClasses}>{label}</label>
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="number"
+          min={range.min}
+          max={range.max}
+          value={Number.isNaN(value) ? "" : value}
+          onChange={(e) => onChange(e.target.value === "" ? NaN : Number(e.target.value))}
+          className={numberInputClasses}
+        />
+        {suffix && <span className="text-sm text-slate-600">{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** «Оплаты»: how the center counts the paid period and whether administrators may enter payments. */
+function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
+  const { form, saves } = draft;
+  const state = saves.payments;
+  const model = paymentModelOf(form);
+  const patch = (next: Partial<PaymentSettings>) => draft.patch("payments", next);
+  const choose = (key: PaymentModel) => patch(paymentModelPatch(key));
 
   return (
     <SettingsSection
       title="Оплаты"
-      description="Как центр считает оплаченный период и кто может вносить оплаты."
+      description="Как центр считает оплаченный период и кто может вносить оплаты. Новые настройки влияют на подсказки для новых оплат: внесённые оплаты не меняются."
       icon={Wallet}
-      onSave={handleSave}
-      saving={saving}
-      saved={saved}
+      onSave={() => void draft.save("payments")}
+      saving={state.saving}
+      saved={state.saved}
     >
-      <div>
-        <p className={labelClasses}>Период оплаты</p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {PERIOD_MODES.map((option) => (
+      <fieldset>
+        <legend className={labelClasses}>Как считать оплату</legend>
+        <div className="grid grid-cols-1 gap-3 2xl:grid-cols-3">
+          {PAYMENT_MODELS.map((option) => (
             <label
               key={option.key}
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${form.period_mode === option.key ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
+              className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${model === option.key ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
             >
               <input
                 type="radio"
-                name="payments-period-mode"
-                checked={form.period_mode === option.key}
-                onChange={() => patch({ period_mode: option.key })}
-                className="mt-1 h-4 w-4 accent-primary-600"
+                name="payments-model"
+                checked={model === option.key}
+                onChange={() => choose(option.key)}
+                className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
               />
-              <span>
+              <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
                 <span className="block text-xs text-slate-500">{option.hint}</span>
               </span>
             </label>
           ))}
         </div>
-      </div>
+      </fieldset>
 
-      {form.period_mode === "lessons" ? (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <label htmlFor="payments-lessons" className={labelClasses}>Уроков в одной оплате</label>
-            <input
-              id="payments-lessons"
-              type="number"
-              min={LESSONS_PER_PAYMENT_RANGE.min}
-              max={LESSONS_PER_PAYMENT_RANGE.max}
-              value={Number.isNaN(form.lessons_per_payment) ? "" : form.lessons_per_payment}
-              onChange={(e) => patch({ lessons_per_payment: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
-            />
+      {model === "fixed_day" && (
+        <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
+          <label htmlFor="payments-billing-day" className={labelClasses}>Единый день оплаты</label>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              id="payments-billing-day"
+              value={Number.isNaN(form.billing_day) ? 1 : form.billing_day}
+              onChange={(e) => patch({ billing_day: Number(e.target.value) })}
+              className={`${inputClasses} !w-24`}
+            >
+              {Array.from({ length: BILLING_DAY_RANGE.max - BILLING_DAY_RANGE.min + 1 }, (_, index) => BILLING_DAY_RANGE.min + index).map((day) => (
+                <option key={day} value={day}>{day}</option>
+              ))}
+            </select>
+            <span className="text-sm text-slate-600">{billingDayHint(form.billing_day)}</span>
           </div>
-          <div>
-            <label htmlFor="payments-expiring-lessons" className={labelClasses}>Предупреждать, когда останется уроков</label>
-            <input
-              id="payments-expiring-lessons"
-              type="number"
-              min={EXPIRING_LESSONS_RANGE.min}
-              max={EXPIRING_LESSONS_RANGE.max}
-              value={Number.isNaN(form.expiring_lessons) ? "" : form.expiring_lessons}
-              onChange={(e) => patch({ expiring_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
-            />
-          </div>
-        </div>
-      ) : (
-        <div>
-          <label htmlFor="payments-expiring-days" className={labelClasses}>Предупреждать за сколько дней до конца оплаты</label>
-          <input
-            id="payments-expiring-days"
-            type="number"
-            min={EXPIRING_DAYS_RANGE.min}
-            max={EXPIRING_DAYS_RANGE.max}
-            value={Number.isNaN(form.expiring_days) ? "" : form.expiring_days}
-            onChange={(e) => patch({ expiring_days: e.target.value === "" ? NaN : Number(e.target.value) })}
-            className={numberInputClasses}
-          />
+          <p className="text-xs text-slate-500">{FIXED_DAY_HINT}</p>
+          <p className="text-xs text-slate-400">Число от 1 до 28, чтобы период не зависел от длины месяца.</p>
         </div>
       )}
 
-      <div className="space-y-4 text-sm text-slate-700">
-        <div>
-          <label htmlFor="payments-excuse-days" className="block">Подтверждать уважительный пропуск за</label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <input
-              id="payments-excuse-days"
-              type="number"
-              min={EXCUSE_DEADLINE_DAYS_RANGE.min}
-              max={EXCUSE_DEADLINE_DAYS_RANGE.max}
-              value={Number.isNaN(form.excuse_deadline_days) ? "" : form.excuse_deadline_days}
-              onChange={(e) => patch({ excuse_deadline_days: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
-            />
-            <span>{daysWord(form.excuse_deadline_days)} до конца оплаты</span>
-          </div>
+      {model === "lessons" ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <NumberField
+            id="payments-lessons"
+            label="Уроков в одной оплате"
+            value={form.lessons_per_payment}
+            range={LESSONS_PER_PAYMENT_RANGE}
+            onChange={(value) => patch({ lessons_per_payment: value })}
+          />
+          <NumberField
+            id="payments-expiring-lessons"
+            label="Предупреждать, когда останется уроков"
+            value={form.expiring_lessons}
+            range={EXPIRING_LESSONS_RANGE}
+            onChange={(value) => patch({ expiring_lessons: value })}
+          />
         </div>
-        <div>
-          <label htmlFor="payments-excuse-lessons" className="block">или когда в пакете осталось</label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <input
-              id="payments-excuse-lessons"
-              type="number"
-              min={EXCUSE_DEADLINE_LESSONS_RANGE.min}
-              max={EXCUSE_DEADLINE_LESSONS_RANGE.max}
-              value={Number.isNaN(form.excuse_deadline_lessons) ? "" : form.excuse_deadline_lessons}
-              onChange={(e) => patch({ excuse_deadline_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
-            />
-            <span>{lessonsWord(form.excuse_deadline_lessons)}</span>
-          </div>
-        </div>
-      </div>
+      ) : (
+        <NumberField
+          id="payments-expiring-days"
+          label="Предупреждать за сколько дней до конца оплаты"
+          value={form.expiring_days}
+          range={EXPIRING_DAYS_RANGE}
+          onChange={(value) => patch({ expiring_days: value })}
+        />
+      )}
 
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>
@@ -270,17 +310,124 @@ function PaymentsSettingsSection() {
         </button>
       </div>
 
-      {error && (
-        <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{error}</p>
+      {state.error && (
+        <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{state.error}</p>
       )}
     </SettingsSection>
   );
 }
 
+/** «Посещаемость»: until when an excused absence can be confirmed.  Both rules stay: a center may still have old packages. */
+function AttendanceSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
+  const { form, saves } = draft;
+  const state = saves.attendance;
+  const patch = (next: Partial<PaymentSettings>) => draft.patch("attendance", next);
+
+  return (
+    <SettingsSection
+      title="Посещаемость"
+      description="До какого срока можно подтвердить уважительный пропуск, прежде чем у ученика закончится оплата."
+      icon={ClipboardCheck}
+      onSave={() => void draft.save("attendance")}
+      saving={state.saving}
+      saved={state.saved}
+    >
+      <div className="space-y-5 text-sm text-slate-700">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="payments-excuse-days" className="font-semibold text-slate-700">Оплата по месяцам: за</label>
+            <input
+              id="payments-excuse-days"
+              type="number"
+              min={EXCUSE_DEADLINE_DAYS_RANGE.min}
+              max={EXCUSE_DEADLINE_DAYS_RANGE.max}
+              value={Number.isNaN(form.excuse_deadline_days) ? "" : form.excuse_deadline_days}
+              onChange={(e) => patch({ excuse_deadline_days: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+            <span>{daysWord(form.excuse_deadline_days)} до конца оплаты</span>
+          </div>
+        </div>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <label htmlFor="payments-excuse-lessons" className="font-semibold text-slate-700">Пакет уроков: когда осталось</label>
+            <input
+              id="payments-excuse-lessons"
+              type="number"
+              min={EXCUSE_DEADLINE_LESSONS_RANGE.min}
+              max={EXCUSE_DEADLINE_LESSONS_RANGE.max}
+              value={Number.isNaN(form.excuse_deadline_lessons) ? "" : form.excuse_deadline_lessons}
+              onChange={(e) => patch({ excuse_deadline_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
+              className={numberInputClasses}
+            />
+            <span>{lessonsWord(form.excuse_deadline_lessons)}</span>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">Видны оба правила: у центра могут быть ученики со старыми пакетами уроков.</p>
+      </div>
+
+      {state.error && (
+        <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{state.error}</p>
+      )}
+    </SettingsSection>
+  );
+}
+
+/** Left menu on a computer, scrolling tabs on a phone; the section is in the address (`?section=`). */
+function SectionNav({ sections, active, onSelect }: { sections: SectionKey[]; active: SectionKey; onSelect: (key: SectionKey) => void }) {
+  const items = SETTINGS_SECTIONS.filter((section) => sections.includes(section.key));
+  return (
+    <nav aria-label="Разделы настроек" className="min-w-0 md:sticky md:top-6 md:self-start">
+      <ul className="flex gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 md:flex-col md:overflow-visible md:bg-transparent md:p-0">
+        {items.map(({ key, label }) => (
+          <li key={key} className="shrink-0 md:shrink">
+            <a
+              href={settingsSectionHref(key)}
+              aria-current={active === key ? "page" : undefined}
+              onClick={(event) => { event.preventDefault(); onSelect(key); }}
+              className={`block whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-colors md:px-4 md:py-2.5 ${
+                active === key
+                  ? "bg-white text-slate-900 shadow-sm md:bg-slate-900 md:text-white"
+                  : "text-slate-500 hover:text-slate-800 md:hover:bg-slate-100"
+              }`}
+            >
+              {label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
 export default function OwnerSettingsPage() {
+  // The page reads `?section=`, so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}>
+      <OwnerSettingsContent />
+    </Suspense>
+  );
+}
+
+function OwnerSettingsContent() {
   const { org, user } = useAuthStore();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   // /owner/* is for the owner only (N13 P1.5); the check stays as a second line behind the layout guard.
   const isOwner = effectiveRole(user) === "owner";
+  const paymentSettings = usePaymentSettingsDraft(isOwner);
+
+  // A section the user may not see is not offered; the payment sections wait for the server to confirm the right.
+  const sections = visibleSettingsSections({ isOwner, paymentSettingsReadable: paymentSettings.status !== "unavailable" });
+  const requestedSection = searchParams?.get("section");
+  const section = parseSettingsSection(requestedSection, sections);
+  const waitingForPaymentSettings = isOwner
+    && paymentSettings.status === "loading"
+    && (requestedSection === "payments" || requestedSection === "attendance");
+  const selectSection = (key: SectionKey) => {
+    router.replace(`${pathname}${settingsSectionHref(key)}`, { scroll: false });
+  };
 
   // Forms
   const [orgForm, setOrgForm] = useState({ name: "", city: "", phone: "" });
@@ -359,158 +506,168 @@ export default function OwnerSettingsPage() {
 
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-12">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Настройки рабочей области</h1>
+      <div className="mb-6 md:mb-8">
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Настройки рабочей области</h1>
         <p className="text-slate-500 mt-1 font-medium">Управляйте данными организации и вашим личным профилем</p>
       </div>
 
-      <div className="bg-white/50 rounded-3xl p-2 sm:p-6 lg:p-8 border border-slate-200/50 shadow-sm">
+      <div className="flex flex-col gap-4 md:grid md:grid-cols-[220px_minmax(0,1fr)] md:items-start md:gap-8">
+        <SectionNav sections={sections} active={section} onSelect={selectSection} />
 
-        {/* Organization Section */}
-        <SettingsSection
-          title="Организация"
-          description="Общие данные вашей организации. Они будут отображаться в приглашениях и отчетах."
-          icon={Building2}
-          onSave={handleSaveOrg}
-          saving={savingOrg}
-          saved={savedOrg}
-        >
-          <div>
-            <label className={labelClasses}>Название организации</label>
-            <input
-              value={orgForm.name}
-              onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
-              className={inputClasses}
-              placeholder="Например, Школа Алгоритмики"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClasses}>Город</label>
-              <input
-                value={orgForm.city}
-                onChange={(e) => setOrgForm({ ...orgForm, city: e.target.value })}
-                className={inputClasses}
-                placeholder="Москва"
-              />
-            </div>
-            <div>
-              <label className={labelClasses}>Телефон</label>
-              <input
-                value={orgForm.phone}
-                onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
-                className={inputClasses}
-                placeholder="+7 (999) 000-00-00"
-              />
-            </div>
-          </div>
-        </SettingsSection>
+        <div className="min-w-0 rounded-3xl border border-slate-200/50 bg-white/50 p-3 shadow-sm sm:p-6 lg:p-8">
+          {waitingForPaymentSettings && (
+            <div className="flex h-40 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>
+          )}
 
-        {isOwner && <PaymentsSettingsSection />}
-
-        {/* Profile Section */}
-        <SettingsSection
-          title="Личный профиль"
-          description="Ваши личные данные. Имя и фамилия будут видны другим сотрудникам организации."
-          icon={Settings}
-          onSave={handleSaveProfile}
-          saving={savingProfile}
-          saved={savedProfile}
-        >
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <label className={labelClasses}>Имя</label>
-              <input
-                value={profileForm.first_name}
-                onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
-                className={inputClasses}
-              />
-            </div>
-            <div>
-              <label className={labelClasses}>Фамилия</label>
-              <input
-                value={profileForm.last_name}
-                onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
-                className={inputClasses}
-              />
-            </div>
-          </div>
-          <div>
-            <label className={labelClasses}>Язык интерфейса</label>
-            <select
-              value={profileForm.language}
-              onChange={(e) => setProfileForm({ ...profileForm, language: e.target.value })}
-              className={inputClasses}
+          {!waitingForPaymentSettings && section === "organization" && (
+            <SettingsSection
+              title="Организация"
+              description="Общие данные вашей организации. Они будут отображаться в приглашениях, отчетах и квитанциях."
+              icon={Building2}
+              onSave={handleSaveOrg}
+              saving={savingOrg}
+              saved={savedOrg}
             >
-              <option value="ru">Русский</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-        </SettingsSection>
+              <div>
+                <label className={labelClasses}>Название организации</label>
+                <input
+                  value={orgForm.name}
+                  onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
+                  className={inputClasses}
+                  placeholder="Например, Школа Алгоритмики"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className={labelClasses}>Город</label>
+                  <input
+                    value={orgForm.city}
+                    onChange={(e) => setOrgForm({ ...orgForm, city: e.target.value })}
+                    className={inputClasses}
+                    placeholder="Москва"
+                  />
+                </div>
+                <div>
+                  <label className={labelClasses}>Телефон</label>
+                  <input
+                    value={orgForm.phone}
+                    onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
+                    className={inputClasses}
+                    placeholder="+7 (999) 000-00-00"
+                  />
+                </div>
+              </div>
+            </SettingsSection>
+          )}
 
-        {/* Security Section */}
-        <SettingsSection
-          title="Безопасность"
-          description="Изменение пароля для доступа к вашей учетной записи. Используйте надежный пароль."
-          icon={Key}
-          onSave={handleChangePassword}
-          saving={savingPassword}
-          saved={passwordMsg?.type === 'success'}
-          saveText="Обновить пароль"
-          disabledSave={!passwordForm.old_password || !passwordForm.new_password}
-        >
-          <div className="space-y-6">
-            <div>
-              <label className={labelClasses}>Текущий пароль</label>
-              <input
-                type="password"
-                value={passwordForm.old_password}
-                onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
-                className={inputClasses}
-                placeholder="••••••••"
-              />
-            </div>
+          {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} />}
+          {!waitingForPaymentSettings && section === "attendance" && <AttendanceSettingsSection draft={paymentSettings} />}
+
+          {!waitingForPaymentSettings && section === "profile" && (
+          <SettingsSection
+            title="Личный профиль"
+            description="Ваши личные данные. Имя и фамилия будут видны другим сотрудникам организации."
+            icon={Settings}
+            onSave={handleSaveProfile}
+            saving={savingProfile}
+            saved={savedProfile}
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className={labelClasses}>Новый пароль</label>
+                <label className={labelClasses}>Имя</label>
                 <input
-                  type="password"
-                  value={passwordForm.new_password}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                  value={profileForm.first_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
                   className={inputClasses}
-                  placeholder="Минимум 6 символов"
                 />
               </div>
               <div>
-                <label className={labelClasses}>Повторите пароль</label>
+                <label className={labelClasses}>Фамилия</label>
+                <input
+                  value={profileForm.last_name}
+                  onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
+                  className={inputClasses}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelClasses}>Язык интерфейса</label>
+              <select
+                value={profileForm.language}
+                onChange={(e) => setProfileForm({ ...profileForm, language: e.target.value })}
+                className={inputClasses}
+              >
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+          </SettingsSection>
+          )}
+
+          {!waitingForPaymentSettings && section === "security" && (
+          <SettingsSection
+            title="Безопасность"
+            description="Изменение пароля для доступа к вашей учетной записи. Используйте надежный пароль."
+            icon={Key}
+            onSave={handleChangePassword}
+            saving={savingPassword}
+            saved={passwordMsg?.type === 'success'}
+            saveText="Обновить пароль"
+            disabledSave={!passwordForm.old_password || !passwordForm.new_password}
+          >
+            <div className="space-y-6">
+              <div>
+                <label className={labelClasses}>Текущий пароль</label>
                 <input
                   type="password"
-                  value={passwordForm.confirm}
-                  onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                  value={passwordForm.old_password}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
                   className={inputClasses}
                   placeholder="••••••••"
                 />
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label className={labelClasses}>Новый пароль</label>
+                  <input
+                    type="password"
+                    value={passwordForm.new_password}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
+                    className={inputClasses}
+                    placeholder="Минимум 6 символов"
+                  />
+                </div>
+                <div>
+                  <label className={labelClasses}>Повторите пароль</label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirm}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
+                    className={inputClasses}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              {/* Password Message */}
+              {passwordMsg && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
+                    passwordMsg.type === 'success'
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                      : "bg-rose-50 text-rose-700 border border-rose-100"
+                  }`}
+                >
+                  {passwordMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
+                  {passwordMsg.text}
+                </motion.div>
+              )}
             </div>
-
-            {/* Password Message */}
-            {passwordMsg && (
-              <motion.div
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                className={`flex items-center gap-2 p-3 rounded-xl text-sm font-medium ${
-                  passwordMsg.type === 'success'
-                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                    : "bg-rose-50 text-rose-700 border border-rose-100"
-                }`}
-              >
-                {passwordMsg.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <Shield className="w-4 h-4" />}
-                {passwordMsg.text}
-              </motion.div>
-            )}
-          </div>
-        </SettingsSection>
-
+          </SettingsSection>
+          )}
+        </div>
       </div>
     </div>
   );
