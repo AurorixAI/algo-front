@@ -37,6 +37,7 @@ import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { createAdvanceOnce } from "@/lib/option-tap";
+import { IDENTITY_HINT, canSubmitIdentity, idPlaceholder } from "@/lib/exam-entry";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -70,6 +71,8 @@ interface ExamInfo {
   status: string;
   time_remaining_seconds?: number | null;
   started_at?: string | null;
+  /** Centre ID prefix (e.g. «TE»), when the server exposes it: only used in the ID example. */
+  student_id_prefix?: string | null;
 }
 
 interface ExamResult {
@@ -313,7 +316,7 @@ export default function ExamPage() {
     setAlreadySubmitted(false);
     const sName = studentName.trim();
     const sId = studentId.trim();
-    if (!sName && !sId) return;
+    if (!canSubmitIdentity(sName, sId)) return;
 
     // Verify enrollment and single attempt before starting
     if (examInfo?.group_id) {
@@ -690,8 +693,9 @@ export default function ExamPage() {
                   <>
                     <div className="space-y-3.5 mb-5">
                       <Input
-                        label="Ваше имя или ФИО"
+                        label="Имя и фамилия"
                         placeholder="Иван Иванов"
+                        autoComplete="off"
                         value={studentName}
                         onChange={(e) => {
                           setStudentName(e.target.value);
@@ -699,21 +703,23 @@ export default function ExamPage() {
                         }}
                       />
                       <Input
-                        label="ID ученика (если есть)"
-                        placeholder="AL-00123"
+                        label="ID ученика"
+                        placeholder={idPlaceholder(examInfo.student_id_prefix)}
+                        autoComplete="off"
                         value={studentId}
                         onChange={(e) => {
                           setStudentId(e.target.value);
                           if (groupWarning) setGroupWarning(null);
                         }}
                       />
+                      <p className="text-xs text-slate-500">{IDENTITY_HINT}</p>
                     </div>
 
                     <Button
                       className="w-full shadow-md shadow-primary-500/20"
                       size="lg"
                       onClick={handleStartClick}
-                      disabled={(!studentName.trim() && !studentId.trim()) || phase === "starting"}
+                      disabled={!canSubmitIdentity(studentName, studentId) || phase === "starting"}
                       loading={phase === "starting"}
                       icon={phase !== "starting" ? <ArrowRight className="w-5 h-5" /> : undefined}
                     >

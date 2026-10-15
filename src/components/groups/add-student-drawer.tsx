@@ -7,6 +7,7 @@ import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { availableStudents, studentPoolQuery } from "@/lib/student-pool";
 
 interface Student {
   id: string;
@@ -45,7 +46,9 @@ export function AddStudentDrawer({
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(false);
   const [totalFound, setTotalFound] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Picked students are kept as objects: they stay selected (and keep their
+  // «из другой группы» hint) when the list reloads under another class filter.
+  const [selected, setSelected] = useState<Map<string, Student>>(new Map());
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -56,6 +59,8 @@ export function AddStudentDrawer({
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const [feeText, setFeeText] = useState("");
+  // By default only the group's own class is offered; «Все классы» drops that filter.
+  const [allClasses, setAllClasses] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -65,6 +70,7 @@ export function AddStudentDrawer({
     if (!open) return;
     setMode("transfer");
     setFeeText("");
+    setAllClasses(false);
   }, [open]);
 
   // Group names for the "currently in ..." hints; a failure only drops the hints.
@@ -91,12 +97,9 @@ export function AddStudentDrawer({
   const loadStudents = useCallback(async () => {
     setLoading(true);
     try {
-      // The server caps a page at 500; beyond that the search box narrows the list.
-      const data = await orgApi.listStudentsPage({
-        search: debouncedSearch || undefined,
-        class_level: groupClassLevel || undefined,
-        limit: 500,
-      });
+      const data = await orgApi.listStudentsPage(
+        studentPoolQuery({ search: debouncedSearch, groupClassLevel, allClasses }),
+      );
       setStudents(data.items);
       setTotalFound(data.total);
     } catch {
@@ -105,27 +108,27 @@ export function AddStudentDrawer({
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, groupClassLevel]);
+  }, [debouncedSearch, groupClassLevel, allClasses]);
 
   useEffect(() => {
     if (open) loadStudents();
   }, [open, loadStudents]);
 
-  const toggle = (id: string) => {
+  const toggle = (student: Student) => {
     setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Map(prev);
+      if (next.has(student.id)) next.delete(student.id);
+      else next.set(student.id, student);
       return next;
     });
   };
 
-  // Students not already in group
-  const available = students.filter((s) => !existingStudentIds.has(s.id));
+  // Students not already in the group; archived ones are never offered.
+  const available = availableStudents(students, existingStudentIds);
 
   // Selected students who are enrolled elsewhere: adding moves them.
-  const transfers = available
-    .filter((s) => selected.has(s.id) && s.group_id && s.group_id !== groupId)
+  const transfers = Array.from(selected.values())
+    .filter((s) => s.group_id && s.group_id !== groupId)
     .map((s) => ({
       id: s.id,
       name: s.full_name || `${s.last_name} ${s.first_name}`.trim(),
@@ -139,8 +142,8 @@ export function AddStudentDrawer({
     setAdding(true);
     setAddError(null);
     try {
-      const picked = students.filter((s) => selected.has(s.id));
-      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected), {
+      const picked = Array.from(selected.values());
+      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
         // The mode only matters for students who are already in another group.
         mode: transfers.length > 0 ? mode : undefined,
         monthly_fee: fee.value,
@@ -149,7 +152,7 @@ export function AddStudentDrawer({
         const s = picked.find((item) => item.id === id);
         return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
       };
-      setSelected(new Set());
+      setSelected(new Map());
       onAdded({
         added: result.added,
         skipped: result.skipped,
@@ -216,6 +219,20 @@ export function AddStudentDrawer({
                   className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
                 />
               </div>
+              {groupClassLevel ? (
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={allClasses}
+                    onClick={() => setAllClasses((value) => !value)}
+                    className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
+                    Все классы
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             {/* Student list */}
@@ -227,7 +244,7 @@ export function AddStudentDrawer({
               ) : available.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-32 text-slate-400">
                   <UserPlus className="w-8 h-8 mb-2 opacity-40" />
-                  <p className="text-sm">{search ? "Ничего не найдено" : "Все ученики уже в группе"}</p>
+                  <p className="text-sm">{search ? "Ничего не найдено" : allClasses || !groupClassLevel ? "Все ученики уже в группе" : `Нет доступных учеников ${groupClassLevel} класса`}</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-50">
@@ -236,7 +253,7 @@ export function AddStudentDrawer({
                     return (
                       <button
                         key={s.id}
-                        onClick={() => toggle(s.id)}
+                        onClick={() => toggle(s)}
                         className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
                       >
                         {/* Avatar */}

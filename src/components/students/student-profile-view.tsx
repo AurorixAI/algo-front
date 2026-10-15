@@ -56,9 +56,11 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
   const { user } = useAuthStore();
   const isTeacher = pathname?.startsWith("/teacher") || (user?.role === "teacher" && !pathname?.startsWith("/admin") && !pathname?.startsWith("/owner"));
 
-  const groupsBasePath = isTeacher ? "/teacher/groups" : "/admin/groups";
+  // The owner keeps the owner workspace (menu highlight); diagnostics exist only under /admin.
+  const isOwnerPath = Boolean(pathname?.startsWith("/owner"));
+  const groupsBasePath = isTeacher ? "/teacher/groups" : isOwnerPath ? "/owner/groups" : "/admin/groups";
   const diagnosticsBasePath = isTeacher ? "/teacher/diagnostics" : "/admin/diagnostics";
-  const defaultBackPath = isTeacher ? "/teacher/groups" : "/admin/students";
+  const defaultBackPath = isTeacher ? "/teacher/groups" : isOwnerPath ? "/owner/students" : "/admin/students";
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);

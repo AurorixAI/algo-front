@@ -440,7 +440,8 @@ test("summary store: an answer that arrives after reset (logout) is dropped", as
 test("screens exist and follow the contract (routes, menu, banner, teacher, demo)", () => {
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
   for (const role of ["admin", "owner"]) {
-    assert.match(read(`src/app/${role}/payments/page.tsx`), /<PaymentsPage studentProfileBasePath="\/admin\/students" \/>/, role);
+    // each workspace opens the student card under its own prefix (N13 P1.4)
+    assert.match(read(`src/app/${role}/payments/page.tsx`), new RegExp(`<PaymentsPage studentProfileBasePath="/${role}/students" />`), role);
     assert.match(read(`src/app/${role}/layout.tsx`), new RegExp(`<PaymentsAlertBanner paymentsBasePath="/${role}/payments" />`), role);
   }
   const sidebar = read("src/components/layout/sidebar.tsx");

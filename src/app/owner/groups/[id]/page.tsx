@@ -431,6 +431,7 @@ export default function OwnerGroupDetailPage() {
             </div>
             <GroupStudentTable
               students={group.students}
+              studentBasePath="/owner/students"
               onRemove={group.status === "active" ? handleRemoveStudent : undefined}
               canRemove={group.status === "active"}
             />
@@ -444,7 +445,7 @@ export default function OwnerGroupDetailPage() {
               students={group.students || []}
               canEdit
               adminMode
-              studentProfileBasePath="/admin/students"
+              studentProfileBasePath="/owner/students"
               initialMonth={searchParams?.get("month")}
               highlightLessonId={searchParams?.get("lesson")}
               highlightDate={searchParams?.get("date")}

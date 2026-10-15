@@ -125,6 +125,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   const ownerNav: NavItem[] = [
     { href: "/owner/dashboard", label: "Панель управления", icon: LayoutDashboard },
     { href: "/owner/groups", label: "Группы", icon: Users },
+    { href: "/owner/students", label: "Ученики", icon: GraduationCap },
     ...(showExcuses
       ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
