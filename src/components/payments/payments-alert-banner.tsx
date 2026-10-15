@@ -24,7 +24,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
   return (
     <div
       role="status"
-      className="mx-auto mb-4 flex w-full max-w-[1400px] items-start gap-2.5 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-900 md:mb-5"
+      className="mx-auto mb-4 flex w-full max-w-[1400px] items-start gap-2.5 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-900 md:mb-5 print:hidden"
     >
       <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" aria-hidden />
       <p className="min-w-0">

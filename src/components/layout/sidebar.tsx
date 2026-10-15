@@ -174,7 +174,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 shrink-0 z-40 select-none",
+        "fixed left-0 top-0 h-screen bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 shrink-0 z-40 select-none print:hidden",
         compactOnMobile
           ? (storedCollapsed ? "w-[68px]" : "w-[68px] md:w-[240px]")
           : (collapsed ? "w-[68px]" : "w-[240px]")
