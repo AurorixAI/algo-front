@@ -65,6 +65,7 @@ import {
   Info,
   CalendarDays,
 } from "lucide-react";
+import { pluralRu } from "@/lib/payments";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -2638,7 +2639,7 @@ export default function ExamHubPage() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-900">{g.name}</p>
-                            <p className="text-xs text-slate-400">{(g as any).student_count || 0} учеников</p>
+                            <p className="text-xs text-slate-400">{(g as any).student_count || 0} {pluralRu((g as any).student_count || 0, ["ученик", "ученика", "учеников"])}</p>
                           </div>
                         </div>
                         {exam.group_id === g.id ? (

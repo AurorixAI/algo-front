@@ -153,6 +153,7 @@ const diffColors: Record<string, string> = {
 
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation } from "@/lib/task-display";
+import { pluralRu } from "@/lib/payments";
 
 // ============================================================================
 // MAIN COMPONENT
@@ -1328,7 +1329,7 @@ export default function ExamDraftPage() {
                         <div>
                           <div className="text-sm font-semibold">{g.name}</div>
                           <div className="text-xs text-slate-400">
-                            {g.student_count || 0} учеников {g.class_level ? `· ${g.class_level} класс` : ""}
+                            {g.student_count || 0} {pluralRu(g.student_count || 0, ["ученик", "ученика", "учеников"])} {g.class_level ? `· ${g.class_level} класс` : ""}
                           </div>
                         </div>
                       </div>

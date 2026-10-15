@@ -10,6 +10,7 @@ import {
 import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
 } from "@/lib/api";
+import { pluralRu } from "@/lib/payments";
 
 interface ImportModalProps {
   open: boolean;
@@ -379,7 +380,7 @@ function DoneStep({ result }: { result: ImportCommitResult }) {
         <div>
           <p className="text-sm font-bold text-emerald-800">Импорт выполнен</p>
           <p className="text-xs text-emerald-700 mt-0.5">
-            Добавлено: {c.students_new} учеников, {c.groups_new} групп.
+            Добавлено: {c.students_new} {pluralRu(c.students_new, ["ученик", "ученика", "учеников"])}, {c.groups_new} {pluralRu(c.groups_new, ["группа", "группы", "групп"])}.
           </p>
         </div>
       </div>

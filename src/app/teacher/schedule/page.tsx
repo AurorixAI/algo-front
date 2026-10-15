@@ -38,6 +38,7 @@ import {
   CheckCheck,
   Radio,
 } from "lucide-react";
+import { pluralRu } from "@/lib/payments";
 
 const COLOR_CLASSES = {
   blue: {
@@ -2859,7 +2860,7 @@ export default function TeacherSchedulePage() {
                           </div>
                           <div>
                             <p className="text-sm font-bold text-slate-900">
-                              Состав группы ({groupStudents.length} учеников)
+                              Состав группы ({groupStudents.length} {pluralRu(groupStudents.length, ["ученик", "ученика", "учеников"])})
                             </p>
                             <p className="text-xs text-emerald-700 mt-0.5 font-medium">
                               Время урока пришло. Нажмите «Начать урок» и отметьте присутствие учеников.

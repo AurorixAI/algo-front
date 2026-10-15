@@ -19,6 +19,7 @@ import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { pluralRu } from "@/lib/payments";
 
 type ProfileTab = "diagnostics" | "info";
 
@@ -610,7 +611,7 @@ export function StudentProfileView({ studentId: propStudentId, backHref }: Stude
                             <p className="font-semibold text-slate-800">{groupSummary.group_name}</p>
                             <p className="text-xs text-slate-500">{groupSummary.teacher_name || "Преподаватель не назначен"}</p>
                           </div>
-                          <p className="text-xs font-medium text-slate-600">{groupSummary.total_lessons} занятий · был {groupSummary.present + groupSummary.late} · Н/Б {groupSummary.absent}</p>
+                          <p className="text-xs font-medium text-slate-600">{groupSummary.total_lessons} {pluralRu(groupSummary.total_lessons, ["занятие", "занятия", "занятий"])} · был {groupSummary.present + groupSummary.late} · Н/Б {groupSummary.absent}</p>
                         </div>
                       ))}
                       </div>

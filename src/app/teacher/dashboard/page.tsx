@@ -52,6 +52,7 @@ import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useRouter } from "next/navigation";
+import { pluralRu } from "@/lib/payments";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -1383,7 +1384,7 @@ export default function TeacherDashboardPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="truncate font-bold text-slate-900 transition-colors group-hover:text-primary-700">{group.name}</h3>
-                        <p className="mt-0.5 text-xs text-slate-500">{group.class_level ? `${group.class_level} класс · ` : ""}{group.student_count} учеников</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{group.class_level ? `${group.class_level} класс · ` : ""}{group.student_count} {pluralRu(group.student_count, ["ученик", "ученика", "учеников"])}</p>
                       </div>
                       <span className="rounded-lg bg-white px-2 py-1 text-xs font-bold text-slate-500 shadow-2xs ring-1 ring-slate-100">
                         {group.class_level ? `${group.class_level} кл` : "Группа"}
@@ -2392,7 +2393,7 @@ export default function TeacherDashboardPage() {
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-900">
-                                Состав группы ({groupStudents.length} учеников)
+                                Состав группы ({groupStudents.length} {pluralRu(groupStudents.length, ["ученик", "ученика", "учеников"])})
                               </p>
                               <p className="text-xs text-emerald-700 mt-0.5 font-medium">
                                 Время урока пришло. Нажмите «Начать урок» и отметьте присутствие учеников.
