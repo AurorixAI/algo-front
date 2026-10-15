@@ -37,7 +37,7 @@ import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { createAdvanceOnce } from "@/lib/option-tap";
-import { IDENTITY_HINT, canSubmitIdentity, idPlaceholder } from "@/lib/exam-entry";
+import { ID_PLACEHOLDER, IDENTITY_HINT, canSubmitIdentity, startIdentity, type ConfirmedStudent } from "@/lib/exam-entry";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -71,8 +71,6 @@ interface ExamInfo {
   status: string;
   time_remaining_seconds?: number | null;
   started_at?: string | null;
-  /** Centre ID prefix (e.g. «TE»), when the server exposes it: only used in the ID example. */
-  student_id_prefix?: string | null;
 }
 
 interface ExamResult {
@@ -120,10 +118,7 @@ export default function ExamPage() {
   const [examInfo, setExamInfo] = useState<ExamInfo | null>(null);
   const [studentName, setStudentName] = useState("");
   const [studentId, setStudentId] = useState("");
-  const [confirmedStudent, setConfirmedStudent] = useState<{
-    name: string;
-    display_id?: string;
-  } | null>(null);
+  const [confirmedStudent, setConfirmedStudent] = useState<ConfirmedStudent | null>(null);
 
   // Exam session
   const [sessionId, setSessionId] = useState("");
@@ -318,6 +313,10 @@ export default function ExamPage() {
     const sId = studentId.trim();
     if (!canSubmitIdentity(sName, sId)) return;
 
+    // The student the server confirmed.  The state setters below only take effect on the next
+    // render, so the lobby path (which starts at once) gets it as an argument instead.
+    let confirmed: ConfirmedStudent | null = null;
+
     // Verify enrollment and single attempt before starting
     if (examInfo?.group_id) {
       try {
@@ -347,11 +346,12 @@ export default function ExamPage() {
         }
         if (check.student?.display_id) {
           setStudentId(check.student.display_id);
-          setConfirmedStudent({
-            name: check.student.full_name || sName,
-            display_id: check.student.display_id,
-          });
         }
+        confirmed = {
+          name: check.student?.full_name || sName,
+          display_id: check.student?.display_id,
+        };
+        setConfirmedStudent(confirmed.display_id ? confirmed : null);
       } catch (err: any) {
         console.error("Check student error:", err);
       }
@@ -359,26 +359,19 @@ export default function ExamPage() {
 
     // In lobby mode, join waiting room immediately; in active mode, show confirmation modal
     if (examInfo?.status === "lobby") {
-      executeStartExam();
+      executeStartExam(confirmed);
     } else {
       setShowStartConfirm(true);
     }
   };
 
-  const executeStartExam = async () => {
+  const executeStartExam = async (confirmed?: ConfirmedStudent | null) => {
     setShowStartConfirm(false);
     setPhase("starting");
     try {
-      const sName = studentName.trim();
-      const sId = studentId.trim();
-      const finalName = confirmedStudent?.name || sName;
-      const finalDisplayId = confirmedStudent?.display_id || sId || undefined;
+      const identity = startIdentity({ name: studentName, id: studentId }, confirmed ?? confirmedStudent);
 
-      const res = await examsApi.startSession(code, {
-        student_name: finalName,
-        student_id: sId || undefined,
-        display_id: finalDisplayId,
-      });
+      const res = await examsApi.startSession(code, identity);
 
       if (res.already_submitted) {
         setAlreadySubmitted(true);
@@ -704,7 +697,7 @@ export default function ExamPage() {
                       />
                       <Input
                         label="ID ученика"
-                        placeholder={idPlaceholder(examInfo.student_id_prefix)}
+                        placeholder={ID_PLACEHOLDER}
                         autoComplete="off"
                         value={studentId}
                         onChange={(e) => {
@@ -820,7 +813,7 @@ export default function ExamPage() {
                   </Button>
                   <Button
                     className="flex-1 shadow-md shadow-primary-500/20 font-bold"
-                    onClick={executeStartExam}
+                    onClick={() => executeStartExam()}
                     icon={<ArrowRight className="w-4 h-4" />}
                   >
                     Приступить

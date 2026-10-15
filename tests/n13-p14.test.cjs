@@ -29,18 +29,53 @@ test("the button needs a full name or an ID, never a single word", () => {
   assert.equal(entry.canSubmitIdentity("Алия", "31"), true); // the ID decides, the name is only checked against it
 });
 
-test("the ID example uses the centre prefix when known and is only an example", () => {
-  assert.equal(entry.idPlaceholder(), "Например, TE-031");
-  assert.equal(entry.idPlaceholder(null), "Например, TE-031");
-  assert.equal(entry.idPlaceholder("NC"), "Например, NC-031");
-  assert.equal(entry.idPlaceholder(" NC1- "), "Например, NC1-031");
+test("the ID placeholder is generic: no centre prefix is hard-coded or invented", () => {
+  assert.equal(entry.ID_PLACEHOLDER, "ID из карточки ученика");
+  assert.equal(entry.idPlaceholder, undefined);
+  assert.doesNotMatch(read("lib/exam-entry.ts"), /TE-|AL-|NC/);
+  assert.doesNotMatch(read("app/e/[code]/page.tsx"), /student_id_prefix|idPlaceholder/);
+});
+
+test("start request: an ID-only entry never goes out with an empty name", () => {
+  const confirmed = { name: "Рахимов Тимур", display_id: "TE-031" };
+  // the pre-check confirmed the student: canonical name and ID, whatever was typed
+  assert.deepEqual(entry.startIdentity({ name: "", id: "31" }, confirmed), {
+    student_name: "Рахимов Тимур", student_id: "TE-031", display_id: "TE-031",
+  });
+  assert.deepEqual(entry.startIdentity({ name: " Тимур Рахимов ", id: "" }, confirmed), {
+    student_name: "Рахимов Тимур", student_id: "TE-031", display_id: "TE-031",
+  });
+  // confirmed without an ID (a student who has none): the name only
+  assert.deepEqual(entry.startIdentity({ name: "тимур рахимов", id: "" }, { name: "Рахимов Тимур", display_id: null }), {
+    student_name: "Рахимов Тимур", student_id: undefined, display_id: undefined,
+  });
+  // the pre-check could not run (network error): the typed ID stands in for the name, never ""
+  const offline = entry.startIdentity({ name: "", id: " TE-031 " }, null);
+  assert.deepEqual(offline, { student_name: "TE-031", student_id: "TE-031", display_id: "TE-031" });
+  assert.deepEqual(entry.startIdentity({ name: "Тимур Рахимов", id: "" }, undefined), {
+    student_name: "Тимур Рахимов", student_id: undefined, display_id: undefined,
+  });
+  for (const typed of [{ name: "", id: "31" }, { name: "Тимур Рахимов", id: "" }, { name: "", id: "TE-031" }]) {
+    for (const c of [null, undefined, confirmed, { name: "", display_id: "TE-031" }]) {
+      assert.ok(entry.startIdentity(typed, c).student_name.length > 0, JSON.stringify([typed, c]));
+    }
+  }
+});
+
+test("the lobby path starts with the confirmed student passed as an argument, not stale state", () => {
+  const page = read("app/e/[code]/page.tsx");
+  assert.match(page, /const executeStartExam = async \(confirmed\?: ConfirmedStudent \| null\) =>/);
+  assert.match(page, /executeStartExam\(confirmed\);/);
+  assert.match(page, /onClick=\{\(\) => executeStartExam\(\)\}/); // the click event is not an argument
+  assert.match(page, /startIdentity\(\{ name: studentName, id: studentId \}, confirmed \?\? confirmedStudent\)/);
+  assert.match(page, /examsApi\.startSession\(code, identity\)/);
 });
 
 test("the exam page labels, hint and submit rule", () => {
   const page = read("app/e/[code]/page.tsx");
   assert.match(page, /label="Имя и фамилия"/);
   assert.match(page, /label="ID ученика"/);
-  assert.match(page, /placeholder=\{idPlaceholder\(examInfo\.student_id_prefix\)\}/);
+  assert.match(page, /placeholder=\{ID_PLACEHOLDER\}/);
   assert.match(page, /\{IDENTITY_HINT\}/);
   assert.equal(entry.IDENTITY_HINT, "Введите имя и фамилию полностью или ID из карточки ученика");
   assert.match(page, /disabled=\{!canSubmitIdentity\(studentName, studentId\) \|\| phase === "starting"\}/);
@@ -103,6 +138,21 @@ test("archived and already enrolled students are not offered, even from an older
     { id: "a", status: "active" }, { id: "b", status: "archived" }, { id: "c", status: "new" }, { id: "d", status: "diagnosed" },
   ];
   assert.deepEqual(pool.availableStudents(list, new Set(["d"])).map((s) => s.id), ["a", "c"]);
+});
+
+test("a slow answer for an old filter cannot replace the current list", () => {
+  const drawer = read("components/groups/add-student-drawer.tsx");
+  assert.match(drawer, /import \{ createRequestSequence \} from "@\/lib\/request-sequence"/);
+  const load = drawer.slice(drawer.indexOf("const loadStudents"), drawer.indexOf("useEffect(() => {\n    if (open) loadStudents();"));
+  assert.match(load, /const token = listSeq\.next\(\);/);
+  assert.equal((load.match(/if \(!listSeq\.isCurrent\(token\)\) return;/g) || []).length, 2); // success and failure
+  assert.match(load, /if \(listSeq\.isCurrent\(token\)\) setLoading\(false\)/);
+  // the guard itself: the older of two overlapping loads is dropped
+  const { createRequestSequence } = require(src("lib/request-sequence.ts"));
+  const seq = createRequestSequence();
+  const first = seq.next(), second = seq.next();
+  assert.equal(seq.isCurrent(first), false);
+  assert.equal(seq.isCurrent(second), true);
 });
 
 test("the drawer shows the quiet «Все классы» switch only for a group with a class and keeps the rest", () => {

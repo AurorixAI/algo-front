@@ -7,6 +7,7 @@ import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, studentPoolQuery } from "@/lib/student-pool";
 
 interface Student {
@@ -61,6 +62,9 @@ export function AddStudentDrawer({
   const [feeText, setFeeText] = useState("");
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
+  // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
+  // must not replace the list of the current one.
+  const [listSeq] = useState(() => createRequestSequence());
 
   useEffect(() => {
     setMounted(true);
@@ -95,20 +99,23 @@ export function AddStudentDrawer({
   }, [search]);
 
   const loadStudents = useCallback(async () => {
+    const token = listSeq.next();
     setLoading(true);
     try {
       const data = await orgApi.listStudentsPage(
         studentPoolQuery({ search: debouncedSearch, groupClassLevel, allClasses }),
       );
+      if (!listSeq.isCurrent(token)) return;
       setStudents(data.items);
       setTotalFound(data.total);
     } catch {
+      if (!listSeq.isCurrent(token)) return;
       setStudents([]);
       setTotalFound(0);
     } finally {
-      setLoading(false);
+      if (listSeq.isCurrent(token)) setLoading(false);
     }
-  }, [debouncedSearch, groupClassLevel, allClasses]);
+  }, [debouncedSearch, groupClassLevel, allClasses, listSeq]);
 
   useEffect(() => {
     if (open) loadStudents();
