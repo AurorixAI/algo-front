@@ -721,8 +721,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           />
         )}
 
-        {/* ── «Контакты и заметки»: not for a teacher ───────────────────────── */}
-        {!paymentsPending && activeTab === "contacts" && !isTeacher && (
+        {/* ── «Контакты и заметки»: every role reads them, only staff edit (the button below) ── */}
+        {!paymentsPending && activeTab === "contacts" && (
           <div className="space-y-6">
             {/* Contacts and Notes */}
             <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-6">

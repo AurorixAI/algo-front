@@ -16,11 +16,12 @@ export const PROFILE_TAB_LABEL: Record<ProfileTab, string> = {
 export const DEFAULT_PROFILE_TAB: ProfileTab = "diagnostics";
 
 /**
- * Tabs this user may see, in order.  A teacher never sees money or contacts; «Оплаты» needs the
- * server to have said the user may see payments (owner, or an administrator with the right).
+ * Tabs this user may see, in order.  A teacher never sees money, but reads the contacts (phone and
+ * service notes) as before - only staff edit them; «Оплаты» needs the server to have said the user
+ * may see payments (owner, or an administrator with the right).
  */
 export function visibleProfileTabs(input: { isTeacher: boolean; paymentsVisible: boolean }): ProfileTab[] {
-  if (input.isTeacher) return ["diagnostics", "learning"];
+  if (input.isTeacher) return ["diagnostics", "learning", "contacts"];
   return input.paymentsVisible
     ? ["diagnostics", "learning", "payments", "contacts"]
     : ["diagnostics", "learning", "contacts"];

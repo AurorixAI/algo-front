@@ -376,7 +376,9 @@ test("the settings page: sections in the address, replace without scrolling, one
 // ---- 5. student card tabs -------------------------------------------------------------------
 
 test("tabs of the student card by role", () => {
-  assert.deepEqual(tabs.visibleProfileTabs({ isTeacher: true, paymentsVisible: true }), ["diagnostics", "learning"]);
+  // a teacher never gets money, but reads the contacts (read-only, as before)
+  assert.deepEqual(tabs.visibleProfileTabs({ isTeacher: true, paymentsVisible: true }), ["diagnostics", "learning", "contacts"]);
+  assert.deepEqual(tabs.visibleProfileTabs({ isTeacher: true, paymentsVisible: false }), ["diagnostics", "learning", "contacts"]);
   assert.deepEqual(tabs.visibleProfileTabs({ isTeacher: false, paymentsVisible: false }), ["diagnostics", "learning", "contacts"]);
   assert.deepEqual(tabs.visibleProfileTabs({ isTeacher: false, paymentsVisible: true }), ["diagnostics", "learning", "payments", "contacts"]);
   assert.deepEqual(Object.values(tabs.PROFILE_TAB_LABEL), ["Диагностика и отчёты", "Обучение", "Оплаты", "Контакты и заметки"]);
@@ -395,9 +397,9 @@ test("?tab=: missing opens diagnostics, unknown or forbidden opens «Обуче�
     assert.equal(tabs.parseProfileTab(bad, owner), "learning", bad);
     assert.equal(tabs.parseProfileTab(bad, teacher, true), "diagnostics", bad);
   }
-  // a teacher never reaches money or contacts by a link
+  // a teacher never reaches money by a link, but opens the contacts
   assert.equal(tabs.parseProfileTab("payments", teacher, true), "diagnostics");
-  assert.equal(tabs.parseProfileTab("contacts", teacher, true), "diagnostics");
+  assert.equal(tabs.parseProfileTab("contacts", teacher, true), "contacts");
   assert.equal(tabs.parseProfileTab("learning", teacher, true), "learning");
 });
 
@@ -406,7 +408,9 @@ test("the card keeps money out of «Обучение» and shows the payments ta
   assert.match(view, /const paymentsVisible = !isTeacher && !DEMO_MODE && paymentsAvailable;/);
   assert.match(view, /visibleProfileTabs\(\{ isTeacher: Boolean\(isTeacher\), paymentsVisible \}\)/);
   assert.match(view, /activeTab === "payments" && paymentsVisible/);
-  assert.match(view, /activeTab === "contacts" && !isTeacher/);
+  // contacts are visible to every role; the edit controls stay staff-only
+  assert.match(view, /activeTab === "contacts" && \(/);
+  assert.match(view, /\{!isTeacher && !editingNotes && \(/);
   assert.match(view, /router\.replace\(`\$\{pathname\}\?tab=\$\{tab\}`, \{ scroll: false \}\)/);
   assert.match(view, /overflow-x-auto/); // the tab bar scrolls on a phone
   assert.match(view, /<Suspense/);
