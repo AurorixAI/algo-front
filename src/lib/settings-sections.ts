@@ -3,15 +3,16 @@
  * so node:test can load this file.
  */
 
-export type SettingsSection = "organization" | "payments" | "attendance" | "profile" | "security";
+export type SettingsSection = "organization" | "payments" | "attendance" | "payroll" | "profile" | "security";
 
 export const DEFAULT_SETTINGS_SECTION: SettingsSection = "organization";
 
-/** In menu order.  «Зарплата» is not listed until it exists: no «скоро» (owner, 15.10). */
+/** In menu order.  «Зарплата» (N13 P3) is the owner's alone and has no payment settings behind it. */
 export const SETTINGS_SECTIONS: Array<{ key: SettingsSection; label: string }> = [
   { key: "organization", label: "Организация" },
   { key: "payments", label: "Оплаты" },
   { key: "attendance", label: "Посещаемость" },
+  { key: "payroll", label: "Зарплата" },
   { key: "profile", label: "Личный профиль" },
   { key: "security", label: "Безопасность" },
 ];
@@ -28,11 +29,16 @@ export function parseSettingsSection(
   return found && available.includes(found) ? found : DEFAULT_SETTINGS_SECTION;
 }
 
-/** Sections shown to this user: the payment ones only when the server let him read the payment settings. */
+/**
+ * Sections shown to this user: the payment ones only when the server let him read the payment settings,
+ * «Зарплата» only to the owner (the server answers 403 to everybody else).
+ */
 export function visibleSettingsSections(input: { isOwner: boolean; paymentSettingsReadable: boolean }): SettingsSection[] {
-  return SETTINGS_SECTIONS.map((section) => section.key).filter((key) =>
-    key === "payments" || key === "attendance" ? input.isOwner && input.paymentSettingsReadable : true,
-  );
+  return SETTINGS_SECTIONS.map((section) => section.key).filter((key) => {
+    if (key === "payments" || key === "attendance") return input.isOwner && input.paymentSettingsReadable;
+    if (key === "payroll") return input.isOwner;
+    return true;
+  });
 }
 
 export function settingsSectionHref(section: SettingsSection): string {

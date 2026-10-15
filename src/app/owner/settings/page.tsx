@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, ClipboardCheck, Loader2, LucideIcon } from "lucide-react";
+import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, ClipboardCheck, Banknote, Loader2, LucideIcon } from "lucide-react";
 import {
   ATTENDANCE_SCOPE_KEYS,
   BILLING_DAY_RANGE,
@@ -27,6 +27,17 @@ import {
   type PaymentSettings,
   type PaymentSettingsScope,
 } from "@/lib/payments";
+import {
+  DEFAULT_DIVISOR,
+  DEFAULT_PAYROLL_SETTINGS,
+  DIVISOR_RANGE,
+  PAYROLL_PACKAGE_TEXT,
+  lineAmount,
+  parseDivisor,
+  payrollFormulaText,
+  type PayrollSettings,
+} from "@/lib/payroll";
+import { formatMoney } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { daysWord, lessonsWord } from "@/lib/excuse-deadline";
 import { effectiveRole } from "@/lib/role-home";
@@ -176,6 +187,62 @@ function usePaymentSettingsDraft(enabled: boolean) {
 }
 
 type PaymentSettingsDraft = ReturnType<typeof usePaymentSettingsDraft>;
+
+/**
+ * «Зарплата»: one number - the divisor of the formula.  Read when the section is first opened (the owner's
+ * route; nobody else sees the section), saved on its own button.
+ */
+function usePayrollSettingsDraft(enabled: boolean) {
+  const [status, setStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
+  const [attempt, setAttempt] = useState(0);
+  const [loaded, setLoaded] = useState<PayrollSettings>(DEFAULT_PAYROLL_SETTINGS);
+  const [text, setText] = useState(String(DEFAULT_DIVISOR));
+  const [save, setSave] = useState<SaveState>(IDLE_SAVE);
+  const touched = useRef(false);
+
+  useEffect(() => {
+    if (!enabled || status === "ready") return;
+    let cancelled = false;
+    setStatus("loading");
+    orgApi.getPayrollSettings()
+      .then((data) => {
+        if (cancelled) return;
+        setLoaded(data);
+        // what the owner has already typed is not overwritten by a late answer
+        if (!touched.current) setText(String(data.divisor));
+        setStatus("ready");
+      })
+      .catch(() => { if (!cancelled) setStatus("unavailable"); });
+    return () => { cancelled = true; };
+    // `status` is read only to skip a second request once the answer is in
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, attempt]);
+
+  const change = (value: string) => {
+    touched.current = true;
+    setSave(IDLE_SAVE);
+    setText(value.replace(/\D/g, "").slice(0, 2));
+  };
+
+  const submit = async () => {
+    const parsed = parseDivisor(text);
+    if (parsed.value === null) { setSave({ saving: false, saved: false, error: parsed.error }); return; }
+    setSave({ saving: true, saved: false, error: null });
+    try {
+      const updated = await orgApi.updatePayrollSettings({ divisor: parsed.value });
+      setLoaded(updated);
+      setText(String(updated.divisor));
+      setSave({ saving: false, saved: true, error: null });
+      setTimeout(() => setSave((previous) => ({ ...previous, saved: false })), 3000);
+    } catch (e: any) {
+      setSave({ saving: false, saved: false, error: e.message || "Ошибка сохранения" });
+    }
+  };
+
+  return { status, loaded, text, save, change, submit, retry: () => setAttempt((n) => n + 1) };
+}
+
+type PayrollSettingsDraft = ReturnType<typeof usePayrollSettingsDraft>;
 
 function NumberField({
   id, label, value, range, onChange, suffix,
@@ -375,6 +442,69 @@ function AttendanceSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   );
 }
 
+/** «Зарплата»: the divisor of the payroll formula, with the formula in words and a worked example. */
+function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
+  const parsed = parseDivisor(draft.text);
+  const divisor = parsed.value ?? draft.loaded.divisor;
+  // The partner's own numbers: 450 000 per month, 50 %, 11 lessons.
+  const example = lineAmount({ fee: 450_000, percentHundredths: 5000, divisor, lessons: 11 });
+  const unchanged = parsed.value !== null && parsed.value === draft.loaded.divisor;
+
+  return (
+    <SettingsSection
+      title="Зарплата"
+      description="Как считается зарплата преподавателей. Настройка влияет на новые расчёты: сохранённые ведомости не меняются."
+      icon={Banknote}
+      onSave={() => void draft.submit()}
+      saving={draft.save.saving}
+      saved={draft.save.saved}
+      disabledSave={draft.status !== "ready" || unchanged}
+    >
+      {draft.status === "loading" || draft.status === "idle" ? (
+        <div className="flex h-24 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>
+      ) : draft.status === "unavailable" ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">
+          Не удалось загрузить настройки зарплаты.
+          <button type="button" onClick={draft.retry} className="rounded-lg border border-rose-200 bg-white px-3 py-1 text-rose-700 hover:bg-rose-100">Повторить</button>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label htmlFor="payroll-divisor" className={labelClasses}>Делитель</label>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                id="payroll-divisor"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                value={draft.text}
+                aria-invalid={Boolean(draft.save.error) || parsed.value === null}
+                aria-describedby="payroll-divisor-help"
+                onChange={(event) => draft.change(event.target.value)}
+                className={numberInputClasses}
+              />
+              <span className="text-sm text-slate-600">от {DIVISOR_RANGE.min} до {DIVISOR_RANGE.max}, по умолчанию {DEFAULT_DIVISOR}</span>
+            </div>
+          </div>
+
+          <div id="payroll-divisor-help" className="space-y-2 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <p className="font-semibold text-slate-900">{payrollFormulaText(divisor)}</p>
+            <p>
+              Например: {formatMoney(450_000)} × 50 % ÷ {divisor} × 11 уроков = <span className="font-semibold">{formatMoney(example)}</span>.
+            </p>
+            <p className="text-xs text-slate-500">{PAYROLL_PACKAGE_TEXT}</p>
+            <p className="text-xs text-slate-500">Сумма строки округляется до целого сума (половина — вверх), итог — сумма строк.</p>
+          </div>
+        </>
+      )}
+
+      {draft.save.error && (
+        <p role="alert" className="rounded-xl border border-rose-100 bg-rose-50 p-3 text-sm font-medium text-rose-700">{draft.save.error}</p>
+      )}
+    </SettingsSection>
+  );
+}
+
 /** Left menu on a computer, scrolling tabs on a phone; the section is in the address (`?section=`). */
 function SectionNav({ sections, active, onSelect }: { sections: SectionKey[]; active: SectionKey; onSelect: (key: SectionKey) => void }) {
   const items = SETTINGS_SECTIONS.filter((section) => sections.includes(section.key));
@@ -424,6 +554,7 @@ function OwnerSettingsContent() {
   const sections = visibleSettingsSections({ isOwner, paymentSettingsReadable: paymentSettings.status !== "unavailable" });
   const requestedSection = searchParams?.get("section");
   const section = parseSettingsSection(requestedSection, sections);
+  const payrollSettings = usePayrollSettingsDraft(isOwner && section === "payroll");
   const waitingForPaymentSettings = isOwner
     && paymentSettings.status === "loading"
     && (requestedSection === "payments" || requestedSection === "attendance");
@@ -578,6 +709,7 @@ function OwnerSettingsContent() {
 
           {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} />}
           {!waitingForPaymentSettings && section === "attendance" && <AttendanceSettingsSection draft={paymentSettings} />}
+          {section === "payroll" && <PayrollSettingsSection draft={payrollSettings} />}
 
           {!waitingForPaymentSettings && section === "profile" && (
           <SettingsSection

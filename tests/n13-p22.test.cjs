@@ -340,20 +340,21 @@ test("each settings section validates and saves only its own fields", () => {
 });
 
 test("?section= falls back to «Организация» for anything unknown or not shown", () => {
-  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "profile", "security"]);
+  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "payroll", "profile", "security"]);
   assert.equal(sections.DEFAULT_SETTINGS_SECTION, "organization");
-  for (const key of ["organization", "payments", "attendance", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
+  for (const key of ["organization", "payments", "attendance", "payroll", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
   for (const bad of [null, undefined, "", "salary", "Payments", "payments ", "../x", "constructor"]) assert.equal(sections.parseSettingsSection(bad), "organization", String(bad));
   // a section the user may not see is not opened by a link either
   const noPayments = sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: false });
-  assert.deepEqual(noPayments, ["organization", "profile", "security"]);
+  assert.deepEqual(noPayments, ["organization", "payroll", "profile", "security"]);
   assert.equal(sections.parseSettingsSection("payments", noPayments), "organization");
   assert.equal(sections.parseSettingsSection("attendance", noPayments), "organization");
-  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 5);
+  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 6);
   assert.deepEqual(sections.visibleSettingsSections({ isOwner: false, paymentSettingsReadable: true }), ["organization", "profile", "security"]);
   assert.equal(sections.settingsSectionHref("payments"), "?section=payments");
-  // «Зарплата» is not offered, not even as «скоро»
-  assert.doesNotMatch(read("src/lib/settings-sections.ts") + read("src/app/owner/settings/page.tsx"), /Зарплат[аы]\b(?! остаётся скрытой)/);
+  // «Зарплата» exists since N13 P3 (the owner's alone) and is never offered as «скоро»
+  assert.ok(sections.SETTINGS_SECTIONS.some((s) => s.key === "payroll" && s.label === "Зарплата"));
+  assert.doesNotMatch(read("src/lib/settings-sections.ts") + read("src/app/owner/settings/page.tsx"), /скоро|После подключения/i);
 });
 
 test("the settings page: sections in the address, replace without scrolling, one Save per section", () => {
@@ -363,10 +364,10 @@ test("the settings page: sections in the address, replace without scrolling, one
   assert.match(page, /<SectionNav sections=\{sections\}/);
   assert.match(page, /md:grid-cols-\[220px_minmax\(0,1fr\)\]/); // menu on the left from md
   assert.match(page, /overflow-x-auto/); // tabs scroll on a phone
-  for (const key of ["organization", "payments", "attendance", "profile", "security"]) {
+  for (const key of ["organization", "payments", "attendance", "payroll", "profile", "security"]) {
     assert.match(page, new RegExp(`section === "${key}"`), key);
   }
-  assert.equal((page.match(/onSave=/g) || []).length, 5);
+  assert.equal((page.match(/onSave=/g) || []).length, 6);
   assert.match(page, /FIXED_DAY_HINT/);
   assert.match(page, /BILLING_DAY_RANGE/);
   assert.match(P.FIXED_DAY_HINT, /неполный месяц — сумма пересчитывается по урокам/);
