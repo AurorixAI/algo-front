@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, examsApi, GroupDetail, GroupStats, type ExamSummary } from "@/lib/api";
+import { lessonTypeLabel } from "@/lib/payroll";
 import { useAuthStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
@@ -353,6 +354,9 @@ export default function TeacherGroupDetailPage() {
                     {group.class_level} класс
                   </span>
                 )}
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary-50 text-primary-700 border border-primary-200/60">
+                  {lessonTypeLabel(group.lesson_type)}
+                </span>
               </div>
 
               {/* Meta row */}

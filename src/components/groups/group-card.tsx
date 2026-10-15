@@ -5,6 +5,7 @@ import { GraduationCap, Users, ChevronRight, Archive, BookOpen } from "lucide-re
 import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
 import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
+import { lessonTypeLabel } from "@/lib/payroll";
 
 interface GroupCardProps {
   group: GroupInfo & { avg_level?: "below_grade" | "at_grade" | "above_grade" | null };
@@ -69,6 +70,12 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
       <div className="relative z-10 flex flex-wrap items-center gap-2 mb-6 text-sm text-slate-500">
         <span className="flex items-center gap-1.5 bg-slate-100/80 px-3 py-1.5 rounded-xl border border-slate-200/50 backdrop-blur-sm">
           <GraduationCap className="w-4 h-4 text-slate-500" /> {group.class_level ? `${group.class_level} класс` : "Без класса"}
+        </span>
+        <span
+          data-testid="group-lesson-type"
+          className="flex items-center gap-1.5 bg-primary-50/70 text-primary-700 px-3 py-1.5 rounded-xl border border-primary-100 font-medium"
+        >
+          {lessonTypeLabel(group.lesson_type)}
         </span>
         {group.teacher_name && (
           <span className="text-slate-400 px-1 truncate max-w-[120px]">

@@ -17,6 +17,7 @@ import { GroupScheduleOverview } from "@/components/groups/group-schedule-overvi
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
+import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
@@ -28,6 +29,7 @@ interface EditState {
   teacher_id: string;
   description: string;
   max_students: string;
+  lesson_type: LessonType;
 }
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
@@ -54,7 +56,7 @@ export default function AdminGroupDetailPage() {
   // Inline edit
   const [editing, setEditing] = useState(false);
   const [editState, setEditState] = useState<EditState>({
-    name: "", class_level: "", teacher_id: "", description: "", max_students: "30",
+    name: "", class_level: "", teacher_id: "", description: "", max_students: "30", lesson_type: "group",
   });
   const [saving, setSaving] = useState(false);
   const { showToast, toastNode } = useToast();
@@ -77,6 +79,7 @@ export default function AdminGroupDetailPage() {
         teacher_id: g.teacher_id ?? "",
         description: g.description ?? "",
         max_students: String(g.max_students),
+        lesson_type: normalizeLessonType(g.lesson_type),
       });
     } catch {
       router.push("/admin/groups");
@@ -109,6 +112,7 @@ export default function AdminGroupDetailPage() {
         teacher_id: editState.teacher_id || null,
         description: editState.description.trim() || undefined,
         max_students: Number(editState.max_students) || 30,
+        lesson_type: editState.lesson_type,
       });
       setGroup((prev) => prev ? { ...prev, ...updated } : null);
       setEditing(false);
@@ -284,6 +288,16 @@ export default function AdminGroupDetailPage() {
                   </p>
                 </div>
 
+                {/* Lesson type (N13 P3: the payroll counts a percent per type) */}
+                <div className="col-span-2">
+                  <Select
+                    label="Тип занятий"
+                    value={editState.lesson_type}
+                    onChange={(e) => setEditState((s) => ({ ...s, lesson_type: normalizeLessonType(e.target.value) }))}
+                    options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
+                  />
+                </div>
+
                 {/* Description */}
                 <div className="col-span-2 space-y-2">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
@@ -339,6 +353,7 @@ export default function AdminGroupDetailPage() {
                     <h1 className="text-xl font-bold text-slate-900">{group.name}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">
                       {group.class_level ? `${group.class_level} класс · ` : ""}
+                      {`${lessonTypeLabel(group.lesson_type)} · `}
                       {group.teacher_name ? `Учитель: ${group.teacher_name}` : "Учитель не назначен"}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
