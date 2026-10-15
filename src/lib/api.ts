@@ -16,6 +16,24 @@ import type {
   PaymentWarning,
   ReceiptOut,
 } from "./payments";
+import {
+  filenameFromContentDisposition,
+  normalizeDiff,
+  normalizeMonthOverview,
+  normalizePayrollSettings,
+  normalizeRevisions,
+  normalizeSheet,
+  normalizeSheetList,
+  type LessonType,
+  type PayrollCalculateBody,
+  type PayrollDiff,
+  type PayrollMonthOverview,
+  type PayrollPatchBody,
+  type PayrollRevision,
+  type PayrollSaveBody,
+  type PayrollSettings,
+  type PayrollSheet,
+} from "./payroll";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
@@ -514,6 +532,8 @@ export interface GroupInfo {
   max_students: number;
   student_count: number;
   students_count?: number;
+  /** Kind of lessons (N13 P3). An answer of an older server has none: treat it as «group». */
+  lesson_type?: LessonType;
   created_at: string | null;
 }
 
@@ -1127,7 +1147,7 @@ export const orgApi = {
     api<{ acknowledged: boolean }>(`/auth/org/diagnostics/${encodePathId(id)}/acknowledge-report`, { method: "POST" }),
 
   // Groups
-  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number }) =>
+  createGroup: (data: { name: string; class_level?: number; teacher_id?: string; description?: string; max_students?: number; lesson_type?: LessonType }) =>
     api<GroupInfo>("/auth/org/groups", { method: "POST", body: data }),
   listGroups: (params?: { teacher_id?: string; class_level?: number }) => {
     const query = new URLSearchParams();
@@ -1138,7 +1158,7 @@ export const orgApi = {
   },
   getGroup: (id: string) => api<GroupDetail>(`/auth/org/groups/${id}`),
   getGroupStats: (id: string) => api<GroupStats>(`/auth/org/groups/${id}/stats`),
-  updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; status: string }>) =>
+  updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; status: string; lesson_type: LessonType }>) =>
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
   archiveGroup: (id: string) =>
     // No dedicated /archive route — the PUT endpoint already accepts status.
@@ -1377,6 +1397,40 @@ export const orgApi = {
   updatePaymentSettings: (data: PaymentSettingsUpdate) =>
     api<PaymentSettings>("/auth/org/settings/payments", { method: "PUT", body: data }),
 
+  // ── Payroll (owner only; every route answers 403 to anyone else) ───────
+  getPayrollSettings: async (): Promise<PayrollSettings> =>
+    normalizePayrollSettings(await api<unknown>("/auth/org/payroll/settings")),
+  updatePayrollSettings: async (data: PayrollSettings): Promise<PayrollSettings> =>
+    normalizePayrollSettings(await api<unknown>("/auth/org/payroll/settings", { method: "PUT", body: data })),
+  /** Teachers with completed lessons in the month (`month` = YYYY-MM), their types, suggested percents, saved sheets, warnings. */
+  getPayrollMonth: async (month: string): Promise<PayrollMonthOverview> =>
+    normalizeMonthOverview(await api<unknown>(`/auth/org/payroll/months/${encodePathId(month)}`), month),
+  /** Preview only: nothing is written. */
+  calculatePayroll: async (month: string, body: PayrollCalculateBody): Promise<PayrollSheet[]> =>
+    normalizeSheetList(
+      await api<unknown>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body }),
+      { month },
+    ),
+  /** Saves a sheet; when the teacher already has one for the month this is its next revision. */
+  savePayrollSheet: async (body: PayrollSaveBody): Promise<PayrollSheet> =>
+    normalizeSheet(await api<unknown>("/auth/org/payroll/sheets", { method: "POST", body }), { month: body.month }),
+  listPayrollSheets: async (month: string): Promise<PayrollSheet[]> =>
+    normalizeSheetList(await api<unknown>(`/auth/org/payroll/sheets?month=${encodeURIComponent(month)}`), { month }),
+  getPayrollSheet: async (sheetId: string): Promise<PayrollSheet> =>
+    normalizeSheet(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`)),
+  /** A new revision; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. */
+  patchPayrollSheet: async (sheetId: string, body: PayrollPatchBody): Promise<PayrollSheet> =>
+    normalizeSheet(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`, { method: "PATCH", body })),
+  getPayrollRevisions: async (sheetId: string): Promise<PayrollRevision[]> =>
+    normalizeRevisions(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/revisions`)),
+  /** What a recalculation by the current data would change in the saved sheet, line by line. */
+  getPayrollDiff: async (sheetId: string): Promise<PayrollDiff> =>
+    normalizeDiff(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/diff`)),
+  downloadPayrollSheet: (sheetId: string, fallbackName: string) =>
+    fetchFile(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/export.xlsx`, fallbackName, "Не удалось скачать Excel"),
+  downloadPayrollMonth: (month: string, fallbackName: string) =>
+    fetchFile(`/auth/org/payroll/months/${encodePathId(month)}/export.xlsx`, fallbackName, "Не удалось скачать Excel"),
+
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
     const res = await fetch(`${AUTH_API_V1}/auth/org/import/template`, {
@@ -1494,6 +1548,21 @@ async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
     throw new ApiError(res.status, message, code);
   }
   return res.blob();
+}
+
+/**
+ * Authenticated file download (an .xlsx): the bytes and the name from `Content-Disposition`.  A cross-origin
+ * answer hides that header unless the server lists it in `Access-Control-Expose-Headers`; `fallbackName` is
+ * used then.
+ */
+async function fetchFile(endpoint: string, fallbackName: string, fallbackError: string): Promise<{ blob: Blob; filename: string }> {
+  const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { credentials: "include", cache: "no-store" });
+  if (!res.ok) {
+    const { message, code } = await readErrorMessage(res, fallbackError);
+    throw new ApiError(res.status, message, code);
+  }
+  const blob = await res.blob();
+  return { blob, filename: filenameFromContentDisposition(res.headers.get("Content-Disposition"), fallbackName) };
 }
 
 /** DELETE that does not care what (if anything) the server answers on success. */
