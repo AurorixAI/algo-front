@@ -2,7 +2,10 @@ import { encodePathId } from "./encode-id";
 import type {
   MembershipPaymentRow,
   PaymentCreate,
+  PaymentFileOut,
   PaymentOut,
+  PaymentQuote,
+  PaymentQuoteQuery,
   PaymentSaveResult,
   PaymentSettings,
   PaymentSettingsUpdate,
@@ -10,6 +13,7 @@ import type {
   PaymentsSummary,
   PaymentBucket,
   PaymentWarning,
+  ReceiptOut,
 } from "./payments";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
@@ -1210,6 +1214,28 @@ export const orgApi = {
     api<{ payment: PaymentOut; row: MembershipPaymentRow }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
       method: "POST", body: { reason },
     }),
+  /** Suggested dates and amount for the next payment of a membership (same rules as creating it). */
+  getPaymentQuote: (membershipId: string, q: PaymentQuoteQuery) => {
+    const params = new URLSearchParams({ paid_on: q.paid_on });
+    if (q.valid_from) params.set("valid_from", q.valid_from);
+    if (q.valid_to) params.set("valid_to", q.valid_to);
+    if (q.lessons_count !== undefined) params.set("lessons_count", String(q.lessons_count));
+    return api<PaymentQuote>(`/auth/org/memberships/${encodePathId(membershipId)}/payments/quote?${params.toString()}`);
+  },
+  getPaymentReceipt: (paymentId: string) =>
+    api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt`),
+  uploadPaymentFile: (paymentId: string, file: Blob, filename: string) =>
+    uploadMultipart<PaymentFileOut>(
+      `/auth/org/payments/${encodePathId(paymentId)}/files`,
+      file,
+      filename,
+      "Не удалось загрузить файл",
+    ),
+  /** Binary cheque for the viewer; private, never cached by the browser. */
+  fetchPaymentFile: (paymentId: string, fileId: string) =>
+    fetchBinary(`/auth/org/payments/${encodePathId(paymentId)}/files/${encodePathId(fileId)}`, "Не удалось открыть файл"),
+  deletePaymentFile: (paymentId: string, fileId: string) =>
+    deleteAuthed(`/auth/org/payments/${encodePathId(paymentId)}/files/${encodePathId(fileId)}`, "Не удалось удалить файл"),
   getPaymentSettings: () => api<PaymentSettings>("/auth/org/settings/payments"),
   updatePaymentSettings: (data: PaymentSettingsUpdate) =>
     api<PaymentSettings>("/auth/org/settings/payments", { method: "PUT", body: data }),
@@ -1333,6 +1359,15 @@ async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
     throw new ApiError(res.status, message, code);
   }
   return res.blob();
+}
+
+/** DELETE that does not care what (if anything) the server answers on success. */
+async function deleteAuthed(endpoint: string, fallback: string): Promise<void> {
+  const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, { method: "DELETE", credentials: "include", cache: "no-store" });
+  if (!res.ok) {
+    const { message, code } = await readErrorMessage(res, fallback);
+    throw new ApiError(res.status, message, code);
+  }
 }
 
 async function uploadImport<T>(endpoint: string, file: File): Promise<T> {

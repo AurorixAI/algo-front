@@ -12,11 +12,17 @@ import { CHIP_TONE_CLASS } from "./chip-tone";
 // ── API contract (spec §3) ─────────────────────────────────────────────────
 
 export type PeriodMode = "calendar" | "lessons";
+/** How a calendar period starts: from the payment date, or on one day of the month for the whole center. */
+export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active";
 export type PaymentBucket = "due" | "expiring" | "none" | "active";
 
 export interface PaymentSettings {
   period_mode: PeriodMode;
+  /** Only for `calendar`: `fixed_day` makes every period start on `billing_day`. */
+  billing_anchor: BillingAnchor;
+  /** 1..28: the day of the month the center's period starts on (used with `fixed_day`). */
+  billing_day: number;
   lessons_per_payment: number;
   expiring_days: number;
   expiring_lessons: number;
@@ -81,6 +87,88 @@ export interface PaymentOut {
   voided_by: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  /** Receipt number inside the center; null for a carry-over (not money) and on an older server. */
+  receipt_no?: number | null;
+  /** The payment was made for a part of a center period (fixed day); a fact of its time, never recalculated. */
+  partial_period?: boolean;
+  /** Attached receipts / cheques (photo or PDF); the bytes are fetched one by one. */
+  files?: PaymentFileOut[];
+}
+
+/** A photo / PDF of a bank slip attached to a payment (N13 P2.2). */
+export interface PaymentFileOut {
+  id: string;
+  filename: string;
+  content_type: string;
+  size_bytes: number;
+  uploaded_at: string | null;
+  uploaded_by_name: string | null;
+}
+
+export type QuoteBasis = "full" | "lessons" | "days" | "package" | "custom" | "none";
+
+/** One piece of a quote: a part of a center period (fixed day) or the whole range. */
+export interface PaymentQuotePart {
+  from: string;
+  to: string;
+  period_from: string | null;
+  period_to: string | null;
+  lessons: number | null;
+  period_lessons: number | null;
+  amount: number | null;
+}
+
+/** `GET /auth/org/memberships/{id}/payments/quote`: dates and an amount for the next payment. */
+export interface PaymentQuote {
+  mode: PeriodMode;
+  billing_anchor: BillingAnchor;
+  billing_day: number;
+  paid_on: string;
+  valid_from: string;
+  valid_to: string | null;
+  lessons_count: number | null;
+  partial: boolean;
+  monthly_fee: number | null;
+  suggested_amount: number | null;
+  basis: QuoteBasis;
+  parts: PaymentQuotePart[];
+  /** Russian text for the caption under the amount. */
+  explanation: string;
+}
+
+/** Query of the quote: only `paid_on` is required, the server fills the rest the way a payment would. */
+export interface PaymentQuoteQuery {
+  paid_on: string;
+  valid_from?: string;
+  valid_to?: string;
+  lessons_count?: number;
+}
+
+/** `GET /auth/org/payments/{id}/receipt`. */
+export interface ReceiptOut {
+  receipt_no: number;
+  org_name: string;
+  org_city: string | null;
+  org_phone: string | null;
+  student_name: string;
+  display_id: string | null;
+  group_name: string;
+  amount: number;
+  /** «Пятьсот тысяч сум», with a capital letter. */
+  amount_words: string;
+  currency: string;
+  paid_on: string;
+  valid_from: string;
+  valid_to: string | null;
+  lessons_count: number | null;
+  partial_period: boolean;
+  note: string | null;
+  accepted_by_name: string | null;
+  created_at: string | null;
+  voided_at: string | null;
+  void_reason: string | null;
+  replaced_by_receipt_no: number | null;
+  replaces_receipt_no: number | null;
 }
 
 export interface MembershipPaymentRow {
@@ -108,7 +196,7 @@ export interface MembershipPaymentRow {
 }
 
 export interface PaymentWarning {
-  code: "overlaps_previous" | "gap_before" | "period_over_62_days" | "paid_over_60_days_ago" | string;
+  code: "overlaps_previous" | "gap_before" | "period_over_62_days" | "paid_over_60_days_ago" | "short_period_full_amount" | string;
   message: string;
 }
 
@@ -256,6 +344,49 @@ export function subtractYears(iso: string, years: number): string {
   return toIso(year, parts[1], Math.min(parts[2], daysInMonth(year, parts[1])));
 }
 
+// ── Center periods of the «единый день оплаты» model (mirrors payment_status.py) ──
+
+export const BILLING_DAY_RANGE = { min: 1, max: 28 } as const;
+
+/** Start of the center period that contains `iso`: the `billingDay` of this month, or of the previous one. */
+export function billingPeriodStart(iso: string, billingDay: number): string {
+  const parts = parseIso(iso);
+  if (!parts) return iso;
+  const [year, month, day] = parts;
+  if (day >= billingDay) return toIso(year, month, billingDay);
+  const previousYear = month === 1 ? year - 1 : year;
+  const previousMonth = month === 1 ? 12 : month - 1;
+  return toIso(previousYear, previousMonth, billingDay);
+}
+
+/** End of the center period that contains `iso`: the next `billingDay` minus a day (the last day of the month for day 1). */
+export function billingPeriodEndOf(iso: string, billingDay: number): string {
+  return addMonthMinusDay(billingPeriodStart(iso, billingDay));
+}
+
+/** Where a fixed-day payment may end: the end of its center period, and one more period after it. */
+export interface FixedDayChips {
+  /** «До конца месяца»: the end of the period that contains «с». */
+  toEnd: string;
+  /** «+ следующий месяц»: the end of the period after the one the current «до» is in. */
+  plusNext: string;
+}
+
+/**
+ * The two shortcuts under «Оплачено до» of the fixed-day model.  `plusNext` is the end of the
+ * period that follows the one `validTo` ends in: 31.10 -> 30.11 (day 1), 09.11 -> 09.12 (day 10),
+ * and clicking it again keeps adding months.  null while «с» is not a date.
+ */
+export function fixedDayChips(validFrom: string, validTo: string, billingDay: number): FixedDayChips | null {
+  if (!isIsoDate(validFrom) || !Number.isInteger(billingDay) || billingDay < BILLING_DAY_RANGE.min || billingDay > BILLING_DAY_RANGE.max) {
+    return null;
+  }
+  const toEnd = billingPeriodEndOf(validFrom, billingDay);
+  const base = isIsoDate(validTo) && validTo >= validFrom ? validTo : toEnd;
+  const plusNext = billingPeriodEndOf(addDays(billingPeriodEndOf(base, billingDay), 1), billingDay);
+  return { toEnd, plusNext };
+}
+
 /** Plural form for a Russian noun: [1 урок, 2 урока, 5 уроков]. */
 export function pluralRu(count: number, forms: [string, string, string]): string {
   const n = Math.abs(Math.trunc(count));
@@ -294,6 +425,54 @@ export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";
 
 export function lessonsWord(count: number): string {
   return pluralRu(count, ["урок", "урока", "уроков"]);
+}
+
+// ── What the amount is called (ROADMAP №68) ────────────────────────────────
+
+/** The mode that names a membership's fee: its own payments' mode, or the center's while it has none. */
+export function feeModeOf(row: { period_mode?: PeriodMode | null } | null | undefined, centerMode: PeriodMode): PeriodMode {
+  return row?.period_mode ?? centerMode;
+}
+
+export interface FeeTexts {
+  /** «Оплата в месяц» / «Стоимость пакета». */
+  label: string;
+  /** For an input: «Оплата в месяц, сум». */
+  field: string;
+  editAria: string;
+  saved: string;
+  required: string;
+  /** Said when the fee is empty. */
+  unset: string;
+}
+
+/** All wording that depends on what the fee is: one place, so a label never disagrees with its toast. */
+export function feeTexts(mode: PeriodMode): FeeTexts {
+  if (mode === "lessons") {
+    return {
+      label: "Стоимость пакета",
+      field: "Стоимость пакета, сум",
+      editAria: "Изменить стоимость пакета",
+      saved: "Стоимость пакета сохранена",
+      required: "Укажите стоимость пакета",
+      unset: "не указана",
+    };
+  }
+  return {
+    label: "Оплата в месяц",
+    field: "Оплата в месяц, сум",
+    editAria: "Изменить оплату в месяц",
+    saved: "Оплата в месяц сохранена",
+    required: "Укажите оплату в месяц",
+    unset: "не указана",
+  };
+}
+
+/** Header of the fee column of a list that may mix both kinds. */
+export function feeColumnLabel(rows: ReadonlyArray<{ period_mode?: PeriodMode | null }>, centerMode: PeriodMode): string {
+  const modes = new Set(rows.map((row) => feeModeOf(row, centerMode)));
+  if (modes.size === 1) return feeTexts([...modes][0]).label;
+  return modes.size === 0 ? feeTexts(centerMode).label : "Стоимость";
 }
 
 /** «Оплачено до 04.11.2026», «Сегодня последний день», «Закончилась 3 дн. назад», «Через 2 дн.», «Осталось 3 урока из 12»… */
@@ -557,6 +736,157 @@ export function parseMonthlyFee(text: string): { value: number | null; error: st
   return { value, error: null };
 }
 
+// ── Quote of the next payment (N13 P2.2) ───────────────────────────────────
+
+export interface QuoteInputs {
+  mode: PeriodMode;
+  paidOn: string;
+  validFrom: string;
+  validTo: string;
+  lessons: string;
+  /** The user typed the field, so it is sent and never overwritten. */
+  fromTouched: boolean;
+  toTouched: boolean;
+}
+
+/**
+ * The request for the server's suggestion, or null while the inputs cannot be asked about (no
+ * payment date, reversed period, a lessons count that is not a number).  While the user has not touched
+ * the dates only `paid_on` is sent and the server picks the period by the same code a payment uses;
+ * once a date is touched both dates are sent explicitly, so the answer is about exactly what is on screen.
+ */
+export function buildQuoteQuery(input: QuoteInputs): PaymentQuoteQuery | null {
+  if (!isIsoDate(input.paidOn)) return null;
+  const query: PaymentQuoteQuery = { paid_on: input.paidOn };
+  if (input.mode === "calendar") {
+    if (!input.fromTouched && !input.toTouched) return query;
+    if (!isIsoDate(input.validFrom) || !isIsoDate(input.validTo) || input.validTo < input.validFrom) return null;
+    query.valid_from = input.validFrom;
+    query.valid_to = input.validTo;
+    return query;
+  }
+  if (input.fromTouched) {
+    if (!isIsoDate(input.validFrom)) return null;
+    query.valid_from = input.validFrom;
+  }
+  const lessons = input.lessons.trim();
+  if (lessons) {
+    const count = Number(lessons);
+    if (!Number.isInteger(count) || count < 1 || count > MAX_LESSONS) return null;
+    query.lessons_count = count;
+  }
+  return query;
+}
+
+/** Stable text of a query: two requests with the same text ask the same thing. */
+export function quoteQueryKey(query: PaymentQuoteQuery | null): string {
+  if (!query) return "";
+  return [query.paid_on, query.valid_from ?? "", query.valid_to ?? "", query.lessons_count ?? ""].join("|");
+}
+
+export interface QuoteTouched {
+  from: boolean;
+  to: boolean;
+  amount: boolean;
+}
+
+/**
+ * What an answer may write into the form: only fields the user has not touched.  An answer without a
+ * suggested amount leaves the amount alone, except a custom period, where the old suggestion no longer
+ * fits and the field is emptied so the user has to state the amount.
+ */
+export function quotePrefill(quote: PaymentQuote, touched: QuoteTouched, mode: PeriodMode): Partial<PaymentFormValues> {
+  const patch: Partial<PaymentFormValues> = {};
+  if (!touched.from && isIsoDate(quote.valid_from)) patch.validFrom = quote.valid_from;
+  if (mode === "calendar" && !touched.to && quote.valid_to && isIsoDate(quote.valid_to)) patch.validTo = quote.valid_to;
+  if (!touched.amount) {
+    if (quote.suggested_amount !== null && quote.suggested_amount !== undefined) patch.amount = formatMoneyInput(quote.suggested_amount);
+    else if (quote.basis === "custom") patch.amount = "";
+  }
+  return patch;
+}
+
+/** «Неполный месяц» on the form: the answer says the period is a part of the center's period. */
+export const PARTIAL_PERIOD_BADGE = "Неполный месяц";
+/** The same fact in the history, in lower case. */
+export const PARTIAL_PERIOD_TAG = "неполный месяц";
+
+// ── Receipts and attached files (N13 P2.2) ─────────────────────────────────
+
+export const PAYMENT_FILE_MAX_BYTES = 2 * 1024 * 1024;
+export const PAYMENT_FILE_MAX_COUNT = 3;
+export const PAYMENT_FILE_ACCEPT = "image/jpeg,image/png,application/pdf";
+
+/** «№ 123», or null when there is no receipt (a carry-over, an older server). */
+export function receiptNumberLabel(payment: Pick<PaymentOut, "receipt_no" | "carried_from"> | null | undefined): string | null {
+  if (!payment || isCarryOver(payment)) return null;
+  const number = payment.receipt_no;
+  return typeof number === "number" && Number.isFinite(number) && number > 0 ? `№ ${number}` : null;
+}
+
+/** A carry-over is not money: it has neither a receipt nor a cheque. */
+export function hasReceipt(payment: Pick<PaymentOut, "carried_from"> | null | undefined): boolean {
+  return Boolean(payment) && !isCarryOver(payment);
+}
+
+/** A cheque can be attached to a live payment that is real money. */
+export function canAttachFile(payment: Pick<PaymentOut, "carried_from" | "voided_at">): boolean {
+  return !isCarryOver(payment) && !payment.voided_at;
+}
+
+export const RECEIPT_VOID_STAMP = "АННУЛИРОВАНА";
+
+/** «Квитанция № 123». */
+export function receiptTitle(receiptNo: number): string {
+  return `Квитанция № ${receiptNo}`;
+}
+
+/** «заменена квитанцией № 124» on a receipt of a payment that was corrected; null otherwise. */
+export function receiptReplacedNote(receipt: Pick<ReceiptOut, "replaced_by_receipt_no">): string | null {
+  return receipt.replaced_by_receipt_no ? `заменена квитанцией № ${receipt.replaced_by_receipt_no}` : null;
+}
+
+/** «заменяет квитанцию № 120» on the receipt of a correction; null otherwise. */
+export function receiptReplacesNote(receipt: Pick<ReceiptOut, "replaces_receipt_no">): string | null {
+  return receipt.replaces_receipt_no ? `заменяет квитанцию № ${receipt.replaces_receipt_no}` : null;
+}
+
+/** What the receipt page says when the server refuses: 403 no right, 404 no such payment, 409 a carry-over (the server's own text). */
+export function receiptErrorText(status: number | undefined, message: string | undefined): string {
+  if (status === 403) return "Нет доступа к квитанциям. Доступ даёт владелец центра в настройках.";
+  if (status === 404) return "Квитанция не найдена. Возможно, ссылка устарела или оплата относится к другому центру.";
+  if (status === 409) return message || "Перенос оплаты — не денежная операция, квитанции нет";
+  return message || "Не удалось загрузить квитанцию";
+}
+
+/** `/owner/payments` + id -> `/owner/payments/receipt/<id>`. */
+export function receiptHref(paymentsBasePath: string, paymentId: string): string {
+  return `${paymentsBasePath.replace(/\/+$/, "")}/receipt/${encodeURIComponent(paymentId)}`;
+}
+
+export interface PaymentFileCheck {
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * Pre-check of a picked cheque; the server re-checks the signature bytes.  JPEG, PNG or PDF,
+ * at most 2 МБ, at most 3 per payment.
+ */
+export function checkPaymentFile(file: { name: string; type: string; size: number }, currentCount: number): PaymentFileCheck {
+  if (currentCount >= PAYMENT_FILE_MAX_COUNT) {
+    return { ok: false, error: `К оплате можно приложить не более ${PAYMENT_FILE_MAX_COUNT} файлов` };
+  }
+  const type = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+  const known = type === "image/jpeg" || type === "image/png" || type === "application/pdf"
+    || (!type && /\.(jpe?g|png|pdf)$/.test(name));
+  if (!known) return { ok: false, error: "Допустимы только фото (JPEG, PNG) и PDF" };
+  if (file.size <= 0) return { ok: false, error: "Файл пустой" };
+  if (file.size > PAYMENT_FILE_MAX_BYTES) return { ok: false, error: "Файл больше 2 МБ. Уменьшите его или сделайте фото поменьше" };
+  return { ok: true };
+}
+
 // ── Center settings ────────────────────────────────────────────────────────
 
 export const LESSONS_PER_PAYMENT_RANGE = { min: 1, max: 60 } as const;
@@ -567,6 +897,8 @@ export const EXCUSE_DEADLINE_LESSONS_RANGE = { min: 0, max: 12 } as const;
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   period_mode: "calendar",
+  billing_anchor: "payment_date",
+  billing_day: 1,
   lessons_per_payment: 12,
   expiring_days: 3,
   expiring_lessons: 3,
@@ -581,34 +913,83 @@ function inRange(value: number, range: { min: number; max: number }): boolean {
   return Number.isInteger(value) && value >= range.min && value <= range.max;
 }
 
+/** The two settings sections that live in one record on the server; each saves only its own fields. */
+export type PaymentSettingsScope = "payments" | "attendance";
+
+export const PAYMENTS_SCOPE_KEYS = [
+  "period_mode", "billing_anchor", "billing_day", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage",
+] as const;
+export const ATTENDANCE_SCOPE_KEYS = ["excuse_deadline_days", "excuse_deadline_lessons"] as const;
+
+type SettingsKey = (typeof PAYMENTS_SCOPE_KEYS)[number] | (typeof ATTENDANCE_SCOPE_KEYS)[number];
+
 export function validatePaymentSettings(
   settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
-    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons">>,
+    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day">>,
+  scope?: PaymentSettingsScope,
 ): string | null {
-  if (!inRange(settings.lessons_per_payment, LESSONS_PER_PAYMENT_RANGE)) {
-    return `Число уроков в оплате: от ${LESSONS_PER_PAYMENT_RANGE.min} до ${LESSONS_PER_PAYMENT_RANGE.max}`;
+  if (scope !== "attendance") {
+    if (!inRange(settings.lessons_per_payment, LESSONS_PER_PAYMENT_RANGE)) {
+      return `Число уроков в оплате: от ${LESSONS_PER_PAYMENT_RANGE.min} до ${LESSONS_PER_PAYMENT_RANGE.max}`;
+    }
+    if (!inRange(settings.expiring_days, EXPIRING_DAYS_RANGE)) {
+      return `Порог «скоро» в днях: от ${EXPIRING_DAYS_RANGE.min} до ${EXPIRING_DAYS_RANGE.max}`;
+    }
+    if (!inRange(settings.expiring_lessons, EXPIRING_LESSONS_RANGE)) {
+      return `Порог «скоро» в уроках: от ${EXPIRING_LESSONS_RANGE.min} до ${EXPIRING_LESSONS_RANGE.max}`;
+    }
+    if (settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
+      return `Единый день оплаты: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
+    }
   }
-  if (!inRange(settings.expiring_days, EXPIRING_DAYS_RANGE)) {
-    return `Порог «скоро» в днях: от ${EXPIRING_DAYS_RANGE.min} до ${EXPIRING_DAYS_RANGE.max}`;
-  }
-  if (!inRange(settings.expiring_lessons, EXPIRING_LESSONS_RANGE)) {
-    return `Порог «скоро» в уроках: от ${EXPIRING_LESSONS_RANGE.min} до ${EXPIRING_LESSONS_RANGE.max}`;
-  }
-  if (settings.excuse_deadline_days !== undefined && !inRange(settings.excuse_deadline_days, EXCUSE_DEADLINE_DAYS_RANGE)) {
-    return `Срок подтверждения пропуска в днях: от ${EXCUSE_DEADLINE_DAYS_RANGE.min} до ${EXCUSE_DEADLINE_DAYS_RANGE.max}`;
-  }
-  if (settings.excuse_deadline_lessons !== undefined && !inRange(settings.excuse_deadline_lessons, EXCUSE_DEADLINE_LESSONS_RANGE)) {
-    return `Срок подтверждения пропуска в уроках: от ${EXCUSE_DEADLINE_LESSONS_RANGE.min} до ${EXCUSE_DEADLINE_LESSONS_RANGE.max}`;
+  if (scope !== "payments") {
+    if (settings.excuse_deadline_days !== undefined && !inRange(settings.excuse_deadline_days, EXCUSE_DEADLINE_DAYS_RANGE)) {
+      return `Срок подтверждения пропуска в днях: от ${EXCUSE_DEADLINE_DAYS_RANGE.min} до ${EXCUSE_DEADLINE_DAYS_RANGE.max}`;
+    }
+    if (settings.excuse_deadline_lessons !== undefined && !inRange(settings.excuse_deadline_lessons, EXCUSE_DEADLINE_LESSONS_RANGE)) {
+      return `Срок подтверждения пропуска в уроках: от ${EXCUSE_DEADLINE_LESSONS_RANGE.min} до ${EXCUSE_DEADLINE_LESSONS_RANGE.max}`;
+    }
   }
   return null;
 }
 
-/** Only changed fields go to the server (PATCH semantics). */
-export function diffPaymentSettings(before: PaymentSettings, after: PaymentSettings): PaymentSettingsUpdate {
-  const keys = [
-    "period_mode", "lessons_per_payment", "expiring_days", "expiring_lessons",
-    "excuse_deadline_days", "excuse_deadline_lessons", "admin_can_manage",
-  ] as const;
+// The three ways a center counts a payment, as the owner sees them (spec §1).
+export type PaymentModel = "payment_date" | "fixed_day" | "lessons";
+
+export const PAYMENT_MODELS: Array<{ key: PaymentModel; title: string; hint: string }> = [
+  { key: "payment_date", title: "От даты оплаты", hint: "Месяц считается со дня оплаты: 05.10 → 04.11" },
+  { key: "fixed_day", title: "Единый день оплаты", hint: "У всех учеников один период, например с 1-го по последнее число месяца" },
+  { key: "lessons", title: "Пакет уроков", hint: "Оплата закрывает заданное число проведённых уроков" },
+];
+
+export const FIXED_DAY_HINT = "Ученик, пришедший в середине месяца, платит за неполный месяц — сумма пересчитывается по урокам";
+
+/** Which of the three cards is selected for these settings. */
+export function paymentModelOf(settings: Pick<PaymentSettings, "period_mode" | "billing_anchor">): PaymentModel {
+  if (settings.period_mode === "lessons") return "lessons";
+  return settings.billing_anchor === "fixed_day" ? "fixed_day" : "payment_date";
+}
+
+/** The fields a card sets; the chosen day and the other mode's values are left as they are. */
+export function paymentModelPatch(model: PaymentModel): Pick<PaymentSettings, "period_mode"> & Partial<Pick<PaymentSettings, "billing_anchor">> {
+  if (model === "lessons") return { period_mode: "lessons" };
+  return { period_mode: "calendar", billing_anchor: model };
+}
+
+/** «Период: с 1-го по последнее число месяца», «Период: с 10-го числа по 9-е число следующего месяца». */
+export function billingDayHint(day: number): string {
+  if (!Number.isInteger(day) || day < BILLING_DAY_RANGE.min || day > BILLING_DAY_RANGE.max) return "";
+  return day === 1
+    ? "Период: с 1-го по последнее число месяца"
+    : `Период: с ${day}-го числа по ${day - 1}-е число следующего месяца`;
+}
+
+/** Only changed fields go to the server (PATCH semantics); `keys` limits the comparison to one section. */
+export function diffPaymentSettings(
+  before: PaymentSettings,
+  after: PaymentSettings,
+  keys: ReadonlyArray<SettingsKey> = [...PAYMENTS_SCOPE_KEYS, ...ATTENDANCE_SCOPE_KEYS],
+): PaymentSettingsUpdate {
   const patch: Record<string, unknown> = {};
   for (const key of keys) {
     if (before[key] !== after[key]) patch[key] = after[key];
