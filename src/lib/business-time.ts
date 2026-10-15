@@ -64,6 +64,19 @@ export function formatIsoDateLabel(
   }).format(new Date(`${isoDate}T12:00:00Z`));
 }
 
+/**
+ * Uppercases ONLY the first letter ("октябрь 2026 г." -> "Октябрь 2026 г."). The CSS `capitalize` class
+ * would upper-case every word and turn «г.» into «Г.» (and «окт.» into «Окт.»).
+ */
+export function capitalizeFirst(text: string): string {
+  return text ? text.charAt(0).toLocaleUpperCase("ru-RU") + text.slice(1) : text;
+}
+
+/** "2026-10" -> "октябрь 2026 г." (lower case, for use inside a sentence: «за октябрь 2026 г.»). */
+export function monthYearLabelRu(month: string): string {
+  return formatIsoDateLabel(`${month}-01`, { month: "long", year: "numeric" });
+}
+
 const NAIVE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
 

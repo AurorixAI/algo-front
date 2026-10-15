@@ -15,7 +15,7 @@ import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
 import { useAuthStore } from "@/lib/store";
-import { formatBusinessDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, monthYearLabelRu } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
@@ -42,13 +42,6 @@ function shiftMonth(month: string, direction: -1 | 1): string {
   const [year, monthNumber] = month.split("-").map(Number);
   const value = new Date(year, monthNumber - 1 + direction, 1);
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthLabel(month: string): string {
-  return new Date(`${month}-01T12:00:00`).toLocaleDateString("ru-RU", {
-    month: "long",
-    year: "numeric",
-  });
 }
 
 interface StudentProfileViewProps {
@@ -597,7 +590,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm space-y-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-base font-semibold text-slate-800">Посещаемость за {monthLabel(attendanceMonth)}</h2>
+                    <h2 className="text-base font-semibold text-slate-800">Посещаемость за {monthYearLabelRu(attendanceMonth)}</h2>
                     <p className="mt-1 text-xs text-slate-500">Все фактически начатые занятия, включая прежние группы после перевода.</p>
                   </div>
                   <div className="inline-flex w-fit items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -609,7 +602,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     >
                       <ChevronRight className="h-4 w-4 rotate-180" />
                     </button>
-                    <span className="min-w-[130px] px-2 text-center text-xs font-semibold capitalize text-slate-700">{monthLabel(attendanceMonth)}</span>
+                    <span className="min-w-[130px] px-2 text-center text-xs font-semibold text-slate-700">{capitalizeFirst(monthYearLabelRu(attendanceMonth))}</span>
                     <button
                       type="button"
                       onClick={() => setAttendanceMonth((month) => shiftMonth(month, 1))}

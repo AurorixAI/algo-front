@@ -705,3 +705,19 @@ test("a settings form is refilled from the store only when it has no unsaved typ
   assert.match(page, /\}, \[user\]\);/);
   assert.doesNotMatch(page, /\[org, user\]/);
 });
+
+test("#72: the month label capitalises only its first letter («г.» stays lower case); settings hint wording", () => {
+  const bt = require(path.join(root, "src/lib/business-time.ts"));
+  assert.equal(plain(bt.capitalizeFirst(bt.monthYearLabelRu("2026-10"))), "Октябрь 2026 г.");
+  assert.equal(plain(bt.monthYearLabelRu("2026-03")), "март 2026 г.");
+  assert.equal(bt.capitalizeFirst("понедельник, 15 окт."), "Понедельник, 15 окт.");
+  assert.equal(bt.capitalizeFirst("ёлка"), "Ёлка");
+  assert.equal(bt.capitalizeFirst(""), "");
+  const card = read("src/components/students/student-profile-view.tsx");
+  assert.match(card, /capitalizeFirst\(monthYearLabelRu\(attendanceMonth\)\)/);
+  assert.doesNotMatch(card, /capitalize text-slate-700/);          // the CSS class would turn «г.» into «Г.»
+  assert.doesNotMatch(read("src/app/teacher/schedule/page.tsx"), /font-bold capitalize/);
+  const settings = read("src/app/owner/settings/page.tsx");
+  assert.match(settings, /Каждое правило действует для учеников со своим способом оплаты: по месяцам или пакетом уроков\./);
+  assert.doesNotMatch(settings, /Видны оба правила/);
+});

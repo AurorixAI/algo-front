@@ -365,7 +365,7 @@ function AttendanceSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
             <span>{lessonsWord(form.excuse_deadline_lessons)}</span>
           </div>
         </div>
-        <p className="text-xs text-slate-500">Видны оба правила: у центра могут быть ученики со старыми пакетами уроков.</p>
+        <p className="text-xs text-slate-500">Каждое правило действует для учеников со своим способом оплаты: по месяцам или пакетом уроков.</p>
       </div>
 
       {state.error && (

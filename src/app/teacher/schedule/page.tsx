@@ -7,7 +7,7 @@ import { useAuthStore } from "@/lib/store";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -2551,8 +2551,8 @@ export default function TeacherSchedulePage() {
                             className="group flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
                           >
                             <div className="min-w-[116px]">
-                              <p className="text-xs font-bold capitalize text-slate-800">
-                                {formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" })}
+                              <p className="text-xs font-bold text-slate-800">
+                                {capitalizeFirst(formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" }))}
                               </p>
                               <p className="mt-0.5 text-xs text-slate-500">{row.lesson.startTime} — {row.lesson.endTime}</p>
                             </div>
