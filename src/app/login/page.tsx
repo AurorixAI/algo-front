@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
-import { loginHome } from "@/lib/role-home";
+import { postLoginTarget } from "@/lib/safe-redirect";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -55,7 +55,13 @@ export default function LoginPage() {
       // Hard navigation (not router.push) — guarantees a fresh request that
       // the middleware evaluates with the just-set cookie, bypassing any
       // client router cache entirely.
-      window.location.href = loginHome(actualRole);
+      // `?redirect=` is whatever page the middleware bounced the visitor from. It comes from the
+      // address bar, so postLoginTarget only follows a same-site path that this role may open
+      // (no `//host`, `/\host`, absolute URL, `javascript:`), else the role's own home.
+      window.location.href = postLoginTarget(
+        new URLSearchParams(window.location.search).get("redirect"),
+        actualRole,
+      );
     } catch {
       // Error already set in store
     }

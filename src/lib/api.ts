@@ -91,29 +91,34 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
   }
 
-  // Handle 401: token expired
+  // Handle 401: the access JWT in the (30-day) cookie has expired. Refresh once, repeat the request once.
   if (response.status === 401 && !noAuth) {
-    // Try refresh
     const refreshed = await tryRefreshToken();
     if (refreshed) {
-      // Retry with new token
+      // Retry with the new cookie (and the new token as a header, in case the cookie jar did not take it)
       headers["Authorization"] = `Bearer ${refreshed}`;
-      const retryResponse = await fetch(`${AUTH_API_V1}${endpoint}`, {
-        method,
-        headers,
-        credentials: "include",
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      if (retryResponse.ok) {
-        return retryResponse.json();
+      try {
+        response = await fetch(`${AUTH_API_V1}${endpoint}`, {
+          method,
+          headers,
+          credentials: "include",
+          cache: "no-store",
+          body: body ? JSON.stringify(body) : undefined,
+        });
+      } catch {
+        throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
       }
     }
-    // Refresh failed — redirect to login
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("algo-auth");
-      window.location.href = "/login";
+    if (!refreshed || response.status === 401) {
+      // Refresh failed (or the retry is refused too) — redirect to login
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("algo-auth");
+        window.location.href = "/login";
+      }
+      return undefined as any;
     }
-    return undefined as any;
+    // Refreshed: any other answer of the retry (200, but also 403/404/409/422) is the answer to the
+    // request itself and is handled below like any response - it must not look like a lost session.
   }
 
   if (!response.ok) {
@@ -134,8 +139,41 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   return response.json();
 }
 
-async function tryRefreshToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
+/** Name of the Web Lock that serialises the refresh of one browser profile (all its tabs). */
+const REFRESH_LOCK_NAME = "algo-auth-refresh";
+
+/** The refresh in progress: every request that gets a 401 meanwhile waits for this one call. */
+let refreshInFlight: Promise<string | null> | null = null;
+
+/**
+ * Refresh the session through the httpOnly refresh cookie. ONE call at a time:
+ * - in this tab: a page that wakes up after an idle hour fires several API calls at once, all get 401.
+ *   The refresh token ROTATES, so a second parallel /auth/refresh with the same (already used) token is
+ *   refused with 401 and would throw the user out of a session that the first call has just renewed;
+ * - across tabs (browser restore, two tabs of the app): the Web Lock makes the second tab wait and then
+ *   refresh with the cookie the first tab has just received. Browsers without Web Locks keep the
+ *   per-tab behaviour.
+ */
+function tryRefreshToken(): Promise<string | null> {
+  if (typeof window === "undefined") return Promise.resolve(null);
+  if (!refreshInFlight) {
+    const run = async (): Promise<string | null> => {
+      const locks = typeof navigator !== "undefined" ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+      if (!locks?.request) return requestRefresh();
+      try {
+        return (await locks.request(REFRESH_LOCK_NAME, () => requestRefresh())) as string | null;
+      } catch {
+        return requestRefresh(); // the lock could not be taken (e.g. a sandboxed frame): refresh without it
+      }
+    };
+    refreshInFlight = run().finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+async function requestRefresh(): Promise<string | null> {
   try {
     // Refresh via httpOnly cookie (sent automatically with credentials: include)
     const resp = await fetch(`${AUTH_API_V1}/auth/refresh`, {

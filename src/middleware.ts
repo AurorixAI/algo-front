@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { loginReturnTarget } from "./lib/safe-redirect";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -59,14 +60,19 @@ export function middleware(request: NextRequest) {
   // Zustand persist stores data in localStorage which middleware can't access.
   // The AuthGuard on client-side handles the actual role check.
   // Here we just check if ANY auth state exists via cookie.
-  // The server sets httpOnly cookie "algo_auth_token" on login/apply/refresh.
+  // The server sets httpOnly cookie "algo_auth_token" on login/apply/refresh. The cookie lives as long
+  // as the refresh cookie (30 days) while the JWT inside expires after an hour: a stale JWT is NOT
+  // detected here (middleware cannot refresh) - the first API call answers 401 and api() refreshes.
   const authCookie =
     request.cookies.get("algo_auth_token") ?? request.cookies.get("algo_demo_session");
 
   if (!authCookie?.value) {
-    // No token — redirect to login with return URL
+    // No token — redirect to login with the full return URL (path AND query), so that
+    // /owner/settings?section=payments comes back as exactly that. Sanitised: the login
+    // page follows it, and it must stay a path on this site.
     const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
+    const returnTo = loginReturnTarget(pathname, request.nextUrl.search);
+    if (returnTo) loginUrl.searchParams.set("redirect", returnTo);
     return NextResponse.redirect(loginUrl);
   }
 
