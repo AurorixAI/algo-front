@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { pluralRu } from "@/lib/payments";
 import {
   EMPTY_EDITS,
   UNSAVED_TEXT,
@@ -19,14 +20,18 @@ import {
   editsDirty,
   editsProblem,
   isOpenMonth,
+  isPercentRequired,
   isRevisionConflict,
+  lessonsWithoutTeacherText,
   lessonTypeLabel,
   monthFileName,
   monthPercentText,
   monthTitle,
   parseMonthParam,
   parsePercent,
+  orderedTypes,
   payrollErrorText,
+  payrollFormulaText,
   percentKey,
   percentProblems,
   revisionLabel,
@@ -34,7 +39,9 @@ import {
   shiftMonth,
   sheetFileName,
   sheetStatus,
-  warningView,
+  teacherLabel,
+  warningViews,
+  type PayrollErrorLike,
   type PayrollMonthOverview,
   type PayrollMonthTeacher,
   type PayrollSheet,
@@ -48,7 +55,7 @@ import { useAuthStore } from "@/lib/store";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { PayrollSheetTable } from "./sheet-table";
-import { ConflictBanner, PayrollForbidden, PercentEditor, SaveBar, StatusChip } from "./sheet-controls";
+import { ConflictBanner, PayrollForbidden, PercentEditor, SaveBar, StatusChip, WarningLinks } from "./sheet-controls";
 
 const GRID = "xl:grid xl:grid-cols-[28px_minmax(0,1.1fr)_minmax(0,1.7fr)_minmax(0,1.2fr)_minmax(0,1.3fr)_40px] xl:items-start xl:gap-x-4";
 
@@ -68,7 +75,7 @@ interface Failure {
 }
 
 function failureOf(cause: unknown): Failure {
-  const error = cause as { status?: number; code?: string; message?: string } | null;
+  const error = cause as PayrollErrorLike | null;
   const status = error?.status;
   return { message: payrollErrorText(error), retry: !status || status >= 500, forbidden: status === 403 };
 }
@@ -123,7 +130,7 @@ function PayrollMonthContent() {
       setOverview(data);
     } catch (cause) {
       if (!loads.current.isCurrent(token)) return;
-      if (silent) showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      if (silent) showToast(payrollErrorText(cause as PayrollErrorLike), "error");
       else setFailure(failureOf(cause));
     } finally {
       if (loads.current.isCurrent(token)) setLoading(false);
@@ -146,7 +153,13 @@ function PayrollMonthContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [month, denied]);
 
-  const teachers = overview?.teachers ?? [];
+  // By name; a teacher the server could not name still has a row.
+  const teachers = useMemo(
+    () => (overview?.teachers ?? [])
+      .map((teacher) => ({ ...teacher, teacher_name: teacherLabel(teacher.teacher_name) }))
+      .sort((a, b) => a.teacher_name.localeCompare(b.teacher_name, "ru")),
+    [overview],
+  );
   const savedCount = teachers.filter((teacher) => teacher.sheet).length;
   const allSelected = teachers.length > 0 && teachers.every((teacher) => selected.has(teacher.teacher_id));
   // The server says so; a month that is the current one or later is open whatever it says.
@@ -171,10 +184,7 @@ function PayrollMonthContent() {
   };
 
   const withNames = (sheets: PayrollSheet[]): PayrollSheet[] =>
-    sheets.map((sheet) => {
-      const row = teachers.find((teacher) => teacher.teacher_id === sheet.teacher_id);
-      return row && sheet.teacher_name === "Преподаватель" ? { ...sheet, teacher_name: row.teacher_name } : sheet;
-    });
+    sheets.map((sheet) => ({ ...sheet, teacher_name: teacherLabel(sheet.teacher_name) }));
 
   /** `only`: one teacher (a row's menu); else the selected ones, else everybody. */
   const calculate = async (only?: string) => {
@@ -213,7 +223,8 @@ function PayrollMonthContent() {
       window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (cause) {
       if (!calcs.current.isCurrent(token) || monthRef.current !== requestedMonth) return;
-      showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
+      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     } finally {
       if (calcs.current.isCurrent(token)) setCalculating(false);
     }
@@ -259,8 +270,9 @@ function PayrollMonthContent() {
       void load(true);
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
-      if (isRevisionConflict(cause as { status?: number; code?: string })) patchPreview(teacherId, { saving: false, conflict: true });
-      else patchPreview(teacherId, { saving: false, error: payrollErrorText(cause as { status?: number; code?: string; message?: string }) });
+      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
+      if (isRevisionConflict(cause as PayrollErrorLike)) patchPreview(teacherId, { saving: false, conflict: true });
+      else patchPreview(teacherId, { saving: false, error: payrollErrorText(cause as PayrollErrorLike) });
     }
   };
 
@@ -278,7 +290,7 @@ function PayrollMonthContent() {
         setPreviews((previous) => ({ ...previous, [teacherId]: { sheet: fresh, edits: EMPTY_EDITS, note: "", saving: false, error: null, conflict: false } }));
       }
     } catch (cause) {
-      showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     }
   };
 
@@ -289,7 +301,7 @@ function PayrollMonthContent() {
       const file = await orgApi.downloadPayrollMonth(month, monthFileName(month));
       saveBlobAs(file.blob, file.filename);
     } catch (cause) {
-      showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     } finally {
       setExporting(false);
     }
@@ -301,7 +313,7 @@ function PayrollMonthContent() {
       const file = await orgApi.downloadPayrollSheet(teacher.sheet.id, sheetFileName(teacher.teacher_name, month));
       saveBlobAs(file.blob, file.filename);
     } catch (cause) {
-      showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     }
   };
 
@@ -375,6 +387,20 @@ function PayrollMonthContent() {
         <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span><span className="font-semibold">Месяц ещё не закончился.</span> Расчёт предварительный: уроки до конца месяца ещё могут появиться или измениться.</span>
+        </p>
+      )}
+
+      {overview && lessonsWithoutTeacherText(overview.lessons_without_teacher) && (
+        <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{lessonsWithoutTeacherText(overview.lessons_without_teacher)}</span>
+        </p>
+      )}
+
+      {overview && teachers.length > 0 && (
+        <p className="text-xs text-slate-500 print:hidden">
+          {payrollFormulaText(overview.divisor)}.{" "}
+          <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">Делитель — в настройках</Link>
         </p>
       )}
 
@@ -485,6 +511,9 @@ function PayrollMonthContent() {
           <header className="min-w-0">
             <h3 className="break-words text-lg font-bold text-slate-900">{active.sheet.teacher_name}</h3>
             <p className="text-sm text-slate-500">Ведомость за {monthTitle(active.sheet.month || month).toLowerCase()} · предпросмотр</p>
+            <div className="mt-2">
+              <WarningLinks counts={active.sheet.warnings} label="Предупреждения расчёта" />
+            </div>
           </header>
 
           {activeExisting && (
@@ -567,7 +596,12 @@ export function TeacherRow({
             aria-label={`Выбрать: ${teacher.teacher_name}`}
             className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
           />
-          <span className="min-w-0 break-words text-sm font-semibold text-slate-900 xl:mt-0.5">{teacher.teacher_name}</span>
+          <span className="min-w-0 break-words text-sm font-semibold text-slate-900 xl:mt-0.5">
+            {teacher.teacher_name}
+            <span className="block text-xs font-normal text-slate-500">
+              {teacher.lessons_count} {pluralRu(teacher.lessons_count, ["урок", "урока", "уроков"])} за месяц
+            </span>
+          </span>
         </label>
         <span className="xl:hidden">
           <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
@@ -578,14 +612,17 @@ export function TeacherRow({
         {teacher.lesson_types.length === 0 ? (
           <span className="text-xs text-slate-400">нет типов занятий</span>
         ) : (
-          teacher.lesson_types.map((type) => {
+          orderedTypes(teacher).map((type) => {
             const key = percentKey(teacher.teacher_id, type.lesson_type);
             const text = monthPercentText(typed, teacher, type.lesson_type);
             const error = showErrors || key in typed ? parsePercent(text).error : null;
             const id = `payroll-percent-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
             return (
               <div key={type.lesson_type} className="min-w-0">
-                <label htmlFor={id} className="mb-1 block text-[11px] font-medium text-slate-500">{lessonTypeLabel(type.lesson_type)}</label>
+                <label htmlFor={id} className="mb-1 block text-[11px] font-medium text-slate-500">
+                  {lessonTypeLabel(type.lesson_type)}
+                  <span className="font-normal text-slate-400"> · {type.groups} {pluralRu(type.groups, ["группа", "группы", "групп"])}</span>
+                </label>
                 <div className="flex items-center gap-1.5">
                   <input
                     id={id}
@@ -624,26 +661,13 @@ export function TeacherRow({
         )}
       </div>
 
-      <ul aria-label={`Предупреждения: ${teacher.teacher_name}`} className="mt-3 space-y-1 xl:mt-0">
-        {teacher.warnings.length === 0 ? (
-          <li className="text-xs text-slate-400">нет</li>
+      <div className="mt-3 xl:mt-0">
+        {warningViews(teacher.warnings).length === 0 ? (
+          <span className="text-xs text-slate-400">нет</span>
         ) : (
-          teacher.warnings.map((warning, index) => {
-            const view = warningView(warning);
-            const tone = view.tone === "warning" ? "text-amber-800" : "text-slate-600";
-            return (
-              <li key={`${warning.code}-${index}`} className={`flex items-start gap-1.5 text-xs ${tone}`}>
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                {view.href ? (
-                  <Link href={view.href} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
-                ) : (
-                  <span>{view.text}</span>
-                )}
-              </li>
-            );
-          })
+          <WarningLinks counts={teacher.warnings} label={`Предупреждения: ${teacher.teacher_name}`} stacked />
         )}
-      </ul>
+      </div>
 
       <div className="hidden xl:block">
         <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />

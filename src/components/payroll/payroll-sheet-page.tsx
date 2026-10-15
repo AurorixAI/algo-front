@@ -18,8 +18,10 @@ import {
   payrollErrorText,
   revisionLabel,
   sheetFileName,
+  teacherLabel,
   type PayrollDiff,
   type PayrollRevision,
+  type PayrollErrorLike,
   type PayrollSheet,
   type SheetEdits,
 } from "@/lib/payroll";
@@ -30,7 +32,7 @@ import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { PayrollSheetTable } from "./sheet-table";
-import { BackLink, ConflictBanner, DiffBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar } from "./sheet-controls";
+import { BackLink, ConflictBanner, DiffBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
 
 type Tab = "sheet" | "history";
 
@@ -52,6 +54,11 @@ export function PayrollSheetPage({ sheetId }: { sheetId: string }) {
       <PayrollSheetContent sheetId={sheetId} />
     </Suspense>
   );
+}
+
+/** A teacher the server could not name still has a heading. */
+function named(sheet: PayrollSheet): PayrollSheet {
+  return { ...sheet, teacher_name: teacherLabel(sheet.teacher_name) };
 }
 
 function PayrollSheetContent({ sheetId }: { sheetId: string }) {
@@ -117,7 +124,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     try {
       const data = await orgApi.getPayrollSheet(sheetId);
       if (!loads.current.isCurrent(token)) return;
-      setSheet(data);
+      setSheet(named(data));
       setEdits(EMPTY_EDITS);
       setNote("");
       setConflict(false);
@@ -128,12 +135,12 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       if (!loads.current.isCurrent(token)) return;
       const status = (cause as { status?: number } | null)?.status;
       if (silent && status !== 403) {
-        showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+        showToast(payrollErrorText(cause as PayrollErrorLike), "error");
         return;
       }
       if (!silent) setSheet(null);
       setFailure({
-        message: payrollErrorText(cause as { status?: number; code?: string; message?: string }),
+        message: payrollErrorText(cause as PayrollErrorLike),
         retry: !status || status >= 500,
         forbidden: status === 403,
       });
@@ -181,22 +188,18 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       showToast(
         `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? revisionLabel(updated.revision) : "новая редакция"}`,
       );
-      if (updated.id && updated.lines.length > 0) {
-        loads.current.next();
-        setSheet({ ...updated, teacher_name: updated.teacher_name === "Преподаватель" ? sheet.teacher_name : updated.teacher_name });
-        setEdits(EMPTY_EDITS);
-        setNote("");
-        setConflict(false);
-        setRevisions(null);
-        setDiff(null);
-        void loadDiff();
-      } else {
-        await load(true);
-      }
+      loads.current.next();
+      setSheet(named(updated));
+      setEdits(EMPTY_EDITS);
+      setNote("");
+      setConflict(false);
+      setRevisions(null);
+      setDiff(null);
+      void loadDiff();
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
-      if (isRevisionConflict(cause as { status?: number; code?: string })) setConflict(true);
-      else setSaveError(payrollErrorText(cause as { status?: number; code?: string; message?: string }));
+      if (isRevisionConflict(cause as PayrollErrorLike)) setConflict(true);
+      else setSaveError(payrollErrorText(cause as PayrollErrorLike));
     } finally {
       setSaving(false);
     }
@@ -210,7 +213,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       saveBlobAs(file.blob, file.filename);
       if (dirty) showToast("В файле сохранённая редакция: несохранённые правки в него не вошли", "warning");
     } catch (cause) {
-      showToast(payrollErrorText(cause as { status?: number; code?: string; message?: string }), "error");
+      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     } finally {
       setExporting(false);
     }
@@ -279,8 +282,13 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               <p className="mt-0.5 text-xs text-slate-400 print:hidden">
                 Сохранил{sheet.updated_by_name ? `: ${sheet.updated_by_name}` : ""}
                 {sheet.updated_at ? ` · ${formatUtcNaiveAsBusinessDateTime(sheet.updated_at)}` : ""}
+                {sheet.created_by_name && sheet.created_by_name !== sheet.updated_by_name ? ` · создал: ${sheet.created_by_name}` : ""}
               </p>
             )}
+            {sheet.note && <p className="mt-1 break-words text-sm text-slate-600">{sheet.note}</p>}
+            <div className="mt-2">
+              <WarningLinks counts={sheet.warnings} label="Предупреждения ведомости" />
+            </div>
             <p className="mt-1 hidden text-xs text-slate-500 print:block">Сформировано {formatBusinessDate().split("-").reverse().join(".")}</p>
           </header>
 
@@ -328,7 +336,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   onReload={async () => { setRefreshing(true); await load(true); setRefreshing(false); }}
                 />
               )}
-              {diff?.changed && (
+              {diff?.stale && (
                 <DiffBanner
                   diff={diff}
                   busy={saving}

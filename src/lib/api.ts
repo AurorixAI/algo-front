@@ -18,14 +18,9 @@ import type {
 } from "./payments";
 import {
   filenameFromContentDisposition,
-  normalizeDiff,
-  normalizeMonthOverview,
-  normalizePayrollSettings,
-  normalizeRevisions,
-  normalizeSheet,
-  normalizeSheetList,
   type LessonType,
   type PayrollCalculateBody,
+  type PayrollCalculateResponse,
   type PayrollDiff,
   type PayrollMonthOverview,
   type PayrollPatchBody,
@@ -33,6 +28,7 @@ import {
   type PayrollSaveBody,
   type PayrollSettings,
   type PayrollSheet,
+  type PayrollSheetBrief,
 } from "./payroll";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
@@ -1398,34 +1394,27 @@ export const orgApi = {
     api<PaymentSettings>("/auth/org/settings/payments", { method: "PUT", body: data }),
 
   // ── Payroll (owner only; every route answers 403 to anyone else) ───────
-  getPayrollSettings: async (): Promise<PayrollSettings> =>
-    normalizePayrollSettings(await api<unknown>("/auth/org/payroll/settings")),
-  updatePayrollSettings: async (data: PayrollSettings): Promise<PayrollSettings> =>
-    normalizePayrollSettings(await api<unknown>("/auth/org/payroll/settings", { method: "PUT", body: data })),
-  /** Teachers with completed lessons in the month (`month` = YYYY-MM), their types, suggested percents, saved sheets, warnings. */
-  getPayrollMonth: async (month: string): Promise<PayrollMonthOverview> =>
-    normalizeMonthOverview(await api<unknown>(`/auth/org/payroll/months/${encodePathId(month)}`), month),
+  // Errors: `detail: {code, message, ...}` - ApiError.message is `detail.message`, ApiError.code is `detail.code`.
+  getPayrollSettings: () => api<PayrollSettings>("/auth/org/payroll/settings"),
+  updatePayrollSettings: (data: { divisor: number }) =>
+    api<PayrollSettings>("/auth/org/payroll/settings", { method: "PUT", body: data }),
+  /** Teachers with completed lessons in the month (`month` = YYYY-MM): types, suggested percents, saved sheet, warnings. */
+  getPayrollMonth: (month: string) => api<PayrollMonthOverview>(`/auth/org/payroll/months/${encodePathId(month)}`),
   /** Preview only: nothing is written. */
   calculatePayroll: async (month: string, body: PayrollCalculateBody): Promise<PayrollSheet[]> =>
-    normalizeSheetList(
-      await api<unknown>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body }),
-      { month },
-    ),
-  /** Saves a sheet; when the teacher already has one for the month this is its next revision. */
-  savePayrollSheet: async (body: PayrollSaveBody): Promise<PayrollSheet> =>
-    normalizeSheet(await api<unknown>("/auth/org/payroll/sheets", { method: "POST", body }), { month: body.month }),
-  listPayrollSheets: async (month: string): Promise<PayrollSheet[]> =>
-    normalizeSheetList(await api<unknown>(`/auth/org/payroll/sheets?month=${encodeURIComponent(month)}`), { month }),
-  getPayrollSheet: async (sheetId: string): Promise<PayrollSheet> =>
-    normalizeSheet(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`)),
-  /** A new revision; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. */
-  patchPayrollSheet: async (sheetId: string, body: PayrollPatchBody): Promise<PayrollSheet> =>
-    normalizeSheet(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`, { method: "PATCH", body })),
-  getPayrollRevisions: async (sheetId: string): Promise<PayrollRevision[]> =>
-    normalizeRevisions(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/revisions`)),
+    (await api<PayrollCalculateResponse>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body })).sheets,
+  /** Saves a sheet; when the teacher already has one for the month `revision` (the one the owner saw) is required. */
+  savePayrollSheet: (body: PayrollSaveBody) => api<PayrollSheet>("/auth/org/payroll/sheets", { method: "POST", body }),
+  listPayrollSheets: (month: string) =>
+    api<PayrollSheetBrief[]>(`/auth/org/payroll/sheets?month=${encodeURIComponent(month)}`),
+  getPayrollSheet: (sheetId: string) => api<PayrollSheet>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`),
+  /** A new revision; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. `recalculate: true` is «Пересчитать». */
+  patchPayrollSheet: (sheetId: string, body: PayrollPatchBody) =>
+    api<PayrollSheet>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`, { method: "PATCH", body }),
+  getPayrollRevisions: (sheetId: string) =>
+    api<PayrollRevision[]>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/revisions`),
   /** What a recalculation by the current data would change in the saved sheet, line by line. */
-  getPayrollDiff: async (sheetId: string): Promise<PayrollDiff> =>
-    normalizeDiff(await api<unknown>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/diff`)),
+  getPayrollDiff: (sheetId: string) => api<PayrollDiff>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/diff`),
   downloadPayrollSheet: (sheetId: string, fallbackName: string) =>
     fetchFile(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/export.xlsx`, fallbackName, "Не удалось скачать Excel"),
   downloadPayrollMonth: (month: string, fallbackName: string) =>

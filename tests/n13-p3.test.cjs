@@ -29,38 +29,60 @@ const sections = require(path.join(root, "src/lib/settings-sections.ts"));
 /** Normal spaces instead of the non-breaking ones: what the user reads. */
 const plain = (text) => text.replace(/ /g, " ");
 
-// ---- sample data in the shape of the contract (spec §3) ------------------------------------------------------
+// ---- sample data in the shape of the real API (auth-service payroll_schemas.py) ----------------------------------
 
-function rawMark(date, mark, state, lessonId) {
-  return { date, lesson_id: lessonId ?? `l-${date}`, mark, state };
-}
-function rawLine(over = {}) {
+const mark = (date, markValue, state, divisor, lessonId) => ({ date, lesson_id: lessonId ?? `l-${date}`, mark: markValue, state, divisor });
+const counted = (date, divisor = 12) => mark(date, 1, "counted", divisor);
+const unpaid = (date, divisor = 12) => mark(date, 1, "unpaid", divisor);
+const pending = (date, divisor = 12) => mark(date, 1, "excused_pending", divisor);
+const excused = (date) => mark(date, 0, "excused_confirmed", null);
+const absent = (date) => mark(date, null, "not_in_group", null);
+
+function line(over = {}) {
   return {
     membership_id: "m1", student_id: "s1", student_name: "Каримова Дилноза", display_id: "A-0012",
     group_id: "g1", group_name: "Алгебра 8А", lesson_type: "group", lesson_time: "Пн, Ср 17:00",
-    monthly_fee: 450000, fee_overridden: false, percent: "50", divisor: 12,
-    marks: [rawMark("2026-09-01", 1, "counted"), rawMark("2026-09-03", 0, "excused_confirmed"), rawMark("2026-09-08", 1, "excused_pending"), rawMark("2026-09-10", 1, "unpaid")],
+    monthly_fee: 450000, source_fee: 450000, fee_overridden: false, percent: "50", divisor: 12,
+    marks: [counted("2026-09-01"), excused("2026-09-03"), pending("2026-09-08"), unpaid("2026-09-10")],
     counted: 2, unpaid: 1, pending_excused: 1, include_unpaid: false, amount: 37500, warnings: [],
     ...over,
   };
 }
-function rawSheet(over = {}) {
+/** The blocks of the sheet as the engine's group_blocks builds them. */
+function blocksOf(lines) {
+  const blocks = new Map();
+  for (const l of lines) {
+    if (!blocks.has(l.group_id)) blocks.set(l.group_id, { group_id: l.group_id, group_name: l.group_name, lesson_type: l.lesson_type, lesson_time: l.lesson_time, percent: l.percent, dates: new Map(), line_count: 0, counted: 0, unpaid: 0, total_amount: 0 });
+    const b = blocks.get(l.group_id);
+    for (const m of l.marks) b.dates.set(`${m.date}|${m.lesson_id}`, { date: m.date, lesson_id: m.lesson_id });
+    b.line_count += 1; b.counted += l.counted; b.unpaid += l.unpaid; b.total_amount += l.amount;
+  }
+  return [...blocks.values()].map((b) => ({ ...b, dates: [...b.dates.values()].sort((x, y) => x.date.localeCompare(y.date)) }));
+}
+function makeSheet(over = {}) {
+  const lines = over.lines ?? [
+    line(),
+    line({ membership_id: "m2", student_id: "s2", student_name: "Абдуллаев Жасур", display_id: null, monthly_fee: null, source_fee: null, counted: 3, unpaid: 0, pending_excused: 0, amount: 0,
+      marks: [absent("2026-09-01"), counted("2026-09-03"), counted("2026-09-08"), counted("2026-09-10")] }),
+    line({ membership_id: "m3", student_id: "s3", student_name: "Сидоров Олег", group_id: "g2", group_name: "Индивидуально Сидоров", lesson_type: "individual", lesson_time: "Вт 18:00",
+      percent: "60", monthly_fee: 600000, source_fee: 600000, counted: 4, unpaid: 0, pending_excused: 0, amount: 120000,
+      marks: [counted("2026-09-02"), counted("2026-09-04"), counted("2026-09-09"), counted("2026-09-11")] }),
+    // a package (D = 8) and a month (D = 12) in one line: no single divisor
+    line({ membership_id: "m4", student_id: "s4", student_name: "Юсупов Тимур", group_id: "g3", group_name: "Пара: Али и Вали", lesson_type: "pair", lesson_time: "Чт 19:00",
+      percent: "50", monthly_fee: 800000, source_fee: 800000, divisor: null, counted: 3, unpaid: 0, pending_excused: 0, amount: 133333,
+      marks: [counted("2026-09-05", 8), counted("2026-09-12", 8), counted("2026-09-19", 12)] }),
+  ];
   return {
-    id: "sheet-1", month: "2026-09", teacher_id: "t1", teacher_name: "Иванов Пётр",
-    percent_inputs: { group: "50", individual: "60" }, divisor_default: 12, revision: 3, total_amount: 0,
-    lines: [
-      rawLine(),
-      rawLine({ membership_id: "m2", student_id: "s2", student_name: "Абдуллаев Жасур", display_id: null, monthly_fee: null, counted: 0, unpaid: 0, pending_excused: 0, amount: 0, marks: [rawMark("2026-09-01", null, "not_in_group"), rawMark("2026-09-03", 1, "counted")], warnings: ["не задана оплата"] }),
-      rawLine({ membership_id: "m3", student_id: "s3", student_name: "Сидоров Олег", group_id: "g2", group_name: "Индивидуально Сидоров", lesson_type: "individual", lesson_time: "Вт 18:00", percent: "60", monthly_fee: 600000, divisor: 12, counted: 4, unpaid: 0, pending_excused: 0, amount: 120000, marks: [rawMark("2026-09-02", 1, "counted")] }),
-    ],
+    id: "sheet-1", saved: true, month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false,
+    teacher_id: "t1", teacher_name: "Иванов Пётр", revision: 3, percents: { group: "50", individual: "60", pair: "50" }, divisor_default: 12,
+    lines, groups: blocksOf(lines), total_amount: lines.reduce((sum, l) => sum + l.amount, 0),
+    counted_total: lines.reduce((sum, l) => sum + l.counted, 0), unpaid_total: lines.reduce((sum, l) => sum + l.unpaid, 0), pending_excused_total: 1,
+    warnings: { open_lessons: null, pending_excused: 1, no_fee: 1, unpaid: 1 }, source_fingerprint: "abc", stale: false, note: null,
+    created_by_name: "Владелец", created_at: "2026-10-01T05:00:00", updated_by_name: "Владелец", updated_at: "2026-10-01T05:00:00",
     ...over,
   };
 }
-const sheetOf = (over) => {
-  const raw = rawSheet(over);
-  if (raw.total_amount === 0) raw.total_amount = raw.lines.reduce((sum, line) => sum + line.amount, 0);
-  return R.normalizeSheet(raw);
-};
+const sheetOf = makeSheet;
 
 // ---- 1. lesson types ---------------------------------------------------------------------------------------
 
@@ -146,9 +168,7 @@ test("divisor of the center: a whole number 1…31, 12 by default", () => {
   assert.equal(R.parseDivisor("31").value, 31);
   for (const bad of ["", "0", "32", "-1", "1.5", "1,5", "abc", "012x", "1000"]) assert.equal(R.parseDivisor(bad).value, null, bad);
   assert.match(R.parseDivisor("0").error, /от 1 до 31/);
-  assert.equal(R.normalizePayrollSettings({ divisor: 10 }).divisor, 10);
-  assert.equal(R.normalizePayrollSettings({ divisor: 99 }).divisor, 12);
-  assert.equal(R.normalizePayrollSettings(null).divisor, 12);
+  assert.deepEqual(R.DEFAULT_PAYROLL_SETTINGS, { divisor: 12 });
   assert.equal(R.payrollFormulaText(12), "Оплата в месяц × % ÷ 12 × засчитанные уроки");
   assert.match(R.PAYROLL_PACKAGE_TEXT, /размер пакета/);
 });
@@ -223,6 +243,21 @@ test("the partner's table: 450 000, 50 %, D = 12: 11 -> 206 250, 13 -> 243 750, 
   assert.equal(plain(require(path.join(root, "src/lib/payments.ts")).formatMoney(amount(11))), "206 250 сум");
 });
 
+/** The backend's rule in other words: exact fractions, multiply first, divide last, round half up. */
+function exactAmount(fee, hundredths, parts) {
+  let numerator = BigInt(0);
+  let denominator = BigInt(1);
+  for (const [divisor, lessons] of parts) {
+    // numerator / denominator + lessons / divisor
+    numerator = numerator * BigInt(divisor) + BigInt(lessons) * denominator;
+    denominator *= BigInt(divisor);
+  }
+  numerator *= BigInt(fee) * BigInt(hundredths);
+  denominator *= BigInt(10000);
+  const quotient = numerator / denominator;
+  return Number((numerator % denominator) * BigInt(2) >= denominator ? quotient + BigInt(1) : quotient);
+}
+
 test("rounding is half up to a whole sum, exactly (no float)", () => {
   const amount = (fee, hundredths, divisor, lessons) => R.lineAmount({ fee, percentHundredths: hundredths, divisor, lessons });
   assert.equal(amount(1, 5000, 1, 1), 1);            // 0.5 -> 1
@@ -232,19 +267,42 @@ test("rounding is half up to a whole sum, exactly (no float)", () => {
   assert.equal(amount(100, 5000, 12, 3), 13);        // 12.5 -> 13
   assert.equal(amount(450001, 5000, 12, 1), 18750);  // 18750.04
   assert.equal(amount(1000, 3333, 7, 1), 48);        // 47.61
-  // the same number as an exact fraction, computed another way, on awkward inputs
-  const exact = (fee, hundredths, divisor, lessons) => {
-    const numerator = BigInt(fee) * BigInt(hundredths) * BigInt(lessons);
-    const denominator = BigInt(10000) * BigInt(divisor);
-    const quotient = numerator / denominator;
-    const remainder = numerator % denominator;
-    return Number(remainder * BigInt(2) >= denominator ? quotient + BigInt(1) : quotient);
-  };
   for (const [fee, hundredths, divisor, lessons] of [[9_999_999_999, 3333, 7, 31], [10_000_000_000, 10000, 31, 60], [123457, 1, 12, 13], [799999, 9999, 11, 17], [250000, 3350, 5, 9]]) {
-    assert.equal(amount(fee, hundredths, divisor, lessons), exact(fee, hundredths, divisor, lessons), `${fee} ${hundredths} ${divisor} ${lessons}`);
+    assert.equal(amount(fee, hundredths, divisor, lessons), exactAmount(fee, hundredths, [[divisor, lessons]]), `${fee} ${hundredths} ${divisor} ${lessons}`);
   }
   // the package: D is the package size
   assert.equal(amount(800000, 5000, 8, 3), 150000);
+});
+
+test("lessons with different divisors in one line: each by its own D, ONE rounding at the end", () => {
+  // a package of 8 (2 lessons) and a month (1 lesson): 800 000 x 50 % x (2/8 + 1/12) = 133 333.33
+  assert.equal(R.amountByDivisors(800000, 5000, [[8, 2], [12, 1]]), 133333);
+  // rounding once is not rounding per lesson: 100 x 50 % / 12 = 4.1667 per lesson, 3 lessons = 12.5 -> 13 (3 x round = 12)
+  assert.equal(R.amountByDivisors(100, 5000, [[12, 3]]), 13);
+  assert.equal(R.amountByDivisors(100, 5000, [[12, 1], [12, 1], [12, 1]]), 13);
+  // the order of the parts does not matter, equal divisors merge
+  assert.equal(R.amountByDivisors(800000, 5000, [[12, 1], [8, 2]]), 133333);
+  for (const parts of [[[8, 3], [12, 5], [10, 2]], [[31, 7], [30, 1]], [[1, 2], [2, 3], [3, 4], [5, 7]], [[12, 11]]]) {
+    for (const [fee, hundredths] of [[450000, 5000], [333333, 3333], [1, 5000], [10_000_000_000, 9999]]) {
+      assert.equal(R.amountByDivisors(fee, hundredths, parts), exactAmount(fee, hundredths, parts), JSON.stringify([fee, hundredths, parts]));
+    }
+  }
+  // junk parts are ignored, never NaN
+  assert.equal(R.amountByDivisors(450000, 5000, [[0, 3], [12, 0], [12, -1], [1.5, 2]]), 0);
+});
+
+test("the amount of a line from its marks: counted and pending count, unpaid only when included, null D is the default", () => {
+  const base = { fee: 450000, percentHundredths: 5000, defaultDivisor: 12 };
+  const marks = [counted("2026-09-01"), excused("2026-09-03"), pending("2026-09-08"), unpaid("2026-09-10"), absent("2026-09-12")];
+  assert.equal(R.marksAmount({ ...base, marks, includeUnpaid: false }), 37500);   // 2 lessons
+  assert.equal(R.marksAmount({ ...base, marks, includeUnpaid: true }), 56250);    // 3 lessons
+  // a mark without its own D uses the sheet's
+  assert.equal(R.marksAmount({ ...base, marks: [mark("2026-09-01", 1, "counted", null)], includeUnpaid: false }), 18750);
+  assert.equal(R.marksAmount({ ...base, defaultDivisor: 10, marks: [mark("2026-09-01", 1, "counted", null)], includeUnpaid: false }), 22500);
+  // mixed D
+  assert.equal(R.marksAmount({ fee: 800000, percentHundredths: 5000, defaultDivisor: 12, includeUnpaid: false,
+    marks: [counted("2026-09-05", 8), counted("2026-09-12", 8), counted("2026-09-19", 12)] }), 133333);
+  assert.equal(R.marksAmount({ ...base, marks: [], includeUnpaid: true }), 0);
 });
 
 test("nothing to count gives 0, never NaN", () => {
@@ -257,119 +315,99 @@ test("nothing to count gives 0, never NaN", () => {
   assert.equal(R.lineAmount({ ...base, divisor: 0 }), 0);
   assert.equal(R.lineAmount({ ...base, lessons: -1 }), 0);
   assert.equal(R.lineAmount({ ...base, lessons: 1.5 }), 0);
-  assert.equal(R.lineLessons({ counted: 4, unpaid: 2, include_unpaid: false }), 4);
-  assert.equal(R.lineLessons({ counted: 4, unpaid: 2, include_unpaid: true }), 6);
-  assert.equal(R.lineLessons({ counted: 4, unpaid: 2, include_unpaid: false }, true), 6);
 });
 
-// ---- 7. reading the answers ---------------------------------------------------------------------------------------
+// ---- 7. the real shapes of the month, the warnings, the status ------------------------------------------------------
 
-test("a sheet is read into one shape; lesson type, percent and month have fallbacks", () => {
-  const sheet = R.normalizeSheet(rawSheet({ month: undefined, period_month: "2026-09-01" }));
-  assert.equal(sheet.month, "2026-09");
-  assert.equal(sheet.id, "sheet-1");
-  assert.equal(sheet.revision, 3);
-  assert.deepEqual(sheet.percents, { group: "50", individual: "60" });
-  assert.equal(sheet.lines.length, 3);
-  const line = sheet.lines[0];
-  assert.equal(line.monthly_fee, 450000);
-  assert.equal(line.percent, "50");
-  assert.equal(line.marks.length, 4);
-  assert.equal(line.marks[1].state, "excused_confirmed");
-  assert.equal(sheet.lines[1].monthly_fee, null);
-  assert.deepEqual(sheet.lines[1].warnings, ["не задана оплата"]);
-  // percents missing in the sheet come from its lines; a line without a type is a «Группа»
-  const bare = R.normalizeSheet({ id: "x", month: "2026-09", teacher_id: "t", lines: [{ membership_id: "m", percent: "40.00", amount: "1000" }] });
-  assert.deepEqual(bare.percents, { group: "40" });
-  assert.equal(bare.lines[0].lesson_type, "group");
-  assert.equal(bare.lines[0].amount, 1000);
-  assert.equal(bare.total_amount, 1000); // no total sent: the lines' sum
-  assert.equal(bare.id, "x");
-  // a calculation that is not saved has no id and no revision
-  const preview = R.normalizeSheet({ month: "2026-09", teacher_id: "t", lines: [] });
-  assert.equal(preview.id, null);
-  assert.equal(preview.revision, null);
-  // junk does not throw
-  assert.equal(R.normalizeSheet(null).lines.length, 0);
-  assert.equal(R.normalizeSheet("x").teacher_name, "Преподаватель");
-});
-
-test("marks: a state that is not known is derived from the mark; a date that is not a date is dropped", () => {
-  const line = R.normalizeLine(rawLine({ marks: [
-    { date: "2026-09-01", mark: 1 },
-    { date: "2026-09-02", mark: 0 },
-    { date: "2026-09-03", mark: null },
-    { date: "nope", mark: 1, state: "counted" },
-    { date: "2026-09-05T10:00:00", mark: 1, state: "unpaid", lesson_id: 7 },
-  ] }));
-  assert.deepEqual(line.marks.map((m) => m.state), ["counted", "excused_confirmed", "not_in_group", "unpaid"]);
-  assert.equal(line.marks[3].date, "2026-09-05");
-  assert.equal(line.marks[3].lesson_id, "7");
-  assert.equal(R.normalizeLine({ student_name: "no membership" }), null);
-});
-
-test("the answer of calculate: a bare list, or {sheets} / {items}", () => {
-  const one = rawSheet({ id: null });
-  assert.equal(R.normalizeSheetList([one]).length, 1);
-  assert.equal(R.normalizeSheetList({ sheets: [one, one] }).length, 2);
-  assert.equal(R.normalizeSheetList({ items: [one] }).length, 1);
-  assert.equal(R.normalizeSheetList(null).length, 0);
-  assert.equal(R.normalizeSheetList([one])[0].id, null);
-  assert.equal(R.normalizeSheetList({ month: "2026-08", sheets: [{ teacher_id: "t", lines: [] }] })[0].month, "2026-08");
-});
-
-test("the month overview: teachers by name, types with the suggested percent, the saved sheet, warnings", () => {
-  const overview = R.normalizeMonthOverview({
-    month: "2026-09", month_open: false,
+function month() {
+  return {
+    month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, divisor: 12, lessons_without_teacher: 0,
     teachers: [
-      { teacher_id: "t2", teacher_name: "Зайцев", lesson_types: [{ lesson_type: "individual", suggested_percent: "60.00" }, { lesson_type: "group", suggested_percent: null }],
-        sheet: { id: "s9", revision: 3, total_amount: 1250000, data_changed: true }, warnings: [{ code: "open_lessons", count: 2, message: "Незавершённые уроки" }] },
-      { teacher_id: "t1", teacher_name: "Абдуллаев", lesson_types: ["pair", "group"], suggested_percents: { group: "45" }, sheet: null, warnings: [] },
+      { teacher_id: "t1", teacher_name: "Абдуллаев", lessons_count: 14,
+        lesson_types: [{ lesson_type: "pair", groups: 1, suggested_percent: null }, { lesson_type: "group", groups: 2, suggested_percent: "45" }], sheet: null,
+        warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } },
+      { teacher_id: "t2", teacher_name: "Зайцев", lessons_count: 9,
+        lesson_types: [{ lesson_type: "individual", groups: 3, suggested_percent: "60" }],
+        sheet: { id: "s", revision: 2, total_amount: 900000, stale: false, updated_at: "2026-10-02T08:00:00" },
+        warnings: { open_lessons: 2, pending_excused: 3, no_fee: 1, unpaid: 5 } },
     ],
-  });
-  assert.equal(overview.month, "2026-09");
-  assert.equal(overview.month_open, false);
-  assert.deepEqual(overview.teachers.map((t) => t.teacher_name), ["Абдуллаев", "Зайцев"]);
-  const [abd, zai] = overview.teachers;
-  assert.deepEqual(abd.lesson_types, [{ lesson_type: "group", suggested_percent: "45" }, { lesson_type: "pair", suggested_percent: "" }]);
-  assert.deepEqual(zai.lesson_types, [{ lesson_type: "group", suggested_percent: "" }, { lesson_type: "individual", suggested_percent: "60" }]);
-  assert.deepEqual(zai.sheet, { id: "s9", revision: 3, total_amount: 1250000, data_changed: true });
-  assert.equal(abd.sheet, null);
-  assert.deepEqual(zai.warnings, [{ code: "open_lessons", count: 2, message: "Незавершённые уроки" }]);
-  // the flat spelling of the saved sheet
-  const flat = R.normalizeMonthOverview({ teachers: [{ teacher_id: "t", teacher_name: "X", sheet_id: "s1", sheet_revision: 2, sheet_total: 5000, data_changed: false }] }, "2026-08");
-  assert.deepEqual(flat.teachers[0].sheet, { id: "s1", revision: 2, total_amount: 5000, data_changed: false });
-  assert.equal(flat.month, "2026-08");
-  assert.equal(R.normalizeMonthOverview(null).teachers.length, 0);
+  };
+}
+
+test("warnings are counts: the texts and the links are the screen's, a zero shows nothing", () => {
+  const views = (counts) => R.warningViews(counts);
+  assert.deepEqual(views({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }), []);
+  assert.deepEqual(views({ open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }), []);
+  const all = views({ open_lessons: 1, pending_excused: 2, no_fee: 4, unpaid: 5 });
+  assert.deepEqual(all.map((v) => [v.key, v.text, v.href, v.tone]), [
+    ["open_lessons", "1 незакрытый урок", "/owner/attendance?tab=open", "warning"],
+    ["pending_excused", "2 уважительные ждут решения", "/owner/attendance?tab=excuses", "warning"],
+    ["no_fee", "не задана оплата: 4", "/owner/payments?bucket=none", "warning"],
+    ["unpaid", "5 уроков не оплачено", "/owner/payments?bucket=due", "info"],
+  ]);
+  assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 0, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|2 урока не оплачено");
+  assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 0, unpaid: 1 }).map((v) => v.text).join("|"), "7 незакрытых уроков|5 уважительных ждут решения|1 урок не оплачен");
+  // the same words on a sheet (its counters are the same four)
+  assert.equal(views(makeSheet().warnings).length, 3);
 });
 
-test("revisions: newest first, an author that is only an id is not shown; the diff reads nested and flat lines", () => {
-  const revisions = R.normalizeRevisions([
-    { revision: 1, total_amount: 100, changed_by_name: "Владелец", changed_at: "2026-10-01T05:00:00", percent_inputs: { group: "50" } },
-    { revision: 2, total_amount: "150", changed_by: "3f2b8d52-1c3a-4b0f-9d5e-0a6f1b2c3d4e", change_note: "после справки" },
-  ]);
-  assert.deepEqual(revisions.map((r) => r.revision), [2, 1]);
-  assert.equal(revisions[0].changed_by_name, null);
-  assert.equal(revisions[0].total_amount, 150);
-  assert.equal(revisions[0].change_note, "после справки");
-  assert.deepEqual(revisions[1].percents, { group: "50" });
-  assert.equal(R.normalizeRevisions({ revisions: [{ revision: 1 }] }).length, 1);
+test("lessons without a teacher: a month-level warning, nothing at 0", () => {
+  assert.equal(R.lessonsWithoutTeacherText(0), null);
+  assert.equal(R.lessonsWithoutTeacherText(1), "1 урок без преподавателя — не войдёт в расчёт");
+  assert.equal(R.lessonsWithoutTeacherText(3), "3 урока без преподавателя — не войдут в расчёт");
+  assert.equal(R.lessonsWithoutTeacherText(12), "12 уроков без преподавателя — не войдут в расчёт");
+  assert.equal(R.lessonsWithoutTeacherText(21), "21 урок без преподавателя — не войдёт в расчёт");
+});
 
-  const diff = R.normalizeDiff({
-    changed: true, total_before: 100000, total_after: 120000,
-    lines: [
-      { membership_id: "m1", student_name: "А", group_name: "Г", before: { counted: 3, unpaid: 1, amount: 50000 }, after: { counted: 4, unpaid: 0, amount: 62500 } },
-      { membership_id: "m2", student_name: "Б", counted_before: 2, counted_after: 2, amount_before: 1000, amount_after: 1100 },
-      { membership_id: "m3", student_name: "В", before: null, after: { counted: 1, amount: 100 } },
-      { membership_id: "m4", student_name: "Г", before: { counted: 1, amount: 100 }, after: null },
+test("status of a teacher: not calculated / saved · revision · sum / data changed (stale)", () => {
+  assert.deepEqual(R.sheetStatus(null), { tone: "none", label: "не рассчитано", detail: "" });
+  const saved = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: false });
+  assert.equal(saved.tone, "saved");
+  assert.equal(plain(saved.label), "сохранено · редакция 3 · 1 250 000 сум");
+  const changed = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: true });
+  assert.equal(changed.tone, "changed");
+  assert.equal(changed.label, "данные изменились");
+  assert.equal(plain(changed.detail), "редакция 3 · 1 250 000 сум");
+});
+
+test("calculate: every type needs a percent (the suggestion or what is typed), comma becomes a dot", () => {
+  const { teachers } = month();
+  const all = new Set();
+  // «Парный» of Абдуллаев has no suggestion (null): no calculation
+  assert.equal(R.buildCalculateBody(teachers, {}, all), null);
+  assert.deepEqual(R.percentProblems(teachers, {}).map((p) => [p.teacherId, p.lessonType]), [["t1", "pair"]]);
+  const typed = { [R.percentKey("t1", "pair")]: "40,5" };
+  const body = R.buildCalculateBody(teachers, typed, all);
+  // types in the order of the forms; calculate needs teacher_id on every item
+  assert.deepEqual(body, {
+    percents: [
+      { teacher_id: "t1", lesson_type: "group", percent: "45" },
+      { teacher_id: "t1", lesson_type: "pair", percent: "40.5" },
+      { teacher_id: "t2", lesson_type: "individual", percent: "60" },
     ],
   });
-  assert.equal(diff.changed, true);
-  assert.deepEqual(diff.lines.map((l) => l.kind), ["changed", "changed", "added", "removed"]);
-  assert.deepEqual([diff.lines[0].counted_before, diff.lines[0].counted_after, diff.lines[0].amount_after], [3, 4, 62500]);
-  assert.equal(diff.lines[1].amount_after, 1100);
-  assert.equal(R.normalizeDiff({ lines: [] }).changed, false);
-  assert.equal(R.normalizeDiff(null).changed, false);
+  assert.equal("teacher_ids" in body, false); // everybody: no list
+  assert.equal(R.monthPercentText({ [R.percentKey("t1", "group")]: "50" }, teachers[0], "group"), "50");
+  assert.equal(R.monthPercentText({}, teachers[0], "group"), "45");
+  assert.equal(R.monthPercentText({}, teachers[0], "pair"), "");
+  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "101" }, all), null);
+  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "" }, all), null);
+  assert.equal(R.buildCalculateBody([], {}, all), null);
+  assert.deepEqual(R.orderedTypes(teachers[0]).map((t) => t.lesson_type), ["group", "pair"]);
+});
+
+test("calculate for the selected only: their percents and teacher_ids; others' missing percents do not block", () => {
+  const { teachers } = month();
+  const body = R.buildCalculateBody(teachers, {}, new Set(["t2"]));
+  assert.deepEqual(body, { percents: [{ teacher_id: "t2", lesson_type: "individual", percent: "60" }], teacher_ids: ["t2"] });
+  assert.equal(R.buildCalculateBody(teachers, {}, new Set(["t1"])), null); // t1 is incomplete
+  assert.deepEqual(R.calculationScope(teachers, new Set(["t2"])).map((t) => t.teacher_id), ["t2"]);
+  assert.deepEqual(R.calculationScope(teachers, new Set()).map((t) => t.teacher_id), ["t1", "t2"]);
+  assert.equal(R.calculateButtonLabel(teachers, new Set()), "Рассчитать всех");
+  assert.equal(R.calculateButtonLabel(teachers, new Set(["t2"])), "Рассчитать выбранных (1)");
+  assert.equal(R.calculateButtonLabel(teachers, new Set(["t1", "t2"])), "Рассчитать всех");
+  assert.equal(R.teacherLabel(null), "Преподаватель");
+  assert.equal(R.teacherLabel("  Иванов "), "Иванов");
 });
 
 // ---- 8. editing an open sheet -----------------------------------------------------------------------------------
@@ -377,25 +415,65 @@ test("revisions: newest first, an author that is only an id is not shown; the di
 test("an untouched line shows the server's amount, an edited one the formula's preview", () => {
   const sheet = sheetOf();
   const clean = R.buildLineViews(sheet, R.EMPTY_EDITS);
-  assert.deepEqual(clean.map((v) => v.amount), [37500, 0, 120000]);
-  assert.deepEqual(clean.map((v) => v.edited), [false, false, false]);
+  assert.deepEqual(clean.map((v) => v.amount), [37500, 0, 120000, 133333]);
+  assert.deepEqual(clean.map((v) => v.edited), [false, false, false, false]);
 
   // fee 450 000 -> 600 000 for the first student: 600000 x 50 % / 12 x 2 = 50 000
   let edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000);
   let views = R.buildLineViews(sheet, edits);
   assert.equal(views[0].amount, 50000);
-  assert.equal(views[0].edited, true);
+  assert.equal(views[0].fee, 600000);
+  assert.equal(views[0].feeOverridden, true);
   assert.equal(views[2].amount, 120000);
   // include unpaid: 3 lessons now
   edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
   views = R.buildLineViews(sheet, edits);
-  assert.equal(views[0].lessons, 3);
   assert.equal(views[0].amount, 56250);
-  // a fee for the student who had none
-  edits = R.setFeeEdit(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000), sheet, "m2", 400000);
-  assert.equal(R.buildLineViews(sheet, edits)[1].amount, 0); // 0 lessons: still 0
-  edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", null);
-  assert.equal(R.buildLineViews(sheet, edits)[0].amount, 0);
+  assert.equal(views[0].include, true);
+  // a fee for the student who had none: 3 counted lessons -> 400000 x 50 % / 12 x 3 = 50 000
+  edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000);
+  assert.equal(R.buildLineViews(sheet, edits)[1].amount, 50000);
+  // a package line keeps its own divisors when the fee changes: 1 600 000 x 50 % x (2/8 + 1/12) = 266 666.67
+  edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m4", 1600000);
+  assert.equal(R.buildLineViews(sheet, edits)[3].amount, 266667);
+});
+
+test("the fee field: a number sets, an empty field returns to the membership's fee, a no-change is no edit", () => {
+  const overridden = line({ fee_overridden: true, monthly_fee: 500000, source_fee: 450000, amount: 41667 });
+  const sheet = sheetOf({ lines: [overridden, line({ membership_id: "m2", student_name: "Б", monthly_fee: null, source_fee: null, fee_overridden: false, amount: 0, counted: 3 })] });
+  // typing the sheet's own fee back: nothing changes
+  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000)), false);
+  // emptying an overridden line = back to the membership's fee: an edit, with null and the source fee in force
+  const reset = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", null);
+  assert.deepEqual(reset.fees, { m1: null });
+  const view = R.buildLineViews(sheet, reset)[0];
+  assert.equal(view.fee, 450000);
+  assert.equal(view.feeOverridden, false);
+  assert.equal(view.amount, 37500);
+  // typing the membership's own fee is the same reset
+  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 450000).fees, { m1: null });
+  // a reset of a line that is not overridden changes nothing
+  const plain1 = sheetOf();
+  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", null)), false);
+  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 450000)), false);
+  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m2", null)), false); // no fee at all: nothing to return to
+  // a free student (0) is a fee, not an empty field
+  const free = R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 0);
+  assert.deepEqual(free.fees, { m1: 0 });
+  assert.equal(R.buildLineViews(plain1, free)[0].amount, 0);
+  assert.deepEqual(R.buildLineOverrides(plain1, free), [{ membership_id: "m1", monthly_fee: 0 }]);
+});
+
+test("lines without a fee or a percent say so on the screen", () => {
+  const sheet = sheetOf({ lines: [line({ membership_id: "m2", monthly_fee: null, source_fee: null, counted: 3, amount: 0 }), line({ membership_id: "m3", percent: null, amount: 0 })] });
+  const [noFee, noPercent] = R.buildLineViews(sheet, R.EMPTY_EDITS);
+  assert.deepEqual(R.lineNotes(noFee), ["Не задана оплата в месяц"]);
+  assert.deepEqual(R.lineNotes(noPercent), ["Не указан процент преподавателя"]);
+  // typing the fee makes the note go away at once
+  assert.deepEqual(R.lineNotes(R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000))[0]), []);
+  // a line with no lessons needs no fee
+  const idle = R.buildLineViews(sheetOf({ lines: [line({ monthly_fee: null, source_fee: null, counted: 0, unpaid: 0, marks: [absent("2026-09-01")], amount: 0 })] }), R.EMPTY_EDITS)[0];
+  assert.deepEqual(R.lineNotes(idle), []);
 });
 
 test("a percent edit changes only the lines of its lesson type", () => {
@@ -412,6 +490,9 @@ test("a percent edit changes only the lines of its lesson type", () => {
   assert.equal(R.editsDirty(R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "50,00")), false);
   // a comma is fine
   assert.equal(R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "33,5"))[0].percent, "33.5");
+  // a line that had no percent gets one from the field
+  const bare = sheetOf({ lines: [line({ percent: null, amount: 0 })], percents: {} });
+  assert.equal(R.buildLineViews(bare, R.setPercentEdit(R.EMPTY_EDITS, bare, "group", "50"))[0].amount, 37500);
 });
 
 test("a percent that is not a percent blocks saving and keeps the preview on the last good value", () => {
@@ -436,34 +517,35 @@ test("edits drop themselves when they return to the saved value; a stranger's id
   assert.equal(R.editsDirty(R.setIncludeEdit(edits, sheet, "m1", false)), false);
   assert.equal(R.setFeeEdit(R.EMPTY_EDITS, sheet, "nope", 1), R.EMPTY_EDITS);
   assert.equal(R.setIncludeEdit(R.EMPTY_EDITS, sheet, "nope", true), R.EMPTY_EDITS);
-  // a missing fee cleared again stays a missing fee
-  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", null)), false);
 });
 
-test("blocks per group, the dates as columns, students by name, subtotals and «ИТОГО»", () => {
+test("blocks come from the server's groups (their date columns), students by name, sums follow the edits", () => {
   const sheet = sheetOf();
   const views = R.buildLineViews(sheet, R.EMPTY_EDITS);
-  const blocks = R.buildBlocks(views);
-  assert.deepEqual(blocks.map((b) => b.groupName), ["Алгебра 8А", "Индивидуально Сидоров"]);
-  const [first, second] = blocks;
+  const blocks = R.buildBlocks(sheet, views);
+  assert.deepEqual(blocks.map((b) => b.groupName), ["Алгебра 8А", "Индивидуально Сидоров", "Пара: Али и Вали"]);
+  const [first, second, third] = blocks;
   assert.equal(first.lessonType, "group");
   assert.equal(first.lessonTime, "Пн, Ср 17:00");
   assert.deepEqual(first.columns.map((c) => c.date), ["2026-09-01", "2026-09-03", "2026-09-08", "2026-09-10"]);
   assert.deepEqual(first.lines.map((v) => v.line.student_name), ["Абдуллаев Жасур", "Каримова Дилноза"]);
-  assert.equal(first.counted, 2);
+  assert.equal(first.counted, 5);   // 3 + 2: «засчитано» is the server's `counted`
   assert.equal(first.unpaid, 1);
   assert.equal(first.amount, 37500);
   assert.equal(second.lessonType, "individual");
-  assert.equal(second.amount, 120000);
+  assert.equal(third.lessonType, "pair");
+  assert.equal(third.amount, 133333);
   assert.equal(R.markFor(first.lines[1].line, first.columns[1]).state, "excused_confirmed");
-  assert.equal(R.markFor(first.lines[0].line, first.columns[2]), undefined); // not in the group that day
+  assert.equal(R.markFor(first.lines[0].line, first.columns[0]).state, "not_in_group");
   // the total: the server's while clean, the sum of the lines once edited
-  assert.equal(R.sheetTotal(sheet, views, R.EMPTY_EDITS), 157500);
+  assert.equal(R.sheetTotal(sheet, views, R.EMPTY_EDITS), 290833);
   const edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000);
-  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, edits), edits), 170000);
-  // two lessons of a group on one day are two columns
-  const twice = R.normalizeLine(rawLine({ marks: [rawMark("2026-09-01", 1, "counted", "a"), rawMark("2026-09-01", 1, "counted", "b")] }));
-  assert.equal(R.buildBlocks(R.buildLineViews({ ...sheet, lines: [twice] }, R.EMPTY_EDITS))[0].columns.length, 2);
+  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, edits), edits), 303333);
+  assert.equal(R.buildBlocks(sheet, R.buildLineViews(sheet, edits))[0].amount, 50000);
+  // two lessons of a group in one day are two columns
+  const twice = line({ marks: [counted("2026-09-01", 12), { ...counted("2026-09-01", 12), lesson_id: "other" }] });
+  const doubled = sheetOf({ lines: [twice] });
+  assert.equal(R.buildBlocks(doubled, R.buildLineViews(doubled, R.EMPTY_EDITS))[0].columns.length, 2);
 });
 
 // ---- 9. what goes to the server -----------------------------------------------------------------------------------
@@ -472,6 +554,7 @@ test("save body: percents of every type of the sheet as {teacher_id, lesson_type
   const sheet = sheetOf();
   assert.deepEqual(R.buildPercentsPayload(sheet, R.EMPTY_EDITS), [
     { teacher_id: "t1", lesson_type: "group", percent: "50" },
+    { teacher_id: "t1", lesson_type: "pair", percent: "50" },
     { teacher_id: "t1", lesson_type: "individual", percent: "60" },
   ]);
   let edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "33,5");
@@ -484,22 +567,23 @@ test("save body: percents of every type of the sheet as {teacher_id, lesson_type
   const body = R.buildSaveBody(sheet, edits, "  после справки  ", null);
   assert.deepEqual(body, {
     month: "2026-09", teacher_id: "t1",
-    percents: [{ teacher_id: "t1", lesson_type: "group", percent: "33.5" }, { teacher_id: "t1", lesson_type: "individual", percent: "60" }],
+    percents: [{ teacher_id: "t1", lesson_type: "group", percent: "33.5" }, { teacher_id: "t1", lesson_type: "pair", percent: "50" }, { teacher_id: "t1", lesson_type: "individual", percent: "60" }],
     line_overrides: [{ membership_id: "m1", monthly_fee: 500000 }, { membership_id: "m2", include_unpaid: true }],
     note: "после справки",
   });
-  // nothing edited, no note, no sheet yet: only the required fields
+  // nothing edited, no note, no sheet yet: only the required fields, and no `revision` (the server answers 409 to one without a sheet)
   assert.deepEqual(Object.keys(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", null)), ["month", "teacher_id", "percents"]);
-  // a sheet that already exists travels with the revision the owner saw
+  // a sheet that already exists travels with the revision the owner saw (required then)
   assert.equal(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", 3).revision, 3);
-  // a cleared fee is sent as null (the fee is removed), not left out
-  assert.deepEqual(R.buildLineOverrides(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", null)), [{ membership_id: "m1", monthly_fee: null }]);
+  // an emptied fee of an overridden line is sent as null: «back to the membership's fee», not left out
+  const overridden = sheetOf({ lines: [line({ fee_overridden: true, monthly_fee: 500000 })] });
+  assert.deepEqual(R.buildLineOverrides(overridden, R.setFeeEdit(R.EMPTY_EDITS, overridden, "m1", null)), [{ membership_id: "m1", monthly_fee: null }]);
   // the note is cut to 300 characters; blank is none
   assert.equal(R.cleanNote("x".repeat(400)).length, 300);
   assert.equal(R.cleanNote("   "), undefined);
 });
 
-test("patch body: the revision the owner saw, percents only when edited, recalculate on request", () => {
+test("patch body: the revision the owner saw, percents only when edited, «Пересчитать» is recalculate: true", () => {
   const sheet = sheetOf();
   assert.deepEqual(R.buildPatchBody(sheet, R.EMPTY_EDITS, ""), { revision: 3 });
   assert.deepEqual(R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true }), { revision: 3, recalculate: true });
@@ -508,104 +592,33 @@ test("patch body: the revision the owner saw, percents only when edited, recalcu
   assert.equal(body.revision, 3);
   assert.equal(body.note, "правка");
   assert.deepEqual(body.line_overrides, [{ membership_id: "m1", monthly_fee: 500000 }]);
-  assert.deepEqual(body.percents.map((p) => [p.lesson_type, p.percent]), [["group", "50"], ["individual", "70"]]);
+  assert.deepEqual(body.percents.map((p) => [p.lesson_type, p.percent]), [["group", "50"], ["pair", "50"], ["individual", "70"]]);
+  assert.equal("recalculate" in body, false);
 });
 
 test("a percent that is not valid yet is not sent (the save is blocked before that)", () => {
   const sheet = sheetOf();
   const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "");
-  assert.deepEqual(R.buildPercentsPayload(sheet, edits).map((p) => p.lesson_type), ["individual"]);
+  assert.deepEqual(R.buildPercentsPayload(sheet, edits).map((p) => p.lesson_type), ["pair", "individual"]);
 });
 
-// ---- 10. the page of a month --------------------------------------------------------------------------------------
+// ---- 10. errors and files -------------------------------------------------------------------------------------------
 
-function overview() {
-  return R.normalizeMonthOverview({
-    month: "2026-09",
-    teachers: [
-      { teacher_id: "t1", teacher_name: "Абдуллаев", lesson_types: [{ lesson_type: "group", suggested_percent: "45" }, { lesson_type: "pair", suggested_percent: "" }], sheet: null, warnings: [] },
-      { teacher_id: "t2", teacher_name: "Зайцев", lesson_types: [{ lesson_type: "individual", suggested_percent: "60" }], sheet: { id: "s", revision: 2, total_amount: 900000, data_changed: false }, warnings: [] },
-    ],
-  });
-}
-
-test("calculate: every type needs a percent (the suggestion or what is typed), comma becomes a dot", () => {
-  const { teachers } = overview();
-  const all = new Set();
-  // «Парный» of Абдуллаев has no suggestion: no calculation
-  assert.equal(R.buildCalculateBody(teachers, {}, all), null);
-  assert.deepEqual(R.percentProblems(teachers, {}).map((p) => [p.teacherId, p.lessonType]), [["t1", "pair"]]);
-  const typed = { [R.percentKey("t1", "pair")]: "40,5" };
-  const body = R.buildCalculateBody(teachers, typed, all);
-  assert.deepEqual(body, {
-    percents: [
-      { teacher_id: "t1", lesson_type: "group", percent: "45" },
-      { teacher_id: "t1", lesson_type: "pair", percent: "40.5" },
-      { teacher_id: "t2", lesson_type: "individual", percent: "60" },
-    ],
-  });
-  assert.equal("teacher_ids" in body, false); // everybody: no list
-  // a typed value wins over the suggestion; junk and over 100 are refused
-  assert.equal(R.monthPercentText({ [R.percentKey("t1", "group")]: "50" }, teachers[0], "group"), "50");
-  assert.equal(R.monthPercentText({}, teachers[0], "group"), "45");
-  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "101" }, all), null);
-  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "" }, all), null);
-  assert.equal(R.buildCalculateBody([], {}, all), null);
-});
-
-test("calculate for the selected only: their percents and teacher_ids; others' missing percents do not block", () => {
-  const { teachers } = overview();
-  const body = R.buildCalculateBody(teachers, {}, new Set(["t2"]));
-  assert.deepEqual(body, { percents: [{ teacher_id: "t2", lesson_type: "individual", percent: "60" }], teacher_ids: ["t2"] });
-  assert.equal(R.buildCalculateBody(teachers, {}, new Set(["t1"])), null); // t1 is incomplete
-  assert.deepEqual(R.calculationScope(teachers, new Set(["t2"])).map((t) => t.teacher_id), ["t2"]);
-  assert.deepEqual(R.calculationScope(teachers, new Set()).map((t) => t.teacher_id), ["t1", "t2"]);
-  assert.equal(R.calculateButtonLabel(teachers, new Set()), "Рассчитать всех");
-  assert.equal(R.calculateButtonLabel(teachers, new Set(["t2"])), "Рассчитать выбранных (1)");
-  assert.equal(R.calculateButtonLabel(teachers, new Set(["t1", "t2"])), "Рассчитать всех");
-});
-
-test("status of a teacher: not calculated / saved · revision · sum / data changed", () => {
-  assert.deepEqual(R.sheetStatus(null), { tone: "none", label: "не рассчитано", detail: "" });
-  const saved = R.sheetStatus({ id: "s", revision: 3, total_amount: 1250000, data_changed: false });
-  assert.equal(saved.tone, "saved");
-  assert.equal(plain(saved.label), "сохранено · редакция 3 · 1 250 000 сум");
-  const changed = R.sheetStatus({ id: "s", revision: 3, total_amount: 1250000, data_changed: true });
-  assert.equal(changed.tone, "changed");
-  assert.equal(changed.label, "данные изменились");
-  assert.equal(plain(changed.detail), "редакция 3 · 1 250 000 сум");
-});
-
-test("warnings link to the screen where they are fixed", () => {
-  const view = (code, count) => R.warningView({ code, count, message: "m" });
-  assert.deepEqual(view("open_lessons", 1), { text: "1 незакрытый урок", href: "/owner/attendance?tab=open", tone: "warning" });
-  assert.equal(view("open_lessons", 3).text, "3 незакрытых урока");
-  assert.equal(view("open_lessons", 7).text, "7 незакрытых уроков");
-  assert.equal(view("pending_excuses", 2).href, "/owner/attendance?tab=excuses");
-  assert.equal(view("pending_excuses", 1).text, "1 уважительная ждёт решения");
-  assert.equal(view("pending_excuses", 5).text, "5 уважительных ждут решения");
-  assert.equal(view("no_fee", 4).href, "/owner/payments?bucket=none");
-  assert.equal(view("no_fee", 4).text, "не задана оплата: 4");
-  assert.equal(view("unpaid_lessons", 5).href, "/owner/payments?bucket=due");
-  assert.equal(view("unpaid_lessons", 5).tone, "info");
-  // a code the screen does not know shows the server's words, with no link
-  assert.deepEqual(view("something_new", 1), { text: "m", href: null, tone: "warning" });
-  assert.deepEqual(R.warningView({ code: "", count: 0, message: "Только текст" }), { text: "Только текст", href: null, tone: "warning" });
-});
-
-// ---- 11. errors and files -------------------------------------------------------------------------------------------
-
-test("errors: 403 is «Недостаточно прав», 409 asks to reload, the codes carry the server's words", () => {
+test("errors: detail {code, message}: 403 is «Недостаточно прав», the revision conflict asks to reload, the rest show detail.message", () => {
   assert.match(R.payrollErrorText({ status: 403 }), /^Недостаточно прав/);
-  assert.equal(R.payrollErrorText({ status: 409, code: "SHEET_REVISION_CONFLICT" }), "Ведомость изменил другой пользователь — обновите");
-  assert.equal(R.payrollErrorText({ status: 409 }), R.REVISION_CONFLICT_TEXT);
-  assert.equal(R.isRevisionConflict({ status: 409 }), true);
-  assert.equal(R.isRevisionConflict({ status: 422, code: "SHEET_REVISION_CONFLICT" }), true);
+  assert.equal(R.payrollErrorText({ status: 409, code: "SHEET_REVISION_CONFLICT", message: "Ведомость уже изменили. Обновите страницу и повторите правку." }), "Ведомость изменил другой пользователь — обновите");
+  assert.equal(R.isRevisionConflict({ status: 409, code: "SHEET_REVISION_CONFLICT" }), true);
+  assert.equal(R.isRevisionConflict({ status: 409 }), false); // branches on detail.code
   assert.equal(R.isRevisionConflict({ status: 500 }), false);
   assert.equal(R.isRevisionConflict(null), false);
-  assert.equal(R.payrollErrorText({ status: 422, code: "PERCENT_REQUIRED", message: "Укажите % для «Группа»" }), "Укажите % для «Группа»");
-  assert.equal(R.payrollErrorText({ status: 422, code: "MONTH_INVALID" }), "Некорректный месяц");
+  assert.equal(R.isPercentRequired({ status: 422, code: "PERCENT_REQUIRED" }), true);
+  assert.equal(R.isPercentRequired({ status: 422, code: "MONTH_INVALID" }), false);
+  const percent = "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается";
+  assert.equal(R.payrollErrorText({ status: 422, code: "PERCENT_REQUIRED", message: percent }), percent);
+  assert.equal(R.payrollErrorText({ status: 422, code: "MONTH_INVALID", message: "Месяц указывается в формате ГГГГ-ММ" }), "Месяц указывается в формате ГГГГ-ММ");
+  assert.equal(R.payrollErrorText({ status: 422, code: "NOTHING_TO_CHANGE", message: "Нечего менять" }), "Нечего менять");
   assert.match(R.payrollErrorText({ status: 404 }), /не найдена/);
+  assert.equal(R.payrollErrorText({ status: 404, code: "X", message: "Ведомость не найдена" }), "Ведомость не найдена");
   assert.equal(R.payrollErrorText({ status: 500, message: "Сервис временно недоступен" }), "Сервис временно недоступен");
   assert.equal(R.payrollErrorText(null), "Не удалось выполнить действие");
 });
@@ -615,8 +628,9 @@ test("file name: Content-Disposition (UTF-8 and quoted), else the fallback; no p
   assert.equal(name(`attachment; filename*=UTF-8''%D0%97%D0%B0%D1%80%D0%BF%D0%BB%D0%B0%D1%82%D0%B0_2026-09.xlsx`, "x.xlsx"), "Зарплата_2026-09.xlsx");
   assert.equal(name('attachment; filename="payroll_2026-09.xlsx"', "x.xlsx"), "payroll_2026-09.xlsx");
   assert.equal(name("attachment; filename=payroll.xlsx", "x.xlsx"), "payroll.xlsx");
-  assert.equal(name(`attachment; filename="a.xlsx"; filename*=UTF-8''b.xlsx`, "x.xlsx"), "b.xlsx"); // the extended form wins
-  assert.equal(name(null, "fallback.xlsx"), "fallback.xlsx");   // a cross-origin answer hides the header
+  // what the server really sends: an ASCII name and the UTF-8 one; the UTF-8 one wins
+  assert.equal(name(`attachment; filename="payroll.xlsx"; filename*=UTF-8''%D0%97%D0%B0%D1%80%D0%BF%D0%BB%D0%B0%D1%82%D0%B0.xlsx`, "x.xlsx"), "Зарплата.xlsx");
+  assert.equal(name(null, "fallback.xlsx"), "fallback.xlsx");
   assert.equal(name("", "fallback.xlsx"), "fallback.xlsx");
   assert.equal(name("attachment", "fallback.xlsx"), "fallback.xlsx");
   assert.equal(name('attachment; filename=""', "fallback.xlsx"), "fallback.xlsx");
@@ -625,10 +639,10 @@ test("file name: Content-Disposition (UTF-8 and quoted), else the fallback; no p
   assert.equal(R.monthFileName("2026-09"), "Зарплата_2026-09.xlsx");
   assert.equal(R.sheetFileName("Иванов Пётр", "2026-09"), "Зарплата_Иванов_Пётр_2026-09.xlsx");
   assert.equal(R.sheetFileName('  A/B:"C"  ', "2026-09"), "Зарплата_A_B_C_2026-09.xlsx");
-  assert.equal(R.sheetFileName("", "2026-09"), "Зарплата_преподаватель_2026-09.xlsx");
+  assert.equal(R.sheetFileName(null, "2026-09"), "Зарплата_преподаватель_2026-09.xlsx");
 });
 
-// ---- 12. the sheet on the screen -------------------------------------------------------------------------------------
+// ---- 11. the sheet on the screen -------------------------------------------------------------------------------------
 
 test("the sheet table: the partner's layout, accessible names, sticky name column, print rules", () => {
   const React = require("react");
@@ -639,8 +653,8 @@ test("the sheet table: the partner's layout, accessible names, sticky name colum
     renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits, editable, onEdits: () => {} }));
   const markup = html();
   const text = plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
-    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "не задана оплата", "Итого по группе", "ИТОГО", "157 500 сум", "37 500 сум", "120 000 сум", "включить"]) {
+  for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
+    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана оплата в месяц", "Итого по группе", "ИТОГО", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "включить"]) {
     assert.ok(text.includes(part), `the sheet shows «${part}»`);
   }
   // accessible names of the editable cells
@@ -660,13 +674,47 @@ test("the sheet table: the partner's layout, accessible names, sticky name colum
   // an edit shows in the line, the subtotal and the total at once
   const edited = plain(html(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   assert.ok(edited.includes("50 000 сум"));
-  assert.ok(edited.includes("170 000 сум"));
-  assert.ok(edited.includes("изменена"));
+  assert.ok(edited.includes("303 333 сум"));
+  assert.ok(edited.includes("изменена · было 450 000 сум"));
+  // the fee that is not set shows the placeholder, the membership's own fee shows as the placeholder of an overridden line
+  assert.match(markup, /placeholder="не задана"/);
+  assert.match(plain(markup), /placeholder="450 000"/);
   // read-only: no inputs
   assert.doesNotMatch(html(R.EMPTY_EDITS, false), /<input/);
   // a sheet with no lines says so
-  const empty = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet: { ...sheet, lines: [] }, edits: R.EMPTY_EDITS, onEdits: () => {} }));
+  const empty = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet: { ...sheet, lines: [], groups: [] }, edits: R.EMPTY_EDITS, onEdits: () => {} }));
   assert.match(empty, /нет учеников с засчитанными уроками/);
+});
+
+test("the warnings and the diff banner render the real shapes", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { DiffBanner, WarningLinks, RevisionList } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  const text = (node) => plain(renderToStaticMarkup(node).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  const links = renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: 2, pending_excused: 0, no_fee: 1, unpaid: 0 }, label: "Предупреждения" }));
+  assert.match(links, /href="\/owner\/attendance\?tab=open"/);
+  assert.match(links, /href="\/owner\/payments\?bucket=none"/);
+  assert.doesNotMatch(links, /tab=excuses/);
+  assert.equal(renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }, label: "x" })), "");
+
+  const brief = (over) => ({ monthly_fee: 450000, percent: "50", counted: 3, unpaid: 1, pending_excused: 0, amount: 50000, ...over });
+  const diff = {
+    sheet_id: "s", revision: 3, stale: true, saved_total: 100000, fresh_total: 120000, delta_amount: 20000,
+    lines: [
+      { membership_id: "m1", student_name: "Абдуллаев", group_name: "Алгебра 8А", status: "changed", changes: ["засчитано", "начислено"], saved: brief({}), fresh: brief({ counted: 4, unpaid: 0, amount: 62500 }), delta_amount: 12500 },
+      { membership_id: "m2", student_name: "Новый", group_name: "Алгебра 8А", status: "added", changes: [], saved: null, fresh: brief({ amount: 100 }), delta_amount: 100 },
+      { membership_id: "m3", student_name: "Ушёл", group_name: "Алгебра 8А", status: "removed", changes: [], saved: brief({}), fresh: null, delta_amount: -50000 },
+    ],
+  };
+  const banner = text(React.createElement(DiffBanner, { diff, busy: false, onRecalculate: () => {} }));
+  for (const part of ["Данные изменились после сохранения — пересчитать?", "Пересчитать", "100 000 сум → 120 000 сум", "+20 000 сум", "изменилось: засчитано, начислено", "3 → 4", "1 → 0", "50 000 сум → 62 500 сум", "новая строка", "строки больше нет", "−50 000 сум"]) {
+    assert.ok(banner.includes(part), `the banner shows «${part}»`);
+  }
+  const revisions = text(React.createElement(RevisionList, { currentRevision: 3, revisions: [
+    { revision: 3, total_amount: 150, percents: { group: "50" }, line_count: 4, changed_by: "u", changed_by_name: "Владелец", changed_at: "2026-10-15T08:55:00", change_note: "после справки" },
+    { revision: 2, total_amount: 100, percents: {}, line_count: 4, changed_by: "u", changed_by_name: null, changed_at: null, change_note: null },
+  ] }));
+  for (const part of ["Редакция 3", "текущая", "15.10.2026 13:55", "Владелец", "строк: 4", "после справки", "Проценты: Группа 50 %", "Редакция 2"]) assert.ok(revisions.includes(part), `the history shows «${part}»`);
 });
 
 // ---- 13. owner only, the menu, the settings, the groups -------------------------------------------------------------
@@ -789,4 +837,88 @@ test("groups: «Тип занятий» in the create and edit forms, shown on t
   }
   assert.match(read("src/components/groups/group-card.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);
   assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);
+});
+
+// ---- 14. the API helpers against the real answers (fetch is stubbed) ---------------------------------------------------
+
+test("the API helper: detail {code, message, ...} gives ApiError.message and .code; calculate returns the sheets; the file keeps its name", async () => {
+  const { orgApi, ApiError } = require(path.join(root, "src/lib/api.ts"));
+  const original = global.fetch;
+  const calls = [];
+  const answer = (status, body, headers = {}) => new Response(body instanceof Buffer ? body : JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
+  let next = null;
+  global.fetch = async (url, init) => { calls.push({ url: String(url), method: init && init.method, body: init && init.body }); return next(); };
+  try {
+    // 422 PERCENT_REQUIRED with missing[]
+    next = () => answer(422, { detail: { code: "PERCENT_REQUIRED", message: "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается", missing: [{ teacher_id: "t1", lesson_type: "group", lesson_type_label: "Группа" }] } });
+    const percent = await orgApi.calculatePayroll("2026-09", { percents: [] }).then(() => null, (e) => e);
+    assert.ok(percent instanceof ApiError);
+    assert.equal(percent.status, 422);
+    assert.equal(percent.code, "PERCENT_REQUIRED");
+    assert.match(percent.message, /^Укажите процент преподавателя/);
+    assert.equal(R.isPercentRequired(percent), true);
+    assert.equal(R.payrollErrorText(percent), percent.message);
+    // 409 SHEET_REVISION_CONFLICT with current_revision
+    next = () => answer(409, { detail: { code: "SHEET_REVISION_CONFLICT", message: "Ведомость уже изменили. Обновите страницу и повторите правку.", current_revision: 4 } });
+    const conflict = await orgApi.patchPayrollSheet("s1", { revision: 3, recalculate: true }).then(() => null, (e) => e);
+    assert.equal(conflict.status, 409);
+    assert.equal(R.isRevisionConflict(conflict), true);
+    assert.equal(R.payrollErrorText(conflict), "Ведомость изменил другой пользователь — обновите");
+    assert.equal(calls.at(-1).method, "PATCH");
+    assert.deepEqual(JSON.parse(calls.at(-1).body), { revision: 3, recalculate: true });
+    // a 403 with a plain-string detail
+    next = () => answer(403, { detail: "Недостаточно прав" });
+    const forbidden = await orgApi.getPayrollMonth("2026-09").then(() => null, (e) => e);
+    assert.equal(forbidden.status, 403);
+    assert.match(R.payrollErrorText(forbidden), /^Недостаточно прав/);
+    // calculate -> {month, month_open, sheets[]}: the sheets come out
+    next = () => answer(200, { month: "2026-09", month_open: false, sheets: [makeSheet({ id: null, saved: false, revision: null })] });
+    const sheets = await orgApi.calculatePayroll("2026-09", { percents: [{ teacher_id: "t1", lesson_type: "group", percent: "50" }] });
+    assert.equal(sheets.length, 1);
+    assert.equal(sheets[0].id, null);
+    assert.equal(calls.at(-1).url.endsWith("/auth/org/payroll/months/2026-09/calculate"), true);
+    assert.equal(calls.at(-1).method, "POST");
+    // save: POST /org/payroll/sheets, the body as built
+    next = () => answer(201, makeSheet());
+    const saved = await orgApi.savePayrollSheet(R.buildSaveBody(makeSheet(), R.EMPTY_EDITS, "", 3));
+    assert.equal(saved.revision, 3);
+    assert.equal(calls.at(-1).url.endsWith("/auth/org/payroll/sheets"), true);
+    assert.equal(JSON.parse(calls.at(-1).body).revision, 3);
+    // the xlsx: bytes and the name from Content-Disposition (what the server sends: ASCII name + UTF-8 name)
+    next = () => new Response(Buffer.from("PK"), { status: 200, headers: { "Content-Disposition": `attachment; filename="payroll_2026-09.xlsx"; filename*=UTF-8''%D0%97%D0%B0%D1%80%D0%BF%D0%BB%D0%B0%D1%82%D0%B0_2026-09.xlsx` } });
+    const file = await orgApi.downloadPayrollMonth("2026-09", "fallback.xlsx");
+    assert.equal(file.filename, "Зарплата_2026-09.xlsx");
+    assert.equal((await file.blob.arrayBuffer()).byteLength, 2);
+    assert.equal(calls.at(-1).url.endsWith("/auth/org/payroll/months/2026-09/export.xlsx"), true);
+    next = () => new Response(Buffer.from("PK"), { status: 200 });
+    assert.equal((await orgApi.downloadPayrollSheet("s1", "fallback.xlsx")).filename, "fallback.xlsx");
+    // an xlsx that is refused: detail.message again
+    next = () => answer(404, { detail: { code: "SHEET_NOT_FOUND", message: "Ведомость не найдена" } });
+    const missing = await orgApi.downloadPayrollSheet("s1", "x.xlsx").then(() => null, (e) => e);
+    assert.equal(missing.status, 404);
+    assert.equal(missing.code, "SHEET_NOT_FOUND");
+    assert.equal(missing.message, "Ведомость не найдена");
+  } finally {
+    global.fetch = original;
+  }
+});
+
+test("the screens read the real shapes: stale, warnings as counts, lessons_without_teacher, groups with dates, no guessing layer", () => {
+  const lib = read("src/lib/payroll.ts");
+  assert.doesNotMatch(lib, /normalizeSheet|normalizeMonthOverview|normalizeDiff|normalizeRevisions|data_changed|readSheetSummary/);
+  assert.doesNotMatch(read("src/lib/api.ts"), /normalizeSheet|normalizeMonthOverview|normalizeDiff|normalizeRevisions|normalizePayrollSettings/);
+  const month = read("src/components/payroll/payroll-month-page.tsx");
+  assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
+  assert.match(month, /payrollFormulaText\(overview\.divisor\)/);
+  assert.match(month, /<WarningLinks counts=\{teacher\.warnings\}/);
+  assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) setShowErrors\(true\)/);
+  const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
+  assert.match(sheetPage, /diff\?\.stale/);
+  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate \}\)\)/);
+  assert.match(read("src/components/payroll/sheet-table.tsx"), /buildBlocks\(sheet, views\)/);
+  // the types are the server's field names
+  for (const field of ["lessons_without_teacher", "lessons_count", "period_start", "stale: boolean", "source_fee", "groups: PayrollGroupBlock[]", "dates: PayrollBlockDate[]",
+    "saved_total", "fresh_total", "delta_amount", "line_count", "changes: string[]", "created_by_name"]) {
+    assert.ok(lib.includes(field), `payroll.ts has «${field}»`);
+  }
 });

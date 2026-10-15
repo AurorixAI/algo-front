@@ -2,9 +2,10 @@
  * N13 P3 - «Зарплата преподавателей» (owner only): types of the payroll API and the pure helpers of its
  * screens.  No React and no network, so node:test can load this file.
  *
- * The server is the authority for every sum.  The helpers here only (1) read what the server sends into
- * one shape, (2) validate what the owner types, and (3) preview a line the owner has edited and not yet
- * saved - with the backend's formula: round half up of `fee x p / 100 / D x N`, whole sums.
+ * The server is the authority for every sum.  The types below are the shapes of auth-service
+ * (`payroll_schemas.py`); the helpers (1) validate what the owner types and (2) preview a line the owner has
+ * edited and not yet saved - with the backend's formula: `fee x p / 100` per lesson divided by that lesson's
+ * divisor, summed, rounded once half up to a whole sum.
  */
 import { formatMoney, pluralRu } from "./payments";
 import { capitalizeFirst, monthYearLabelRu } from "./business-time";
@@ -132,12 +133,6 @@ export function sanitizePercentTyping(text: string): string {
 export const DEFAULT_DIVISOR = 12;
 export const DIVISOR_RANGE = { min: 1, max: 31 } as const;
 
-export interface PayrollSettings {
-  divisor: number;
-}
-
-export const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = { divisor: DEFAULT_DIVISOR };
-
 /** The divisor field: a whole number 1…31. */
 export function parseDivisor(text: string | number | null | undefined): { value: number | null; error: string | null } {
   const raw = String(text ?? "").trim();
@@ -212,15 +207,23 @@ export function formatDayMonth(isoDate: string | null | undefined): string {
   return match ? `${match[2]}.${match[1]}` : "";
 }
 
-// ── API shapes ──────────────────────────────────────────────────────────────
+// ── API shapes (auth-service: payroll_schemas.py) ───────────────────────────
 
 export type MarkState = "counted" | "excused_confirmed" | "excused_pending" | "not_in_group" | "unpaid";
 
 export interface PayrollMark {
   date: string;
-  lesson_id: string | null;
+  lesson_id: string;
+  /** 1 counted, 0 not counted (a confirmed excuse), null: the student is not in the group yet. */
   mark: 1 | 0 | null;
   state: MarkState;
+  /** D of the lesson when it can be in the sum (counted, pending, unpaid); null otherwise. */
+  divisor: number | null;
+}
+
+export interface PayrollLineWarning {
+  code: string;
+  message: string;
 }
 
 export interface PayrollLine {
@@ -232,111 +235,197 @@ export interface PayrollLine {
   group_name: string;
   lesson_type: LessonType;
   lesson_time: string | null;
-  /** The fee of the month (or the price of a package); null: not set (the line is 0 with a warning). */
+  /** The fee on this sheet: the membership's (`source_fee`) or the owner's override. null: not set. */
   monthly_fee: number | null;
+  source_fee: number | null;
   fee_overridden: boolean;
-  /** Canonical decimal string, «50». */
-  percent: string;
-  divisor: number;
+  /** Canonical decimal string («50», «33.5»); null: no percent was given. */
+  percent: string | null;
+  /** One D for the whole line; null when lessons with different D are in it (every mark has its own). */
+  divisor: number | null;
   marks: PayrollMark[];
-  /** Counted lessons that are paid (without the unpaid ones). */
+  /** Paid counted lessons, a pending excuse included; the unpaid ones are `unpaid`. */
   counted: number;
   unpaid: number;
   pending_excused: number;
   include_unpaid: boolean;
   amount: number;
-  warnings: string[];
+  warnings: PayrollLineWarning[];
+}
+
+export interface PayrollBlockDate {
+  date: string;
+  lesson_id: string;
+}
+
+export interface PayrollGroupBlock {
+  group_id: string;
+  group_name: string;
+  lesson_type: LessonType;
+  lesson_time: string | null;
+  percent: string | null;
+  /** The date columns of the block, in order. */
+  dates: PayrollBlockDate[];
+  line_count: number;
+  counted: number;
+  unpaid: number;
+  total_amount: number;
+}
+
+/** The counters behind the warnings of a sheet (`open_lessons` is null when it was not looked up). */
+export interface PayrollSheetWarnings {
+  open_lessons: number | null;
+  pending_excused: number;
+  no_fee: number;
+  unpaid: number;
 }
 
 export interface PayrollSheet {
-  /** null: a calculation that is not saved yet. */
+  /** null: a preview, nothing is written. */
   id: string | null;
+  saved: boolean;
   /** YYYY-MM */
   month: string;
+  period_start: string;
+  period_end: string;
+  month_open: boolean;
   teacher_id: string;
-  teacher_name: string;
+  teacher_name: string | null;
+  revision: number | null;
   /** Percent by lesson type. */
   percents: Record<string, string>;
   divisor_default: number;
   lines: PayrollLine[];
+  groups: PayrollGroupBlock[];
   total_amount: number;
-  revision: number | null;
-  month_open: boolean;
-  data_changed: boolean;
+  counted_total: number;
+  unpaid_total: number;
+  pending_excused_total: number;
+  warnings: PayrollSheetWarnings;
+  source_fingerprint: string;
+  /** A saved sheet: the data changed after it was saved. null for a preview. */
+  stale: boolean | null;
   note: string | null;
+  created_by_name: string | null;
+  created_at: string | null;
   updated_by_name: string | null;
   updated_at: string | null;
 }
 
-export interface PayrollSheetSummary {
+export interface PayrollSheetBrief {
   id: string;
+  teacher_id: string;
+  teacher_name: string | null;
+  month: string;
   revision: number;
   total_amount: number;
-  data_changed: boolean;
+  stale: boolean | null;
+  updated_by_name: string | null;
+  updated_at: string | null;
 }
 
-export interface PayrollWarning {
-  code: string;
-  count: number;
-  message: string;
+export interface PayrollCalculateResponse {
+  month: string;
+  month_open: boolean;
+  sheets: PayrollSheet[];
 }
 
 export interface PayrollTypeSuggestion {
   lesson_type: LessonType;
-  /** The percent of the last saved sheet of this teacher for this type, as the field text; "" when there is none. */
-  suggested_percent: string;
+  /** Groups of this kind the teacher taught in the month. */
+  groups: number;
+  /** The percent of the teacher's last saved sheet for this kind; null when there is none. */
+  suggested_percent: string | null;
+}
+
+export interface PayrollMonthSheetRef {
+  id: string;
+  revision: number;
+  total_amount: number;
+  /** The data changed after the sheet was saved. */
+  stale: boolean;
+  updated_at: string | null;
+}
+
+/** Counts, shown only when above 0. */
+export interface PayrollMonthWarnings {
+  open_lessons: number;
+  pending_excused: number;
+  no_fee: number;
+  unpaid: number;
 }
 
 export interface PayrollMonthTeacher {
   teacher_id: string;
-  teacher_name: string;
+  teacher_name: string | null;
+  /** Completed lessons the teacher held in the month. */
+  lessons_count: number;
   lesson_types: PayrollTypeSuggestion[];
-  sheet: PayrollSheetSummary | null;
-  warnings: PayrollWarning[];
+  sheet: PayrollMonthSheetRef | null;
+  warnings: PayrollMonthWarnings;
 }
 
 export interface PayrollMonthOverview {
   month: string;
+  period_start: string;
+  period_end: string;
   month_open: boolean;
+  divisor: number;
   teachers: PayrollMonthTeacher[];
+  /** Completed lessons nobody is paid for: their teacher snapshot is empty. */
+  lessons_without_teacher: number;
 }
 
 export interface PayrollRevision {
   revision: number;
   total_amount: number;
+  percents: Record<string, string>;
+  line_count: number;
+  changed_by: string | null;
   changed_by_name: string | null;
   changed_at: string | null;
   change_note: string | null;
-  percents: Record<string, string>;
+}
+
+export interface PayrollDiffBrief {
+  monthly_fee: number | null;
+  percent: string | null;
+  counted: number;
+  unpaid: number;
+  pending_excused: number;
+  amount: number;
 }
 
 export interface PayrollDiffLine {
   membership_id: string;
-  student_name: string;
-  group_name: string;
-  kind: "changed" | "added" | "removed";
-  counted_before: number | null;
-  counted_after: number | null;
-  unpaid_before: number | null;
-  unpaid_after: number | null;
-  amount_before: number | null;
-  amount_after: number | null;
+  student_name: string | null;
+  group_name: string | null;
+  status: "changed" | "added" | "removed";
+  /** What differs, in words: «засчитано», «оплата», «начислено», «отметки»… */
+  changes: string[];
+  saved: PayrollDiffBrief | null;
+  fresh: PayrollDiffBrief | null;
+  delta_amount: number;
 }
 
 export interface PayrollDiff {
-  changed: boolean;
-  total_before: number | null;
-  total_after: number | null;
+  sheet_id: string;
+  revision: number;
+  stale: boolean;
+  saved_total: number;
+  fresh_total: number;
+  delta_amount: number;
   lines: PayrollDiffLine[];
 }
 
-/** `percents` of the calculate / save / patch bodies. */
+/** `percents` of the calculate / save / patch bodies (calculate requires `teacher_id`). */
 export interface PayrollPercentInput {
   teacher_id: string;
   lesson_type: LessonType;
   percent: string;
 }
 
+/** `monthly_fee`: a number sets the fee on the sheet, null returns to the membership's fee, absent leaves it. */
 export interface PayrollLineOverride {
   membership_id: string;
   monthly_fee?: number | null;
@@ -354,7 +443,7 @@ export interface PayrollSaveBody {
   percents: PayrollPercentInput[];
   line_overrides?: PayrollLineOverride[];
   note?: string;
-  /** The revision the owner saw, when the teacher already has a sheet for the month. */
+  /** Required, and must be the current one, when the teacher already has a sheet for the month; absent otherwise. */
   revision?: number;
 }
 
@@ -366,268 +455,19 @@ export interface PayrollPatchBody {
   note?: string;
 }
 
-// ── Reading the answers ─────────────────────────────────────────────────────
-
-type Raw = Record<string, unknown>;
-
-function isRaw(value: unknown): value is Raw {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+/** The name of a teacher the server could not name. */
+export function teacherLabel(name: string | null | undefined): string {
+  return name?.trim() || "Преподаватель";
 }
 
-function asString(value: unknown, fallback = ""): string {
-  return typeof value === "string" ? value : typeof value === "number" ? String(value) : fallback;
+/** The settings of the center: `PUT` takes only `divisor`. */
+export interface PayrollSettings {
+  divisor: number;
+  updated_by?: string | null;
+  updated_at?: string | null;
 }
 
-function asNumber(value: unknown, fallback = 0): number {
-  const number = typeof value === "string" ? Number(value.replace(",", ".")) : Number(value);
-  return Number.isFinite(number) ? number : fallback;
-}
-
-function asNumberOrNull(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const number = typeof value === "string" ? Number(value.replace(",", ".")) : Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-const UUID_LIKE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function percentText(value: unknown): string {
-  const hundredths = serverPercentHundredths(value as string | number | null);
-  return hundredths === null ? "" : formatPercentCanonical(hundredths);
-}
-
-/** `{group: "50"}` or `[{lesson_type, percent}]` -> `{group: "50"}`. */
-function readPercents(value: unknown): Record<string, string> {
-  const out: Record<string, string> = {};
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (!isRaw(item)) continue;
-      const text = percentText(item.percent);
-      if (text) out[normalizeLessonType(item.lesson_type)] = text;
-    }
-  } else if (isRaw(value)) {
-    for (const [key, raw] of Object.entries(value)) {
-      const text = percentText(raw);
-      if (text) out[normalizeLessonType(key)] = text;
-    }
-  }
-  return out;
-}
-
-function readMark(value: unknown): PayrollMark | null {
-  if (!isRaw(value)) return null;
-  const date = asString(value.date).slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const mark = value.mark === 1 || value.mark === "1" || value.mark === true ? 1
-    : value.mark === 0 || value.mark === "0" || value.mark === false ? 0 : null;
-  const known: MarkState[] = ["counted", "excused_confirmed", "excused_pending", "not_in_group", "unpaid"];
-  const state = known.includes(value.state as MarkState)
-    ? (value.state as MarkState)
-    : mark === 1 ? "counted" : mark === 0 ? "excused_confirmed" : "not_in_group";
-  return { date, lesson_id: value.lesson_id ? asString(value.lesson_id) : null, mark, state };
-}
-
-function readWarnings(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((item) => (typeof item === "string" ? item : isRaw(item) ? asString(item.message) : ""))
-    .filter((text) => text.trim() !== "");
-}
-
-export function normalizeLine(raw: unknown): PayrollLine | null {
-  if (!isRaw(raw)) return null;
-  const membershipId = asString(raw.membership_id);
-  if (!membershipId) return null;
-  const marks = (Array.isArray(raw.marks) ? raw.marks : [])
-    .map(readMark)
-    .filter((mark): mark is PayrollMark => mark !== null);
-  return {
-    membership_id: membershipId,
-    student_id: asString(raw.student_id),
-    student_name: asString(raw.student_name, "Ученик"),
-    display_id: raw.display_id ? asString(raw.display_id) : null,
-    group_id: asString(raw.group_id),
-    group_name: asString(raw.group_name, "Группа"),
-    lesson_type: normalizeLessonType(raw.lesson_type),
-    lesson_time: raw.lesson_time ? asString(raw.lesson_time) : null,
-    monthly_fee: asNumberOrNull(raw.monthly_fee),
-    fee_overridden: Boolean(raw.fee_overridden),
-    percent: percentText(raw.percent),
-    divisor: Math.max(1, Math.round(asNumber(raw.divisor, DEFAULT_DIVISOR))),
-    marks,
-    counted: Math.max(0, Math.round(asNumber(raw.counted))),
-    unpaid: Math.max(0, Math.round(asNumber(raw.unpaid))),
-    pending_excused: Math.max(0, Math.round(asNumber(raw.pending_excused))),
-    include_unpaid: Boolean(raw.include_unpaid),
-    amount: Math.round(asNumber(raw.amount)),
-    warnings: readWarnings(raw.warnings),
-  };
-}
-
-/** `period_month` («2026-09-01»), `month` («2026-09») -> «2026-09»; "" when neither is a month. */
-function readMonth(raw: Raw, fallback = ""): string {
-  const text = asString(raw.month ?? raw.period_month).slice(0, 7);
-  return MONTH_PATTERN.test(text) ? text : fallback;
-}
-
-export function normalizeSheet(raw: unknown, fallback: { month?: string; teacherName?: string } = {}): PayrollSheet {
-  const source = isRaw(raw) ? raw : {};
-  const lines = (Array.isArray(source.lines) ? source.lines : [])
-    .map(normalizeLine)
-    .filter((line): line is PayrollLine => line !== null);
-  const percents = readPercents(source.percent_inputs ?? source.percents);
-  // A type the sheet has lines of always has a percent: the lines say which one it was calculated with.
-  for (const line of lines) if (line.percent && !percents[line.lesson_type]) percents[line.lesson_type] = line.percent;
-  const total = source.total_amount === undefined || source.total_amount === null
-    ? lines.reduce((sum, line) => sum + line.amount, 0)
-    : Math.round(asNumber(source.total_amount));
-  return {
-    id: source.id ? asString(source.id) : null,
-    month: readMonth(source, fallback.month ?? ""),
-    teacher_id: asString(source.teacher_id),
-    teacher_name: asString(source.teacher_name, fallback.teacherName ?? "Преподаватель"),
-    percents,
-    divisor_default: Math.max(1, Math.round(asNumber(source.divisor_default, DEFAULT_DIVISOR))),
-    lines,
-    total_amount: total,
-    revision: source.revision === undefined || source.revision === null ? null : Math.round(asNumber(source.revision)),
-    month_open: Boolean(source.month_open),
-    data_changed: Boolean(source.data_changed),
-    note: source.change_note ? asString(source.change_note) : source.note ? asString(source.note) : null,
-    updated_by_name: source.updated_by_name ? asString(source.updated_by_name) : null,
-    updated_at: source.updated_at ? asString(source.updated_at) : null,
-  };
-}
-
-/** The answer of `calculate`: a list of sheets, bare or in `sheets` / `items`. */
-export function normalizeSheetList(raw: unknown, fallback: { month?: string } = {}): PayrollSheet[] {
-  const list = Array.isArray(raw) ? raw : isRaw(raw) ? (raw.sheets ?? raw.items ?? []) : [];
-  const month = isRaw(raw) ? readMonth(raw, fallback.month ?? "") : fallback.month ?? "";
-  return (Array.isArray(list) ? list : []).map((item) => normalizeSheet(item, { month }));
-}
-
-function readWarningItem(value: unknown): PayrollWarning | null {
-  if (typeof value === "string") return value.trim() ? { code: "", count: 0, message: value } : null;
-  if (!isRaw(value)) return null;
-  const code = asString(value.code ?? value.type ?? value.kind);
-  const message = asString(value.message ?? value.text);
-  if (!code && !message) return null;
-  return { code, count: Math.max(0, Math.round(asNumber(value.count ?? value.total ?? value.n))), message };
-}
-
-function readSheetSummary(row: Raw): PayrollSheetSummary | null {
-  const nested = isRaw(row.sheet) ? row.sheet : null;
-  const id = nested ? asString(nested.id ?? nested.sheet_id) : asString(row.sheet_id);
-  if (!id) return null;
-  const source = nested ?? row;
-  return {
-    id,
-    revision: Math.max(1, Math.round(asNumber(source.revision ?? source.sheet_revision, 1))),
-    total_amount: Math.round(asNumber(source.total_amount ?? source.sheet_total ?? source.total)),
-    data_changed: Boolean(source.data_changed ?? row.data_changed),
-  };
-}
-
-function readTypeSuggestions(row: Raw): PayrollTypeSuggestion[] {
-  const out = new Map<LessonType, string>();
-  const map = isRaw(row.suggested_percents) ? row.suggested_percents : {};
-  const source = row.lesson_types ?? row.types ?? [];
-  const add = (type: unknown, suggestion: unknown) => {
-    const key = normalizeLessonType(type);
-    const text = percentText(suggestion ?? map[key]);
-    if (!out.has(key) || text) out.set(key, text);
-  };
-  if (Array.isArray(source)) {
-    for (const item of source) {
-      if (isRaw(item)) add(item.lesson_type ?? item.type, item.suggested_percent ?? item.percent ?? item.suggested);
-      else if (typeof item === "string") add(item, undefined);
-    }
-  } else if (isRaw(source)) {
-    for (const [key, value] of Object.entries(source)) add(key, isRaw(value) ? value.suggested_percent ?? value.percent : value);
-  }
-  return [...out.entries()]
-    .map(([lesson_type, suggested_percent]) => ({ lesson_type, suggested_percent }))
-    .sort((a, b) => lessonTypeOrder(a.lesson_type) - lessonTypeOrder(b.lesson_type));
-}
-
-export function normalizeMonthOverview(raw: unknown, fallbackMonth = ""): PayrollMonthOverview {
-  const source = isRaw(raw) ? raw : {};
-  const teachers = (Array.isArray(source.teachers) ? source.teachers : [])
-    .filter(isRaw)
-    .map((row): PayrollMonthTeacher => ({
-      teacher_id: asString(row.teacher_id ?? row.id),
-      teacher_name: asString(row.teacher_name ?? row.full_name ?? row.name, "Преподаватель"),
-      lesson_types: readTypeSuggestions(row),
-      sheet: readSheetSummary(row),
-      warnings: (Array.isArray(row.warnings) ? row.warnings : [])
-        .map(readWarningItem)
-        .filter((warning): warning is PayrollWarning => warning !== null),
-    }))
-    .filter((row) => row.teacher_id !== "")
-    .sort((a, b) => a.teacher_name.localeCompare(b.teacher_name, "ru"));
-  return { month: readMonth(source, fallbackMonth), month_open: Boolean(source.month_open), teachers };
-}
-
-export function normalizePayrollSettings(raw: unknown): PayrollSettings {
-  const divisor = isRaw(raw) ? parseDivisor(asString(raw.divisor)).value : null;
-  return { divisor: divisor ?? DEFAULT_DIVISOR };
-}
-
-export function normalizeRevisions(raw: unknown): PayrollRevision[] {
-  const list = Array.isArray(raw) ? raw : isRaw(raw) ? (raw.revisions ?? raw.items ?? []) : [];
-  return (Array.isArray(list) ? list : [])
-    .filter(isRaw)
-    .map((item): PayrollRevision => {
-      const author = asString(item.changed_by_name ?? item.author_name ?? item.changed_by);
-      return {
-        revision: Math.max(1, Math.round(asNumber(item.revision, 1))),
-        total_amount: Math.round(asNumber(item.total_amount)),
-        // An id with no name is not a thing to show to the owner.
-        changed_by_name: author && !UUID_LIKE.test(author) ? author : null,
-        changed_at: item.changed_at ? asString(item.changed_at) : null,
-        change_note: item.change_note ? asString(item.change_note) : null,
-        percents: readPercents(item.percent_inputs ?? item.percents),
-      };
-    })
-    .sort((a, b) => b.revision - a.revision);
-}
-
-function readDiffLine(value: unknown): PayrollDiffLine | null {
-  if (!isRaw(value)) return null;
-  const before = isRaw(value.before) ? value.before : null;
-  const after = isRaw(value.after) ? value.after : null;
-  const pick = (nested: Raw | null, key: string, flat: string): number | null =>
-    asNumberOrNull(nested ? nested[key] : value[flat]);
-  const kindRaw = asString(value.kind ?? value.change);
-  const kind: PayrollDiffLine["kind"] = kindRaw === "added" || kindRaw === "removed" ? kindRaw
-    : !before && value.before === null && after ? "added"
-      : before && value.after === null ? "removed" : "changed";
-  return {
-    membership_id: asString(value.membership_id),
-    student_name: asString(value.student_name, "Ученик"),
-    group_name: asString(value.group_name),
-    kind,
-    counted_before: pick(before, "counted", "counted_before"),
-    counted_after: pick(after, "counted", "counted_after"),
-    unpaid_before: pick(before, "unpaid", "unpaid_before"),
-    unpaid_after: pick(after, "unpaid", "unpaid_after"),
-    amount_before: pick(before, "amount", "amount_before"),
-    amount_after: pick(after, "amount", "amount_after"),
-  };
-}
-
-export function normalizeDiff(raw: unknown): PayrollDiff {
-  const source = isRaw(raw) ? raw : {};
-  const lines = (Array.isArray(source.lines) ? source.lines : [])
-    .map(readDiffLine)
-    .filter((line): line is PayrollDiffLine => line !== null);
-  return {
-    changed: source.changed === undefined ? lines.length > 0 : Boolean(source.changed),
-    total_before: asNumberOrNull(source.total_before),
-    total_after: asNumberOrNull(source.total_after),
-    lines,
-  };
-}
+export const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = { divisor: DEFAULT_DIVISOR };
 
 // ── Mark cells (the table of the partner) ───────────────────────────────────
 
@@ -661,7 +501,7 @@ const MARK_TITLE: Record<MarkTone, string> = {
   unpaid_included: "Урок не оплачен, но включён в сумму",
 };
 
-/** One cell of the sheet from a mark: state wins, the 1 / 0 / empty of the mark is the fallback. */
+/** One cell of the sheet from a mark: the state decides (the server sends both, they agree). */
 export function markCell(
   mark: 1 | 0 | null,
   state: MarkState | null | undefined,
@@ -683,28 +523,69 @@ export function markCell(
 
 // ── Money of a line ─────────────────────────────────────────────────────────
 
+function gcd(a: bigint, b: bigint): bigint {
+  let x = a;
+  let y = b;
+  while (y !== BigInt(0)) [x, y] = [y, x % y];
+  return x;
+}
+
 /**
- * `round_half_up(fee x p / 100 / D x N)` in whole sums, exact (BigInt, no float): the backend's formula.
- * `percentHundredths` is the percent times 100.  Anything that is not a positive number gives 0.
+ * The backend's amount of a line, exactly: `fee x p / 100` per lesson, divided by that lesson's divisor, summed over
+ * the lessons in the sum, rounded ONCE (half up, whole sums).  `parts` are `[divisor, number of lessons]` pairs.
+ * Multiply first, divide last (BigInt, no float).  `percentHundredths` is the percent times 100.
+ * Anything that is not a positive number gives 0.
  */
+export function amountByDivisors(
+  fee: number | null | undefined,
+  percentHundredths: number | null | undefined,
+  parts: ReadonlyArray<readonly [number, number]>,
+): number {
+  if (!fee || fee <= 0 || !percentHundredths || percentHundredths <= 0) return 0;
+  const valid = parts.filter(([divisor, lessons]) => Number.isInteger(divisor) && divisor >= 1 && Number.isInteger(lessons) && lessons > 0);
+  if (valid.length === 0) return 0;
+  let common = BigInt(1);
+  for (const [divisor] of valid) {
+    const d = BigInt(divisor);
+    common = (common / gcd(common, d)) * d;
+  }
+  let lessonsOverDivisor = BigInt(0); // sum of lessons x (common / divisor)
+  for (const [divisor, lessons] of valid) lessonsOverDivisor += BigInt(lessons) * (common / BigInt(divisor));
+  const two = BigInt(2);
+  const numerator = BigInt(Math.round(fee)) * BigInt(Math.round(percentHundredths)) * lessonsOverDivisor;
+  const denominator = BigInt(10000) * common;
+  return Number((two * numerator + denominator) / (two * denominator));
+}
+
+/** `round_half_up(fee x p / 100 / D x N)`: every lesson with the same divisor. */
 export function lineAmount(input: {
   fee: number | null | undefined;
   percentHundredths: number | null | undefined;
   divisor: number;
   lessons: number;
 }): number {
-  const { fee, percentHundredths, divisor, lessons } = input;
-  if (!fee || fee <= 0 || percentHundredths === null || percentHundredths === undefined || percentHundredths <= 0) return 0;
-  if (!Number.isInteger(divisor) || divisor < 1 || !Number.isInteger(lessons) || lessons <= 0) return 0;
-  const two = BigInt(2);
-  const numerator = BigInt(Math.round(fee)) * BigInt(Math.round(percentHundredths)) * BigInt(lessons);
-  const denominator = BigInt(10000) * BigInt(divisor);
-  return Number((two * numerator + denominator) / (two * denominator));
+  return amountByDivisors(input.fee, input.percentHundredths, [[input.divisor, input.lessons]]);
 }
 
-/** N of the formula: the paid counted lessons, plus the unpaid ones when the owner switched «включить» on. */
-export function lineLessons(line: Pick<PayrollLine, "counted" | "unpaid" | "include_unpaid">, include = line.include_unpaid): number {
-  return line.counted + (include ? line.unpaid : 0);
+/**
+ * The amount of a line from its marks: the counted and the pending-excuse lessons, plus the unpaid ones when «включить» is
+ * on; each lesson with its own divisor (`null` = the sheet's default).
+ */
+export function marksAmount(input: {
+  fee: number | null | undefined;
+  percentHundredths: number | null | undefined;
+  marks: ReadonlyArray<Pick<PayrollMark, "state" | "divisor">>;
+  includeUnpaid: boolean;
+  defaultDivisor: number;
+}): number {
+  const counts = new Map<number, number>();
+  for (const mark of input.marks) {
+    const inSum = mark.state === "counted" || mark.state === "excused_pending" || (input.includeUnpaid && mark.state === "unpaid");
+    if (!inSum) continue;
+    const divisor = mark.divisor ?? input.defaultDivisor;
+    counts.set(divisor, (counts.get(divisor) ?? 0) + 1);
+  }
+  return amountByDivisors(input.fee, input.percentHundredths, [...counts.entries()]);
 }
 
 // ── Edits of an open sheet ──────────────────────────────────────────────────
@@ -713,7 +594,7 @@ export function lineLessons(line: Pick<PayrollLine, "counted" | "unpaid" | "incl
 export interface SheetEdits {
   /** Lesson type -> the text of the field. */
   percents: Record<string, string>;
-  /** Membership id -> the fee (null: cleared). */
+  /** Membership id -> the fee; null returns to the membership's own fee. */
   fees: Record<string, number | null>;
   /** Membership id -> «включить неоплаченные». */
   include: Record<string, boolean>;
@@ -729,12 +610,18 @@ function findLine(sheet: PayrollSheet, membershipId: string): PayrollLine | unde
   return sheet.lines.find((line) => line.membership_id === membershipId);
 }
 
+/**
+ * The fee field of a line.  A number sets the fee on this sheet; an empty field (null), or the membership's own fee typed
+ * in, returns to the membership's fee.  What changes nothing (the same fee, a reset of a line that is not overridden) is no edit.
+ */
 export function setFeeEdit(edits: SheetEdits, sheet: PayrollSheet, membershipId: string, fee: number | null): SheetEdits {
   const line = findLine(sheet, membershipId);
   if (!line) return edits;
+  const target = fee !== null && fee === line.source_fee ? null : fee;
+  const unchanged = target === null ? !line.fee_overridden : line.fee_overridden && target === line.monthly_fee;
   const fees = { ...edits.fees };
-  if (fee === (line.monthly_fee ?? null)) delete fees[membershipId];
-  else fees[membershipId] = fee;
+  if (unchanged) delete fees[membershipId];
+  else fees[membershipId] = target;
   return { ...edits, fees };
 }
 
@@ -781,11 +668,14 @@ export function editsProblem(sheet: PayrollSheet, edits: SheetEdits): string | n
 
 export interface LineView {
   line: PayrollLine;
+  /** The fee in force on the screen (the edit, else the sheet's). */
   fee: number | null;
+  /** The fee differs from the membership's own. */
+  feeOverridden: boolean;
   include: boolean;
-  percent: string;
+  /** Canonical percent of the line, null when it has none. */
+  percent: string | null;
   percentHundredths: number | null;
-  lessons: number;
   /** The server's amount for a line nobody touched, the preview of the formula for an edited one. */
   amount: number;
   edited: boolean;
@@ -793,33 +683,44 @@ export interface LineView {
 
 export function buildLineViews(sheet: PayrollSheet, edits: SheetEdits): LineView[] {
   return sheet.lines.map((line) => {
-    const fee = line.membership_id in edits.fees ? edits.fees[line.membership_id] : line.monthly_fee;
-    const include = line.membership_id in edits.include ? edits.include[line.membership_id] : line.include_unpaid;
+    const id = line.membership_id;
+    const feeEdited = id in edits.fees;
+    const fee = feeEdited ? (edits.fees[id] === null ? line.source_fee : edits.fees[id]) : line.monthly_fee;
+    const feeOverridden = feeEdited ? edits.fees[id] !== null : line.fee_overridden;
+    const include = id in edits.include ? edits.include[id] : line.include_unpaid;
     const typed = line.lesson_type in edits.percents ? parsePercent(edits.percents[line.lesson_type]) : null;
     // A percent that is being typed (not valid yet) keeps the previous value in the preview.
     const hundredths = typed && typed.hundredths !== null ? typed.hundredths : serverPercentHundredths(line.percent);
     const percent = typed && typed.value !== null ? typed.value : line.percent;
-    const touched = line.membership_id in edits.fees
-      || line.membership_id in edits.include
-      || (typed !== null && typed.hundredths !== serverPercentHundredths(line.percent));
-    const lessons = lineLessons(line, include);
+    const percentEdited = typed !== null && typed.hundredths !== serverPercentHundredths(line.percent);
+    const touched = feeEdited || id in edits.include || percentEdited;
     return {
       line,
       fee: fee ?? null,
+      feeOverridden,
       include,
       percent,
       percentHundredths: hundredths,
-      lessons,
-      amount: touched ? lineAmount({ fee, percentHundredths: hundredths, divisor: line.divisor, lessons }) : line.amount,
+      amount: touched
+        ? marksAmount({ fee, percentHundredths: hundredths, marks: line.marks, includeUnpaid: include, defaultDivisor: sheet.divisor_default })
+        : line.amount,
       edited: touched,
     };
   });
 }
 
+/** What the name cell says besides the name: no percent, no fee (the server's other notes are the columns). */
+export function lineNotes(view: LineView): string[] {
+  const notes: string[] = [];
+  if (view.percent === null) notes.push("Не указан процент преподавателя");
+  if (view.fee === null && (view.line.counted > 0 || view.line.unpaid > 0)) notes.push("Не задана оплата в месяц");
+  return notes;
+}
+
 export interface MarkColumn {
   key: string;
   date: string;
-  lessonId: string | null;
+  lessonId: string;
 }
 
 export interface SheetBlock {
@@ -834,54 +735,39 @@ export interface SheetBlock {
   amount: number;
 }
 
-/** Column of a mark: one per lesson (two lessons of a group in one day are two columns). */
-function markKey(mark: PayrollMark): string {
-  return mark.lesson_id ? `${mark.date}|${mark.lesson_id}` : mark.date;
+/** Column of a lesson: (date, lesson id), so two lessons of a group in one day are two columns. */
+export function columnKey(date: string, lessonId: string): string {
+  return `${date}|${lessonId}`;
 }
 
 export function markFor(line: PayrollLine, column: MarkColumn): PayrollMark | undefined {
-  return line.marks.find((mark) => markKey(mark) === column.key);
+  return line.marks.find((mark) => columnKey(mark.date, mark.lesson_id) === column.key);
 }
 
-/** Blocks by group, in the order the groups first appear; the students of a block by name. */
-export function buildBlocks(views: LineView[]): SheetBlock[] {
-  const blocks = new Map<string, SheetBlock>();
-  const columns = new Map<string, Map<string, MarkColumn>>();
+/** The blocks the server sends (`groups`, with their date columns), the students of a block by name; sums follow the edits. */
+export function buildBlocks(sheet: PayrollSheet, views: LineView[]): SheetBlock[] {
+  const byGroup = new Map<string, LineView[]>();
   for (const view of views) {
-    const line = view.line;
-    const id = line.group_id || line.group_name;
-    let block = blocks.get(id);
-    if (!block) {
-      block = {
-        groupId: line.group_id,
-        groupName: line.group_name,
-        lessonType: line.lesson_type,
-        lessonTime: line.lesson_time,
-        columns: [],
-        lines: [],
-        counted: 0,
-        unpaid: 0,
-        amount: 0,
+    const list = byGroup.get(view.line.group_id);
+    if (list) list.push(view);
+    else byGroup.set(view.line.group_id, [view]);
+  }
+  return sheet.groups
+    .map((group): SheetBlock => {
+      const lines = [...(byGroup.get(group.group_id) ?? [])].sort((a, b) => a.line.student_name.localeCompare(b.line.student_name, "ru"));
+      return {
+        groupId: group.group_id,
+        groupName: group.group_name,
+        lessonType: normalizeLessonType(group.lesson_type),
+        lessonTime: group.lesson_time,
+        columns: group.dates.map((item) => ({ key: columnKey(item.date, item.lesson_id), date: item.date, lessonId: item.lesson_id })),
+        lines,
+        counted: lines.reduce((sum, view) => sum + view.line.counted, 0),
+        unpaid: lines.reduce((sum, view) => sum + view.line.unpaid, 0),
+        amount: lines.reduce((sum, view) => sum + view.amount, 0),
       };
-      blocks.set(id, block);
-      columns.set(id, new Map());
-    }
-    if (!block.lessonTime && line.lesson_time) block.lessonTime = line.lesson_time;
-    block.lines.push(view);
-    block.counted += view.lessons;
-    block.unpaid += line.unpaid;
-    block.amount += view.amount;
-    const bucket = columns.get(id)!;
-    for (const mark of line.marks) {
-      const key = markKey(mark);
-      if (!bucket.has(key)) bucket.set(key, { key, date: mark.date, lessonId: mark.lesson_id });
-    }
-  }
-  for (const [id, block] of blocks) {
-    block.columns = [...columns.get(id)!.values()].sort((a, b) => a.date.localeCompare(b.date) || a.key.localeCompare(b.key));
-    block.lines.sort((a, b) => a.line.student_name.localeCompare(b.line.student_name, "ru"));
-  }
-  return [...blocks.values()];
+    })
+    .filter((block) => block.lines.length > 0);
 }
 
 /** The sheet's «ИТОГО»: the server's number while nothing is edited, else the sum of the lines. */
@@ -922,6 +808,7 @@ export function cleanNote(text: string): string | undefined {
   return note || undefined;
 }
 
+/** `existingRevision`: the revision of the sheet the teacher already has for the month (required then), else null. */
 export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: string, existingRevision: number | null): PayrollSaveBody {
   const overrides = buildLineOverrides(sheet, edits);
   const body: PayrollSaveBody = {
@@ -936,6 +823,7 @@ export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: stri
   return body;
 }
 
+/** «Пересчитать» is the same body with `recalculate`. */
 export function buildPatchBody(
   sheet: PayrollSheet,
   edits: SheetEdits,
@@ -956,6 +844,11 @@ export function buildPatchBody(
 
 export function percentKey(teacherId: string, lessonType: string): string {
   return `${teacherId}|${lessonType}`;
+}
+
+/** The types of a teacher in the order of the forms. */
+export function orderedTypes(teacher: Pick<PayrollMonthTeacher, "lesson_types">): PayrollTypeSuggestion[] {
+  return [...teacher.lesson_types].sort((a, b) => lessonTypeOrder(a.lesson_type) - lessonTypeOrder(b.lesson_type));
 }
 
 /** The text of a percent field of the month page: what the owner typed, else the suggestion. */
@@ -982,7 +875,7 @@ export function percentProblems(
 ): Array<{ teacherId: string; lessonType: LessonType; error: string }> {
   const out: Array<{ teacherId: string; lessonType: LessonType; error: string }> = [];
   for (const teacher of scope) {
-    for (const type of teacher.lesson_types) {
+    for (const type of orderedTypes(teacher)) {
       const error = parsePercent(monthPercentText(typed, teacher, type.lesson_type)).error;
       if (error) out.push({ teacherId: teacher.teacher_id, lessonType: type.lesson_type, error });
     }
@@ -1000,7 +893,7 @@ export function buildCalculateBody(
   if (scope.length === 0 || percentProblems(scope, typed).length > 0) return null;
   const percents: PayrollPercentInput[] = [];
   for (const teacher of scope) {
-    for (const type of teacher.lesson_types) {
+    for (const type of orderedTypes(teacher)) {
       const parsed = parsePercent(monthPercentText(typed, teacher, type.lesson_type));
       percents.push({ teacher_id: teacher.teacher_id, lesson_type: type.lesson_type, percent: parsed.value as string });
     }
@@ -1020,7 +913,7 @@ export type StatusChipTone = "none" | "saved" | "changed";
 export interface SheetStatusView {
   tone: StatusChipTone;
   label: string;
-  /** Second line: the revision and the sum of a saved sheet. */
+  /** Second line: the revision and the sum of a sheet whose data changed. */
   detail: string;
 }
 
@@ -1029,10 +922,10 @@ export function revisionLabel(revision: number): string {
 }
 
 /** «не рассчитано» / «сохранено · редакция 3 · 1 250 000 сум» / «данные изменились». */
-export function sheetStatus(sheet: PayrollSheetSummary | null): SheetStatusView {
+export function sheetStatus(sheet: Pick<PayrollMonthSheetRef, "revision" | "total_amount" | "stale"> | null): SheetStatusView {
   if (!sheet) return { tone: "none", label: "не рассчитано", detail: "" };
   const detail = `${revisionLabel(sheet.revision)} · ${formatMoney(sheet.total_amount)}`;
-  if (sheet.data_changed) return { tone: "changed", label: "данные изменились", detail };
+  if (sheet.stale) return { tone: "changed", label: "данные изменились", detail };
   return { tone: "saved", label: `сохранено · ${detail}`, detail: "" };
 }
 
@@ -1043,49 +936,53 @@ export const STATUS_CHIP_CLASS: Record<StatusChipTone, string> = {
 };
 
 export interface WarningView {
+  key: keyof PayrollSheetWarnings;
   text: string;
-  href: string | null;
+  href: string;
   tone: "warning" | "info";
 }
 
 /** Where a warning leads: the screen in which the owner can fix what it names. */
 export const WARNING_LINKS = {
-  open: "/owner/attendance?tab=open",
-  excuses: "/owner/attendance?tab=excuses",
-  noFee: "/owner/payments?bucket=none",
+  open_lessons: "/owner/attendance?tab=open",
+  pending_excused: "/owner/attendance?tab=excuses",
+  no_fee: "/owner/payments?bucket=none",
   unpaid: "/owner/payments?bucket=due",
 } as const;
 
-const WARNING_CODES: Record<string, "open" | "excuses" | "noFee" | "unpaid"> = {
-  open_lessons: "open",
-  unfinished_lessons: "open",
-  unclosed_lessons: "open",
-  pending_excuses: "excuses",
-  excused_pending: "excuses",
-  unconfirmed_excuses: "excuses",
-  no_fee: "noFee",
-  missing_fee: "noFee",
-  fee_missing: "noFee",
-  no_monthly_fee: "noFee",
-  unpaid_lessons: "unpaid",
-  unpaid: "unpaid",
-};
-
-export function warningView(warning: PayrollWarning): WarningView {
-  const kind = WARNING_CODES[warning.code];
-  const n = warning.count;
-  switch (kind) {
-    case "open":
-      return { text: `${n} ${pluralRu(n, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, href: WARNING_LINKS.open, tone: "warning" };
-    case "excuses":
-      return { text: `${n} ${pluralRu(n, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`, href: WARNING_LINKS.excuses, tone: "warning" };
-    case "noFee":
-      return { text: `не задана оплата: ${n}`, href: WARNING_LINKS.noFee, tone: "warning" };
-    case "unpaid":
-      return { text: `${n} ${pluralRu(n, ["урок не оплачен", "урока не оплачено", "уроков не оплачено"])}`, href: WARNING_LINKS.unpaid, tone: "info" };
-    default:
-      return { text: warning.message || warning.code, href: null, tone: "warning" };
+/**
+ * The warnings of a teacher's month or of a sheet: counts from the server, the words and the links are the screen's.
+ * A zero (or a count that was not looked up) shows nothing.
+ */
+export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings): WarningView[] {
+  const out: WarningView[] = [];
+  const open = counts.open_lessons;
+  if (open) {
+    out.push({ key: "open_lessons", text: `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, href: WARNING_LINKS.open_lessons, tone: "warning" });
   }
+  const pending = counts.pending_excused;
+  if (pending) {
+    out.push({
+      key: "pending_excused",
+      text: `${pending} ${pluralRu(pending, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`,
+      href: WARNING_LINKS.pending_excused,
+      tone: "warning",
+    });
+  }
+  if (counts.no_fee) {
+    out.push({ key: "no_fee", text: `не задана оплата: ${counts.no_fee}`, href: WARNING_LINKS.no_fee, tone: "warning" });
+  }
+  const unpaid = counts.unpaid;
+  if (unpaid) {
+    out.push({ key: "unpaid", text: `${unpaid} ${pluralRu(unpaid, ["урок не оплачен", "урока не оплачено", "уроков не оплачено"])}`, href: WARNING_LINKS.unpaid, tone: "info" });
+  }
+  return out;
+}
+
+/** «N уроков без преподавателя — не войдут в расчёт»; null when there are none. */
+export function lessonsWithoutTeacherText(count: number): string | null {
+  if (!count || count < 0) return null;
+  return `${count} ${pluralRu(count, ["урок без преподавателя — не войдёт в расчёт", "урока без преподавателя — не войдут в расчёт", "уроков без преподавателя — не войдут в расчёт"])}`;
 }
 
 // ── Errors and files ────────────────────────────────────────────────────────
@@ -1093,24 +990,33 @@ export function warningView(warning: PayrollWarning): WarningView {
 export const REVISION_CONFLICT_TEXT = "Ведомость изменил другой пользователь — обновите";
 export const FORBIDDEN_TEXT = "Недостаточно прав: зарплату видит только владелец центра.";
 
-export function isRevisionConflict(error: { status?: number; code?: string } | null | undefined): boolean {
-  return error?.code === "SHEET_REVISION_CONFLICT" || error?.status === 409;
+/** What `api()` throws: the status, and `message` / `code` of the server's `detail: {code, message, ...}`. */
+export interface PayrollErrorLike {
+  status?: number;
+  code?: string;
+  message?: string;
 }
 
-export function payrollErrorText(error: { status?: number; code?: string; message?: string } | null | undefined): string {
+export function isRevisionConflict(error: PayrollErrorLike | null | undefined): boolean {
+  return error?.code === "SHEET_REVISION_CONFLICT";
+}
+
+export function isPercentRequired(error: PayrollErrorLike | null | undefined): boolean {
+  return error?.code === "PERCENT_REQUIRED";
+}
+
+/** 403 and the revision conflict have the owner's own words; every other coded error shows the server's `detail.message`. */
+export function payrollErrorText(error: PayrollErrorLike | null | undefined): string {
   if (!error) return "Не удалось выполнить действие";
   if (error.status === 403) return FORBIDDEN_TEXT;
   if (isRevisionConflict(error)) return REVISION_CONFLICT_TEXT;
-  if (error.status === 404) return "Ведомость не найдена. Возможно, ссылка устарела.";
-  if (error.code === "MONTH_INVALID") return error.message || "Некорректный месяц";
-  if (error.code === "PERCENT_REQUIRED") return error.message || PERCENT_REQUIRED_TEXT;
+  if (error.status === 404 && !error.code) return "Ведомость не найдена. Возможно, ссылка устарела.";
   return error.message || "Не удалось выполнить действие";
 }
 
 /**
  * The file name of a `Content-Disposition` header: `filename*=UTF-8''…` first, then `filename="…"`.
- * `fallback` when the header is missing (a cross-origin answer hides it unless the server exposes it) or has
- * no usable name.  Path separators and control characters are dropped.
+ * `fallback` when the header is missing or has no usable name.  Path separators and control characters are dropped.
  */
 export function filenameFromContentDisposition(header: string | null | undefined, fallback: string): string {
   const clean = (name: string) => name.replace(/[\\/\u0000-\u001f]+/g, "_").trim();
@@ -1132,8 +1038,8 @@ export function filenameFromContentDisposition(header: string | null | undefined
   return fallback;
 }
 
-export function sheetFileName(teacherName: string, month: string): string {
-  const name = teacherName.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().replace(/\s+/g, "_") || "преподаватель";
+export function sheetFileName(teacherName: string | null | undefined, month: string): string {
+  const name = (teacherName ?? "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").trim().replace(/\s+/g, "_") || "преподаватель";
   return `Зарплата_${name}_${month}.xlsx`;
 }
 

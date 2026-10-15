@@ -16,10 +16,14 @@ import {
   sanitizePercentTyping,
   setPercentEdit,
   sheetLessonTypes,
+  teacherLabel,
+  warningViews,
   type PayrollDiff,
   type PayrollDiffLine,
+  type PayrollMonthWarnings,
   type PayrollRevision,
   type PayrollSheet,
+  type PayrollSheetWarnings,
   type SheetEdits,
   type SheetStatusView,
 } from "@/lib/payroll";
@@ -62,7 +66,7 @@ export function PercentEditor({
                     inputMode="decimal"
                     autoComplete="off"
                     value={text}
-                    aria-label={`Процент для ${sheet.teacher_name}, ${lessonTypeLabel(type)}`}
+                    aria-label={`Процент для ${teacherLabel(sheet.teacher_name)}, ${lessonTypeLabel(type)}`}
                     aria-invalid={Boolean(error)}
                     aria-describedby={error ? `${id}-error` : undefined}
                     onChange={(event) => onEdits((previous) => setPercentEdit(previous, sheet, type, sanitizePercentTyping(event.target.value)))}
@@ -176,17 +180,23 @@ export function ConflictBanner({ message, onReload, reloading }: { message: stri
   );
 }
 
-function change(before: number | null, after: number | null, format: (value: number) => string = String): string {
-  if (before === null && after === null) return "—";
-  if (before === after) return after === null ? "—" : format(after);
-  return `${before === null ? "—" : format(before)} → ${after === null ? "—" : format(after)}`;
+function change(before: number | null | undefined, after: number | null | undefined, format: (value: number) => string = String): string {
+  const was = before ?? null;
+  const now = after ?? null;
+  if (was === null && now === null) return "—";
+  if (was === now) return now === null ? "—" : format(now);
+  return `${was === null ? "—" : format(was)} → ${now === null ? "—" : format(now)}`;
 }
 
-const KIND_LABEL: Record<PayrollDiffLine["kind"], string> = {
+const STATUS_LABEL: Record<PayrollDiffLine["status"], string> = {
   changed: "",
   added: "новая строка",
   removed: "строки больше нет",
 };
+
+function signedMoney(delta: number): string {
+  return `${delta > 0 ? "+" : "−"}${formatMoney(Math.abs(delta))}`;
+}
 
 /** «Данные изменились — пересчитать?» with the difference line by line. */
 export function DiffBanner({
@@ -208,9 +218,10 @@ export function DiffBanner({
             Изменились посещаемость, оплаты или подтверждения пропусков. Сохранённая ведомость сама не меняется:
             пересчёт создаст новую редакцию, прежняя останется в истории.
           </p>
-          {diff.total_before !== null && diff.total_after !== null && diff.total_before !== diff.total_after && (
+          {diff.saved_total !== diff.fresh_total && (
             <p className="mt-1 text-sm font-semibold tabular-nums">
-              Итого: {formatMoney(diff.total_before)} → {formatMoney(diff.total_after)}
+              Итого: {formatMoney(diff.saved_total)} → {formatMoney(diff.fresh_total)}
+              {diff.delta_amount !== 0 && <span className="ml-2 font-medium">({signedMoney(diff.delta_amount)})</span>}
             </p>
           )}
         </div>
@@ -240,15 +251,19 @@ export function DiffBanner({
               </thead>
               <tbody>
                 {diff.lines.slice(0, 100).map((line) => (
-                  <tr key={`${line.membership_id}-${line.kind}`} className="border-b border-amber-100 last:border-b-0">
+                  <tr key={`${line.membership_id}-${line.status}`} className="border-b border-amber-100 last:border-b-0">
                     <th scope="row" className="py-1.5 pr-3 text-left font-medium">
-                      {line.student_name}
+                      {line.student_name ?? "Ученик"}
                       {line.group_name && <span className="block font-normal text-amber-900/70">{line.group_name}</span>}
-                      {KIND_LABEL[line.kind] && <span className="block font-normal text-amber-900/70">{KIND_LABEL[line.kind]}</span>}
+                      {STATUS_LABEL[line.status] && <span className="block font-normal text-amber-900/70">{STATUS_LABEL[line.status]}</span>}
+                      {line.changes.length > 0 && <span className="block font-normal text-amber-900/70">изменилось: {line.changes.join(", ")}</span>}
                     </th>
-                    <td className="py-1.5 pr-3 tabular-nums">{change(line.counted_before, line.counted_after)}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{change(line.unpaid_before, line.unpaid_after)}</td>
-                    <td className="whitespace-nowrap py-1.5 text-right tabular-nums">{change(line.amount_before, line.amount_after, formatMoney)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{change(line.saved?.counted, line.fresh?.counted)}</td>
+                    <td className="py-1.5 pr-3 tabular-nums">{change(line.saved?.unpaid, line.fresh?.unpaid)}</td>
+                    <td className="whitespace-nowrap py-1.5 text-right tabular-nums">
+                      {change(line.saved?.amount, line.fresh?.amount, formatMoney)}
+                      {line.delta_amount !== 0 && <span className="block text-amber-900/70">{signedMoney(line.delta_amount)}</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -258,6 +273,29 @@ export function DiffBanner({
         </details>
       )}
     </section>
+  );
+}
+
+/** The warnings of a teacher's month or a sheet: only what is above 0, each one a link to where it is fixed. */
+export function WarningLinks({
+  counts, label, stacked = false,
+}: {
+  counts: PayrollSheetWarnings | PayrollMonthWarnings;
+  label: string;
+  /** One under another (a table cell) instead of in a row. */
+  stacked?: boolean;
+}) {
+  const views = warningViews(counts);
+  if (views.length === 0) return null;
+  return (
+    <ul aria-label={label} className={`${stacked ? "space-y-1" : "flex flex-wrap gap-x-4 gap-y-1"} print:hidden`}>
+      {views.map((view) => (
+        <li key={view.key} className={`flex items-start gap-1.5 text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          <Link href={view.href} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -293,7 +331,7 @@ export function RevisionList({ revisions, currentRevision }: { revisions: Payrol
               </p>
             </div>
             <p className="mt-1 text-xs text-slate-500">
-              {[when, revision.changed_by_name].filter(Boolean).join(" · ") || "—"}
+              {[when, revision.changed_by_name, `строк: ${revision.line_count}`].filter(Boolean).join(" · ")}
             </p>
             {percents.length > 0 && (
               <p className="mt-1 text-xs text-slate-600">

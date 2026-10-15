@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo } from "react";
-import { MAX_MONEY, formatMoney, formatMoneyInput, parseMoneyInput } from "@/lib/payments";
+import { useMemo, useState } from "react";
+import { MAX_MONEY, formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
 import {
   buildBlocks,
   buildLineViews,
   formatDayMonth,
   lessonTypeLabel,
+  lineNotes,
   markCell,
   markFor,
   percentLabel,
@@ -31,9 +32,11 @@ function FeeCell({
   onChange: (fee: number | null) => void;
 }) {
   const { line } = view;
-  const marked = view.fee !== line.monthly_fee || line.fee_overridden;
+  // While the field has focus it shows what is typed: an emptied field means «the membership's own fee» and must not
+  // be refilled under the owner's fingers; on leaving it shows the fee in force.
+  const [draft, setDraft] = useState<string | null>(null);
   const label = `Оплата в месяц: ${line.student_name}, ${line.group_name}`;
-  const text = formatMoneyInput(view.fee);
+  const source = line.source_fee;
   return (
     <div className="flex flex-col items-end gap-0.5">
       {editable ? (
@@ -42,19 +45,26 @@ function FeeCell({
           inputMode="numeric"
           autoComplete="off"
           aria-label={label}
-          placeholder="не задана"
-          value={text}
+          placeholder={source !== null ? formatMoneyInput(source) : "не задана"}
+          value={draft ?? formatMoneyInput(view.fee)}
           onChange={(event) => {
-            const parsed = parseMoneyInput(event.target.value);
+            const text = reformatMoneyTyping(event.target.value);
+            setDraft(text);
+            const parsed = parseMoneyInput(text);
             onChange(parsed === null ? null : Math.min(parsed, MAX_MONEY));
           }}
+          onBlur={() => setDraft(null)}
           className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-sm tabular-nums text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 print:hidden"
         />
       ) : null}
       <span className={`${editable ? "hidden print:inline" : ""} whitespace-nowrap tabular-nums`}>
         {view.fee !== null ? formatMoney(view.fee) : "не задана"}
       </span>
-      {marked && <span className="text-[10px] font-medium text-primary-700 print:text-black">изменена</span>}
+      {view.feeOverridden && (
+        <span className="text-[10px] font-medium text-primary-700 print:text-black">
+          изменена{source !== null ? ` · было ${formatMoney(source)}` : ""}
+        </span>
+      )}
     </div>
   );
 }
@@ -106,7 +116,7 @@ export function PayrollSheetTable({
   onEdits?: (update: (previous: SheetEdits) => SheetEdits) => void;
 }) {
   const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
-  const blocks = useMemo(() => buildBlocks(views), [views]);
+  const blocks = useMemo(() => buildBlocks(sheet, views), [sheet, views]);
   const total = sheetTotal(sheet, views, edits);
   const canEdit = editable && Boolean(onEdits);
 
@@ -168,8 +178,8 @@ export function PayrollSheetTable({
                           {line.pending_excused > 0 && (
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
                           )}
-                          {line.warnings.map((warning) => (
-                            <span key={warning} className="block text-[11px] font-normal leading-tight text-amber-700">{warning}</span>
+                          {lineNotes(view).map((note) => (
+                            <span key={note} className="block text-[11px] font-normal leading-tight text-amber-700">{note}</span>
                           ))}
                         </th>
                         <td className={`${CELL} text-right`}>
@@ -196,7 +206,7 @@ export function PayrollSheetTable({
                             </td>
                           );
                         })}
-                        <td className={`${CELL} text-right font-semibold tabular-nums text-slate-900`}>{view.lessons}</td>
+                        <td className={`${CELL} text-right font-semibold tabular-nums text-slate-900`}>{line.counted}</td>
                         <td className={CELL}>
                           <IncludeCell
                             view={view}
