@@ -1,20 +1,7 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-import { BarChart3 } from "lucide-react";
-
-export default function OwnerAnalyticsPage() {
-  return (
-    <ComingSoon
-      title="Аналитика организации"
-      description="Модуль откроется после завершения 1-2 этапа подключения центра."
-      icon={BarChart3}
-      color="purple"
-      features={[
-        "Рейтинг эффективности преподавателей (θ)",
-        "Бизнес-показатели и отток (Retention/Churn)",
-        "Анализ наполняемости и рентабельности групп",
-      ]}
-    />
-  );
+// Not built yet (see ROADMAP «Отложенные разделы»): the menu no longer links here,
+// and an old bookmark lands on the working home instead of a «Скоро» stub.
+export default function Page() {
+  redirect("/owner/dashboard");
 }

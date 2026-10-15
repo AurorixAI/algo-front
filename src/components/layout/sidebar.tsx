@@ -7,7 +7,6 @@ import {
   Users,
   GraduationCap,
   FileText,
-  BarChart3,
   Settings,
   LogOut,
   ChevronLeft,
@@ -111,7 +110,6 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   const showPayments = !DEMO_MODE && (rawRole === "owner" || role === "admin") && paymentsAvailable;
 
   const adminNav: NavItem[] = [
-    { href: "/admin/dashboard", label: "Панель управления", icon: LayoutDashboard, comingSoon: true },
     { href: "/admin/diagnostics", label: "Диагностика", icon: Search },
     { href: "/admin/exams", label: "Экзамены", icon: FileText },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
@@ -122,12 +120,10 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     ...(showPayments
       ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
       : []),
-    { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
   ];
 
   const ownerNav: NavItem[] = [
     { href: "/owner/dashboard", label: "Панель управления", icon: LayoutDashboard },
-    { href: "/owner/analytics", label: "Аналитика", icon: BarChart3 },
     { href: "/owner/groups", label: "Группы", icon: Users },
     ...(showExcuses
       ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
@@ -183,7 +179,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       {/* Header: Logo, Organization */}
       <div className="h-[72px] flex items-center px-4 border-b border-slate-100 gap-3 shrink-0 overflow-hidden">
         <Link
-          href={rawRole === "owner" ? "/owner/dashboard" : role === "admin" ? "/admin/dashboard" : "/teacher/dashboard"}
+          href={rawRole === "owner" ? "/owner/dashboard" : role === "admin" ? "/admin/diagnostics" : "/teacher/dashboard"}
           className="flex items-center gap-3 overflow-hidden group flex-1 min-w-0"
         >
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-600 via-primary-700 to-indigo-700 flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm shadow-primary-600/25 group-hover:scale-105 transition-transform">

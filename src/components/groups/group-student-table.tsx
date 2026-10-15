@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, Loader2 } from "lucide-react";
+import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, UserRound, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { StudentInGroup } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
+import { RowMenu } from "@/components/ui/row-menu";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 
@@ -25,6 +26,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
   const [removeTarget, setRemoveTarget] = useState<StudentInGroup | null>(null);
   const [removing, setRemoving] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   const isTeacher = pathname?.startsWith("/teacher");
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
 
@@ -121,14 +123,14 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
 
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full text-left border-collapse table-fixed ${removable ? "min-w-[860px]" : ""}`}>
+      <table className={`w-full text-left border-collapse table-fixed ${removable ? "min-w-[760px]" : ""}`}>
         <colgroup>
-          <col className={removable ? "w-[30%]" : "w-[36%]"} />
-          <col className={removable ? "w-[14%]" : "w-[16%]"} />
-          <col className={removable ? "w-[9%]" : "w-[10%]"} />
-          <col className={removable ? "w-[16%]" : "w-[18%]"} />
+          <col className={removable ? "w-[34%]" : "w-[36%]"} />
+          <col className="w-[16%]" />
+          <col className="w-[10%]" />
+          <col className="w-[18%]" />
           <col className={removable ? "w-[16%]" : "w-[20%]"} />
-          {removable && <col className="w-[15%]" />}
+          {removable && <col className="w-[6%]" />}
         </colgroup>
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-100">
@@ -137,7 +139,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
             <Th col="class_level" label="Класс" />
             <Th col="phone" label="Телефон" align="text-center" />
             <Th col="joined_at" label="Дата зачисления" align="text-center" className={removable ? "" : "pr-6"} />
-            {removable && <th className="px-4 py-3.5 pr-6 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">Действия</th>}
+            {removable && <th className="px-4 py-3.5 pr-6"><span className="sr-only">Действия</span></th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -215,14 +217,13 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
 
                 {removable && (
                   <td className="px-4 py-4 pr-6 align-middle text-right">
-                    <button
-                      type="button"
-                      onClick={() => setRemoveTarget(s)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <UserMinus className="h-3.5 w-3.5" />
-                      Убрать из группы
-                    </button>
+                    <RowMenu
+                      label={`Действия: ${s.full_name || `${s.last_name} ${s.first_name}`}`}
+                      items={[
+                        { key: "profile", label: "Карточка ученика", icon: UserRound, onSelect: () => router.push(`${basePath}/${s.id}`) },
+                        { key: "remove", label: "Убрать из группы", icon: UserMinus, danger: true, onSelect: () => setRemoveTarget(s) },
+                      ]}
+                    />
                   </td>
                 )}
               </motion.tr>

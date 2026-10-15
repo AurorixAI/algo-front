@@ -1,22 +1,7 @@
-﻿"use client";
+import { redirect } from "next/navigation";
 
-import { ComingSoon } from "@/components/ui/coming-soon";
-import { LayoutDashboard } from "lucide-react";
-
-export default function AdminDashboardPage() {
-  return (
-    <ComingSoon
-      title="Панель управления"
-      description="Общая сводка по организации — ключевые метрики, активность и прогресс учеников."
-      icon={LayoutDashboard}
-      color="primary"
-      features={[
-        "Количество активных учеников и учителей",
-        "Статистика диагностик за неделю/месяц",
-        "Средний балл по организации",
-        "График активности по дням",
-        "Топ-5 проблемных тем",
-      ]}
-    />
-  );
+// Not built yet (see ROADMAP «Отложенные разделы»): the menu no longer links here,
+// and an old bookmark lands on the working home instead of a «Скоро» stub.
+export default function Page() {
+  redirect("/admin/diagnostics");
 }
