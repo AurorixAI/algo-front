@@ -69,7 +69,8 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
         ...(selfAssignTeacher ? {} : { teacher_id: form.teacher_id || undefined }),
         description: form.description.trim() || undefined,
         max_students: form.max_students,
-        lesson_type: form.lesson_type,
+        // A teacher creating a group for himself does not choose the kind: it is a plain «Группа» (the owner changes it).
+        ...(selfAssignTeacher ? {} : { lesson_type: form.lesson_type }),
       });
       onCreated(group);
     } catch (e: any) {
@@ -184,25 +185,27 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                   </div>
                 </div>
 
-                {/* Lesson type */}
-                <div>
-                  <label htmlFor="group-lesson-type" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Тип занятий
-                  </label>
-                  <div className="relative">
-                    <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <select
-                      id="group-lesson-type"
-                      value={form.lesson_type}
-                      onChange={(e) => setForm({ ...form, lesson_type: normalizeLessonType(e.target.value) })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
-                    >
-                      {LESSON_TYPES.map((type) => (
-                        <option key={type.key} value={type.key}>{type.label}</option>
-                      ))}
-                    </select>
+                {/* Lesson type: set by the owner and the administrator, not by a teacher who creates a group for himself */}
+                {!selfAssignTeacher && (
+                  <div>
+                    <label htmlFor="group-lesson-type" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                      Тип занятий
+                    </label>
+                    <div className="relative">
+                      <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <select
+                        id="group-lesson-type"
+                        value={form.lesson_type}
+                        onChange={(e) => setForm({ ...form, lesson_type: normalizeLessonType(e.target.value) })}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
+                      >
+                        {LESSON_TYPES.map((type) => (
+                          <option key={type.key} value={type.key}>{type.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Teacher */}
                 {selfAssignTeacher ? (

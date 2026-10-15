@@ -8,11 +8,15 @@ import { formatBusinessDate, formatUtcNaiveAsBusinessDateTime } from "@/lib/busi
 import { formatMoney } from "@/lib/payments";
 import {
   EMPTY_EDITS,
+  EMPTY_SHEET_REASON,
+  REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
   buildPatchBody,
   checkMissingPercents,
   editsDirty,
   editsProblem,
+  freshFingerprintOf,
+  isDataChanged,
   isOpenMonth,
   isPercentRequired,
   isRevisionConflict,
@@ -94,6 +98,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const [missingTexts, setMissingTexts] = useState<Record<string, string>>({});
   const [missingAttempted, setMissingAttempted] = useState(false);
   const [missingError, setMissingError] = useState<string | null>(null);
+  /** The recalculation was refused because the data moved after the diff the owner looked at (409 SHEET_DATA_CHANGED). */
+  const [dataChanged, setDataChanged] = useState<{ message: string; fingerprint: string | null; acknowledged: boolean } | null>(null);
 
   const loads = useRef(createRequestSequence());
   const diffs = useRef(createRequestSequence());
@@ -101,7 +107,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const sheetIdRef = useRef(sheetId);
   sheetIdRef.current = sheetId;
 
-  const dirty = editsDirty(edits);
+  const dirty = sheet ? editsDirty(sheet, edits) : false;
   useUnsavedGuard(dirty, UNSAVED_TEXT);
 
   const loadDiff = useCallback(async () => {
@@ -193,7 +199,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, extraPercents }));
+      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, extraPercents, expectedFingerprint: diff?.source_fingerprint ?? dataChanged?.fingerprint ?? null }));
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
         `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? revisionLabel(updated.revision) : "новая редакция"}`,
@@ -203,6 +209,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       setMissingTexts({});
       setMissingAttempted(false);
       setMissingError(null);
+      setDataChanged(null);
       setSheet(named(updated));
       setEdits(EMPTY_EDITS);
       setNote("");
@@ -215,6 +222,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       const error = cause as PayrollErrorLike;
       const types = isPercentRequired(error) ? missingTypesOf(error, sheet.teacher_id) : [];
       if (isRevisionConflict(error)) setConflict(true);
+      else if (isDataChanged(error)) setDataChanged({ message: payrollErrorText(error), fingerprint: freshFingerprintOf(error), acknowledged: false });
       else if (types.length > 0) {
         // Ask for the missing percents right here and retry with them.
         setMissing({ types, message: payrollErrorText(error), recalculate });
@@ -360,9 +368,23 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               )}
               {conflict && (
                 <ConflictBanner
-                  message={payrollErrorText({ status: 409 })}
+                  message={REVISION_CONFLICT_TEXT}
                   reloading={refreshing}
                   onReload={async () => { setRefreshing(true); await load(true); setRefreshing(false); }}
+                />
+              )}
+              {dataChanged && !dataChanged.acknowledged && (
+                <ConflictBanner
+                  message={dataChanged.message}
+                  actionLabel="Пересчитать"
+                  reloading={refreshing}
+                  onReload={async () => {
+                    // Look at the new difference first; the next «Пересчитать» expects exactly this data.
+                    setRefreshing(true);
+                    await loadDiff();
+                    setRefreshing(false);
+                    setDataChanged((current) => (current ? { ...current, acknowledged: true } : current));
+                  }}
                 />
               )}
               {missing && (
@@ -403,6 +425,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 problem={editsProblem(sheet, edits) ?? saveError}
                 saveLabel={`Сохранить как редакцию ${(sheet.revision ?? 1) + 1}`}
                 canSaveClean={false}
+                blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
                 saving={saving}
                 note={note}
                 onNote={setNote}

@@ -95,20 +95,22 @@ export function PercentEditor({
  * sticks to the bottom of the screen while there is something to save, so a long sheet needs no scrolling back.
  */
 export function SaveBar({
-  dirty, problem, saveLabel, canSaveClean, saving, note, onNote, onSave, onDiscard,
+  dirty, problem, saveLabel, canSaveClean, blockedReason = null, saving, note, onNote, onSave, onDiscard,
 }: {
   dirty: boolean;
   problem: string | null;
   saveLabel: string;
   /** A calculation that is not saved yet can be saved as it is; a saved sheet only when edited. */
   canSaveClean: boolean;
+  /** A reason the sheet cannot be saved at all (it has no lines): the button is off and says why. */
+  blockedReason?: string | null;
   saving: boolean;
   note: string;
   onNote: (text: string) => void;
   onSave: () => void;
   onDiscard: () => void;
 }) {
-  const disabled = saving || Boolean(problem) || (!dirty && !canSaveClean);
+  const disabled = saving || Boolean(problem) || Boolean(blockedReason) || (!dirty && !canSaveClean);
   return (
     <div
       className={`rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-20 border-primary-200 shadow-lg" : "border-slate-200"}`}
@@ -149,6 +151,7 @@ export function SaveBar({
             type="button"
             onClick={onSave}
             disabled={disabled}
+            title={blockedReason ?? undefined}
             className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -161,7 +164,14 @@ export function SaveBar({
 }
 
 /** Another user saved first (409): the sheet on screen is out of date. */
-export function ConflictBanner({ message, onReload, reloading }: { message: string; onReload: () => void; reloading: boolean }) {
+export function ConflictBanner({
+  message, onReload, reloading, actionLabel = "Обновить",
+}: {
+  message: string;
+  onReload: () => void;
+  reloading: boolean;
+  actionLabel?: string;
+}) {
   return (
     <div role="alert" className="flex flex-col gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-900 sm:flex-row sm:items-center sm:justify-between print:hidden">
       <p className="flex min-w-0 items-start gap-2 text-sm font-medium">
@@ -175,7 +185,7 @@ export function ConflictBanner({ message, onReload, reloading }: { message: stri
         className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 disabled:opacity-60"
       >
         <RefreshCw className={`h-4 w-4 ${reloading ? "animate-spin" : ""}`} />
-        Обновить
+        {actionLabel}
       </button>
     </div>
   );

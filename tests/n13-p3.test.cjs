@@ -442,7 +442,7 @@ test("the fee field: a number sets, an empty field returns to the membership's f
   const overridden = line({ fee_overridden: true, monthly_fee: 500000, source_fee: 450000, amount: 41667 });
   const sheet = sheetOf({ lines: [overridden, line({ membership_id: "m2", student_name: "Б", monthly_fee: null, source_fee: null, fee_overridden: false, amount: 0, counted: 3 })] });
   // typing the sheet's own fee back: nothing changes
-  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000)), false);
+  assert.equal(R.editsDirty(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000)), false);
   // emptying an overridden line = back to the membership's fee: an edit, with null and the source fee in force
   const reset = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", null);
   assert.deepEqual(reset.fees, { m1: null });
@@ -454,9 +454,9 @@ test("the fee field: a number sets, an empty field returns to the membership's f
   assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 450000).fees, { m1: null });
   // a reset of a line that is not overridden changes nothing
   const plain1 = sheetOf();
-  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", null)), false);
-  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 450000)), false);
-  assert.equal(R.editsDirty(R.setFeeEdit(R.EMPTY_EDITS, plain1, "m2", null)), false); // no fee at all: nothing to return to
+  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", null)), false);
+  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 450000)), false);
+  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m2", null)), false); // no fee at all: nothing to return to
   // a free student (0) is a fee, not an empty field
   const free = R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 0);
   assert.deepEqual(free.fees, { m1: 0 });
@@ -486,8 +486,8 @@ test("a percent edit changes only the lines of its lesson type", () => {
   assert.equal(R.percentFieldText(sheet, edits, "individual"), "30");
   assert.equal(R.percentFieldText(sheet, edits, "group"), "50");
   // typing the old value back is no edit
-  assert.equal(R.editsDirty(R.setPercentEdit(edits, sheet, "individual", "60")), false);
-  assert.equal(R.editsDirty(R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "50,00")), false);
+  assert.equal(R.editsDirty(sheet, R.setPercentEdit(edits, sheet, "individual", "60")), false);
+  assert.equal(R.editsDirty(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "50,00")), false);
   // a comma is fine
   assert.equal(R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "33,5"))[0].percent, "33.5");
   // a line that had no percent gets one from the field
@@ -498,7 +498,7 @@ test("a percent edit changes only the lines of its lesson type", () => {
 test("a percent that is not a percent blocks saving and keeps the preview on the last good value", () => {
   const sheet = sheetOf();
   const emptied = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "");
-  assert.equal(R.editsDirty(emptied), true);
+  assert.equal(R.editsDirty(sheet, emptied), true);
   assert.match(R.editsProblem(sheet, emptied), /^Группа: укажите процент/);
   assert.equal(R.buildLineViews(sheet, emptied)[0].amount, 37500);
   assert.match(R.editsProblem(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "150")), /не может быть больше 100/);
@@ -510,11 +510,11 @@ test("a percent that is not a percent blocks saving and keeps the preview on the
 test("edits drop themselves when they return to the saved value; a stranger's id is ignored", () => {
   const sheet = sheetOf();
   let edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000);
-  assert.equal(R.editsDirty(edits), true);
+  assert.equal(R.editsDirty(sheet, edits), true);
   edits = R.setFeeEdit(edits, sheet, "m1", 450000);
-  assert.equal(R.editsDirty(edits), false);
+  assert.equal(R.editsDirty(sheet, edits), false);
   edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
-  assert.equal(R.editsDirty(R.setIncludeEdit(edits, sheet, "m1", false)), false);
+  assert.equal(R.editsDirty(sheet, R.setIncludeEdit(edits, sheet, "m1", false)), false);
   assert.equal(R.setFeeEdit(R.EMPTY_EDITS, sheet, "nope", 1), R.EMPTY_EDITS);
   assert.equal(R.setIncludeEdit(R.EMPTY_EDITS, sheet, "nope", true), R.EMPTY_EDITS);
 });
@@ -570,9 +570,11 @@ test("save body: percents of every type of the sheet as {teacher_id, lesson_type
     percents: [{ teacher_id: "t1", lesson_type: "group", percent: "33.5" }, { teacher_id: "t1", lesson_type: "pair", percent: "50" }, { teacher_id: "t1", lesson_type: "individual", percent: "60" }],
     line_overrides: [{ membership_id: "m1", monthly_fee: 500000 }, { membership_id: "m2", include_unpaid: true }],
     note: "после справки",
+    expected_fingerprint: "abc", // the preview the owner is looking at
   });
   // nothing edited, no note, no sheet yet: only the required fields, and no `revision` (the server answers 409 to one without a sheet)
-  assert.deepEqual(Object.keys(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", null)), ["month", "teacher_id", "percents"]);
+  assert.deepEqual(Object.keys(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", null)), ["month", "teacher_id", "percents", "expected_fingerprint"]);
+  assert.equal("expected_fingerprint" in R.buildSaveBody({ ...sheet, source_fingerprint: "" }, R.EMPTY_EDITS, "", null), false);
   // a sheet that already exists travels with the revision the owner saw (required then)
   assert.equal(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", 3).revision, 3);
   // an emptied fee of an overridden line is sent as null: «back to the membership's fee», not left out
@@ -775,7 +777,7 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
 test("the unsaved-changes guard covers closing the tab, links and the Back button", () => {
   const guard = read("src/lib/use-unsaved-guard.ts");
   assert.match(guard, /beforeunload/);
-  assert.match(guard, /document\.addEventListener\("click", onClick, true\)/);
+  assert.match(guard, /env\.document\.addEventListener\("click", onClick, true\)/);
   assert.match(guard, /popstate/);
   assert.match(guard, /event\.stopPropagation\(\)/);
   assert.match(R.UNSAVED_TEXT, /несохранённые правки/);
@@ -914,7 +916,7 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) setShowErrors\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);
-  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents \}\)\)/);
+  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents, expectedFingerprint:/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /buildBlocks\(sheet, views\)/);
   // the types are the server's field names
   for (const field of ["lessons_without_teacher", "lessons_count", "period_start", "stale: boolean", "source_fee", "groups: PayrollGroupBlock[]", "dates: PayrollBlockDate[]",
@@ -1019,6 +1021,329 @@ test("the banner asks for a percent per missing type, with the same validation, 
   assert.match(page, /<MissingPercentBanner/);
   assert.match(page, /checkMissingPercents\(sheet\.teacher_id, missing\.types, missingTexts\)/);
   assert.match(page, /void apply\(missing\.recalculate, checked\.percents\)/);
-  assert.match(page, /buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents \}\)/);
+  assert.match(page, /buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents, expectedFingerprint:/);
   assert.match(read("src/lib/api.ts"), /new ApiError\(response\.status, message, code, undefined, error\?\.detail\)/);
+});
+
+// ---- 16. R3 fixes ----------------------------------------------------------------------------------------------------
+
+test("a teacher who creates a group for himself does not choose the kind: no select, no lesson_type in the request", () => {
+  const modal = read("src/components/groups/group-create-modal.tsx");
+  assert.match(modal, /\{!selfAssignTeacher && \(\s*<div>\s*<label htmlFor="group-lesson-type"/);
+  assert.match(modal, /\.\.\.\(selfAssignTeacher \? \{\} : \{ lesson_type: form\.lesson_type \}\)/);
+  assert.doesNotMatch(modal, /^\s+lesson_type: form\.lesson_type,/m);
+  // the owner's and the administrator's forms keep it (the modal is shared)
+  assert.match(modal, /LESSON_TYPES\.map/);
+});
+
+test("the revision-conflict banners carry the owner's text, with or without a code in the answer", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { ConflictBanner } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  for (const file of ["payroll-month-page.tsx", "payroll-sheet-page.tsx"]) {
+    const source = read(`src/components/payroll/${file}`);
+    assert.doesNotMatch(source, /payrollErrorText\(\{ status: 409 \}\)/, file);
+    assert.match(source, /message=\{REVISION_CONFLICT_TEXT\}/, file);
+  }
+  const banner = (props) => plain(renderToStaticMarkup(React.createElement(ConflictBanner, { message: R.REVISION_CONFLICT_TEXT, onReload: () => {}, reloading: false, ...props })).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
+  assert.ok(banner({}).includes("Ведомость изменил другой пользователь — обновите"));
+  assert.ok(banner({}).includes("Обновить"));
+  assert.ok(banner({ message: "Данные изменились после расчёта — пересчитайте и проверьте суммы", actionLabel: "Пересчитать" }).includes("Пересчитать"));
+  // a 409 with no code is not claimed to be a conflict by the helper: the banners never ask it
+  assert.equal(R.isRevisionConflict({ status: 409 }), false);
+});
+
+test("typing a percent keeps the text as typed: «50,» on its way to «50,5» is not thrown back to «50»", () => {
+  const sheet = sheetOf();
+  let edits = R.EMPTY_EDITS;
+  const type = (text) => { edits = R.setPercentEdit(edits, sheet, "group", R.sanitizePercentTyping(text)); return edits; };
+  const field = () => R.percentFieldText(sheet, edits, "group");
+  const percentOfFirstLine = () => R.buildLineViews(sheet, edits)[0].percent;
+  // select all and type 50,5 from the base «50»: every keystroke is shown as typed
+  type("5");
+  assert.equal(field(), "5");
+  assert.equal(R.editsDirty(sheet, edits), true);
+  type("50");
+  assert.equal(field(), "50");
+  assert.equal(R.editsDirty(sheet, edits), false);              // equal to the sheet: nothing to save...
+  assert.equal("percents" in R.buildPatchBody(sheet, edits, ""), false);
+  type("50,");
+  assert.equal(field(), "50,");                                 // ...but the comma stays
+  assert.equal(R.editsDirty(sheet, edits), false);
+  assert.equal(R.editsProblem(sheet, edits), null);
+  type("50,5");
+  assert.equal(field(), "50,5");
+  assert.equal(R.editsDirty(sheet, edits), true);
+  assert.equal(percentOfFirstLine(), "50.5");
+  assert.deepEqual(R.buildPatchBody(sheet, edits, "").percents.find((p) => p.lesson_type === "group"), { teacher_id: "t1", lesson_type: "group", percent: "50.5" });
+  // backspace all the way: «50,» (clean again), «50», «5», empty (blocks saving), then 4, 40
+  for (const [text, dirty] of [["50,", false], ["50", false], ["5", true], ["", true], ["4", true], ["40", true]]) {
+    type(text);
+    assert.equal(field(), text, `shows «${text}»`);
+    assert.equal(R.editsDirty(sheet, edits), dirty, `dirty at «${text}»`);
+  }
+  type("");
+  assert.match(R.editsProblem(sheet, edits), /укажите процент/);
+  // a dot works the same, and the original value typed with a trailing zero is no change either
+  type("50.0");
+  assert.equal(field(), "50.0");
+  assert.equal(R.editsDirty(sheet, edits), false);
+  // the amounts follow the typed value only while it differs
+  type("5");
+  assert.equal(R.buildLineViews(sheet, edits)[0].edited, true);
+  type("50,00");
+  assert.equal(R.buildLineViews(sheet, edits)[0].edited, false);
+  assert.equal(R.buildLineViews(sheet, edits)[0].amount, 37500);
+});
+
+/** A browser's history for the guard: a stack, an asynchronous back(), popstate, listeners. */
+function fakeBrowser() {
+  const entries = [{ url: "https://app.test/owner/payroll?month=2026-09", state: { n: 0 } }, { url: "https://app.test/owner/payroll/s1", state: { n: 1 } }];
+  let index = 1;
+  const listeners = { popstate: new Set(), beforeunload: new Set() };
+  const clicks = new Set();
+  const queue = [];
+  const confirms = [];
+  const answers = [];
+  const location = (key) => new URL(entries[index].url)[key];
+  const traverse = (delta) => { index += delta; for (const listener of [...listeners.popstate]) listener({}); };
+  const env = {
+    window: {
+      history: {
+        get state() { return entries[index].state; },
+        pushState(state, _unused, url) { entries.splice(index + 1); entries.push({ url: url ?? entries[index].url, state }); index = entries.length - 1; },
+        back() { queue.push(-1); },
+      },
+      location: { get href() { return entries[index].url; }, get pathname() { return location("pathname"); }, get search() { return location("search"); }, get origin() { return location("origin"); } },
+      confirm(message) { confirms.push(message); return answers.length ? answers.shift() : true; },
+      addEventListener(type, listener) { listeners[type].add(listener); },
+      removeEventListener(type, listener) { listeners[type].delete(listener); },
+    },
+    document: {
+      addEventListener(type, listener) { if (type === "click") clicks.add(listener); },
+      removeEventListener(type, listener) { if (type === "click") clicks.delete(listener); },
+    },
+  };
+  return {
+    env, entries, listeners, clicks, confirms, answers,
+    get index() { return index; },
+    get url() { return entries[index].url; },
+    /** What the browser does with the queued history.back() calls. */
+    flush() { while (queue.length) traverse(queue.shift()); },
+    /** The user presses Back. */
+    userBack() { traverse(-1); },
+    click(href, over = {}) {
+      const event = {
+        defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false,
+        target: { closest: () => ({ href, target: "", hasAttribute: () => false, ...(over.anchor ?? {}) }) }, stopped: false,
+        preventDefault() { this.defaultPrevented = true; }, stopPropagation() { this.stopped = true; }, ...over.event,
+      };
+      for (const listener of [...clicks]) listener(event);
+      return event;
+    },
+  };
+}
+const { createUnsavedGuard } = require(path.join(root, "src/lib/use-unsaved-guard.ts"));
+
+test("save, then Back: one press goes back (the sentinel is taken off when the page is clean)", () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  guard.update(true);
+  assert.equal(browser.entries.length, 3);                       // the sentinel sits on top of the page
+  assert.equal(browser.index, 2);
+  guard.update(false);                                           // saved
+  assert.equal(browser.index, 2);                                // the back is on its way...
+  browser.flush();
+  assert.equal(browser.index, 1);                                // ...and has landed on the page
+  assert.equal(browser.url, "https://app.test/owner/payroll/s1");
+  assert.equal(browser.confirms.length, 0);                      // nobody was asked about our own back
+  browser.userBack();
+  assert.equal(browser.index, 0);                                // ONE press: on the previous page
+  assert.equal(browser.url, "https://app.test/owner/payroll?month=2026-09");
+  assert.equal(browser.confirms.length, 0);
+  assert.equal(browser.listeners.beforeunload.size, 0);
+  assert.equal(browser.clicks.size, 0);
+});
+
+test("dirty again after a save: Back is guarded again, «Остаться» keeps the page, «Уйти» leaves in one go", () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  guard.update(true);
+  guard.update(false);
+  browser.flush();
+  assert.equal(browser.index, 1);
+  guard.update(true);                                            // edited again
+  assert.equal(browser.entries.length, 3);
+  assert.equal(browser.index, 2);
+  assert.equal(browser.listeners.beforeunload.size, 1);
+  browser.answers.push(false);                                   // «Остаться»
+  browser.userBack();
+  assert.deepEqual(browser.confirms, ["unsaved"]);
+  assert.equal(browser.url, "https://app.test/owner/payroll/s1"); // still here
+  assert.equal(browser.index, 2);                                 // the sentinel is back
+  browser.answers.push(true);                                    // «Уйти»
+  browser.userBack();
+  assert.equal(browser.confirms.length, 2);
+  browser.flush();
+  assert.equal(browser.url, "https://app.test/owner/payroll?month=2026-09");
+  assert.equal(browser.index, 0);
+  // it asked once per press, and nothing more after leaving
+  assert.equal(browser.confirms.length, 2);
+});
+
+test("discard edits also takes the sentinel off; a page that was never dirty never touches the history", () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  guard.update(false);
+  assert.equal(browser.entries.length, 2);
+  browser.userBack();
+  assert.equal(browser.confirms.length, 0);                      // a clean page is never asked about
+  assert.equal(browser.index, 0);
+  const second = fakeBrowser();
+  const other = createUnsavedGuard(second.env, () => "unsaved");
+  other.update(true);
+  other.update(false);                                           // «Отменить правки»
+  second.flush();
+  assert.equal(second.index, 1);
+  second.userBack();
+  assert.equal(second.index, 0);
+  assert.equal(second.confirms.length, 0);
+  // dirty, clean, dirty before the browser has finished the first back: still exactly one sentinel, still guarded
+  const third = fakeBrowser();
+  const quick = createUnsavedGuard(third.env, () => "unsaved");
+  quick.update(true);
+  quick.update(false);
+  quick.update(true);
+  third.flush();
+  assert.equal(third.entries.length, 3);
+  assert.equal(third.index, 2);
+  third.answers.push(false);
+  third.userBack();
+  assert.equal(third.confirms.length, 1);
+  assert.equal(third.index, 2);
+  assert.equal(third.confirms.length, 1);
+  // dirty, clean, then clean again in the middle: no second back
+  const fourth = fakeBrowser();
+  const idle = createUnsavedGuard(fourth.env, () => "unsaved");
+  idle.update(true);
+  idle.update(false);
+  idle.update(false);
+  fourth.flush();
+  assert.equal(fourth.index, 1);
+});
+
+test("links and closing the tab are asked about only while the page is dirty", () => {
+  const browser = fakeBrowser();
+  const guard = createUnsavedGuard(browser.env, () => "unsaved");
+  assert.equal(browser.clicks.size, 0);
+  guard.update(true);
+  assert.equal(browser.clicks.size, 1);
+  // another page: «Остаться» cancels the click before the router sees it, «Уйти» lets it through
+  browser.answers.push(false);
+  const stay = browser.click("https://app.test/owner/groups");
+  assert.equal(stay.defaultPrevented, true);
+  assert.equal(stay.stopped, true);
+  browser.answers.push(true);
+  const go = browser.click("https://app.test/owner/groups");
+  assert.equal(go.defaultPrevented, false);
+  assert.equal(browser.confirms.length, 2);
+  // not a way out: the same page and query, another site, a new tab, a download, a modified click, a click on no link
+  const asked = () => browser.confirms.length;
+  const before = asked();
+  assert.equal(browser.click("https://app.test/owner/payroll/s1#top").defaultPrevented, false);
+  assert.equal(browser.click("https://elsewhere.test/x").defaultPrevented, false);
+  assert.equal(browser.click("https://app.test/owner/groups", { anchor: { target: "_blank" } }).defaultPrevented, false);
+  assert.equal(browser.click("https://app.test/owner/groups", { anchor: { hasAttribute: () => true } }).defaultPrevented, false);
+  assert.equal(browser.click("https://app.test/owner/groups", { event: { ctrlKey: true } }).defaultPrevented, false);
+  assert.equal(browser.click("https://app.test/owner/groups", { event: { button: 1 } }).defaultPrevented, false);
+  assert.equal(browser.click("https://app.test/owner/groups", { event: { target: {} } }).defaultPrevented, false);
+  assert.equal(asked(), before);
+  // the tab: the browser's own question
+  assert.equal(browser.listeners.beforeunload.size, 1);
+  const unload = { prevented: false, returnValue: undefined, preventDefault() { this.prevented = true; } };
+  [...browser.listeners.beforeunload][0](unload);
+  assert.equal(unload.prevented, true);
+  assert.equal(unload.returnValue, "");
+  // clean: no listeners; disposing removes the popstate one too
+  guard.update(false);
+  assert.equal(browser.clicks.size, 0);
+  assert.equal(browser.listeners.beforeunload.size, 0);
+  assert.equal(browser.listeners.popstate.size, 1);
+  guard.dispose();
+  assert.equal(browser.listeners.popstate.size, 0);
+  assert.match(read("src/lib/use-unsaved-guard.ts"), /createUnsavedGuard\(/);
+});
+
+test("the data moved after the preview / the diff: the fingerprint is sent, a 409 SHEET_DATA_CHANGED asks to recalculate (stubbed fetch)", async () => {
+  const { orgApi } = require(path.join(root, "src/lib/api.ts"));
+  const original = global.fetch;
+  const bodies = [];
+  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  const message = "Данные изменились после расчёта — пересчитайте и проверьте суммы";
+  let step = 0;
+  global.fetch = async (url, init) => {
+    bodies.push({ url: String(url), body: JSON.parse(init.body) });
+    step += 1;
+    return step <= 2 ? answer(409, { detail: { code: "SHEET_DATA_CHANGED", message, source_fingerprint: "fresh-fp" } }) : answer(200, makeSheet({ revision: 4, source_fingerprint: "fresh-fp" }));
+  };
+  try {
+    const preview = makeSheet({ id: null, saved: false, revision: null, source_fingerprint: "old-fp" });
+    // the preview save always carries the fingerprint of the preview the owner looks at (and the revision of an existing sheet)
+    const refused = await orgApi.savePayrollSheet(R.buildSaveBody(preview, R.EMPTY_EDITS, "", 3)).then(() => null, (e) => e);
+    assert.equal(bodies[0].body.expected_fingerprint, "old-fp");
+    assert.equal(bodies[0].body.revision, 3);
+    assert.equal(R.isDataChanged(refused), true);
+    assert.equal(R.isRevisionConflict(refused), false);
+    assert.equal(R.payrollErrorText(refused), message);              // the server's words
+    assert.equal(R.freshFingerprintOf(refused), "fresh-fp");
+    // «Пересчитать»: only with recalculate, and only when there is a fingerprint to expect
+    const sheet = makeSheet();
+    assert.equal(R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, expectedFingerprint: "diff-fp" }).expected_fingerprint, "diff-fp");
+    assert.equal("expected_fingerprint" in R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { expectedFingerprint: "diff-fp" }), false);
+    assert.equal("expected_fingerprint" in R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true }), false);
+    assert.equal("expected_fingerprint" in R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, expectedFingerprint: null }), false);
+    const recalculated = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, expectedFingerprint: "diff-fp" })).then(() => null, (e) => e);
+    assert.deepEqual(bodies[1].body, { revision: 3, recalculate: true, expected_fingerprint: "diff-fp" });
+    assert.equal(R.freshFingerprintOf(recalculated), "fresh-fp");
+    // the retry expects what the 409 reported
+    const retried = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, expectedFingerprint: R.freshFingerprintOf(recalculated) }));
+    assert.equal(bodies[2].body.expected_fingerprint, "fresh-fp");
+    assert.equal(retried.revision, 4);
+    assert.equal(R.freshFingerprintOf({ status: 409, code: "SHEET_DATA_CHANGED", detail: {} }), null);
+    assert.equal(R.freshFingerprintOf(null), null);
+  } finally {
+    global.fetch = original;
+  }
+  // the screens: a data-changed banner with «Пересчитать» on both, the carry-over words on the month page
+  const month = read("src/components/payroll/payroll-month-page.tsx");
+  assert.match(month, /isDataChanged\(error\)\) patchPreview\(teacherId, \{ saving: false, dataChanged: payrollErrorText\(error\) \}\)/);
+  assert.match(month, /actionLabel="Пересчитать"/);
+  assert.match(month, /прежние правки сумм и включённые уроки сохранятся/);
+  const page = read("src/components/payroll/payroll-sheet-page.tsx");
+  assert.match(page, /isDataChanged\(error\)\) setDataChanged/);
+  assert.match(page, /expectedFingerprint: diff\?\.source_fingerprint \?\? dataChanged\?\.fingerprint \?\? null/);
+  assert.match(page, /actionLabel="Пересчитать"/);
+  assert.match(page, /await loadDiff\(\)/);
+});
+
+test("a sheet with no lines cannot be saved: the button is off and says why", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { SaveBar } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  const render = (props) => renderToStaticMarkup(React.createElement(SaveBar, {
+    dirty: false, problem: null, saveLabel: "Сохранить ведомость", canSaveClean: true, saving: false, note: "", onNote: () => {}, onSave: () => {}, onDiscard: () => {}, ...props,
+  }));
+  const button = (markup) => /<button[^>]*>(?:(?!<\/button>).)*Сохранить ведомость/.exec(markup.replace(/\n/g, " "))[0];
+  const blocked = render({ blockedReason: R.EMPTY_SHEET_REASON });
+  assert.equal(R.EMPTY_SHEET_REASON, "Нет уроков для расчёта");
+  assert.match(button(blocked), /disabled=""/);
+  assert.match(button(blocked), /title="Нет уроков для расчёта"/);
+  const ready = render({});
+  assert.doesNotMatch(button(ready), /disabled=""/);
+  assert.doesNotMatch(button(ready), /title=/);
+  // dirty does not lift the block
+  assert.match(button(render({ dirty: true, blockedReason: R.EMPTY_SHEET_REASON })), /disabled=""/);
+  for (const file of ["payroll-month-page.tsx", "payroll-sheet-page.tsx"]) {
+    assert.match(read(`src/components/payroll/${file}`), /blockedReason=\{[a-z.]*sheet\.lines\.length === 0 \? EMPTY_SHEET_REASON : null\}/, file);
+  }
 });

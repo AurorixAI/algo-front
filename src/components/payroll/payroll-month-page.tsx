@@ -11,8 +11,11 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { pluralRu } from "@/lib/payments";
 import {
   EMPTY_EDITS,
+  EMPTY_SHEET_REASON,
+  REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
   buildCalculateBody,
+  buildPercentsPayload,
   buildSaveBody,
   calculateButtonLabel,
   calculationScope,
@@ -20,6 +23,7 @@ import {
   editsDirty,
   editsProblem,
   isOpenMonth,
+  isDataChanged,
   isPercentRequired,
   isRevisionConflict,
   lessonsWithoutTeacherText,
@@ -65,7 +69,10 @@ interface Preview {
   note: string;
   saving: boolean;
   error: string | null;
+  /** Somebody else saved this teacher's sheet first (409 SHEET_REVISION_CONFLICT). */
   conflict: boolean;
+  /** The data changed after this preview was calculated (409 SHEET_DATA_CHANGED): the server's words; nothing was saved. */
+  dataChanged: string | null;
 }
 
 interface Failure {
@@ -116,7 +123,7 @@ function PayrollMonthContent() {
   monthRef.current = month;
   const previewRef = useRef<HTMLElement | null>(null);
 
-  const dirty = Object.values(previews).some((preview) => editsDirty(preview.edits));
+  const dirty = Object.values(previews).some((preview) => editsDirty(preview.sheet, preview.edits));
   useUnsavedGuard(dirty, UNSAVED_TEXT);
 
   /** `silent`: refresh the table in place (after a save) without the spinner and without losing what was typed. */
@@ -216,7 +223,7 @@ function PayrollMonthContent() {
       }
       const next: Record<string, Preview> = {};
       for (const sheet of sheets) {
-        next[sheet.teacher_id] = { sheet, edits: EMPTY_EDITS, note: "", saving: false, error: null, conflict: false };
+        next[sheet.teacher_id] = { sheet, edits: EMPTY_EDITS, note: "", saving: false, error: null, conflict: false, dataChanged: null };
       }
       setPreviews(next);
       setActiveId(sheets[0].teacher_id);
@@ -270,26 +277,43 @@ function PayrollMonthContent() {
       void load(true);
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
-      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
-      if (isRevisionConflict(cause as PayrollErrorLike)) patchPreview(teacherId, { saving: false, conflict: true });
-      else patchPreview(teacherId, { saving: false, error: payrollErrorText(cause as PayrollErrorLike) });
+      const error = cause as PayrollErrorLike;
+      if (isPercentRequired(error)) setShowErrors(true);
+      if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
+      else if (isDataChanged(error)) patchPreview(teacherId, { saving: false, dataChanged: payrollErrorText(error) });
+      else patchPreview(teacherId, { saving: false, error: payrollErrorText(error) });
     }
   };
 
-  /** After a conflict: the saved sheet changed, so the table is reloaded and the teacher is calculated afresh. */
-  const refreshPreview = async (teacherId: string) => {
+  /**
+   * After a conflict or a change of the data: the table is reloaded and the teacher is calculated afresh, with the percents
+   * the owner has in this preview (and the month page's fields for the kinds the preview does not have).
+   */
+  const rerunPreview = async (teacherId: string) => {
     const preview = previews[teacherId];
     if (!preview) return;
+    const requestedMonth = month;
+    patchPreview(teacherId, { saving: true });
     await load(true);
-    const body = buildCalculateBody(teachers, typed, new Set([teacherId]));
-    if (!body) { patchPreview(teacherId, { conflict: false }); return; }
+    const fromSheet = buildPercentsPayload(preview.sheet, preview.edits);
+    const monthBody = buildCalculateBody(teachers, typed, new Set([teacherId]));
+    const percents = [...(monthBody?.percents ?? []).filter((item) => !fromSheet.some((own) => own.lesson_type === item.lesson_type)), ...fromSheet];
+    if (percents.length === 0) { patchPreview(teacherId, { saving: false, conflict: false, dataChanged: null }); return; }
     try {
-      const sheets = withNames(await orgApi.calculatePayroll(month, body));
+      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, { percents, teacher_ids: [teacherId] }));
       const fresh = sheets.find((sheet) => sheet.teacher_id === teacherId);
-      if (fresh && monthRef.current === month) {
-        setPreviews((previous) => ({ ...previous, [teacherId]: { sheet: fresh, edits: EMPTY_EDITS, note: "", saving: false, error: null, conflict: false } }));
+      if (monthRef.current !== requestedMonth) return;
+      if (fresh) {
+        setPreviews((previous) => (previous[teacherId]
+          ? { ...previous, [teacherId]: { sheet: fresh, edits: EMPTY_EDITS, note: preview.note, saving: false, error: null, conflict: false, dataChanged: null } }
+          : previous));
+      } else {
+        patchPreview(teacherId, { saving: false });
       }
     } catch (cause) {
+      if (monthRef.current !== requestedMonth) return;
+      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
+      patchPreview(teacherId, { saving: false });
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     }
   };
@@ -502,7 +526,7 @@ function PayrollMonthContent() {
                   }`}
                 >
                   {preview.sheet.teacher_name}
-                  {editsDirty(preview.edits) && <span aria-label="есть несохранённые правки" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />}
+                  {editsDirty(preview.sheet, preview.edits) && <span aria-label="есть несохранённые правки" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />}
                 </button>
               ))}
             </div>
@@ -518,7 +542,7 @@ function PayrollMonthContent() {
 
           {activeExisting && (
             <p className="flex flex-wrap items-center gap-x-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 print:hidden">
-              <span>У преподавателя уже есть сохранённая ведомость ({revisionLabel(activeExisting.revision)}): сохранение создаст новую редакцию.</span>
+              <span>У преподавателя уже есть сохранённая ведомость ({revisionLabel(activeExisting.revision)}): сохранение создаст новую редакцию, прежние правки сумм и включённые уроки сохранятся.</span>
               <Link href={`/owner/payroll/${encodeURIComponent(activeExisting.id)}`} className="inline-flex items-center gap-1 font-medium text-primary-700 hover:underline">
                 Открыть сохранённую <ExternalLink className="h-3.5 w-3.5" />
               </Link>
@@ -526,9 +550,17 @@ function PayrollMonthContent() {
           )}
           {active.conflict && (
             <ConflictBanner
-              message={payrollErrorText({ status: 409 })}
+              message={REVISION_CONFLICT_TEXT}
               reloading={active.saving}
-              onReload={() => void refreshPreview(active.sheet.teacher_id)}
+              onReload={() => void rerunPreview(active.sheet.teacher_id)}
+            />
+          )}
+          {active.dataChanged && (
+            <ConflictBanner
+              message={active.dataChanged}
+              actionLabel="Пересчитать"
+              reloading={active.saving}
+              onReload={() => void rerunPreview(active.sheet.teacher_id)}
             />
           )}
 
@@ -543,10 +575,11 @@ function PayrollMonthContent() {
             onEdits={(update) => updateEdits(active.sheet.teacher_id, update)}
           />
           <SaveBar
-            dirty={editsDirty(active.edits)}
+            dirty={editsDirty(active.sheet, active.edits)}
             problem={editsProblem(active.sheet, active.edits) ?? active.error}
             saveLabel={activeExisting ? `Сохранить как редакцию ${activeExisting.revision + 1}` : "Сохранить ведомость"}
             canSaveClean
+            blockedReason={active.sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
             saving={active.saving}
             note={active.note}
             onNote={(text) => patchPreview(active.sheet.teacher_id, { note: text })}

@@ -412,6 +412,8 @@ export interface PayrollDiff {
   sheet_id: string;
   revision: number;
   stale: boolean;
+  /** The fingerprint of the current data the diff was computed from (what «Пересчитать» should expect), when the server sends it. */
+  source_fingerprint?: string;
   saved_total: number;
   fresh_total: number;
   delta_amount: number;
@@ -445,6 +447,8 @@ export interface PayrollSaveBody {
   note?: string;
   /** Required, and must be the current one, when the teacher already has a sheet for the month; absent otherwise. */
   revision?: number;
+  /** `source_fingerprint` of the preview the owner looked at: if the data moved since, nothing is saved (409 SHEET_DATA_CHANGED). */
+  expected_fingerprint?: string;
 }
 
 export interface PayrollPatchBody {
@@ -452,6 +456,8 @@ export interface PayrollPatchBody {
   percents?: PayrollPercentInput[];
   line_overrides?: PayrollLineOverride[];
   recalculate?: boolean;
+  /** With `recalculate`: the `source_fingerprint` of the data the owner looked at (409 SHEET_DATA_CHANGED when it moved). */
+  expected_fingerprint?: string;
   note?: string;
 }
 
@@ -602,8 +608,23 @@ export interface SheetEdits {
 
 export const EMPTY_EDITS: SheetEdits = { percents: {}, fees: {}, include: {} };
 
-export function editsDirty(edits: SheetEdits): boolean {
-  return Object.keys(edits.percents).length + Object.keys(edits.fees).length + Object.keys(edits.include).length > 0;
+/**
+ * A percent field holds something other than the sheet's percent.  The text is kept as typed («50,» on its way to
+ * «50,5») and compared with the sheet only here; a text that is not a percent counts as a change (it blocks saving).
+ */
+function percentChanged(sheet: PayrollSheet, edits: SheetEdits, lessonType: string): boolean {
+  if (!(lessonType in edits.percents)) return false;
+  const typed = parsePercent(edits.percents[lessonType]);
+  return typed.hundredths === null || typed.hundredths !== serverPercentHundredths(sheet.percents[lessonType]);
+}
+
+export function percentsChanged(sheet: PayrollSheet, edits: SheetEdits): boolean {
+  return Object.keys(edits.percents).some((type) => percentChanged(sheet, edits, type));
+}
+
+/** Something the owner changed differs from the sheet as the server sent it. */
+export function editsDirty(sheet: PayrollSheet, edits: SheetEdits): boolean {
+  return Object.keys(edits.fees).length > 0 || Object.keys(edits.include).length > 0 || percentsChanged(sheet, edits);
 }
 
 function findLine(sheet: PayrollSheet, membershipId: string): PayrollLine | undefined {
@@ -634,14 +655,9 @@ export function setIncludeEdit(edits: SheetEdits, sheet: PayrollSheet, membershi
   return { ...edits, include: next };
 }
 
-export function setPercentEdit(edits: SheetEdits, sheet: PayrollSheet, lessonType: string, text: string): SheetEdits {
-  const base = serverPercentHundredths(sheet.percents[lessonType]);
-  const typed = parsePercent(text);
-  const percents = { ...edits.percents };
-  // Typing the original value back is no edit; an unfinished or wrong text is one (it blocks saving).
-  if (typed.hundredths !== null && typed.hundredths === base) delete percents[lessonType];
-  else percents[lessonType] = text;
-  return { ...edits, percents };
+/** The percent field: the raw text is kept as typed (the comparison with the sheet is `editsDirty`'s). */
+export function setPercentEdit(edits: SheetEdits, _sheet: PayrollSheet, lessonType: string, text: string): SheetEdits {
+  return { ...edits, percents: { ...edits.percents, [lessonType]: text } };
 }
 
 /** Lesson types of a sheet, in the order of the forms. */
@@ -772,7 +788,7 @@ export function buildBlocks(sheet: PayrollSheet, views: LineView[]): SheetBlock[
 
 /** The sheet's «ИТОГО»: the server's number while nothing is edited, else the sum of the lines. */
 export function sheetTotal(sheet: PayrollSheet, views: LineView[], edits: SheetEdits): number {
-  return editsDirty(edits) ? views.reduce((sum, view) => sum + view.amount, 0) : sheet.total_amount;
+  return editsDirty(sheet, edits) ? views.reduce((sum, view) => sum + view.amount, 0) : sheet.total_amount;
 }
 
 // ── What goes to the server ─────────────────────────────────────────────────
@@ -820,6 +836,8 @@ export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: stri
   const cleaned = cleanNote(note);
   if (cleaned) body.note = cleaned;
   if (existingRevision !== null) body.revision = existingRevision;
+  // The preview the owner is looking at: if the data moved since, the server saves nothing.
+  if (sheet.source_fingerprint) body.expected_fingerprint = sheet.source_fingerprint;
   return body;
 }
 
@@ -831,18 +849,22 @@ export function buildPatchBody(
   sheet: PayrollSheet,
   edits: SheetEdits,
   note: string,
-  options: { recalculate?: boolean; extraPercents?: PayrollPercentInput[] } = {},
+  options: { recalculate?: boolean; extraPercents?: PayrollPercentInput[]; expectedFingerprint?: string | null } = {},
 ): PayrollPatchBody {
   const body: PayrollPatchBody = { revision: sheet.revision ?? 1 };
   const extra = options.extraPercents ?? [];
-  let percents = Object.keys(edits.percents).length > 0 ? buildPercentsPayload(sheet, edits) : [];
+  let percents = percentsChanged(sheet, edits) ? buildPercentsPayload(sheet, edits) : [];
   if (extra.length > 0) {
     percents = [...percents.filter((item) => !extra.some((given) => given.lesson_type === item.lesson_type)), ...extra];
   }
   if (percents.length > 0) body.percents = percents;
   const overrides = buildLineOverrides(sheet, edits);
   if (overrides.length > 0) body.line_overrides = overrides;
-  if (options.recalculate) body.recalculate = true;
+  if (options.recalculate) {
+    body.recalculate = true;
+    // The data the owner looked at: if it moved since, the server refuses (409 SHEET_DATA_CHANGED) instead of saving other sums.
+    if (options.expectedFingerprint) body.expected_fingerprint = options.expectedFingerprint;
+  }
   const cleaned = cleanNote(note);
   if (cleaned) body.note = cleaned;
   return body;
@@ -1060,6 +1082,17 @@ export function isPercentRequired(error: PayrollErrorLike | null | undefined): b
   return error?.code === "PERCENT_REQUIRED";
 }
 
+/** 409: the data changed after the preview / the diff the owner looked at; nothing was saved. */
+export function isDataChanged(error: PayrollErrorLike | null | undefined): boolean {
+  return error?.code === "SHEET_DATA_CHANGED";
+}
+
+/** The fresh `source_fingerprint` a `SHEET_DATA_CHANGED` answer carries in `detail`; null when it has none. */
+export function freshFingerprintOf(error: PayrollErrorLike | null | undefined): string | null {
+  const value = (error?.detail as { source_fingerprint?: unknown } | null | undefined)?.source_fingerprint;
+  return typeof value === "string" && value ? value : null;
+}
+
 /** 403 and the revision conflict have the owner's own words; every other coded error shows the server's `detail.message`. */
 export function payrollErrorText(error: PayrollErrorLike | null | undefined): string {
   if (!error) return "Не удалось выполнить действие";
@@ -1101,5 +1134,8 @@ export function sheetFileName(teacherName: string | null | undefined, month: str
 export function monthFileName(month: string): string {
   return `Зарплата_${month}.xlsx`;
 }
+
+/** Why a sheet with no lines cannot be saved. */
+export const EMPTY_SHEET_REASON = "Нет уроков для расчёта";
 
 export const UNSAVED_TEXT = "В ведомости есть несохранённые правки. Уйти без сохранения?";
