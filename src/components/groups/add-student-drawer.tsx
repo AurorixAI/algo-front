@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
-import { parseMonthlyFee, reformatMoneyTyping } from "@/lib/payments";
+import { parseMonthlyFee, reformatMoneyTyping, splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -34,6 +34,8 @@ export interface AddStudentsResult {
   skippedLines: string[];
   /** Server hints that are not refusals (third group, class mismatch). */
   warnings: string[];
+  /** Calm notes, e.g. "оплата перенесена в новую группу" (N13 P2.1). */
+  infos: string[];
 }
 
 interface AddStudentDrawerProps {
@@ -156,6 +158,9 @@ export function AddStudentDrawer({
       from: groupNames[studentGroupId(s) as string] || "другой группы",
     }));
 
+  // Shown only to users who see money, and only for "Перевести сюда".
+  const paymentHint = transferPaymentHint({ transfer: mode === "transfer", moneyAvailable });
+
   const handleAdd = async () => {
     if (selected.size === 0) return;
     const fee = moneyAvailable ? parseMonthlyFee(feeText) : { value: null, error: null };
@@ -174,11 +179,13 @@ export function AddStudentDrawer({
         return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
       };
       setSelected(new Map());
+      const notes = splitTransferNotes(result.warnings, nameOf);
       onAdded({
         added: result.added,
         skipped: result.skipped,
         skippedLines: (result.skipped_details || []).map((d) => `${nameOf(d.student_id)} — ${d.reason}`),
-        warnings: (result.warnings || []).map((w) => (w.student_id ? `${nameOf(w.student_id)} — ${w.message}` : w.message)),
+        warnings: notes.warnings,
+        infos: notes.infos,
       });
     } catch (e: any) {
       setAddError(e.message || "Ошибка добавления учеников");
@@ -341,6 +348,7 @@ export function AddStudentDrawer({
                   <p className="mt-1 text-xs text-slate-500">
                     {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
                   </p>
+                  {paymentHint && <p className="mt-0.5 text-[11px] text-slate-400">{paymentHint}</p>}
                   <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
                     {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
                   </p>

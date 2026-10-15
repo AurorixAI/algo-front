@@ -46,6 +46,19 @@ export interface PaymentsSummary {
   lessons_per_payment?: number | null;
 }
 
+/** The payment a carry-over (amount 0, made by a transfer) was made from. */
+export interface CarriedFrom {
+  payment_id: string;
+  group_name: string;
+}
+
+/** The payment moved to another group with the student; it covers only the days before `date`. */
+export interface CarriedOut {
+  date: string;
+  /** Null when the carry-over is gone (cancelled or replaced). */
+  group_name: string | null;
+}
+
 export interface PaymentOut {
   id: string;
   membership_id: string;
@@ -57,6 +70,10 @@ export interface PaymentOut {
   lessons_count: number | null;
   note: string | null;
   replaces_payment_id: string | null;
+  /** Set on a carry-over; an older server does not send it. */
+  carried_from?: CarriedFrom | null;
+  /** Set on the original once it moved (older servers do not send it). */
+  carried_out?: CarriedOut | null;
   created_by: string | null;
   created_by_name: string | null;
   created_at: string | null;
@@ -349,9 +366,73 @@ export function paymentPeriodLabel(payment: Pick<PaymentOut, "valid_from" | "val
   return `${formatDateRu(payment.valid_from)} — ${formatDateRu(payment.valid_to)}`;
 }
 
+/** A payment made by a transfer (amount 0): the money stays with the original in the old group. */
+export function isCarryOver(payment: Pick<PaymentOut, "carried_from"> | null | undefined): boolean {
+  return Boolean(payment?.carried_from);
+}
+
+/** «перенос из «Алгебра 7А»» */
+export function carryOverLabel(payment: Pick<PaymentOut, "carried_from">): string {
+  const name = payment.carried_from?.group_name?.trim();
+  return name ? `перенос из «${name}»` : "перенос из другой группы";
+}
+
+/** «перенесено в «Алгебра 9Б» 15.10.2026» on the original that moved with the student; "" otherwise. */
+export function carriedOutLabel(payment: Pick<PaymentOut, "carried_out"> | null | undefined): string {
+  const out = payment?.carried_out;
+  if (!out) return "";
+  const name = out.group_name?.trim();
+  return `перенесено в ${name ? `«${name}»` : "другую группу"} ${formatDateRu(out.date)}`;
+}
+
+/** «450 000 сум», or «перенос из «Алгебра 7А»» for a carry-over (never «0 сум»). */
+export function paymentAmountLabel(payment: Pick<PaymentOut, "amount" | "carried_from">): string {
+  return isCarryOver(payment) ? carryOverLabel(payment) : formatMoney(payment.amount);
+}
+
 /** «05.10.2026 · 450 000 сум» */
-export function lastPaymentLabel(payment: Pick<PaymentOut, "paid_on" | "amount"> | null | undefined): string {
-  return payment ? `${formatDateRu(payment.paid_on)} · ${formatMoney(payment.amount)}` : "—";
+export function lastPaymentLabel(payment: Pick<PaymentOut, "paid_on" | "amount" | "carried_from"> | null | undefined): string {
+  return payment ? `${formatDateRu(payment.paid_on)} · ${paymentAmountLabel(payment)}` : "—";
+}
+
+// ── Transfer: the payment follows the student (N13 P2.1) ───────────────────
+
+/** `code` of the server note that says a payment moved to the new group. */
+export const CARRY_OVER_CODE = "payment_carried_over";
+
+/** Muted hint in the transfer choice; shown only to users who see money. */
+export const TRANSFER_PAYMENT_HINT = "Действующая оплата перейдёт в новую группу";
+
+/**
+ * The hint belongs to a real transfer ("Перевести"), never to «Добавить ещё», and only
+ * while the user may see payments (the server words the note with dates only for them).
+ */
+export function transferPaymentHint(input: { transfer: boolean; moneyAvailable: boolean }): string | null {
+  return input.transfer && input.moneyAvailable ? TRANSFER_PAYMENT_HINT : null;
+}
+
+export interface ServerNote {
+  code?: string;
+  message: string;
+  student_id?: string;
+}
+
+/**
+ * Server notes of a transfer/enrolment: the carry-over message is information (shown calmly),
+ * everything else stays a warning.  `nameOf` prefixes a bulk note with the student it is about.
+ */
+export function splitTransferNotes(
+  notes: ServerNote[] | null | undefined,
+  nameOf?: (studentId: string) => string,
+): { infos: string[]; warnings: string[] } {
+  const infos: string[] = [];
+  const warnings: string[] = [];
+  for (const note of notes ?? []) {
+    if (!note?.message) continue;
+    const line = note.student_id && nameOf ? `${nameOf(note.student_id)} — ${note.message}` : note.message;
+    (note.code === CARRY_OVER_CODE ? infos : warnings).push(line);
+  }
+  return { infos, warnings };
 }
 
 export function periodModeOf(payment: Pick<PaymentOut, "lessons_count"> | null | undefined, fallback: PeriodMode): PeriodMode {
