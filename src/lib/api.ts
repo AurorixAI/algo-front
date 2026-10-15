@@ -951,11 +951,10 @@ export const authApi = {
       noAuth: true,
     }),
 
-  /** `remember` off (the «Запомнить меня» box): the cookies die with the browser. Default on - as it always was. */
-  login: (email: string, password: string, remember = true) =>
+  login: (email: string, password: string) =>
     api<AuthResponse>("/auth/login", {
       method: "POST",
-      body: { email, password, remember },
+      body: { email, password },
       noAuth: true,
     }),
 
@@ -1002,36 +1001,6 @@ export const authApi = {
 
   logout: () =>
     api<{ message: string }>("/auth/logout", { method: "POST" }),
-
-  // ---- password recovery ----
-  /** The answer is the same for every address; `email_delivery` only says whether e-mail can be sent at all. */
-  forgotPassword: (email: string) =>
-    api<{ ok: boolean; email_delivery: boolean }>("/auth/password/forgot", {
-      method: "POST",
-      body: { email },
-      noAuth: true,
-    }),
-
-  /** A POST with the token in the body (never in the address): the server's access log must not see it. */
-  checkResetToken: (token: string) =>
-    api<{ valid: boolean; email_masked?: string; expires_at?: string }>("/auth/password/reset/check", {
-      method: "POST",
-      body: { token },
-      noAuth: true,
-    }),
-
-  resetPassword: (token: string, new_password: string) =>
-    api<{ ok: boolean }>("/auth/password/reset", {
-      method: "POST",
-      body: { token, new_password },
-      noAuth: true,
-    }),
-
-  /** Owner -> admins and teachers, admin -> teachers: a one-time link (24 h) to hand to a colleague. */
-  issuePasswordResetLink: (userId: string) =>
-    api<{ url: string; expires_at: string }>(`/auth/staff/${encodePathId(userId)}/password-reset-link`, {
-      method: "POST",
-    }),
 };
 
 // ============================================================================

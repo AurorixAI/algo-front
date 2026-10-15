@@ -23,7 +23,7 @@ interface AuthState {
   errorCode: string | null;
 
   // Actions
-  login: (email: string, password: string, remember?: boolean) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   applyOrg: (data: {
     org_name: string;
     org_type?: string;
@@ -60,10 +60,10 @@ export const useAuthStore = create<AuthState>()(
       error: null,
       errorCode: null,
 
-      login: async (email, password, remember = true) => {
+      login: async (email, password) => {
         set({ isLoading: true, error: null, errorCode: null });
         try {
-          const response = await authApi.login(email, password, remember);
+          const response = await authApi.login(email, password);
           set({
             user: response.user,
             org: response.org,

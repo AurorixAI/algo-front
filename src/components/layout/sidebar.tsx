@@ -17,7 +17,6 @@ import {
   Plus,
   ClipboardCheck,
   Wallet,
-  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -124,7 +123,6 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     ...(showPayments
       ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
       : []),
-    { href: "/admin/teachers", label: "Учителя", icon: UserCog },
   ];
 
   const ownerNav: NavItem[] = [

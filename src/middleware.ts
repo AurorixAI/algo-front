@@ -18,8 +18,6 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/forgot-password",
-  "/reset-password", // the link of the recovery e-mail: opened by somebody who cannot sign in
-  "/activate", // the link of the activation e-mail: the owner is not signed in yet (the page signs them in)
 ];
 
 // Paths accessible without full auth (invite-based)

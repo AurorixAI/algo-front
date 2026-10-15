@@ -5,10 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, KeyRound } from "lucide-react";
-import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
-import { PasswordResetLinkModal } from "@/components/staff/password-reset-link-modal";
-import { RESET_LINK_MENU_LABEL, canIssueResetLink } from "@/lib/password-reset";
+import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
 
 interface Member {
   id: string; // user id
@@ -40,10 +37,7 @@ const roleConfig: Record<string, { label: string; pluralLabel: string; color: st
 };
 
 export default function OwnerTeachersPage() {
-  const { org, user } = useAuthStore();
-  const actorRole = user?.org_role || user?.role;
-  // «Ссылка для нового пароля»: the colleague whose link dialog is open
-  const [resetFor, setResetFor] = useState<{ id: string; name: string } | null>(null);
+  const { org } = useAuthStore();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,16 +128,6 @@ export default function OwnerTeachersPage() {
   };
 
   const pendingInvites = invites.filter(inv => inv.status === "pending");
-
-  const memberName = (m: Member) => m.full_name || `${m.last_name || ""} ${m.first_name || ""}`.trim() || m.email || "Сотрудник";
-  const resetMenu = (m: Member): RowMenuItem[] => [
-    {
-      key: "password-reset-link",
-      label: RESET_LINK_MENU_LABEL,
-      icon: KeyRound,
-      onSelect: () => setResetFor({ id: m.id, name: memberName(m) }),
-    },
-  ];
 
   if (loading) {
     return (
@@ -255,13 +239,6 @@ export default function OwnerTeachersPage() {
                             </div>
                           </div>
                           <div className="flex items-center gap-4 sm:ml-auto">
-                            {canIssueResetLink(actorRole, m.org_role) && (
-                              <RowMenu
-                                items={resetMenu(m)}
-                                label={`Действия: ${memberName(m)}`}
-                                width={264}
-                              />
-                            )}
                             {m.org_role !== "owner" ? (
                               <button
                                 onClick={() => handleRemoveMember(m.member_id)}
@@ -350,8 +327,6 @@ export default function OwnerTeachersPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      <PasswordResetLinkModal member={resetFor} onClose={() => setResetFor(null)} />
 
       {/* Invite Modal Overlay */}
       {mounted && createPortal(

@@ -7,7 +7,6 @@ import { Lock, KeyRound, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react"
 import { useAuthStore } from "@/lib/store";
 import { authApi, REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { roleHome } from "@/lib/role-home";
-import { validateNewPassword } from "@/lib/password-reset";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -49,9 +48,12 @@ export default function ChangePasswordPage() {
 
   const submit = async () => {
     setError(null);
-    const problem = validateNewPassword(next, confirm);
-    if (problem) {
-      setError(problem);
+    if (next.length < 8) {
+      setError("Новый пароль должен быть не короче 8 символов.");
+      return;
+    }
+    if (next !== confirm) {
+      setError("Пароли не совпадают.");
       return;
     }
     setBusy(true);
