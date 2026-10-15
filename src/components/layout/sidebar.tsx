@@ -120,7 +120,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       ? [{ href: "/admin/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
-      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Оплата закончилась" }]
+      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
       : []),
     { href: "/admin/analytics", label: "Аналитика", icon: BarChart3, comingSoon: true },
   ];
@@ -133,7 +133,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
-      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Оплата закончилась" }]
+      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
       : []),
     { href: "/owner/teachers", label: "Сотрудники", icon: Shield },
   ];

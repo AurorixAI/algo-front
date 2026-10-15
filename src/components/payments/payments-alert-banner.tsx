@@ -7,7 +7,7 @@ import { bannerText } from "@/lib/payments";
 import { usePaymentsSummary, usePaymentsSummarySync } from "@/lib/payments-summary";
 
 /**
- * Strip above the page of an owner / administrator: «Оплата закончилась у N учеников — Открыть список».
+ * Strip above the page of an owner / administrator: «Требуют оплаты: N — Открыть список».
  * It also keeps the shared payments summary fresh (mount, route change, tab visible, every
  * 5 minutes), which feeds the menu item and the badge.  Shown only while the server lets this
  * user see payments and somebody is overdue; it cannot be dismissed — the list is the way out.

@@ -517,7 +517,11 @@ export function diffPaymentSettings(before: PaymentSettings, after: PaymentSetti
 
 // ── Banner ─────────────────────────────────────────────────────────────────
 
-/** «Оплата закончилась у 1 ученика / у 5 учеников». */
+/**
+ * «Требуют оплаты: N». Counts memberships due today or overdue: a student in
+ * two groups can appear twice, and «ends today» is still paid, so the banner
+ * must not claim «оплата закончилась».
+ */
 export function bannerText(due: number): string {
-  return `Оплата закончилась у ${due} ${pluralRu(due, ["ученика", "учеников", "учеников"])}`;
+  return `Требуют оплаты: ${due}`;
 }
