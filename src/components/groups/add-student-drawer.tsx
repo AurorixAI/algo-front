@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
-import { parseMonthlyFee, reformatMoneyTyping, splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import { feeTexts, parseMonthlyFee, reformatMoneyTyping, splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -66,6 +66,8 @@ export function AddStudentDrawer({
   const [mode, setMode] = useState<GroupJoinMode>("transfer");
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
+  // A new student has no payments yet: the center's mode names the amount («Оплата в месяц» / «Стоимость пакета»).
+  const feeField = feeTexts(usePaymentsSummary((state) => state.periodMode)).field;
   const [feeText, setFeeText] = useState("");
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
@@ -362,8 +364,8 @@ export function AddStudentDrawer({
                     onChange={(e) => { setAddError(null); setFeeText(reformatMoneyTyping(e.target.value)); }}
                     inputMode="numeric"
                     autoComplete="off"
-                    aria-label="Оплата в месяц, сум (необязательно)"
-                    placeholder={selected.size > 1 ? "Оплата в месяц, сум — одна для всех" : "Оплата в месяц, сум (необязательно)"}
+                    aria-label={`${feeField} (необязательно)`}
+                    placeholder={selected.size > 1 ? `${feeField} — одна для всех` : `${feeField} (необязательно)`}
                     className="w-full rounded-xl border border-slate-200 py-2 pl-3 pr-12 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>

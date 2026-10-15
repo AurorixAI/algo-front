@@ -6,23 +6,31 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
   addMonthMinusDay,
+  billingPeriodEndOf,
   buildPaymentPayload,
+  buildQuoteQuery,
   defaultValidFrom,
+  fixedDayChips,
   formatDateRu,
   paymentFormDefaults,
   periodHint,
   periodModeOf,
+  quotePrefill,
+  quoteQueryKey,
   reformatMoneyTyping,
   validatePaymentForm,
   MAX_LESSONS,
   NOTE_MAX,
+  PARTIAL_PERIOD_BADGE,
   REASON_MAX,
   type PaymentFormValues,
   type PaymentOut,
+  type PaymentQuote,
   type PaymentSaveResult,
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
+import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { Modal } from "@/components/ui/modal";
 
 export type PaymentFormKind = "create" | "extend" | "replace";
@@ -68,15 +76,19 @@ export function PaymentFormModal({
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [values, setValues] = useState<PaymentFormValues>(() => emptyValues());
+  // A field the user has touched is never overwritten by a suggestion of the server.
   const [fromTouched, setFromTouched] = useState(false);
   const [toTouched, setToTouched] = useState(false);
+  const [amountTouched, setAmountTouched] = useState(false);
+  // The form has been filled for this opening: only then the server is asked for a suggestion.
+  const [ready, setReady] = useState(false);
   const [periodOpen, setPeriodOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<PaymentWarning[] | null>(null);
 
   useEffect(() => {
-    if (!open || !membership) return;
+    if (!open || !membership) { setReady(false); return; }
     setValues(paymentFormDefaults({
       mode,
       today,
@@ -85,16 +97,63 @@ export function PaymentFormModal({
       lessonsDefault,
       payment: kind === "replace" ? payment : null,
     }));
+    // A correction starts from the payment's own values: nothing in it is a suggestion.
     setFromTouched(kind === "replace");
     setToTouched(kind === "replace");
+    setAmountTouched(kind === "replace");
     setPeriodOpen(false);
     setBusy(false);
     setError(null);
     setWarnings(null);
+    setReady(true);
     // The form restarts only when it is opened for another membership or payment.
   }, [open, kind, membership?.membership_id, payment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const query = useMemo(() => buildQuoteQuery({
+    mode,
+    paidOn: values.paidOn,
+    validFrom: values.validFrom,
+    validTo: values.validTo,
+    lessons: values.lessons,
+    fromTouched,
+    toTouched,
+  }), [mode, values.paidOn, values.validFrom, values.validTo, values.lessons, fromTouched, toTouched]);
+  const queryKey = quoteQueryKey(query);
+
+  const quoteState = usePaymentQuote({
+    enabled: open && ready && Boolean(membership),
+    membershipId: membership?.membership_id ?? null,
+    query,
+    // Runs with the touched flags of the latest render, so a field typed meanwhile is left alone.
+    onQuote: (quote: PaymentQuote) => {
+      const patch = quotePrefill(quote, { from: fromTouched, to: toTouched, amount: amountTouched }, mode);
+      if (Object.keys(patch).length > 0) setValues((previous) => ({ ...previous, ...patch }));
+    },
+  });
+  const { quote, loading: quoteLoading, failed: quoteFailed } = quoteState;
+  // The answer is about the form on screen only while the queries are the same.
+  const fresh = quote && quoteState.quoteKey === queryKey ? quote : null;
+  // The center counts by one day of the month: known from the first answer on.
+  const fixedDay = mode === "calendar" && quote?.billing_anchor === "fixed_day" ? quote.billing_day : null;
+  const defaultTo = (from: string) => (fixedDay ? billingPeriodEndOf(from, fixedDay) : addMonthMinusDay(from));
+
+  // Without an answer the form falls back to the local calculation (the first guess of a new form).
+  const paidOnNow = values.paidOn;
+  useEffect(() => {
+    if (!quoteFailed || !membership || !paidOnNow) return;
+    setValues((previous) => {
+      const next: PaymentFormValues = { ...previous };
+      if (!fromTouched) next.validFrom = mode === "calendar" ? defaultValidFrom(paidOnNow, membership.paid_until) : paidOnNow;
+      if (mode === "calendar" && !toTouched && next.validFrom) next.validTo = addMonthMinusDay(next.validFrom);
+      return next;
+    });
+    // Only a new failure restarts the fallback.
+  }, [quoteFailed, paidOnNow]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!membership) return null;
+
+  // Untouched fields may still be filled by the answer that is on its way.
+  const waitingForQuote = quoteLoading && !(fromTouched && (mode === "lessons" || toTouched) && amountTouched);
 
   const patch = (next: Partial<PaymentFormValues>) => {
     setError(null);
@@ -103,24 +162,33 @@ export function PaymentFormModal({
 
   const changePaidOn = (paidOn: string) => {
     const next: Partial<PaymentFormValues> = { paidOn };
-    let validFrom = values.validFrom;
-    if (!fromTouched && paidOn) {
-      validFrom = mode === "calendar" ? defaultValidFrom(paidOn, membership.paid_until) : paidOn;
-      next.validFrom = validFrom;
+    // With one center day the server knows the period (it may depend on the lessons already paid);
+    // the dates stay until its answer comes instead of jumping to a wrong guess and back.
+    if (!fixedDay) {
+      let validFrom = values.validFrom;
+      if (!fromTouched && paidOn) {
+        validFrom = mode === "calendar" ? defaultValidFrom(paidOn, membership.paid_until) : paidOn;
+        next.validFrom = validFrom;
+      }
+      if (mode === "calendar" && !toTouched && validFrom) next.validTo = addMonthMinusDay(validFrom);
     }
-    if (mode === "calendar" && !toTouched && validFrom) next.validTo = addMonthMinusDay(validFrom);
     patch(next);
   };
 
   const changeValidFrom = (validFrom: string) => {
     setFromTouched(true);
     const next: Partial<PaymentFormValues> = { validFrom };
-    if (mode === "calendar" && !toTouched && validFrom) next.validTo = addMonthMinusDay(validFrom);
+    if (mode === "calendar" && !toTouched && validFrom) next.validTo = defaultTo(validFrom);
     patch(next);
   };
 
+  const changeValidTo = (validTo: string) => {
+    setToTouched(true);
+    patch({ validTo });
+  };
+
   const submit = async () => {
-    if (busy || warnings) return;
+    if (busy || warnings || waitingForQuote) return;
     const problem = validatePaymentForm(values, mode, today);
     if (problem) { setError(problem); return; }
     setBusy(true);
@@ -163,7 +231,7 @@ export function PaymentFormModal({
           <button
             type="submit"
             form="payment-form"
-            disabled={busy}
+            disabled={busy || waitingForQuote}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -198,15 +266,21 @@ export function PaymentFormModal({
               <input
                 id="payment-amount"
                 value={values.amount}
-                onChange={(event) => patch({ amount: reformatMoneyTyping(event.target.value) })}
+                onChange={(event) => { setAmountTouched(true); patch({ amount: reformatMoneyTyping(event.target.value) }); }}
                 inputMode="numeric"
                 autoComplete="off"
                 placeholder="450 000"
                 autoFocus
+                aria-describedby="payment-amount-note"
                 className={`${FIELD} pr-12`}
               />
               <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
             </div>
+            <p id="payment-amount-note" aria-live="polite" className="mt-1 min-h-[1rem] text-xs text-slate-500">
+              {waitingForQuote ? (
+                <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
+              ) : fresh && fresh.explanation ? fresh.explanation : ""}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -228,7 +302,7 @@ export function PaymentFormModal({
                   id="payment-valid-to"
                   type="date"
                   value={values.validTo}
-                  onChange={(event) => { setToTouched(true); patch({ validTo: event.target.value }); }}
+                  onChange={(event) => changeValidTo(event.target.value)}
                   className={FIELD}
                 />
               </div>
@@ -251,13 +325,34 @@ export function PaymentFormModal({
             )}
           </div>
 
+          {mode === "calendar" && fixedDay !== null && (() => {
+            const chips = fixedDayChips(values.validFrom, values.validTo, fixedDay);
+            if (!chips) return null;
+            const chip = "rounded-full border px-3 py-1 text-xs font-semibold transition-colors";
+            const on = "border-primary-300 bg-primary-50 text-primary-800";
+            const off = "border-slate-200 bg-white text-slate-600 hover:bg-slate-50";
+            return (
+              <div className="-mt-1 flex flex-wrap gap-2" role="group" aria-label="Оплачено до: быстрый выбор">
+                <button type="button" aria-pressed={values.validTo === chips.toEnd} onClick={() => changeValidTo(chips.toEnd)} className={`${chip} ${values.validTo === chips.toEnd ? on : off}`}>
+                  До конца месяца ({formatDateRu(chips.toEnd).slice(0, 5)})
+                </button>
+                <button type="button" aria-pressed={values.validTo === chips.plusNext} onClick={() => changeValidTo(chips.plusNext)} className={`${chip} ${values.validTo === chips.plusNext ? on : off}`}>
+                  + следующий месяц ({formatDateRu(chips.plusNext).slice(0, 5)})
+                </button>
+              </div>
+            );
+          })()}
+
           {mode === "calendar" && (
             <p className={`-mt-1 text-xs ${reversed ? "font-medium text-rose-700" : "text-slate-500"}`}>
               {reversed
                 ? "«Оплачено до» раньше начала периода"
                 : hint
                   ? `${hint} · ${formatDateRu(values.validFrom)} — ${formatDateRu(values.validTo)}`
-                  : " "}
+                  : " "}
+              {!reversed && fresh?.partial && (
+                <span className="ml-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-amber-800">{PARTIAL_PERIOD_BADGE}</span>
+              )}
             </p>
           )}
 

@@ -10,6 +10,11 @@ import {
   addMonthMinusDay,
   bucketCount,
   buildPaymentPayload,
+  buildQuoteQuery,
+  feeColumnLabel,
+  feeModeOf,
+  feeTexts,
+  fixedDayChips,
   formatDateRu,
   formatMoney,
   isCarryOver,
@@ -18,6 +23,9 @@ import {
   PAYMENT_BUCKETS,
   parseBucket,
   parseMonthlyFee,
+  PARTIAL_PERIOD_BADGE,
+  quotePrefill,
+  quoteQueryKey,
   reformatMoneyTyping,
   formatMoneyInput,
   statusDetail,
@@ -29,11 +37,13 @@ import {
   type PaymentBucket,
   type PaymentFormValues,
   type PaymentOut,
+  type PaymentQuote,
   type PaymentSaveResult,
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -66,6 +76,24 @@ function warningLines(warnings: PaymentWarning[] | undefined): string[] {
   return (warnings || []).map((warning) => warning.message);
 }
 
+/** Runs `callback` once, when `ref` first comes into (or near) the viewport; at once where there is no observer. */
+function useOnceVisible(ref: React.RefObject<Element | null>, callback: () => void): void {
+  const done = useRef(false);
+  const latest = useRef(callback);
+  latest.current = callback;
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || done.current) return;
+    const fire = () => { if (!done.current) { done.current = true; latest.current(); } };
+    if (typeof IntersectionObserver === "undefined") { fire(); return; }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { fire(); observer.disconnect(); }
+    }, { rootMargin: "200px" });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ref]);
+}
+
 /** Quick entry of a first payment right in the row of the «Нет данных» tab. */
 function QuickEntry({
   row, periodMode, lessonsDefault, onDone,
@@ -76,8 +104,13 @@ function QuickEntry({
   onDone: (row: MembershipPaymentRow, warnings: PaymentWarning[]) => void;
 }) {
   const today = useMemo(() => formatBusinessDate(), []);
+  const texts = feeTexts(feeModeOf(row, periodMode));
   const [fee, setFee] = useState(() => formatMoneyInput(row.monthly_fee && row.monthly_fee > 0 ? row.monthly_fee : null));
+  // Without a suggestion the amount of the payment is the fee typed above (a month, or a package).
+  const [amount, setAmount] = useState("");
+  const [amountTouched, setAmountTouched] = useState(false);
   const [paidOn, setPaidOn] = useState(today);
+  const [validFrom, setValidFrom] = useState(today);
   const [validTo, setValidTo] = useState(() => addMonthMinusDay(today));
   const [toTouched, setToTouched] = useState(false);
   const [lessons, setLessons] = useState(lessonsDefault ? String(lessonsDefault) : "");
@@ -85,20 +118,70 @@ function QuickEntry({
   const [error, setError] = useState<string | null>(null);
   // The fee the server already holds: a retry after a failed payment does not send it again.
   const [savedFee, setSavedFee] = useState<number | null>(row.monthly_fee);
+  // The server is asked only for rows that have been in view: a long list does not fire a request per row.
+  const [seen, setSeen] = useState(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  useOnceVisible(formRef, () => setSeen(true));
+
+  const query = useMemo(() => buildQuoteQuery({
+    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched,
+  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched]);
+  const queryKey = quoteQueryKey(query);
+  const quoteState = usePaymentQuote({
+    enabled: seen,
+    membershipId: row.membership_id,
+    query,
+    onQuote: (quote: PaymentQuote) => {
+      // The period only: the amount of this row is derived below from the fee typed in it.
+      const patch = quotePrefill(quote, { from: false, to: toTouched, amount: true }, periodMode);
+      if (patch.validFrom) setValidFrom(patch.validFrom);
+      if (patch.validTo) setValidTo(patch.validTo);
+    },
+  });
+  const { quote, loading: quoteLoading, failed: quoteFailed } = quoteState;
+  const fresh = quote && quoteState.quoteKey === queryKey ? quote : null;
+  const fixedDay = periodMode === "calendar" && quote?.billing_anchor === "fixed_day" ? quote.billing_day : null;
+
+  // No answer: the first guess stays (from the payment date, a month long).
+  useEffect(() => {
+    if (!quoteFailed) return;
+    setValidFrom(paidOn);
+    if (!toTouched) setValidTo(addMonthMinusDay(paidOn));
+  }, [quoteFailed, paidOn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const feeValue = parseMonthlyFee(fee).value;
+  // The suggestion was made for the fee the server holds; a fee edited in this row is not covered by it.
+  const feeUnchanged = feeValue !== null && feeValue === savedFee;
+  const suggestion = feeUnchanged && fresh && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
+  // A period of an odd length has no price: the amount is stated by hand, not taken from the fee.
+  const custom = fresh?.basis === "custom";
+  const defaultAmount = custom ? null : suggestion ?? feeValue;
+  const showAmount = amountTouched || custom || Boolean(fresh?.partial) || (suggestion !== null && suggestion !== feeValue);
+  const amountText = amountTouched ? amount : formatMoneyInput(defaultAmount);
+  const waiting = seen && quoteLoading && !(amountTouched && toTouched);
 
   const changePaidOn = (value: string) => {
     setError(null);
     setPaidOn(value);
+    // With one center day the server knows the period: the dates wait for its answer.
+    if (fixedDay) return;
+    setValidFrom(value);
     if (!toTouched && value) setValidTo(addMonthMinusDay(value));
   };
 
+  const changeValidTo = (value: string) => {
+    setToTouched(true);
+    setError(null);
+    setValidTo(value);
+  };
+
   const save = async () => {
-    if (busy) return;
+    if (busy || waiting) return;
     const parsed = parseMonthlyFee(fee);
     if (parsed.error) { setError(parsed.error); return; }
-    if (!parsed.value) { setError("Укажите оплату в месяц"); return; }
+    if (!parsed.value) { setError(texts.required); return; }
     const values: PaymentFormValues = {
-      amount: fee, paidOn, validFrom: paidOn, validTo, lessons, note: "", reason: "",
+      amount: amountText, paidOn, validFrom, validTo, lessons, note: "", reason: "",
     };
     const problem = validatePaymentForm(values, periodMode, today);
     if (problem) { setError(problem); return; }
@@ -116,22 +199,25 @@ function QuickEntry({
     } catch (cause) {
       const reason = (cause instanceof Error ? cause.message : "Не удалось сохранить оплату").replace(/[.\s]+$/, "");
       setError(feeSavedNow
-        ? `Оплата в месяц сохранена, но оплата не внесена: ${reason}. Нажмите «Сохранить» ещё раз.`
+        ? `${texts.saved}, но оплата не внесена: ${reason}. Нажмите «Сохранить» ещё раз.`
         : reason);
       setBusy(false);
     }
   };
 
   const id = `quick-${row.membership_id}`;
+  const chips = fixedDay !== null ? fixedDayChips(validFrom, validTo, fixedDay) : null;
+  const chipClass = "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors";
   return (
     <form
+      ref={formRef}
       onSubmit={(event) => { event.preventDefault(); void save(); }}
       className="space-y-1.5"
       noValidate
     >
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <div className="col-span-2 sm:col-span-1">
-          <label htmlFor={`${id}-fee`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Оплата в месяц, сум</label>
+          <label htmlFor={`${id}-fee`} className="mb-0.5 block text-[11px] font-medium text-slate-500">{texts.field}</label>
           <input
             id={`${id}-fee`}
             value={fee}
@@ -149,7 +235,7 @@ function QuickEntry({
         {periodMode === "calendar" ? (
           <div>
             <label htmlFor={`${id}-to`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Оплачено до</label>
-            <input id={`${id}-to`} type="date" value={validTo} onChange={(event) => { setToTouched(true); setError(null); setValidTo(event.target.value); }} className={FIELD} />
+            <input id={`${id}-to`} type="date" value={validTo} onChange={(event) => changeValidTo(event.target.value)} className={FIELD} />
           </div>
         ) : (
           <div>
@@ -168,13 +254,52 @@ function QuickEntry({
         )}
         <button
           type="submit"
-          disabled={busy}
+          disabled={busy || waiting}
           className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-60 sm:col-span-1"
         >
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {(busy || waiting) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           Сохранить
         </button>
       </div>
+
+      {chips && (
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Оплачено до: быстрый выбор">
+          <button type="button" aria-pressed={validTo === chips.toEnd} onClick={() => changeValidTo(chips.toEnd)} className={`${chipClass} ${validTo === chips.toEnd ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+            До конца месяца ({formatDateRu(chips.toEnd).slice(0, 5)})
+          </button>
+          <button type="button" aria-pressed={validTo === chips.plusNext} onClick={() => changeValidTo(chips.plusNext)} className={`${chipClass} ${validTo === chips.plusNext ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
+            + следующий месяц ({formatDateRu(chips.plusNext).slice(0, 5)})
+          </button>
+        </div>
+      )}
+
+      {showAmount && (
+        <div className="max-w-[14rem]">
+          <label htmlFor={`${id}-amount`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Сумма оплаты, сум</label>
+          <input
+            id={`${id}-amount`}
+            value={amountText}
+            onChange={(event) => { setError(null); setAmountTouched(true); setAmount(reformatMoneyTyping(event.target.value)); }}
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="450 000"
+            className={FIELD}
+          />
+        </div>
+      )}
+
+      <p aria-live="polite" className="min-h-[1rem] text-[11px] text-slate-500">
+        {waiting ? (
+          <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
+        ) : fresh && (feeUnchanged || custom) && fresh.explanation ? (
+          fresh.explanation
+        ) : fresh?.partial ? (
+          `${texts.label} изменена — сумму за неполный месяц укажите сами`
+        ) : ""}
+        {fresh?.partial && (
+          <span className="ml-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-amber-800">{PARTIAL_PERIOD_BADGE}</span>
+        )}
+      </p>
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
     </form>
   );
@@ -383,7 +508,7 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
             <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_DEFAULT}`}>
               <span>Ученик</span>
               <span>Группа</span>
-              <span>Оплата в месяц</span>
+              <span>{feeColumnLabel(items, periodMode)}</span>
               <span>Статус</span>
               <span>Последняя оплата</span>
               <span />
@@ -505,7 +630,7 @@ function PaymentRow({
       ) : (
         <>
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
-            <span className="text-xs text-slate-400 xl:hidden">Оплата в месяц</span>
+            <span className="text-xs text-slate-400 xl:hidden">{feeTexts(feeModeOf(row, periodMode)).label}</span>
             {row.monthly_fee === null || row.monthly_fee === undefined ? (
               <span className="text-slate-400">не задана</span>
             ) : (
