@@ -61,7 +61,6 @@ export default function AdminGroupsPage() {
 
   const activeCount = groups.filter((g) => g.status === "active").length;
   const archivedCount = groups.filter((g) => g.status === "archived").length;
-  const totalStudents = groups.reduce((sum, g) => sum + (g.student_count ?? 0), 0);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
+import { forbiddenTarget } from "@/lib/role-home";
 
 type UserRole = "owner" | "admin" | "teacher" | "superadmin";
 
@@ -12,9 +13,9 @@ interface AuthGuardProps {
   allowedRoles?: UserRole[];
   /** Where to redirect if not authenticated */
   loginPath?: string;
-  /** Where to redirect if authenticated but wrong role */
+  /** Last resort if authenticated but wrong role and the role has no home of its own */
   forbiddenPath?: string;
-  /** Role-specific destinations for a direct link to the wrong workspace. */
+  /** Overrides for the role's own home (login's role -> home table) on a direct link to the wrong workspace. */
   forbiddenRolePaths?: Partial<Record<UserRole, string>>;
 }
 
@@ -25,7 +26,7 @@ interface AuthGuardProps {
  * - Optionally checks user role against allowedRoles
  * - Shows loading spinner while checking
  * - Redirects to login if unauthenticated
- * - Redirects to forbidden path if role mismatch
+ * - Wrong role: redirects to that role's own home (the sign-in table), not the landing page
  */
 export function AuthGuard({
   children,
@@ -79,7 +80,12 @@ export function AuthGuard({
         if (!hasRole) {
           const orgRole = currentUser.org_role as UserRole;
           const accountRole = currentUser.role as UserRole;
-          router.replace(forbiddenRolePaths?.[orgRole] || forbiddenRolePaths?.[accountRole] || forbiddenPath);
+          router.replace(
+            forbiddenTarget(
+              { orgRole, accountRole },
+              { forbiddenPath, forbiddenRolePaths, currentPath: window.location.pathname },
+            ),
+          );
           return;
         }
       }

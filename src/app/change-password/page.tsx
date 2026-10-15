@@ -6,12 +6,7 @@ import { motion } from "framer-motion";
 import { Lock, KeyRound, ShieldCheck, Loader2, Eye, EyeOff } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 import { authApi } from "@/lib/api";
-
-const ROLE_DASHBOARD: Record<string, string> = {
-  owner: "/owner/dashboard",
-  admin: "/admin/diagnostics",
-  teacher: "/teacher/dashboard",
-};
+import { roleHome } from "@/lib/role-home";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -61,7 +56,7 @@ export default function ChangePasswordPage() {
       await refreshProfile();
       const user = useAuthStore.getState().user;
       const role = user?.org_role || user?.role || "";
-      router.replace(ROLE_DASHBOARD[role] || "/");
+      router.replace(roleHome(role) || "/");
     } catch (e: any) {
       setError(e.message || "Не удалось сменить пароль");
       setBusy(false);

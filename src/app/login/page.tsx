@@ -9,18 +9,13 @@ import { Select } from "@/components/ui/select";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
+import { loginHome } from "@/lib/role-home";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
   { value: "admin", label: "Админ" },
   { value: "teacher", label: "Учитель" },
 ];
-
-const ROLE_DASHBOARD: Record<string, string> = {
-  owner: "/owner/dashboard",
-  admin: "/admin/diagnostics",
-  teacher: "/teacher/dashboard",
-};
 
 export default function LoginPage() {
   const { login, isLoading, error, errorCode, clearError } = useAuthStore();
@@ -60,7 +55,7 @@ export default function LoginPage() {
       // Hard navigation (not router.push) — guarantees a fresh request that
       // the middleware evaluates with the just-set cookie, bypassing any
       // client router cache entirely.
-      window.location.href = ROLE_DASHBOARD[actualRole || ""] || "/admin/diagnostics";
+      window.location.href = loginHome(actualRole);
     } catch {
       // Error already set in store
     }

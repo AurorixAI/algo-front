@@ -11,6 +11,8 @@ import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, formatBusi
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
+import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
+import { serverErrorMessage } from "@/lib/lesson-actions";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -986,7 +988,7 @@ export default function TeacherSchedulePage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      setAttendanceError(excuseReasonHint(err) ?? "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
+      setAttendanceError(excuseReasonHint(err) ?? serverErrorMessage(err, "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз."));
     } finally {
       setSavingAttendance(false);
     }
@@ -1029,7 +1031,7 @@ export default function TeacherSchedulePage() {
       setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      setAttendanceError("Не удалось отменить урок. Данные не изменены.");
+      setAttendanceError(serverErrorMessage(err, "Не удалось отменить урок. Данные не изменены."));
     } finally {
       setSavingAttendance(false);
     }
@@ -1105,7 +1107,7 @@ export default function TeacherSchedulePage() {
       setIsReschedulingLesson(false);
     } catch (err) {
       console.error("Failed to reschedule lesson:", err);
-      setAttendanceError("Не удалось перенести урок. Расписание и посещаемость не изменены.");
+      setAttendanceError(serverErrorMessage(err, "Не удалось перенести урок. Расписание и посещаемость не изменены."));
     } finally {
       setSavingAttendance(false);
     }
@@ -2860,7 +2862,7 @@ export default function TeacherSchedulePage() {
                               Состав группы ({groupStudents.length} учеников)
                             </p>
                             <p className="text-xs text-emerald-700 mt-0.5 font-medium">
-                              Урок начался! Отметьте присутствие учеников на занятии.
+                              Время урока пришло. Нажмите «Начать урок» и отметьте присутствие учеников.
                             </p>
                           </div>
                         </div>
@@ -3070,6 +3072,9 @@ export default function TeacherSchedulePage() {
                   </div>
                 </div>
               )}
+
+              {/* The marking list shows its own copy of the error; every other step shows it here. */}
+              {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
 
               {/* Actions footer */}
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">

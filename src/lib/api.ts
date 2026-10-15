@@ -417,6 +417,8 @@ export interface TeacherDashboardLessonAttendanceState {
 export interface TeacherDashboardSummary {
   businessDate: string;
   groups: GroupInfo[];
+  /** Distinct active students across the teacher's active groups (absent on an older server). */
+  studentCount?: number;
   todayLessons: ScheduleOccurrence[];
   scheduleWindow: ScheduleOccurrence[];
   openAttendanceActions: OpenAttendanceAction[];

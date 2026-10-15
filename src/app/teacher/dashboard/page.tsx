@@ -47,6 +47,8 @@ import {
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
+import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
+import { lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useRouter } from "next/navigation";
 
 const DAYS = [
@@ -382,7 +384,11 @@ export default function TeacherDashboardPage() {
         setGroups(activeGroups);
         setStats({
           groups: activeGroups.length,
-          students: activeGroups.reduce((acc: number, group: GroupInfo) => acc + (group.student_count || 0), 0),
+          // A student of two of the teacher's groups is one student: the server
+          // counts them once. Summing the per-group rosters would count twice.
+          students: typeof summary.studentCount === "number"
+            ? summary.studentCount
+            : activeGroups.reduce((acc: number, group: GroupInfo) => acc + (group.student_count || 0), 0),
         });
 
         setTodayLessons(
@@ -595,8 +601,33 @@ export default function TeacherDashboardPage() {
     [todayLessons, lessonStatusMap, completedLessonsMap, groups],
   );
 
+  /**
+   * One entry point for "do this action": the card and the action centre must
+   * not branch differently. A missed lesson cannot be started (the server
+   * allows it on the lesson's day only), so it opens the reconciliation
+   * dialog; any other action opens the lesson panel.
+   */
+  const openLessonAction = (action: LessonAction) => {
+    const target = lessonActionTarget(action);
+    if (target.kind === "reconcile") {
+      setActiveLesson(null);
+      setMissedLessonError(null);
+      setIsCancellingMissedLesson(false);
+      setMissedLessonCancellationReason("");
+      setMissedLessonAction(target.source);
+      return;
+    }
+    setActiveLesson(target.lesson);
+  };
+
   const handleStartLesson = async () => {
     if (!activeLesson || activeInstanceStatus !== "scheduled") return;
+
+    const blocked = startBlockedReason(lessonDateRelation(activeLesson.occurrenceDate || businessDate, businessDate));
+    if (blocked) {
+      setAttendanceError(blocked);
+      return;
+    }
 
     const subsequentLesson = getSubsequentStartedLesson(activeLesson);
     if (subsequentLesson) {
@@ -622,11 +653,7 @@ export default function TeacherDashboardPage() {
       setIsMarkingAttendance(true);
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      setAttendanceError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Не удалось начать урок. Данные не изменены."
-      );
+      setAttendanceError(serverErrorMessage(err, "Не удалось начать урок. Данные не изменены."));
     } finally {
       setSavingAttendance(false);
     }
@@ -847,7 +874,7 @@ export default function TeacherDashboardPage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      setAttendanceError(excuseReasonHint(err) ?? "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
+      setAttendanceError(excuseReasonHint(err) ?? serverErrorMessage(err, "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз."));
     } finally {
       setSavingAttendance(false);
     }
@@ -890,7 +917,7 @@ export default function TeacherDashboardPage() {
       setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      setAttendanceError("Не удалось отменить урок. Данные не изменены.");
+      setAttendanceError(serverErrorMessage(err, "Не удалось отменить урок. Данные не изменены."));
     } finally {
       setSavingAttendance(false);
     }
@@ -1179,6 +1206,19 @@ export default function TeacherDashboardPage() {
     );
   }, [activeLesson, todayDayOfWeek, isAttendanceSaved, lessonAttendanceMap, activeInstanceStatus]);
 
+  // The calendar day decides what the panel may offer: a lesson starts on its own day only.
+  const activeLessonDate = activeLesson ? activeLesson.occurrenceDate || businessDate : null;
+  const activeLessonRelation = activeLessonDate ? lessonDateRelation(activeLessonDate, businessDate) : null;
+  // The never-started lesson of a past day, which the teacher can still settle as "missed".
+  const activeMissedAction = activeLesson && activeLessonRelation === "past"
+    ? openAttendanceActions.find((action) => (
+      action.actionType === "missed"
+      && action.groupId === activeLesson.groupId
+      && action.lessonId === activeLesson.id
+      && action.lessonDate === activeLessonDate
+    )) ?? null
+    : null;
+
   const activeSubsequentLesson = useMemo(
     () => activeLesson && activeInstanceStatus === "scheduled"
       ? getSubsequentStartedLesson(activeLesson)
@@ -1289,7 +1329,7 @@ export default function TeacherDashboardPage() {
               {primaryLessonAction ? (
                 <button
                   type="button"
-                  onClick={() => setActiveLesson(primaryLessonAction.lesson)}
+                  onClick={() => openLessonAction(primaryLessonAction)}
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
                 >
                   Открыть урок <ArrowRight className="h-4 w-4" />
@@ -1888,14 +1928,7 @@ export default function TeacherDashboardPage() {
                         type="button"
                         onClick={() => {
                           setIsActionCenterOpen(false);
-                          if (isMissed && action.sourceAction) {
-                            setMissedLessonError(null);
-                            setIsCancellingMissedLesson(false);
-                            setMissedLessonCancellationReason("");
-                            setMissedLessonAction(action.sourceAction);
-                          } else {
-                            setActiveLesson(action.lesson);
-                          }
+                          openLessonAction(action);
                         }}
                         className={`w-full rounded-2xl border p-4 text-left transition-all hover:shadow-sm ${
                           isMissed || isHistorical ? "border-rose-200 bg-rose-50/45 hover:border-rose-300" : "border-amber-200 bg-amber-50/45 hover:border-amber-300"
@@ -2240,6 +2273,51 @@ export default function TeacherDashboardPage() {
                             Заполнить посещаемость
                           </button>
                         </div>
+                      ) : activeLessonRelation === "past" ? (
+                        /* A past day's lesson which was never started: the server
+                           starts a lesson on its own day only, so the panel must not
+                           offer a start. It is settled as "missed" instead. */
+                        <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div className="flex items-start gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                              <AlertCircle className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-rose-950">Урок не был начат</p>
+                              <p className="text-xs text-rose-800 mt-0.5">
+                                Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}, {activeLesson.startTime} — {activeLesson.endTime}. Начать его теперь нельзя: урок запускается только в день проведения. {activeMissedAction ? "Если занятие состоялось, разберите его и заполните журнал; если нет — отмените с причиной." : "Если занятие не состоялось, отмените его с причиной."}
+                              </p>
+                            </div>
+                          </div>
+                          {activeMissedAction && (
+                            <button
+                              type="button"
+                              onClick={() => openLessonAction({
+                                lesson: activeLesson,
+                                label: "Разобрать пропущенный урок",
+                                description: "",
+                                tone: "rose",
+                                actionType: "missed",
+                                sourceAction: activeMissedAction,
+                              })}
+                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+                            >
+                              Разобрать пропущенный урок
+                            </button>
+                          )}
+                        </div>
+                      ) : activeLessonRelation === "future" ? (
+                        <div className="p-5 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                            <Clock className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-amber-950">Урок ещё не наступил</p>
+                            <p className="text-xs text-amber-800 mt-0.5">
+                              Занятие по расписанию: {formatIsoDateLabel(activeLessonDate || businessDate, { weekday: "long", day: "numeric", month: "long" })}. Начать урок и отметить посещаемость можно только в день проведения.
+                            </p>
+                          </div>
+                        </div>
                       ) : activeSubsequentLesson ? (
                         <div className="p-5 rounded-2xl bg-rose-50/60 border border-rose-200/80 flex items-start gap-3.5">
                           <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
@@ -2316,7 +2394,7 @@ export default function TeacherDashboardPage() {
                                 Состав группы ({groupStudents.length} учеников)
                               </p>
                               <p className="text-xs text-emerald-700 mt-0.5 font-medium">
-                                Урок начался! Отметьте присутствие учеников на занятии.
+                                Время урока пришло. Нажмите «Начать урок» и отметьте присутствие учеников.
                               </p>
                             </div>
                           </div>
@@ -2512,6 +2590,9 @@ export default function TeacherDashboardPage() {
                     </div>
                   </div>
                 )}
+
+                {/* The marking list shows its own copy of the error; every other step shows it here. */}
+                {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
 
                 {/* Actions footer */}
                 <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">

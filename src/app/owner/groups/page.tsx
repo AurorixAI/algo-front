@@ -97,7 +97,6 @@ export default function OwnerGroupsPage() {
 
   // Summary stats (active groups only)
   const active = groups.filter((g) => g.status === "active");
-  const totalStudents = active.reduce((s, g) => s + g.student_count, 0);
   const avgFill = active.length > 0
     ? Math.round(active.reduce((s, g) => s + (g.student_count / g.max_students) * 100, 0) / active.length)
     : 0;
