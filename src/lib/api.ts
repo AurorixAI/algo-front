@@ -63,7 +63,8 @@ interface ApiOptions {
 }
 
 class ApiError extends Error {
-  constructor(public status: number, message: string, public code?: string, public action?: string) {
+  /** `detail` is the server's `detail` object (`{code, message, ...extra}`), kept for the extra fields (`missing[]`, `current_revision`). */
+  constructor(public status: number, message: string, public code?: string, public action?: string, public detail?: unknown) {
     super(message);
     this.name = "ApiError";
   }
@@ -150,7 +151,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
       message = error.detail.message || message;
       code = error.detail.code;
     }
-    throw new ApiError(response.status, message, code);
+    throw new ApiError(response.status, message, code, undefined, error?.detail);
   }
 
   return response.json();

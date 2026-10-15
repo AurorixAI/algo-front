@@ -10,16 +10,21 @@ import {
   EMPTY_EDITS,
   UNSAVED_TEXT,
   buildPatchBody,
+  checkMissingPercents,
   editsDirty,
   editsProblem,
   isOpenMonth,
+  isPercentRequired,
   isRevisionConflict,
+  missingTypesOf,
   monthTitle,
   payrollErrorText,
   revisionLabel,
   sheetFileName,
   teacherLabel,
+  type LessonType,
   type PayrollDiff,
+  type PayrollPercentInput,
   type PayrollRevision,
   type PayrollErrorLike,
   type PayrollSheet,
@@ -32,7 +37,7 @@ import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { PayrollSheetTable } from "./sheet-table";
-import { BackLink, ConflictBanner, DiffBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
+import { BackLink, ConflictBanner, DiffBanner, MissingPercentBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
 
 type Tab = "sheet" | "history";
 
@@ -84,6 +89,11 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const [revisionsFailed, setRevisionsFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  /** A recalculation or save was refused for want of percents: the kinds, the server's words, what to retry. */
+  const [missing, setMissing] = useState<{ types: LessonType[]; message: string; recalculate: boolean } | null>(null);
+  const [missingTexts, setMissingTexts] = useState<Record<string, string>>({});
+  const [missingAttempted, setMissingAttempted] = useState(false);
+  const [missingError, setMissingError] = useState<string | null>(null);
 
   const loads = useRef(createRequestSequence());
   const diffs = useRef(createRequestSequence());
@@ -175,7 +185,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     router.replace(next === "history" ? "?tab=history" : "?", { scroll: false });
   };
 
-  const apply = async (recalculate: boolean) => {
+  const apply = async (recalculate: boolean, extraPercents: PayrollPercentInput[] = []) => {
     if (!sheet || !sheet.id || saving) return;
     const problem = editsProblem(sheet, edits);
     if (problem) { setSaveError(problem); return; }
@@ -183,12 +193,16 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate }));
+      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, extraPercents }));
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
         `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? revisionLabel(updated.revision) : "новая редакция"}`,
       );
       loads.current.next();
+      setMissing(null);
+      setMissingTexts({});
+      setMissingAttempted(false);
+      setMissingError(null);
       setSheet(named(updated));
       setEdits(EMPTY_EDITS);
       setNote("");
@@ -198,11 +212,26 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       void loadDiff();
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
-      if (isRevisionConflict(cause as PayrollErrorLike)) setConflict(true);
-      else setSaveError(payrollErrorText(cause as PayrollErrorLike));
+      const error = cause as PayrollErrorLike;
+      const types = isPercentRequired(error) ? missingTypesOf(error, sheet.teacher_id) : [];
+      if (isRevisionConflict(error)) setConflict(true);
+      else if (types.length > 0) {
+        // Ask for the missing percents right here and retry with them.
+        setMissing({ types, message: payrollErrorText(error), recalculate });
+        setMissingError(null);
+      } else if (missing) setMissingError(payrollErrorText(error));
+      else setSaveError(payrollErrorText(error));
     } finally {
       setSaving(false);
     }
+  };
+
+  const retryWithMissing = () => {
+    if (!sheet || !missing) return;
+    const checked = checkMissingPercents(sheet.teacher_id, missing.types, missingTexts);
+    if (Object.keys(checked.errors).length > 0) { setMissingAttempted(true); return; }
+    setMissingError(null);
+    void apply(missing.recalculate, checked.percents);
   };
 
   const download = async () => {
@@ -334,6 +363,21 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   message={payrollErrorText({ status: 409 })}
                   reloading={refreshing}
                   onReload={async () => { setRefreshing(true); await load(true); setRefreshing(false); }}
+                />
+              )}
+              {missing && (
+                <MissingPercentBanner
+                  teacherName={sheet.teacher_name ?? "Преподаватель"}
+                  message={missing.message}
+                  types={missing.types}
+                  texts={missingTexts}
+                  attempted={missingAttempted}
+                  busy={saving}
+                  error={missingError}
+                  retryLabel={missing.recalculate ? "Пересчитать с этими процентами" : "Сохранить с этими процентами"}
+                  onText={(type, text) => { setMissingError(null); setMissingTexts((previous) => ({ ...previous, [type]: text })); }}
+                  onRetry={retryWithMissing}
+                  onCancel={() => { setMissing(null); setMissingTexts({}); setMissingAttempted(false); setMissingError(null); }}
                 />
               )}
               {diff?.stale && (

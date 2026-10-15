@@ -18,6 +18,7 @@ import {
   sheetLessonTypes,
   teacherLabel,
   warningViews,
+  type LessonType,
   type PayrollDiff,
   type PayrollDiffLine,
   type PayrollMonthWarnings,
@@ -177,6 +178,82 @@ export function ConflictBanner({ message, onReload, reloading }: { message: stri
         Обновить
       </button>
     </div>
+  );
+}
+
+/**
+ * A recalculation found lessons of a kind the sheet has no percent for (422 PERCENT_REQUIRED, `missing[]`): one field
+ * per such kind, here in the banner, and a retry that sends them with the same request.
+ */
+export function MissingPercentBanner({
+  teacherName, message, types, texts, attempted, busy, error, retryLabel, onText, onRetry, onCancel,
+}: {
+  teacherName: string;
+  message: string;
+  types: LessonType[];
+  texts: Record<string, string>;
+  /** Show the errors of fields that were not touched yet (after a retry that was refused). */
+  attempted: boolean;
+  busy: boolean;
+  /** The answer to the last retry, when it failed for another reason. */
+  error: string | null;
+  retryLabel: string;
+  onText: (type: LessonType, text: string) => void;
+  onRetry: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <section role="alert" aria-label="Нужен процент" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 print:hidden">
+      <p className="flex items-start gap-2 text-sm font-semibold">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span className="min-w-0">{message}</span>
+      </p>
+      <div className="mt-3 flex flex-wrap items-start gap-x-5 gap-y-3">
+        {types.map((type) => {
+          const text = texts[type] ?? "";
+          const problem = (attempted || text !== "") ? parsePercent(text).error : null;
+          const id = `payroll-missing-percent-${type}`;
+          return (
+            <div key={type} className="min-w-0">
+              <label htmlFor={id} className="mb-1 block text-xs font-medium text-amber-950">Процент для {lessonTypeLabel(type)}</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id={id}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  required
+                  value={text}
+                  placeholder="0"
+                  aria-label={`Процент для ${teacherName}, ${lessonTypeLabel(type)}`}
+                  aria-invalid={Boolean(problem)}
+                  aria-describedby={problem ? `${id}-error` : undefined}
+                  onChange={(event) => onText(type, sanitizePercentTyping(event.target.value))}
+                  className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
+                    problem ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-amber-300 focus:border-primary-500 focus:ring-primary-500/10"
+                  }`}
+                />
+                <span className="text-sm">%</span>
+              </div>
+              {problem && <p id={`${id}-error`} className="mt-1 max-w-[14rem] text-xs font-medium text-rose-700">{problem}</p>}
+            </div>
+          );
+        })}
+      </div>
+      {error && <p className="mt-2 text-xs font-medium text-rose-700">{error}</p>}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onRetry}
+          disabled={busy}
+          className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+          {retryLabel}
+        </button>
+        <button type="button" onClick={onCancel} disabled={busy} className="rounded-xl px-3.5 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60">Отмена</button>
+      </div>
+    </section>
   );
 }
 

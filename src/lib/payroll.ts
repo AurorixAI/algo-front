@@ -823,15 +823,23 @@ export function buildSaveBody(sheet: PayrollSheet, edits: SheetEdits, note: stri
   return body;
 }
 
-/** «Пересчитать» is the same body with `recalculate`. */
+/**
+ * «Пересчитать» is the same body with `recalculate`.  `extraPercents`: the percents the owner gave for the types a
+ * `PERCENT_REQUIRED` answer named; they are sent with the retry.
+ */
 export function buildPatchBody(
   sheet: PayrollSheet,
   edits: SheetEdits,
   note: string,
-  options: { recalculate?: boolean } = {},
+  options: { recalculate?: boolean; extraPercents?: PayrollPercentInput[] } = {},
 ): PayrollPatchBody {
   const body: PayrollPatchBody = { revision: sheet.revision ?? 1 };
-  if (Object.keys(edits.percents).length > 0) body.percents = buildPercentsPayload(sheet, edits);
+  const extra = options.extraPercents ?? [];
+  let percents = Object.keys(edits.percents).length > 0 ? buildPercentsPayload(sheet, edits) : [];
+  if (extra.length > 0) {
+    percents = [...percents.filter((item) => !extra.some((given) => given.lesson_type === item.lesson_type)), ...extra];
+  }
+  if (percents.length > 0) body.percents = percents;
   const overrides = buildLineOverrides(sheet, edits);
   if (overrides.length > 0) body.line_overrides = overrides;
   if (options.recalculate) body.recalculate = true;
@@ -995,6 +1003,53 @@ export interface PayrollErrorLike {
   status?: number;
   code?: string;
   message?: string;
+  /** The server's whole `detail` object: the extra fields of a coded error (`missing[]`, `current_revision`). */
+  detail?: unknown;
+}
+
+/** One pair a `PERCENT_REQUIRED` error names: the percent of this teacher for this kind of lessons is missing. */
+export interface PayrollMissingPercent {
+  teacher_id: string;
+  lesson_type: LessonType;
+  lesson_type_label: string;
+}
+
+/** `detail.missing[]` of a `PERCENT_REQUIRED` error; [] for any other error. */
+export function missingPercents(error: PayrollErrorLike | null | undefined): PayrollMissingPercent[] {
+  if (!isPercentRequired(error)) return [];
+  const detail = error?.detail as { missing?: unknown } | null | undefined;
+  const list = Array.isArray(detail?.missing) ? (detail?.missing as unknown[]) : [];
+  const out: PayrollMissingPercent[] = [];
+  for (const item of list) {
+    const entry = item as Partial<PayrollMissingPercent> | null;
+    if (entry && typeof entry.teacher_id === "string" && isLessonType(entry.lesson_type)) {
+      out.push({ teacher_id: entry.teacher_id, lesson_type: entry.lesson_type, lesson_type_label: entry.lesson_type_label ?? lessonTypeLabel(entry.lesson_type) });
+    }
+  }
+  return out;
+}
+
+/** The lesson types of this teacher the error says have no percent, once each, in the order of the forms. */
+export function missingTypesOf(error: PayrollErrorLike | null | undefined, teacherId: string): LessonType[] {
+  const found = new Set<LessonType>();
+  for (const item of missingPercents(error)) if (item.teacher_id === teacherId) found.add(item.lesson_type);
+  return [...found].sort((a, b) => lessonTypeOrder(a) - lessonTypeOrder(b));
+}
+
+/** What the owner typed for the missing percents: the canonical values to send, and the error of every field that is not a percent. */
+export function checkMissingPercents(
+  teacherId: string,
+  types: ReadonlyArray<LessonType>,
+  texts: Record<string, string>,
+): { percents: PayrollPercentInput[]; errors: Record<string, string> } {
+  const percents: PayrollPercentInput[] = [];
+  const errors: Record<string, string> = {};
+  for (const type of types) {
+    const parsed = parsePercent(texts[type] ?? "");
+    if (parsed.value === null) errors[type] = parsed.error ?? PERCENT_FORMAT_TEXT;
+    else percents.push({ teacher_id: teacherId, lesson_type: type, percent: parsed.value });
+  }
+  return { percents, errors };
 }
 
 export function isRevisionConflict(error: PayrollErrorLike | null | undefined): boolean {

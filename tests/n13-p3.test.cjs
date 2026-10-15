@@ -914,11 +914,111 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) setShowErrors\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);
-  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate \}\)\)/);
+  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents \}\)\)/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /buildBlocks\(sheet, views\)/);
   // the types are the server's field names
   for (const field of ["lessons_without_teacher", "lessons_count", "period_start", "stale: boolean", "source_fee", "groups: PayrollGroupBlock[]", "dates: PayrollBlockDate[]",
     "saved_total", "fresh_total", "delta_amount", "line_count", "changes: string[]", "created_by_name"]) {
     assert.ok(lib.includes(field), `payroll.ts has «${field}»`);
   }
+});
+
+// ---- 15. PERCENT_REQUIRED on the sheet page: ask for the missing percents in the banner, retry with them ----------------
+
+test("a refused recalculation names the missing types; the owner's percents ride the retry (stubbed fetch)", async () => {
+  const { orgApi } = require(path.join(root, "src/lib/api.ts"));
+  const original = global.fetch;
+  const bodies = [];
+  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  const message = "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается";
+  const sheet = makeSheet({ percents: { group: "50", individual: "60" }, lines: [line(), line({ membership_id: "m3", group_id: "g2", group_name: "Индив", lesson_type: "individual", percent: "60" })] });
+  let step = 0;
+  global.fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    step += 1;
+    if (step === 1) {
+      return answer(422, { detail: { code: "PERCENT_REQUIRED", message, missing: [
+        { teacher_id: "t1", lesson_type: "pair", lesson_type_label: "Парный" },
+        { teacher_id: "t1", lesson_type: "mini_group", lesson_type_label: "Мини-группа" },
+        { teacher_id: "someone-else", lesson_type: "group", lesson_type_label: "Группа" },
+        { teacher_id: "t1", lesson_type: "pair", lesson_type_label: "Парный" },
+        { teacher_id: "t1", lesson_type: "nonsense" },
+      ] } });
+    }
+    return answer(200, makeSheet({ revision: 4 }));
+  };
+  try {
+    const first = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true })).then(() => null, (e) => e);
+    assert.deepEqual(bodies[0], { revision: 3, recalculate: true });
+    assert.equal(R.isPercentRequired(first), true);
+    assert.equal(R.payrollErrorText(first), message);
+    // the kinds of THIS teacher, once each, in the order of the forms; junk and strangers are left out
+    assert.deepEqual(R.missingTypesOf(first, "t1"), ["mini_group", "pair"]);
+    assert.deepEqual(R.missingTypesOf(first, "someone-else"), ["group"]);
+    assert.deepEqual(R.missingTypesOf(first, "nobody"), []);
+    assert.equal(R.missingPercents(first).length, 4);
+    // the fields: empty or wrong is refused with the reason, a comma is fine
+    const types = R.missingTypesOf(first, "t1");
+    const refused = R.checkMissingPercents("t1", types, { mini_group: "40,5", pair: "" });
+    assert.deepEqual(Object.keys(refused.errors), ["pair"]);
+    assert.equal(refused.errors.pair, R.PERCENT_REQUIRED_TEXT);
+    assert.equal(R.checkMissingPercents("t1", types, { mini_group: "101", pair: "30" }).errors.mini_group, R.PERCENT_MAX_TEXT);
+    assert.equal(R.checkMissingPercents("t1", types, {}).errors.mini_group, R.PERCENT_REQUIRED_TEXT);
+    const given = R.checkMissingPercents("t1", types, { mini_group: "40,5", pair: "30" });
+    assert.deepEqual(given.errors, {});
+    assert.deepEqual(given.percents, [
+      { teacher_id: "t1", lesson_type: "mini_group", percent: "40.5" },
+      { teacher_id: "t1", lesson_type: "pair", percent: "30" },
+    ]);
+    // the retry: the same request with the percents added
+    const retried = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, extraPercents: given.percents }));
+    assert.equal(retried.revision, 4);
+    assert.deepEqual(bodies[1], { revision: 3, recalculate: true, percents: given.percents });
+    // with percents edited on the sheet as well, both go, and a given one replaces the edited one of its kind
+    const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "55");
+    const merged = R.buildPatchBody(sheet, edits, "n", { recalculate: true, extraPercents: [{ teacher_id: "t1", lesson_type: "individual", percent: "70" }] });
+    assert.deepEqual(merged.percents.map((p) => [p.lesson_type, p.percent]), [["group", "55"], ["individual", "70"]]);
+    assert.equal(merged.note, "n");
+    // another error is not a missing percent
+    assert.deepEqual(R.missingPercents({ status: 409, code: "SHEET_REVISION_CONFLICT", detail: { missing: [{ teacher_id: "t1", lesson_type: "pair" }] } }), []);
+    assert.deepEqual(R.missingPercents(null), []);
+    assert.deepEqual(R.missingPercents({ status: 422, code: "PERCENT_REQUIRED" }), []);
+  } finally {
+    global.fetch = original;
+  }
+});
+
+test("the banner asks for a percent per missing type, with the same validation, and the page retries with them", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { MissingPercentBanner } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  const render = (props) => renderToStaticMarkup(React.createElement(MissingPercentBanner, {
+    teacherName: "Иванов Пётр", message: "Укажите процент преподавателя для каждого типа занятий", types: ["mini_group", "pair"], texts: {}, attempted: false, busy: false,
+    error: null, retryLabel: "Пересчитать с этими процентами", onText: () => {}, onRetry: () => {}, onCancel: () => {}, ...props,
+  }));
+  const fresh = render({});
+  assert.match(fresh, /role="alert"/);
+  assert.match(fresh, />Процент для Мини-группа</);
+  assert.match(fresh, />Процент для Парный</);
+  assert.match(fresh, /aria-label="Процент для Иванов Пётр, Мини-группа"/);
+  assert.match(fresh, /aria-label="Процент для Иванов Пётр, Парный"/);
+  assert.equal((fresh.match(/value=""/g) || []).length, 2);          // prefilled empty
+  assert.doesNotMatch(fresh, /aria-invalid="true"/);                  // nothing is shouted at before a try
+  assert.match(fresh, /Пересчитать с этими процентами/);
+  assert.match(fresh, /print:hidden/);
+  // after a refused retry the empty ones say why; what is typed is checked at once
+  const refused = render({ attempted: true, texts: { mini_group: "101" } });
+  assert.equal((refused.match(/aria-invalid="true"/g) || []).length, 2);
+  assert.ok(refused.includes(R.PERCENT_REQUIRED_TEXT));
+  assert.ok(refused.includes(R.PERCENT_MAX_TEXT));
+  assert.doesNotMatch(render({ texts: { mini_group: "40,5", pair: "30" } }), /aria-invalid="true"/);
+  assert.match(render({ error: "Нечего менять" }), /Нечего менять/);
+  // the page: a PERCENT_REQUIRED of this teacher opens the banner, the retry sends the checked percents with the same action
+  const page = read("src/components/payroll/payroll-sheet-page.tsx");
+  assert.match(page, /missingTypesOf\(error, sheet\.teacher_id\)/);
+  assert.match(page, /<MissingPercentBanner/);
+  assert.match(page, /checkMissingPercents\(sheet\.teacher_id, missing\.types, missingTexts\)/);
+  assert.match(page, /void apply\(missing\.recalculate, checked\.percents\)/);
+  assert.match(page, /buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents \}\)/);
+  assert.match(read("src/lib/api.ts"), /new ApiError\(response\.status, message, code, undefined, error\?\.detail\)/);
 });
