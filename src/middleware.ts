@@ -18,6 +18,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/register",
   "/forgot-password",
+  "/reset-password", // the link of the recovery e-mail: opened by somebody who cannot sign in
 ];
 
 // Paths accessible without full auth (invite-based)

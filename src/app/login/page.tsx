@@ -22,7 +22,9 @@ export default function LoginPage() {
   const [role, setRole] = useState("owner");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
+  // «Запомнить меня» is on by default: that is how the sign-in has always behaved (30-day cookies).
+  // Off: the cookies die when the browser closes.
+  const [rememberMe, setRememberMe] = useState(true);
   const [roleMismatch, setRoleMismatch] = useState(false);
 
   // NOTE: deliberately no router.prefetch() of the dashboards here. Prefetching
@@ -37,7 +39,7 @@ export default function LoginPage() {
     clearError();
     setRoleMismatch(false);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       const user = useAuthStore.getState().user;
       const actualRole = user?.org_role || user?.role;
 
@@ -167,7 +169,7 @@ export default function LoginPage() {
                   <span className="text-sm text-slate-600">Запомнить меня</span>
                 </label>
                 <Link
-                  href="#"
+                  href="/forgot-password"
                   className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
                   Забыли пароль?
