@@ -294,7 +294,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           <div className="flex items-center gap-5">
             {/* Avatar */}
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
-              {student.full_name.charAt(0)}
+              {(student.first_name || student.full_name).charAt(0)}
             </div>
 
             {/* Main Details */}
