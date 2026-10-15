@@ -12,6 +12,7 @@ import {
   buildPaymentPayload,
   formatDateRu,
   formatMoney,
+  isCarryOver,
   lastPaymentLabel,
   paymentAmountLabel,
   PAYMENT_BUCKETS,
@@ -467,7 +468,8 @@ function PaymentRow({
 
   const menu: RowMenuItem[] = [];
   if (last) {
-    menu.push({ key: "correct", label: "Исправить последнюю оплату", icon: Pencil, onSelect: () => onCorrect(last) });
+    // A carry-over cannot be corrected (correct the payment it came from); cancelling it stays possible.
+    if (!isCarryOver(last)) menu.push({ key: "correct", label: "Исправить последнюю оплату", icon: Pencil, onSelect: () => onCorrect(last) });
     menu.push({ key: "void", label: "Отменить последнюю оплату", icon: XCircle, danger: true, onSelect: () => onVoid(last) });
   }
 
