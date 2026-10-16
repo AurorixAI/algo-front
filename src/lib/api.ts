@@ -64,10 +64,27 @@ interface ApiOptions {
 
 class ApiError extends Error {
   /** `detail` is the server's `detail` object (`{code, message, ...extra}`), kept for the extra fields (`missing[]`, `current_revision`). */
-  constructor(public status: number, message: string, public code?: string, public action?: string, public detail?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+    public action?: string,
+    public detail?: unknown,
+    /** Seconds from the `Retry-After` header of a 429 (the exam entry limits); absent when the header is. */
+    public retryAfter?: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** `Retry-After` in whole seconds ("120"); an HTTP-date or garbage is not used. */
+function retryAfterSeconds(response: Response): number | undefined {
+  if (response.status !== 429) return undefined;
+  const raw = response.headers?.get?.("Retry-After")?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const seconds = Number(raw);
+  return seconds > 0 ? seconds : undefined;
 }
 
 /**
@@ -359,7 +376,7 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     } else if (Array.isArray(error?.detail)) {
       message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
     }
-    throw new ApiError(response.status, message);
+    throw new ApiError(response.status, message, undefined, undefined, undefined, retryAfterSeconds(response));
   }
 
   return response.json();
@@ -2320,6 +2337,12 @@ export const examsApi = {
   /** Teacher: Synchronously start exam from lobby */
   startLive: (examId: string) =>
     examApi<{ status: string; started_count: number }>(`/exams/${examId}/start-live`, "staff", {
+      method: "POST",
+    }),
+
+  /** Teacher: clear the entry rate limits of an open exam (a classmate used up the failure budget of the school address) */
+  resetEntryLimits: (examId: string) =>
+    examApi<{ exam_id: string; reset: boolean }>(`/exams/${examId}/entry-limits/reset`, "staff", {
       method: "POST",
     }),
 

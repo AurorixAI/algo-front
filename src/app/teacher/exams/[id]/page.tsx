@@ -236,6 +236,7 @@ export default function ExamHubPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [resettingLimits, setResettingLimits] = useState(false);
 
   // Tasks & Variants Tab State
   const [selectedVariant, setSelectedVariant] = useState(1);
@@ -661,6 +662,19 @@ export default function ExamHubPage() {
     }
   };
 
+  // Entry limits (#33): a classmate behind the school address can use up the failure budget of the exam code.
+  const handleResetEntryLimits = async () => {
+    setResettingLimits(true);
+    try {
+      await examsApi.resetEntryLimits(examId);
+      showToast("Ограничения входа сброшены", "success");
+    } catch (err: any) {
+      showToast(err?.message || "Не удалось сбросить ограничения входа. Повторите попытку.", "error");
+    } finally {
+      setResettingLimits(false);
+    }
+  };
+
   const handleCopyCode = () => {
     if (!exam?.access_code) return;
     navigator.clipboard.writeText(exam.access_code);
@@ -1001,6 +1015,19 @@ export default function ExamHubPage() {
                       }`}
                     >
                       {copiedLink ? "Ссылка скопирована!" : "Скопировать ссылку"}
+                    </Button>
+                  )}
+
+                  {!isPrintDelivery && exam.access_code && ["lobby", "active"].includes(exam.status) && (
+                    <Button
+                      variant="secondary"
+                      size="md"
+                      loading={resettingLimits}
+                      onClick={handleResetEntryLimits}
+                      icon={<RotateCcw className="w-4 h-4" />}
+                      title="Если ученики не могут войти из-за «Слишком много попыток»"
+                    >
+                      Сбросить ограничения входа
                     </Button>
                   )}
 

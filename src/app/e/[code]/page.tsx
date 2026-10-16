@@ -43,6 +43,8 @@ import {
   IDENTITY_HINT,
   canSubmitIdentity,
   checkFailureMessage,
+  isRateLimited,
+  rateLimitMessage,
   startIdentity,
   type ConfirmedStudent,
 } from "@/lib/exam-entry";
@@ -116,6 +118,8 @@ export default function ExamPage() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [error, setError] = useState<string>("");
   const [groupWarning, setGroupWarning] = useState<string | null>(null);
+  // The warning is «too many attempts» (429): the form stays open and the banner says so, not «access restricted».
+  const [rateLimited, setRateLimited] = useState(false);
 
   // Single attempt & confirmation modal
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
@@ -317,6 +321,7 @@ export default function ExamPage() {
   const handleStartClick = async () => {
     setConfirmedStudent(null); // a confirmation from an earlier attempt never carries over
     setGroupWarning(null);
+    setRateLimited(false);
     setAlreadySubmitted(false);
     const sName = studentName.trim();
     const sId = studentId.trim();
@@ -365,6 +370,7 @@ export default function ExamPage() {
         // The roster could not be checked (network, server failure): do not start with whatever was
         // typed - stay on the form and ask to try again.
         console.error("Check student error:", err);
+        setRateLimited(isRateLimited(err));
         setGroupWarning(checkFailureMessage(err));
         return;
       }
@@ -426,6 +432,13 @@ export default function ExamPage() {
         setPhase("exam");
       }
     } catch (err: any) {
+      if (isRateLimited(err)) {
+        // Too many attempts: not a failure of the exam. The form stays open with the wait; the student retries.
+        setPhase("lobby");
+        setRateLimited(true);
+        setGroupWarning(rateLimitMessage(err));
+        return;
+      }
       console.error("Failed to start exam:", err);
       setError(err.message || "Не удалось начать экзамен");
       setPhase("error");
@@ -640,7 +653,9 @@ export default function ExamPage() {
                   >
                     <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                     <div className="space-y-1">
-                      <p className="text-xs font-bold text-amber-900">Доступ ограничен группой</p>
+                      <p className="text-xs font-bold text-amber-900">
+                        {rateLimited ? "Слишком много попыток" : "Доступ ограничен группой"}
+                      </p>
                       <p className="text-xs text-amber-800 leading-relaxed">{groupWarning}</p>
                     </div>
                   </motion.div>

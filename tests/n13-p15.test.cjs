@@ -425,7 +425,9 @@ test("a failed pre-check keeps the student on the form", () => {
   assert.equal(entry.checkFailureMessage({ status: 503, message: "upstream" }), entry.CHECK_FAILED_MESSAGE);
   assert.equal(entry.checkFailureMessage({ status: 500, message: "boom" }), entry.CHECK_FAILED_MESSAGE);
   assert.equal(entry.checkFailureMessage({ status: 404, message: "Экзамен не найден" }), "Экзамен не найден");
-  assert.equal(entry.checkFailureMessage({ status: 429, message: "  " }), entry.CHECK_FAILED_MESSAGE);
+  assert.equal(entry.checkFailureMessage({ status: 418, message: "  " }), entry.CHECK_FAILED_MESSAGE);
+  // a 429 (too many attempts) is its own case since n13-sec: see tests/n13-sec-entry-limits.test.cjs
+  assert.equal(entry.checkFailureMessage({ status: 429, message: "  " }), entry.RATE_LIMIT_MESSAGE);
   assert.equal(entry.checkFailureMessage(null), entry.CHECK_FAILED_MESSAGE);
   const page = read("app/e/[code]/page.tsx");
   const click = page.slice(page.indexOf("const handleStartClick"), page.indexOf("const executeStartExam"));
