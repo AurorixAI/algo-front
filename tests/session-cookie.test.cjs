@@ -709,36 +709,91 @@ test("a transient refresh failure (429/5xx/no network/timeout) on exam / diagnos
   }
 });
 
-test("a student's 401 never touches the staff session: attempt token, class code and invite code flows", async () => {
-  const runs = [
-    (a) => a.examsApi.getResult("s1", "tok"),
-    (a) => a.examsApi.saveProgress("s1", { q1: "2" }, "tok"),
-    (a) => a.examsApi.submit("s1", { answers: {} }, "tok"),
-    (a) => a.examsApi.getSessionStatus("ABC123", "s1", "tok"),
-    (a) => a.examsApi.getByCode("ABC123"),
-    (a) => a.examsApi.checkStudent("ABC123", "A-0012"),
-    (a) => a.examsApi.startSession("ABC123", { student_name: "Али" }),
-    (a) => a.diagnosticApi.resolveSession("INV1"),
-    (a) => a.diagnosticApi.createSession({ student_id: "s1", grade_level: 8, invite_code: "INV1" }),
-    (a) => a.diagnosticApi.submitAnswer("s1", { task_id: "t1", student_answer: "2" }, "INV1"),
-    (a) => a.diagnosticApi.getReport("s1", "INV1"),
-  ];
-  for (const [index, run] of runs.entries()) {
+/** The public student flows. EVERY other method of the four api objects below belongs to the staff session. */
+const STUDENT_METHODS = new Set([
+  "examsApi.getByCode", "examsApi.checkStudent", "examsApi.startSession", "examsApi.saveProgress",
+  "examsApi.getSessionStatus", "examsApi.submit", "examsApi.getResult",
+  "diagnosticApi.resolveSession", "diagnosticApi.createSession", "diagnosticApi.submitAnswer", "diagnosticApi.getReport",
+]);
+/** Secondary check only (the runtime decides by the declared audience, never by the path). */
+const STUDENT_PATH = /^\/(exams\/by-code|exam-sessions)\/|^\/diagnostic\//;
+
+test("every exam / diagnostic / textbook / analytics method declares its audience: students never refresh, staff always do", async () => {
+  const api = loadApi();
+  const objects = { examsApi: api.examsApi, diagnosticApi: api.diagnosticApi, textbookApi: api.textbookApi, analyticsApi: api.analyticsApi };
+  // methods that need an array first (group analytics) are reached by the second set
+  const argSets = [["id1", "id2", "id3", "id4"], [["id1"], "id2", "id3"]];
+  const covered = new Set();
+  let staffCount = 0;
+  let studentCount = 0;
+  for (const [objectName, object] of Object.entries(objects)) {
+    for (const [name, method] of Object.entries(object)) {
+      if (typeof method !== "function") continue;
+      const key = `${objectName}.${name}`;
+      const student = STUDENT_METHODS.has(key);
+      let reached = null;
+      for (const args of argSets) {
+        const state = world({ pathname: "/teacher/exams/e1", search: "" });
+        const seen = recordRequests(state);
+        await withDownloadStubs(async () => { try { await method(...args); } catch { /* the answer is not the point */ } });
+        const service = seen.filter((r) => !r.path.startsWith("/auth/"));
+        if (service.length) { reached = { state, service }; break; }
+      }
+      assert.ok(reached, `${key} never reached the network with the dummy arguments: extend argSets`);
+      const { state, service } = reached;
+      covered.add(key);
+      if (student) {
+        studentCount += 1;
+        assert.equal(state.refreshCalls, 0, `${key}: a student's 401 must not refresh the staff session`);
+        assert.equal(state.logoutCalls, 0, `${key}: no logout`);
+        assert.equal(state.assigned, 0, `${key}: no redirect`);
+        assert.deepEqual(state.removed, [], `${key}: stored sign-in untouched`);
+        assert.equal(state.cookie, "stale", `${key}: cookies untouched`);
+        assert.equal(service.length, 1, `${key}: sent once, not repeated`);
+        assert.match(service[0].path, STUDENT_PATH, `${key}: a student method talks to a student path`);
+      } else {
+        staffCount += 1;
+        assert.equal(state.refreshCalls, 1, `${key}: a staff 401 must refresh the session once`);
+        assert.equal(state.assigned, 0, `${key}: a refreshed session is not a redirect`);
+        assert.equal(state.logoutCalls, 0, `${key}: no logout`);
+        assert.ok(service.length >= 2, `${key}: the request is repeated after the refresh`);
+        assert.doesNotMatch(service[0].path, STUDENT_PATH, `${key}: a staff method talks to a staff path`);
+      }
+    }
+  }
+  for (const key of STUDENT_METHODS) assert.ok(covered.has(key), `${key} is listed as a student method but does not exist`);
+  assert.equal(studentCount, STUDENT_METHODS.size);
+  assert.ok(staffCount >= 45, `only ${staffCount} staff methods were enumerated`);
+});
+
+test("a student's 401 still shows the request's own error, and the attempt token travels as before", async () => {
+  for (const [key, run] of [
+    ["getResult", (a) => a.examsApi.getResult("s1", "tok-1")],
+    ["submit", (a) => a.examsApi.submit("s1", { answers: {} }, "tok-1")],
+  ]) {
     const state = world({ pathname: "/e/ABC123", search: "" });
     const seen = recordRequests(state);
-    await assert.rejects(run(loadApi()), (error) => error.name === "ApiError" && error.status === 401, `run ${index}`);
-    assert.equal(state.refreshCalls, 0, `run ${index}: no refresh`);
-    assert.equal(state.logoutCalls, 0, `run ${index}: no logout`);
-    assert.equal(state.assigned, 0, `run ${index}: no redirect`);
-    assert.deepEqual(state.removed, [], `run ${index}: stored sign-in untouched`);
-    assert.equal(state.cookie, "stale", `run ${index}: cookies untouched`);
-    assert.equal(seen.length, 1, `run ${index}: sent once, not repeated`);
+    await assert.rejects(run(loadApi()), (error) => error.name === "ApiError" && error.status === 401, key);
+    assert.equal(seen.length, 1, key);
+    assert.equal(seen[0].headers["X-Exam-Session-Token"], "tok-1", key);
+    assert.equal(state.refreshCalls, 0, key);
   }
-  // and the attempt token really travels as before
-  const state = world({ pathname: "/e/ABC123", search: "" });
-  const seen = recordRequests(state);
-  await assert.rejects(loadApi().examsApi.getResult("s1", "tok-1"));
-  assert.equal(seen[0].headers["X-Exam-Session-Token"], "tok-1");
+});
+
+test("the audience is a required argument of both wrappers: no default, so a new call cannot forget it", () => {
+  const api = read("src/lib/api.ts");
+  assert.match(api, /async function examApi<T>\(endpoint: string, audience: ApiAudience, options: ApiOptions = \{\}\)/);
+  assert.match(api, /async function diagServiceApi<T>\(endpoint: string, audience: ApiAudience, options: ApiOptions = \{\}\)/);
+  assert.match(api, /type ApiAudience = "staff" \| "student";/);
+  // the runtime decides by the declared audience only
+  assert.match(api, /return audience === "staff" \? fetchAuthed\(url, init\) : fetchOrThrow\(url, init\);/);
+  assert.doesNotMatch(api, /STUDENT_(EXAM|DIAG)_PATH|staffSession/);
+  // every call site says it: as many audience literals as calls (tsc also refuses a call without one).
+  // `(examId, "student", n)` of the print PDFs is the kind of the file, not an audience.
+  const calls = (api.match(/(?<![\w.])(?:examApi|diagApi|diagServiceApi)</g) || []).length - 2; // minus the two declarations
+  const declared = (api.match(/(?<!\bexamId),\s*"(?:staff|student)"\s*[,)]/g) || []).length;
+  assert.ok(calls > 50, `${calls} calls`);
+  assert.equal(declared, calls);
 });
 
 test("a student's request with no answer at all is still the friendly status-0 error", async () => {
@@ -750,11 +805,64 @@ test("a student's request with no answer at all is still the friendly status-0 e
   }
 });
 
-test("exam / diagnostic wrappers and the PDFs have no bare fetch left (one place decides about the refresh)", () => {
-  const api = read("src/lib/api.ts");
-  const bareFetches = api.split("\n").filter((line) => /[^.\w](await )?fetch\(/.test(line) && !/^\s*(\/\/|\*)/.test(line));
-  // api() x2, requestRefresh, endDeadSession, fetchOrThrow - nothing else
-  assert.equal(bareFetches.length, 5, bareFetches.join("\n"));
+// ---- 3e. no bare fetch outside the few places that own a retry or have no session -----------
+
+/** Comments blanked out (same length, newlines kept) so a `fetch(` in prose is not a call. A URL's `//` is kept. */
+function withoutComments(text) {
+  const blank = (match) => match.replace(/[^\n]/g, " ");
+  return text.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/(^|\s)\/\/.*$/gm, blank);
+}
+
+/**
+ * Every bare `fetch(` (also window.fetch / globalThis.fetch, any spacing, even split over lines) of a source text,
+ * counted per ENCLOSING function: the nearest preceding top-level `function x` / `const x =`.
+ */
+function bareFetchesIn(text, file) {
+  const code = withoutComments(text);
+  const declarations = [...code.matchAll(/^(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+(\w+)|^(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=/gm)]
+    .map((m) => ({ at: m.index, name: m[1] || m[2] }));
+  const hits = {};
+  for (const call of code.matchAll(/\bfetch\s*\(/g)) {
+    const owner = declarations.filter((d) => d.at <= call.index).pop();
+    const key = `${file}::${owner ? owner.name : "<module>"}`;
+    hits[key] = (hits[key] || 0) + 1;
+  }
+  return hits;
+}
+const bareFetches = (file) => bareFetchesIn(read(file), file);
+
+function sourceFiles(dir) {
+  const found = [];
+  for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+    const relative = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) found.push(...sourceFiles(relative));
+    else if (/\.(ts|tsx)$/.test(entry.name)) found.push(relative);
+  }
+  return found;
+}
+
+test("a bare fetch( lives only in the functions that own the refresh / the logout / the server-side proxy", () => {
+  // function -> number of calls. Everything else goes through api() or fetchAuthed()/fetchService().
+  const allowed = {
+    "src/lib/api.ts::api": 2,                 // the request and its one retry after the refresh
+    "src/lib/api.ts::requestRefresh": 1,      // /auth/refresh itself
+    "src/lib/api.ts::endDeadSession": 1,      // the best-effort /auth/logout
+    "src/lib/api.ts::fetchOrThrow": 1,        // the one place that turns "no answer" into ApiError(0)
+    "src/app/api/v1/figures/[...path]/route.ts::GET": 1, // server-side proxy, no browser session
+  };
+  const found = {};
+  for (const file of sourceFiles("src")) Object.assign(found, bareFetches(file));
+  assert.deepEqual(found, allowed);
+});
+
+test("the guard sees window.fetch / globalThis.fetch, any spacing and a call split over lines, and ignores prefetch / comments", () => {
+  const one = (text) => bareFetchesIn(text, "f.ts");
+  assert.deepEqual(one("function a() {\n  return window.fetch(url);\n}"), { "f.ts::a": 1 });
+  assert.deepEqual(one("const b = async () => {\n  await globalThis.fetch (url);\n  await fetch\n(url);\n};"), { "f.ts::b": 2 });
+  assert.deepEqual(one("export async function c() { await fetch(`${A}/x`); await self.fetch(u) }"), { "f.ts::c": 2 });
+  assert.deepEqual(one("fetch(url)"), { "f.ts::<module>": 1 });
+  assert.deepEqual(one("function d() {\n  router.prefetch(url); refetch(); // fetch(url)\n  /* fetch(url) */\n  /**\n   * fetch(url)\n   */\n}"), {});
+  assert.deepEqual(one('function e() { return fetch("http://a.b/c") }'), { "f.ts::e": 1 }, "a URL's // is not a comment");
 });
 
 test.after(() => {

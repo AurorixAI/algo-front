@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { ScrollHint } from "@/components/ui/scroll-hint";
+import { useToast } from "@/components/ui/toast";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -18,8 +19,8 @@ import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
-import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
-import { examsApi, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
+import { examHasLobby, isNoLobbyConflict, LOBBY_POLL_MS, nextLobbyPollDelay } from "@/lib/exam-lobby";
+import { examsApi, isTransientApiError, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -218,6 +219,14 @@ export default function ExamHubPage() {
   const [exam, setExam] = useState<ExamDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { showToast, toastNode } = useToast();
+
+  // The print PDF buttons fire and forget: a refusal (or a session that could not be renewed) must be seen.
+  const runPrintDownload = (download: () => Promise<void>) => {
+    download().catch((err: unknown) => {
+      showToast(err instanceof Error && err.message ? err.message : "Не удалось скачать файл. Повторите попытку.", "error");
+    });
+  };
 
   // Live Lobby State
   const [lobbyStudents, setLobbyStudents] = useState<LobbyStudent[]>([]);
@@ -319,7 +328,11 @@ export default function ExamHubPage() {
 
   // ─── Live Polling for Lobby & Active Exam ──────────────────────────────────
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    // One poll at a time, the next one is planned after the answer: a slow or failing service gets a longer wait
+    // (transient failure: doubled up to 30 s, back to 2.5 s on the first success), never overlapping requests.
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stopped = false;
+    let delay = LOBBY_POLL_MS;
 
     // Бумажный экзамен не имеет публичного лобби или веб-сессий учеников.
     // Не опрашиваем online-маршрут: это исключает ложные статусы и лишние запросы.
@@ -333,6 +346,7 @@ export default function ExamHubPage() {
     if (!examHasLobby(exam)) return;
 
     const pollStatus = async () => {
+      let outcome: "ok" | "transient" | "error" = "ok";
       try {
         const lobbyData = await examsApi.getLobbyStatus(examId);
         setLobbyStudents(lobbyData.students || []);
@@ -354,22 +368,26 @@ export default function ExamHubPage() {
         // перезапустится по смене delivery_mode и уйдёт в печатную ветку).
         // Остальные ошибки опроса — тихие, следующий тик повторит запрос.
         if (isNoLobbyConflict(err)) {
-          if (interval) clearInterval(interval);
-          interval = null;
+          stopped = true;
           setLobbyStudents([]);
           setTimeRemaining(null);
           // Экзамен печатный, а страница считала его онлайн-экзаменом: переключаем
           // интерфейс на печатный режим (кнопки лобби/запуска онлайн-сессий уходят).
           setExam((prev) => (prev && prev.delivery_mode !== "print" ? { ...prev, delivery_mode: "print" } : prev));
+          return;
         }
+        outcome = isTransientApiError(err) ? "transient" : "error";
       }
+      if (stopped) return;
+      delay = nextLobbyPollDelay(delay, outcome);
+      timer = setTimeout(pollStatus, delay);
     };
 
     pollStatus();
-    interval = setInterval(pollStatus, 2500);
 
     return () => {
-      if (interval) clearInterval(interval);
+      stopped = true;
+      if (timer) clearTimeout(timer);
     };
   }, [examId, exam?.status, exam?.delivery_mode]);
 
@@ -1341,7 +1359,7 @@ export default function ExamHubPage() {
                     <Button
                       variant="primary"
                       icon={<Download className="w-4 h-4" />}
-                      onClick={() => examsApi.downloadStudentPrintPdf(examId, 1)}
+                      onClick={() => runPrintDownload(() => examsApi.downloadStudentPrintPdf(examId, 1))}
                       className="font-bold shadow-sm shadow-primary-500/20"
                     >
                       Скачать бланк PDF
@@ -1349,7 +1367,7 @@ export default function ExamHubPage() {
                     <Button
                       variant="secondary"
                       icon={<FileText className="w-4 h-4" />}
-                      onClick={() => examsApi.downloadTeacherPrintKey(examId, 1)}
+                      onClick={() => runPrintDownload(() => examsApi.downloadTeacherPrintKey(examId, 1))}
                     >
                       Ключ преподавателя
                     </Button>
@@ -2668,6 +2686,7 @@ export default function ExamHubPage() {
           </div>
         )}
       </AnimatePresence>
+      {toastNode}
     </div>
   );
 }
