@@ -37,6 +37,7 @@ import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { FloatingPanel } from "@/components/ui/floating-panel";
+import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -312,7 +313,7 @@ function ExamCard({
                 {exam.scheduled_lesson_date && (
                   <span className="flex items-center gap-1 font-medium text-primary-700">
                     <Clock className="w-3 h-3" />
-                    Занятие: {new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "numeric", month: "short" }).format(new Date(`${exam.scheduled_lesson_date}T12:00:00Z`))}
+                    Занятие: {formatBusinessCalendarDate(exam.scheduled_lesson_date, { day: "numeric", month: "short" })}
                   </span>
                 )}
                 {(exam.total_sessions || 0) > 0 && !isLobby && (
@@ -322,7 +323,7 @@ function ExamCard({
                   </span>
                 )}
                 <span className="text-slate-400">
-                  {new Date(exam.created_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                  {formatUtcNaiveAsBusinessDate(exam.created_at, { day: "numeric", month: "short" })}
                 </span>
               </div>
             </div>

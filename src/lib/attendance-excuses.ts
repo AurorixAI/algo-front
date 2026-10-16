@@ -1,7 +1,9 @@
 /**
  * Pure rules for the attendance journal and the "excused absences" page.
- * No React and no imports, so node:test can load this file directly.
+ * No React (only the pure business-time helpers), so node:test can load this file directly.
  */
+
+import { formatBusinessDateTime } from "./business-time";
 
 export type LessonState = "scheduled" | "in_progress" | "completed" | "cancelled";
 
@@ -86,14 +88,7 @@ export function formatDateTimeRu(value: string | null | undefined): string {
     return `${naive[3]}.${naive[2]}.${naive[1]} ${naive[4]}:${naive[5]}`;
   }
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Tashkent",
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-  }).formatToParts(date);
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("day")}.${get("month")}.${get("year")} ${get("hour")}:${get("minute")}`;
+  return Number.isNaN(date.getTime()) ? "" : formatBusinessDateTime(date);
 }
 
 export type ExcuseStatus = "pending" | "confirmed" | "rejected";

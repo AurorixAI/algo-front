@@ -14,6 +14,7 @@ import {
   Download,
 } from "lucide-react";
 import { examsApi } from "@/lib/api";
+import { formatUtcNaiveAsBusinessDateTime, formatUtcNaiveAsBusinessTime } from "@/lib/business-time";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 interface SessionSummary {
@@ -95,7 +96,8 @@ export default function ExamSessionsPage() {
           s.percentage.toFixed(1),
           formatTime(s.time_spent_seconds),
           s.status,
-          s.submitted_at ? new Date(s.submitted_at).toLocaleString("ru-RU") : "—",
+          // naive-UTC server stamp shown on the Tashkent clock (no comma inside the CSV field either)
+          formatUtcNaiveAsBusinessDateTime(s.submitted_at) || "—",
         ].join(",")
       )
       .join("\n");
@@ -282,12 +284,7 @@ export default function ExamSessionsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 text-center text-slate-500 text-xs">
-                      {s.submitted_at
-                        ? new Date(s.submitted_at).toLocaleTimeString("ru-RU", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })
-                        : "—"}
+                      {formatUtcNaiveAsBusinessTime(s.submitted_at) || "—"}
                     </td>
                   </motion.tr>
                 ))}

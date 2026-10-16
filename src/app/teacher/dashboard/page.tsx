@@ -25,6 +25,7 @@ import {
   formatBusinessDateLabel,
   formatIsoDateLabel,
   formatMinutesUntil,
+  isoDateDayOfWeek,
 } from "@/lib/business-time";
 import { openLessonBadge } from "@/lib/open-lessons";
 import {
@@ -105,7 +106,7 @@ function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary
     groupName: action.groupName,
     classLevel: action.classLevel,
     subject: action.subject,
-    dayOfWeek: new Date(`${action.lessonDate}T12:00:00`).getDay() || 7,
+    dayOfWeek: isoDateDayOfWeek(action.lessonDate),
     startTime: action.startTime,
     endTime: action.endTime,
     room: action.room || "",

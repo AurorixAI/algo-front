@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { matchesBusinessPeriod } from "@/lib/business-period";
+import { formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 
 interface DiagnosticInvite {
   id: string;
@@ -105,43 +107,9 @@ export default function AdminDiagnosticsPage() {
     pre_exam: "Предэкзаменационная",
   };
 
-  const isSameDay = (d1: Date, d2: Date) => {
-    return (
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate()
-    );
-  };
-
-  const matchesTimePeriod = (inv: DiagnosticInvite, period: string) => {
-    if (period === "all") return true;
-    const dateStr = inv.completed_at || inv.started_at || inv.created_at;
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return true;
-    const now = new Date();
-
-    if (period === "today") {
-      return isSameDay(d, now);
-    }
-    if (period === "yesterday") {
-      const yesterday = new Date(now);
-      yesterday.setDate(yesterday.getDate() - 1);
-      return isSameDay(d, yesterday);
-    }
-    if (period === "week") {
-      const weekAgo = new Date(now);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-      weekAgo.setHours(0, 0, 0, 0);
-      return d >= weekAgo;
-    }
-    if (period === "month") {
-      const monthAgo = new Date(now);
-      monthAgo.setDate(monthAgo.getDate() - 30);
-      monthAgo.setHours(0, 0, 0, 0);
-      return d >= monthAgo;
-    }
-    return true;
-  };
+  // Day buckets follow the organisation's calendar (Tashkent) and read the naive-UTC server stamps as UTC.
+  const matchesTimePeriod = (inv: DiagnosticInvite, period: string) =>
+    matchesBusinessPeriod(inv.completed_at || inv.started_at || inv.created_at, period);
 
   const periodInvites = invites.filter((inv) => matchesTimePeriod(inv, timePeriod));
 
@@ -489,12 +457,7 @@ export default function AdminDiagnosticsPage() {
                         {inv.code}
                       </code>
                       <span className="text-xs text-slate-400">
-                        {new Date(inv.created_at).toLocaleDateString("ru-RU", {
-                          day: "numeric",
-                          month: "short",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {formatUtcNaiveAsBusinessDayTime(inv.created_at)}
                       </span>
                       {isCompleted && (() => {
                         const lv = storedLevelDisplay(inv.result);

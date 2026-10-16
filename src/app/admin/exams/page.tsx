@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import { examsApi, type AdminExamMonitorState, type ExamSummary } from "@/lib/api";
+import { businessDateWithOffset, formatBusinessCalendarDate, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 
 type Period = "all" | "today" | "yesterday" | "7d" | "30d";
 type LifecycleEvent = NonNullable<ExamSummary["recent_events"]>[number];
@@ -37,32 +38,21 @@ const periods: Array<{ key: Period; label: string }> = [
   { key: "30d", label: "30 дней" },
 ];
 
-function toIsoDate(value: Date): string {
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-}
-
-function dateWithOffset(offset: number): string {
-  const value = new Date();
-  value.setDate(value.getDate() + offset);
-  return toIsoDate(value);
-}
-
 function periodBounds(period: Period): { dateFrom?: string; dateTo?: string } {
   if (period === "all") return {};
-  if (period === "today") return { dateFrom: dateWithOffset(0), dateTo: dateWithOffset(0) };
-  if (period === "yesterday") return { dateFrom: dateWithOffset(-1), dateTo: dateWithOffset(-1) };
-  return { dateFrom: dateWithOffset(period === "7d" ? -6 : -29), dateTo: dateWithOffset(0) };
+  if (period === "today") return { dateFrom: businessDateWithOffset(0), dateTo: businessDateWithOffset(0) };
+  if (period === "yesterday") return { dateFrom: businessDateWithOffset(-1), dateTo: businessDateWithOffset(-1) };
+  return { dateFrom: businessDateWithOffset(period === "7d" ? -6 : -29), dateTo: businessDateWithOffset(0) };
 }
 
 function formatDate(dateValue?: string | null): string {
   if (!dateValue) return "дата не назначена";
-  return new Date(`${dateValue}T12:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+  return formatBusinessCalendarDate(dateValue, { day: "numeric", month: "long" }) || "дата не назначена";
 }
 
 function formatEventTime(value?: string | null): string {
-  if (!value) return "";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? "" : parsed.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  // Lifecycle event stamps are naive UTC; the admin reads them on the Tashkent clock.
+  return formatUtcNaiveAsBusinessDayTime(value, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function latestEvent(exam: ExamSummary, accepted: string[]): LifecycleEvent | undefined {

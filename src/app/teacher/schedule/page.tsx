@@ -8,7 +8,7 @@ import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -1145,7 +1145,7 @@ export default function TeacherSchedulePage() {
     const groupName = group ? group.name : "Группа";
     const classLevel = group?.class_level || 5;
     const oneOffDay = newLessonScope === "one_off"
-      ? (new Date(`${newLessonDate}T12:00:00`).getDay() || 7)
+      ? isoDateDayOfWeek(newLessonDate)
       : Number(newDay);
 
     const tempId = `lesson-${Date.now()}`;

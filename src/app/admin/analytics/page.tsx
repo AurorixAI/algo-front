@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { analyticsApi } from "@/lib/api";
+import { formatUtcNaiveAsBusinessTime } from "@/lib/business-time";
 import {
   BarChart3, Users, TrendingUp, AlertTriangle, Activity,
   Clock, CheckCircle, UserPlus, GraduationCap, Zap,
@@ -268,11 +269,7 @@ export default function AdminAnalyticsPage() {
                       {qs.label}
                     </span>
                     <span className="text-xs text-slate-400 shrink-0">
-                      {item.started_at
-                        ? new Date(item.started_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-                        : item.created_at
-                          ? new Date(item.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-                          : ""}
+                      {formatUtcNaiveAsBusinessTime(item.started_at || item.created_at)}
                     </span>
                   </motion.div>
                 );
