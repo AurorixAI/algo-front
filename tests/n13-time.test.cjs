@@ -243,12 +243,7 @@ const RULES = [
   {
     name: "local-calendar getters (getDate / getDay / getMonth / getFullYear) and setters",
     pattern: /\.(?:get(?:Date|Day|Month|FullYear)|set(?:Date|Month|FullYear|Hours|Minutes))\s*\(/,
-    allow: {
-      "components/groups/group-attendance-journal.tsx":
-        "calendar arithmetic on Date objects BUILT from a business date string at local noon "
-        + "(new Date(`${lesson.date}T12:00:00`) / new Date(y, m, 1, 12)) and read back with the same local getters: "
-        + "the round trip returns the very same Y-M-D in every device zone; no server instant is ever read",
-    },
+    allow: {},
   },
   {
     name: "new Date(<server timestamp field>) reads a naive-UTC stamp as device-local time",
@@ -312,6 +307,8 @@ test("source guard: the guard really catches the patterns it is about", () => {
   // comments are not code
   assert.equal(codeOnly("// d.toLocaleString()\n/* x.getHours() */\nok();").includes("toLocale"), false);
   assert.equal(codeOnly("const url = 'http://x'; // note").includes("http://x"), true);
+  // the month switchers must not use Date.setMonth (31 Jan + 1 month = 3 Mar)
+  assert.ok(RULES.some((rule) => rule.pattern.test("next.setMonth(next.getMonth() + direction)")));
 });
 
 test("source guard: every Intl.DateTimeFormat in the helper module pins the business timezone", () => {
@@ -330,7 +327,8 @@ test("source guard: every Intl.DateTimeFormat in the helper module pins the busi
 test("exam and diagnostic screens go through the business-time helpers", () => {
   const sites = {
     "app/admin/diagnostics/page.tsx": ["matchesBusinessPeriod", "formatUtcNaiveAsBusinessDayTime(inv.created_at)"],
-    "app/admin/analytics/page.tsx": ["formatUtcNaiveAsBusinessTime"],
+    "app/admin/analytics/page.tsx": ["normalizeLiveQueue"],
+    "lib/live-queue.ts": ["formatUtcNaiveAsBusinessTime"],
     "app/admin/exams/page.tsx": ["businessDateWithOffset", "formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],
     "app/admin/exams/[id]/page.tsx": ["formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],
     "app/teacher/exams/page.tsx": ["formatUtcNaiveAsBusinessDate(exam.created_at", "formatBusinessCalendarDate(exam.scheduled_lesson_date"],

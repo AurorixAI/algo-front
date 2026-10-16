@@ -8,7 +8,7 @@
  * divisor, summed, rounded once half up to a whole sum.
  */
 import { formatMoney, pluralRu } from "./payments";
-import { capitalizeFirst, monthYearLabelRu } from "./business-time";
+import { capitalizeFirst, monthYearLabelRu, shiftBusinessMonth } from "./business-time";
 
 // ── Lesson types ────────────────────────────────────────────────────────────
 
@@ -166,11 +166,7 @@ export function monthOfDate(isoDate: string): string {
 }
 
 export function shiftMonth(month: string, delta: number): string {
-  const match = MONTH_PATTERN.exec(month);
-  if (!match) return month;
-  const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
-  const year = Math.floor(index / 12);
-  return `${String(year).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`;
+  return shiftBusinessMonth(month, delta);
 }
 
 /** The month before the one `today` (YYYY-MM-DD, business calendar) is in: the default of the page. */

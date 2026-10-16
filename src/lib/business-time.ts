@@ -204,6 +204,18 @@ export function addIsoDays(isoDate: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * The month `delta` months away, as pure "YYYY-MM" arithmetic: shiftBusinessMonth("2026-12", 1) -> "2027-01".
+ * Month switchers use this and never `Date.setMonth` (31 January + 1 month is 3 March there, February skipped).
+ * Anything that is not "YYYY-MM" is returned unchanged.
+ */
+export function shiftBusinessMonth(month: string, delta: number): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month ?? "");
+  if (!match) return month;
+  const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
+  return `${String(Math.floor(index / 12)).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
 /** Business-calendar date `days` away from today (0 = today, -1 = yesterday) as YYYY-MM-DD. */
 export function businessDateWithOffset(days: number, value = new Date()): string {
   return addIsoDays(formatBusinessDate(value), days);

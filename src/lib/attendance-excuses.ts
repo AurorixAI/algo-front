@@ -3,7 +3,7 @@
  * No React (only the pure business-time helpers), so node:test can load this file directly.
  */
 
-import { formatBusinessDateTime } from "./business-time";
+import { formatBusinessDateTime, shiftBusinessMonth } from "./business-time";
 
 export type LessonState = "scheduled" | "in_progress" | "completed" | "cancelled";
 
@@ -368,10 +368,7 @@ export function monthOf(isoDate: string): string {
 
 /** The month `delta` months away: shiftMonth("2026-12", 1) -> "2027-01". */
 export function shiftMonth(month: string, delta: number): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(month);
-  if (!match) return month;
-  const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
-  return `${Math.floor(index / 12)}-${pad((index % 12) + 1)}`;
+  return shiftBusinessMonth(month, delta);
 }
 
 /** "2026-10" -> "Октябрь 2026". */

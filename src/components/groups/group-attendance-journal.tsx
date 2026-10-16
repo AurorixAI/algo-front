@@ -56,6 +56,7 @@ import {
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
+import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor } from "@/lib/journal-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { Modal } from "@/components/ui/modal";
@@ -178,13 +179,6 @@ type AttendanceJournalStudent = StudentInGroup & {
   diagnosticReportNotice?: DiagnosticReportNotice;
 };
 
-const MONTHS_GENITIVE = [
-  "января", "февраля", "марта", "апреля", "мая", "июня",
-  "июля", "августа", "сентября", "октября", "ноября", "декабря",
-];
-
-const DAY_NAMES = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-
 const STATUS_OPTIONS: Array<{
   value: AttendanceStatus;
   short: string;
@@ -221,23 +215,6 @@ const STATUS_OPTIONS: Array<{
     dotClassName: "bg-sky-500",
   },
 ];
-
-function formatLocalDate(value: Date): string {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function atLocalNoon(value: Date): Date {
-  const result = new Date(value);
-  result.setHours(12, 0, 0, 0);
-  return result;
-}
-
-function businessTodayAtLocalNoon(): Date {
-  return new Date(`${formatBusinessDate()}T12:00:00`);
-}
 
 function instanceKey(lesson: Lesson): string {
   return lesson.instanceKey || `${lesson.date}_${lesson.id}`;
@@ -332,8 +309,9 @@ export function GroupAttendanceJournal({
     ? parseJournalMonth(highlightTarget.date.slice(0, 7))
     : parseJournalMonth(initialMonth);
   const [viewMode, setViewMode] = useState<ViewMode>(requestedMonth ? "month" : "week");
-  const [anchorDate, setAnchorDate] = useState(() =>
-    requestedMonth ? new Date(requestedMonth.year, requestedMonth.month - 1, 1, 12) : businessTodayAtLocalNoon(),
+  // "YYYY-MM-DD" on the business calendar (a deep-linked month opens on its first day).
+  const [anchorDate, setAnchorDate] = useState<string>(() =>
+    requestedMonth ? journalMonthAnchor(requestedMonth.year, requestedMonth.month) : formatBusinessDate(),
   );
   const [attendanceData, setAttendanceData] = useState<GroupAttendance | null>(null);
   const [localRecords, setLocalRecords] = useState<Record<string, Record<string, AttendanceStatus>>>({});
@@ -370,31 +348,7 @@ export function GroupAttendanceJournal({
   const openCellContainerRef = useRef<HTMLTableCellElement | null>(null);
 
   const today = formatBusinessDate();
-  const period = useMemo(() => {
-    const base = atLocalNoon(anchorDate);
-    if (viewMode === "month") {
-      const start = new Date(base.getFullYear(), base.getMonth(), 1, 12);
-      const end = new Date(base.getFullYear(), base.getMonth() + 1, 0, 12);
-      return {
-        start: formatLocalDate(start),
-        end: formatLocalDate(end),
-        label: `${MONTHS_GENITIVE[start.getMonth()]} ${start.getFullYear()}`,
-      };
-    }
-
-    const monday = new Date(base);
-    monday.setDate(base.getDate() + (base.getDay() === 0 ? -6 : 1 - base.getDay()));
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    const sameMonth = monday.getMonth() === sunday.getMonth();
-    return {
-      start: formatLocalDate(monday),
-      end: formatLocalDate(sunday),
-      label: sameMonth
-        ? `${monday.getDate()} — ${sunday.getDate()} ${MONTHS_GENITIVE[sunday.getMonth()]} ${sunday.getFullYear()}`
-        : `${monday.getDate()} ${MONTHS_GENITIVE[monday.getMonth()]} — ${sunday.getDate()} ${MONTHS_GENITIVE[sunday.getMonth()]} ${sunday.getFullYear()}`,
-    };
-  }, [anchorDate, viewMode]);
+  const period = useMemo(() => journalPeriod(anchorDate, viewMode), [anchorDate, viewMode]);
 
   const loadAttendance = useCallback(async (silent = false) => {
     if (!groupId) return;
@@ -603,12 +557,8 @@ export function GroupAttendanceJournal({
 
   const movePeriod = (direction: -1 | 1) => {
     setOpenCell(null);
-    setAnchorDate((current) => {
-      const next = atLocalNoon(current);
-      if (viewMode === "week") next.setDate(next.getDate() + direction * 7);
-      else next.setMonth(next.getMonth() + direction);
-      return next;
-    });
+    // Pure calendar arithmetic: a month step lands on the 1st of the neighbouring month (never skips February).
+    setAnchorDate((current) => moveJournalAnchor(current, viewMode, direction));
   };
 
   const toggleAttendanceMenu = useCallback(
@@ -1060,7 +1010,7 @@ export function GroupAttendanceJournal({
                     Ученик ({activeStudents.length})
                   </th>
                   {lessons.map((lesson) => {
-                    const dateValue = new Date(`${lesson.date}T12:00:00`);
+                    const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                     const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
@@ -1094,10 +1044,10 @@ export function GroupAttendanceJournal({
                         )}
                         <div className="space-y-0.5">
                           <div className="font-bold text-slate-900">
-                            {dateValue.getDate()} {MONTHS_GENITIVE[dateValue.getMonth()].slice(0, 3)}
+                            {dateValue.day} {dateValue.monthShort}
                           </div>
                           <div className="text-[11px] text-slate-500">
-                            {DAY_NAMES[dateValue.getDay()]} {lesson.isRescheduled && lesson.originalStartTime ? (
+                            {dateValue.weekday} {lesson.isRescheduled && lesson.originalStartTime ? (
                               <>
                                 <span className="text-slate-400 line-through">{lesson.originalStartTime}</span>
                                 <span> → {lesson.startTime || lesson.start_time || ""}</span>
@@ -1368,15 +1318,15 @@ export function GroupAttendanceJournal({
                     Ученик
                   </th>
                   {lessons.map((lesson) => {
-                    const dateValue = new Date(`${lesson.date}T12:00:00`);
+                    const dateValue = journalColumnDate(lesson.date);
                     const key = instanceKey(lesson);
                     const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                     const presentation = lessonStatusPresentation(lessonStatus, lesson.date, today);
                     return (
                       <th key={key} scope="col" title={presentation.description} className="min-w-[132px] border-r border-slate-200 px-3 py-3 text-center">
                         <div className="space-y-0.5">
-                          <div className="font-bold text-slate-800">{dateValue.getDate()} {MONTHS_GENITIVE[dateValue.getMonth()].slice(0, 3)}</div>
-                          <div className="text-[11px] text-slate-500">{DAY_NAMES[dateValue.getDay()]} {lesson.startTime || lesson.start_time || ""}</div>
+                          <div className="font-bold text-slate-800">{dateValue.day} {dateValue.monthShort}</div>
+                          <div className="text-[11px] text-slate-500">{dateValue.weekday} {lesson.startTime || lesson.start_time || ""}</div>
                           <div className={`text-[10px] font-semibold ${presentation.className}`}>{presentation.label}</div>
                         </div>
                       </th>
