@@ -28,3 +28,9 @@ next-env.d.ts
 .vercel
 # Local synthetic browser QA output
 .qa/
+
+# E2E harness output (e2e/)
+.next-e2e/
+e2e/.state/
+e2e/test-results/
+e2e/playwright-report/

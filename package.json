@@ -12,7 +12,12 @@
     "start": "next start",
     "lint": "next lint",
     "test:display": "node --test tests/task-display-contract.test.cjs tests/diagnostic-level.test.cjs tests/diagnostic-report.test.cjs tests/exam-history-error.test.cjs tests/request-sequence.test.cjs tests/select-menu.test.cjs tests/exam-lobby.test.cjs tests/n13-p1.test.cjs tests/payments.test.cjs tests/n13-p12.test.cjs tests/n13-p13.test.cjs tests/n13-p14.test.cjs tests/n13-p15.test.cjs tests/n13-p16.test.cjs tests/n13-p17.test.cjs tests/n13-p21.test.cjs tests/n13-p18.test.cjs tests/n13-p22.test.cjs tests/n13-p3.test.cjs tests/session-cookie.test.cjs tests/n13-fix85-finish-lesson.test.cjs tests/n13-fix86-exam-lessons.test.cjs tests/n13-fix87-option-a11y.test.cjs tests/n13-fix82-staff-name.test.cjs tests/n13-arch.test.cjs tests/n13-ui-floating.test.cjs",
-    "test:math-layout": "node tests/math-layout.browser.cjs"
+    "test:math-layout": "node tests/math-layout.browser.cjs",
+    "e2e": "node e2e/scripts/run.mjs",
+    "e2e:ui": "node e2e/scripts/run.mjs --headed",
+    "e2e:down": "node e2e/scripts/run.mjs --down",
+    "e2e:report": "playwright show-report e2e/playwright-report",
+    "e2e:typecheck": "tsc -p e2e/tsconfig.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -33,6 +38,7 @@
     "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/katex": "^0.16.7",
     "@types/node": "^20.19.31",
     "@types/react": "^18.3.27",

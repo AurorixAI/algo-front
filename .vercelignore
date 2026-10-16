@@ -1,2 +1,5 @@
 .env.local
 .env*.local
+
+e2e
+.next-e2e
