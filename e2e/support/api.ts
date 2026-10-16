@@ -293,14 +293,14 @@ export class Org {
    * and refuses to START one before its time, so "this very minute" is the earliest valid shape. The
    * finish button opens `end - 15` min, i.e. at once. The lesson stays startable until midnight.
    */
-  async createLessonStartingNow(groupId: string, actor: Session = this.owner): Promise<LessonInfo> {
+  async createLessonStartingNow(groupId: string, actor: Session = this.owner, minutes = 10): Promise<LessonInfo> {
     for (let attempt = 0; attempt < 4; attempt++) {
       const now = await serverNow();
       if (now.minutes > 23 * 60 + 45) {
         throw new Error("Too close to midnight (Asia/Tashkent) for a same-day lesson: rerun the suite in a few minutes");
       }
       const start = now.minutes;
-      const end = start + 10;
+      const end = Math.min(start + minutes, 23 * 60 + 59);
       try {
         const lesson = await actor.api.post("/auth/org/schedule/lessons", {
           groupId,
@@ -334,6 +334,11 @@ export async function clockReaches(minutes: number): Promise<void> {
     await new Promise((r) => setTimeout(r, 250));
   }
   throw new Error(`clock did not reach ${hhmm(minutes)}`);
+}
+
+/** Start a lesson (no marks yet), as `actor`. */
+export async function startLesson(actor: Session, lesson: LessonInfo): Promise<void> {
+  await actor.api.post(`/auth/org/groups/${lesson.groupId}/attendance/start`, { lessonDate: lesson.date, lessonId: lesson.id });
 }
 
 /** Journal marks the API accepts. */

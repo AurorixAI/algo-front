@@ -110,7 +110,12 @@ function stopFront() {
 function teardown() {
   stopFront();
   log("docker compose down -v");
-  docker(["down", "-v", "--remove-orphans"], { stdio: "ignore" });
+  // always with the `exam` profile: a stack started with E2E_EXAM=1 must be removed whole, whatever the env of this call
+  spawnSync("docker", ["compose", "-p", "algo-e2e", "-f", composeFile, "--profile", "exam", "down", "-v", "--remove-orphans"], {
+    env: composeEnv,
+    stdio: "ignore",
+    cwd: repoDir,
+  });
 }
 
 if (process.argv[2] === "--down") {
@@ -159,6 +164,7 @@ try {
     }
   }
   await waitHttp(`http://localhost:${AUTH_PORT}/health`, 60_000, "auth-service");
+  if (WITH_EXAM) await waitHttp(`http://localhost:${EXAM_PORT}/health`, 120_000, "exam-service");
 
   // ------------------------------------------------------------------------------------------ front
   const buildDir = path.join(repoDir, ".next-e2e");
@@ -188,11 +194,13 @@ try {
     log(`front already listens on ${FRONT_PORT} (reuse)`);
   } else {
     log(`front: next start on :${FRONT_PORT}`);
+    // stdout AND stderr go to a file: a child that kept the caller's pipe open would make `... | tail` wait for it forever
+    const frontLog = openSync(path.join(stateDir, "front.log"), "a");
     const front = spawn("npx", ["next", "start", "-p", String(FRONT_PORT), "-H", "127.0.0.1"], {
       cwd: repoDir,
       env: frontEnv,
       detached: true, // own process group, so teardown can stop npx and next together
-      stdio: ["ignore", openSync(path.join(stateDir, "front.log"), "a"), "inherit"],
+      stdio: ["ignore", frontLog, frontLog],
     });
     front.unref();
     writeFileSync(frontPidFile, String(front.pid));

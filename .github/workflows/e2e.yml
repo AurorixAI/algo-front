@@ -4,9 +4,9 @@ name: E2E (Playwright, local stack)
 # in Docker, builds and serves THIS checkout, and drives the real UI in Chromium (see e2e/README.md).
 #
 # MANUAL ONLY for now: the auth-service repo (AurorixAI/auth-services) is private, so the job needs a token that
-# can read it. The repository secret E2E_REPO_TOKEN (a fine-grained PAT, or a deploy-key based token, with
-# "Contents: read" on AurorixAI/auth-services) has to be created by the repository owner; this workflow does not
-# create it. Once the secret exists, add
+# can read it (and AurorixAI/exam-service when the exam scenario is switched on). The repository secret
+# E2E_REPO_TOKEN - a fine-grained PAT with "Contents: read" on both repositories - has to be created by the
+# repository owner; this workflow does not create it. Once the secret exists, add
 #     pull_request:
 #       branches: [develop]
 # under `on:` to run the suite on every pull request to develop.
@@ -15,6 +15,15 @@ on:
     inputs:
       auth_ref:
         description: "auth-service branch / tag / sha to test against (the one that is on stage)"
+        required: false
+        default: develop
+      with_exam:
+        description: "also run the online-exam scenario (checks out exam-service; its first Docker build is slow)"
+        type: boolean
+        required: false
+        default: false
+      exam_ref:
+        description: "exam-service branch / tag / sha (used when with_exam is on)"
         required: false
         default: develop
 
@@ -51,6 +60,15 @@ jobs:
           token: ${{ secrets.E2E_REPO_TOKEN }}
           path: _auth-service
 
+      - name: Check out exam-service
+        if: ${{ inputs.with_exam }}
+        uses: actions/checkout@v4
+        with:
+          repository: AurorixAI/exam-service
+          ref: ${{ inputs.exam_ref || 'develop' }}
+          token: ${{ secrets.E2E_REPO_TOKEN }}
+          path: _exam-service
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -65,6 +83,8 @@ jobs:
       - name: E2E (stack up -> seed per spec -> Playwright -> stack down)
         env:
           AUTH_SERVICE_PATH: ${{ github.workspace }}/_auth-service
+          EXAM_SERVICE_PATH: ${{ github.workspace }}/_exam-service
+          E2E_EXAM: ${{ inputs.with_exam && '1' || '' }}
         run: npm run e2e
 
       - name: Playwright report

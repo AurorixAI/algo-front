@@ -67,3 +67,66 @@ services:
       timeout: 5s
       retries: 40
       start_period: 5s
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Online-exam scenarios (E2E_EXAM=1 / profile `exam`): exam-service + its own Postgres + a stub of content-service.
+  # ---------------------------------------------------------------------------------------------------------------
+  exam-db:
+    profiles: ["exam"]
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: algo
+      POSTGRES_PASSWORD: algo_e2e_password
+      POSTGRES_DB: algo_exam
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U algo -d algo_exam"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The real content-service needs the digitised task bank. The exam scenarios only need a handful of valid tasks,
+  # so a ~100-line stub (stdlib only) answers the read API exam-service uses; see e2e/stubs/content_stub.py.
+  content-stub:
+    profiles: ["exam"]
+    image: python:3.11-alpine
+    command: ["python", "/stub/content_stub.py"]
+    volumes:
+      - ./stubs:/stub:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8004/health').read()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  exam:
+    profiles: ["exam"]
+    build:
+      context: ${EXAM_SERVICE_PATH:?EXAM_SERVICE_PATH is set by e2e/scripts/run.mjs}
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://algo:algo_e2e_password@exam-db:5432/algo_exam
+      REDIS_URL: redis://redis:6379/1
+      APP_ENV: development
+      AUTH_SERVICE_URL: http://auth:8000
+      CONTENT_SERVICE_URL: http://content-stub:8004
+      INTERNAL_SERVICE_TOKEN: e2e-internal-service-token
+      CORS_ORIGINS: '["${E2E_FRONT_ORIGIN:-http://localhost:13000}"]'
+    ports:
+      - "127.0.0.1:${E2E_EXAM_PORT:-18003}:8003"
+    depends_on:
+      exam-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      content-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 10s

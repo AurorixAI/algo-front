@@ -12,10 +12,10 @@ export default defineConfig({
   workers: Number(process.env.E2E_WORKERS || (ci ? 2 : 3)),
   retries: ci ? 1 : 0,
   timeout: 60_000,
+  // @exam scenarios need exam-service + the content stub (E2E_EXAM=1, see README); without them they are skipped.
+  grepInvert: process.env.E2E_EXAM === "1" ? undefined : /@exam/,
   expect: { timeout: 10_000 },
-  reporter: ci
-    ? [["list"], ["html", { outputFolder: "./playwright-report", open: "never" }]]
-    : [["list"], ["html", { outputFolder: "./playwright-report", open: "never" }]],
+  reporter: [["list"], ["html", { outputFolder: "./playwright-report", open: "never" }]],
   use: {
     baseURL: FRONT_ORIGIN,
     locale: "ru-RU",
