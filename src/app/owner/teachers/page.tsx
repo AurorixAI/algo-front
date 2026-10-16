@@ -397,8 +397,8 @@ export default function OwnerTeachersPage() {
                   ) : (
                     <div className="space-y-6">
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">Роль сотрудника</label>
-                        <div className="grid grid-cols-2 gap-3">
+                        <span id="owner-invite-role-label" className="block text-sm font-bold text-slate-700 mb-2">Роль сотрудника</span>
+                        <div role="radiogroup" aria-labelledby="owner-invite-role-label" className="grid grid-cols-2 gap-3">
                           <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
                             inviteForm.org_role === "teacher" ? "border-primary-500 bg-primary-50/50" : "border-slate-100 hover:border-slate-200"
                           }`}>
@@ -425,10 +425,11 @@ export default function OwnerTeachersPage() {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                        <label htmlFor="owner-invite-email-dlya-priglasheniya" className="block text-sm font-bold text-slate-700 mb-2">
                           Email для приглашения <span className="text-slate-400 font-normal">(опционально)</span>
                         </label>
                         <input
+                          id="owner-invite-email-dlya-priglasheniya"
                           type="email"
                           value={inviteForm.email}
                           onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}

@@ -1,5 +1,6 @@
 import { encodePathId } from "./encode-id";
 import { loginUrlForPage } from "./safe-redirect";
+import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
   MembershipPaymentRow,
   PaymentCreate,
@@ -64,10 +65,27 @@ interface ApiOptions {
 
 class ApiError extends Error {
   /** `detail` is the server's `detail` object (`{code, message, ...extra}`), kept for the extra fields (`missing[]`, `current_revision`). */
-  constructor(public status: number, message: string, public code?: string, public action?: string, public detail?: unknown) {
+  constructor(
+    public status: number,
+    message: string,
+    public code?: string,
+    public action?: string,
+    public detail?: unknown,
+    /** Seconds from the `Retry-After` header of a 429 (the exam entry limits) or a 503 (a busy server); absent when the header is. */
+    public retryAfter?: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/** `Retry-After` in whole seconds ("120"); an HTTP-date or garbage is not used.  Read for a 429 and a 503 only. */
+function retryAfterSeconds(response: Response): number | undefined {
+  if (response.status !== 429 && response.status !== 503) return undefined;
+  const raw = response.headers?.get?.("Retry-After")?.trim();
+  if (!raw || !/^\d+$/.test(raw)) return undefined;
+  const seconds = Number(raw);
+  return seconds > 0 ? seconds : undefined;
 }
 
 /**
@@ -334,6 +352,23 @@ function fetchService(url: string, init: RequestInit, audience: ApiAudience): Pr
   return audience === "staff" ? fetchAuthed(url, init) : fetchOrThrow(url, init);
 }
 
+const staffBusySleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A staff request to the exam service.  The service answers 503 + Retry-After at once when its staff capacity is used
+ * up (nothing was done): a read is asked again up to twice, a change that cannot be doubled once (see staff-busy.ts);
+ * the answer after the last try is handed on like any other.  The body of a refused answer is not read here.
+ */
+async function fetchExamStaff(url: string, init: RequestInit, endpoint: string): Promise<Response> {
+  const method = init.method ?? "GET";
+  for (let repeats = 0; ; repeats += 1) {
+    const response = await fetchAuthed(url, init);
+    const retryAfter = retryAfterSeconds(response);
+    if (repeats >= staffBusyRepeats(method, endpoint, response.status, retryAfter)) return response;
+    await staffBusySleep(staffBusyDelayMs(retryAfter));
+  }
+}
+
 /** Fetch wrapper for exam-service: see ApiAudience for what `audience` changes. */
 async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiOptions = {}): Promise<T> {
   const { method = "GET", body, sessionToken } = options;
@@ -345,11 +380,9 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     headers["X-Exam-Session-Token"] = sessionToken;
   }
 
-  const response = await fetchService(
-    `${EXAM_API_V1}${endpoint}`,
-    { method, headers, credentials: "include", body: body ? JSON.stringify(body) : undefined },
-    audience,
-  );
+  const url = `${EXAM_API_V1}${endpoint}`;
+  const init: RequestInit = { method, headers, credentials: "include", body: body ? JSON.stringify(body) : undefined };
+  const response = audience === "staff" ? await fetchExamStaff(url, init, endpoint) : await fetchOrThrow(url, init);
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -359,7 +392,11 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     } else if (Array.isArray(error?.detail)) {
       message = error.detail.map((e: any) => e.msg || String(e)).join("; ");
     }
-    throw new ApiError(response.status, message);
+    // A change refused as «busy» (503 + Retry-After) and not repeated, or still refused after its repeat: say so briefly.
+    if (audience === "staff" && isStaffWriteBusy(method, response.status, retryAfterSeconds(response))) {
+      message = STAFF_BUSY_MESSAGE;
+    }
+    throw new ApiError(response.status, message, undefined, undefined, undefined, retryAfterSeconds(response));
   }
 
   return response.json();
@@ -371,11 +408,9 @@ async function downloadExamPrintPdf(
   kind: "student" | "teacher-key",
   variantNumber: number,
 ): Promise<void> {
-  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed)
-  const response = await fetchAuthed(
-    `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`,
-    { credentials: "include", cache: "no-store" },
-  );
+  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed); a busy 503 is asked again
+  const path = `/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`;
+  const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -406,11 +441,9 @@ async function previewExamPrintPdf(
   kind: "student" | "teacher-key",
   variantNumber: number,
 ): Promise<Blob> {
-  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed)
-  const response = await fetchAuthed(
-    `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`,
-    { credentials: "include", cache: "no-store" },
-  );
+  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed); a busy 503 is asked again
+  const path = `/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`;
+  const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -2320,6 +2353,12 @@ export const examsApi = {
   /** Teacher: Synchronously start exam from lobby */
   startLive: (examId: string) =>
     examApi<{ status: string; started_count: number }>(`/exams/${examId}/start-live`, "staff", {
+      method: "POST",
+    }),
+
+  /** Teacher: clear the entry rate limits of an open exam (a classmate used up the failure budget of the school address) */
+  resetEntryLimits: (examId: string) =>
+    examApi<{ exam_id: string; reset: boolean }>(`/exams/${examId}/entry-limits/reset`, "staff", {
       method: "POST",
     }),
 

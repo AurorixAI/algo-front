@@ -31,6 +31,7 @@ import { examsApi } from "@/lib/api";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickTaskDisplayProjection, prepareMathDisplay } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
+import { formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 import "katex/dist/katex.min.css";
 
 interface TaskAnalytic {
@@ -399,7 +400,7 @@ export default function ExamReportPage() {
                   {report?.generated_at && (
                     <span className="flex items-center gap-1 text-slate-400">
                       <Calendar className="h-3.5 w-3.5" />
-                      Сформирован: {new Date(report.generated_at).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+                      Сформирован: {formatUtcNaiveAsBusinessDayTime(report.generated_at, { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>

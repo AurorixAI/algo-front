@@ -402,11 +402,12 @@ export function AssignGroupModal({
 
               {/* Teacher Selector */}
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">
+                <label htmlFor="assign-group-prepodavatel" className="block text-xs font-semibold text-slate-600 mb-1.5">
                   Преподаватель
                 </label>
                 <div className="relative">
                   <select
+                    id="assign-group-prepodavatel"
                     value={selectedTeacherId}
                     onChange={(e) => setSelectedTeacherId(e.target.value)}
                     className="w-full appearance-none pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none cursor-pointer shadow-2xs"

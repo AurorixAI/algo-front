@@ -10,6 +10,7 @@ import {
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { examsApi, type AdminExamView } from "@/lib/api";
+import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
 import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
 import { formatErrorType, pickAnswerDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
@@ -30,14 +31,11 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   archived: { label: "В архиве", className: "border-slate-200 bg-slate-50 text-slate-500" },
 };
 
-const asDate = (value?: string | null) => value
-  ? new Date(`${value}T12:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })
-  : "не назначено";
+const asDate = (value?: string | null) => formatBusinessCalendarDate(value, { day: "numeric", month: "long", year: "numeric" }) || "не назначено";
 
 function asDateTime(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  // Session stamps (started_at / submitted_at) are naive UTC; the admin reads them on the Tashkent clock.
+  return formatUtcNaiveAsBusinessDayTime(value) || "—";
 }
 
 function duration(seconds?: number | null): string {

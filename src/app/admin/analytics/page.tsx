@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { analyticsApi } from "@/lib/api";
+import { LIVE_QUEUE_UNAVAILABLE, liveQueueDetails, normalizeLiveQueue, type LiveQueueView } from "@/lib/live-queue";
 import {
   BarChart3, Users, TrendingUp, AlertTriangle, Activity,
   Clock, CheckCircle, UserPlus, GraduationCap, Zap,
@@ -17,19 +18,6 @@ interface ProblemSkill {
   problem_rate: number;
 }
 
-interface QueueItem {
-  id: string;
-  code: string;
-  student_name: string;
-  class_level: number | null;
-  status: string;
-  diagnostic_type: string;
-  created_at: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  result: { theta: number | null; accuracy: number | null; recommended_level: string | null } | null;
-}
-
 interface EnrollmentData {
   total_students: number;
   student_status_breakdown: Record<string, number>;
@@ -38,16 +26,7 @@ interface EnrollmentData {
   diagnostics_daily: { day: string; total: number; completed: number }[];
 }
 
-interface LiveQueue {
-  active: QueueItem[];
-  active_count: number;
-  recently_completed: QueueItem[];
-  completed_today: number;
-}
-
 const qStatusConfig: Record<string, { label: string; color: string; dot: string }> = {
-  pending:     { label: "Ожидает",       color: "bg-amber-50 text-amber-700 border-amber-200",     dot: "bg-amber-400" },
-  confirmed:   { label: "Подтверждён",   color: "bg-blue-50 text-blue-700 border-blue-200",        dot: "bg-blue-400" },
   in_progress: { label: "Тестируется",   color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400" },
   completed:   { label: "Завершил",      color: "bg-slate-50 text-slate-600 border-slate-200",     dot: "bg-slate-400" },
 };
@@ -55,7 +34,9 @@ const qStatusConfig: Record<string, { label: string; color: string; dot: string 
 export default function AdminAnalyticsPage() {
   const [enrollment, setEnrollment] = useState<EnrollmentData | null>(null);
   const [problemSkills, setProblemSkills] = useState<ProblemSkill[]>([]);
-  const [queue, setQueue] = useState<LiveQueue | null>(null);
+  const [queue, setQueue] = useState<LiveQueueView | null>(null);
+  // The route answers 409 while the diagnostic service has no tenant isolation: say so instead of hiding the card.
+  const [queueUnavailable, setQueueUnavailable] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
@@ -63,11 +44,13 @@ export default function AdminAnalyticsPage() {
       const [enr, ps, q] = await Promise.all([
         analyticsApi.orgEnrollment(30).catch(() => null),
         analyticsApi.orgProblemSkills().catch(() => ({ problem_skills: [] })),
-        analyticsApi.orgLiveQueue().catch(() => null),
+        analyticsApi.orgLiveQueue().catch(() => undefined),
       ]);
       setEnrollment(enr);
       setProblemSkills(ps?.problem_skills || []);
-      setQueue(q);
+      const view = normalizeLiveQueue(q);
+      setQueue(view);
+      setQueueUnavailable(view === null);
     } catch (e) {
       console.error("Analytics load error", e);
     } finally {
@@ -221,66 +204,60 @@ export default function AdminAnalyticsPage() {
       </div>
 
       {/* Live Queue */}
-      {queue && (
-        <div className="bg-white rounded-xl border border-slate-100 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-emerald-500" />
-              <h3 className="font-semibold text-slate-900 text-sm">Живая очередь</h3>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-emerald-600 font-medium">{queue.active_count} активных</span>
-              <span className="text-slate-400">|</span>
-              <span className="text-slate-500">{queue.completed_today} завершено за 24ч</span>
-            </div>
+      <div className="bg-white rounded-xl border border-slate-100 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-emerald-500" />
+            <h3 className="font-semibold text-slate-900 text-sm">Живая очередь</h3>
           </div>
-
-          {queue.active.length === 0 && queue.recently_completed.length === 0 ? (
-            <p className="text-sm text-slate-400 text-center py-4">Сейчас никто не тестируется</p>
-          ) : (
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
-              {[...queue.active, ...queue.recently_completed].map((item, i) => {
-                const qs = qStatusConfig[item.status] || qStatusConfig.pending;
-                return (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: i * 0.02 }}
-                    className="flex items-center gap-4 p-3 rounded-lg bg-slate-50"
-                  >
-                    <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
-                      {item.student_name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-slate-800 truncate block">{item.student_name}</span>
-                      <span className="text-xs text-slate-400">
-                        {item.class_level ? `${item.class_level} кл.` : ""} {item.diagnostic_type || ""}
-                      </span>
-                    </div>
-                    {item.result?.theta != null && (
-                      <span className="text-xs font-mono text-slate-600">
-                        θ {item.result.theta.toFixed(2)}
-                      </span>
-                    )}
-                    <span className={"flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border " + qs.color}>
-                      <div className={"w-1.5 h-1.5 rounded-full " + qs.dot} />
-                      {qs.label}
-                    </span>
-                    <span className="text-xs text-slate-400 shrink-0">
-                      {item.started_at
-                        ? new Date(item.started_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-                        : item.created_at
-                          ? new Date(item.created_at).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
-                          : ""}
-                    </span>
-                  </motion.div>
-                );
-              })}
+          {queue && (
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-emerald-600 font-medium">{queue.activeCount} активных</span>
+              <span className="text-slate-400">|</span>
+              <span className="text-slate-500">{queue.completedCount} завершено за {queue.periodHours}ч</span>
             </div>
           )}
         </div>
-      )}
+
+        {queueUnavailable || !queue ? (
+          <p className="text-sm text-slate-400 text-center py-4">{LIVE_QUEUE_UNAVAILABLE}</p>
+        ) : queue.active.length === 0 && queue.completed.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-4">Сейчас никто не тестируется</p>
+        ) : (
+          <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {[...queue.active, ...queue.completed].map((item, i) => {
+              const qs = qStatusConfig[item.status];
+              return (
+                <motion.div
+                  key={item.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: i * 0.02 }}
+                  className="flex items-center gap-4 p-3 rounded-lg bg-slate-50"
+                >
+                  <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-semibold shrink-0">
+                    {item.code.charAt(0).toUpperCase() || "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-slate-800 truncate block font-mono">{item.code || "—"}</span>
+                    <span className="text-xs text-slate-400">{liveQueueDetails(item)}</span>
+                  </div>
+                  {item.theta !== null && (
+                    <span className="text-xs font-mono text-slate-600">
+                      θ {item.theta.toFixed(2)}
+                    </span>
+                  )}
+                  <span className={"flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border " + qs.color}>
+                    <div className={"w-1.5 h-1.5 rounded-full " + qs.dot} />
+                    {qs.label}
+                  </span>
+                  <span className="text-xs text-slate-400 shrink-0">{item.time}</span>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

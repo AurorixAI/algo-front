@@ -71,6 +71,7 @@ export function TextInputAnswer({
             onKeyDown={handleKeyDown}
             disabled={disabled}
             autoFocus
+            aria-label="Ваш ответ"
             placeholder={placeholder || hint}
             className="w-full bg-transparent border-none px-6 py-4 text-xl font-sans text-slate-800 placeholder:text-slate-400 placeholder:font-sans focus:ring-0 focus:outline-none disabled:opacity-50"
           />

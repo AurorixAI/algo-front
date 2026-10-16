@@ -19,11 +19,12 @@ import { StudentRestoreModal } from "@/components/students/student-restore-modal
 import { RowMenu } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
-import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, monthYearLabelRu } from "@/lib/business-time";
+import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime, monthYearLabelRu } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { shiftMonth } from "@/lib/attendance-excuses";
 import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
@@ -44,12 +45,6 @@ const typeLabels: Record<string, string> = {
   pre_exam: "Предэкзаменационная диагностика",
   exam: "Экзаменационное тестирование",
 };
-
-function shiftMonth(month: string, direction: -1 | 1): string {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const value = new Date(year, monthNumber - 1 + direction, 1);
-  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`;
-}
 
 interface StudentProfileViewProps {
   studentId?: string;
@@ -629,9 +624,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                             </div>
                             <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
                               {ex.submitted_at ? (
-                                <span>Сдан: {new Date(ex.submitted_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                                <span>Сдан: {formatUtcNaiveAsBusinessDayTime(ex.submitted_at)}</span>
                               ) : ex.started_at ? (
-                                <span>Начат: {new Date(ex.started_at).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}</span>
+                                <span>Начат: {formatUtcNaiveAsBusinessDate(ex.started_at, { day: "numeric", month: "short" })}</span>
                               ) : null}
                             </div>
                           </div>
@@ -816,8 +811,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               {editingNotes ? (
                 <div className="space-y-4 max-w-lg">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
+                    <label htmlFor="student-profile-nomer-telefona" className="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
                     <input
+                      id="student-profile-nomer-telefona"
                       type="text"
                       value={phoneVal}
                       onChange={(e) => setPhoneVal(e.target.value)}
@@ -827,8 +823,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Комментарий / Заметка</label>
+                    <label htmlFor="student-profile-kommentariy-zametka" className="block text-xs font-semibold text-slate-700 mb-1">Комментарий / Заметка</label>
                     <textarea
+                      id="student-profile-kommentariy-zametka"
                       rows={4}
                       value={commentVal}
                       onChange={(e) => setCommentVal(e.target.value)}

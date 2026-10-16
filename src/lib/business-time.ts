@@ -79,16 +79,23 @@ export function monthYearLabelRu(month: string): string {
 
 const NAIVE_TIMESTAMP = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 const HAS_ZONE = /(Z|[+-]\d{2}:?\d{2})$/i;
+// Python writes microseconds ("10:00:00.123456"); only three fraction digits are portable across browsers.
+const SECOND_FRACTION = /(:\d{2})\.(\d+)/;
 
 /**
- * Some API timestamps (membership `joined_at`, `created_at`) are naive UTC:
+ * Some API timestamps (membership `joined_at`, `created_at`, exam `created_at` / `started_at` /
+ * `submitted_at` / `generated_at`, diagnostic `created_at` / `completed_at`) are naive UTC:
  * "2026-10-14T19:40:00" is 15.10 00:40 in Tashkent. The browser would read such a string as
  * its own local time, so the day can be wrong near midnight. Returns the instant, or null.
+ * A value that already carries a zone ("...Z", "+05:00") is taken as written.
  * A date-only value ("2026-10-14") is a calendar day, not an instant: also null.
  */
 export function parseUtcNaive(value: string | null | undefined): Date | null {
-  if (!value || !NAIVE_TIMESTAMP.test(value)) return null;
-  const text = value.trim().replace(" ", "T");
+  const raw = typeof value === "string" ? value.trim() : "";
+  if (!raw || !NAIVE_TIMESTAMP.test(raw)) return null;
+  const text = raw
+    .replace(" ", "T")
+    .replace(SECOND_FRACTION, (_all, head: string, fraction: string) => `${head}.${`${fraction}00`.slice(0, 3)}`);
   const date = new Date(HAS_ZONE.test(text) ? text : `${text}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -133,18 +140,93 @@ export function formatUtcNaiveAsBusinessDate(
  */
 export function formatUtcNaiveAsBusinessDateTime(value: string | null | undefined): string {
   const instant = parseUtcNaive(value);
+  return instant ? formatBusinessDateTime(instant) : "";
+}
+
+/** «ДД.ММ.ГГГГ ЧЧ:ММ» of an instant on the Tashkent clock (the device's zone never enters). */
+export function formatBusinessDateTime(instant: Date): string {
+  const parts = BUSINESS_PARTS_FORMAT.formatToParts(instant);
+  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("day")}.${get("month")}.${get("year")} ${get("hour")}:${get("minute")}`;
+}
+
+/**
+ * «ЧЧ:ММ» of a naive-UTC timestamp (or an ISO instant with a zone) on the Tashkent clock:
+ * "2026-10-15T08:55:00" is «13:55». "" for empty/invalid input and for a date-only value.
+ */
+export function formatUtcNaiveAsBusinessTime(value: string | null | undefined): string {
+  const instant = parseUtcNaive(value);
   if (!instant) return "";
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat("ru-RU", {
     timeZone: BUSINESS_TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
-  }).formatToParts(instant);
-  const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("day")}.${get("month")}.${get("year")} ${get("hour")}:${get("minute")}`;
+  }).format(instant);
+}
+
+/**
+ * Day and time of a naive-UTC timestamp (or an ISO instant with a zone) on the Tashkent clock,
+ * default «15 окт., 13:55». Pass Intl options for another look («15 октября, 13:55»).
+ * "" for empty/invalid input and for a date-only value (a calendar day has no time of day).
+ */
+export function formatUtcNaiveAsBusinessDayTime(
+  value: string | null | undefined,
+  options?: Intl.DateTimeFormatOptions,
+): string {
+  const instant = parseUtcNaive(value);
+  if (!instant) return "";
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: BUSINESS_TIME_ZONE,
+    ...(options ?? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+  }).format(instant);
+}
+
+/**
+ * A business-local calendar date ("2026-10-16") is never an instant: it is printed as written,
+ * through UTC noon so that no browser zone can move the day. "" if it is not a date-only value
+ * (a timestamp has to go through the naive-UTC helpers).
+ */
+export function formatBusinessCalendarDate(
+  value: string | null | undefined,
+  options: Intl.DateTimeFormatOptions = { day: "numeric", month: "long" },
+): string {
+  // Date-only on purpose: a timestamp is an instant and must go through the naive-UTC helpers.
+  const day = /^(\d{4}-\d{2}-\d{2})$/.exec(typeof value === "string" ? value.trim() : "")?.[1];
+  return day ? formatIsoDateLabel(day, options) : "";
+}
+
+/** ISO calendar date + n days (n may be negative); pure calendar arithmetic, no timezone involved. */
+export function addIsoDays(isoDate: string, days: number): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
+  if (!match) return "";
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]) + days, 12));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The month `delta` months away, as pure "YYYY-MM" arithmetic: shiftBusinessMonth("2026-12", 1) -> "2027-01".
+ * Month switchers use this and never `Date.setMonth` (31 January + 1 month is 3 March there, February skipped).
+ * Anything that is not "YYYY-MM" is returned unchanged.
+ */
+export function shiftBusinessMonth(month: string, delta: number): string {
+  const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(month ?? "");
+  if (!match) return month;
+  const index = Number(match[1]) * 12 + (Number(match[2]) - 1) + delta;
+  return `${String(Math.floor(index / 12)).padStart(4, "0")}-${String((index % 12) + 1).padStart(2, "0")}`;
+}
+
+/** Business-calendar date `days` away from today (0 = today, -1 = yesterday) as YYYY-MM-DD. */
+export function businessDateWithOffset(days: number, value = new Date()): string {
+  return addIsoDays(formatBusinessDate(value), days);
+}
+
+/** ISO weekday (1 = Monday ... 7 = Sunday) of a calendar date; 0 when it is not a date. */
+export function isoDateDayOfWeek(isoDate: string | null | undefined): number {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate ?? "");
+  if (!match) return 0;
+  const utcDay = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)).getUTCDay();
+  return utcDay === 0 ? 7 : utcDay;
 }
 
 /** «Доброе утро» / «Добрый день» / «Добрый вечер» by the Tashkent hour, never the browser's. */

@@ -6,9 +6,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -79,6 +80,16 @@ const COLOR_CLASSES = {
     dot: "bg-rose-500",
     border: "border-l-rose-500",
   },
+};
+
+// Accessible names of the colour dots (the dots themselves carry no text).
+const COLOR_NAMES: Record<string, string> = {
+  blue: "Синий",
+  indigo: "Индиго",
+  purple: "Фиолетовый",
+  emerald: "Зелёный",
+  amber: "Янтарный",
+  rose: "Розовый",
 };
 
 const DAYS = [
@@ -300,10 +311,14 @@ export default function TeacherSchedulePage() {
   // replace the neutral "nothing to do" state.
   useEffect(() => {
     let cancelled = false;
+    let failureStreak = 0;
+    let verified = false;
     const refresh = async (isManualRetry = false) => {
       if (isManualRetry) setIsLiveExamRefreshing(true);
       try {
         const items = await examsApi.getLiveDashboardSummary();
+        failureStreak = 0;
+        verified = true;
         if (!cancelled) {
           setLiveExams(Array.isArray(items) ? items : []);
           setLiveExamError(null);
@@ -311,7 +326,11 @@ export default function TeacherSchedulePage() {
       } catch (error) {
         // Keep the last verified exam state visible rather than claiming that
         // no examination is running while the operational API is offline.
-        if (!cancelled) setLiveExamError(getDataLoadErrorMessage(error));
+        // A busy server (503, after the client's own repeats) is a passing moment: no banner until it repeats at
+        // the next tick - except for the teacher's own «retry» press, which always gets the answer.
+        const failure = pollFailure(error, failureStreak, verified);
+        failureStreak = failure.streak;
+        if (!cancelled && (!failure.quiet || isManualRetry)) setLiveExamError(getDataLoadErrorMessage(error));
       } finally {
         if (!cancelled && isManualRetry) setIsLiveExamRefreshing(false);
       }
@@ -1145,7 +1164,7 @@ export default function TeacherSchedulePage() {
     const groupName = group ? group.name : "Группа";
     const classLevel = group?.class_level || 5;
     const oneOffDay = newLessonScope === "one_off"
-      ? (new Date(`${newLessonDate}T12:00:00`).getDay() || 7)
+      ? isoDateDayOfWeek(newLessonDate)
       : Number(newDay);
 
     const tempId = `lesson-${Date.now()}`;
@@ -3217,10 +3236,11 @@ export default function TeacherSchedulePage() {
 
                 {/* Group select */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="sched-add-gruppa" className="block text-xs font-semibold text-slate-700 mb-1">
                     Группа
                   </label>
                   <select
+                    id="sched-add-gruppa"
                     value={newGroupId}
                     onChange={(e) => setNewGroupId(e.target.value)}
                     required
@@ -3274,8 +3294,9 @@ export default function TeacherSchedulePage() {
 
                 {newLessonScope === "one_off" ? (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
+                    <label htmlFor="sched-add-data-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
                     <input
+                      id="sched-add-data-zanyatiya"
                       type="date"
                       value={newLessonDate}
                       min={formatBusinessDate()}
@@ -3288,8 +3309,9 @@ export default function TeacherSchedulePage() {
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
+                    <label htmlFor="sched-add-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
                     <select
+                      id="sched-add-den-nedeli"
                       value={newDay}
                       onChange={(e) => handleAddDayChange(Number(e.target.value))}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
@@ -3305,10 +3327,11 @@ export default function TeacherSchedulePage() {
                 {/* Time range */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-add-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
                       Начало
                     </label>
                     <input
+                      id="sched-add-nachalo"
                       type="time"
                       value={newStartTime}
                       onChange={(e) => handleStartTimeChange(e.target.value)}
@@ -3317,10 +3340,11 @@ export default function TeacherSchedulePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-add-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
                       Окончание
                     </label>
                     <input
+                      id="sched-add-okonchanie"
                       type="time"
                       value={newEndTime}
                       onChange={(e) => setNewEndTime(e.target.value)}
@@ -3333,10 +3357,11 @@ export default function TeacherSchedulePage() {
                 {/* Format & Room */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-add-format" className="block text-xs font-semibold text-slate-700 mb-1">
                       Формат
                     </label>
                     <select
+                      id="sched-add-format"
                       value={newFormat}
                       onChange={(e) => setNewFormat(e.target.value as "offline" | "online")}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
@@ -3346,10 +3371,11 @@ export default function TeacherSchedulePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-add-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
                       Аудитория
                     </label>
                     <input
+                      id="sched-add-auditoriya"
                       type="text"
                       value={newRoom}
                       onChange={(e) => setNewRoom(e.target.value)}
@@ -3362,10 +3388,11 @@ export default function TeacherSchedulePage() {
 
                 {/* Topic */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="sched-add-tema-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">
                     Тема занятия (необязательно)
                   </label>
                   <input
+                    id="sched-add-tema-zanyatiya"
                     type="text"
                     value={newTopic}
                     onChange={(e) => setNewTopic(e.target.value)}
@@ -3376,14 +3403,16 @@ export default function TeacherSchedulePage() {
 
                 {/* Color tag */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  <span id="sched-add-color-label" className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Цветовая метка
-                  </label>
-                  <div className="flex items-center gap-2">
+                  </span>
+                  <div role="group" aria-labelledby="sched-add-color-label" className="flex items-center gap-2">
                     {(["blue", "indigo", "purple", "emerald", "amber", "rose"] as const).map((c) => (
                       <button
                         key={c}
                         type="button"
+                        aria-label={COLOR_NAMES[c]}
+                        aria-pressed={newColor === c}
                         onClick={() => setNewColor(c)}
                         className={`w-7 h-7 rounded-full border-2 transition-all ${COLOR_CLASSES[c].dot} ${
                           newColor === c ? "border-slate-900 scale-110 shadow-xs" : "border-transparent opacity-60 hover:opacity-100"
@@ -3632,9 +3661,9 @@ export default function TeacherSchedulePage() {
 
                 {/* A recurring revision cannot silently move a lesson to a different group. */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <p className="block text-xs font-semibold text-slate-700 mb-1">
                     Группа
-                  </label>
+                  </p>
                   <div className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-medium">
                     {editingLesson.groupName} ({editingLesson.classLevel} класс)
                   </div>
@@ -3642,8 +3671,8 @@ export default function TeacherSchedulePage() {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
-                    <input type="date" value={editEffectiveFrom} min={nextBusinessDate()} onChange={(e) => setEditEffectiveFrom(e.target.value)} required className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                    <label htmlFor="sched-edit-izmeneniya-deystvuyut-s" className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
+                    <input id="sched-edit-izmeneniya-deystvuyut-s" type="date" value={editEffectiveFrom} min={nextBusinessDate()} onChange={(e) => setEditEffectiveFrom(e.target.value)} required className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none" />
                   </div>
                   <div className="flex items-end">
                     <p className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-[11px] leading-relaxed text-primary-800">Уроки до этой даты сохраняют прежнее время и посещаемость.</p>
@@ -3651,8 +3680,9 @@ export default function TeacherSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
+                  <label htmlFor="sched-edit-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
                   <select
+                    id="sched-edit-den-nedeli"
                     value={editDay}
                     onChange={(e) => setEditDay(Number(e.target.value))}
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
@@ -3666,10 +3696,11 @@ export default function TeacherSchedulePage() {
                 {/* Time range */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-edit-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
                       Начало
                     </label>
                     <input
+                      id="sched-edit-nachalo"
                       type="time"
                       value={editStartTime}
                       onChange={(e) => handleEditStartTimeChange(e.target.value)}
@@ -3678,10 +3709,11 @@ export default function TeacherSchedulePage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-edit-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
                       Окончание
                     </label>
                     <input
+                      id="sched-edit-okonchanie"
                       type="time"
                       value={editEndTime}
                       onChange={(e) => setEditEndTime(e.target.value)}
@@ -3694,10 +3726,11 @@ export default function TeacherSchedulePage() {
                 {/* Format & Room */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-edit-format" className="block text-xs font-semibold text-slate-700 mb-1">
                       Формат
                     </label>
                     <select
+                      id="sched-edit-format"
                       value={editFormat}
                       onChange={(e) => setEditFormat(e.target.value as "offline" | "online")}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
@@ -3707,10 +3740,11 @@ export default function TeacherSchedulePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    <label htmlFor="sched-edit-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
                       Аудитория
                     </label>
                     <input
+                      id="sched-edit-auditoriya"
                       type="text"
                       value={editRoom}
                       onChange={(e) => setEditRoom(e.target.value)}
@@ -3723,10 +3757,11 @@ export default function TeacherSchedulePage() {
 
                 {/* Topic */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="sched-edit-tema-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">
                     Тема занятия (необязательно)
                   </label>
                   <input
+                    id="sched-edit-tema-zanyatiya"
                     type="text"
                     value={editTopic}
                     onChange={(e) => setEditTopic(e.target.value)}
@@ -3736,10 +3771,11 @@ export default function TeacherSchedulePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
                     Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
                   </label>
                   <textarea
+                    id="sched-edit-prichina-izmeneniya"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
                     maxLength={500}
@@ -3754,14 +3790,16 @@ export default function TeacherSchedulePage() {
 
                 {/* Color tag */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  <span id="sched-edit-color-label" className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Цветовая метка
-                  </label>
-                  <div className="flex items-center gap-2">
+                  </span>
+                  <div role="group" aria-labelledby="sched-edit-color-label" className="flex items-center gap-2">
                     {(["blue", "indigo", "purple", "emerald", "amber", "rose"] as const).map((c) => (
                       <button
                         key={c}
                         type="button"
+                        aria-label={COLOR_NAMES[c]}
+                        aria-pressed={editColor === c}
                         onClick={() => setEditColor(c)}
                         className={`w-7 h-7 rounded-full border-2 transition-all ${COLOR_CLASSES[c].dot} ${
                           editColor === c ? "border-slate-900 scale-110 shadow-xs" : "border-transparent opacity-60 hover:opacity-100"

@@ -20,6 +20,7 @@ import { GroupAttendanceJournal } from "@/components/groups/group-attendance-jou
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 
 type Tab = "students" | "exams" | "attendance";
 type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
@@ -832,7 +833,7 @@ export default function TeacherGroupDetailPage() {
                           </span>
                         </div>
                         <p className="text-xs text-slate-400 mt-1">
-                          {ex.tasks_per_variant} заданий · {new Date(ex.created_at).toLocaleDateString("ru-RU")}
+                          {ex.tasks_per_variant} заданий · {formatUtcNaiveAsBusinessDate(ex.created_at)}
                         </p>
                       </div>
                     </div>
