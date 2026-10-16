@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, Clock3, MapPin, Users, X } from "lucide-react";
 import { orgApi, type Group, type ScheduleOccurrence } from "@/lib/api";
-import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { bindableLessons, occurrenceKey } from "@/lib/exam-lessons";
+import { useNow } from "@/lib/use-now";
 
 type ScheduledExamSelection = {
   group: Group;
@@ -59,16 +61,31 @@ export function ScheduleExamModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Attendance statuses of the chosen group's lessons: a completed / cancelled lesson can never open the exam.
+  const [statuses, setStatuses] = useState<{ groupId: string; map: Record<string, string> } | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
+  const [statusNonce, setStatusNonce] = useState(0);
+  // The dialog may stay open while a lesson ends: the list is re-filtered by the clock, not only when it opens.
+  const clock = useNow(30_000);
+
   const selectedGroup = useMemo(
     () => groups.find((group) => group.id === groupId) || null,
     [groupId, groups],
   );
+  const statusesReady = statuses?.groupId === groupId;
   const groupOccurrences = useMemo(
-    () => occurrences.filter((item) => item.groupId === groupId),
-    [groupId, occurrences],
+    () => {
+      if (!statusesReady || !statuses) return [];
+      const at = new Date(clock);
+      return bindableLessons(
+        occurrences.filter((item) => item.groupId === groupId),
+        { businessDate: formatBusinessDate(at), nowMinutes: businessTimeMinutes(at), statuses: statuses.map },
+      );
+    },
+    [clock, groupId, occurrences, statuses, statusesReady],
   );
   const selectedOccurrence = useMemo(
-    () => groupOccurrences.find((item) => `${item.occurrenceDate}_${item.id}` === selectedOccurrenceId) || null,
+    () => groupOccurrences.find((item) => occurrenceKey(item) === selectedOccurrenceId) || null,
     [groupOccurrences, selectedOccurrenceId],
   );
 
@@ -93,6 +110,22 @@ export function ScheduleExamModal({
   useEffect(() => {
     setSelectedOccurrenceId("");
   }, [groupId]);
+
+  useEffect(() => {
+    setStatuses(null);
+    setStatusError(null);
+    if (!groupId) return undefined;
+    let cancelled = false;
+    const dateFrom = formatBusinessDate();
+    orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addDays(dateFrom, 42) })
+      .then((attendance) => {
+        if (!cancelled) setStatuses({ groupId, map: attendance?.statuses ?? {} });
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setStatusError(err.message || "Не удалось проверить статус занятий");
+      });
+    return () => { cancelled = true; };
+  }, [groupId, statusNonce]);
 
   // This dialog may be opened from a layout that has its own scrolling or a
   // transformed ancestor. Rendering through ``body`` guarantees that the
@@ -198,16 +231,21 @@ export function ScheduleExamModal({
               <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Занятие</p>
               {selectedGroup && <span className="text-xs text-slate-400">Ближайшее по расписанию</span>}
             </div>
-            {loadingLessons ? (
+            {loadingLessons || (selectedGroup && !statusesReady && !statusError) ? (
               <div className="rounded-2xl bg-slate-100/80 px-4 py-4 text-sm font-medium text-slate-500">Загружаем ближайшие занятия…</div>
             ) : !selectedGroup ? (
               <div className="rounded-2xl border border-dashed border-slate-200 bg-white/70 px-4 py-4 text-sm text-slate-400">Сначала выберите группу.</div>
+            ) : statusError ? (
+              <div className="flex flex-col gap-2 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3.5 text-sm text-rose-700 sm:flex-row sm:items-center sm:justify-between">
+                <span>Не удалось проверить статус занятий: {statusError}</span>
+                <button type="button" onClick={() => setStatusNonce((value) => value + 1)} className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-rose-700 ring-1 ring-rose-200 transition-colors hover:bg-rose-100">Повторить</button>
+              </div>
             ) : groupOccurrences.length === 0 ? (
-              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3.5 text-sm text-amber-800">В ближайшие 42 дня у этой группы нет занятий в расписании.</div>
+              <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 px-4 py-3.5 text-sm text-amber-800">В ближайшие 42 дня у этой группы нет подходящих занятий. Завершённые, отменённые и уже прошедшие занятия не показываются.</div>
             ) : (
               <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-2xl bg-slate-100/80 p-1.5 pr-2">
                 {groupOccurrences.map((item) => {
-                  const itemId = `${item.occurrenceDate}_${item.id}`;
+                  const itemId = occurrenceKey(item);
                   const selected = itemId === selectedOccurrenceId;
                   return (
                     <button

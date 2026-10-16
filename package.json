@@ -11,7 +11,7 @@
     "deploy:demo": "npm run sync-demo && npx vercel deploy --prod --yes",
     "start": "next start",
     "lint": "next lint",
-    "test:display": "node --test tests/task-display-contract.test.cjs tests/diagnostic-level.test.cjs tests/diagnostic-report.test.cjs tests/exam-history-error.test.cjs tests/request-sequence.test.cjs tests/select-menu.test.cjs tests/exam-lobby.test.cjs tests/n13-p1.test.cjs tests/payments.test.cjs tests/n13-p12.test.cjs tests/n13-p13.test.cjs tests/n13-p14.test.cjs tests/n13-p15.test.cjs tests/n13-p16.test.cjs tests/n13-p17.test.cjs tests/n13-p21.test.cjs tests/n13-p18.test.cjs tests/n13-p22.test.cjs tests/n13-p3.test.cjs tests/session-cookie.test.cjs tests/n13-fix85-finish-lesson.test.cjs",
+    "test:display": "node --test tests/task-display-contract.test.cjs tests/diagnostic-level.test.cjs tests/diagnostic-report.test.cjs tests/exam-history-error.test.cjs tests/request-sequence.test.cjs tests/select-menu.test.cjs tests/exam-lobby.test.cjs tests/n13-p1.test.cjs tests/payments.test.cjs tests/n13-p12.test.cjs tests/n13-p13.test.cjs tests/n13-p14.test.cjs tests/n13-p15.test.cjs tests/n13-p16.test.cjs tests/n13-p17.test.cjs tests/n13-p21.test.cjs tests/n13-p18.test.cjs tests/n13-p22.test.cjs tests/n13-p3.test.cjs tests/session-cookie.test.cjs tests/n13-fix85-finish-lesson.test.cjs tests/n13-fix86-exam-lessons.test.cjs",
     "test:math-layout": "node tests/math-layout.browser.cjs"
   },
   "dependencies": {
