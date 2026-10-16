@@ -24,7 +24,7 @@ const root = path.join(__dirname, "..");
 const src = (p) => path.join(root, "src", p);
 const read = (p) => fs.readFileSync(src(p), "utf8");
 
-const { isLessonBindable, bindableLessons, occurrenceKey } = require(src("lib/exam-lessons.ts"));
+const { isLessonBindable, bindableLessons, occurrenceKey, selectionLost } = require(src("lib/exam-lessons.ts"));
 const at = (h, m) => h * 60 + m;
 
 // ---- #86 exam assignment: only lessons that can still open the exam ------------------------------
@@ -84,3 +84,25 @@ test("the dialog filters by the attendance statuses of the chosen group and by t
   assert.match(modal, /Завершённые, отменённые и уже прошедшие занятия не показываются/);
 });
 
+test("a picked lesson that leaves the list is detected (completed in another tab, cancelled, over)", () => {
+  const offered = bindableLessons([slot(), slot({ id: "L2", startTime: "11:00", endTime: "11:40" })], ctx(at(9, 30)));
+  assert.equal(selectionLost("", offered), false, "nothing picked, nothing lost");
+  assert.equal(selectionLost("2026-10-16_L1", offered), false);
+  // the status refresh brings "completed" for L1: the pick is gone, the other lesson is still there
+  const refreshed = bindableLessons([slot(), slot({ id: "L2", startTime: "11:00", endTime: "11:40" })], ctx(at(9, 37), { "2026-10-16_L1": "completed" }));
+  assert.equal(selectionLost("2026-10-16_L1", refreshed), true);
+  assert.equal(selectionLost("2026-10-16_L2", refreshed), false);
+  assert.equal(selectionLost("2026-10-16_L2", []), true, "an empty list loses any pick");
+});
+
+test("the dialog re-reads the statuses on the 30 s tick and on window focus, and says when the pick is gone", () => {
+  const modal = read("components/exam/schedule-exam-modal.tsx");
+  assert.match(modal, /useEffect\(\(\) => \{ refreshStatuses\.current\(\); \}, \[clock\]\)/, "a refresh on every clock tick");
+  assert.match(modal, /window\.addEventListener\("focus", onFocus\)/);
+  assert.match(modal, /window\.removeEventListener\("focus", onFocus\)/, "the listener is removed on close");
+  assert.match(modal, /createRequestSequence\(\)/, "an older read never overwrites a newer one");
+  assert.match(modal, /if \(!groupId \|\| !statusesReady\) return;/, "no refresh before the first read of the group");
+  assert.match(modal, /\.catch\(\(\) => \{ \/\* keep what is known \*\/ \}\)/, "a failed refresh keeps the last statuses");
+  assert.match(modal, /const selectionGone = statusesReady && selectionLost\(selectedOccurrenceId, groupOccurrences\)/);
+  assert.match(modal, /\{selectionGone && \(\s*<p role="alert"[^>]*>Выбранное занятие больше недоступно — выберите другое<\/p>/);
+});

@@ -81,4 +81,3 @@ test("students keep «Фамилия Имя»: the student renders were not touc
   }
   assert.match(read("components/students/students-list-view.tsx"), /s\.full_name \|\| `\$\{s\.last_name\} \$\{s\.first_name\}`/);
 });
-

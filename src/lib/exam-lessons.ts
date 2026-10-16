@@ -43,3 +43,8 @@ export function isLessonBindable(lesson: BindableLesson, context: BindableContex
 export function bindableLessons<T extends BindableLesson>(lessons: T[], context: BindableContext): T[] {
   return lessons.filter((lesson) => isLessonBindable(lesson, context));
 }
+
+/** The picked lesson (`selectedKey`, "" = none) is no longer among the offered ones: it was completed, cancelled or is over. */
+export function selectionLost(selectedKey: string, offered: Array<Pick<BindableLesson, "id" | "occurrenceDate">>): boolean {
+  return Boolean(selectedKey) && !offered.some((lesson) => occurrenceKey(lesson) === selectedKey);
+}

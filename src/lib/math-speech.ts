@@ -9,17 +9,26 @@
 
 const SYMBOLS: Record<string, string> = {
   cdot: " · ", times: " × ", div: " ÷ ", pm: " ± ", mp: " ∓ ",
+  lt: " < ", gt: " > ", mid: " | ",
   leq: " ≤ ", le: " ≤ ", leqslant: " ≤ ", geq: " ≥ ", ge: " ≥ ", geqslant: " ≥ ",
   neq: " ≠ ", ne: " ≠ ", approx: " ≈ ", equiv: " ≡ ", sim: " ~ ",
-  to: " → ", rightarrow: " → ", Rightarrow: " ⇒ ", Leftrightarrow: " ⇔ ", leftarrow: " ← ",
-  in: " ∈ ", notin: " ∉ ", cup: " ∪ ", cap: " ∩ ", subset: " ⊂ ", parallel: " ∥ ", perp: " ⊥ ",
+  to: " → ", rightarrow: " → ", longrightarrow: " → ", leftarrow: " ← ", leftrightarrow: " ↔ ",
+  Rightarrow: " ⇒ ", Longrightarrow: " ⇒ ", Leftarrow: " ⇐ ", Leftrightarrow: " ⇔ ", iff: " ⇔ ",
+  in: " ∈ ", notin: " ∉ ", cup: " ∪ ", cap: " ∩ ", subset: " ⊂ ", setminus: " без ",
+  emptyset: "∅", varnothing: "∅", parallel: " ∥ ", perp: " ⊥ ",
   infty: "∞", circ: "°", degree: "°", prime: "'", angle: "∠", triangle: "△",
-  ldots: "…", dots: "…", cdots: "…", sum: "∑", prod: "∏", quad: " ", qquad: " ",
-  alpha: "α", beta: "β", gamma: "γ", delta: "δ", varepsilon: "ε", epsilon: "ε", theta: "θ", lambda: "λ",
-  mu: "μ", pi: "π", rho: "ρ", sigma: "σ", tau: "τ", phi: "φ", varphi: "φ", omega: "ω",
-  Delta: "Δ", Sigma: "Σ", Phi: "Φ", Omega: "Ω", Pi: "Π",
+  ldots: "…", dots: "…", cdots: "…", quad: " ", qquad: " ",
+  alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", varepsilon: "ε", zeta: "ζ", eta: "η",
+  theta: "θ", vartheta: "ϑ", iota: "ι", kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", pi: "π",
+  rho: "ρ", varrho: "ρ", sigma: "σ", varsigma: "ς", tau: "τ", upsilon: "υ", phi: "φ", varphi: "φ",
+  chi: "χ", psi: "ψ", omega: "ω",
+  Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ", Xi: "Ξ", Pi: "Π", Sigma: "Σ", Upsilon: "Υ",
+  Phi: "Φ", Psi: "Ψ", Omega: "Ω",
   bmod: " mod ", mod: " mod ",
 };
+
+/** Big operators with limits: «\int_a^b» is read «∫ от a до b». */
+const BIG_OPERATORS: Record<string, string> = { int: "∫", iint: "∬", oint: "∮", sum: "∑", prod: "∏" };
 
 /** Commands that only style or wrap their argument: the argument is read, the command is not. */
 const WRAPPERS = new Set([
@@ -105,6 +114,36 @@ function convert(src: string): string {
           else out += `√${bracket(body)}`;
           i = arg.next;
         }
+      } else if (name === "binom" || name === "dbinom" || name === "tbinom") {
+        const top = readArg(src, i);
+        const bottom = top && readArg(src, top.next);
+        if (top && bottom) {
+          out += `C(${convert(top.raw).trim()}, ${convert(bottom.raw).trim()})`;
+          i = bottom.next;
+        }
+      } else if (name === "color") {
+        const arg = readArg(src, i);                       // \color{red} only paints what follows: drop the colour name
+        if (arg) i = arg.next;
+      } else if (name === "textcolor" || name === "colorbox") {
+        const colour = readArg(src, i);                    // \textcolor{red}{x}: read x
+        const arg = colour && readArg(src, colour.next);
+        if (colour && arg) { out += convert(arg.raw); i = arg.next; }
+        else if (colour) i = colour.next;
+      } else if (name in BIG_OPERATORS) {
+        let lower: string | null = null;
+        let upper: string | null = null;
+        for (let limit = 0; limit < 2; limit++) {          // _a^b or ^b_a
+          let k = i;
+          while (k < src.length && /\s/.test(src[k])) k++;
+          const mark = src[k];
+          if ((mark !== "_" && mark !== "^") || (mark === "_" ? lower !== null : upper !== null)) break;
+          const arg = readArg(src, k + 1);
+          if (!arg) break;
+          if (mark === "_") lower = convert(arg.raw).trim();
+          else upper = convert(arg.raw).trim();
+          i = arg.next;
+        }
+        out += ` ${BIG_OPERATORS[name]}${lower ? ` от ${lower}` : ""}${upper ? ` до ${upper}` : ""} `;
       } else if (name === "vec" || name === "overrightarrow") {
         const arg = readArg(src, i);
         if (arg) { out += `вектор ${convert(arg.raw).trim()}`; i = arg.next; }
@@ -158,20 +197,37 @@ function convert(src: string): string {
   return out;
 }
 
-/** «$\frac{1}{2}$ м^2» -> «1/2 м в квадрате»; "" for nothing; never throws. */
-export function latexToSpeechText(source: string | null | undefined): string {
-  if (!source) return "";
-  // \$ is a literal dollar: hide it from the delimiter strip, then give it back.
-  const delimited = String(source).replace(/\\\$/g, "\u0000");
-  const stripped = delimited
-    .replace(/\$\$?/g, "")
-    .replace(/\\[()[\]]/g, "");
-  return convert(stripped)
+/** Delimiters ($, $$, \( \) \[ \]) removed; an escaped dollar is hidden behind a placeholder until `tidy`. */
+function stripDelimiters(source: string): string {
+  return source.replace(/\\\$/g, "\u0000").replace(/\$\$?/g, "").replace(/\\[()[\]]/g, "");
+}
+
+/** Spaces collapsed, no space before closing punctuation or after an opening bracket. */
+function tidy(text: string): string {
+  return text
     .replace(/\u0000/g, "$")
-    .replace(/[ \s]+/g, " ")
+    .replace(/[\u00a0\s]+/g, " ")
     .replace(/\s+([,.;:!?)])/g, "$1")
     .replace(/\(\s+/g, "(")
     .trim();
+}
+
+/**
+ * «$\frac{1}{2}$ м^2» -> «1/2 м в квадрате»; "" for nothing.  Never throws (it runs while a page renders): on any error
+ * the text is returned stripped of the delimiters, braces and command names.
+ */
+export function latexToSpeechText(source: string | null | undefined): string {
+  if (!source) return "";
+  try {
+    const stripped = stripDelimiters(String(source));
+    try {
+      return tidy(convert(stripped));
+    } catch {
+      return tidy(stripped.replace(/\\[a-zA-Z]+/g, " ").replace(/[{}\\^_&]/g, " "));
+    }
+  } catch {
+    return "";
+  }
 }
 
 export type OptionPhase = "idle" | "pending" | "confirmed";

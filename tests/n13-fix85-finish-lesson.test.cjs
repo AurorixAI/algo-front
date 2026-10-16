@@ -142,4 +142,3 @@ test("both pages feed the rule from useNow while a panel is open, not from a val
   assert.match(between(schedule, "const canRescheduleToday = useMemo(() => {", "panelClock]);"), /businessTimeMinutes\(at\)/);
   assert.doesNotMatch(schedule, /businessTimeMinutes\(\) < startMinutes - 60/);
 });
-

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, Clock3, MapPin, Users, X } from "lucide-react";
 import { orgApi, type Group, type ScheduleOccurrence } from "@/lib/api";
 import { businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
-import { bindableLessons, occurrenceKey } from "@/lib/exam-lessons";
+import { bindableLessons, occurrenceKey, selectionLost } from "@/lib/exam-lessons";
+import { createRequestSequence } from "@/lib/request-sequence";
 import { useNow } from "@/lib/use-now";
 
 type ScheduledExamSelection = {
@@ -88,6 +89,8 @@ export function ScheduleExamModal({
     () => groupOccurrences.find((item) => occurrenceKey(item) === selectedOccurrenceId) || null,
     [groupOccurrences, selectedOccurrenceId],
   );
+  // The lesson picked a moment ago was completed / cancelled / went over while the dialog stayed open.
+  const selectionGone = statusesReady && selectionLost(selectedOccurrenceId, groupOccurrences);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,21 +114,46 @@ export function ScheduleExamModal({
     setSelectedOccurrenceId("");
   }, [groupId]);
 
+  // Latest-read-wins: the first read of a group, the clock/focus refreshes and a group switch never overwrite each other.
+  const statusReads = useRef(createRequestSequence());
   useEffect(() => {
     setStatuses(null);
     setStatusError(null);
     if (!groupId) return undefined;
-    let cancelled = false;
+    const token = statusReads.current.next();
     const dateFrom = formatBusinessDate();
     orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addDays(dateFrom, 42) })
       .then((attendance) => {
-        if (!cancelled) setStatuses({ groupId, map: attendance?.statuses ?? {} });
+        if (statusReads.current.isCurrent(token)) setStatuses({ groupId, map: attendance?.statuses ?? {} });
       })
       .catch((err: Error) => {
-        if (!cancelled) setStatusError(err.message || "Не удалось проверить статус занятий");
+        if (statusReads.current.isCurrent(token)) setStatusError(err.message || "Не удалось проверить статус занятий");
       });
-    return () => { cancelled = true; };
+    return () => { statusReads.current.next(); };
   }, [groupId, statusNonce]);
+
+  // A lesson the teacher completes in another tab, or one that is cancelled, must leave the list while the dialog is
+  // open: re-read the statuses on every clock tick and when the window gets focus back.  A failed refresh keeps the
+  // last known statuses (the clock filter still works); only the first read of a group reports an error.
+  const refreshStatuses = useRef<() => void>(() => {});
+  useEffect(() => {
+    refreshStatuses.current = () => {
+      if (!groupId || !statusesReady) return;
+      const token = statusReads.current.next();
+      const dateFrom = formatBusinessDate();
+      orgApi.getGroupAttendance(groupId, { dateFrom, dateTo: addDays(dateFrom, 42) })
+        .then((attendance) => {
+          if (statusReads.current.isCurrent(token)) setStatuses({ groupId, map: attendance?.statuses ?? {} });
+        })
+        .catch(() => { /* keep what is known */ });
+    };
+  });
+  useEffect(() => { refreshStatuses.current(); }, [clock]);
+  useEffect(() => {
+    const onFocus = () => refreshStatuses.current();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   // This dialog may be opened from a layout that has its own scrolling or a
   // transformed ancestor. Rendering through ``body`` guarantees that the
@@ -262,6 +290,10 @@ export function ScheduleExamModal({
               </div>
             )}
           </div>
+
+          {selectionGone && (
+            <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">Выбранное занятие больше недоступно — выберите другое</p>
+          )}
 
           {error && <p className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700">{error}</p>}
 

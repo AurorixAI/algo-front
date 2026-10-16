@@ -114,3 +114,60 @@ test("the grid labels its buttons from the same projection it draws, and both st
   assert.match(read("app/e/[code]/page.tsx"), /<OptionGrid/);
   assert.match(read("app/d/[code]/page.tsx"), /<OptionGrid/);
 });
+
+test("latexToSpeechText: relations, sets, arrows, Greek letters", () => {
+  const t = latexToSpeechText;
+  assert.equal(t("a \\lt b"), "a < b");
+  assert.equal(t("x \\gt 3"), "x > 3");
+  assert.equal(t("x \\le 2 \\ge -1"), "x ≤ 2 ≥ -1");
+  assert.equal(t("a \\ne b"), "a ≠ b");
+  assert.equal(t("a \\mid b"), "a | b");
+  assert.equal(t("\\emptyset"), "∅");
+  assert.equal(t("\\varnothing"), "∅");
+  assert.equal(t("A \\setminus B"), "A без B");
+  assert.equal(t("x \\in A \\cup B \\subset C"), "x ∈ A ∪ B ⊂ C");
+  assert.equal(t("x \\notin A \\cap B"), "x ∉ A ∩ B");
+  assert.equal(t("p \\iff q"), "p ⇔ q");
+  assert.equal(t("p \\Rightarrow q"), "p ⇒ q");
+  assert.equal(t("p \\Longrightarrow q"), "p ⇒ q");
+  assert.equal(t("p \\leftrightarrow q"), "p ↔ q");
+  assert.equal(t("\\infty"), "∞");
+  assert.equal(t("\\pm 3 \\times 2 \\div 5"), "± 3 × 2 ÷ 5");
+  assert.equal(t("30\\degree"), "30°");
+  assert.equal(t("\\pi r^2"), "π r в квадрате");
+  assert.equal(t("\\alpha \\beta \\gamma \\delta \\varphi \\omega"), "α β γ δ φ ω");
+  assert.equal(t("\\Gamma + \\Delta + \\Sigma + \\Omega"), "Γ + Δ + Σ + Ω");
+});
+
+test("latexToSpeechText: binomial, colour, integrals and sums with limits", () => {
+  const t = latexToSpeechText;
+  assert.equal(t("\\binom{n}{k}"), "C(n, k)");
+  assert.equal(t("$\\binom{n+1}{2}$"), "C(n+1, 2)");
+  assert.equal(t("\\color{red} x+1"), "x+1");          // the colour name is dropped, the content kept
+  assert.equal(t("\\textcolor{blue}{y}"), "y");
+  assert.equal(t("\\int_a^b f(x)\\,dx"), "∫ от a до b f(x) dx");
+  assert.equal(t("\\int_{0}^{\\pi} \\sin x \\, dx"), "∫ от 0 до π sin x dx");
+  assert.equal(t("\\int^b_a x"), "∫ от a до b x");
+  assert.equal(t("\\int x dx"), "∫ x dx");
+  assert.equal(t("\\sum_{i=1}^{n} i"), "∑ от i=1 до n i");
+});
+
+test("latexToSpeechText never throws: an error inside falls back to the stripped plain text", () => {
+  const realExec = RegExp.prototype.exec;
+  // make the conversion itself fail on the command \BOOM (and only there)
+  RegExp.prototype.exec = function (value) {
+    if (typeof value === "string" && value.startsWith("BOOM")) throw new RangeError("boom");
+    return realExec.call(this, value);
+  };
+  try {
+    let result;
+    assert.doesNotThrow(() => { result = latexToSpeechText("$\\BOOM$ \\frac{1}{2}"); });
+    assert.equal(result, "1 2", "the fallback strips command names and braces (the normal path would say 1/2)");
+    assert.equal(latexToSpeechText("$\\BOOM$"), "");
+  } finally {
+    RegExp.prototype.exec = realExec;
+  }
+  // a hostile value: toString throws - still a string, never an exception
+  assert.equal(latexToSpeechText({ toString() { throw new Error("no"); } }), "");
+  assert.equal(latexToSpeechText("\\frac{1}{2}"), "1/2"); // the patched RegExp is restored
+});
