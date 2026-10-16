@@ -54,6 +54,7 @@ import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverError
 import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
+import { staffDisplayName } from "@/lib/staff-name";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -1190,7 +1191,7 @@ export default function TeacherDashboardPage() {
   const actionCount = dashboardError || openAttendanceActionsAvailable === false ? null : lessonActions.length;
 
   const greeting = businessGreeting(); // Tashkent hour, whatever the browser zone is
-  const displayName = user?.first_name ? `${user.first_name} ${user.last_name || ""}`.trim() : "Преподаватель";
+  const displayName = staffDisplayName(user, "Преподаватель");
 
   const statCards = [
     { label: "Мои группы", value: stats.groups || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },

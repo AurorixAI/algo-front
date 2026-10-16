@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { orgApi, GroupInfo } from "@/lib/api";
+import { staffDisplayName } from "@/lib/staff-name";
 import {
   GraduationCap, Plus, Users, X, Search, Archive,
   CheckCircle, UserPlus,
@@ -154,7 +155,7 @@ export default function AdminGroupsPage() {
             const teacher = members.find((m: any) => m.user_id === g.teacher_id || m.id === g.teacher_id);
             const groupWithTeacher = {
               ...g,
-              teacher_name: teacher ? (teacher.full_name || `${teacher.first_name} ${teacher.last_name}`) : undefined
+              teacher_name: teacher ? staffDisplayName(teacher) || null : null
             };
             return (
               <GroupCard key={g.id} group={groupWithTeacher} href={`/admin/groups/${g.id}`} index={i} />

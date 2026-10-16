@@ -19,6 +19,7 @@ import {
   type Group,
 } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { staffDisplayName } from "@/lib/staff-name";
 import QRCode from "qrcode.react";
 import {
   ArrowLeft,
@@ -543,7 +544,7 @@ export default function NewExamPage() {
     setIsGenerating(true);
     try {
       const user = useAuthStore.getState().user;
-      const teacherName = user ? `${user.first_name || ""} ${user.last_name || ""}`.trim() : undefined;
+      const teacherName = user ? staffDisplayName(user) : undefined;
       const result = await examsApi.generate({
         title: config.name || `Экзамен ${config.classId} класс`,
         textbook_id: selectedTextbookId || undefined,

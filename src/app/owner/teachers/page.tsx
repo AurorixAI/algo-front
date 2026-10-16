@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { staffDisplayName } from "@/lib/staff-name";
 import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
 
 interface Member {
@@ -229,7 +230,7 @@ export default function OwnerTeachersPage() {
                             </div>
                             <div>
                               <p className="font-bold text-slate-900 flex items-center gap-2">
-                                {m.full_name || `${m.last_name || ""} ${m.first_name || ""}`.trim() || "Без имени"}
+                                {staffDisplayName(m, "Без имени")}
                                 {m.org_role === "owner" && <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-amber-100 text-amber-700">Вы</span>}
                               </p>
                               <div className="flex items-center gap-2 mt-1">

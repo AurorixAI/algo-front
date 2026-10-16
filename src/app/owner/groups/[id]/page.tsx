@@ -16,6 +16,7 @@ import { GroupAttendanceJournal } from "@/components/groups/group-attendance-jou
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
+import { staffDisplayName } from "@/lib/staff-name";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
@@ -98,7 +99,7 @@ export default function OwnerGroupDetailPage() {
 
   const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
     id: m.user_id || m.id,
-    name: m.full_name || `${m.first_name || ""} ${m.last_name || ""}`.trim(),
+    name: staffDisplayName(m),
   }));
 
   const handleSave = async () => {

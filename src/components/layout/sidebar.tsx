@@ -28,6 +28,7 @@ import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
+import { staffDisplayName } from "@/lib/staff-name";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -153,9 +154,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   const navItems = rawRole === "owner" ? ownerNav : role === "admin" ? adminNav : teacherNav;
   const settingsPath = rawRole === "owner" ? "/owner/settings" : role === "admin" ? "/admin/settings" : "/teacher/settings";
   const displayRole = rawRole === "owner" ? "Владелец" : role === "admin" ? "Администратор" : "Преподаватель";
-  const displayName = user?.first_name
-    ? `${user.first_name} ${user.last_name || ""}`.trim()
-    : user?.full_name || displayRole;
+  const displayName = staffDisplayName(user, displayRole);
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();

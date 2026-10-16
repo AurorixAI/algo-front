@@ -20,6 +20,7 @@ import {
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 export interface GroupInfo {
@@ -413,7 +414,7 @@ export function AssignGroupModal({
                     <option value="">Все преподаватели</option>
                     {teachers.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.first_name} {t.last_name}
+                        {staffDisplayName(t)}
                       </option>
                     ))}
                   </select>

@@ -7,6 +7,7 @@ import {
   Filter, Search, Archive, ChevronDown
 } from "lucide-react";
 import { orgApi, GroupInfo } from "@/lib/api";
+import { staffDisplayName } from "@/lib/staff-name";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
 import { ImportButton } from "@/components/import/import-button";
@@ -68,8 +69,8 @@ export default function OwnerGroupsPage() {
     m.org_role === "teacher"
   ).map((m: any) => ({
     id: m.user_id || m.id,
-    first_name: m.first_name || m.full_name?.split(" ")[0] || "",
-    last_name: m.last_name || m.full_name?.split(" ")[1] || "",
+    first_name: m.first_name || "",
+    last_name: m.last_name || "",
     org_role: m.org_role,
   }));
 

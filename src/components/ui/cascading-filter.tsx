@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronRight, Filter, Check, X } from "lucide-react";
+import { staffDisplayName } from "@/lib/staff-name";
 
 interface Teacher {
   id: string;
   first_name: string;
   last_name: string;
+  /** The server's «Фамилия Имя» - only the last fallback of `staffDisplayName`. */
+  full_name?: string;
 }
 
 interface Group {
@@ -57,7 +60,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
     }
     if (value.teacherId) {
       const t = teachers.find((t) => t.id === value.teacherId);
-      return t ? `${t.first_name} ${t.last_name}` : "Фильтр";
+      return t ? staffDisplayName(t, "Фильтр") : "Фильтр";
     }
     return "Все ученики";
   };
@@ -135,7 +138,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
                       isHovered ? "bg-slate-50" : "bg-transparent"
                     } ${isSelected && !value.groupId ? "text-primary-700 font-medium" : "text-slate-700"}`}
                   >
-                    <div className="flex-1 text-left">{teacher.first_name} {teacher.last_name}</div>
+                    <div className="flex-1 text-left">{staffDisplayName(teacher)}</div>
                     {isSelected && !value.groupId && !hasGroups && <Check className="w-4 h-4 text-primary-600 mr-2" />}
                     {hasGroups && (
                       <ChevronRight className={`w-4 h-4 ${isHovered ? 'text-slate-600' : 'text-slate-400'}`} />

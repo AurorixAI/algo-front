@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Users, GraduationCap, Hash, Type, Layers, AlignLeft, Loader2, BookOpen } from "lucide-react";
 import { orgApi, GroupInfo } from "@/lib/api";
+import { staffDisplayName } from "@/lib/staff-name";
 import { DEFAULT_LESSON_TYPE, LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { createPortal } from "react-dom";
 
@@ -228,7 +229,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                         <option value="">Без преподавателя (Не назначен)</option>
                         {teachers.map((t) => (
                           <option key={t.id} value={t.id}>
-                            {t.first_name} {t.last_name}
+                            {staffDisplayName(t)}
                           </option>
                         ))}
                       </select>

@@ -215,7 +215,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
   const [page, setPage] = useState(0);
 
-  const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string }>>([]);
+  const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; teacher_id: string }>>([]);
 
   const [items, setItems] = useState<AttendanceExcuseItem[]>([]);
@@ -260,14 +260,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
         setTeachers(
           (Array.isArray(members) ? members : [])
             .filter((m: any) => m.org_role === "teacher")
-            .map((m: any) => {
-              const [first = "", ...rest] = String(m.full_name || "").split(" ");
-              return {
-                id: m.user_id || m.id,
-                first_name: m.first_name ?? first,
-                last_name: m.last_name ?? rest.join(" "),
-              };
-            }),
+            .map((m: any) => ({
+              id: m.user_id || m.id,
+              first_name: m.first_name ?? "",
+              last_name: m.last_name ?? "",
+              full_name: m.full_name,
+            })),
         );
         const list: any[] = Array.isArray(groupList) ? groupList : (groupList as any)?.items || [];
         setGroups(list.map((g) => ({ id: g.id, name: g.name, teacher_id: g.teacher_id })));
