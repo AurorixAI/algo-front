@@ -40,13 +40,15 @@ export interface StudentArchiveAccess {
 /**
  * Owner and administrator archive and restore; a teacher gets nothing new (the server never gives him
  * an archived student).  While a student is archived the group and payment actions are hidden for everyone.
+ * The public demo has no archive endpoints: `demo` hides «В архив» / «Вернуть из архива» there (like payments).
  */
-export function studentArchiveAccess(input: { isTeacher: boolean; status: string | null | undefined }): StudentArchiveAccess {
+export function studentArchiveAccess(input: { isTeacher: boolean; status: string | null | undefined; demo?: boolean }): StudentArchiveAccess {
   const archived = isArchivedStatus(input.status);
   const staff = !input.isTeacher;
+  const live = !input.demo;
   return {
-    canArchive: staff && !archived,
-    canRestore: staff && archived,
+    canArchive: staff && live && !archived,
+    canRestore: staff && live && archived,
     showBanner: archived,
     groupActions: staff && !archived,
     paymentActions: staff && !archived,

@@ -21,12 +21,18 @@ export interface StudentTabCounts {
   archived?: number | null;
 }
 
+/** The tabs of the list.  The public demo has no archive (its students endpoint ignores `status`): no «Архив» there. */
+export function availableStudentTabs(demo: boolean): readonly StudentTab[] {
+  return demo ? STUDENT_TABS.filter((tab) => tab !== "archived") : STUDENT_TABS;
+}
+
 /**
  * `?tab=` of the list: «ungrouped» / «archived»; missing or unknown -> «В группах» (as before the URL
- * carried the tab).  The key is the tab itself, so a link to the archive is `/admin/students?tab=archived`.
+ * carried the tab).  The key is the tab itself, so a link to the archive is `/admin/students?tab=archived`;
+ * a tab that is not offered (the archive in the demo) opens «В группах».
  */
-export function parseStudentTab(value: string | null | undefined): StudentTab {
-  return STUDENT_TABS.find((tab) => tab === value) ?? DEFAULT_STUDENT_TAB;
+export function parseStudentTab(value: string | null | undefined, tabs: readonly StudentTab[] = STUDENT_TABS): StudentTab {
+  return tabs.find((tab) => tab === value) ?? DEFAULT_STUDENT_TAB;
 }
 
 /** The address of a tab: the default tab keeps the plain path. */

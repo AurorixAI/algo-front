@@ -227,6 +227,21 @@ test("the counts of the tab bar: the open tab is exact, the others come from the
   assert.deepEqual(tabs.studentTabCounts("grouped", 0, {}), { grouped: 0, ungrouped: null, archived: null });
 });
 
+test("the demo has no archive: no «Архив» tab (nor its request), no «В архив» / «Вернуть из архива»", () => {
+  assert.deepEqual(tabs.availableStudentTabs(false), ["grouped", "ungrouped", "archived"]);
+  assert.deepEqual(tabs.availableStudentTabs(true), ["grouped", "ungrouped"]);
+  assert.equal(tabs.parseStudentTab("archived", tabs.availableStudentTabs(true)), "grouped");     // a link to the archive opens «В группах»
+  assert.equal(tabs.parseStudentTab("ungrouped", tabs.availableStudentTabs(true)), "ungrouped");
+  assert.equal(tabs.parseStudentTab("archived"), "archived");
+  for (const status of ["active", "archived"]) {
+    const demo = A.studentArchiveAccess({ isTeacher: false, status, demo: true });
+    assert.equal(demo.canArchive, false, status);
+    assert.equal(demo.canRestore, false, status);
+  }
+  assert.equal(A.studentArchiveAccess({ isTeacher: false, status: "active", demo: false }).canArchive, true);
+  assert.match(read("src/components/students/student-profile-view.tsx"), /studentArchiveAccess\(\{ isTeacher: Boolean\(isTeacher\), status: student\.status, demo: DEMO_MODE \}\)/);
+});
+
 test("the «Всего» line never counts the archive", () => {
   assert.equal(tabs.studentsSubtitle({ grouped: 41, ungrouped: 9, archived: 5 }, "grouped", 41, false), "50 учеников");
   assert.equal(tabs.studentsSubtitle({ grouped: 41, ungrouped: 9, archived: 5 }, "archived", 5, false), "50 учеников");
@@ -239,7 +254,7 @@ test("the «Всего» line never counts the archive", () => {
 
 test("the card: «⋯ → В архив», the banner and the modals follow studentArchiveAccess, which gives a teacher nothing", () => {
   const view = read("src/components/students/student-profile-view.tsx");
-  assert.match(view, /const access = studentArchiveAccess\(\{ isTeacher: Boolean\(isTeacher\), status: student\.status \}\)/);
+  assert.match(view, /const access = studentArchiveAccess\(\{ isTeacher: Boolean\(isTeacher\), status: student\.status, demo: DEMO_MODE \}\)/);
   // the menu only for a student who can be archived
   assert.match(view, /\{access\.canArchive && \(\s*<div className="shrink-0">\s*<RowMenu/);
   assert.match(view, /label: "В архив", icon: Archive, danger: true, onSelect: \(\) => setArchiveOpen\(true\)/);
@@ -366,9 +381,11 @@ test("no screen moves a student into or out of the archive through the generic P
 test("the list: three tabs from the address, a Suspense boundary, the archive without teacher / group filters and without group cells", () => {
   const list = read("src/components/students/students-list-view.tsx");
   assert.match(list, /<Suspense/);
-  assert.match(list, /const tab: StudentTab = parseStudentTab\(searchParams\?\.get\("tab"\)\);/);
+  assert.match(list, /const tab: StudentTab = parseStudentTab\(searchParams\?\.get\("tab"\), OFFERED_TABS\);/);
+  assert.match(list, /const OFFERED_TABS = availableStudentTabs\(DEMO_MODE\);/);
   assert.match(list, /router\.replace\(studentTabHref\(pathname \|\| `\$\{base\}\/students`, next\), \{ scroll: false \}\)/);
-  assert.match(list, /STUDENT_TABS\.map\(\(value\) =>/);
+  assert.match(list, /OFFERED_TABS\.map\(\(value\) =>/);
+  assert.match(list, /OFFERED_TABS\.filter\(\(value\) => value !== activeTab\)/);   // no archive count request in the demo
   assert.match(list, /studentTabLabel\(value, counts\[value\]\)/);
   assert.match(list, /\.\.\.studentTabQuery\(activeTab, search\)/);
   assert.match(list, /studentTabCounts\(activeTab, data\.total, otherTotals\)/);

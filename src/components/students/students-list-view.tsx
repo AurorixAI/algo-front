@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useMemo, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { orgApi } from "@/lib/api";
+import { DEMO_MODE, orgApi } from "@/lib/api";
 import { Users, Search, Brain, GraduationCap, Folder, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
@@ -11,7 +11,7 @@ import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
 import { createRequestSequence } from "@/lib/request-sequence";
 import {
-  STUDENT_TABS, parseStudentTab, studentTabCounts, studentTabHref, studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta,
+  STUDENT_TABS, availableStudentTabs, parseStudentTab, studentTabCounts, studentTabHref, studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta,
   type StudentTab, type StudentTabCounts,
 } from "@/lib/students-tabs";
 import { telHref } from "@/lib/phone";
@@ -37,6 +37,9 @@ interface StudentInfo {
 }
 
 const PAGE_SIZE = 50;
+
+// The demo has no archive (its handlers ignore status=archived): that tab is not offered there.
+const OFFERED_TABS = availableStudentTabs(DEMO_MODE);
 
 /**
  * The «Ученики» list, shared by /admin/students and /owner/students: links stay in the
@@ -73,7 +76,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
   // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet;
   // «Архив» lists the students who left the center. The tab lives in the address (`?tab=`), so a
   // reload, a link and "Back" from a student's card keep it.
-  const tab: StudentTab = parseStudentTab(searchParams?.get("tab"));
+  const tab: StudentTab = parseStudentTab(searchParams?.get("tab"), OFFERED_TABS);
   const setTab = (next: StudentTab) => {
     if (next === tab) return;
     router.replace(studentTabHref(pathname || `${base}/students`, next), { scroll: false });
@@ -123,7 +126,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
     setListError(null);
     try {
       const search = debouncedSearch || undefined;
-      const otherTabs = filterGroup ? [] : STUDENT_TABS.filter((value) => value !== activeTab);
+      const otherTabs = filterGroup ? [] : OFFERED_TABS.filter((value) => value !== activeTab);
       const [data, otherPages] = await Promise.all([
         orgApi.listStudentsPage({
           ...studentTabQuery(activeTab, search),
@@ -227,7 +230,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
       {/* «В группах (N) · Без группы (M) · Архив (K)» */}
       {showTabs && (
         <div role="tablist" aria-label="Ученики" className="flex w-full overflow-x-auto rounded-lg bg-slate-100 p-0.5 sm:inline-flex sm:w-auto sm:max-w-full">
-          {STUDENT_TABS.map((value) => (
+          {OFFERED_TABS.map((value) => (
             <button
               key={value}
               type="button"

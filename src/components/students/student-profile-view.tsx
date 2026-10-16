@@ -286,7 +286,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const openAssign = (mode: "transfer" | "add") => { setAssignMode(mode); setAssignModalOpen(true); };
 
   // Archive: owner and administrator only; an archived card hides every group and payment action.
-  const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status });
+  const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status, demo: DEMO_MODE });
   const archiveInfo = studentArchiveInfo(profile);
   const formerGroupNames = archiveGroupNames(profile.archived_groups);
   const handleArchived = () => {
