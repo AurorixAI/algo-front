@@ -54,3 +54,43 @@ export function serverErrorMessage(error: unknown, fallback: string): string {
   const text = error instanceof Error ? error.message.trim() : "";
   return text || fallback;
 }
+
+/** «Завершить урок» opens this many minutes before the planned end (and stays open after it). */
+export const FINISH_LEAD_MINUTES = 15;
+
+/** «HH:MM» -> minutes since midnight; a missing or broken part counts as 0. */
+export function clockMinutes(time: string | null | undefined): number {
+  const [hours, minutes] = (time || "00:00").split(":").map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
+}
+
+export interface FinishLessonInput {
+  /** Attendance lifecycle of this very occurrence. */
+  status: string | null | undefined;
+  startTime?: string | null;
+  endTime?: string | null;
+  /** The occurrence's calendar day; a persisted lesson of an earlier day is already past its planned end. */
+  occurrenceDate?: string | null;
+  /** Today in business time (Asia/Tashkent). */
+  businessDate: string;
+  /** Business-time minutes since midnight - the clock tick the caller re-reads, never a value frozen at open. */
+  nowMinutes: number;
+  /** False when the lesson's weekday is not today's (the dashboard only knows the weekday of a recurring slot). */
+  isTodayWeekday?: boolean;
+}
+
+/**
+ * The rule behind the «Завершить урок» button: only a lesson in progress; an earlier day - always; today - from
+ * the start and no earlier than FINISH_LEAD_MINUTES before the planned end; a later day - never.
+ * Pure: the caller feeds the current time, so a panel that stays open re-evaluates it on every clock tick.
+ */
+export function canFinishLessonNow(input: FinishLessonInput): boolean {
+  if (!input.endTime || input.status !== "in_progress") return false;
+  if (input.occurrenceDate) {
+    if (input.occurrenceDate > input.businessDate) return false;
+    if (input.occurrenceDate < input.businessDate) return true;
+  }
+  if (input.isTodayWeekday === false) return false;
+  return input.nowMinutes >= clockMinutes(input.startTime)
+    && input.nowMinutes >= clockMinutes(input.endTime) - FINISH_LEAD_MINUTES;
+}

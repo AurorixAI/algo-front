@@ -12,7 +12,8 @@ import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
-import { serverErrorMessage } from "@/lib/lesson-actions";
+import { canFinishLessonNow, clockMinutes, serverErrorMessage } from "@/lib/lesson-actions";
+import { useNow } from "@/lib/use-now";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -1119,13 +1120,15 @@ export default function TeacherSchedulePage() {
    * A transfer is allowed only before the one-hour cut-off and only while
    * this concrete occurrence has no attendance lifecycle yet.
    */
+  // The time windows of the lesson panel's buttons (the last minutes of a lesson, the hour before its start) move
+  // with the clock, not with the click that opened the panel: re-read every 30 s while a panel is open.
+  const panelClock = useNow(30_000, Boolean(activeLesson));
   const canRescheduleToday = useMemo(() => {
     if (!activeLesson || activeLessonView !== "today" || !activeLesson.startTime) return false;
-    if (activeLessonStatus !== "scheduled" || activeLesson.occurrenceDate !== formatBusinessDate()) return false;
-    const [startH, startM] = activeLesson.startTime.split(":").map(Number);
-    const startMinutes = (startH || 0) * 60 + (startM || 0);
-    return businessTimeMinutes() < startMinutes - 60;
-  }, [activeLesson, activeLessonStatus, activeLessonView]);
+    const at = new Date(panelClock);
+    if (activeLessonStatus !== "scheduled" || activeLesson.occurrenceDate !== formatBusinessDate(at)) return false;
+    return businessTimeMinutes(at) < clockMinutes(activeLesson.startTime) - 60;
+  }, [activeLesson, activeLessonStatus, activeLessonView, panelClock]);
 
   // Week mode never rewrites the displayed occurrence. It opens a versioned
   // recurring change whose effect starts on a future date selected by teacher.
@@ -1134,21 +1137,17 @@ export default function TeacherSchedulePage() {
   );
 
   const canFinishLesson = useMemo(() => {
-    if (!activeLesson || !activeLesson.endTime) return false;
-    if (activeLessonStatus !== "in_progress") return false;
-    const todayDate = formatBusinessDate();
-    if (activeLesson.occurrenceDate > todayDate) return false;
-    if (activeLesson.occurrenceDate < todayDate) return true;
-
-    const curMin = businessTimeMinutes();
-    const [startH, startM] = (activeLesson.startTime || "00:00").split(":").map(Number);
-    const [endH, endM] = (activeLesson.endTime || "00:00").split(":").map(Number);
-    const startMinutes = (startH || 0) * 60 + (startM || 0);
-    const endMinutes = (endH || 0) * 60 + (endM || 0);
-
-    // Can be finished in the final 15 minutes of lesson or ANYTIME after end time!
-    return curMin >= startMinutes && curMin >= endMinutes - 15;
-  }, [activeLesson, activeLessonStatus]);
+    if (!activeLesson) return false;
+    const at = new Date(panelClock);
+    return canFinishLessonNow({
+      status: activeLessonStatus,
+      startTime: activeLesson.startTime,
+      endTime: activeLesson.endTime,
+      occurrenceDate: activeLesson.occurrenceDate,
+      businessDate: formatBusinessDate(at),
+      nowMinutes: businessTimeMinutes(at),
+    });
+  }, [activeLesson, activeLessonStatus, panelClock]);
 
   const activeLessonIsToday = Boolean(activeLesson && activeLesson.occurrenceDate === formatBusinessDate());
   const activeLessonIsFuture = Boolean(activeLesson && activeLesson.occurrenceDate > formatBusinessDate());

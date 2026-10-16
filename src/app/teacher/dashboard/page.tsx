@@ -50,7 +50,8 @@ import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
-import { lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
+import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
+import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 
@@ -983,24 +984,24 @@ export default function TeacherDashboardPage() {
     });
   }, [todayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, clockTick, getSubsequentStartedLesson]);
 
+  // The button's time window opens by the clock, not by clicking: while a lesson panel is open the rule is
+  // re-read every 30 s (the timer exists only for an open panel and is cleared when it closes).
+  const finishClock = useNow(30_000, Boolean(activeLesson));
   const canFinishLesson = useMemo(() => {
-    if (!activeLesson || !activeLesson.endTime) return false;
-    if (activeInstanceStatus !== "in_progress") return false;
+    if (!activeLesson) return false;
     // A persisted lesson from an earlier date is already past its planned
     // end. It may be safely completed after the remaining attendance is
     // filled, regardless of today's weekday.
-    if (activeLesson.occurrenceDate && activeLesson.occurrenceDate < businessDate) return true;
-    if (activeLesson.dayOfWeek !== todayDayOfWeek) return false;
-
-    const curMin = businessTimeMinutes();
-    const [startH, startM] = (activeLesson.startTime || "00:00").split(":").map(Number);
-    const [endH, endM] = (activeLesson.endTime || "00:00").split(":").map(Number);
-    const startMinutes = (startH || 0) * 60 + (startM || 0);
-    const endMinutes = (endH || 0) * 60 + (endM || 0);
-
-    // Can be finished in the final 15 minutes of lesson or ANYTIME after end time!
-    return curMin >= startMinutes && curMin >= endMinutes - 15;
-  }, [activeLesson, activeInstanceStatus, todayDayOfWeek, businessDate]);
+    return canFinishLessonNow({
+      status: activeInstanceStatus,
+      startTime: activeLesson.startTime,
+      endTime: activeLesson.endTime,
+      occurrenceDate: activeLesson.occurrenceDate,
+      businessDate,
+      nowMinutes: businessTimeMinutes(new Date(finishClock)),
+      isTodayWeekday: activeLesson.dayOfWeek === todayDayOfWeek,
+    });
+  }, [activeLesson, activeInstanceStatus, todayDayOfWeek, businessDate, finishClock]);
 
   const scheduledLessonActions = useMemo<LessonAction[]>(() => {
     return sortedTodayLessons.flatMap<LessonAction>((lesson) => {
