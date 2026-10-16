@@ -307,9 +307,36 @@ function endDeadSession(): Promise<void> {
   return sessionEnding;
 }
 
+const NETWORK_ERROR_MESSAGE = "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.";
+
+/** fetch whose network failure (no answer at all) is an ApiError with status 0 and the friendly message. */
+async function fetchOrThrow(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch {
+    throw new ApiError(0, NETWORK_ERROR_MESSAGE);
+  }
+}
+
 /**
- * Lightweight fetch wrapper for exam-service (no auth refresh cycle needed
- * since most exam endpoints are public or handled by exam-service internally).
+ * fetch for the exam / diagnostic service. A request that carries the STAFF session (the cookie) goes through
+ * fetchAuthed: a 401 (the 60-minute JWT in the 30-day cookie has run out) refreshes the session once through
+ * the shared single-flight tryRefreshToken() and repeats the request. A student's request (attempt token,
+ * invite or class code) has no staff session: it is sent as it is, a 401 there must neither refresh nor end
+ * the staff session of the browser.
+ */
+function fetchService(url: string, init: RequestInit, staffSession: boolean): Promise<Response> {
+  return staffSession ? fetchAuthed(url, init) : fetchOrThrow(url, init);
+}
+
+/** Student flow of the exam service: public by class code, or by the attempt's own token. */
+const STUDENT_EXAM_PATH = /^\/(exams\/by-code|exam-sessions)\//;
+/** Student flow of the diagnostic service: public by the invite code. */
+const STUDENT_DIAG_PATH = /^\/diagnostic\//;
+
+/**
+ * Fetch wrapper for exam-service. Staff requests refresh the session on a 401 (see fetchService); the student
+ * flow (`X-Exam-Session-Token`, `/exams/by-code/...`, `/exam-sessions/...`) never does.
  */
 async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
   const { method = "GET", body, sessionToken } = options;
@@ -321,17 +348,12 @@ async function examApi<T>(endpoint: string, options: ApiOptions = {}): Promise<T
     headers["X-Exam-Session-Token"] = sessionToken;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${EXAM_API_V1}${endpoint}`, {
-      method,
-      headers,
-      credentials: "include",
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  const staffSession = !sessionToken && !STUDENT_EXAM_PATH.test(endpoint);
+  const response = await fetchService(
+    `${EXAM_API_V1}${endpoint}`,
+    { method, headers, credentials: "include", body: body ? JSON.stringify(body) : undefined },
+    staffSession,
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -353,15 +375,11 @@ async function downloadExamPrintPdf(
   kind: "student" | "teacher-key",
   variantNumber: number,
 ): Promise<void> {
-  let response: Response;
-  try {
-    response = await fetch(
-      `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`,
-      { credentials: "include", cache: "no-store" },
-    );
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed)
+  const response = await fetchAuthed(
+    `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`,
+    { credentials: "include", cache: "no-store" },
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -392,15 +410,11 @@ async function previewExamPrintPdf(
   kind: "student" | "teacher-key",
   variantNumber: number,
 ): Promise<Blob> {
-  let response: Response;
-  try {
-    response = await fetch(
-      `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`,
-      { credentials: "include", cache: "no-store" },
-    );
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed)
+  const response = await fetchAuthed(
+    `${EXAM_API_V1}/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`,
+    { credentials: "include", cache: "no-store" },
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -423,18 +437,13 @@ async function diagServiceApi<T>(endpoint: string, options: ApiOptions = {}): Pr
     headers["X-Diagnostic-Invite-Code"] = inviteCode;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${DIAG_API_V1}${endpoint}`, {
-      method,
-      headers,
-      credentials: "include",
-      cache: "no-store",
-      body: body ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  // the staff analytics refresh the session on a 401; the student flow (invite code) never does
+  const staffSession = !inviteCode && !STUDENT_DIAG_PATH.test(endpoint);
+  const response = await fetchService(
+    `${DIAG_API_V1}${endpoint}`,
+    { method, headers, credentials: "include", cache: "no-store", body: body ? JSON.stringify(body) : undefined },
+    staffSession,
+  );
 
   if (!response.ok) {
     const error = await response.json().catch(() => null);
@@ -1423,7 +1432,7 @@ export const orgApi = {
 
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
-    const res = await fetch(`${AUTH_API_V1}/auth/org/import/template`, {
+    const res = await fetchAuthed(`${AUTH_API_V1}/auth/org/import/template`, {
       credentials: "include",
       cache: "no-store",
     });
@@ -1492,21 +1501,12 @@ async function readErrorMessage(res: Response, fallback: string): Promise<{ mess
  * the same request is repeated once; a second 401 sends the user to the login.
  */
 async function fetchAuthed(url: string, init: RequestInit): Promise<Response> {
-  let res: Response;
-  try {
-    res = await fetch(url, init);
-  } catch {
-    throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-  }
+  let res = await fetchOrThrow(url, init);
   if (res.status !== 401) return res;
   const refresh = await tryRefreshToken();
   if (refresh.kind === "transient") throw new ApiError(refresh.status, REFRESH_UNAVAILABLE_MESSAGE);
   if (refresh.kind === "ok") {
-    try {
-      res = await fetch(url, init);
-    } catch {
-      throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
-    }
+    res = await fetchOrThrow(url, init);
     if (res.status !== 401) return res;
   }
   await endDeadSession();
@@ -1568,7 +1568,7 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
   const form = new FormData();
   form.append("file", file);
   // No Content-Type header — the browser sets the multipart boundary itself.
-  const res = await fetch(`${AUTH_API_V1}${endpoint}`, {
+  const res = await fetchAuthed(`${AUTH_API_V1}${endpoint}`, {
     method: "POST",
     credentials: "include",
     cache: "no-store",

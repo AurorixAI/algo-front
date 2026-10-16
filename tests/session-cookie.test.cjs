@@ -209,7 +209,7 @@ function world({
   };
   global.localStorage = { removeItem: (key) => state.removed.push(key), getItem: () => null, setItem() {} };
   Object.defineProperty(globalThis, "navigator", { value: { locks }, configurable: true, writable: true });
-  const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => JSON.stringify(body) });
+  const reply = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => JSON.stringify(body), blob: async () => ({ pdf: true, body }) });
   global.fetch = async (url, init = {}) => {
     const u = new URL(url);
     state.log.push(`${init.method || "GET"} ${u.pathname} cookie=${state.cookie}`);
@@ -541,6 +541,220 @@ test("logout does not depend on a fresh JWT: the API route clears the cookies it
   // The call is a plain POST; the server answers 200 and deletes both cookies even for a stale access token.
   const api = read("src/lib/api.ts");
   assert.match(api, /logout: \(\) =>\s*api<\{ message: string \}>\("\/auth\/logout", \{ method: "POST" \}\)/);
+});
+
+// ---- 3d. exam / diagnostic service and the PDF downloads: the same refresh as api() -----------
+
+/** Runs `fn` with the globals a PDF download touches (anchor, object URL, window.setTimeout) stubbed. */
+async function withDownloadStubs(fn) {
+  const clicks = [];
+  const realCreate = URL.createObjectURL;
+  const realRevoke = URL.revokeObjectURL;
+  URL.createObjectURL = () => "blob:stub";
+  URL.revokeObjectURL = () => {};
+  global.window.setTimeout = (callback) => callback;
+  global.document = {
+    createElement: () => ({ click() { clicks.push(this.download); }, remove() {} }),
+    body: { appendChild() {} },
+  };
+  try {
+    return await fn(clicks);
+  } finally {
+    URL.createObjectURL = realCreate;
+    URL.revokeObjectURL = realRevoke;
+    delete global.document;
+  }
+}
+
+/** Remembers the init of every request that reaches the (stubbed) network. */
+function recordRequests(state) {
+  const inner = global.fetch;
+  const seen = [];
+  global.fetch = async (url, init = {}) => {
+    seen.push({ path: new URL(url).pathname.replace("/api/v1", ""), method: init.method || "GET", headers: init.headers || {}, body: init.body });
+    return inner(url, init);
+  };
+  return seen;
+}
+
+const paths = (state) => state.log.map((l) => l.replace(/ cookie=.*/, "").replace("/api/v1", ""));
+
+test("exam-service (staff): 401 -> ONE refresh -> the same request repeated -> the answer, no redirect", async () => {
+  const state = world();
+  const seen = recordRequests(state);
+  const { examsApi } = loadApi();
+  const summary = await examsApi.getSummary("e1");
+  assert.equal(summary.url, "/api/v1/exams/e1");
+  assert.deepEqual(paths(state), ["GET /exams/e1", "POST /auth/refresh", "GET /exams/e1"]);
+  assert.equal(state.refreshCalls, 1);
+  assert.equal(state.assigned, 0);
+  assert.equal(state.logoutCalls, 0);
+  assert.deepEqual(state.removed, []);
+  assert.equal(seen[0].body, undefined);
+});
+
+test("exam-service (staff) POST: the retry carries the very same body and headers", async () => {
+  const state = world();
+  const seen = recordRequests(state);
+  const { examsApi } = loadApi();
+  await examsApi.close("e1");
+  const posts = seen.filter((r) => r.path === "/exams/e1/close");
+  assert.equal(posts.length, 2);
+  assert.deepEqual(posts[1], posts[0]);
+  assert.equal(posts[1].method, "POST");
+  assert.equal(state.refreshCalls, 1);
+});
+
+test("diagnostic-service (staff analytics): 401 -> refresh -> retry -> the answer", async () => {
+  const state = world();
+  const { analyticsApi } = loadApi();
+  const stats = await analyticsApi.orgStats();
+  assert.equal(stats.url, "/api/v1/analytics/org/stats");
+  assert.deepEqual(paths(state), ["GET /analytics/org/stats", "POST /auth/refresh", "GET /analytics/org/stats"]);
+  assert.equal(state.assigned, 0);
+});
+
+test("print PDFs (download and preview): 401 -> refresh -> retry -> the file", async () => {
+  const state = world();
+  const { examsApi } = loadApi();
+  const blob = await examsApi.previewStudentPrintPdf("e1", 2);
+  assert.equal(blob.pdf, true);
+  assert.deepEqual(paths(state), ["GET /exams/e1/print-preview/student/2.pdf", "POST /auth/refresh", "GET /exams/e1/print-preview/student/2.pdf"]);
+
+  // the download: the cookie is stale again, a second refresh serves it
+  state.cookie = "stale";
+  state.refreshToken = "r1";
+  await withDownloadStubs(async (clicks) => {
+    await examsApi.downloadTeacherPrintKey("e1", 1);
+    assert.deepEqual(clicks, ["algo-key-e1-v1.pdf"]);
+  });
+  assert.equal(state.refreshCalls, 2);
+  assert.deepEqual(paths(state).slice(3), ["GET /exams/e1/print-package/teacher-key/1.pdf", "POST /auth/refresh", "GET /exams/e1/print-package/teacher-key/1.pdf"]);
+  assert.equal(state.assigned, 0);
+});
+
+test("import template / upload (auth-service) refresh too", async () => {
+  const state = world();
+  const { orgApi } = loadApi();
+  assert.equal((await orgApi.downloadImportTemplate()).pdf, true);
+  assert.equal(state.refreshCalls, 1);
+  state.cookie = "stale";
+  state.refreshToken = "r1";
+  global.FormData = global.FormData || class {};
+  const preview = await orgApi.importPreview({ name: "a.xlsx" });
+  assert.equal(preview.url, "/api/v1/auth/org/import/preview");
+  assert.equal(state.refreshCalls, 2);
+});
+
+test("exam/diagnostic/PDF requests and api() share ONE refresh when they fail together", async () => {
+  const state = world();
+  const { authApi, examsApi, analyticsApi } = loadApi();
+  const answers = await Promise.all([authApi.me(), examsApi.getSummary("e1"), analyticsApi.orgStats(), examsApi.previewTeacherPrintKey("e1", 1), examsApi.getAdminView("e1")]);
+  assert.equal(state.refreshCalls, 1, "the refresh token rotates: a second parallel refresh would sign the teacher out");
+  assert.ok(answers.every(Boolean));
+  assert.equal(state.assigned, 0);
+  assert.deepEqual(state.removed, []);
+});
+
+async function assertSessionEnded(state, run) {
+  await assert.rejects(run(), (error) => {
+    assert.equal(error.name, "ApiError");
+    assert.equal(error.status, 401);
+    return true;
+  });
+  assert.equal(state.refreshCalls, 1);
+  assert.equal(state.logoutCalls, 1, "the stale cookies are cleared by the server before the redirect");
+  assert.equal(state.assigned, 1);
+  assert.equal(state.locationHref, "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
+  assert.deepEqual(state.removed, ["algo-auth"]);
+  assert.deepEqual(paths(state).slice(-2), ["POST /auth/refresh", "POST /auth/logout"]);
+}
+
+test("refresh refused: exam-service, diagnostic-service and the PDFs end the session like api() (logout, /login?redirect=)", async () => {
+  for (const run of [
+    (a) => a.examsApi.getSummary("e1"),
+    (a) => a.analyticsApi.orgStats(),
+    (a) => a.examsApi.previewStudentPrintPdf("e1", 1),
+    (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
+  ]) {
+    const state = world({ refreshWorks: false });
+    await assertSessionEnded(state, () => run(loadApi()));
+  }
+});
+
+test("the retry is refused too (401 after a good refresh): the session is over, once", async () => {
+  const state = world();
+  const inner = global.fetch;
+  global.fetch = async (url, init) => (new URL(url).pathname.includes("/exams/") ? { ok: false, status: 401, json: async () => ({ detail: "no" }) } : inner(url, init));
+  const { examsApi } = loadApi();
+  await assert.rejects(examsApi.getSummary("e1"), (error) => error.status === 401);
+  assert.equal(state.refreshCalls, 1);
+  assert.equal(state.logoutCalls, 1);
+  assert.equal(state.assigned, 1);
+});
+
+test("a transient refresh failure (429/5xx/no network/timeout) on exam / diagnostic / PDF: the friendly error, the session is kept", async () => {
+  const cases = [{ refreshStatus: 429 }, { refreshStatus: 503 }, { refreshThrows: true }];
+  for (const opts of cases) {
+    const expected = opts.refreshStatus ?? 0;
+    for (const run of [
+      (a) => a.examsApi.getSummary("e1"),
+      (a) => a.analyticsApi.orgStats(),
+      (a) => a.examsApi.previewTeacherPrintKey("e1", 1),
+      (a) => withDownloadStubs(() => a.examsApi.downloadStudentPrintPdf("e1", 1)),
+    ]) {
+      const state = world(opts);
+      await assertKept(state, () => run(loadApi()), expected);
+    }
+  }
+});
+
+test("a student's 401 never touches the staff session: attempt token, class code and invite code flows", async () => {
+  const runs = [
+    (a) => a.examsApi.getResult("s1", "tok"),
+    (a) => a.examsApi.saveProgress("s1", { q1: "2" }, "tok"),
+    (a) => a.examsApi.submit("s1", { answers: {} }, "tok"),
+    (a) => a.examsApi.getSessionStatus("ABC123", "s1", "tok"),
+    (a) => a.examsApi.getByCode("ABC123"),
+    (a) => a.examsApi.checkStudent("ABC123", "A-0012"),
+    (a) => a.examsApi.startSession("ABC123", { student_name: "Али" }),
+    (a) => a.diagnosticApi.resolveSession("INV1"),
+    (a) => a.diagnosticApi.createSession({ student_id: "s1", grade_level: 8, invite_code: "INV1" }),
+    (a) => a.diagnosticApi.submitAnswer("s1", { task_id: "t1", student_answer: "2" }, "INV1"),
+    (a) => a.diagnosticApi.getReport("s1", "INV1"),
+  ];
+  for (const [index, run] of runs.entries()) {
+    const state = world({ pathname: "/e/ABC123", search: "" });
+    const seen = recordRequests(state);
+    await assert.rejects(run(loadApi()), (error) => error.name === "ApiError" && error.status === 401, `run ${index}`);
+    assert.equal(state.refreshCalls, 0, `run ${index}: no refresh`);
+    assert.equal(state.logoutCalls, 0, `run ${index}: no logout`);
+    assert.equal(state.assigned, 0, `run ${index}: no redirect`);
+    assert.deepEqual(state.removed, [], `run ${index}: stored sign-in untouched`);
+    assert.equal(state.cookie, "stale", `run ${index}: cookies untouched`);
+    assert.equal(seen.length, 1, `run ${index}: sent once, not repeated`);
+  }
+  // and the attempt token really travels as before
+  const state = world({ pathname: "/e/ABC123", search: "" });
+  const seen = recordRequests(state);
+  await assert.rejects(loadApi().examsApi.getResult("s1", "tok-1"));
+  assert.equal(seen[0].headers["X-Exam-Session-Token"], "tok-1");
+});
+
+test("a student's request with no answer at all is still the friendly status-0 error", async () => {
+  world();
+  global.fetch = async () => { throw new TypeError("network down"); };
+  const { examsApi, analyticsApi } = loadApi();
+  for (const run of [() => examsApi.getResult("s1", "tok"), () => examsApi.getSummary("e1"), () => analyticsApi.orgStats()]) {
+    await assert.rejects(run(), (error) => error.name === "ApiError" && error.status === 0 && /Не удалось подключиться/.test(error.message));
+  }
+});
+
+test("exam / diagnostic wrappers and the PDFs have no bare fetch left (one place decides about the refresh)", () => {
+  const api = read("src/lib/api.ts");
+  const bareFetches = api.split("\n").filter((line) => /[^.\w](await )?fetch\(/.test(line) && !/^\s*(\/\/|\*)/.test(line));
+  // api() x2, requestRefresh, endDeadSession, fetchOrThrow - nothing else
+  assert.equal(bareFetches.length, 5, bareFetches.join("\n"));
 });
 
 test.after(() => {

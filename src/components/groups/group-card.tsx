@@ -112,7 +112,7 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
       {/* Full card link overlay */}
       {href ? (
         <Link href={href} className="absolute inset-0 z-10">
-          <span className="sr-only">View group {group.name}</span>
+          <span className="sr-only">Открыть группу {group.name}</span>
         </Link>
       ) : null}
     </motion.div>
