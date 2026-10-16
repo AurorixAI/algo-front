@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
@@ -17,6 +17,7 @@ import {
   type ScheduleOccurrence,
   type StudentInGroup,
 } from "@/lib/api";
+import { pollFailure } from "@/lib/staff-busy";
 import {
   businessDayOfWeek,
   businessGreeting,
@@ -283,13 +284,22 @@ export default function TeacherDashboardPage() {
     setMounted(true);
   }, []);
 
+  // A busy server (503 after the client's own repeats) is a passing moment: the last verified state stays on screen
+  // without a banner; the banner appears when the failure repeats at the next tick (ROADMAP #95 R3 F2).
+  const liveExamFailureStreak = useRef(0);
+  const liveExamVerified = useRef(false);
   const refreshLiveExams = useCallback(async () => {
     try {
       const summary = await examsApi.getLiveDashboardSummary();
       setLiveExams(summary);
       setLiveExamSnapshotAt(Date.now());
       setLiveExamError(null);
+      liveExamFailureStreak.current = 0;
+      liveExamVerified.current = true;
     } catch (err) {
+      const failure = pollFailure(err, liveExamFailureStreak.current, liveExamVerified.current);
+      liveExamFailureStreak.current = failure.streak;
+      if (failure.quiet) return;
       console.error("Failed to load live exam summary:", err);
       setLiveExamError("Не удалось обновить состояние экзаменов. Расписание и посещаемость продолжают работать.");
     }

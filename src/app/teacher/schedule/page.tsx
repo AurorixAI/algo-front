@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
@@ -310,10 +311,14 @@ export default function TeacherSchedulePage() {
   // replace the neutral "nothing to do" state.
   useEffect(() => {
     let cancelled = false;
+    let failureStreak = 0;
+    let verified = false;
     const refresh = async (isManualRetry = false) => {
       if (isManualRetry) setIsLiveExamRefreshing(true);
       try {
         const items = await examsApi.getLiveDashboardSummary();
+        failureStreak = 0;
+        verified = true;
         if (!cancelled) {
           setLiveExams(Array.isArray(items) ? items : []);
           setLiveExamError(null);
@@ -321,7 +326,11 @@ export default function TeacherSchedulePage() {
       } catch (error) {
         // Keep the last verified exam state visible rather than claiming that
         // no examination is running while the operational API is offline.
-        if (!cancelled) setLiveExamError(getDataLoadErrorMessage(error));
+        // A busy server (503, after the client's own repeats) is a passing moment: no banner until it repeats at
+        // the next tick - except for the teacher's own «retry» press, which always gets the answer.
+        const failure = pollFailure(error, failureStreak, verified);
+        failureStreak = failure.streak;
+        if (!cancelled && (!failure.quiet || isManualRetry)) setLiveExamError(getDataLoadErrorMessage(error));
       } finally {
         if (!cancelled && isManualRetry) setIsLiveExamRefreshing(false);
       }
