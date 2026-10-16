@@ -220,7 +220,7 @@ export default function AdminGroupDetailPage() {
               <div className="grid grid-cols-2 gap-5">
                 {/* Group Name */}
                 <div className="col-span-2 space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-nazvanie-gruppy" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Название группы <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -228,6 +228,7 @@ export default function AdminGroupDetailPage() {
                       <GraduationCap className="w-4.5 h-4.5" />
                     </div>
                     <input
+                      id="admin-group-nazvanie-gruppy"
                       value={editState.name}
                       onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
                       placeholder="например, 9-А Математика (Профиль)"
@@ -267,7 +268,7 @@ export default function AdminGroupDetailPage() {
 
                 {/* Max Students */}
                 <div className="space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-maksimum-uchenikov" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Максимум учеников
                   </label>
                   <div className="relative">
@@ -275,6 +276,7 @@ export default function AdminGroupDetailPage() {
                       <Users className="w-4 h-4" />
                     </div>
                     <input
+                      id="admin-group-maksimum-uchenikov"
                       type="number"
                       min={Math.max(1, group.student_count)}
                       max={200}
@@ -301,10 +303,11 @@ export default function AdminGroupDetailPage() {
 
                 {/* Description */}
                 <div className="col-span-2 space-y-2">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-opisanie-gruppy" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
                     Описание группы
                   </label>
                   <textarea
+                    id="admin-group-opisanie-gruppy"
                     value={editState.description}
                     onChange={(e) => setEditState((s) => ({ ...s, description: e.target.value }))}
                     rows={2}

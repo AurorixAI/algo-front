@@ -870,10 +870,10 @@ export default function NewExamPage() {
                       {/* Questions count */}
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <label className="text-sm font-medium text-slate-700">Заданий в варианте</label>
+                          <label htmlFor="exam-new-questions-count" className="text-sm font-medium text-slate-700">Заданий в варианте</label>
                           <span className="text-lg font-bold text-primary-600">{config.questionsCount}</span>
                         </div>
-                        <input type="range" min="5" max="20" value={config.questionsCount}
+                        <input id="exam-new-questions-count" type="range" min="5" max="20" value={config.questionsCount}
                           onChange={(e) => setConfig({ ...config, questionsCount: parseInt(e.target.value) })}
                           className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500" />
                         <div className="flex justify-between text-[10px] text-slate-400 mt-1"><span>5</span><span>10</span><span>15</span><span>20</span></div>
@@ -881,13 +881,13 @@ export default function NewExamPage() {
 
                       {/* Duration */}
                       <div>
-                        <label className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
+                        <span id="exam-new-duration-label" className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
                           Время на выполнение
-                        </label>
-                        <div className="flex items-center gap-2 mt-2">
+                        </span>
+                        <div role="group" aria-labelledby="exam-new-duration-label" className="flex items-center gap-2 mt-2">
                           {[30, 45, 60, 90].map((mins) => (
-                            <button key={mins} onClick={() => setConfig({ ...config, duration: mins })}
+                            <button key={mins} aria-pressed={config.duration === mins} onClick={() => setConfig({ ...config, duration: mins })}
                               className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${
                                 config.duration === mins
                                   ? "bg-primary-500 text-white shadow-md shadow-primary-500/20"
@@ -927,7 +927,7 @@ export default function NewExamPage() {
                                 level.color === "amber" ? "text-amber-600" : "text-red-600"
                               }`}>{val}%</span>
                             </div>
-                            <input type="range" min="0" max="100" value={val}
+                            <input type="range" min="0" max="100" value={val} aria-label={`${level.label}, доля заданий в процентах`}
                               onChange={(e) => {
                                 const newVal = parseInt(e.target.value);
                                 const others = Object.keys(config.difficulty).filter(k => k !== level.key) as Array<keyof typeof config.difficulty>;

@@ -134,10 +134,11 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
               <div className="px-6 py-2 space-y-5 overflow-y-auto max-h-[60vh]">
                 {/* Name */}
                 <div className="space-y-1">
-                  <label className="text-sm font-medium text-slate-700">Название группы</label>
+                  <label htmlFor="group-create-nazvanie-gruppy" className="text-sm font-medium text-slate-700">Название группы</label>
                   <div className="relative">
                     <Type className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input
+                      id="group-create-nazvanie-gruppy"
                       autoFocus
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -150,12 +151,13 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                 <div className="grid grid-cols-2 gap-4">
                   {/* Class level */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    <label htmlFor="group-create-klass" className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Класс
                     </label>
                     <div className="relative">
                       <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <select
+                        id="group-create-klass"
                         value={form.class_level}
                         onChange={(e) => setForm({ ...form, class_level: Number(e.target.value) })}
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
@@ -169,12 +171,13 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
 
                   {/* Max students */}
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    <label htmlFor="group-create-maks-uchenikov" className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Макс. учеников
                     </label>
                     <div className="relative">
                       <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <input
+                        id="group-create-maks-uchenikov"
                         type="number"
                         min={1}
                         max={100}
@@ -216,12 +219,13 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                   </div>
                 ) : teachers.length > 0 && (
                   <div>
-                    <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    <label htmlFor="group-create-uchitel" className="block text-sm font-semibold text-slate-700 mb-1.5">
                       Учитель
                     </label>
                     <div className="relative">
                       <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <select
+                        id="group-create-uchitel"
                         value={form.teacher_id}
                         onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
                         className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
@@ -239,12 +243,13 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
 
                 {/* Description */}
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  <label htmlFor="group-create-opisanie" className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Описание
                   </label>
                   <div className="relative">
                     <AlignLeft className="absolute left-3.5 top-3 w-4 h-4 text-slate-400" />
                     <textarea
+                      id="group-create-opisanie"
                       value={form.description}
                       onChange={(e) => setForm({ ...form, description: e.target.value })}
                       placeholder="Дополнительная информация о группе..."

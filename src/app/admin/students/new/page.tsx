@@ -173,10 +173,10 @@ export default function NewStudentPage() {
                   />
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-3">
+                    <span id="admin-student-level-label" className="block text-sm font-medium text-slate-700 mb-3">
                       Предварительная оценка уровня (со слов)
-                    </label>
-                    <div className="space-y-2">
+                    </span>
+                    <div role="radiogroup" aria-labelledby="admin-student-level-label" className="space-y-2">
                       {levels.map((level) => (
                         <label
                           key={level.value}
@@ -201,10 +201,11 @@ export default function NewStudentPage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    <label htmlFor="admin-student-kommentariy" className="block text-sm font-medium text-slate-700 mb-1.5">
                       Комментарий (опционально)
                     </label>
                     <textarea
+                      id="admin-student-kommentariy"
                       placeholder="Хочет подготовиться к олимпиаде..."
                       value={formData.comment}
                       onChange={(e) => setFormData({ ...formData, comment: e.target.value })}
@@ -254,9 +255,9 @@ export default function NewStudentPage() {
                   {/* Link & Actions */}
                   <div className="flex-1 w-full min-w-0 space-y-4 flex flex-col justify-center">
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      <p className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                         Ссылка для прохождения
-                      </label>
+                      </p>
                       <div className="flex flex-col sm:flex-row gap-2.5">
                         <div className="flex-1 px-4 py-3 bg-white rounded-xl border border-slate-200 text-sm font-mono text-slate-700 truncate select-all shadow-2xs flex items-center">
                           {diagnosticLink}

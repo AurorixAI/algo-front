@@ -676,8 +676,9 @@ function OwnerSettingsContent() {
               saved={savedOrg}
             >
               <div>
-                <label className={labelClasses}>Название организации</label>
+                <label htmlFor="owner-settings-nazvanie-organizatsii" className={labelClasses}>Название организации</label>
                 <input
+                  id="owner-settings-nazvanie-organizatsii"
                   value={orgForm.name}
                   onChange={(e) => setOrgForm({ ...orgForm, name: e.target.value })}
                   className={inputClasses}
@@ -686,8 +687,9 @@ function OwnerSettingsContent() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelClasses}>Город</label>
+                  <label htmlFor="owner-settings-gorod" className={labelClasses}>Город</label>
                   <input
+                    id="owner-settings-gorod"
                     value={orgForm.city}
                     onChange={(e) => setOrgForm({ ...orgForm, city: e.target.value })}
                     className={inputClasses}
@@ -695,8 +697,9 @@ function OwnerSettingsContent() {
                   />
                 </div>
                 <div>
-                  <label className={labelClasses}>Телефон</label>
+                  <label htmlFor="owner-settings-telefon" className={labelClasses}>Телефон</label>
                   <input
+                    id="owner-settings-telefon"
                     value={orgForm.phone}
                     onChange={(e) => setOrgForm({ ...orgForm, phone: e.target.value })}
                     className={inputClasses}
@@ -722,16 +725,18 @@ function OwnerSettingsContent() {
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className={labelClasses}>Имя</label>
+                <label htmlFor="owner-settings-imya" className={labelClasses}>Имя</label>
                 <input
+                  id="owner-settings-imya"
                   value={profileForm.first_name}
                   onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
                   className={inputClasses}
                 />
               </div>
               <div>
-                <label className={labelClasses}>Фамилия</label>
+                <label htmlFor="owner-settings-familiya" className={labelClasses}>Фамилия</label>
                 <input
+                  id="owner-settings-familiya"
                   value={profileForm.last_name}
                   onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
                   className={inputClasses}
@@ -739,8 +744,9 @@ function OwnerSettingsContent() {
               </div>
             </div>
             <div>
-              <label className={labelClasses}>Язык интерфейса</label>
+              <label htmlFor="owner-settings-yazyk-interfeysa" className={labelClasses}>Язык интерфейса</label>
               <select
+                id="owner-settings-yazyk-interfeysa"
                 value={profileForm.language}
                 onChange={(e) => setProfileForm({ ...profileForm, language: e.target.value })}
                 className={inputClasses}
@@ -765,8 +771,9 @@ function OwnerSettingsContent() {
           >
             <div className="space-y-6">
               <div>
-                <label className={labelClasses}>Текущий пароль</label>
+                <label htmlFor="owner-settings-tekuschiy-parol" className={labelClasses}>Текущий пароль</label>
                 <input
+                  id="owner-settings-tekuschiy-parol"
                   type="password"
                   value={passwordForm.old_password}
                   onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
@@ -776,8 +783,9 @@ function OwnerSettingsContent() {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelClasses}>Новый пароль</label>
+                  <label htmlFor="owner-settings-novyy-parol" className={labelClasses}>Новый пароль</label>
                   <input
+                    id="owner-settings-novyy-parol"
                     type="password"
                     value={passwordForm.new_password}
                     onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
@@ -786,8 +794,9 @@ function OwnerSettingsContent() {
                   />
                 </div>
                 <div>
-                  <label className={labelClasses}>Повторите пароль</label>
+                  <label htmlFor="owner-settings-povtorite-parol" className={labelClasses}>Повторите пароль</label>
                   <input
+                    id="owner-settings-povtorite-parol"
                     type="password"
                     value={passwordForm.confirm}
                     onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}

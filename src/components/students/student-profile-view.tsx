@@ -811,8 +811,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               {editingNotes ? (
                 <div className="space-y-4 max-w-lg">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
+                    <label htmlFor="student-profile-nomer-telefona" className="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
                     <input
+                      id="student-profile-nomer-telefona"
                       type="text"
                       value={phoneVal}
                       onChange={(e) => setPhoneVal(e.target.value)}
@@ -822,8 +823,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Комментарий / Заметка</label>
+                    <label htmlFor="student-profile-kommentariy-zametka" className="block text-xs font-semibold text-slate-700 mb-1">Комментарий / Заметка</label>
                     <textarea
+                      id="student-profile-kommentariy-zametka"
                       rows={4}
                       value={commentVal}
                       onChange={(e) => setCommentVal(e.target.value)}

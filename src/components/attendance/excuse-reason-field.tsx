@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { EXCUSE_REASON_MAX, EXCUSE_REASON_MIN } from "@/lib/attendance-excuses";
 
 interface ExcuseReasonFieldProps {
@@ -13,13 +14,16 @@ interface ExcuseReasonFieldProps {
 
 /** One-line "Причина" input shown under a student marked "Ув." (teacher attendance dialogs). */
 export function ExcuseReasonField({ value, onChange, invalid = false, saved = false }: ExcuseReasonFieldProps) {
+  // One field per marked student on the same screen, so the id comes from useId, not from a constant.
+  const inputId = useId();
   return (
     <div className="basis-full pt-2">
-      <label className="mb-1 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      <label htmlFor={inputId} className="mb-1 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
         <span>Причина{saved ? " (сохранена)" : ""}</span>
         <span className="font-medium normal-case tracking-normal text-slate-400">{value.trim().length}/{EXCUSE_REASON_MAX}</span>
       </label>
       <input
+        id={inputId}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         maxLength={EXCUSE_REASON_MAX}
