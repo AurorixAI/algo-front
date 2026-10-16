@@ -169,7 +169,7 @@ test("a tab, search or page change hides the old rows at once and an error never
   // the failure branch empties the rows, the totals and the counts, and says so
   const failure = load.slice(load.indexOf("} catch (e)"), load.indexOf("} finally"));
   assert.match(failure, /if \(!listSeq\.isCurrent\(token\)\) return;/);
-  assert.match(failure, /setStudents\(\[\]\);\s*setTotal\(0\);\s*setCounts\(\{ grouped: null, ungrouped: null \}\);/);
+  assert.match(failure, /setStudents\(\[\]\);\s*setTotal\(0\);\s*setCounts\(\{ grouped: null, ungrouped: null, archived: null \}\);/);
   assert.match(failure, /setListError\("Не удалось загрузить список учеников"\)/);
   assert.match(list, /showStudents && listError \? \(/);
   assert.match(list, /role="alert"/);
@@ -281,11 +281,13 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/groups/group-student-table.tsx"), /label=\{`Действия: \$\{s\.full_name/);
   assert.match(read("components/attendance/open-lessons-view.tsx"), /label=\{`Действия: \$\{item\.groupName\}, /);
   assert.match(read("components/payroll/payroll-month-page.tsx"), /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
-  // all six files that use <RowMenu> are listed above
+  assert.match(read("components/students/student-profile-view.tsx"), /label=\{`Действия: \$\{student\.full_name\}`\}/);
+  // all seven files that use <RowMenu> are listed above
   const users = fs.readdirSync(src("components"), { recursive: true }).filter((f) => /\.tsx$/.test(f) && !/row-menu\.tsx$/.test(f))
     .filter((f) => read(`components/${f}`).includes("<RowMenu")).map((f) => f.replace(/\\/g, "/")).sort();
   assert.deepEqual(users, [
     "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-student-table.tsx",
     "payments/membership-payments.tsx", "payments/payments-page.tsx", "payroll/payroll-month-page.tsx",
+    "students/student-profile-view.tsx",
   ]);
 });

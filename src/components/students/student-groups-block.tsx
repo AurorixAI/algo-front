@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Plus, Users } from "lucide-react";
 import { type StudentGroupMembership, type StudentProfile } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { studentArchiveAccess } from "@/lib/student-archive";
 
 /** Active memberships of the profile; an older server sends only the single `group`. */
 export function profileMemberships(profile: Pick<StudentProfile, "groups" | "group" | "student">): StudentGroupMembership[] {
@@ -35,6 +36,8 @@ interface StudentGroupsBlockProps {
  */
 export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssign }: StudentGroupsBlockProps) {
   const memberships = profileMemberships(profile);
+  // Staff add and transfer; nobody does it while the student is in the archive (he is brought back first).
+  const { groupActions, showBanner: archived } = studentArchiveAccess({ isTeacher, status: profile.student.status });
 
   const sorted = [...memberships].sort((a, b) => Number(b.is_primary) - Number(a.is_primary));
 
@@ -42,7 +45,7 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
     <div className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-slate-800">Группы</h2>
-        {!isTeacher && memberships.length > 0 && (
+        {groupActions && memberships.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -65,8 +68,13 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
 
       {memberships.length === 0 ? (
         <div className="space-y-3 rounded-2xl border border-amber-200/60 bg-amber-50/60 p-6 text-center">
-          <p className="text-sm font-medium text-amber-900">Ученик ещё не зачислен ни в одну группу</p>
-          {!isTeacher && (
+          <p className="text-sm font-medium text-amber-900">
+            {archived ? "Ученик в архиве и не состоит в группах" : "Ученик ещё не зачислен ни в одну группу"}
+          </p>
+          {archived && !isTeacher && (
+            <p className="text-xs text-amber-800">Чтобы вернуть его в группу, нажмите «Вернуть из архива» вверху карточки.</p>
+          )}
+          {groupActions && (
             <button
               type="button"
               onClick={() => onAssign("transfer")}

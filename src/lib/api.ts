@@ -835,6 +835,28 @@ export interface StudentGroupMembership {
   joined_at: string | null;
 }
 
+/** A group the archiving closed: the restore dialog offers it back (`group_status !== "active"` or `is_full` block it). */
+export interface StudentArchivedGroup {
+  group_id: string;
+  group_name: string;
+  group_status: string;
+  is_full: boolean;
+}
+
+/** `POST /auth/org/students/{id}/archive`: the updated student plus the groups he was removed from. */
+export type StudentArchiveResult = Record<string, any> & {
+  id: string;
+  status: string;
+  closed_groups: Array<{ group_id: string; group_name: string }>;
+};
+
+/** `POST /auth/org/students/{id}/restore`: the updated student plus the groups the server could not return him to. */
+export type StudentRestoreResult = Record<string, any> & {
+  id: string;
+  status: string;
+  skipped: Array<{ group_id: string; reason: string }>;
+};
+
 export interface StudentProfile {
   student: {
     id: string;
@@ -851,6 +873,9 @@ export interface StudentProfile {
     comment: string | null;
     status: string;
     created_at: string | null;
+    /** Archive date / reason, when the server sends them in the student block (see `studentArchiveInfo`). */
+    archived_at?: string | null;
+    archive_reason?: string | null;
   };
   group: {
     id: string;
@@ -860,6 +885,12 @@ export interface StudentProfile {
     teacher_name: string | null;
     description?: string | null;
   } | null;
+  /** Only for an archived student: the groups the last archiving closed, offered back by «Вернуть из архива». */
+  archived_groups?: StudentArchivedGroup[];
+  /** The same archive date / reason when the server groups them in their own block instead of `student`. */
+  archived_at?: string | null;
+  archive_reason?: string | null;
+  archive?: { archived_at?: string | null; reason?: string | null } | null;
   /** All active memberships (N13 P2); older servers do not send it. No money here. */
   groups?: StudentGroupMembership[];
   group_history: Array<{
@@ -1109,6 +1140,12 @@ export const orgApi = {
     ),
   updateStudent: (id: string, data: any) =>
     api<any>(`/auth/org/students/${id}`, { method: "PUT", body: data }),
+  /** «Ученик ушёл из центра»: owner / administrator; closes every active membership. 409 when already archived. */
+  archiveStudent: (id: string, reason?: string) =>
+    api<StudentArchiveResult>(`/auth/org/students/${id}/archive`, { method: "POST", body: reason ? { reason } : {} }),
+  /** «Вернуть из архива» into the chosen groups (none = without a group). 409 when the student is not archived. */
+  restoreStudent: (id: string, groupIds: string[]) =>
+    api<StudentRestoreResult>(`/auth/org/students/${id}/restore`, { method: "POST", body: { group_ids: groupIds } }),
 
   // Diagnostics
   createDiagnostic: (data: { student_id: string; class_level: number; diagnostic_type?: string }) =>

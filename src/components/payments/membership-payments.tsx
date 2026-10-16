@@ -52,6 +52,8 @@ interface MembershipPaymentsProps {
   lessonsDefault: number | null;
   /** `/owner/payments` or `/admin/payments`: where the receipt pages of this workspace live. */
   paymentsBasePath: string;
+  /** History only: no «Внести / Продлить», no fee or payment edits (the student is in the archive). */
+  readOnly?: boolean;
   /** The server accepted a change: the parent replaces the row it holds. */
   onRowChange: (row: MembershipPaymentRow) => void;
   onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
@@ -62,10 +64,10 @@ interface MembershipPaymentsProps {
  * status, payment history (cancelled ones grey) and the actions Внести / Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, readOnly = false, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
-  const editable = row.is_active;
+  const editable = row.is_active && !readOnly;
   // «Оплата в месяц» for a calendar membership, «Стоимость пакета» for a package.
   const texts = feeTexts(feeModeOf(row, periodMode));
 

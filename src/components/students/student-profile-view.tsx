@@ -7,13 +7,17 @@ import {
   ArrowLeft, Users, Brain, Copy, Check,
   Phone, Calendar, Edit2, ExternalLink,
   GraduationCap, Sparkles, AlertCircle,
-  FileText, Clock, ChevronRight, UserCheck, Plus, Wallet
+  FileText, Clock, ChevronRight, UserCheck, Plus, Wallet, Archive, ArchiveRestore
 } from "lucide-react";
 import Link from "next/link";
 import { DEMO_MODE, examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
+import { StudentArchiveModal } from "@/components/students/student-archive-modal";
+import { StudentRestoreModal } from "@/components/students/student-restore-modal";
+import { RowMenu } from "@/components/ui/row-menu";
+import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
 import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, monthYearLabelRu } from "@/lib/business-time";
 import { DataLoadError } from "@/components/ui/data-load-error";
@@ -23,6 +27,9 @@ import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagn
 import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
+import {
+  ARCHIVED_TOAST, archiveBannerTitle, archiveGroupNames, studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
+} from "@/lib/student-archive";
 
 const TAB_ICON: Record<ProfileTab, typeof Brain> = {
   diagnostics: Brain,
@@ -100,6 +107,10 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const [copiedId, setCopiedId] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignMode, setAssignMode] = useState<"transfer" | "add">("transfer");
+  // «В архив» / «Вернуть из архива» (owner and administrator).  The toast outlives the profile reload.
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const { showToast, toastNode } = useToast();
   const [attendanceMonth, setAttendanceMonth] = useState(() => formatBusinessDate().slice(0, 7));
   const [attendanceSummary, setAttendanceSummary] = useState<StudentAttendanceSummary | null>(null);
   const [attendanceLoading, setAttendanceLoading] = useState(false);
@@ -248,6 +259,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
       <div className="flex flex-col items-center justify-center h-80 gap-3">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
         <p className="text-sm text-slate-400">Загрузка профиля ученика...</p>
+        {toastNode}
       </div>
     );
   }
@@ -255,6 +267,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   if (error || !profile) {
     return (
       <div className="max-w-xl mx-auto my-12 p-8 bg-white rounded-2xl border border-slate-100 text-center shadow-sm">
+        {toastNode}
         <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
         <h2 className="text-lg font-bold text-slate-900 mb-1">Не удалось открыть профиль</h2>
         <p className="text-sm text-slate-500 mb-6">{error || "Ученик не найден в системе"}</p>
@@ -272,6 +285,28 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const memberships = profileMemberships(profile);
   const openAssign = (mode: "transfer" | "add") => { setAssignMode(mode); setAssignModalOpen(true); };
 
+  // Archive: owner and administrator only; an archived card hides every group and payment action.
+  const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status });
+  const archiveInfo = studentArchiveInfo(profile);
+  const formerGroupNames = archiveGroupNames(profile.archived_groups);
+  const handleArchived = () => {
+    setArchiveOpen(false);
+    showToast(ARCHIVED_TOAST, "success");
+    void loadProfile();
+  };
+  const handleRestored = (outcome: RestoreOutcome) => {
+    setRestoreOpen(false);
+    showToast(outcome.text, outcome.type, outcome.lines);
+    void loadProfile();
+  };
+  // 409: the card was out of date (archived or restored in another tab); read it again.
+  const handleStale = (message: string) => {
+    setArchiveOpen(false);
+    setRestoreOpen(false);
+    showToast(message, "error");
+    void loadProfile();
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* ── Top Navigation Bar ────────────────────────────────────────────── */}
@@ -286,24 +321,51 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         </button>
       </div>
 
+      {/* ── Archive banner: the student left the center ───────────────────── */}
+      {access.showBanner && (
+        <div role="status" className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <Archive className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">{archiveBannerTitle(archiveInfo.archivedAt)}</p>
+              {archiveInfo.reason && <p className="mt-0.5 break-words text-sm text-amber-800">Причина: {archiveInfo.reason}</p>}
+              <p className="mt-0.5 text-xs text-amber-700">История уроков, оплат и квитанций сохранена.</p>
+            </div>
+          </div>
+          {access.canRestore && (
+            <button
+              type="button"
+              onClick={() => setRestoreOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-900 hover:bg-amber-100 sm:shrink-0"
+            >
+              <ArchiveRestore className="h-4 w-4" aria-hidden />
+              Вернуть из архива
+            </button>
+          )}
+        </div>
+      )}
+
       {/* ── Hero Profile Card ─────────────────────────────────────────────── */}
       <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-primary-50/40 to-indigo-50/20 rounded-full blur-3xl -z-0 pointer-events-none" />
 
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-          <div className="flex items-center gap-5">
+        <div className="relative z-10 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-4 sm:gap-5">
             {/* Avatar */}
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
               {(student.first_name || student.full_name).charAt(0)}
             </div>
 
             {/* Main Details */}
-            <div className="space-y-1">
+            <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2.5 flex-wrap">
-                <h1 className="text-2xl font-bold text-slate-900">{student.full_name}</h1>
+                <h1 className="min-w-0 break-words text-2xl font-bold text-slate-900">{student.full_name}</h1>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
                   {student.class_level} класс
                 </span>
+                {access.showBanner && (
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">В архиве</span>
+                )}
               </div>
 
               {/* Meta row */}
@@ -322,6 +384,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                       )}
                     </Link>
                   ))
+                ) : access.showBanner ? (
+                  formerGroupNames.length > 0 && (
+                    <span className="flex items-start gap-1.5 text-slate-500">
+                      <Users className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                      <span className="min-w-0 break-words">Были в группах: {formerGroupNames.map((name) => `«${name}»`).join(", ")}</span>
+                    </span>
+                  )
                 ) : (
                   <span className="flex items-center gap-1 text-slate-400 italic">
                     <Users className="w-3.5 h-3.5" />
@@ -331,6 +400,19 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               </div>
             </div>
           </div>
+
+          {/* «⋯» → «В архив»: owner and administrator, a student who is not archived yet */}
+          {access.canArchive && (
+            <div className="shrink-0">
+              <RowMenu
+                label={`Действия: ${student.full_name}`}
+                width={200}
+                items={[
+                  { key: "archive", label: "В архив", icon: Archive, danger: true, onSelect: () => setArchiveOpen(true) },
+                ]}
+              />
+            </div>
+          )}
         </div>
 
         {/* ── Navigation Tabs: scroll sideways on a phone, never widen the page ── */}
@@ -801,8 +883,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         )}
       </div>
 
-      {/* ── Assign to Group Modal (staff only, like the buttons that open it) ── */}
-      {!isTeacher && (
+      {/* ── Assign to Group Modal (staff only, like the buttons that open it; never for an archived student) ── */}
+      {access.groupActions && (
         <AssignGroupModal
           open={assignModalOpen}
           studentId={student.id}
@@ -819,6 +901,31 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           }}
         />
       )}
+
+      {/* ── Archive / restore (owner and administrator) ── */}
+      {access.canArchive && (
+        <StudentArchiveModal
+          open={archiveOpen}
+          studentId={student.id}
+          studentName={student.full_name}
+          groupNames={archiveGroupNames(memberships)}
+          onClose={() => setArchiveOpen(false)}
+          onArchived={handleArchived}
+          onStale={handleStale}
+        />
+      )}
+      {access.canRestore && (
+        <StudentRestoreModal
+          open={restoreOpen}
+          studentId={student.id}
+          studentName={student.full_name}
+          archivedGroups={profile.archived_groups}
+          onClose={() => setRestoreOpen(false)}
+          onRestored={handleRestored}
+          onStale={handleStale}
+        />
+      )}
+      {toastNode}
     </div>
   );
 }

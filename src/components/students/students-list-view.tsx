@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { Suspense, useEffect, useState, useMemo, useCallback } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { Users, Search, Brain, GraduationCap, Folder, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
@@ -9,9 +10,13 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
 import { createRequestSequence } from "@/lib/request-sequence";
-import { studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta, type StudentTab, type StudentTabCounts } from "@/lib/students-tabs";
+import {
+  STUDENT_TABS, parseStudentTab, studentTabCounts, studentTabHref, studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta,
+  type StudentTab, type StudentTabCounts,
+} from "@/lib/students-tabs";
 import { telHref } from "@/lib/phone";
 import { studentGroupId, studentHasGroup } from "@/lib/student-status";
+import { isArchivedStatus } from "@/lib/student-archive";
 
 interface StudentInfo {
   id: string;
@@ -36,9 +41,21 @@ const PAGE_SIZE = 50;
 /**
  * The «Ученики» list, shared by /admin/students and /owner/students: links stay in the
  * workspace the user is in (the owner keeps the owner menu and its highlight).
+ * The list reads `?tab=` (the archive is `?tab=archived`), so it needs a Suspense boundary above it.
  */
-export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" | "owner" }) {
+export function StudentsListView(props: { workspace?: "admin" | "owner" }) {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>}>
+      <StudentsListContent {...props} />
+    </Suspense>
+  );
+}
+
+function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "owner" }) {
   const base = `/${workspace}`;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -53,9 +70,15 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   const [teachers, setTeachers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet.
-  const [tab, setTab] = useState<StudentTab>("grouped");
-  const [counts, setCounts] = useState<StudentTabCounts>({ grouped: null, ungrouped: null });
+  // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet;
+  // «Архив» lists the students who left the center. The tab lives in the address (`?tab=`), so a
+  // reload, a link and "Back" from a student's card keep it.
+  const tab: StudentTab = parseStudentTab(searchParams?.get("tab"));
+  const setTab = (next: StudentTab) => {
+    if (next === tab) return;
+    router.replace(studentTabHref(pathname || `${base}/students`, next), { scroll: false });
+  };
+  const [counts, setCounts] = useState<StudentTabCounts>({ grouped: null, ungrouped: null, archived: null });
   // Latest-request-wins: a slow answer for the previous tab / search must not replace the current list.
   const [listSeq] = useState(() => createRequestSequence());
 
@@ -66,6 +89,9 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
     setCopiedId(displayId);
     setTimeout(() => setCopiedId(null), 2000);
   };
+
+  // "Back" / a link can change the tab without a click: the page number of the old list means nothing.
+  useEffect(() => { setPage(0); }, [tab]);
 
   // Search is debounced and resets paging.
   useEffect(() => {
@@ -87,41 +113,42 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
   const activeTab: StudentTab = filterGroup ? "grouped" : tab;
 
   // Server-side paging: only the current page is fetched; `total` is the exact size of the
-  // filtered set. Archived students are in neither tab (the dashboard total leaves them out too),
-  // so «В группах» + «Без группы» add up to the dashboard «Всего учеников». The other tab's
-  // count comes from a one-row request with the same search.
+  // filtered set. Archived students are in neither live tab (the dashboard total leaves them out
+  // too), so «В группах» + «Без группы» add up to the dashboard «Всего учеников»; «Архив» is a
+  // list of its own (`status=archived`). The other tabs' counts come from one-row requests with
+  // the same search.
   const loadStudents = useCallback(async () => {
     const token = listSeq.next();
     setRefreshing(true);
     setListError(null);
     try {
       const search = debouncedSearch || undefined;
-      const [data, other] = await Promise.all([
+      const otherTabs = filterGroup ? [] : STUDENT_TABS.filter((value) => value !== activeTab);
+      const [data, otherPages] = await Promise.all([
         orgApi.listStudentsPage({
           ...studentTabQuery(activeTab, search),
           group_id: filterGroup || undefined,
           limit: PAGE_SIZE,
           offset: page * PAGE_SIZE,
         }),
-        filterGroup
-          ? Promise.resolve(null)
-          : orgApi.listStudentsPage({ ...studentTabQuery(activeTab === "grouped" ? "ungrouped" : "grouped", search), limit: 1 }).catch(() => null),
+        Promise.all(otherTabs.map((value) =>
+          orgApi.listStudentsPage({ ...studentTabQuery(value, search), limit: 1 }).catch(() => null))),
       ]);
       if (!listSeq.isCurrent(token)) return;
       setStudents(data.items as StudentInfo[]);
       setTotal(data.total);
+      const otherTotals: Partial<Record<StudentTab, number | null>> = {};
+      otherTabs.forEach((value, index) => { otherTotals[value] = otherPages[index] ? otherPages[index]!.total : null; });
       setCounts(filterGroup
-        ? { grouped: data.total, ungrouped: null }
-        : activeTab === "grouped"
-          ? { grouped: data.total, ungrouped: other ? other.total : null }
-          : { grouped: other ? other.total : null, ungrouped: data.total });
+        ? { grouped: data.total, ungrouped: null, archived: null }
+        : studentTabCounts(activeTab, data.total, otherTotals));
     } catch (e) {
       console.error(e);
       if (!listSeq.isCurrent(token)) return;
       // Never leave the rows of another tab on screen under an error.
       setStudents([]);
       setTotal(0);
-      setCounts({ grouped: null, ungrouped: null });
+      setCounts({ grouped: null, ungrouped: null, archived: null });
       setListError("Не удалось загрузить список учеников");
     } finally {
       if (listSeq.isCurrent(token)) { setLoading(false); setRefreshing(false); }
@@ -197,17 +224,17 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
         <ImportButton variant="solid" onImported={loadAll} className="shrink-0 whitespace-nowrap" />
       </div>
 
-      {/* «В группах (N) · Без группы (M)» */}
+      {/* «В группах (N) · Без группы (M) · Архив (K)» */}
       {showTabs && (
         <div role="tablist" aria-label="Ученики" className="flex w-full overflow-x-auto rounded-lg bg-slate-100 p-0.5 sm:inline-flex sm:w-auto sm:max-w-full">
-          {(["grouped", "ungrouped"] as const).map((value) => (
+          {STUDENT_TABS.map((value) => (
             <button
               key={value}
               type="button"
               role="tab"
               aria-selected={activeTab === value}
               onClick={() => { setTab(value); setPage(0); }}
-              className={`flex-1 whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3 ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              className={`flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3 ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {studentTabLabel(value, counts[value])}
             </button>
@@ -228,6 +255,8 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
           />
         </div>
 
+        {/* An archived student is in no group: the teacher / group filter has nothing to filter there. */}
+        {activeTab !== "archived" && (
         <CascadingFilter
           teachers={teachers}
           groups={groups}
@@ -239,6 +268,7 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
             setPage(0);
           }}
         />
+        )}
       </div>
 
       {/* Content Area */}
@@ -271,6 +301,10 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
             ))
           )}
         </div>
+      ) : students.length === 0 && activeTab === "archived" ? (
+        <p className="py-10 text-center text-sm text-slate-400">
+          {search ? "Ученики не найдены" : "В архиве пока никого нет"}
+        </p>
       ) : students.length === 0 && activeTab === "ungrouped" ? (
         <p className="py-10 text-center text-sm text-slate-400">
           {search ? "Ученики не найдены" : "Все ученики распределены по группам"}
@@ -350,7 +384,9 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
                     </p>
                   )}
                   <p className="mt-1.5 flex flex-wrap items-baseline gap-x-1.5 text-sm">
-                    {group ? (
+                    {isArchivedStatus(s.status) ? (
+                      <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">В архиве</span>
+                    ) : group ? (
                       <>
                         <Link
                           href={`${base}/groups/${group.id}`}
@@ -382,7 +418,7 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
                   <th className="px-6 py-3 font-medium">Ученик</th>
                   <th className="px-6 py-3 font-medium">ID</th>
                   <th className="px-6 py-3 font-medium">Класс</th>
-                  <th className="px-6 py-3 font-medium">Группа</th>
+                  <th className="px-6 py-3 font-medium">{activeTab === "archived" ? "Статус" : "Группа"}</th>
                   <th className="px-6 py-3 font-medium">Телефон</th>
                 </tr>
               </thead>
@@ -443,7 +479,9 @@ export function StudentsListView({ workspace = "admin" }: { workspace?: "admin" 
                           <span className="text-sm text-slate-600">{s.class_level} класс</span>
                         </td>
                         <td className="px-6 py-4">
-                          {group ? (
+                          {isArchivedStatus(s.status) ? (
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">В архиве</span>
+                          ) : group ? (
                             <div className="flex flex-wrap items-baseline gap-x-1.5">
                               <Link
                                 href={`${base}/groups/${group.id}`}

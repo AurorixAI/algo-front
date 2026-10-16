@@ -1,0 +1,109 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { orgApi, type StudentArchiveResult } from "@/lib/api";
+import {
+  ARCHIVE_KEEPS_NOTE,
+  ARCHIVE_REASON_MAX,
+  archiveGroupsHeading,
+  archiveReasonCounter,
+  normalizeArchiveReason,
+  validateArchiveReason,
+} from "@/lib/student-archive";
+import { Modal } from "@/components/ui/modal";
+
+interface StudentArchiveModalProps {
+  open: boolean;
+  studentId: string;
+  studentName: string;
+  /** Groups the student is in now (his active memberships): the server removes him from every one. */
+  groupNames: string[];
+  onClose: () => void;
+  onArchived: (result: StudentArchiveResult) => void;
+  /** The server says the student is already archived (409): the card is out of date and must be read again. */
+  onStale: (message: string) => void;
+}
+
+/** «Ученик ушёл из центра?»: the groups he leaves, an optional reason of up to 300 characters, what stays. */
+export function StudentArchiveModal({ open, studentId, studentName, groupNames, onClose, onArchived, onStale }: StudentArchiveModalProps) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // A dialog that opens again (or for another student) never keeps the old draft or the old error.
+  useEffect(() => {
+    if (open) { setReason(""); setBusy(false); setError(null); }
+  }, [open, studentId]);
+
+  const submit = async () => {
+    if (busy) return;
+    const problem = validateArchiveReason(reason);
+    if (problem) { setError(problem); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await orgApi.archiveStudent(studentId, normalizeArchiveReason(reason));
+      onArchived(result);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Не удалось отправить ученика в архив";
+      if ((cause as { status?: number } | null)?.status === 409) onStale(message);
+      else setError(message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={open}
+      title="Ученик ушёл из центра?"
+      description={studentName}
+      onClose={onClose}
+      busy={busy}
+      footer={
+        <>
+          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
+          <button
+            type="submit"
+            form="student-archive-form"
+            disabled={busy}
+            className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            В архив
+          </button>
+        </>
+      }
+    >
+      <form id="student-archive-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
+        <div>
+          <p id="student-archive-groups" className="text-sm text-slate-700">{archiveGroupsHeading(groupNames.length)}</p>
+          {groupNames.length > 0 && (
+            <ul aria-labelledby="student-archive-groups" className="mt-2 space-y-1">
+              {groupNames.map((name) => (
+                <li key={name} className="break-words rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800">{name}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="student-archive-reason" className="block text-xs font-semibold text-slate-600">Причина (необязательно)</label>
+          <textarea
+            id="student-archive-reason"
+            value={reason}
+            onChange={(event) => { setReason(event.target.value); setError(null); }}
+            maxLength={ARCHIVE_REASON_MAX}
+            rows={3}
+            className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
+          />
+          <p className="text-right text-[11px] tabular-nums text-slate-400" aria-hidden>{archiveReasonCounter(reason)}</p>
+        </div>
+
+        <p className="text-xs text-slate-500">{ARCHIVE_KEEPS_NOTE}</p>
+        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+      </form>
+    </Modal>
+  );
+}
