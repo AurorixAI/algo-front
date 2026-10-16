@@ -1,0 +1,132 @@
+# ALGO - hermetic E2E stack (ROADMAP #27).
+#
+# Everything runs under its own compose project (`algo-e2e`), on its own ports and its own throw-away
+# volumes: it never touches a developer's `algo-*` containers, stage or prod.  Only auth-service (+ its
+# Postgres and Redis) is mandatory; exam-service sits behind the `exam` profile.
+#
+#   AUTH_SERVICE_PATH   path to the auth-service repo checkout  (default: ../auth-service-n13p2)
+#   EXAM_SERVICE_PATH   path to the exam-service repo checkout  (default: ../exam-service-n13)
+#   E2E_AUTH_PORT       host port of auth-service   (default 18000)
+#   E2E_EXAM_PORT       host port of exam-service   (default 18003)
+#   E2E_FRONT_ORIGIN    the origin the browser opens (CORS allow-list of the services; default http://localhost:13000)
+#
+# Started by `npm run e2e` (e2e/scripts/run.mjs); runnable by hand:
+#   docker compose -p algo-e2e -f e2e/docker-compose.e2e.yml up -d --build --wait
+
+name: algo-e2e
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: algo
+      POSTGRES_PASSWORD: algo_e2e_password
+      POSTGRES_DB: algo_auth
+    # tmpfs: the database is born empty on every run and dies with the container (and is faster).
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U algo -d algo_auth"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  auth:
+    build:
+      context: ${AUTH_SERVICE_PATH:?AUTH_SERVICE_PATH is set by e2e/scripts/run.mjs}
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      DATABASE_URL: postgresql+psycopg2://algo:algo_e2e_password@db:5432/algo_auth
+      REDIS_URL: redis://redis:6379/0
+      # development: mounts /auth/dev-login (passwordless sign-in for the tests) and keeps the auth cookies
+      # WITHOUT `Secure` (cookies_are_secure() is true only for staging/production), so plain http works.
+      APP_ENV: development
+      SECRET_KEY: e2e-only-secret-key-not-for-any-real-environment-0123456789
+      INTERNAL_SERVICE_TOKEN: e2e-internal-service-token
+      EXAM_SERVICE_URL: http://exam:8003/api/v1
+      CORS_ORIGINS: '["${E2E_FRONT_ORIGIN:-http://localhost:13000}"]'
+    ports:
+      - "127.0.0.1:${E2E_AUTH_PORT:-18000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Online-exam scenarios (E2E_EXAM=1 / profile `exam`): exam-service + its own Postgres + a stub of content-service.
+  # ---------------------------------------------------------------------------------------------------------------
+  exam-db:
+    profiles: ["exam"]
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: algo
+      POSTGRES_PASSWORD: algo_e2e_password
+      POSTGRES_DB: algo_exam
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U algo -d algo_exam"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The real content-service needs the digitised task bank. The exam scenarios only need a handful of valid tasks,
+  # so a ~100-line stub (stdlib only) answers the read API exam-service uses; see e2e/stubs/content_stub.py.
+  content-stub:
+    profiles: ["exam"]
+    image: python:3.11-alpine
+    command: ["python", "/stub/content_stub.py"]
+    volumes:
+      - ./stubs:/stub:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://localhost:8004/health').read()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  exam:
+    profiles: ["exam"]
+    build:
+      context: ${EXAM_SERVICE_PATH:?EXAM_SERVICE_PATH is set by e2e/scripts/run.mjs}
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://algo:algo_e2e_password@exam-db:5432/algo_exam
+      REDIS_URL: redis://redis:6379/1
+      APP_ENV: development
+      AUTH_SERVICE_URL: http://auth:8000
+      CONTENT_SERVICE_URL: http://content-stub:8004
+      INTERNAL_SERVICE_TOKEN: e2e-internal-service-token
+      CORS_ORIGINS: '["${E2E_FRONT_ORIGIN:-http://localhost:13000}"]'
+    ports:
+      - "127.0.0.1:${E2E_EXAM_PORT:-18003}:8003"
+    depends_on:
+      exam-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      auth:
+        condition: service_healthy
+      content-stub:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8003/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 60
+      start_period: 10s

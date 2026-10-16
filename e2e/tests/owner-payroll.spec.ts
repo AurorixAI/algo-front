@@ -1,0 +1,112 @@
+import { test, expect } from "../support/fixtures";
+import { Org, runLesson } from "../support/api";
+import { businessNow, payrollLine } from "../support/time";
+import { groupedDigits, moneyPattern, toast } from "../support/ui";
+
+/** «ИТОГО» and the sum are two elements: no space between them in the text content. */
+const total = (amount: number) => new RegExp(`ИТОГО\\s*${moneyPattern(amount)}\\s*сум`);
+
+/**
+ * Owner: «Зарплата». Percent per teacher and kind of lessons -> «Рассчитать всех» -> the sheet total equals the
+ * partner's formula for the seeded marks (computed here independently):
+ *     line = round_half_up( monthly fee x percent / 100 x counted lessons / 12 )
+ * -> «Сохранить ведомость» -> edit a fee on the sheet -> «Сохранить как редакцию 2» -> «История редакций».
+ *
+ * Seeded lesson of today (one lesson per teacher, both completed):
+ *   teacher 1, «Группа», 62.5 %:  Анвар 600 000 present | Мадина 900 000 absent | Булат 300 000 excused (not yet confirmed)
+ *                                 | Эльдар 450 000 present but NEVER PAID (shown, not in the sum)
+ *   teacher 2, «Индивидуально», 40 %:  Дилшод 800 000 present
+ */
+let org: Org;
+test.beforeAll(async () => {
+  org = await Org.create("Зарплата");
+});
+
+test("percent -> «Рассчитать всех» -> total by the formula -> save -> edit fee -> revision 2 -> history", async ({ signIn }) => {
+  const month = businessNow().date.slice(0, 7);
+  const t1 = await org.addStaff("teacher", "Групповой");
+  const t2 = await org.addStaff("teacher", "Индивидуальный");
+  const group = await org.createGroup({ name: "Группа З1", teacherId: t1.userId, lessonType: "group" });
+  const solo = await org.createGroup({ name: "Индивид З2", teacherId: t2.userId, lessonType: "individual" });
+  const anvar = await org.addStudent(group, "Анвар", "Первый", 600000);
+  const madina = await org.addStudent(group, "Мадина", "Второй", 900000);
+  const bulat = await org.addStudent(group, "Булат", "Третий", 300000);
+  const eldar = await org.addStudent(group, "Эльдар", "Неплательщик", 450000);
+  const dilshod = await org.addStudent(solo, "Дилшод", "Одиночкин", 800000);
+  for (const [s, fee] of [[anvar, 600000], [madina, 900000], [bulat, 300000], [dilshod, 800000]] as const) await org.pay(s.id, fee);
+
+  const lesson1 = await org.createLessonStartingNow(group.id);
+  const lesson2 = await org.createLessonStartingNow(solo.id);
+  await runLesson(t1, lesson1, {
+    records: { [anvar.id]: "present", [madina.id]: "absent", [bulat.id]: "excused", [eldar.id]: "present" },
+    reasons: { [bulat.id]: "Болел" },
+    complete: true,
+  });
+  await runLesson(t2, lesson2, { records: { [dilshod.id]: "present" }, complete: true });
+
+  // the oracle
+  const t1Total = payrollLine(600000, "62.5", 1) + payrollLine(900000, "62.5", 1) + payrollLine(300000, "62.5", 1); // Эльдар: not paid
+  const t2Total = payrollLine(800000, "40", 1);
+  expect(t1Total).toBe(31250 + 46875 + 15625); // sanity of the oracle itself: 600k, 900k, 300k x 0.625 / 12
+  expect(t2Total).toBe(26667);
+
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/payroll?month=${month}`);
+  const teachers = page.getByRole("region", { name: "Преподаватели месяца" });
+  await expect(teachers).toContainText("Групповой");
+  await expect(teachers).toContainText("Индивидуальный");
+
+  // --- percents and the calculation of everybody
+  await teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ }).fill("62.5");
+  await teachers.getByRole("textbox", { name: /Процент для .*Индивидуальный, Индивидуально/ }).fill("40");
+  await page.getByRole("button", { name: "Рассчитать всех" }).click();
+  const preview = page.getByRole("region", { name: "Предпросмотр расчёта" });
+  await expect(preview).toBeVisible();
+
+  await preview.getByRole("tab", { name: /Групповой/ }).click();
+  await expect(preview).toContainText(total(t1Total));
+  const lineOf = (name: string) => preview.getByRole("row", { name: new RegExp(name) });
+  await expect(lineOf("Первый Анвар")).toContainText(`${groupedDigits(payrollLine(600000, "62.5", 1))} сум`);
+  await expect(lineOf("Второй Мадина")).toContainText(`${groupedDigits(payrollLine(900000, "62.5", 1))} сум`);
+  await expect(lineOf("Третий Булат")).toContainText("Ув.?"); // the excuse waits for a decision, the lesson counts
+  await expect(lineOf("Третий Булат")).toContainText(`${groupedDigits(payrollLine(300000, "62.5", 1))} сум`);
+  await expect(lineOf("Неплательщик Эльдар")).toContainText("Урок не оплачен: в сумму не входит"); // shown, but not in the sum
+  await expect(lineOf("Неплательщик Эльдар")).toContainText("0 сум");
+  await preview.getByRole("tab", { name: /Индивидуальный/ }).click();
+  await expect(preview).toContainText(total(t2Total));
+
+  // --- save the sheet of teacher 1
+  await preview.getByRole("tab", { name: /Групповой/ }).click();
+  await preview.getByRole("button", { name: "Сохранить ведомость" }).click();
+  await expect(toast(page, "Ведомость сохранена · редакция 1")).toBeVisible();
+  const row = page.getByRole("listitem").filter({ hasText: "Групповой" });
+  await expect(row).toContainText(`сохранено · редакция 1 · ${groupedDigits(t1Total)} сум`);
+
+  // --- the saved sheet: change one fee on it, save as revision 2
+  await row.getByRole("link", { name: "Открыть ведомость" }).click();
+  await expect(page).toHaveURL(/\/owner\/payroll\/[0-9a-f-]{36}$/);
+  await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toContainText("Групповой");
+  await expect(page.getByText(new RegExp(`редакция 1 · ${moneyPattern(t1Total)}\\s*сум`))).toBeVisible();
+  await page.getByRole("textbox", { name: /Оплата в месяц: Первый Анвар/ }).fill("700000");
+  const newTotal = payrollLine(700000, "62.5", 1) + payrollLine(900000, "62.5", 1) + payrollLine(300000, "62.5", 1);
+  await expect(page.getByRole("tabpanel")).toContainText(total(newTotal));
+  await expect(page.getByText("изменена · было 600 000 сум")).toBeVisible();
+  await page.getByRole("button", { name: "Сохранить как редакцию 2" }).click();
+  await expect(toast(page, /Сохранено · редакция 2/)).toBeVisible();
+  await expect(page.getByText(new RegExp(`редакция 2 · ${moneyPattern(newTotal)}\\s*сум`))).toBeVisible();
+
+  // --- history of revisions
+  await page.getByRole("tab", { name: "История редакций" }).click();
+  const history = page.getByRole("tabpanel");
+  await expect(history).toContainText("Редакция 2");
+  await expect(history).toContainText("Редакция 1");
+  await expect(history).toContainText(groupedDigits(newTotal));
+  await expect(history).toContainText(groupedDigits(t1Total));
+
+  // --- and the API holds the same two revisions
+  const sheets = await org.owner.api.get("/auth/org/payroll/sheets", { month });
+  const sheet = sheets.find((s: any) => s.teacher_id === t1.userId);
+  expect(sheet.revision).toBe(2);
+  const revisions = await org.owner.api.get(`/auth/org/payroll/sheets/${sheet.id}/revisions`);
+  expect(Object.fromEntries(revisions.map((r: any) => [r.revision, r.total_amount]))).toEqual({ 1: t1Total, 2: newTotal });
+});
