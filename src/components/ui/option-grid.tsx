@@ -6,6 +6,7 @@ import { Check } from "lucide-react";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection } from "@/lib/task-display";
 import { resolveOptionTap } from "@/lib/option-tap";
+import { optionAriaLabel, optionAriaPressed, type OptionPhase } from "@/lib/math-speech";
 import { isCompatMouseAfterTouch, isScrollbarGutterHit, shouldIgnoreCardClick, type CardPointerRecord } from "@/lib/scroll-edges";
 
 export interface OptionItem {
@@ -96,6 +97,9 @@ export function OptionGrid({
         const isConfirmed = selected === opt.key;
         const isPending = pending === opt.key;
         const isActive = isConfirmed || isPending;
+        // KaTeX glyphs are aria-hidden: the button's name is the option's plain text, and aria-pressed tells the
+        // two steps apart (first press = a tick waiting for confirmation, second = confirmed).
+        const phase: OptionPhase = isConfirmed ? "confirmed" : isPending ? "pending" : "idle";
         const isOddLast = options.length % 2 === 1 && idx === options.length - 1;
 
         return (
@@ -134,6 +138,8 @@ export function OptionGrid({
               if (document.activeElement !== card) card.focus({ preventScroll: true });
             }}
             disabled={disabled}
+            aria-label={optionAriaLabel(opt.label, display.text, phase)}
+            aria-pressed={optionAriaPressed(phase)}
             className={cn(
               "group glass-option relative flex min-w-0 items-start gap-4 overflow-hidden rounded-2xl p-4 text-left cursor-pointer md:gap-5 md:p-5",
               "disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none",
