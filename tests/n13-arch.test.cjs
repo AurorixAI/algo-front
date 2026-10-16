@@ -72,31 +72,19 @@ test("the banner says «В архиве с ДД.ММ.ГГГГ» on the center's 
   for (const none of ["", null, undefined, "не дата"]) assert.equal(A.archiveBannerTitle(none), "В архиве", String(none));
 });
 
-test("the archive date and reason are read from the student block, the profile, or an «archive» block", () => {
+test("the archive date and reason are the server's student.archived_at (ISO, naive UTC) and student.archive_reason - nothing else is guessed", () => {
   assert.deepEqual(A.studentArchiveInfo({ student: { archived_at: "2026-10-14T08:00:00", archive_reason: " Переехал " } }),
     { archivedAt: "2026-10-14T08:00:00", reason: "Переехал" });
-  assert.deepEqual(A.studentArchiveInfo({ archived_at: "2026-10-14T08:00:00", archive_reason: "Дорого" }),
-    { archivedAt: "2026-10-14T08:00:00", reason: "Дорого" });
-  assert.deepEqual(A.studentArchiveInfo({ archive: { archived_at: "2026-10-14T08:00:00", reason: "Болезнь" } }),
-    { archivedAt: "2026-10-14T08:00:00", reason: "Болезнь" });
-  assert.deepEqual(A.studentArchiveInfo({ student: { archived_at: "  ", archive_reason: null } }), { archivedAt: "", reason: "" });
+  // no date -> no date; the other places a guess could look at are ignored
+  assert.deepEqual(A.studentArchiveInfo({ student: { archived_at: null, archive_reason: null } }), { archivedAt: "", reason: "" });
+  assert.deepEqual(A.studentArchiveInfo({ student: { archived_at: "  ", archive_reason: "" } }), { archivedAt: "", reason: "" });
+  assert.deepEqual(A.studentArchiveInfo({ student: {}, archived_at: "2026-10-14T08:00:00", archive_reason: "x", archive: { archived_at: "2026-10-14T08:00:00" },
+    archived_groups: [{ group_id: "g1" }], group_history: [{ group_id: "g1", left_at: "2026-10-14T08:00:00" }] }), { archivedAt: "", reason: "" });
   assert.deepEqual(A.studentArchiveInfo(null), { archivedAt: "", reason: "" });
-});
-
-test("without a date field the date is the time the groups of the last archiving were closed", () => {
-  const info = A.studentArchiveInfo({
-    student: {},
-    archived_groups: [{ group_id: "g1" }, { group_id: "g2" }],
-    group_history: [
-      { group_id: "g1", left_at: "2026-10-14T08:00:00" },
-      { group_id: "g2", left_at: "2026-10-14T08:00:01" },
-      { group_id: "g3", left_at: "2026-10-16T08:00:00" },   // left a group earlier / later, not part of the archiving
-      { group_id: "g1", left_at: null },
-    ],
-  });
-  assert.equal(info.archivedAt, "2026-10-14T08:00:01");
-  // archived without groups and without a field: no date at all
-  assert.equal(A.studentArchiveInfo({ student: {}, archived_groups: [], group_history: [{ group_id: "g3", left_at: "2026-10-16T08:00:00" }] }).archivedAt, "");
+  assert.deepEqual(A.studentArchiveInfo(undefined), { archivedAt: "", reason: "" });
+  // the date goes through the center's clock: 14.10 22:00 UTC is 15.10 in Tashkent
+  assert.equal(A.archiveBannerTitle(A.studentArchiveInfo({ student: { archived_at: "2026-10-14T22:00:00" } }).archivedAt), "В архиве с 15.10.2026");
+  assert.equal(A.archiveBannerTitle(A.studentArchiveInfo({ student: { archived_at: null } }).archivedAt), "В архиве");
 });
 
 // ---- the restore dialog -------------------------------------------------------------------------------------
@@ -143,30 +131,68 @@ test("the line under the list tells what «Вернуть» will do", () => {
   assert.equal(A.restoreSummary(3, 3), "Ученик вернётся в группы: 3.");
 });
 
-test("skipped groups are listed with the reason; the server's own text is kept", () => {
+test("a skipped group is shown with the server's Russian message and its own name; the code in words is only a fallback", () => {
   const options = [{ groupId: "a", name: "Математика 7" }, { groupId: "b", name: "Физика" }];
-  assert.equal(A.skipReasonLabel("group_full"), "группа заполнена");
-  assert.equal(A.skipReasonLabel("full"), "группа заполнена");
-  assert.equal(A.skipReasonLabel("group_archived"), "группа в архиве");
-  assert.equal(A.skipReasonLabel("Группа заполнена"), "Группа заполнена");
-  assert.equal(A.skipReasonLabel(""), "не удалось вернуть");
+  const skip = (group_id, reason, message, group_name = null) => ({ group_id, group_name, reason, message });
+  assert.deepEqual(A.restoreSkippedLines([
+    skip("b", "group_full", "Группа заполнена: мест нет", "Физика 8"),
+    skip("a", "lesson_in_progress", "Нельзя изменить состав группы, пока идёт урок"),   // name from the dialog's own rows
+    skip("zzz", "not_found", "Группа не найдена"),
+  ], options), [
+    "«Физика 8» — Группа заполнена: мест нет",
+    "«Математика 7» — Нельзя изменить состав группы, пока идёт урок",
+    "«Группа» — Группа не найдена",
+  ]);
+  // no message: the code in words
+  const words = { group_full: "группа заполнена", group_archived: "группа в архиве", not_found: "группа не найдена", lesson_in_progress: "в группе идёт урок", busy: "ученика одновременно меняли в другом окне", refused: "не удалось вернуть" };
+  for (const [code, text] of Object.entries(words)) {
+    assert.equal(A.skipReasonLabel(code), text, code);
+    assert.equal(A.restoreSkippedLines([skip("a", code, "")], options)[0], `«Математика 7» — ${text}`, code);
+  }
+  assert.equal(A.skipReasonLabel("something_new"), "something_new");
   assert.equal(A.skipReasonLabel(null), "не удалось вернуть");
-  assert.deepEqual(A.restoreSkippedLines([{ group_id: "b", reason: "group_full" }, { group_id: "zzz", reason: "Группа в архиве" }], options),
-    ["«Физика» — группа заполнена", "«Группа» — Группа в архиве"]);
   assert.deepEqual(A.restoreSkippedLines(undefined, options), []);
 });
 
-test("a clean return is a success; a skipped group is a warning that lists it", () => {
+test("hints (warnings) of the enrolment are listed by group; one without a text is dropped", () => {
+  const options = [{ groupId: "a", name: "Математика 7" }];
+  assert.deepEqual(A.restoreWarningLines([
+    { group_id: "a", code: "third_group", message: "Это третья группа ученика" },
+    { group_id: "a", code: "x" },
+    { group_id: "q", message: "Класс не совпадает" },
+  ], options), ["«Математика 7» — Это третья группа ученика", "«Группа» — Класс не совпадает"]);
+  assert.deepEqual(A.restoreWarningLines(undefined, options), []);
+});
+
+test("a clean return is a success; a skipped group is a warning that lists it; the owner reads skipped groups and hints", () => {
   const options = [{ groupId: "a", name: "Математика 7" }, { groupId: "b", name: "Физика" }];
-  assert.deepEqual(A.restoreOutcome({ skipped: [] }, 2, options), { text: "Ученик возвращён из архива", type: "success", lines: [] });
-  assert.deepEqual(A.restoreOutcome({}, 0, options), { text: "Ученик возвращён из архива", type: "success", lines: [] });
-  const some = A.restoreOutcome({ skipped: [{ group_id: "b", reason: "group_full" }] }, 2, options);
+  const clean = A.restoreOutcome({ skipped: [] }, 2, options);
+  assert.deepEqual(clean, { text: "Ученик возвращён из архива", type: "success", lines: [], warnings: [] });
+  assert.equal(A.restoreNeedsReading(clean), false);
+  assert.deepEqual(A.restoreOutcome({}, 0, options), { text: "Ученик возвращён из архива", type: "success", lines: [], warnings: [] });
+  const some = A.restoreOutcome({ skipped: [{ group_id: "b", group_name: "Физика", reason: "group_full", message: "Группа заполнена" }] }, 2, options);
   assert.equal(some.type, "warning");
   assert.equal(some.text, "Ученик возвращён из архива, но не во все группы");
-  assert.deepEqual(some.lines, ["«Физика» — группа заполнена"]);
-  const all = A.restoreOutcome({ skipped: [{ group_id: "a", reason: "x" }, { group_id: "b", reason: "y" }] }, 2, options);
+  assert.deepEqual(some.lines, ["«Физика» — Группа заполнена"]);
+  assert.equal(A.restoreNeedsReading(some), true);
+  const all = A.restoreOutcome({ skipped: [{ group_id: "a", reason: "x", message: "m1" }, { group_id: "b", reason: "y", message: "m2" }] }, 2, options);
   assert.equal(all.text, "Ученик возвращён из архива, но ни в одну группу");
   assert.equal(all.lines.length, 2);
+  // hints alone are not a failure, but they are shown
+  const hints = A.restoreOutcome({ skipped: [], warnings: [{ group_id: "a", message: "Это третья группа" }] }, 1, options);
+  assert.equal(hints.type, "success");
+  assert.deepEqual(hints.warnings, ["«Математика 7» — Это третья группа"]);
+  assert.equal(A.restoreNeedsReading(hints), true);
+});
+
+test("409 means «the card is out of date» only for «уже в архиве» / «не в архиве»; «пока идёт урок» keeps the dialog open", () => {
+  assert.equal(A.isStaleArchiveConflict("archive", "Ученик уже в архиве"), true);
+  assert.equal(A.isStaleArchiveConflict("restore", "Ученик не в архиве"), true);
+  assert.equal(A.isStaleArchiveConflict("archive", "Нельзя изменить состав группы, пока идёт урок. Дождитесь его окончания."), false);
+  assert.equal(A.isStaleArchiveConflict("restore", "Нельзя изменить состав группы, пока идёт урок"), false);
+  assert.equal(A.isStaleArchiveConflict("archive", "Ученик не в архиве"), false);
+  assert.equal(A.isStaleArchiveConflict("restore", "Ученик уже в архиве"), false);
+  assert.equal(A.isStaleArchiveConflict("archive", null), false);
 });
 
 // ---- the «Архив» tab of the list ----------------------------------------------------------------------------
@@ -251,14 +277,21 @@ test("an archived card hides «Добавить в группу / Перевес
 
   const pay = read("src/components/students/student-payments-block.tsx");
   assert.match(pay, /const readOnly = !access\.paymentActions;/);
-  assert.match(pay, /readOnly=\{readOnly\}/);
+  assert.match(pay, /archived=\{archived\}/);
   assert.match(pay, /filter\(\(row\) => row\.is_active && !readOnly\)/);
   assert.match(pay, /filter\(\(row\) => !row\.is_active \|\| readOnly\)/);
-  assert.match(pay, /Ученик в архиве: история оплат и квитанций сохранена, вносить оплату нельзя\./);
+  assert.match(pay, /Вносить, продлевать и исправлять оплату нельзя — только отменить ошибочную\./);
 
+  // the server refuses create / replace / fee for an archived student (409); «Отменить» is still allowed
   const row = read("src/components/payments/membership-payments.tsx");
-  assert.match(row, /readOnly = false/);
-  assert.match(row, /const editable = row\.is_active && !readOnly;/);
+  assert.match(row, /archived = false/);
+  assert.match(row, /const editable = row\.is_active && !archived;/);
+  assert.match(row, /const voidable = row\.is_active \|\| archived;/);
+  assert.match(row, /editable=\{editable\}\s*voidable=\{voidable\}/);
+  assert.match(row, /if \(!voided && editable\) \{\s*\/\/[^\n]*\s*if \(!carried\) items\.push\(\{ key: "correct"/);
+  assert.match(row, /if \(!voided && voidable\) items\.push\(\{ key: "void"/);
+  // «Внести / Продлить» and the fee pencil stay behind `editable`
+  assert.equal((row.match(/\{editable && \(/g) || []).length, 3);
 });
 
 test("the archive dialog: title, reason (≤300, optional), the note, buttons, the API call", () => {
@@ -273,7 +306,7 @@ test("the archive dialog: title, reason (≤300, optional), the note, buttons, t
   assert.match(modal, /htmlFor="student-archive-reason"/);
   assert.match(modal, /id="student-archive-reason"/);
   assert.match(modal, /role="alert"/);
-  assert.match(modal, /\.status === 409\) onStale\(message\)/);
+  assert.match(modal, /\.status === 409 && isStaleArchiveConflict\("archive", message\)\) onStale\(message\);\s*else setError\(message\);/);
   assert.match(modal, /groupNames\.map\(\(name\) =>/);
 });
 
@@ -291,17 +324,43 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
   assert.match(modal, /Готово/);
   // the student is back once the result is shown: any way of closing it refreshes the card
   assert.match(modal, /const close = \(\) => \{ if \(done\) onRestored\(done\); else onClose\(\); \};/);
-  assert.match(modal, /\.status === 409\) onStale\(message\)/);
+  assert.match(modal, /\.status === 409 && isStaleArchiveConflict\("restore", message\)\) onStale\(message\);\s*else setError\(message\);/);
+  assert.match(modal, /if \(!restoreNeedsReading\(outcome\)\) onRestored\(outcome\);/);
+  assert.match(modal, /Обратите внимание:/);
 });
 
-test("the API: POST archive {reason?} and restore {group_ids}; the profile carries archived_groups", () => {
+test("the API: POST archive {reason?} and restore {group_ids}; the profile carries archived_groups and student.archived_at", () => {
   const api = read("src/lib/api.ts");
   assert.match(api, /api<StudentArchiveResult>\(`\/auth\/org\/students\/\$\{id\}\/archive`, \{ method: "POST", body: reason \? \{ reason \} : \{\} \}\)/);
   assert.match(api, /api<StudentRestoreResult>\(`\/auth\/org\/students\/\$\{id\}\/restore`, \{ method: "POST", body: \{ group_ids: groupIds \} \}\)/);
   assert.match(api, /closed_groups: Array<\{ group_id: string; group_name: string \}>/);
-  assert.match(api, /skipped: Array<\{ group_id: string; reason: string \}>/);
-  assert.match(api, /archived_groups\?: StudentArchivedGroup\[\]/);
+  assert.match(api, /restored_groups\?: Array<\{ group_id: string; group_name: string \}>/);
+  assert.match(api, /skipped: Array<\{ group_id: string; group_name: string \| null; reason: StudentRestoreSkipReason \| string; message: string \}>/);
+  assert.match(api, /"group_full" \| "group_archived" \| "not_found" \| "lesson_in_progress" \| "refused" \| "busy"/);
+  assert.match(api, /warnings\?: Array<\{ group_id: string; code\?: string; message\?: string \}>/);
+  assert.match(api, /archived_groups\?: StudentArchivedGroup\[\] \| null/);
+  assert.match(api, /archived_at\?: string \| null;\s*archive_reason\?: string \| null;\s*\};/);   // inside `student`
   assert.match(api, /group_id: string;\s*group_name: string;\s*group_status: string;\s*is_full: boolean;/);
+  // the profile has no second place for the date
+  assert.doesNotMatch(api, /archive\?: \{ archived_at/);
+});
+
+test("no screen moves a student into or out of the archive through the generic PUT (the server answers 422)", () => {
+  // the only caller of updateStudent is the contacts editor: phone and comment
+  const callers = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(rel);
+      else if (/\.tsx?$/.test(entry.name) && /updateStudent\(/.test(read(rel))) callers.push(rel);
+    }
+  };
+  walk("src");
+  assert.deepEqual(callers, ["src/components/students/student-profile-view.tsx"]);
+  const view = read("src/components/students/student-profile-view.tsx");
+  const call = view.slice(view.indexOf("orgApi.updateStudent("), view.indexOf("orgApi.updateStudent(") + 160);
+  assert.match(call, /student_phone: phoneVal\.trim\(\) \|\| null,\s*comment: commentVal\.trim\(\) \|\| null,/);
+  assert.doesNotMatch(call, /status/);
 });
 
 test("the list: three tabs from the address, a Suspense boundary, the archive without teacher / group filters and without group cells", () => {

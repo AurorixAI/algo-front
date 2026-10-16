@@ -8,6 +8,7 @@ import {
   ARCHIVE_REASON_MAX,
   archiveGroupsHeading,
   archiveReasonCounter,
+  isStaleArchiveConflict,
   normalizeArchiveReason,
   validateArchiveReason,
 } from "@/lib/student-archive";
@@ -21,7 +22,7 @@ interface StudentArchiveModalProps {
   groupNames: string[];
   onClose: () => void;
   onArchived: (result: StudentArchiveResult) => void;
-  /** The server says the student is already archived (409): the card is out of date and must be read again. */
+  /** «Ученик уже в архиве» (409): the card is out of date and must be read again. Other refusals stay in the dialog. */
   onStale: (message: string) => void;
 }
 
@@ -47,7 +48,8 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       onArchived(result);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Не удалось отправить ученика в архив";
-      if ((cause as { status?: number } | null)?.status === 409) onStale(message);
+      // 409 «Ученик уже в архиве» = a stale card; 409 «…пока идёт урок…» and the rest: the server's text, the dialog stays.
+      if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("archive", message)) onStale(message);
       else setError(message);
     } finally {
       setBusy(false);

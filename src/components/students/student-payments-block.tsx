@@ -33,7 +33,8 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, ref
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const lessonsDefault = usePaymentsSummary((state) => state.lessonsPerPayment);
   const moneyEnabled = !isTeacher && !DEMO_MODE && available;
-  // An archived student keeps his payment history, read-only: no «Внести / Продлить», no fee or payment edits.
+  // An archived student keeps his payment history, read-only: no «Внести / Продлить», no fee edit, no «Исправить»
+  // (the server refuses them); «Отменить» stays so that a mistaken payment can be cancelled.
   const access = studentArchiveAccess({ isTeacher, status: profile.student.status });
   const archived = access.showBanner;
   const readOnly = !access.paymentActions;
@@ -93,7 +94,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, ref
         periodMode={periodMode}
         lessonsDefault={lessonsDefault}
         paymentsBasePath={paymentsBasePath}
-        readOnly={readOnly}
+        archived={archived}
         onRowChange={replaceRow}
         onNotify={showToast}
       />
@@ -105,7 +106,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, ref
       <h2 className="text-base font-semibold text-slate-800">Оплаты по группам</h2>
       {archived && (
         <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-          Ученик в архиве: история оплат и квитанций сохранена, вносить оплату нельзя.
+          Ученик в архиве: история оплат и квитанций сохранена. Вносить, продлевать и исправлять оплату нельзя — только отменить ошибочную.
         </p>
       )}
 

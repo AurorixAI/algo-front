@@ -6,7 +6,7 @@
  * offered back by `archived_groups`, a full or archived group is skipped with a reason).  This file
  * only turns those answers into what the owner reads and clicks.
  */
-import { formatUtcNaiveAsBusinessDate, parseUtcNaive } from "./business-time";
+import { formatUtcNaiveAsBusinessDate } from "./business-time";
 
 /** The server accepts a reason of up to this many characters. */
 export const ARCHIVE_REASON_MAX = 300;
@@ -100,43 +100,22 @@ export interface ArchivedGroupLike {
   is_full?: boolean | null;
 }
 
-/** Where the server may put the archive date and reason; the first present one wins. */
+/** The part of the profile the banner reads: `student.archived_at` (ISO, naive UTC) and `student.archive_reason`. */
 export interface ArchiveInfoSource {
   student?: { archived_at?: string | null; archive_reason?: string | null } | null;
-  archived_at?: string | null;
-  archive_reason?: string | null;
-  archive?: { archived_at?: string | null; reason?: string | null } | null;
-  archived_groups?: ReadonlyArray<{ group_id: string }> | null;
-  group_history?: ReadonlyArray<{ group_id: string; left_at: string | null }> | null;
-}
-
-function firstText(...values: Array<string | null | undefined>): string {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return "";
 }
 
 /**
- * When and why the student went to the archive.  The date is the server's field when it sends one; else
- * the time the groups of `archived_groups` were closed (the server closes them in the same transaction as
- * the archiving).  A student archived without groups and without a field has no date: the banner then
- * says only «В архиве».
+ * When and why the student went to the archive, as the server stamped it.  No date (an old archived
+ * student, or a server that does not send it) means no date: the banner then says only «В архиве».
  */
 export function studentArchiveInfo(source: ArchiveInfoSource | null | undefined): { archivedAt: string; reason: string } {
-  if (!source) return { archivedAt: "", reason: "" };
-  const explicit = firstText(source.student?.archived_at, source.archived_at, source.archive?.archived_at);
-  const reason = firstText(source.student?.archive_reason, source.archive_reason, source.archive?.reason);
-  if (explicit) return { archivedAt: explicit, reason };
-  const closed = new Set((source.archived_groups ?? []).map((group) => group.group_id));
-  let latest = "";
-  let latestTime = -Infinity;
-  for (const entry of source.group_history ?? []) {
-    if (!closed.has(entry.group_id) || !entry.left_at) continue;
-    const time = parseUtcNaive(entry.left_at)?.getTime();
-    if (time !== undefined && time > latestTime) { latestTime = time; latest = entry.left_at; }
-  }
-  return { archivedAt: latest, reason };
+  const archivedAt = source?.student?.archived_at;
+  const reason = source?.student?.archive_reason;
+  return {
+    archivedAt: typeof archivedAt === "string" ? archivedAt.trim() : "",
+    reason: typeof reason === "string" ? reason.trim() : "",
+  };
 }
 
 /** «В архиве с 14.10.2026»; without a date just «В архиве». */
@@ -200,51 +179,100 @@ export function restoreSummary(selectedCount: number, optionCount: number): stri
   return selectedCount === 1 ? "Ученик вернётся в 1 группу." : `Ученик вернётся в группы: ${selectedCount}.`;
 }
 
-/** The server's reason of a skipped group in words; its own text is kept when it is not a known code. */
+/**
+ * The reason code of a skipped group in words.  Only a fallback: the server sends the Russian `message`
+ * with every skipped group, and that is what the owner reads.
+ */
 export function skipReasonLabel(reason: string | null | undefined): string {
   const text = (reason ?? "").trim();
-  if (!text) return "не удалось вернуть";
-  const code = text.toLowerCase();
-  if (code === "group_full" || code === "full") return "группа заполнена";
-  if (code === "group_archived" || code === "archived") return "группа в архиве";
-  return text;
+  switch (text) {
+    case "group_full": return "группа заполнена";
+    case "group_archived": return "группа в архиве";
+    case "not_found": return "группа не найдена";
+    case "lesson_in_progress": return "в группе идёт урок";
+    case "busy": return "ученика одновременно меняли в другом окне";
+    case "refused": return "не удалось вернуть";
+    default: return text || "не удалось вернуть";
+  }
 }
 
 export interface RestoreSkip {
   group_id: string;
-  reason: string;
+  group_name?: string | null;
+  reason?: string | null;
+  message?: string | null;
 }
 
-/** «Группа А — группа заполнена» for every skipped group; the name comes from the dialog's own rows. */
-export function restoreSkippedLines(
-  skipped: ReadonlyArray<RestoreSkip> | null | undefined,
-  options: ReadonlyArray<Pick<RestoreOption, "groupId" | "name">>,
-): string[] {
+export interface RestoreWarning {
+  group_id?: string;
+  code?: string;
+  message?: string;
+}
+
+type NamedOption = Pick<RestoreOption, "groupId" | "name">;
+
+function groupLabel(groupId: string | undefined, serverName: string | null | undefined, options: ReadonlyArray<NamedOption>): string {
+  const own = (serverName ?? "").trim();
+  if (own) return own;
+  return options.find((option) => option.groupId === groupId)?.name ?? "Группа";
+}
+
+/** «Группа А» — the server's Russian message (the code in words when it sent none), for every skipped group. */
+export function restoreSkippedLines(skipped: ReadonlyArray<RestoreSkip> | null | undefined, options: ReadonlyArray<NamedOption>): string[] {
   return (skipped ?? []).map((item) => {
-    const name = options.find((option) => option.groupId === item.group_id)?.name ?? "Группа";
-    return `«${name}» — ${skipReasonLabel(item.reason)}`;
+    const text = (item.message ?? "").trim() || skipReasonLabel(item.reason);
+    return `«${groupLabel(item.group_id, item.group_name, options)}» — ${text}`;
   });
+}
+
+/** Hints of the enrolment («Группа А» — message); a hint without text is dropped. */
+export function restoreWarningLines(warnings: ReadonlyArray<RestoreWarning> | null | undefined, options: ReadonlyArray<NamedOption>): string[] {
+  const lines: string[] = [];
+  for (const warning of warnings ?? []) {
+    const text = (warning.message ?? "").trim();
+    if (text) lines.push(`«${groupLabel(warning.group_id, null, options)}» — ${text}`);
+  }
+  return lines;
 }
 
 export interface RestoreOutcome {
   text: string;
   type: "success" | "warning";
+  /** Skipped groups with the server's reason. */
   lines: string[];
+  /** Hints of the enrolment of the groups he is back in. */
+  warnings: string[];
 }
 
-/** The answer to the owner: plain success, or a warning that lists the groups the server skipped. */
+/** The answer to the owner: plain success, or a warning that lists the groups the server skipped and its hints. */
 export function restoreOutcome(
-  result: { skipped?: ReadonlyArray<RestoreSkip> | null } | null | undefined,
+  result: { skipped?: ReadonlyArray<RestoreSkip> | null; warnings?: ReadonlyArray<RestoreWarning> | null } | null | undefined,
   requestedCount: number,
-  options: ReadonlyArray<Pick<RestoreOption, "groupId" | "name">>,
+  options: ReadonlyArray<NamedOption>,
 ): RestoreOutcome {
   const skipped = result?.skipped ?? [];
-  if (skipped.length === 0) return { text: RESTORED_TOAST, type: "success", lines: [] };
-  const lines = restoreSkippedLines(skipped, options);
+  const warnings = restoreWarningLines(result?.warnings, options);
+  if (skipped.length === 0) return { text: RESTORED_TOAST, type: "success", lines: [], warnings };
   const none = skipped.length >= requestedCount;
   return {
     text: none ? "Ученик возвращён из архива, но ни в одну группу" : "Ученик возвращён из архива, но не во все группы",
     type: "warning",
-    lines,
+    lines: restoreSkippedLines(skipped, options),
+    warnings,
   };
+}
+
+/** True when the owner has something to read after a return (skipped groups or hints): the dialog then stays open. */
+export function restoreNeedsReading(outcome: Pick<RestoreOutcome, "lines" | "warnings">): boolean {
+  return outcome.lines.length > 0 || outcome.warnings.length > 0;
+}
+
+/**
+ * 409 of «В архив» / «Вернуть» is "the card is out of date" only for «Ученик уже в архиве» / «Ученик не в архиве»:
+ * the card is read again.  Any other refusal (for example a lesson of his group is in progress) leaves the
+ * dialog open with the server's text.
+ */
+export function isStaleArchiveConflict(kind: "archive" | "restore", message: string | null | undefined): boolean {
+  const text = (message ?? "").toLowerCase();
+  return kind === "archive" ? text.includes("уже в архиве") : text.includes("не в архиве");
 }

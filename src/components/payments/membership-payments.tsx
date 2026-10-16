@@ -52,8 +52,11 @@ interface MembershipPaymentsProps {
   lessonsDefault: number | null;
   /** `/owner/payments` or `/admin/payments`: where the receipt pages of this workspace live. */
   paymentsBasePath: string;
-  /** History only: no «Внести / Продлить», no fee or payment edits (the student is in the archive). */
-  readOnly?: boolean;
+  /**
+   * The student is in the archive: history only - no «Внести / Продлить», no fee edit, no «Исправить» (the server
+   * answers 409 «Ученик в архиве — сначала верните его»); «Отменить» stays, so a mistaken payment can be cancelled.
+   */
+  archived?: boolean;
   /** The server accepted a change: the parent replaces the row it holds. */
   onRowChange: (row: MembershipPaymentRow) => void;
   onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
@@ -64,10 +67,12 @@ interface MembershipPaymentsProps {
  * status, payment history (cancelled ones grey) and the actions Внести / Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, readOnly = false, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
-  const editable = row.is_active && !readOnly;
+  const editable = row.is_active && !archived;
+  // «Отменить» of a payment: an active membership, or any membership of an archived student (history stays correctable by cancelling).
+  const voidable = row.is_active || archived;
   // «Оплата в месяц» for a calendar membership, «Стоимость пакета» for a package.
   const texts = feeTexts(feeModeOf(row, periodMode));
 
@@ -304,6 +309,7 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
                       key={payment.id}
                       payment={payment}
                       editable={editable}
+                      voidable={voidable}
                       uploading={uploadingId === payment.id}
                       uploadRunning={uploadingId !== null}
                       onCorrect={() => setForm({ kind: "replace", payment })}
@@ -392,10 +398,13 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
 }
 
 function HistoryItem({
-  payment, editable, uploading, uploadRunning, onCorrect, onVoid, onReceipt, onAttach, onOpenFile, onDeleteFile,
+  payment, editable, voidable, uploading, uploadRunning, onCorrect, onVoid, onReceipt, onAttach, onOpenFile, onDeleteFile,
 }: {
   payment: PaymentOut;
+  /** «Исправить». */
   editable: boolean;
+  /** «Отменить». */
+  voidable: boolean;
   uploading: boolean;
   /** Any row is uploading: «Прикрепить чек» waits in all of them. */
   uploadRunning: boolean;
@@ -424,8 +433,8 @@ function HistoryItem({
   if (!voided && editable) {
     // A carry-over is not corrected - the payment it was made from is; it can only be cancelled.
     if (!carried) items.push({ key: "correct", label: "Исправить", icon: Pencil, onSelect: onCorrect });
-    items.push({ key: "void", label: "Отменить", icon: XCircle, danger: true, onSelect: onVoid });
   }
+  if (!voided && voidable) items.push({ key: "void", label: "Отменить", icon: XCircle, danger: true, onSelect: onVoid });
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className={`min-w-0 text-xs ${voided ? "text-slate-400" : "text-slate-700"}`}>

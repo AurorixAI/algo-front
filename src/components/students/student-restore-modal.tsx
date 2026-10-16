@@ -5,7 +5,9 @@ import { CheckCircle2, Loader2, AlertTriangle } from "lucide-react";
 import { orgApi, type StudentArchivedGroup } from "@/lib/api";
 import {
   defaultRestoreSelection,
+  isStaleArchiveConflict,
   restoreGroupIds,
+  restoreNeedsReading,
   restoreOptions,
   restoreOutcome,
   restoreSummary,
@@ -19,12 +21,12 @@ interface StudentRestoreModalProps {
   studentId: string;
   studentName: string;
   /** Groups the last archiving closed (`archived_groups` of the profile). */
-  archivedGroups: StudentArchivedGroup[] | undefined;
+  archivedGroups: StudentArchivedGroup[] | null | undefined;
   /** Closed without a restore. */
   onClose: () => void;
   /** The student is back; the outcome lists the groups the server skipped.  Called once, after the owner has read it. */
   onRestored: (outcome: RestoreOutcome) => void;
-  /** The server says the student is not archived (409): the card is out of date and must be read again. */
+  /** «Ученик не в архиве» (409): the card is out of date and must be read again. Other refusals stay in the dialog. */
   onStale: (message: string) => void;
 }
 
@@ -59,12 +61,12 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
     try {
       const result = await orgApi.restoreStudent(studentId, ids);
       const outcome = restoreOutcome(result, ids.length, options);
-      // Nothing skipped: done.  Otherwise the dialog stays and shows what did not work.
-      if (outcome.lines.length === 0) onRestored(outcome);
+      // Nothing to read: done.  Otherwise the dialog stays and shows the skipped groups and the hints.
+      if (!restoreNeedsReading(outcome)) onRestored(outcome);
       else setDone(outcome);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Не удалось вернуть ученика из архива";
-      if ((cause as { status?: number } | null)?.status === 409) onStale(message);
+      if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("restore", message)) onStale(message);
       else setError(message);
     } finally {
       setBusy(false);
@@ -85,17 +87,31 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
           <button type="button" onClick={close} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
         }
       >
-        <div className="space-y-3 pb-2" role="status">
-          <p className="flex items-start gap-2 text-sm text-slate-700">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
-            <span>Не удалось вернуть ученика в эти группы:</span>
-          </p>
-          <ul className="space-y-1.5">
-            {done.lines.map((line) => (
-              <li key={line} className="break-words rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{line}</li>
-            ))}
-          </ul>
-          <p className="text-xs text-slate-500">Остальное выполнено. Зачислить ученика в другую группу можно из его карточки.</p>
+        <div className="space-y-4 pb-2" role="status">
+          {done.lines.length > 0 && (
+            <div className="space-y-2">
+              <p className="flex items-start gap-2 text-sm text-slate-700">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                <span>Не удалось вернуть ученика в эти группы:</span>
+              </p>
+              <ul className="space-y-1.5">
+                {done.lines.map((line) => (
+                  <li key={line} className="break-words rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{line}</li>
+                ))}
+              </ul>
+              <p className="text-xs text-slate-500">Остальное выполнено. Зачислить ученика в другую группу можно из его карточки.</p>
+            </div>
+          )}
+          {done.warnings.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm text-slate-700">Обратите внимание:</p>
+              <ul className="space-y-1.5">
+                {done.warnings.map((line) => (
+                  <li key={line} className="break-words rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{line}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </Modal>
     );

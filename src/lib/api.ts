@@ -850,11 +850,17 @@ export type StudentArchiveResult = Record<string, any> & {
   closed_groups: Array<{ group_id: string; group_name: string }>;
 };
 
-/** `POST /auth/org/students/{id}/restore`: the updated student plus the groups the server could not return him to. */
+/** Why the server did not return the student to a group (`message` is the Russian text for the administrator). */
+export type StudentRestoreSkipReason = "group_full" | "group_archived" | "not_found" | "lesson_in_progress" | "refused" | "busy";
+
+/** `POST /auth/org/students/{id}/restore`: the updated student, the groups he is back in and the ones the server skipped. */
 export type StudentRestoreResult = Record<string, any> & {
   id: string;
   status: string;
-  skipped: Array<{ group_id: string; reason: string }>;
+  restored_groups?: Array<{ group_id: string; group_name: string }>;
+  skipped: Array<{ group_id: string; group_name: string | null; reason: StudentRestoreSkipReason | string; message: string }>;
+  /** Hints of the enrolment (third group, class mismatch), per group; never a refusal. */
+  warnings?: Array<{ group_id: string; code?: string; message?: string }>;
 };
 
 export interface StudentProfile {
@@ -873,7 +879,7 @@ export interface StudentProfile {
     comment: string | null;
     status: string;
     created_at: string | null;
-    /** Archive date / reason, when the server sends them in the student block (see `studentArchiveInfo`). */
+    /** Only an archived student: when (ISO, naive UTC - show it on the center's clock) and why; both null otherwise. */
     archived_at?: string | null;
     archive_reason?: string | null;
   };
@@ -885,12 +891,8 @@ export interface StudentProfile {
     teacher_name: string | null;
     description?: string | null;
   } | null;
-  /** Only for an archived student: the groups the last archiving closed, offered back by «Вернуть из архива». */
-  archived_groups?: StudentArchivedGroup[];
-  /** The same archive date / reason when the server groups them in their own block instead of `student`. */
-  archived_at?: string | null;
-  archive_reason?: string | null;
-  archive?: { archived_at?: string | null; reason?: string | null } | null;
+  /** Only for an archived student: the groups the last archiving closed, offered back by «Вернуть из архива» (null otherwise). */
+  archived_groups?: StudentArchivedGroup[] | null;
   /** All active memberships (N13 P2); older servers do not send it. No money here. */
   groups?: StudentGroupMembership[];
   group_history: Array<{
