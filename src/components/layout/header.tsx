@@ -52,8 +52,8 @@ export function Header({ title, subtitle }: HeaderProps) {
             <button
               ref={langTriggerRef}
               type="button"
-              aria-haspopup="true"
               aria-expanded={showLangMenu}
+              aria-controls={showLangMenu ? "language-menu" : undefined}
               aria-label="Язык интерфейса"
               onClick={() => setShowLangMenu(!showLangMenu)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
@@ -63,6 +63,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             </button>
 
             <FloatingPanel
+              id="language-menu"
               open={showLangMenu}
               triggerRef={langTriggerRef}
               onClose={() => setShowLangMenu(false)}

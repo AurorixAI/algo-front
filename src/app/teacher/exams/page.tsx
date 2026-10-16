@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, useId } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -207,6 +207,7 @@ function ExamCard({
 }: ExamCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
   const [showRenameModal, setShowRenameModal] = useState(false);
   const effectiveStatus = exam.status === "archived"
     ? "archived"
@@ -334,8 +335,8 @@ function ExamCard({
               <button
                 ref={menuTriggerRef}
                 type="button"
-                aria-haspopup="true"
                 aria-expanded={menuOpen}
+                aria-controls={menuOpen ? menuId : undefined}
                 aria-label="Опции экзамена"
                 onClick={(e) => {
                   e.preventDefault();
@@ -350,6 +351,7 @@ function ExamCard({
 
               {/* Portaled + flipped: never clipped by the card / list, reachable by keyboard and touch. */}
               <FloatingPanel
+                id={menuId}
                 open={menuOpen}
                 triggerRef={menuTriggerRef}
                 onClose={() => setMenuOpen(false)}

@@ -1063,8 +1063,8 @@ export default function ExamHubPage() {
                 <button
                   ref={headerMenuTriggerRef}
                   type="button"
-                  aria-haspopup="true"
                   aria-expanded={headerMenuOpen}
+                  aria-controls={headerMenuOpen ? "exam-actions-menu" : undefined}
                   aria-label="Опции экзамена"
                   onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
                   title="Опции экзамена"
@@ -1075,6 +1075,7 @@ export default function ExamHubPage() {
 
                 {/* Portaled + flipped: never clipped by the header card, reachable by keyboard and touch. */}
                 <FloatingPanel
+                  id="exam-actions-menu"
                   open={headerMenuOpen}
                   triggerRef={headerMenuTriggerRef}
                   onClose={() => setHeaderMenuOpen(false)}
@@ -2109,6 +2110,7 @@ export default function ExamHubPage() {
                               className="inline-flex w-8 h-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 transition-colors"
                               aria-label={`Действия для ${s.student_name}`}
                               aria-expanded={studentActionMenu === rowKey}
+                              aria-controls={studentActionMenu === rowKey ? "exam-student-popover" : undefined}
                             >
                               <MoreVertical className="w-4 h-4" />
                             </button>
@@ -2126,6 +2128,7 @@ export default function ExamHubPage() {
 
       {/* ─── Student action popover (portaled, so the table's overflow cannot clip it) ─── */}
       <FloatingPanel
+        id="exam-student-popover"
         open={studentActionMenu !== null}
         triggerRef={activeStudentMenuBtnRef}
         onClose={() => setStudentActionMenu(null)}

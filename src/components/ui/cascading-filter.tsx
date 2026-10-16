@@ -53,26 +53,57 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
   const isOpen = panel.open;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  /** The whole pill (label + reset button): the panel is placed from it. */
+  const pillRef = useRef<HTMLDivElement>(null);
+  /** The button that opens the panel: focus returns to it. */
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  /** ArrowDown on the trigger: focus the first row as soon as the (hidden until placed) panel is visible. */
+  const focusFirstRowRef = useRef(false);
   const panelId = useId();
 
   const dispatch = useCallback(
     (action: FilterPanelAction) => {
       const result = reduceFilterPanel(panel, action, { value, groups });
       setPanel(result.state);
-      if (result.value) onChange(result.value);
+      if (result.value) {
+        onChange(result.value);
+        // The row that was pressed is gone with the panel: focus goes back to the trigger.
+        triggerRef.current?.focus({ preventScroll: true });
+      }
     },
     [panel, value, groups, onChange],
   );
 
   const closePanel = useCallback(() => setPanel(CLOSED_FILTER_PANEL), []);
 
-  const { anchoredStyle } = useFloatingPlacement(triggerRef, panelRef, {
+  const { anchoredStyle, placement } = useFloatingPlacement(pillRef, panelRef, {
     open: isOpen,
     width: PANEL_WIDTH,
     onAnchorHidden: closePanel,
   });
+
+  const placed = placement !== null;
+  useEffect(() => {
+    if (!isOpen) {
+      focusFirstRowRef.current = false;
+      return;
+    }
+    if (!placed || !focusFirstRowRef.current) return;
+    focusFirstRowRef.current = false;
+    panelRef.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus({ preventScroll: true });
+  }, [isOpen, placed]);
+
+  const handleTriggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "ArrowDown") return;
+    event.preventDefault();
+    if (isOpen) {
+      panelRef.current?.querySelector<HTMLElement>(ROW_SELECTOR)?.focus({ preventScroll: true });
+    } else {
+      focusFirstRowRef.current = true;
+      dispatch({ type: "toggle" });
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -133,33 +164,39 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
 
   return (
     <div className="relative inline-block max-w-full text-left" ref={containerRef}>
-      {/* Trigger Button */}
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? panelId : undefined}
-        onClick={() => dispatch({ type: "toggle" })}
-        className="flex max-w-full items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary-500 transition-all shadow-sm"
+      {/* Trigger: the pill holds the opening button and, next to it, a real reset button */}
+      <div
+        ref={pillRef}
+        className="flex max-w-full items-center bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-medium focus-within:ring-2 focus-within:ring-primary-500 transition-all shadow-sm"
       >
-        <Filter className="w-4 h-4 shrink-0 text-slate-400" />
-        <span className="min-w-0 truncate">{getActiveFilterLabel()}</span>
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-expanded={isOpen}
+          aria-controls={isOpen ? panelId : undefined}
+          onClick={() => dispatch({ type: "toggle" })}
+          onKeyDown={handleTriggerKeyDown}
+          className={`flex min-w-0 flex-1 items-center gap-2 py-2.5 pl-4 rounded-xl text-left outline-none ${hasSelection ? "pr-3" : "pr-4"}`}
+        >
+          <Filter className="w-4 h-4 shrink-0 text-slate-400" />
+          <span className="min-w-0 truncate">{getActiveFilterLabel()}</span>
+        </button>
         {hasSelection && (
-          <div
-            role="button"
+          <button
+            type="button"
             aria-label="Сбросить фильтр"
             title="Сбросить фильтр"
-            className="ml-1 shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
+            className="mr-4 shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            onClick={() => {
               closePanel();
               onChange({ teacherId: "", groupId: "" });
+              triggerRef.current?.focus({ preventScroll: true });
             }}
           >
             <X className="w-3.5 h-3.5 text-slate-500" />
-          </div>
+          </button>
         )}
-      </button>
+      </div>
 
       {/* Dropdown: teachers, each with an inline accordion of his groups */}
       <AnimatePresence>
@@ -180,6 +217,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
             {/* All Students Option */}
             <button
               type="button"
+              aria-current={nothingSelected ? "true" : undefined}
               onClick={() => dispatch({ type: "pick-all" })}
               className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
             >
@@ -208,6 +246,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
                     <button
                       type="button"
                       onClick={() => dispatch({ type: "pick-teacher", teacherId: teacher.id })}
+                      aria-current={selected ? "true" : undefined}
                       title={staffDisplayName(teacher)}
                       className={`min-w-0 flex-1 flex items-center gap-2 pl-4 pr-2 py-2 text-sm text-left ${
                         selected || onPath ? "text-primary-700 font-medium" : "text-slate-700"
@@ -247,6 +286,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
                             key={group.id}
                             type="button"
                             title={group.name}
+                            aria-current={isGroupSelected ? "true" : undefined}
                             onClick={() => dispatch({ type: "pick-group", teacherId: teacher.id, groupId: group.id })}
                             className={`w-full flex items-center px-3 py-2 rounded-lg text-sm transition-colors hover:bg-slate-50 ${
                               isGroupSelected ? "text-primary-700 font-medium" : "text-slate-700"

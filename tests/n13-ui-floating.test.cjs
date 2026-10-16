@@ -28,6 +28,7 @@ const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const { computeFloatingPlacement, pickHorizontalAlign, placementBox } = require(path.join(root, "src/lib/floating-placement.ts"));
 const { isAnchorInSight } = require(path.join(root, "src/lib/select-menu.ts"));
 const F = require(path.join(root, "src/lib/cascading-filter.ts"));
+const R = require(path.join(root, "src/lib/reveal.ts"));
 
 /** A trigger of the given size whose top-left corner sits at (left, top). */
 const trigger = (left, top, w = 120, h = 40) => ({ left, top, right: left + w, bottom: top + h });
@@ -214,7 +215,7 @@ test("CascadingFilter source: an in-panel drill-down - no hover flyout, no hover
   assert.match(src, /triggerRef\.current\?\.focus/, "Escape returns focus to the trigger");
   assert.match(src, /addEventListener\("pointerdown"/, "an outside press (mouse and touch) closes");
   assert.match(src, /ArrowDown/);
-  assert.match(src, /useFloatingPlacement\(triggerRef, panelRef/);
+  assert.match(src, /useFloatingPlacement\(pillRef, panelRef/, "placed from the whole pill (label + reset)");
   assert.match(src, /style=\{anchoredStyle\}/, "aligned to the nearer edge, flipped and height-capped by the hook");
   assert.match(src, /\{staffDisplayName\(teacher\)\}/);
   // the API of the three pages did not change
@@ -256,8 +257,9 @@ test("no component reveals content on mouse hover only: hover handlers have a fo
   assert.deepEqual(hoverHandlers.sort(), ["src/components/ui/feature-lock.tsx", "src/components/ui/hint.tsx"]);
   for (const f of hoverHandlers) {
     const src = read(f);
-    assert.match(src, /onFocus=/, `${f}: focus shows it too`);
-    assert.match(src, /onClick=|onClick:/, `${f}: a tap shows it too`);
+    assert.match(src, /onFocus[=:]/, `${f}: focus shows it too`);
+    assert.match(src, /onClick[=:]/, `${f}: a tap shows it too`);
+    assert.match(src, /reduceReveal/, `${f}: touch rules come from the tested state machine`);
     assert.match(src, /"Escape"/, `${f}: Escape dismisses it`);
   }
   // an element that is `opacity-0` until the group is hovered must also appear on keyboard focus
@@ -348,6 +350,8 @@ test("Hint replaces hover-only title tooltips of the badges whose detail was onl
   const { Hint } = require(path.join(root, "src/components/ui/hint.tsx"));
   const html = renderToStaticMarkup(React.createElement(Hint, { text: "Переведён из «Группа 7А»", className: "x" }, "Переведён"));
   assert.match(html, /tabindex="0"/, "focusable");
+  assert.match(html, /role="button"/);
+  assert.match(html, /aria-expanded="false"/);
   assert.match(html, /aria-describedby="/);
   assert.match(html, /class="sr-only"[^>]*>Переведён из «Группа 7А»</, "the detail is in the DOM for screen readers");
   assert.doesNotMatch(html, /title=/, "no hover-only native tooltip");
@@ -363,6 +367,173 @@ test("keyboard / touch twins of the other reveals: sidebar profile menu closes o
   assert.match(fig, /role="button"\s+tabIndex=\{0\}/);
   assert.match(fig, /group-focus-visible:opacity-100/);
   const lock = read("src/components/ui/feature-lock.tsx");
-  assert.match(lock, /isPinned/);
-  assert.match(lock, /lastPointerType\.current !== "mouse"/);
+  assert.match(lock, /\{ type: "click", mousePins: false \}/, "a feature lock reacts to a tap, a mouse click does not pin it");
+  assert.match(lock, /\{ type: "blur" \}/);
+});
+
+// ---- 4. R3 follow-ups ------------------------------------------------------------------------------
+
+const fresh = () => ({ ...R.INITIAL_REVEAL });
+const run = (events, state = fresh()) => events.reduce((acc, ev) => R.reduceReveal(acc, ev), state);
+const TAP = [{ type: "pointer-enter", pointerType: "touch" }, { type: "pointer-down", pointerType: "touch" }];
+
+test("reveal state machine - mouse: hover shows it, leaving hides it, a click pins it, a second click unpins", () => {
+  let st = run([{ type: "pointer-enter", pointerType: "mouse" }, { type: "mouse-enter" }]);
+  assert.equal(R.isRevealed(st), true);
+  st = R.reduceReveal(st, { type: "mouse-leave" });
+  assert.equal(R.isRevealed(st), false);
+  st = run([{ type: "pointer-enter", pointerType: "mouse" }, { type: "mouse-enter" }, { type: "pointer-down", pointerType: "mouse" }, { type: "focus" }, { type: "click", mousePins: true }]);
+  assert.equal(st.pinned, true);
+  st = R.reduceReveal(R.reduceReveal(st, { type: "mouse-leave" }), { type: "blur" });
+  assert.equal(R.isRevealed(st), false, "blur clears the pin");
+  // a click on a feature lock (mousePins false) does not pin it with the mouse
+  st = run([{ type: "pointer-down", pointerType: "mouse" }, { type: "click", mousePins: false }]);
+  assert.equal(st.pinned, false);
+});
+
+test("reveal state machine - touch: the emulated hover and the press's focus are ignored, tap opens, next tap closes", () => {
+  // phone tap: pointerdown(touch) -> emulated mouseenter -> focus caused by the press -> click
+  let st = run([...TAP, { type: "mouse-enter" }, { type: "focus" }]);
+  assert.equal(st.hovered, false, "emulated hover ignored");
+  assert.equal(st.focused, false, "focus caused by the press ignored");
+  assert.equal(R.isRevealed(st), false, "nothing shown before the click decides");
+  st = R.reduceReveal(st, { type: "click", mousePins: true });
+  assert.equal(st.pinned, true, "first tap opens");
+  assert.equal(st.pressing, false);
+  // second tap: the element keeps its DOM focus but no focus event comes; hover is ignored again
+  st = run([...TAP, { type: "mouse-enter" }, { type: "click", mousePins: true }], st);
+  assert.equal(R.isRevealed(st), false, "second tap closes");
+  // and a third tap opens again
+  st = run([...TAP, { type: "click", mousePins: true }], st);
+  assert.equal(st.pinned, true);
+  // a press elsewhere / Escape dismisses, blur clears the pin
+  assert.equal(R.isRevealed(R.reduceReveal(st, { type: "dismiss" })), false);
+  assert.equal(R.isRevealed(R.reduceReveal(st, { type: "blur" })), false);
+});
+
+test("reveal state machine - keyboard after a touch session: Tab focus shows it, Enter pins, blur clears, a cancelled press frees focus", () => {
+  let st = run([...TAP, { type: "click", mousePins: true }, { type: "dismiss" }]);
+  st = R.reduceReveal(st, { type: "focus" });
+  assert.equal(st.focused, true, "not pressing: this is keyboard focus, even though the last pointer was a finger");
+  st = R.reduceReveal(st, { type: "key-toggle" });
+  assert.equal(st.pinned, true);
+  st = R.reduceReveal(st, { type: "blur" });
+  assert.equal(R.isRevealed(st), false);
+  // a touch press that was cancelled (scroll) must not swallow the next real focus
+  st = run([...TAP, { type: "pointer-cancel" }, { type: "focus" }], fresh());
+  assert.equal(st.focused, true);
+  // a pen behaves like a finger
+  st = run([{ type: "pointer-down", pointerType: "pen" }, { type: "mouse-enter" }, { type: "focus" }, { type: "click", mousePins: true }]);
+  assert.equal(st.pinned, true);
+  assert.equal(st.hovered, false);
+});
+
+test("Hint is a labelled button: role=button + aria-expanded; FeatureLock/Hint share the tested touch rules", () => {
+  const hint = read("src/components/ui/hint.tsx");
+  assert.match(hint, /role="button"/);
+  assert.match(hint, /aria-expanded=\{open\}/);
+  assert.match(hint, /dispatch\(\{ type: "pointer-down", pointerType: event\.pointerType \}\)/);
+  assert.match(hint, /dispatch\(\{ type: "blur" \}\)/);
+  assert.match(hint, /dispatch\(\{ type: "click", mousePins: true \}\)/);
+  const lock = read("src/components/ui/feature-lock.tsx");
+  assert.match(lock, /dispatch\(\{ type: "pointer-down", pointerType: event\.pointerType \}\)/);
+  assert.doesNotMatch(lock, /setIsHovered|setIsFocused|setIsPinned/, "no ad-hoc hover / focus / pin state any more");
+});
+
+test("filter keyboard + a11y: ArrowDown on the trigger, focus returns after a pick, the reset is a real button, selected rows are marked", () => {
+  const src = read("src/components/ui/cascading-filter.tsx");
+  // focus returns to the trigger after a pick (and after the reset button)
+  assert.match(src, /if \(result\.value\) \{\s*onChange\(result\.value\);\s*\/\/[^\n]*\n\s*triggerRef\.current\?\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(src, /onChange\(\{ teacherId: "", groupId: "" \}\);\s*triggerRef\.current\?\.focus/);
+  // ArrowDown: opens and focuses the first row once the panel is placed; when already open, focuses it at once
+  assert.match(src, /onKeyDown=\{handleTriggerKeyDown\}/);
+  assert.match(src, /event\.key !== "ArrowDown"/);
+  assert.match(src, /focusFirstRowRef\.current = true;\s*dispatch\(\{ type: "toggle" \}\)/);
+  assert.match(src, /if \(!placed \|\| !focusFirstRowRef\.current\) return;/, "waits until the panel is visible (a hidden element cannot take focus)");
+  // the reset is a <button>, not a div role=button, and it is not nested in the opening button
+  assert.doesNotMatch(src, /<div[^>]*role="button"/);
+  assert.match(src, /<button\s+type="button"\s+aria-label="Сбросить фильтр"/);
+  // selected rows
+  assert.equal((src.match(/aria-current=\{[^}]+\? "true" : undefined\}/g) || []).length, 3, "all / teacher / group rows");
+
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { CascadingFilter } = require(path.join(root, "src/components/ui/cascading-filter.tsx"));
+  const html = renderToStaticMarkup(
+    React.createElement(CascadingFilter, { teachers: [{ id: "t1", first_name: "Дилноза", last_name: "Каримова" }], groups, value: { teacherId: "t1", groupId: "" }, onChange() {} }),
+  );
+  assert.match(html, /<\/button><button[^>]*aria-label="Сбросить фильтр"/, "two sibling buttons: open + reset");
+  assert.doesNotMatch(html, /<button[^>]*>(?:(?!<\/button>)[\s\S])*<button/, "no <button> inside a <button>");
+});
+
+test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no marking action is reachable there", () => {
+  const src = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(src, /disabled=\{locked && !reviewable && !excuse\}/);
+  assert.match(src, /const menuAvailable = isOpen && \(!locked \|\| reviewable \|\| Boolean\(excuse\)\);/);
+  assert.match(src, /const readOnlyExcuse = locked && !reviewable && Boolean\(excuse\);/);
+  assert.match(src, /role=\{readOnlyExcuse \? "group" : "menu"\}/, "no empty role=menu");
+  assert.match(src, /<p className="mb-1 whitespace-pre-line break-words /, "a long reason wraps");
+  // the cell menu: everything that marks, resets or reviews sits behind a guard that a locked, non-reviewable cell fails
+  const start = src.indexOf("id={`attendance-menu-${student.id}-${key}`}");
+  const menu = src.slice(start, src.indexOf("</FloatingMenu>", start));
+  assert.match(menu, /\{excuse && \(\s*<p/, "the reason is the only unguarded part");
+  const marking = [...menu.matchAll(/handleSelectStatus\(|handleReview\(/g)];
+  assert.equal(marking.length, 5, "status options, reset, confirm, reject, reset-decision");
+  // each marking call lives in a block opened by one of the guards, and the block opens before the call
+  const guards = [
+    { open: "{!locked && STATUS_OPTIONS.map(", calls: 1 },
+    { open: "{!locked && value && !inCorrection && (", calls: 1 },
+    { open: "{reviewable && excuse && (", calls: 3 },
+  ];
+  const guardAt = guards.map((g) => {
+    const at = menu.indexOf(g.open);
+    assert.ok(at >= 0, `guard present: ${g.open}`);
+    return { ...g, at };
+  });
+  assert.ok(Math.min(...marking.map((m) => m.index)) > Math.min(...guardAt.map((g) => g.at)), "no marking call before the first guard");
+  const perGuard = new Map();
+  for (const m of marking) {
+    const owner = guardAt.filter((g) => g.at < m.index).sort((x, y) => y.at - x.at)[0];
+    assert.ok(owner, "every marking call sits inside a guarded block");
+    perGuard.set(owner.open, (perGuard.get(owner.open) || 0) + 1);
+  }
+  for (const g of guards) assert.equal(perGuard.get(g.open), g.calls, `calls owned by ${g.open}`);
+  assert.ok(menu.indexOf("{!locked && STATUS_OPTIONS.map(") < menu.indexOf("handleSelectStatus(item.value"));
+  assert.ok(menu.indexOf("{reviewable && excuse && (") < menu.indexOf('handleReview(excuse, key, student.id, "confirmed")'));
+  // `reviewable` itself needs admin mode and no correction in progress, and `locked` still covers completed / cancelled / future / view-only
+  assert.match(src, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
+  assert.match(src, /const locked = !wasInLesson \|\| !canEdit \|\| columnBusyKey === key \|\| isFutureLesson \|\| lessonStatus === "scheduled" \|\| \(lessonStatus === "completed" && !inCorrection\) \|\| lessonStatus === "cancelled";/);
+  // the click handler of the cell only toggles the menu: it marks nothing
+  assert.match(src, /onClick=\{\(event\) => toggleAttendanceMenu\(event, student\.id, key, isOpen\)\}/);
+});
+
+test("menus: panels are role=group, so no aria-haspopup=true; triggers point to them with aria-controls", () => {
+  const files = [
+    "src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx",
+    "src/app/teacher/schedule/page.tsx", "src/components/layout/header.tsx", "src/components/layout/sidebar.tsx",
+  ];
+  for (const f of files) {
+    const src = read(f);
+    assert.doesNotMatch(src, /aria-haspopup="true"/, `${f}: a generic group is not a popup menu`);
+    assert.match(src, /aria-controls=\{/, `${f}: trigger points to its panel`);
+  }
+  for (const f of allTsx) assert.doesNotMatch(read(f), /aria-haspopup="true"/, f);
+  // id <-> aria-controls pairs
+  const pairs = [
+    ["src/app/teacher/exams/[id]/page.tsx", "exam-actions-menu"], ["src/app/teacher/exams/[id]/page.tsx", "exam-student-popover"],
+    ["src/app/teacher/exams/[id]/draft/page.tsx", "draft-actions-menu"], ["src/app/teacher/schedule/page.tsx", "schedule-group-filter-menu"],
+    ["src/app/teacher/schedule/page.tsx", "lesson-actions-menu"], ["src/components/layout/header.tsx", "language-menu"],
+    ["src/components/layout/sidebar.tsx", "sidebar-profile-menu"],
+  ];
+  for (const [f, id] of pairs) {
+    const src = read(f);
+    assert.match(src, new RegExp(`id="${id}"`), `${f}: panel id ${id}`);
+    assert.match(src, new RegExp(`aria-controls=\\{[^}]*"${id}"`), `${f}: aria-controls ${id}`);
+  }
+  const list = read("src/app/teacher/exams/page.tsx");
+  assert.match(list, /const menuId = useId\(\);/, "one menu per exam card: unique ids");
+  assert.match(list, /aria-controls=\{menuOpen \? menuId : undefined\}/);
+  assert.match(list, /id=\{menuId\}/);
+  // the lesson dialog menu really has menu / menuitem roles, so aria-haspopup="menu" stays
+  assert.match(read("src/app/teacher/schedule/page.tsx"), /aria-haspopup="menu"/);
 });

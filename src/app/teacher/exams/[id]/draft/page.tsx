@@ -747,8 +747,8 @@ export default function ExamDraftPage() {
               ref={headerMenuTriggerRef}
               type="button"
               aria-label="Действия с экзаменом"
-              aria-haspopup="true"
               aria-expanded={headerMenuOpen}
+              aria-controls={headerMenuOpen ? "draft-actions-menu" : undefined}
               onClick={() => setHeaderMenuOpen((open) => !open)}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
             >
@@ -756,6 +756,7 @@ export default function ExamDraftPage() {
             </button>
             {/* Portaled + flipped: never clipped by the header, reachable by keyboard and touch. */}
             <FloatingPanel
+              id="draft-actions-menu"
               open={headerMenuOpen}
               triggerRef={headerMenuTriggerRef}
               onClose={() => setHeaderMenuOpen(false)}

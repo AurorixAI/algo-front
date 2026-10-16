@@ -2021,8 +2021,8 @@ export default function TeacherSchedulePage() {
             <button
               ref={groupFilterTriggerRef}
               type="button"
-              aria-haspopup="true"
               aria-expanded={isGroupFilterOpen}
+              aria-controls={isGroupFilterOpen ? "schedule-group-filter-menu" : undefined}
               onClick={() => setIsGroupFilterOpen((prev) => !prev)}
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                 selectedGroupFilter !== "all"
@@ -2046,6 +2046,7 @@ export default function TeacherSchedulePage() {
 
             {/* Portaled + aligned to the nearer screen edge + capped in height: never clipped, long lists scroll. */}
             <FloatingPanel
+              id="schedule-group-filter-menu"
               open={isGroupFilterOpen}
               triggerRef={groupFilterTriggerRef}
               onClose={() => setIsGroupFilterOpen(false)}
@@ -3079,6 +3080,7 @@ export default function TeacherSchedulePage() {
                         aria-label="Дополнительные действия с уроком"
                         aria-haspopup="menu"
                         aria-expanded={isRecurringActionsOpen}
+                        aria-controls={isRecurringActionsOpen ? "lesson-actions-menu" : undefined}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
                       >
                         <MoreHorizontal className="h-4 w-4" />
@@ -3126,6 +3128,7 @@ export default function TeacherSchedulePage() {
           therefore open downward without creating horizontal scrollbars or
           being clipped by the modal's own overflow boundary. */}
       <FloatingPanel
+        id="lesson-actions-menu"
         open={Boolean(mounted && activeLesson && isRecurringActionsOpen)}
         triggerRef={recurringActionsButtonRef}
         onClose={() => setIsRecurringActionsOpen(false)}

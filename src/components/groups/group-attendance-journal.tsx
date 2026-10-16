@@ -98,13 +98,15 @@ function anchorOf(element: Element): MenuAnchor {
  * otherwise on the roomier side with its own scroll, and is shifted into the screen.
  */
 function FloatingMenu({
-  anchor, width = 224, align = "center", menuRef, id, className = "", children,
+  anchor, width = 224, align = "center", menuRef, id, role = "menu", className = "", children,
 }: {
   anchor: MenuAnchor;
   width?: number;
   align?: "center" | "end";
   menuRef?: MutableRefObject<HTMLDivElement | null>;
   id?: string;
+  /** "group" for a read-only panel without menu items. */
+  role?: "menu" | "group";
   className?: string;
   children: ReactNode;
 }) {
@@ -142,7 +144,7 @@ function FloatingMenu({
         if (menuRef) menuRef.current = node;
       }}
       id={id}
-      role="menu"
+      role={role}
       style={{
         position: "fixed",
         top: pos?.top ?? 0,
@@ -1233,18 +1235,21 @@ export function GroupAttendanceJournal({
                         const baseTitle = locked ? lockedTitle : "Выбрать отметку";
                         const cellTitle = excuse ? `${excuseTooltip(excuse)}${locked && !reviewable ? "" : `\n${baseTitle}`}` : baseTitle;
                         const cellBusy = Boolean(excuse && reviewBusyId === excuse.id);
-                        const menuAvailable = isOpen && (!locked || reviewable);
+                        // A locked cell that carries an excuse still opens a READ-ONLY menu (the reason, by touch): its marking
+                        // actions are all behind `!locked`, its review actions behind `reviewable`.
+                        const readOnlyExcuse = locked && !reviewable && Boolean(excuse);
+                        const menuAvailable = isOpen && (!locked || reviewable || Boolean(excuse));
 
                         return (
                           <td ref={isOpen ? openCellContainerRef : undefined} key={key} className={`relative border-r border-slate-100 p-2 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50/60" : highlightedKey === key ? "bg-primary-50" : ""}`}>
                             {wasInLesson ? <button
                               type="button"
-                              disabled={locked && !reviewable}
+                              disabled={locked && !reviewable && !excuse}
                               onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
                               title={cellTitle}
                               aria-expanded={isOpen}
                               aria-controls={isOpen ? `attendance-menu-${student.id}-${key}` : undefined}
-                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? "cursor-not-allowed opacity-70" : "cursor-pointer"}`}
+                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? (excuse ? "cursor-help opacity-70" : "cursor-not-allowed opacity-70") : "cursor-pointer"}`}
                             >
                               {option ? (
                                 <>
@@ -1256,10 +1261,10 @@ export function GroupAttendanceJournal({
                               <span title="Ученик ещё не состоял в группе" className="mx-auto flex min-h-8 min-w-[92px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-2 py-1.5 font-medium text-slate-300">—</span>
                             )}
                             {menuAvailable && openCell && (
-                              <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef} id={`attendance-menu-${student.id}-${key}`}>
+                              <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef} id={`attendance-menu-${student.id}-${key}`} role={readOnlyExcuse ? "group" : "menu"}>
                                 {/* The reason of an absence used to live only in the cell's hover title. */}
                                 {excuse && (
-                                  <p className="mb-1 whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">{excuseTooltip(excuse)}</p>
+                                  <p className="mb-1 whitespace-pre-line break-words rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">{excuseTooltip(excuse)}</p>
                                 )}
                                 {!locked && STATUS_OPTIONS.map((item) => (
                                   <button

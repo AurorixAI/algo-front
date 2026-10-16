@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useReducer, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useFloatingPlacement } from "@/lib/use-floating-placement";
+import { INITIAL_REVEAL, isRevealed, reduceReveal } from "@/lib/reveal";
 
 /**
  * A short label with a detail that used to live in a `title=""` (visible on mouse hover only).
@@ -10,6 +11,7 @@ import { useFloatingPlacement } from "@/lib/use-floating-placement";
  * Escape or a press elsewhere closes it, hover still shows it on a desktop.  The text is also read by screen
  * readers (`aria-describedby`).  The bubble is portaled and placed by `useFloatingPlacement` (above the
  * label, flipped below / clamped into the screen), so no table `overflow` can clip it.
+ * On a touch screen the emulated hover and the focus a tap causes are ignored: a tap opens it, the next tap closes it.
  * A tap or Enter never reaches a surrounding link / row (the label is a hint, not a navigation).
  */
 export function Hint({
@@ -23,19 +25,13 @@ export function Hint({
   /** Classes of the label itself. */
   className?: string;
 }) {
-  const [hovered, setHovered] = useState(false);
-  const [focused, setFocused] = useState(false);
-  const [pinned, setPinned] = useState(false);
-  const open = hovered || focused || pinned;
+  const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
+  const open = isRevealed(reveal);
   const triggerRef = useRef<HTMLSpanElement>(null);
   const bubbleRef = useRef<HTMLSpanElement>(null);
   const id = useId();
 
-  const hide = useCallback(() => {
-    setHovered(false);
-    setFocused(false);
-    setPinned(false);
-  }, []);
+  const hide = useCallback(() => dispatch({ type: "dismiss" }), []);
 
   const { fixedStyle } = useFloatingPlacement(triggerRef, bubbleRef, {
     open,
@@ -64,25 +60,32 @@ export function Hint({
     };
   }, [open, hide]);
 
-  const toggle = (event: MouseEvent | KeyboardEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setPinned((value) => !value);
-  };
-
   return (
     <>
       <span
         ref={triggerRef}
+        role="button"
         tabIndex={0}
+        aria-expanded={open}
         aria-describedby={id}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        onFocus={() => setFocused(true)}
-        onBlur={() => setFocused(false)}
-        onClick={toggle}
+        onPointerEnter={(event) => dispatch({ type: "pointer-enter", pointerType: event.pointerType })}
+        onPointerDown={(event) => dispatch({ type: "pointer-down", pointerType: event.pointerType })}
+        onPointerCancel={() => dispatch({ type: "pointer-cancel" })}
+        onMouseEnter={() => dispatch({ type: "mouse-enter" })}
+        onMouseLeave={() => dispatch({ type: "mouse-leave" })}
+        onFocus={() => dispatch({ type: "focus" })}
+        onBlur={() => dispatch({ type: "blur" })}
+        onClick={(event) => {
+          // A tap on a label inside a link / row never navigates: the label is a hint.
+          event.preventDefault();
+          event.stopPropagation();
+          dispatch({ type: "click", mousePins: true });
+        }}
         onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") toggle(event);
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          event.stopPropagation();
+          dispatch({ type: "key-toggle" });
         }}
         className={`cursor-help rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary-500 ${className}`}
       >

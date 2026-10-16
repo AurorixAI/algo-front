@@ -390,6 +390,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
         {/* Dropdown menu */}
         {profileOpen && (
           <div
+            id="sidebar-profile-menu"
             className={cn(
               "absolute bg-white border border-slate-200 shadow-xl shadow-slate-200/50 rounded-2xl overflow-hidden z-50 ring-1 ring-black/5",
               collapsed ? "left-[68px] bottom-0 w-52" : "left-2 right-2 bottom-full mb-2"
@@ -428,8 +429,8 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
         <button
           ref={profileButtonRef}
           type="button"
-          aria-haspopup="true"
           aria-expanded={profileOpen}
+          aria-controls={profileOpen ? "sidebar-profile-menu" : undefined}
           onClick={() => setProfileOpen(!profileOpen)}
           className={cn(
             "w-full flex items-center rounded-xl p-2 transition-all text-left group outline-none focus:outline-none overflow-hidden h-12",

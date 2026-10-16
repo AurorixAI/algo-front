@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Clock, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
+import { INITIAL_REVEAL, isRevealed, reduceReveal } from "@/lib/reveal";
 
 interface FeatureLockProps {
   children: React.ReactNode;
@@ -153,29 +154,21 @@ export function FeatureLock({
   variant = "block",
   className,
 }: FeatureLockProps) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isFocused, setIsFocused] = useState(false);
-  // A tap on a phone / tablet pins the explanation (there is no hover; iOS Safari does not focus a plain div).
-  const [isPinned, setIsPinned] = useState(false);
+  // Hover (mouse), focus (keyboard) or a tap (phone / tablet) shows the explanation; the touch rules live in
+  // `reduceReveal`: the emulated hover and the focus a tap causes are ignored, the next tap closes it again.
+  const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const lastPointerType = useRef<string>("mouse");
 
-  const showOverlay = isHovered || isFocused || isPinned;
+  const showOverlay = isRevealed(reveal);
 
-  // A tap elsewhere, or Escape, dismisses the explanation again.
+  // A press elsewhere, or Escape, dismisses the explanation again.
   useEffect(() => {
     if (!showOverlay) return undefined;
     const onPointerDown = (event: PointerEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
-        setIsPinned(false);
-        setIsHovered(false);
-      }
+      if (!wrapperRef.current?.contains(event.target as Node)) dispatch({ type: "dismiss" });
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setIsPinned(false);
-      setIsHovered(false);
-      setIsFocused(false);
+      if (event.key === "Escape") dispatch({ type: "dismiss" });
     };
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -188,13 +181,15 @@ export function FeatureLock({
   if (!enabled) return <>{children}</>;
 
   const touchProps = {
-    onPointerDown: (event: React.PointerEvent) => {
-      lastPointerType.current = event.pointerType;
-    },
+    onPointerEnter: (event: React.PointerEvent) => dispatch({ type: "pointer-enter", pointerType: event.pointerType }),
+    onPointerDown: (event: React.PointerEvent) => dispatch({ type: "pointer-down", pointerType: event.pointerType }),
+    onPointerCancel: () => dispatch({ type: "pointer-cancel" }),
+    onMouseEnter: () => dispatch({ type: "mouse-enter" }),
+    onMouseLeave: () => dispatch({ type: "mouse-leave" }),
+    onFocus: () => dispatch({ type: "focus" }),
+    onBlur: () => dispatch({ type: "blur" }),
     // onClick (not only the pointer events) also makes iOS Safari treat the div as tappable.
-    onClick: () => {
-      if (lastPointerType.current !== "mouse") setIsPinned((pinned) => !pinned);
-    },
+    onClick: () => dispatch({ type: "click", mousePins: false }),
   };
   // Разные дефолты для маленьких тултипов и больших оверлеев.
   const resolvedDescription =
@@ -205,10 +200,6 @@ export function FeatureLock({
       <div
         ref={wrapperRef}
         className={cn("relative inline-block group", className)}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
         {...touchProps}
         tabIndex={0}
         role="region"
@@ -239,10 +230,6 @@ export function FeatureLock({
   return (
     <div
       className={cn("relative overflow-hidden group rounded-[1.5rem] w-full", className)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onFocus={() => setIsFocused(true)}
-      onBlur={() => setIsFocused(false)}
       {...touchProps}
       tabIndex={0}
       role="region"
