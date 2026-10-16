@@ -49,8 +49,8 @@ test("assign to a started lesson -> student joins by code -> teacher starts -> t
   await sp.goto(`/e/${code}`);
   await expect(sp.getByRole("heading", { name: "E2E Контрольная", level: 1 })).toBeVisible();
   await expect(sp.getByText(`«${group.name}»`)).toBeVisible();
-  const nameField = sp.getByRole("textbox", { name: "Иван Иванов" });
-  const idField = sp.getByRole("textbox", { name: "ID из карточки ученика" });
+  const nameField = sp.getByLabel("Имя и фамилия");
+  const idField = sp.getByLabel("ID ученика");
   const join = sp.getByRole("button", { name: "Присоединиться к лобби" });
   await expect(join).toBeDisabled();
   await nameField.fill("Посторонний Человек");

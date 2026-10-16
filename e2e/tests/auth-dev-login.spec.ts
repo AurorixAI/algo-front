@@ -1,6 +1,9 @@
 import { test, expect } from "../support/fixtures";
 import { devLogin } from "../support/api";
 
+/** The dashboard greets by the Tashkent hour (`businessGreeting`): morning, day or evening - any of them is right. */
+const greeting = (name: string) => new RegExp(`^(Доброе утро|Добрый день|Добрый вечер), ${name}`);
+
 /**
  * The harness signs people in with /auth/dev-login (APP_ENV=development, no password anywhere). This spec
  * proves that this door works for the three roles AND that the cookie policy is the http-friendly one
@@ -8,8 +11,8 @@ import { devLogin } from "../support/api";
  */
 test.describe("dev-login", () => {
   for (const [role, home, heading] of [
-    ["owner", /\/owner\/dashboard/, /Добрый .*, Владелец/],
-    ["teacher", /\/teacher\/dashboard/, /Добрый .*, Учитель/],
+    ["owner", /\/owner\/dashboard/, greeting("Владелец")],
+    ["teacher", /\/teacher\/dashboard/, greeting("Учитель")],
   ] as const) {
     test(`${role}: cookie session opens the workspace`, async ({ signIn }) => {
       const session = await devLogin(role);
