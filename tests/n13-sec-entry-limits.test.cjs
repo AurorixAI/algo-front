@@ -55,7 +55,7 @@ test("the API client keeps Retry-After on the error of the exam endpoints", () =
   const api = read("src/lib/api.ts");
   assert.match(api, /public retryAfter\?: number/);
   assert.match(api, /function retryAfterSeconds\(response: Response\)[\s\S]{0,300}headers\?\.get\?\.\("Retry-After"\)/);
-  assert.match(api, /if \(response\.status !== 429\) return undefined;/);
+  assert.match(api, /if \(response\.status !== 429 && response\.status !== 503\) return undefined;/);
   assert.match(api, /throw new ApiError\(response\.status, message, undefined, undefined, undefined, retryAfterSeconds\(response\)\);/);
 });
 

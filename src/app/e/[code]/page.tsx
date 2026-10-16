@@ -34,6 +34,13 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { examsApi } from "@/lib/api";
+import {
+  SAVING_RETRY_MESSAGE,
+  START_RETRY_MESSAGE,
+  isTransientServerError,
+  transientFailureMessage,
+  withTransientRetry,
+} from "@/lib/exam-retry";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { createAdvanceOnce } from "@/lib/option-tap";
@@ -120,6 +127,10 @@ export default function ExamPage() {
   const [groupWarning, setGroupWarning] = useState<string | null>(null);
   // The warning is «too many attempts» (429): the form stays open and the banner says so, not «access restricted».
   const [rateLimited, setRateLimited] = useState(false);
+  // A busy server (503): the page repeats the request itself («Сохраняем… повторяем попытку»); when the tries are used
+  // up the exam stays on screen with the reason and a «Повторить» button (submit), or the form keeps its input (start).
+  const [retryNotice, setRetryNotice] = useState<string | null>(null);
+  const [submitFailure, setSubmitFailure] = useState<string | null>(null);
 
   // Single attempt & confirmation modal
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
@@ -397,8 +408,12 @@ export default function ExamPage() {
       return;
     }
     setPhase("starting");
+    setRetryNotice(null);
     try {
-      const res = await examsApi.startSession(code, identity);
+      const res = await withTransientRetry(() => examsApi.startSession(code, identity), {
+        onRetry: () => setRetryNotice(START_RETRY_MESSAGE),
+      });
+      setRetryNotice(null);
 
       if (res.already_submitted) {
         setAlreadySubmitted(true);
@@ -432,11 +447,19 @@ export default function ExamPage() {
         setPhase("exam");
       }
     } catch (err: any) {
+      setRetryNotice(null);
       if (isRateLimited(err)) {
         // Too many attempts: not a failure of the exam. The form stays open with the wait; the student retries.
         setPhase("lobby");
         setRateLimited(true);
         setGroupWarning(rateLimitMessage(err));
+        return;
+      }
+      if (isTransientServerError(err)) {
+        // A busy server, still after the repeats: not a broken exam.  The form keeps what was typed; the same button repeats.
+        setPhase("lobby");
+        setRateLimited(false);
+        setGroupWarning(transientFailureMessage(err));
         return;
       }
       console.error("Failed to start exam:", err);
@@ -476,20 +499,28 @@ export default function ExamPage() {
 
   const handleSubmit = async () => {
     if (phase === "submitting") return;
+    setSubmitFailure(null);
+    setRetryNotice(null);
     setPhase("submitting");
     try {
       const timeSpent = Math.floor((Date.now() - startTimeRef.current) / 1000);
       if (!sessionToken) {
         throw new Error("Ключ доступа к попытке не найден. Обновите страницу и войдите снова.");
       }
-      const submitResult = await examsApi.submit(
-        sessionId,
-        {
-          answers,
-          time_spent_seconds: timeSpent,
-        },
-        sessionToken,
+      // A repeated submit is safe: the server grades an attempt once and answers a second request with that result.
+      const submitResult = await withTransientRetry(
+        () =>
+          examsApi.submit(
+            sessionId,
+            {
+              answers,
+              time_spent_seconds: timeSpent,
+            },
+            sessionToken,
+          ),
+        { onRetry: () => setRetryNotice(SAVING_RETRY_MESSAGE) },
       );
+      setRetryNotice(null);
 
       // Try to get detailed results
       try {
@@ -514,6 +545,7 @@ export default function ExamPage() {
       }
       setPhase("results");
     } catch (err: any) {
+      setRetryNotice(null);
       console.error("Submit failed:", err);
       // The authoritative server timer may close and grade the attempt a
       // moment before this browser submits.  In that case the result already
@@ -527,6 +559,13 @@ export default function ExamPage() {
         } catch {
           // Fall through to a clear final-state message below.
         }
+      }
+      if (isTransientServerError(err)) {
+        // The server is busy, still after the repeats.  The answers are on the screen and in the state: back to the
+        // exam with the reason and a «Повторить» button, not to the error page.
+        setSubmitFailure(transientFailureMessage(err));
+        setPhase("exam");
+        return;
       }
       setError(err.message || "Ошибка отправки ответов. Попробуйте ещё раз.");
       setPhase("error");
@@ -753,7 +792,7 @@ export default function ExamPage() {
                       icon={phase !== "starting" ? <ArrowRight className="w-5 h-5" /> : undefined}
                     >
                       {phase === "starting"
-                        ? "Проверка..."
+                        ? retryNotice ?? "Проверка..."
                         : examInfo.status === "lobby"
                         ? "Присоединиться к лобби"
                         : "Начать экзамен"}
@@ -937,6 +976,23 @@ export default function ExamPage() {
               />
             </div>
 
+            {submitFailure && (
+              <div
+                role="alert"
+                className="mx-auto mt-3 w-full max-w-4xl px-4 md:px-6"
+                data-testid="submit-failure"
+              >
+                <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm">
+                    {submitFailure} Ваши ответы сохранены на этой странице.
+                  </p>
+                  <Button size="sm" onClick={handleSubmit} icon={<Send className="w-4 h-4" />}>
+                    Повторить
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="w-full flex-1 flex flex-col justify-center min-h-[calc(100vh-5rem)] p-4 md:p-6">
               <div
                 className={cn(
@@ -1111,7 +1167,9 @@ export default function ExamPage() {
                   <div className="absolute inset-0 bg-gradient-to-b from-white/30 to-transparent pointer-events-none" />
                 </div>
                 <h2 className="text-xl font-bold text-slate-900 mb-2">Отправка ответов...</h2>
-                <p className="text-slate-500">Пожалуйста, не закрывайте страницу</p>
+                <p className="text-slate-500" role="status" aria-live="polite">
+                  {retryNotice ?? "Пожалуйста, не закрывайте страницу"}
+                </p>
               </motion.div>
             </div>
           </>

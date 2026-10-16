@@ -70,7 +70,7 @@ class ApiError extends Error {
     public code?: string,
     public action?: string,
     public detail?: unknown,
-    /** Seconds from the `Retry-After` header of a 429 (the exam entry limits); absent when the header is. */
+    /** Seconds from the `Retry-After` header of a 429 (the exam entry limits) or a 503 (a busy server); absent when the header is. */
     public retryAfter?: number,
   ) {
     super(message);
@@ -78,9 +78,9 @@ class ApiError extends Error {
   }
 }
 
-/** `Retry-After` in whole seconds ("120"); an HTTP-date or garbage is not used. */
+/** `Retry-After` in whole seconds ("120"); an HTTP-date or garbage is not used.  Read for a 429 and a 503 only. */
 function retryAfterSeconds(response: Response): number | undefined {
-  if (response.status !== 429) return undefined;
+  if (response.status !== 429 && response.status !== 503) return undefined;
   const raw = response.headers?.get?.("Retry-After")?.trim();
   if (!raw || !/^\d+$/.test(raw)) return undefined;
   const seconds = Number(raw);
