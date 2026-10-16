@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type Group, type PrintExamLayout, type PrintTaskLayout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -202,6 +203,7 @@ export default function ExamDraftPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const headerMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [assignLoading, setAssignLoading] = useState(false);
 
   const hydrateDraft = useCallback((data: DraftData) => {
@@ -742,23 +744,26 @@ export default function ExamDraftPage() {
           )}
           <div className="relative">
             <button
+              ref={headerMenuTriggerRef}
               type="button"
               aria-label="Действия с экзаменом"
               aria-expanded={headerMenuOpen}
+              aria-controls={headerMenuOpen ? "draft-actions-menu" : undefined}
               onClick={() => setHeaderMenuOpen((open) => !open)}
               className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-primary-200 hover:bg-primary-50 hover:text-primary-600 focus:outline-none focus:ring-2 focus:ring-primary-500/30"
             >
               <MoreVertical className="h-5 w-5" />
             </button>
-            {headerMenuOpen && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Закрыть меню действий"
-                  className="fixed inset-0 z-30 cursor-default"
-                  onClick={() => setHeaderMenuOpen(false)}
-                />
-                <div className="absolute right-0 top-full z-40 mt-1.5 w-52 space-y-0.5 overflow-hidden rounded-xl border border-slate-200/80 bg-white py-1.5 text-xs shadow-xl shadow-slate-900/10">
+            {/* Portaled + flipped: never clipped by the header, reachable by keyboard and touch. */}
+            <FloatingPanel
+              id="draft-actions-menu"
+              open={headerMenuOpen}
+              triggerRef={headerMenuTriggerRef}
+              onClose={() => setHeaderMenuOpen(false)}
+              width={208}
+              label="Действия с экзаменом"
+              className="space-y-0.5 rounded-xl border border-slate-200/80 bg-white py-1.5 text-xs shadow-xl shadow-slate-900/10"
+            >
                   <button
                     type="button"
                     onClick={() => {
@@ -807,9 +812,7 @@ export default function ExamDraftPage() {
                     <Archive className="h-4 w-4 text-amber-500" />
                     В архив
                   </button>
-                </div>
-              </>
-            )}
+            </FloatingPanel>
           </div>
         </div>
       </div>

@@ -22,6 +22,7 @@ import {
   type LessonAttendanceStatus,
 } from "@/lib/api";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { Hint } from "@/components/ui/hint";
 
 type ScheduleStatus = {
   label: string;
@@ -311,10 +312,10 @@ export function GroupScheduleOverview({ groupId }: { groupId: string }) {
                           <article key={key} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs">
                             <div className="flex items-start justify-between gap-2">
                               <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={lesson.topic || "Занятие"}>{lesson.topic || "Занятие"}</p>
-                              <span title={state.description} className={`inline-flex shrink-0 items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
+                              <Hint text={state.description} className={`inline-flex shrink-0 items-center gap-1 border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
                                 <StateIcon className="h-3 w-3" />
                                 {state.label}
-                              </span>
+                              </Hint>
                             </div>
                             <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{startTime} — {lesson.endTime || "—"}</p>
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>

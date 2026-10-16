@@ -91,7 +91,8 @@ export function RowMenu({
       else if (event.key === "ArrowUp") next = (index - 1 + items.length) % items.length;
       else if (event.key === "Home") next = 0;
       else if (event.key === "End") next = items.length - 1;
-      else if (event.key === "Tab") { setAnchor(null); return; }
+      // Focus goes back to the trigger first, so Tab continues from it (the menu sits at the end of <body>).
+      else if (event.key === "Tab") { setAnchor(null); triggerRef.current?.focus(); return; }
       if (next === null) return;
       event.preventDefault();
       items[next].focus();

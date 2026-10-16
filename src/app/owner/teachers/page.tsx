@@ -243,8 +243,9 @@ export default function OwnerTeachersPage() {
                             {m.org_role !== "owner" ? (
                               <button
                                 onClick={() => handleRemoveMember(m.member_id)}
-                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100"
+                                className="p-2 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all sm:opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:!opacity-100"
                                 title="Удалить сотрудника"
+                                aria-label="Удалить сотрудника"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
