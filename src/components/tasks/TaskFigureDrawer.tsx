@@ -165,8 +165,17 @@ export function TaskFigureDrawer({
       {inlinePreview ? (
         <div className={`flex flex-col items-center gap-2 ${className}`}>
           <div
+            role="button"
+            tabIndex={0}
+            aria-label="Открыть полноразмерный чертёж"
             onClick={handleOpen}
-            className="group relative cursor-zoom-in rounded-2xl bg-white p-3 sm:p-4 border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-primary-300 transition-all duration-200 max-w-full"
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                handleOpen();
+              }
+            }}
+            className="group relative cursor-zoom-in rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-primary-500 bg-white p-3 sm:p-4 border border-slate-200/90 shadow-sm hover:shadow-lg hover:border-primary-300 transition-all duration-200 max-w-full"
             title="Нажмите, чтобы открыть полноразмерный чертёж"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -176,7 +185,7 @@ export function TaskFigureDrawer({
               className="max-h-56 sm:max-h-64 max-w-full w-auto h-auto object-contain rounded-lg mx-auto"
             />
             {/* Floating hover badge */}
-            <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 rounded-2xl transition-opacity flex items-center justify-center">
+            <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-[1px] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 rounded-2xl transition-opacity flex items-center justify-center">
               <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-bold shadow-lg">
                 <svg className="w-4 h-4 text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7" />

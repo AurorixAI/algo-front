@@ -1,9 +1,9 @@
 "use client";
 
 import { Bell, Search, Globe } from "lucide-react";
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 
 interface HeaderProps {
   title: string;
@@ -15,6 +15,7 @@ type Locale = "ru" | "uz" | "en";
 export function Header({ title, subtitle }: HeaderProps) {
   const [locale, setLocale] = useState<Locale>("ru");
   const [showLangMenu, setShowLangMenu] = useState(false);
+  const langTriggerRef = useRef<HTMLButtonElement>(null);
 
   const languages = [
     { code: "ru" as const, name: "Русский", flag: "🇷🇺" },
@@ -49,6 +50,11 @@ export function Header({ title, subtitle }: HeaderProps) {
           {/* Language switcher */}
           <div className="relative">
             <button
+              ref={langTriggerRef}
+              type="button"
+              aria-haspopup="true"
+              aria-expanded={showLangMenu}
+              aria-label="Язык интерфейса"
               onClick={() => setShowLangMenu(!showLangMenu)}
               className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 transition-colors"
             >
@@ -56,39 +62,32 @@ export function Header({ title, subtitle }: HeaderProps) {
               <span className="text-sm font-medium text-slate-600">{currentLang?.code.toUpperCase()}</span>
             </button>
 
-            <AnimatePresence>
-              {showLangMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowLangMenu(false)} 
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 8 }}
-                    className="absolute right-0 top-full mt-2 w-40 bg-white rounded-xl border border-slate-100 shadow-xl overflow-hidden z-50"
-                  >
-                    {languages.map((lang) => (
-                      <button
-                        key={lang.code}
-                        onClick={() => {
-                          setLocale(lang.code);
-                          setShowLangMenu(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors",
-                          locale === lang.code && "bg-primary-50 text-primary-700"
-                        )}
-                      >
-                        <span className="text-lg">{lang.flag}</span>
-                        <span className="text-sm font-medium">{lang.name}</span>
-                      </button>
-                    ))}
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
+            <FloatingPanel
+              open={showLangMenu}
+              triggerRef={langTriggerRef}
+              onClose={() => setShowLangMenu(false)}
+              width={160}
+              label="Язык интерфейса"
+              className="bg-white rounded-xl border border-slate-100 shadow-xl overflow-hidden"
+            >
+              {languages.map((lang) => (
+                <button
+                  key={lang.code}
+                  type="button"
+                  onClick={() => {
+                    setLocale(lang.code);
+                    setShowLangMenu(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-slate-50 transition-colors",
+                    locale === lang.code && "bg-primary-50 text-primary-700"
+                  )}
+                >
+                  <span className="text-lg">{lang.flag}</span>
+                  <span className="text-sm font-medium">{lang.name}</span>
+                </button>
+              ))}
+            </FloatingPanel>
           </div>
         </div>
       </div>

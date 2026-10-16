@@ -13,6 +13,7 @@ import { MathRenderer } from "@/components/ui/math-renderer";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { useToast } from "@/components/ui/toast";
 import { TaskStatement } from "@/components/ui/task-statement";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
@@ -256,8 +257,10 @@ export default function ExamHubPage() {
   const [isRetryingAnalytics, setIsRetryingAnalytics] = useState(false);
   const [reportStep, setReportStep] = useState<0 | 1 | 2 | 3>(0); // 0=idle, 1-3=generating steps
   const [studentActionMenu, setStudentActionMenu] = useState<string | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<{ top: number; right: number } | null>(null);
   const menuBtnRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  /** The «⋯» button of the row whose popover is open (the popover is placed from it). */
+  const activeStudentMenuBtnRef = useRef<HTMLButtonElement | null>(null);
+  const headerMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const analyticsRequestIdRef = useRef(0);
 
   // Group Assignment & Quick Actions State
@@ -738,43 +741,12 @@ export default function ExamHubPage() {
     }
   };
 
+  // The popover itself (FloatingPanel) flips above / aligns to the screen edge and closes on a press outside,
+  // Escape or when its button scrolls out of sight; here only the toggle and which button it hangs on.
   const handleOpenStudentMenu = useCallback((rowKey: string) => {
-    const btn = menuBtnRefs.current[rowKey];
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const menuHeight = 90;
-    const safeMargin = 20;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const spaceAbove = rect.top;
-
-    // Flip upwards if space below is tighter than 130px and there is room above
-    const openUpwards = spaceBelow < 130 && spaceAbove > spaceBelow;
-
-    let top: number;
-    if (openUpwards) {
-      top = Math.max(safeMargin, rect.top - menuHeight - 8);
-    } else {
-      top = Math.min(window.innerHeight - menuHeight - safeMargin, rect.bottom + 8);
-    }
-
-    setMenuAnchor({
-      top,
-      right: Math.max(safeMargin, window.innerWidth - rect.right),
-    });
+    activeStudentMenuBtnRef.current = menuBtnRefs.current[rowKey] ?? null;
     setStudentActionMenu((prev) => (prev === rowKey ? null : rowKey));
   }, []);
-
-  // Close portal menu on scroll or click outside
-  useEffect(() => {
-    if (!studentActionMenu) return;
-    const close = () => { setStudentActionMenu(null); setMenuAnchor(null); };
-    window.addEventListener("scroll", close, { capture: true, passive: true });
-    document.addEventListener("mousedown", close);
-    return () => {
-      window.removeEventListener("scroll", close, { capture: true });
-      document.removeEventListener("mousedown", close);
-    };
-  }, [studentActionMenu]);
 
   const currentVariantData = useMemo(() => {
     if (!exam?.variants || exam.variants.length === 0) return null;
@@ -1089,7 +1061,11 @@ export default function ExamHubPage() {
               {/* 3-dots Dropdown Menu */}
               <div className="relative">
                 <button
+                  ref={headerMenuTriggerRef}
                   type="button"
+                  aria-haspopup="true"
+                  aria-expanded={headerMenuOpen}
+                  aria-label="Опции экзамена"
                   onClick={() => setHeaderMenuOpen(!headerMenuOpen)}
                   title="Опции экзамена"
                   className="p-2.5 rounded-xl border border-slate-200/90 text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all cursor-pointer bg-white shadow-2xs"
@@ -1097,13 +1073,15 @@ export default function ExamHubPage() {
                   <MoreVertical className="w-4 h-4" />
                 </button>
 
-                {headerMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setHeaderMenuOpen(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 z-50 space-y-0.5 text-xs">
+                {/* Portaled + flipped: never clipped by the header card, reachable by keyboard and touch. */}
+                <FloatingPanel
+                  open={headerMenuOpen}
+                  triggerRef={headerMenuTriggerRef}
+                  onClose={() => setHeaderMenuOpen(false)}
+                  width={224}
+                  label="Опции экзамена"
+                  className="bg-white rounded-2xl shadow-xl border border-slate-200/80 py-1.5 space-y-0.5 text-xs"
+                >
                       {isDraft && (
                         <button
                           type="button"
@@ -1221,9 +1199,7 @@ export default function ExamHubPage() {
                           Перенести в архив
                         </button>
                       )}
-                    </div>
-                  </>
-                )}
+                </FloatingPanel>
               </div>
             </div>
           </div>
@@ -1555,8 +1531,9 @@ export default function ExamHubPage() {
                       {!isFinalized && (
                         <button
                           onClick={() => handleKickStudent(s.session_id, s.student_name)}
-                          className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
+                          className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:!opacity-100 transition-all cursor-pointer"
                           title="Удалить из экзамена"
+                          aria-label={`Удалить из экзамена: ${s.student_name}`}
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -2147,24 +2124,21 @@ export default function ExamHubPage() {
         </div>
       )}
 
-      {/* ─── Student Action Menu Portal (renders outside table overflow) ─── */}
-      {studentActionMenu && menuAnchor && typeof document !== "undefined" && createPortal(
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: -4 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -4 }}
-          transition={{ duration: 0.12 }}
-          onMouseDown={(e) => e.stopPropagation()}
-          style={{ position: "fixed", top: menuAnchor.top, right: menuAnchor.right, zIndex: 9999 }}
-          className="w-56 rounded-xl border border-slate-200 bg-white p-3 text-left shadow-xl"
-        >
-          <p className="text-sm font-semibold text-slate-800">Индивидуальный отчёт</p>
-          <p className="mt-1 text-xs leading-5 text-slate-500">
-            Будет доступен после запуска отдельного отчётного контура для ученика.
-          </p>
-        </motion.div>,
-        document.body
-      )}
+      {/* ─── Student action popover (portaled, so the table's overflow cannot clip it) ─── */}
+      <FloatingPanel
+        open={studentActionMenu !== null}
+        triggerRef={activeStudentMenuBtnRef}
+        onClose={() => setStudentActionMenu(null)}
+        width={224}
+        align="end"
+        label="Индивидуальный отчёт"
+        className="rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+      >
+        <p className="text-sm font-semibold text-slate-800">Индивидуальный отчёт</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">
+          Будет доступен после запуска отдельного отчётного контура для ученика.
+        </p>
+      </FloatingPanel>
 
       {/* ─── Big Fullscreen QR Code Modal ─── */}
       <AnimatePresence>

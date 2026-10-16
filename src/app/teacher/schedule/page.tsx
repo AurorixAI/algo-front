@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
@@ -220,11 +221,9 @@ export default function TeacherSchedulePage() {
   const [weekOccurrences, setWeekOccurrences] = useState<LessonOccurrence[]>([]);
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all");
   const [isGroupFilterOpen, setIsGroupFilterOpen] = useState(false);
-  const groupFilterRef = useRef<HTMLDivElement>(null);
+  const groupFilterTriggerRef = useRef<HTMLButtonElement>(null);
   const [isRecurringActionsOpen, setIsRecurringActionsOpen] = useState(false);
   const recurringActionsButtonRef = useRef<HTMLButtonElement>(null);
-  const recurringActionsMenuRef = useRef<HTMLDivElement>(null);
-  const [recurringActionsPosition, setRecurringActionsPosition] = useState<{ top: number; left: number } | null>(null);
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
   const [weekOffset, setWeekOffset] = useState(0);
   const [lessonAttendanceMap, setLessonAttendanceMap] = useState<Record<string, boolean>>({});
@@ -243,45 +242,9 @@ export default function TeacherSchedulePage() {
     setMounted(true);
   }, []);
 
-  // Close group filter on outside click
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (groupFilterRef.current && !groupFilterRef.current.contains(e.target as Node)) {
-        setIsGroupFilterOpen(false);
-      }
-    }
-    if (isGroupFilterOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isGroupFilterOpen]);
-
-  // The destructive recurrence action lives in a compact overflow menu, so
-  // it never competes visually with the primary schedule action. It must also
-  // close when a teacher simply continues working elsewhere in the dialog.
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
-      if (
-        recurringActionsButtonRef.current &&
-        !recurringActionsButtonRef.current.contains(target) &&
-        !recurringActionsMenuRef.current?.contains(target)
-      ) {
-        setIsRecurringActionsOpen(false);
-      }
-    }
-    if (isRecurringActionsOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [isRecurringActionsOpen]);
-
-  useEffect(() => {
-    if (!isRecurringActionsOpen) return;
-    const closeMenu = () => setIsRecurringActionsOpen(false);
-    window.addEventListener("resize", closeMenu);
-    return () => window.removeEventListener("resize", closeMenu);
-  }, [isRecurringActionsOpen]);
+  // The destructive recurrence action lives in a compact overflow menu, so it never competes visually with the
+  // primary schedule action.  The menu is a <FloatingPanel>: it closes by itself when a teacher simply continues
+  // working elsewhere in the dialog (press outside), on Escape, or when its button scrolls out of sight.
 
   // Selected lesson modal
   const [activeLesson, setActiveLesson] = useState<LessonOccurrence | null>(null);
@@ -2054,9 +2017,12 @@ export default function TeacherSchedulePage() {
           )}
 
           {/* Group filter custom dropdown */}
-          <div className="relative" ref={groupFilterRef}>
+          <div className="relative">
             <button
+              ref={groupFilterTriggerRef}
               type="button"
+              aria-haspopup="true"
+              aria-expanded={isGroupFilterOpen}
               onClick={() => setIsGroupFilterOpen((prev) => !prev)}
               className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
                 selectedGroupFilter !== "all"
@@ -2078,15 +2044,15 @@ export default function TeacherSchedulePage() {
               />
             </button>
 
-            <AnimatePresence>
-              {isGroupFilterOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.98 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 mt-1.5 w-60 bg-white rounded-2xl p-1.5 shadow-xl border border-slate-100 z-30 space-y-0.5"
-                >
+            {/* Portaled + aligned to the nearer screen edge + capped in height: never clipped, long lists scroll. */}
+            <FloatingPanel
+              open={isGroupFilterOpen}
+              triggerRef={groupFilterTriggerRef}
+              onClose={() => setIsGroupFilterOpen(false)}
+              width={240}
+              label="Фильтр по группе"
+              className="bg-white rounded-2xl p-1.5 shadow-xl border border-slate-100 space-y-0.5"
+            >
                   <button
                     type="button"
                     onClick={() => {
@@ -2134,9 +2100,7 @@ export default function TeacherSchedulePage() {
                       </button>
                     );
                   })}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            </FloatingPanel>
           </div>
         </div>
       </div>
@@ -3111,16 +3075,9 @@ export default function TeacherSchedulePage() {
                       <button
                         type="button"
                         ref={recurringActionsButtonRef}
-                        onClick={(event) => {
-                          const buttonRect = event.currentTarget.getBoundingClientRect();
-                          const menuWidth = 256;
-                          setRecurringActionsPosition({
-                            top: Math.round(buttonRect.bottom + 8),
-                            left: Math.max(16, Math.min(Math.round(buttonRect.left), window.innerWidth - menuWidth - 16)),
-                          });
-                          setIsRecurringActionsOpen((isOpen) => !isOpen);
-                        }}
+                        onClick={() => setIsRecurringActionsOpen((isOpen) => !isOpen)}
                         aria-label="Дополнительные действия с уроком"
+                        aria-haspopup="menu"
                         aria-expanded={isRecurringActionsOpen}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
                       >
@@ -3168,14 +3125,16 @@ export default function TeacherSchedulePage() {
       {/* This menu is portalled out of the scrollable lesson dialog.  It can
           therefore open downward without creating horizontal scrollbars or
           being clipped by the modal's own overflow boundary. */}
-      {mounted && typeof document !== "undefined" && activeLesson && isRecurringActionsOpen && recurringActionsPosition &&
-        createPortal(
-          <div
-            ref={recurringActionsMenuRef}
-            role="menu"
-            style={{ top: recurringActionsPosition.top, left: recurringActionsPosition.left }}
-            className="fixed z-[100001] w-64 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
-          >
+      <FloatingPanel
+        open={Boolean(mounted && activeLesson && isRecurringActionsOpen)}
+        triggerRef={recurringActionsButtonRef}
+        onClose={() => setIsRecurringActionsOpen(false)}
+        width={256}
+        role="menu"
+        label="Дополнительные действия с уроком"
+        zIndexClass="z-[100001]"
+        className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
+      >
             {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
               <button
                 type="button"
@@ -3202,7 +3161,7 @@ export default function TeacherSchedulePage() {
                 role="menuitem"
                 onClick={() => {
                   setIsRecurringActionsOpen(false);
-                  openEndRecurringModal(activeLesson);
+                  if (activeLesson) openEndRecurringModal(activeLesson);
                 }}
                 className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-rose-700 transition-colors hover:bg-rose-50"
               >
@@ -3213,9 +3172,7 @@ export default function TeacherSchedulePage() {
                 </span>
               </button>
             )}
-          </div>,
-          document.body,
-        )}
+      </FloatingPanel>
 
       {/* MODAL: ADD LESSON */}
       {mounted &&

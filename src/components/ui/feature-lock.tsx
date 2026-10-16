@@ -155,11 +155,47 @@ export function FeatureLock({
 }: FeatureLockProps) {
   const [isHovered, setIsHovered] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  // A tap on a phone / tablet pins the explanation (there is no hover; iOS Safari does not focus a plain div).
+  const [isPinned, setIsPinned] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const lastPointerType = useRef<string>("mouse");
+
+  const showOverlay = isHovered || isFocused || isPinned;
+
+  // A tap elsewhere, or Escape, dismisses the explanation again.
+  useEffect(() => {
+    if (!showOverlay) return undefined;
+    const onPointerDown = (event: PointerEvent) => {
+      if (!wrapperRef.current?.contains(event.target as Node)) {
+        setIsPinned(false);
+        setIsHovered(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setIsPinned(false);
+      setIsHovered(false);
+      setIsFocused(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [showOverlay]);
 
   if (!enabled) return <>{children}</>;
 
-  const showOverlay = isHovered || isFocused;
+  const touchProps = {
+    onPointerDown: (event: React.PointerEvent) => {
+      lastPointerType.current = event.pointerType;
+    },
+    // onClick (not only the pointer events) also makes iOS Safari treat the div as tappable.
+    onClick: () => {
+      if (lastPointerType.current !== "mouse") setIsPinned((pinned) => !pinned);
+    },
+  };
   // Разные дефолты для маленьких тултипов и больших оверлеев.
   const resolvedDescription =
     description ?? (variant === "inline" ? LOCK_COPY.tooltip : LOCK_COPY.screen);
@@ -173,6 +209,7 @@ export function FeatureLock({
         onMouseLeave={() => setIsHovered(false)}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
+        {...touchProps}
         tabIndex={0}
         role="region"
         aria-label={`${title}: ${resolvedDescription}`}
@@ -206,6 +243,7 @@ export function FeatureLock({
       onMouseLeave={() => setIsHovered(false)}
       onFocus={() => setIsFocused(true)}
       onBlur={() => setIsFocused(false)}
+      {...touchProps}
       tabIndex={0}
       role="region"
       aria-label={`${title}: ${resolvedDescription}`}

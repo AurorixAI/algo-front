@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
@@ -36,6 +36,7 @@ import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { FloatingPanel } from "@/components/ui/floating-panel";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -205,6 +206,7 @@ function ExamCard({
   onCopyCode,
 }: ExamCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [showRenameModal, setShowRenameModal] = useState(false);
   const effectiveStatus = exam.status === "archived"
     ? "archived"
@@ -330,7 +332,11 @@ function ExamCard({
             {/* Quick Actions Menu Trigger */}
             <div className="relative">
               <button
+                ref={menuTriggerRef}
                 type="button"
+                aria-haspopup="true"
+                aria-expanded={menuOpen}
+                aria-label="Опции экзамена"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -342,17 +348,15 @@ function ExamCard({
                 <MoreVertical className="w-4 h-4" />
               </button>
 
-              {menuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setMenuOpen(false);
-                    }}
-                  />
-                  <div className="absolute right-0 top-full mt-1.5 w-52 bg-white rounded-xl shadow-xl border border-slate-200/80 py-1.5 z-40 space-y-0.5 text-xs">
+              {/* Portaled + flipped: never clipped by the card / list, reachable by keyboard and touch. */}
+              <FloatingPanel
+                open={menuOpen}
+                triggerRef={menuTriggerRef}
+                onClose={() => setMenuOpen(false)}
+                width={208}
+                label="Опции экзамена"
+                className="bg-white rounded-xl shadow-xl border border-slate-200/80 py-1.5 space-y-0.5 text-xs"
+              >
                     {canAssignGroup && (
                       <button
                         type="button"
@@ -474,9 +478,7 @@ function ExamCard({
                         </button>
                       </>
                     )}
-                  </div>
-                </>
-              )}
+              </FloatingPanel>
             </div>
 
             {!isArchived && (

@@ -67,6 +67,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   }, [compactOnMobile]);
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   const rawRole = effectiveRole(user) || "teacher";
   const role = rawRole === "owner" ? "admin" : rawRole;
@@ -162,17 +163,26 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     router.push("/login");
   };
 
-  // Close dropdown on outside click
+  // Close the profile menu on a press outside (mouse and touch) and on Escape (keyboard).  The menu is click-driven
+  // (no hover), anchored to the bottom of the fixed sidebar, so the viewport edge and page scroll cannot clip it.
   useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
+    if (!profileOpen) return undefined;
+    function handleClickOutside(e: PointerEvent) {
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
         setProfileOpen(false);
       }
     }
-    if (profileOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setProfileOpen(false);
+      profileButtonRef.current?.focus({ preventScroll: true });
     }
+    document.addEventListener("pointerdown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [profileOpen]);
 
   return (
@@ -416,7 +426,10 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
 
         {/* Profile Card */}
         <button
+          ref={profileButtonRef}
           type="button"
+          aria-haspopup="true"
+          aria-expanded={profileOpen}
           onClick={() => setProfileOpen(!profileOpen)}
           className={cn(
             "w-full flex items-center rounded-xl p-2 transition-all text-left group outline-none focus:outline-none overflow-hidden h-12",

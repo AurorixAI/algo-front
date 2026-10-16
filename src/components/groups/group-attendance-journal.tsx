@@ -59,6 +59,7 @@ import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { Modal } from "@/components/ui/modal";
+import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
 
 interface GroupAttendanceJournalProps {
@@ -1111,15 +1112,15 @@ export function GroupAttendanceJournal({
                           </div>
                           {correction && lessonStatus === "completed" && (
                             <div>
-                              <span
-                                title={[
+                              <Hint
+                                text={[
                                   `Исправлено: ${[correction.by_name, formatUtcNaiveAsBusinessDateTime(correction.at)].filter(Boolean).join(", ")}`,
                                   correction.reason ? `Причина: ${correction.reason}` : "",
                                 ].filter(Boolean).join("\n")}
-                                className="inline-flex cursor-help rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
+                                className="inline-flex border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800"
                               >
                                 Исправлено
-                              </span>
+                              </Hint>
                             </div>
                           )}
                           {inCorrection && (
@@ -1167,14 +1168,10 @@ export function GroupAttendanceJournal({
                               <div className="flex min-w-0 items-center gap-1.5">
                                 <p className="min-w-0 truncate text-sm font-semibold text-slate-900 transition-colors group-hover:text-primary-700" title={fullName}>{fullName}</p>
                                 {membershipEvent && (
-                                  <span title={formatMembershipEvent(membershipEvent)} className="shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                                    Переведён
-                                  </span>
+                                  <Hint text={formatMembershipEvent(membershipEvent)} className="shrink-0 border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                                 )}
                                 {!membershipEvent && student.diagnosticReportNotice && (
-                                  <span title="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                                    Новый
-                                  </span>
+                                  <Hint text="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Новый</Hint>
                                 )}
                               </div>
                               <p className="text-[11px] text-slate-400">
@@ -1191,14 +1188,10 @@ export function GroupAttendanceJournal({
                             <div className="flex min-w-0 items-center gap-1.5">
                               <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={fullName}>{fullName}</p>
                               {membershipEvent && (
-                                <span title={formatMembershipEvent(membershipEvent)} className="shrink-0 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
-                                  Переведён
-                                </span>
+                                <Hint text={formatMembershipEvent(membershipEvent)} className="shrink-0 border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                               )}
                               {!membershipEvent && student.diagnosticReportNotice && (
-                                <span title="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                                  Новый
-                                </span>
+                                <Hint text="Ученик зачислен после диагностики. Метка исчезнет после ознакомления преподавателя с отчётом." className="shrink-0 border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">Новый</Hint>
                               )}
                             </div>
                             <p className="text-[11px] text-slate-400">
@@ -1264,6 +1257,10 @@ export function GroupAttendanceJournal({
                             )}
                             {menuAvailable && openCell && (
                               <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef} id={`attendance-menu-${student.id}-${key}`}>
+                                {/* The reason of an absence used to live only in the cell's hover title. */}
+                                {excuse && (
+                                  <p className="mb-1 whitespace-pre-line rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">{excuseTooltip(excuse)}</p>
+                                )}
                                 {!locked && STATUS_OPTIONS.map((item) => (
                                   <button
                                     key={item.value}
@@ -1395,7 +1392,7 @@ export function GroupAttendanceJournal({
                             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">{fullName[0]}</span>
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-slate-800 transition-colors hover:text-primary-700" title={fullName}>{fullName}</p>
-                              <span title={transferDescription} className="mt-1 inline-flex rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</span>
+                              <Hint text={transferDescription} className="mt-1 inline-flex border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                             </div>
                           </Link>
                         ) : (
@@ -1403,7 +1400,7 @@ export function GroupAttendanceJournal({
                           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-xs font-bold text-slate-600">{fullName[0]}</span>
                           <div className="min-w-0">
                             <p className="truncate text-sm font-semibold text-slate-800" title={fullName}>{fullName}</p>
-                            <span title={transferDescription} className="mt-1 inline-flex rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</span>
+                            <Hint text={transferDescription} className="mt-1 inline-flex border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Переведён</Hint>
                           </div>
                         </div>
                         )}
