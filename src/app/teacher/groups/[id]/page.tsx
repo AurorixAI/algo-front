@@ -25,6 +25,12 @@ import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 type Tab = "students" | "exams" | "attendance";
 type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
 
+/** `?month=&lesson=&date=` open the journal on one lesson (open-lessons link); they do not follow the user to another tab. */
+function withoutJournalLink(params: URLSearchParams): URLSearchParams {
+  for (const key of ["month", "lesson", "date"]) params.delete(key);
+  return params;
+}
+
 function parseExamStatusFilter(value: string | null): ExamStatusFilter {
   return value === "lobby" || value === "draft" || value === "closed" || value === "archived" || value === "active"
     ? value
@@ -132,7 +138,7 @@ export default function TeacherGroupDetailPage() {
     ? requestedTab
     : "students";
   const setTab = (newTab: Tab) => {
-    const next = new URLSearchParams(searchParams?.toString());
+    const next = withoutJournalLink(new URLSearchParams(searchParams?.toString()));
     next.set("tab", newTab);
     router.replace(`?${next.toString()}`, { scroll: false });
   };
@@ -147,7 +153,7 @@ export default function TeacherGroupDetailPage() {
   const updateExamListState = (nextFilter: ExamStatusFilter, nextSearch: string) => {
     setExamFilter(nextFilter);
     setExamSearch(nextSearch);
-    const next = new URLSearchParams(searchParams?.toString());
+    const next = withoutJournalLink(new URLSearchParams(searchParams?.toString()));
     next.set("tab", "exams");
     if (nextFilter === "active") next.delete("exam_status");
     else next.set("exam_status", nextFilter);
@@ -890,6 +896,9 @@ export default function TeacherGroupDetailPage() {
               user?.role === "owner"
             )}
             studentProfileBasePath="/teacher/students"
+            initialMonth={searchParams?.get("month")}
+            highlightLessonId={searchParams?.get("lesson")}
+            highlightDate={searchParams?.get("date")}
           />
         )}
 

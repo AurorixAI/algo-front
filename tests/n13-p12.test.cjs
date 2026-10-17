@@ -136,11 +136,32 @@ test("?lesson= and ?date= are read only when both are valid", () => {
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /parseJournalHighlight/);
   assert.match(journal, /data-lesson-key/);
-  for (const role of ["admin", "owner"]) {
+  for (const role of ["admin", "owner", "teacher"]) {
     const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    assert.match(page, /initialMonth=\{searchParams\?\.get\("month"\)\}/, role);
     assert.match(page, /highlightLessonId=\{searchParams\?\.get\("lesson"\)\}/, role);
     assert.match(page, /highlightDate=\{searchParams\?\.get\("date"\)\}/, role);
   }
+});
+
+test("the teacher's group page honours the same deep link: ?tab=attendance opens the journal, the month/lesson/date are raw params the journal validates", () => {
+  const page = read("src/app/teacher/groups/[id]/page.tsx");
+  // `?tab=attendance` is one of the teacher's three tabs (no «schedule» tab here)
+  assert.match(page, /type Tab = "students" \| "exams" \| "attendance";/);
+  assert.match(page, /requestedTab === "exams" \|\| requestedTab === "attendance" \|\| requestedTab === "students"/);
+  assert.match(page, /\{tab === "attendance" && \(\s*<GroupAttendanceJournal/);
+  // an invalid month / lesson / date reaches the journal as is and is dropped there (it opens the current week)
+  assert.equal(openLessons.parseJournalMonth("2026-13"), null);
+  assert.equal(openLessons.parseJournalHighlight("<x>", "2026-09-30"), null);
+  // the link is one-shot: switching the tab (or the exam filter) drops it, so «Посещаемость» does not jump back to it
+  assert.match(page, /const setTab = \(newTab: Tab\) => \{\s*const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);/);
+  assert.match(page, /const next = withoutJournalLink\(new URLSearchParams\(searchParams\?\.toString\(\)\)\);\s*next\.set\("tab", "exams"\);/);
+  assert.match(page, /for \(const key of \["month", "lesson", "date"\]\) params\.delete\(key\);/);
+  // the link a teacher would get is the same one the open-lessons list builds for the other roles
+  assert.equal(
+    openLessons.journalHref("/teacher/groups", action({ groupId: "G-7", lessonId: "s2", lessonDate: "2026-09-30" })),
+    "/teacher/groups/G-7?tab=attendance&month=2026-09&lesson=s2&date=2026-09-30",
+  );
 });
 
 // ---- excuse deadline and phone ---------------------------------------------
