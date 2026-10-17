@@ -33,7 +33,6 @@ export function isInviteRunning(status: string | null | undefined): boolean {
   return status === "in_progress";
 }
 
-/** An invite that can no longer be used and will never be finished: cancelled or expired (neutral colours). */
 /**
  * «Зачислен» / «Зачислены» is about the student, not the invite: any invite of a student who is in a group counts,
  * except a cancelled one, which keeps its own status and is never listed as enrolled.
@@ -47,6 +46,7 @@ export function isInviteAssigned(invite: {
   return !isInviteCancelled(invite.status) && Boolean(invite.is_assigned || invite.group_id || invite.student_status === "active");
 }
 
+/** An invite that can no longer be used and will never be finished: cancelled or expired (neutral colours). */
 export function isInviteDead(status: string | null | undefined): boolean {
   return status === "cancelled" || status === "expired";
 }

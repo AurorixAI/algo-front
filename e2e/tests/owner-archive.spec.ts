@@ -142,7 +142,7 @@ test("restore into a group that filled up meanwhile: the dialog stays with the n
   // the card behind it is already the restored one: no banner, no «Вернуть из архива», the actions menu is back
   await expect(archiveBanner).toHaveCount(0);
   await expect(restoreButton).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /Действия/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Действия: .*Возвращающийся/ })).toBeVisible(); // the card's own menu
   await expect(notice).toBeVisible(); // the reload did not tear the dialog down
   expect(profileReads.length - readsBefore, "one read of the card, started by the return itself").toBe(1);
 
