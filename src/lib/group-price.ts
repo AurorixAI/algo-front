@@ -1,0 +1,556 @@
+/**
+ * N13 P4 #105 - «Цена группы»: the price is set on the GROUP (owner, or an administrator the owner gave money to),
+ * the students of the group take it; an individual price of one student is an explicit exception with a reason.
+ *
+ * Types of the money API (auth-service `payments_schemas.py`: `PriceOut`, `GroupPricesOut`, `GroupPriceChanged`,
+ * `MembershipPriceOut`) and the pure helpers of its screens: labels, descriptions, the text of the consequences,
+ * the validation of the forms.  No React and no network, so node:test can load this file.
+ * Money never reaches a teacher: every shape below comes from a money-only endpoint.
+ */
+import {
+  addDays,
+  formatDateRu,
+  formatMoney,
+  formatMoneyInput,
+  isIsoDate,
+  MAX_MONEY,
+  parseMoneyInput,
+  pluralRu,
+  type MembershipPaymentRow,
+  type PeriodMode,
+} from "./payments";
+import { formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
+
+// ── Shapes of the API ───────────────────────────────────────────────────────
+
+export type PriceSource = "group" | "override" | "none";
+
+/** `price` of a money row (today) and of a quote (at the start of the period). */
+export interface PriceInfo {
+  amount: number | null;
+  source: PriceSource;
+  valid_from: string | null;
+  /** The price of the group on that day: what the student would pay without the exception. */
+  group_amount: number | null;
+  reason: string | null;
+}
+
+/** `price_current` of `GET /org/groups` and `GET /org/groups/{id}` (money roles only; the key is absent otherwise). */
+export interface GroupPriceBrief {
+  amount: number;
+  valid_from: string;
+}
+
+export interface GroupPriceCurrent extends GroupPriceBrief {
+  note?: string | null;
+}
+
+/**
+ * One write of the price of a day (the audit trail, `group_audit`; `changes` of a history item, newest first, only for that
+ * `valid_from`): who, when (naive UTC), from what to what.
+ */
+export interface GroupPriceChange {
+  /** Naive UTC, ISO: show it through `formatUtcNaiveAsBusinessDateTime`. */
+  at: string | null;
+  actor_name: string | null;
+  /** In force on that day just before the write; null - none. */
+  old_amount: number | null;
+  new_amount: number;
+  note: string | null;
+}
+
+/** One write of the individual price of a day (`changes` of the override history). */
+export interface PriceOverrideChange {
+  at: string | null;
+  actor_name: string | null;
+  /** The EFFECTIVE price that day just before the write; null - none. */
+  old_amount: number | null;
+  /** Where it came from: the group, an individual price, nowhere. */
+  old_source: PriceSource | null;
+  /** null - «вернули цену группы». */
+  new_amount: number | null;
+  reason: string | null;
+}
+
+export interface GroupPriceRow {
+  id: string;
+  amount: number;
+  valid_from: string;
+  note: string | null;
+  created_by?: string | null;
+  created_by_name: string | null;
+  created_at: string | null;
+  is_current: boolean;
+  is_future: boolean;
+  /** The writes of THIS `valid_from`, newest first. */
+  changes: GroupPriceChange[];
+}
+
+export interface GroupPrices {
+  group_id: string;
+  group_name: string;
+  as_of: string;
+  period_mode: PeriodMode;
+  /** «Оплата в месяц» | «Стоимость пакета». */
+  price_label: string;
+  current: GroupPriceCurrent | null;
+  history: GroupPriceRow[];
+}
+
+export interface PriceImpactSheet {
+  sheet_id: string;
+  /** YYYY-MM */
+  month: string;
+  teacher_id: string;
+  teacher_name: string | null;
+}
+
+export interface PriceImpact {
+  students_following: number;
+  students_with_override: number;
+  stale_payroll_sheets: number;
+  /** The sheets themselves: the owner only (an administrator gets the count). */
+  stale_sheets: PriceImpactSheet[];
+}
+
+/** `PUT /org/groups/{id}/price`; with `?dry_run=1` only `impact` is filled (`current` and `history` are null). */
+export interface GroupPriceResult {
+  dry_run: boolean;
+  impact: PriceImpact;
+  group_id?: string | null;
+  group_name?: string | null;
+  as_of?: string | null;
+  period_mode?: PeriodMode | null;
+  price_label?: string | null;
+  current: GroupPriceCurrent | null;
+  history: GroupPriceRow[] | null;
+}
+
+export interface GroupPriceRequest {
+  amount: number;
+  valid_from: string;
+  note?: string;
+}
+
+export interface PriceOverrideRow {
+  id: string;
+  /** null: «с этой даты — снова цена группы». */
+  amount: number | null;
+  valid_from: string;
+  reason: string | null;
+  created_by_name: string | null;
+  created_at: string | null;
+  is_current: boolean;
+  is_future: boolean;
+  /** The writes of THIS `valid_from`, newest first. */
+  changes: PriceOverrideChange[];
+}
+
+export interface MembershipPrice {
+  membership_id: string;
+  group_id: string;
+  as_of: string;
+  period_mode: PeriodMode;
+  price_label: string;
+  price: PriceInfo;
+  history: PriceOverrideRow[];
+}
+
+export interface MembershipPriceChanged extends MembershipPrice {
+  row: MembershipPaymentRow;
+}
+
+export interface PriceOverrideRequest {
+  /** A sum (a reason is required) or null: back to the price of the group. */
+  amount: number | null;
+  valid_from?: string;
+  reason?: string;
+}
+
+/** The individual price handed over together with an enrolment (`price_override` of the add / bulk requests). */
+export interface EnrolPriceOverride {
+  amount: number;
+  reason: string;
+}
+
+// ── Labels ──────────────────────────────────────────────────────────────────
+
+export const PRICE_LABEL_CALENDAR = "Оплата в месяц";
+export const PRICE_LABEL_LESSONS = "Стоимость пакета";
+
+/** What the sum means in the centre: «Оплата в месяц» for calendar periods, «Стоимость пакета» for lesson packages. */
+export function priceLabelOf(mode: PeriodMode | null | undefined): string {
+  return mode === "lessons" ? PRICE_LABEL_LESSONS : PRICE_LABEL_CALENDAR;
+}
+
+/** «500 000 сум/мес» / «500 000 сум за пакет»: the unit follows the label the server sent. */
+export function formatPrice(amount: number | null | undefined, label: string): string {
+  if (amount === null || amount === undefined) return "не задана";
+  return `${formatMoney(amount)}${label === PRICE_LABEL_LESSONS ? " за пакет" : "/мес"}`;
+}
+
+/** «с 15.10.2026» */
+export function sinceText(validFrom: string | null | undefined): string {
+  const text = formatDateRu(validFrom);
+  return text ? `с ${text}` : "";
+}
+
+/** Group price on a list card / row: «500 000 сум» or null when there is none. */
+export function priceBriefText(price: GroupPriceBrief | null | undefined): string | null {
+  return price ? formatMoney(price.amount) : null;
+}
+
+/** The price of a money row; an older server has only `monthly_fee`. */
+export function priceOfRow(row: { price?: PriceInfo | null; monthly_fee?: number | null }): PriceInfo {
+  if (row.price) return row.price;
+  const fee = row.monthly_fee ?? null;
+  return { amount: fee, source: fee === null ? "none" : "group", valid_from: null, group_amount: fee, reason: null };
+}
+
+export interface PriceView {
+  kind: PriceSource;
+  /** «Цена группы» | «Индивидуальная цена» | «Цена группы не задана». */
+  title: string;
+  /** «500 000 сум/мес»; null when there is no price. */
+  value: string | null;
+  /** The second part of an individual price: «Сестра ученика · цена группы 500 000 сум». */
+  note: string | null;
+  /** The whole line: «Цена группы: 500 000 сум/мес». */
+  text: string;
+}
+
+/** How the student card says what the student pays in one group. */
+export function membershipPriceView(price: PriceInfo | null | undefined, label: string): PriceView {
+  if (!price || price.source === "none" || price.amount === null || price.amount === undefined) {
+    return { kind: "none", title: "Цена группы не задана", value: null, note: null, text: "Цена группы не задана" };
+  }
+  const value = formatPrice(price.amount, label);
+  if (price.source === "override") {
+    const groupPart = `цена группы ${price.group_amount === null || price.group_amount === undefined ? "не задана" : formatMoney(price.group_amount)}`;
+    const reason = (price.reason ?? "").trim();
+    const note = reason ? `${reason} · ${groupPart}` : groupPart;
+    return { kind: "override", title: "Индивидуальная цена", value, note, text: `Индивидуальная цена: ${value} · ${reason ? `${reason} (${groupPart})` : groupPart}` };
+  }
+  return { kind: "group", title: "Цена группы", value, note: null, text: `Цена группы: ${value}` };
+}
+
+/** «Индивидуальная цена» in a list row (payments); null for the price of the group. */
+export function priceSourceTag(price: PriceInfo | null | undefined): string | null {
+  return price?.source === "override" ? "индивидуальная цена" : null;
+}
+
+// ── Where the group is set ──────────────────────────────────────────────────
+
+/** The price block of the group page: the anchor and the link target of «задать цену». */
+export const GROUP_PRICE_ANCHOR = "price";
+
+export function groupPriceHref(groupsBasePath: string, groupId: string): string {
+  return `${groupsBasePath.replace(/\/+$/, "")}/${encodeURIComponent(groupId)}#${GROUP_PRICE_ANCHOR}`;
+}
+
+/** The groups without a price (the payroll warning «не задана цена» leads here). */
+export function groupsWithoutPriceHref(groupsBasePath: string): string {
+  return `${groupsBasePath.replace(/\/+$/, "")}?price=none`;
+}
+
+/** The base of the group pages next to a payments base: «/owner/payments» -> «/owner/groups». */
+export function groupsBaseOf(paymentsBasePath: string): string {
+  return paymentsBasePath.replace(/\/payments\/?$/, "/groups");
+}
+
+export type PriceFilter = "all" | "none";
+
+export function parsePriceFilter(value: string | null | undefined): PriceFilter {
+  return value === "none" ? "none" : "all";
+}
+
+/** A group the money role sees without a price (`price_current: null`); a role without money has no key and no such group. */
+export function lacksGroupPrice(group: { price_current?: GroupPriceBrief | null }): boolean {
+  return "price_current" in group && group.price_current === null;
+}
+
+export function countGroupsWithoutPrice(groups: ReadonlyArray<{ status?: string; price_current?: GroupPriceBrief | null }>): number {
+  return groups.filter((group) => group.status !== "archived" && lacksGroupPrice(group)).length;
+}
+
+// ── The form of a group price ───────────────────────────────────────────────
+
+export const PRICE_MIN_DATE = "2000-01-01";
+export const PRICE_MAX_AHEAD_DAYS = 366;
+export const GROUP_PRICE_NOTE_MAX = 200;
+export const OVERRIDE_REASON_MIN = 3;
+export const OVERRIDE_REASON_MAX = 200;
+
+/** The dates a price may start on: 2000-01-01 … today + 366 days. */
+export function priceDateRange(today: string): { min: string; max: string } {
+  return { min: PRICE_MIN_DATE, max: addDays(today, PRICE_MAX_AHEAD_DAYS) };
+}
+
+export function validatePriceDate(validFrom: string, today: string): string | null {
+  if (!isIsoDate(validFrom)) return "Укажите дату, с которой действует цена";
+  const { min, max } = priceDateRange(today);
+  if (validFrom < min) return "Дата слишком далеко в прошлом — не раньше 01.01.2000";
+  if (validFrom > max) return "Дата слишком далеко в будущем — не позже чем через год";
+  return null;
+}
+
+export interface GroupPriceFormValues {
+  amount: string;
+  validFrom: string;
+  note: string;
+}
+
+export interface FormCheck<T> {
+  error: string | null;
+  request: T | null;
+}
+
+function checkAmount(text: string): { value: number | null; error: string | null } {
+  const value = parseMoneyInput(text);
+  if (value === null) return { value: null, error: "Укажите сумму" };
+  if (value > MAX_MONEY) return { value: null, error: "Сумма слишком большая" };
+  return { value, error: null };
+}
+
+/** The request of «Изменить цену»; `error` says what is wrong (nothing is sent then). */
+export function checkGroupPriceForm(values: GroupPriceFormValues, today: string): FormCheck<GroupPriceRequest> {
+  const amount = checkAmount(values.amount);
+  if (amount.error || amount.value === null) return { error: amount.error, request: null };
+  const dateError = validatePriceDate(values.validFrom, today);
+  if (dateError) return { error: dateError, request: null };
+  const note = values.note.trim();
+  if (note.length > GROUP_PRICE_NOTE_MAX) return { error: `Примечание — не более ${GROUP_PRICE_NOTE_MAX} символов`, request: null };
+  const request: GroupPriceRequest = { amount: amount.value, valid_from: values.validFrom };
+  if (note) request.note = note;
+  return { error: null, request };
+}
+
+/** Same as `checkGroupPriceForm` without the note: the question for the consequences (dry run). */
+export function groupPriceKey(request: GroupPriceRequest | null): string {
+  return request ? `${request.amount}|${request.valid_from}` : "";
+}
+
+export function reasonProblem(reason: string): string | null {
+  const text = reason.trim();
+  if (text.length < OVERRIDE_REASON_MIN) return `Укажите причину — от ${OVERRIDE_REASON_MIN} до ${OVERRIDE_REASON_MAX} символов`;
+  if (text.length > OVERRIDE_REASON_MAX) return `Причина — не более ${OVERRIDE_REASON_MAX} символов`;
+  return null;
+}
+
+export interface OverrideFormValues {
+  amount: string;
+  validFrom: string;
+  reason: string;
+}
+
+/** «Назначить индивидуальную цену»: a sum, a date and a reason of 3..200 characters. */
+export function checkOverrideForm(values: OverrideFormValues, today: string): FormCheck<PriceOverrideRequest> {
+  const amount = checkAmount(values.amount);
+  if (amount.error || amount.value === null) return { error: amount.error, request: null };
+  const dateError = validatePriceDate(values.validFrom, today);
+  if (dateError) return { error: dateError, request: null };
+  const problem = reasonProblem(values.reason);
+  if (problem) return { error: problem, request: null };
+  return { error: null, request: { amount: amount.value, valid_from: values.validFrom, reason: values.reason.trim() } };
+}
+
+/** «Вернуть цену группы» from a date: no sum, no reason. */
+export function checkReturnForm(validFrom: string, today: string): FormCheck<PriceOverrideRequest> {
+  const dateError = validatePriceDate(validFrom, today);
+  if (dateError) return { error: dateError, request: null };
+  return { error: null, request: { amount: null, valid_from: validFrom } };
+}
+
+export interface EnrolOverrideValues {
+  enabled: boolean;
+  amount: string;
+  reason: string;
+}
+
+/** The optional individual price of an enrolment: off sends nothing; on needs a sum and a reason. */
+export function checkEnrolOverride(values: EnrolOverrideValues): FormCheck<EnrolPriceOverride | null> {
+  if (!values.enabled) return { error: null, request: null };
+  const amount = checkAmount(values.amount);
+  if (amount.error || amount.value === null) return { error: amount.error, request: null };
+  const problem = reasonProblem(values.reason);
+  if (problem) return { error: problem, request: null };
+  return { error: null, request: { amount: amount.value, reason: values.reason.trim() } };
+}
+
+// ── Consequences of a change (dry run) ──────────────────────────────────────
+
+function studentsWord(count: number): string {
+  return pluralRu(count, ["ученик", "ученика", "учеников"]);
+}
+
+/** «Цену получат 12 учеников; у 2 — индивидуальная цена, их не затронет». */
+export function impactStudentsText(impact: Pick<PriceImpact, "students_following" | "students_with_override">): string {
+  const following = Math.max(0, impact.students_following | 0);
+  const exceptions = Math.max(0, impact.students_with_override | 0);
+  const verb = following % 10 === 1 && following % 100 !== 11 ? "получит" : "получат";
+  const head = following > 0
+    ? `Цену ${verb} ${following} ${studentsWord(following)}`
+    : "В группе пока нет учеников, которые получат эту цену";
+  if (exceptions === 0) return head;
+  return `${head}; у ${exceptions} — индивидуальная цена, ${exceptions === 1 ? "её" : "их"} не затронет`;
+}
+
+const STALE_LIST_LIMIT = 6;
+
+/** «Иванова А. — сентябрь 2026» */
+function staleSheetLabel(sheet: PriceImpactSheet): string {
+  const month = /^\d{4}-\d{2}$/.test(sheet.month) ? monthYearLabelRu(sheet.month).replace(/\s*г\.?$/, "") : sheet.month;
+  const who = (sheet.teacher_name ?? "").trim() || "преподаватель";
+  return `${who} — ${month}`;
+}
+
+/**
+ * The warning about saved payroll sheets, or null when none is touched.  The owner gets the list, an administrator
+ * (who has no payroll) only the count.
+ */
+export function staleSheetsText(impact: Pick<PriceImpact, "stale_payroll_sheets" | "stale_sheets">): { text: string; items: string[] } | null {
+  const count = Math.max(0, impact.stale_payroll_sheets | 0);
+  if (count === 0) return null;
+  const sheets = impact.stale_sheets ?? [];
+  const text = sheets.length > 0
+    ? `Сохранённые ведомости зарплаты станут «данные изменились» (${count}); их надо будет пересчитать:`
+    : `Сохранённые ведомости зарплаты станут «данные изменились»: ${count}. Их надо будет пересчитать.`;
+  const items = sheets.slice(0, STALE_LIST_LIMIT).map(staleSheetLabel);
+  if (sheets.length > STALE_LIST_LIMIT) items.push(`и ещё ${sheets.length - STALE_LIST_LIMIT}`);
+  return { text, items };
+}
+
+export const PAID_NEVER_CHANGE_TEXT = "Уже внесённые оплаты не меняются никогда.";
+
+/** The past date warning: the calculations before today change, the recorded payments do not. */
+export function pastDateWarning(validFrom: string, today: string): string | null {
+  if (!isIsoDate(validFrom) || !isIsoDate(today) || validFrom >= today) return null;
+  return `Дата в прошлом: подсказки сумм оплат и зарплата за период с ${formatDateRu(validFrom)} пересчитаются по новой цене. ${PAID_NEVER_CHANGE_TEXT}`;
+}
+
+/** A price that starts later: until then the old one is in force. */
+export function futureDateNote(validFrom: string, today: string): string | null {
+  if (!isIsoDate(validFrom) || !isIsoDate(today) || validFrom <= today) return null;
+  return `Новая цена начнёт действовать с ${formatDateRu(validFrom)}; до этого дня остаётся прежняя.`;
+}
+
+// ── History ────────────────────────────────────────────────────────────────
+
+/** «450 000» (no unit: the line says «→» and the label is on the block). */
+function amountOrNone(amount: number | null | undefined, none: string): string {
+  return amount === null || amount === undefined ? none : formatMoneyInput(amount);
+}
+
+/** «17.10.2026 14:05 · Ахмедов» (the writer may be unknown, the time too). */
+function whoAndWhen(at: string | null | undefined, actor: string | null | undefined, formatAt: (value: string | null | undefined) => string): string {
+  const when = at ? formatAt(at) : "";
+  const who = (actor ?? "").trim();
+  return [when, who].filter(Boolean).join(" · ");
+}
+
+function withTail(head: string, text: string | null | undefined): string {
+  const tail = (text ?? "").trim();
+  return tail ? `${head} · ${tail}` : head;
+}
+
+/**
+ * One write of the price of a group in words: «17.10.2026 14:05 · Ахмедов: 450 000 → 500 000 · примечание».  A first
+ * price has no «before»: «не была задана → 500 000».  `at` is naive UTC: it goes through the business clock.
+ */
+export function groupChangeLine(
+  change: GroupPriceChange,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
+): string {
+  const head = `${amountOrNone(change.old_amount, "не была задана")} → ${formatMoneyInput(change.new_amount)}`;
+  const line = withTail(head, change.note);
+  const lead = whoAndWhen(change.at, change.actor_name, formatAt);
+  return lead ? `${lead}: ${line}` : line;
+}
+
+/** What stood before an individual price was written: «индивидуальная 400 000», «цена группы 500 000», «цена не задана». */
+function overrideSide(amount: number | null, source: PriceSource | null | undefined): string {
+  if (amount === null || amount === undefined) return "цена не задана";
+  if (source === "override") return `индивидуальная ${formatMoneyInput(amount)}`;
+  if (source === "group") return `цена группы ${formatMoneyInput(amount)}`;
+  return formatMoneyInput(amount);
+}
+
+/**
+ * One write of an individual price in words: «17.10.2026 14:05 · Ахмедов: индивидуальная 400 000 → цена группы» (the
+ * student is back on the price of the group) or «…: цена группы 500 000 → индивидуальная 400 000 · Сестра ученика».
+ */
+export function overrideChangeLine(
+  change: PriceOverrideChange,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
+): string {
+  const after = change.new_amount === null ? "цена группы" : `индивидуальная ${formatMoneyInput(change.new_amount)}`;
+  const line = withTail(`${overrideSide(change.old_amount, change.old_source)} → ${after}`, change.reason);
+  const lead = whoAndWhen(change.at, change.actor_name, formatAt);
+  return lead ? `${lead}: ${line}` : line;
+}
+
+export interface HistoryItemView {
+  id: string;
+  /** «500 000 сум/мес» */
+  amount: string;
+  /** «с 15.10.2026» */
+  since: string;
+  /** «действует» | «с 20.10.2026» (planned) | «» */
+  status: "current" | "future" | "past";
+  note: string;
+  /** «Иванов И. · 17.10.2026 14:32» */
+  author: string;
+  changes: string[];
+}
+
+/** Rows of the history, newest first (the order the server sends), with the audit trail in words. */
+export function historyViews(
+  history: ReadonlyArray<GroupPriceRow>,
+  label: string,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
+): HistoryItemView[] {
+  return history.map((row) => {
+    const at = row.created_at ? formatAt(row.created_at) : "";
+    const author = [row.created_by_name, at].filter(Boolean).join(" · ");
+    const changes = (row.changes ?? []).map((change) => groupChangeLine(change, formatAt));
+    return {
+      id: row.id,
+      amount: formatPrice(row.amount, label),
+      since: sinceText(row.valid_from),
+      status: row.is_current ? "current" : row.is_future ? "future" : "past",
+      note: (row.note ?? "").trim(),
+      author,
+      changes,
+    };
+  });
+}
+
+/** A line of the individual-price history: «с 15.10.2026 — 400 000 сум/мес · причина» / «с 20.11.2026 — цена группы». */
+export function overrideRowText(row: PriceOverrideRow, label: string): string {
+  const what = row.amount === null ? "цена группы" : formatPrice(row.amount, label);
+  const reason = (row.reason ?? "").trim();
+  return `${sinceText(row.valid_from)} — ${what}${reason && row.amount !== null ? ` · ${reason}` : ""}`;
+}
+
+// ── Enrolment / transfer ────────────────────────────────────────────────────
+
+/** Said under the choice «Перевести» / «Добавить»: the student takes the price of the new group (money roles only). */
+export function enrolPriceHint(input: { transfer: boolean; moneyAvailable: boolean }): string | null {
+  if (!input.moneyAvailable) return null;
+  return input.transfer
+    ? "Ученик берёт цену новой группы; индивидуальная цена прежней группы не переносится"
+    : "В новой группе ученик берёт цену этой группы";
+}
+
+/** «Цена группы: 500 000 сум/мес» / «Цена группы не задана»; null for a role that does not see money (`price` undefined). */
+export function targetGroupPriceText(price: GroupPriceBrief | null | undefined, label: string): string | null {
+  if (price === undefined) return null;
+  return price === null ? "Цена группы не задана" : `Цена группы: ${formatPrice(price.amount, label)}`;
+}
+
+/** «Цену получат все добавленные ученики» / «Цену получит ученик» for the line under the price of the target group. */
+export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, students: number): string | null {
+  if (price === undefined) return null;
+  if (price === null) return "Пока цена не задана, сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";
+  return students === 1 ? "Эту цену получит ученик" : "Эту цену получат все добавляемые ученики";
+}

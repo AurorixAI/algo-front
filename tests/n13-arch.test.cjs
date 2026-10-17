@@ -323,7 +323,7 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.match(pay, /filter\(\(row\) => !row\.is_active \|\| readOnly\)/);
   assert.match(pay, /Вносить, продлевать и исправлять оплату нельзя — только отменить ошибочную\./);
 
-  // the server refuses create / replace / fee for an archived student (409); «Отменить» is still allowed
+  // the server refuses create / replace / an individual price for an archived student (409); «Отменить» is still allowed
   const row = read("src/components/payments/membership-payments.tsx");
   assert.match(row, /archived = false/);
   assert.match(row, /const editable = row\.is_active && !archived;/);
@@ -331,8 +331,10 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.match(row, /editable=\{editable\}\s*voidable=\{voidable\}/);
   assert.match(row, /if \(!voided && editable\) \{\s*\/\/[^\n]*\s*if \(!carried\) items\.push\(\{ key: "correct"/);
   assert.match(row, /if \(!voided && voidable\) items\.push\(\{ key: "void"/);
-  // «Внести / Продлить» and the fee pencil stay behind `editable`
-  assert.equal((row.match(/\{editable && \(/g) || []).length, 3);
+  // «Внести / Продлить» and the status stay behind `editable`; the individual price (#105) gets the flag as a prop
+  assert.equal((row.match(/\{editable && \(/g) || []).length, 1);
+  assert.match(row, /<MembershipPriceSection[\s\S]*?editable=\{editable\}/);
+  assert.match(read("src/components/payments/membership-price.tsx"), /\{editable && \(\s*<span className="flex flex-wrap/);
 });
 
 test("the archive dialog: title, reason (≤300, optional), the note, buttons, the API call", () => {

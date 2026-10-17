@@ -40,6 +40,7 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
+import { PayrollHowItWorks } from "./how-it-works";
 import { PayrollSheetTable } from "./sheet-table";
 import { BackLink, ConflictBanner, DiffBanner, MissingPercentBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
 
@@ -418,6 +419,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
+              <PayrollHowItWorks divisor={sheet.divisor_default} />
               <PercentEditor sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
               <PayrollSheetTable sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
               <SaveBar

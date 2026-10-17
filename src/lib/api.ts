@@ -2,6 +2,16 @@ import { encodePathId } from "./encode-id";
 import { loginUrlForPage } from "./safe-redirect";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
+  EnrolPriceOverride,
+  GroupPriceBrief,
+  GroupPriceRequest,
+  GroupPriceResult,
+  GroupPrices,
+  MembershipPrice,
+  MembershipPriceChanged,
+  PriceOverrideRequest,
+} from "./group-price";
+import type {
   MembershipPaymentRow,
   PaymentCreate,
   PaymentFileOut,
@@ -31,6 +41,12 @@ import {
   type PayrollSheet,
   type PayrollSheetBrief,
 } from "./payroll";
+
+/**
+ * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
+ * `GET /org/memberships/{id}/price-override` (PriceOverrideChange); the shapes are declared next to their renderers.
+ */
+export type { GroupPriceChange, GroupPriceRow, PriceOverrideChange, PriceOverrideRow } from "./group-price";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
@@ -568,6 +584,11 @@ export interface GroupInfo {
   students_count?: number;
   /** Kind of lessons (N13 P3). An answer of an older server has none: treat it as «group». */
   lesson_type?: LessonType;
+  /**
+   * The price of the group today (#105): `null` - not set.  The key is there ONLY for roles that may see money
+   * (owner; administrator when the owner allowed it); for everybody else it is absent - never render a price then.
+   */
+  price_current?: GroupPriceBrief | null;
   created_at: string | null;
 }
 
@@ -1261,11 +1282,12 @@ export const orgApi = {
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "active" } }),
   /**
    * `mode: "transfer"` (default) closes the other memberships and makes this group the main one;
-   * `"add"` keeps them.  `monthly_fee` is sent only by roles that may see money (the server answers 403 otherwise).
+   * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
+   * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
-  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; monthly_fee?: number | null }) => {
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null }) => {
     const query = options?.mode ? `?mode=${options.mode}` : "";
-    const body = options?.monthly_fee !== undefined && options.monthly_fee !== null ? { monthly_fee: options.monthly_fee } : undefined;
+    const body = options?.price_override ? { price_override: options.price_override } : undefined;
     return api<{
       student_id: string;
       group_id: string;
@@ -1278,7 +1300,8 @@ export const orgApi = {
   },
   removeStudentFromGroup: (groupId: string, studentId: string) =>
     api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
-  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; monthly_fee?: number | null }) =>
+  /** One `price_override` (sum + reason) for everybody added, or none: the students follow the price of the group. */
+  bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null }) =>
     api<{
       group_id: string;
       added: number;
@@ -1293,7 +1316,7 @@ export const orgApi = {
         method: "POST",
         body: {
           student_ids: studentIds,
-          ...(options?.monthly_fee !== undefined && options.monthly_fee !== null ? { monthly_fee: options.monthly_fee } : {}),
+          ...(options?.price_override ? { price_override: options.price_override } : {}),
         },
       }
     ),
@@ -1450,9 +1473,21 @@ export const orgApi = {
   },
   getStudentMemberships: (studentId: string) =>
     api<MembershipPaymentRow[]>(`/auth/org/students/${encodePathId(studentId)}/memberships`),
-  setMembershipFee: (membershipId: string, monthlyFee: number | null) =>
-    api<MembershipPaymentRow>(`/auth/org/memberships/${encodePathId(membershipId)}/fee`, {
-      method: "PUT", body: { monthly_fee: monthlyFee },
+  // ── Price of a group and the exception of one student (#105; money roles only) ──
+  /** The price today and the history of the group, newest first. */
+  getGroupPrices: (groupId: string) => api<GroupPrices>(`/auth/org/groups/${encodePathId(groupId)}/prices`),
+  /** Sets the price from a day; `dryRun` writes nothing and answers only `impact` (what the change touches). */
+  setGroupPrice: (groupId: string, body: GroupPriceRequest, options?: { dryRun?: boolean }) =>
+    api<GroupPriceResult>(`/auth/org/groups/${encodePathId(groupId)}/price${options?.dryRun ? "?dry_run=1" : ""}`, {
+      method: "PUT", body,
+    }),
+  /** The price of a membership today and the history of its individual prices. */
+  getMembershipPrice: (membershipId: string) =>
+    api<MembershipPrice>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`),
+  /** `amount` a sum (+ `reason`): the individual price from `valid_from`; `amount` null: the price of the group again. */
+  setMembershipPrice: (membershipId: string, body: PriceOverrideRequest) =>
+    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`, {
+      method: "PUT", body,
     }),
   listMembershipPayments: (membershipId: string, includeVoided = true) =>
     api<PaymentOut[]>(`/auth/org/memberships/${encodePathId(membershipId)}/payments?include_voided=${includeVoided}`),

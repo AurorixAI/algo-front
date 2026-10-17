@@ -9,6 +9,7 @@
  */
 import { formatMoney, pluralRu } from "./payments";
 import { capitalizeFirst, monthYearLabelRu, shiftBusinessMonth } from "./business-time";
+import { groupsWithoutPriceHref, type PriceSource } from "./group-price";
 
 // ── Lesson types ────────────────────────────────────────────────────────────
 
@@ -215,11 +216,23 @@ export interface PayrollMark {
   state: MarkState;
   /** D of the lesson when it can be in the sum (counted, pending, unpaid); null otherwise. */
   divisor: number | null;
+  /**
+   * #105: the price of the student ON THE DAY of this lesson (only a lesson that carries money, and only on a sheet
+   * calculated after #105; absent on an older one - the line's `source_fee` stands for it).  null: no price that day.
+   */
+  price?: number | null;
+  price_source?: PriceSource | null;
 }
 
 export interface PayrollLineWarning {
   code: string;
   message: string;
+}
+
+/** The price from this `date` (the first lesson day with it); `amount` null: no price was set. */
+export interface PayrollPriceStep {
+  date: string;
+  amount: number | null;
 }
 
 export interface PayrollLine {
@@ -231,10 +244,21 @@ export interface PayrollLine {
   group_name: string;
   lesson_type: LessonType;
   lesson_time: string | null;
-  /** The fee on this sheet: the membership's (`source_fee`) or the owner's override. null: not set. */
+  /**
+   * The price of the line on this sheet: the effective price on the last lesson that carries money (`source_fee` is the
+   * same before the owner's overwrite) or the owner's overwrite, which replaces the price of EVERY lesson. null: not set.
+   */
   monthly_fee: number | null;
   source_fee: number | null;
   fee_overridden: boolean;
+  /** #105: where the price comes from: the group, the individual price of the student, or nowhere. Absent on an older sheet. */
+  price_source?: PriceSource | null;
+  /** #105: the price changed inside the month; `price_steps` lists the first lesson day of every price. */
+  price_changed?: boolean;
+  price_steps?: PayrollPriceStep[];
+  /** #105: lessons of the line that have no price; unpaid lessons that cost something (null/absent on an older sheet). */
+  no_price_lessons?: number | null;
+  unpaid_due?: number | null;
   /** Canonical decimal string («50», «33.5»); null: no percent was given. */
   percent: string | null;
   /** One D for the whole line; null when lessons with different D are in it (every mark has its own). */
@@ -494,13 +518,17 @@ export const MARK_CELL_CLASS: Record<MarkTone, string> = {
   unpaid_included: "rounded border border-dashed border-slate-400 px-1 text-slate-700",
 };
 
+/** The dashed «1»: the student was at the lesson, nobody paid for it. */
+export const UNPAID_MARK_HINT = "Был на уроке, урок не оплачен — не входит в сумму";
+export const UNPAID_INCLUDED_MARK_HINT = "Был на уроке, урок не оплачен — начислен по вашему выбору";
+
 const MARK_TITLE: Record<MarkTone, string> = {
   counted: "Засчитан",
   zero: "Не засчитан",
   pending: "Уважительная ждёт подтверждения: засчитан",
   empty: "Ученика ещё нет в группе",
-  unpaid: "Урок не оплачен: в сумму не входит",
-  unpaid_included: "Урок не оплачен, но включён в сумму",
+  unpaid: UNPAID_MARK_HINT,
+  unpaid_included: UNPAID_INCLUDED_MARK_HINT,
 };
 
 /** One cell of the sheet from a mark: the state decides (the server sends both, they agree). */
@@ -570,24 +598,51 @@ export function lineAmount(input: {
 }
 
 /**
- * The amount of a line from its marks: the counted and the pending-excuse lessons, plus the unpaid ones when «включить» is
- * on; each lesson with its own divisor (`null` = the sheet's default).
+ * `sum(price x p / 100 / D)` over the lessons `[price, divisor]`, rounded ONCE (half up, whole sums), exactly as the
+ * backend (`lessons_amount`).  A lesson with no price or a price of 0 adds nothing.
+ */
+export function amountByPrices(
+  percentHundredths: number | null | undefined,
+  lessons: ReadonlyArray<readonly [number | null | undefined, number]>,
+): number {
+  if (!percentHundredths || percentHundredths <= 0) return 0;
+  const valid = lessons.filter(([price, divisor]) => price && price > 0 && Number.isInteger(divisor) && divisor >= 1) as Array<readonly [number, number]>;
+  if (valid.length === 0) return 0;
+  let common = BigInt(1);
+  for (const [, divisor] of valid) {
+    const d = BigInt(divisor);
+    common = (common / gcd(common, d)) * d;
+  }
+  let weighted = BigInt(0); // sum of price x (common / divisor)
+  for (const [price, divisor] of valid) weighted += BigInt(Math.round(price)) * (common / BigInt(divisor));
+  const two = BigInt(2);
+  const numerator = weighted * BigInt(Math.round(percentHundredths));
+  const denominator = BigInt(10000) * common;
+  return Number((two * numerator + denominator) / (two * denominator));
+}
+
+/**
+ * The amount of a line from its marks: the counted and the pending-excuse lessons, plus the unpaid ones when «начислить» is
+ * on; each lesson with its own divisor (`null` = the sheet's default) and its own price: the price of the mark (#105),
+ * else `fee` (a mark of a sheet saved before #105 has none).  `overridden`: the owner's overwrite of the price replaces
+ * the price of EVERY lesson with `fee`.
  */
 export function marksAmount(input: {
   fee: number | null | undefined;
   percentHundredths: number | null | undefined;
-  marks: ReadonlyArray<Pick<PayrollMark, "state" | "divisor">>;
+  marks: ReadonlyArray<Pick<PayrollMark, "state" | "divisor"> & { price?: number | null }>;
   includeUnpaid: boolean;
   defaultDivisor: number;
+  overridden?: boolean;
 }): number {
-  const counts = new Map<number, number>();
+  const lessons: Array<[number | null | undefined, number]> = [];
   for (const mark of input.marks) {
     const inSum = mark.state === "counted" || mark.state === "excused_pending" || (input.includeUnpaid && mark.state === "unpaid");
     if (!inSum) continue;
-    const divisor = mark.divisor ?? input.defaultDivisor;
-    counts.set(divisor, (counts.get(divisor) ?? 0) + 1);
+    const own = input.overridden || mark.price === undefined ? input.fee : mark.price;
+    lessons.push([own, mark.divisor ?? input.defaultDivisor]);
   }
-  return amountByDivisors(input.fee, input.percentHundredths, [...counts.entries()]);
+  return amountByPrices(input.percentHundredths, lessons);
 }
 
 // ── Edits of an open sheet ──────────────────────────────────────────────────
@@ -714,18 +769,23 @@ export function buildLineViews(sheet: PayrollSheet, edits: SheetEdits): LineView
       percent,
       percentHundredths: hundredths,
       amount: touched
-        ? marksAmount({ fee, percentHundredths: hundredths, marks: line.marks, includeUnpaid: include, defaultDivisor: sheet.divisor_default })
+        ? marksAmount({ fee, percentHundredths: hundredths, marks: line.marks, includeUnpaid: include, defaultDivisor: sheet.divisor_default, overridden: feeOverridden })
         : line.amount,
       edited: touched,
     };
   });
 }
 
-/** What the name cell says besides the name: no percent, no fee (the server's other notes are the columns). */
+/** What the name cell says besides the name: no percent, no price (the server's other notes are the columns). */
 export function lineNotes(view: LineView): string[] {
   const notes: string[] = [];
   if (view.percent === null) notes.push("Не указан процент преподавателя");
-  if (view.fee === null && (view.line.counted > 0 || view.line.unpaid > 0)) notes.push("Не задана оплата в месяц");
+  if (view.fee === null && (view.line.counted > 0 || view.line.unpaid > 0)) notes.push("Не задана цена группы");
+  else if (!view.feeOverridden && view.fee !== null && (view.line.no_price_lessons ?? 0) > 0) {
+    // the price starts in the middle of the month: the lessons before it are worth nothing
+    const missing = view.line.no_price_lessons as number;
+    notes.push(`Цена не задана на ${missing} ${pluralRu(missing, ["урок", "урока", "уроков"])} месяца`);
+  }
   return notes;
 }
 
@@ -966,14 +1026,34 @@ export interface WarningView {
   text: string;
   href: string;
   tone: "warning" | "info";
+  /** What the warning means and what to do about it: a tooltip next to the text. */
+  hint: string;
+  /** Where the link leads, in words: «Посещаемость → Незакрытые уроки». */
+  target: string;
 }
 
 /** Where a warning leads: the screen in which the owner can fix what it names. */
 export const WARNING_LINKS = {
   open_lessons: "/owner/attendance?tab=open",
   pending_excused: "/owner/attendance?tab=excuses",
-  no_fee: "/owner/payments?bucket=none",
+  no_fee: groupsWithoutPriceHref("/owner/groups"),
   unpaid: "/owner/payments?bucket=due",
+} as const;
+
+/** The link of a warning in words (a tooltip, a screen reader). */
+export const WARNING_TARGETS = {
+  open_lessons: "Посещаемость → Незакрытые уроки",
+  pending_excused: "Посещаемость → Пропуски",
+  no_fee: "Группы без цены",
+  unpaid: "Оплаты → Требуют оплаты",
+} as const;
+
+/** What each warning means; the unpaid one says the lessons are not in the sum and can be added on the sheet. */
+export const WARNING_HINTS = {
+  open_lessons: "Урок проведён, но посещаемость не закрыта. Пока урок не закрыт, он не попадёт в расчёт. Откройте «Посещаемость → Незакрытые уроки» и закройте его.",
+  pending_excused: "Уважительная причина ещё не подтверждена: пока ждёт решения, урок засчитывается преподавателю. Подтверждённая причина — урок не засчитывается.",
+  no_fee: "У группы или ученика нет цены, поэтому уроки не оцениваются. Задайте цену группы — откроется список групп без цены.",
+  unpaid: "Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости.",
 } as const;
 
 /**
@@ -982,26 +1062,17 @@ export const WARNING_LINKS = {
  */
 export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings): WarningView[] {
   const out: WarningView[] = [];
+  const add = (key: keyof PayrollSheetWarnings, text: string, tone: WarningView["tone"]) =>
+    out.push({ key, text, href: WARNING_LINKS[key], tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key] });
   const open = counts.open_lessons;
-  if (open) {
-    out.push({ key: "open_lessons", text: `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, href: WARNING_LINKS.open_lessons, tone: "warning" });
-  }
+  if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
   const pending = counts.pending_excused;
   if (pending) {
-    out.push({
-      key: "pending_excused",
-      text: `${pending} ${pluralRu(pending, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`,
-      href: WARNING_LINKS.pending_excused,
-      tone: "warning",
-    });
+    add("pending_excused", `${pending} ${pluralRu(pending, ["уважительная ждёт решения", "уважительные ждут решения", "уважительных ждут решения"])}`, "warning");
   }
-  if (counts.no_fee) {
-    out.push({ key: "no_fee", text: `не задана оплата: ${counts.no_fee}`, href: WARNING_LINKS.no_fee, tone: "warning" });
-  }
+  if (counts.no_fee) add("no_fee", `не задана цена: ${counts.no_fee}`, "warning");
   const unpaid = counts.unpaid;
-  if (unpaid) {
-    out.push({ key: "unpaid", text: `${unpaid} ${pluralRu(unpaid, ["урок не оплачен", "урока не оплачено", "уроков не оплачено"])}`, href: WARNING_LINKS.unpaid, tone: "info" });
-  }
+  if (unpaid) add("unpaid", `${unpaid} ${pluralRu(unpaid, ["урок не оплачен", "урока не оплачено", "уроков не оплачено"])}`, "info");
   return out;
 }
 

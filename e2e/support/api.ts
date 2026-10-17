@@ -233,8 +233,11 @@ export class Org {
     return { id: s.id, firstName, lastName, fullName: s.full_name, displayId: s.display_id ?? null };
   }
 
-  /** Put a student into a group, optionally with a monthly fee (owner has the payments right). */
-  async enrol(groupId: string, studentId: string, monthlyFee?: number): Promise<void> {
+  /**
+   * Put a student into a group.  He follows the PRICE OF THE GROUP (`setGroupPrice`); an individual price is an explicit
+   * exception with a reason (`individualPrice` here, or `setStudentPrice` later).  `monthly_fee` is not accepted any more (#105).
+   */
+  async enrol(groupId: string, studentId: string, individualPrice?: { amount: number; reason: string }): Promise<void> {
     // KNOWN PRODUCT RACE (reported with the E2E suite): the first enrolment of a centre picks its student-ID prefix
     // (initials of the name, +1/+2 when taken) without a cross-centre lock, so two centres enrolling their first
     // student in the same instant with equal initials get a 500 (unique violation on student_id_prefix). The
@@ -243,7 +246,7 @@ export class Org {
       try {
         await this.owner.api.post(
           `/auth/org/groups/${groupId}/students/${studentId}`,
-          monthlyFee === undefined ? {} : { monthly_fee: monthlyFee },
+          individualPrice === undefined ? {} : { price_override: individualPrice },
         );
         return;
       } catch (e) {
@@ -253,13 +256,38 @@ export class Org {
     }
   }
 
-  /** Create a student and put him into a group in one go. */
-  async addStudent(group: GroupInfo, firstName: string, lastName: string, monthlyFee?: number): Promise<StudentInfo> {
+  /** Create a student and put him into a group in one go (at the price of the group, or with an individual price). */
+  async addStudent(group: GroupInfo, firstName: string, lastName: string, individualPrice?: { amount: number; reason: string }): Promise<StudentInfo> {
     const s = await this.createStudent(firstName, lastName);
-    await this.enrol(group.id, s.id, monthlyFee);
+    await this.enrol(group.id, s.id, individualPrice);
     // the public ID ("AB-001") is issued at enrolment, not when the student is created
     const fresh = await this.owner.api.get(`/auth/org/students/${s.id}`);
     return { ...s, displayId: fresh.display_id ?? null };
+  }
+
+  /**
+   * #105: the price of a GROUP (`PUT /org/groups/{id}/price`, owner), from today unless `validFrom`.  The students of the
+   * group take it; where the spec once typed a fee per student, it sets this instead.
+   */
+  async setGroupPrice(groupId: string, amount: number, extra: { validFrom?: string; note?: string } = {}) {
+    return this.owner.api.put(`/auth/org/groups/${groupId}/price`, {
+      amount,
+      ...(extra.validFrom ? { valid_from: extra.validFrom } : {}),
+      ...(extra.note ? { note: extra.note } : {}),
+    });
+  }
+
+  /**
+   * #105: the individual price of one student in a group (`PUT /org/memberships/{id}/price-override`): a sum with a
+   * reason (3..200 characters), or `amount: null` - back to the price of the group.
+   */
+  async setStudentPrice(studentId: string, amount: number | null, reason?: string, groupId?: string, validFrom?: string) {
+    const membership = await this.membershipId(studentId, groupId);
+    return this.owner.api.put(`/auth/org/memberships/${membership}/price-override`, {
+      amount,
+      ...(reason ? { reason } : {}),
+      ...(validFrom ? { valid_from: validFrom } : {}),
+    });
   }
 
   /** "Олег Владельцев…": the owner as the UI prints a person (first name, last name). */

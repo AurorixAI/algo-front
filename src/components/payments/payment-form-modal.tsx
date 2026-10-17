@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { groupPriceHref } from "@/lib/group-price";
 import {
   addMonthMinusDay,
   billingPeriodEndOf,
@@ -18,6 +20,7 @@ import {
   periodModeOf,
   QUOTE_FAILED_NOTE,
   quoteCaption,
+  quoteLacksPrice,
   quotePrefill,
   quoteQueryKey,
   reformatMoneyTyping,
@@ -41,6 +44,8 @@ export type PaymentFormKind = "create" | "extend" | "replace";
 /** What the form needs to know about the membership it pays for. */
 export interface PaymentFormMembership {
   membership_id: string;
+  /** With `groupsBasePath`: «задать цену группы» leads to the group when it has no price. */
+  group_id?: string;
   student_name: string;
   group_name: string;
   monthly_fee: number | null;
@@ -57,6 +62,8 @@ interface PaymentFormModalProps {
   periodMode: PeriodMode;
   /** Lessons of one payment when known; empty field otherwise (the server applies its setting). */
   lessonsDefault: number | null;
+  /** `/owner/groups` or `/admin/groups`. */
+  groupsBasePath?: string;
   onClose: () => void;
   /** Called right after the server accepted the payment (the list refreshes behind the dialog). */
   onSaved: (result: PaymentSaveResult) => void;
@@ -72,7 +79,7 @@ const TITLE: Record<PaymentFormKind, string> = {
 };
 
 export function PaymentFormModal({
-  open, kind, membership, payment, periodMode, lessonsDefault, onClose, onSaved,
+  open, kind, membership, payment, periodMode, lessonsDefault, groupsBasePath, onClose, onSaved,
 }: PaymentFormModalProps) {
   const mode: PeriodMode = kind === "replace" ? periodModeOf(payment, periodMode) : periodMode;
   // The business date at the moment the dialog opens (Tashkent, never the browser's zone).
@@ -290,7 +297,18 @@ export function PaymentFormModal({
                 <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
               ) : quoteFailed ? (
                 <span className="text-amber-700">{QUOTE_FAILED_NOTE}</span>
-              ) : fresh ? quoteCaption(fresh, mode) : ""}
+              ) : fresh ? (
+                <>
+                  {quoteCaption(fresh)}
+                  {quoteLacksPrice(fresh) && groupsBasePath && membership.group_id && (
+                    <>
+                      {" · "}
+                      <Link href={groupPriceHref(groupsBasePath, membership.group_id)} className="font-semibold text-primary-700 hover:underline">задать цену группы</Link>
+                    </>
+                  )}
+                  {fresh.price?.source === "override" && <span className="text-primary-700"> · по индивидуальной цене ученика</span>}
+                </>
+              ) : ""}
             </p>
           </div>
 

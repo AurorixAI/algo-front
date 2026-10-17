@@ -5,11 +5,21 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
-import { feeTexts, parseMonthlyFee, reformatMoneyTyping, splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import {
+  checkEnrolOverride,
+  enrolPriceHint,
+  GROUP_PRICE_ANCHOR,
+  priceLabelOf,
+  targetGroupPriceHint,
+  targetGroupPriceText,
+  type GroupPriceBrief,
+} from "@/lib/group-price";
+import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
+import { EnrolPriceToggle } from "@/components/payments/price-fields";
 
 interface Student {
   id: string;
@@ -42,13 +52,18 @@ interface AddStudentDrawerProps {
   open: boolean;
   groupId: string;
   groupClassLevel?: number | null;
+  /**
+   * The price of this group today (`price_current` of the group): `null` - not set, `undefined` - the role does not
+   * see money (the key is absent).  The students added here take it.
+   */
+  groupPrice?: GroupPriceBrief | null;
   existingStudentIds: Set<string>;
   onClose: () => void;
   onAdded: (result: AddStudentsResult) => void;
 }
 
 export function AddStudentDrawer({
-  open, groupId, groupClassLevel, existingStudentIds, onClose, onAdded,
+  open, groupId, groupClassLevel, groupPrice, existingStudentIds, onClose, onAdded,
 }: AddStudentDrawerProps) {
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
@@ -66,9 +81,12 @@ export function AddStudentDrawer({
   const [mode, setMode] = useState<GroupJoinMode>("transfer");
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
-  // A new student has no payments yet: the center's mode names the amount («Оплата в месяц» / «Стоимость пакета»).
-  const feeField = feeTexts(usePaymentsSummary((state) => state.periodMode)).field;
-  const [feeText, setFeeText] = useState("");
+  // The center's mode names the price («Оплата в месяц» / «Стоимость пакета»).
+  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
+  // An individual price is an exception: off by default, a sum and a reason when on (one for everybody added now).
+  const [exceptionOn, setExceptionOn] = useState(false);
+  const [exceptionAmount, setExceptionAmount] = useState("");
+  const [exceptionReason, setExceptionReason] = useState("");
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
@@ -82,7 +100,9 @@ export function AddStudentDrawer({
   useEffect(() => {
     if (!open) return;
     setMode("transfer");
-    setFeeText("");
+    setExceptionOn(false);
+    setExceptionAmount("");
+    setExceptionReason("");
     setAllClasses(false);
   }, [open]);
 
@@ -162,11 +182,17 @@ export function AddStudentDrawer({
 
   // Shown only to users who see money, and only for "Перевести сюда".
   const paymentHint = transferPaymentHint({ transfer: mode === "transfer", moneyAvailable });
+  const priceHint = enrolPriceHint({ transfer: mode === "transfer", moneyAvailable });
+  // The price of this group, shown to money roles only (the key is absent for the others).
+  const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel) : null;
+  const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size) : null;
 
   const handleAdd = async () => {
     if (selected.size === 0) return;
-    const fee = moneyAvailable ? parseMonthlyFee(feeText) : { value: null, error: null };
-    if (fee.error) { setAddError(fee.error); return; }
+    const exception = moneyAvailable
+      ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
+      : { error: null, request: null };
+    if (exception.error) { setAddError(exception.error); return; }
     setAdding(true);
     setAddError(null);
     try {
@@ -174,7 +200,7 @@ export function AddStudentDrawer({
       const result = await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
         // The mode only matters for students who are already in another group.
         mode: transfers.length > 0 ? mode : undefined,
-        monthly_fee: fee.value,
+        price_override: exception.request,
       });
       const nameOf = (id: string) => {
         const s = picked.find((item) => item.id === id);
@@ -351,24 +377,39 @@ export function AddStudentDrawer({
                     {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
                   </p>
                   {paymentHint && <p className="mt-0.5 text-[11px] text-slate-400">{paymentHint}</p>}
+                  {priceHint && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
                   <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
                     {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
                   </p>
                 </fieldset>
               )}
               {moneyAvailable && (
-                <div className="relative">
-                  <input
-                    id="add-student-fee"
-                    value={feeText}
-                    onChange={(e) => { setAddError(null); setFeeText(reformatMoneyTyping(e.target.value)); }}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    aria-label={`${feeField} (необязательно)`}
-                    placeholder={selected.size > 1 ? `${feeField} — одна для всех` : `${feeField} (необязательно)`}
-                    className="w-full rounded-xl border border-slate-200 py-2 pl-3 pr-12 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-                  />
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+                  {priceLine && (
+                    <>
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className={`font-semibold ${groupPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
+                        {groupPrice === null && (
+                          <a href={`#${GROUP_PRICE_ANCHOR}`} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
+                        )}
+                      </p>
+                      {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
+                      {priceHint && transfers.length === 0 && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
+                    </>
+                  )}
+                  <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+                    <EnrolPriceToggle
+                      idPrefix="add-student-price"
+                      enabled={exceptionOn}
+                      amount={exceptionAmount}
+                      reason={exceptionReason}
+                      onEnabled={(value) => { setAddError(null); setExceptionOn(value); }}
+                      onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
+                      onReason={(text) => { setAddError(null); setExceptionReason(text); }}
+                      shared={selected.size > 1}
+                      compact
+                    />
+                  </div>
                 </div>
               )}
               {addError && (

@@ -12,9 +12,6 @@ import {
   bucketCount,
   buildPaymentPayload,
   buildQuoteQuery,
-  feeColumnLabel,
-  feeModeOf,
-  feeTexts,
   fixedDayChips,
   formatDateRu,
   formatMoney,
@@ -24,11 +21,11 @@ import {
   paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
-  parseMonthlyFee,
   PARTIAL_AMOUNT_PROMPT,
   PARTIAL_PERIOD_BADGE,
   QUOTE_FAILED_NOTE,
   quoteCaption,
+  quoteLacksPrice,
   quotePrefill,
   quoteQueryKey,
   reformatMoneyTyping,
@@ -47,6 +44,7 @@ import {
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
+import { groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -99,19 +97,25 @@ function useOnceVisible(ref: React.RefObject<Element | null>, callback: () => vo
   }, [ref]);
 }
 
-/** Quick entry of a first payment right in the row of the «Нет данных» tab. */
+/**
+ * Quick entry of a first payment right in the row of the «Нет данных» tab.  The sum is suggested from the price of the
+ * group (or the individual price of the student); the price is never typed here - where there is none, the row says so,
+ * links to the group and the amount of the payment is typed by hand.
+ */
 function QuickEntry({
-  row, periodMode, lessonsDefault, onDone,
+  row, periodMode, lessonsDefault, groupsBasePath, onDone,
 }: {
   row: MembershipPaymentRow;
   periodMode: PeriodMode;
   lessonsDefault: number | null;
+  groupsBasePath: string;
   onDone: (row: MembershipPaymentRow, warnings: PaymentWarning[]) => void;
 }) {
   const today = useMemo(() => formatBusinessDate(), []);
-  const texts = feeTexts(feeModeOf(row, periodMode));
-  const [fee, setFee] = useState(() => formatMoneyInput(row.monthly_fee && row.monthly_fee > 0 ? row.monthly_fee : null));
-  // Without a suggestion the amount of the payment is the fee typed above (a month, or a package).
+  const price = priceOfRow(row);
+  const priceView = membershipPriceView(price, priceLabelOf(periodMode));
+  const priceAmount = price.amount ?? null;
+  // The amount of the payment: typed, else the suggestion of the server, else the price.
   const [amount, setAmount] = useState("");
   const [amountTouched, setAmountTouched] = useState(false);
   const [paidOn, setPaidOn] = useState(today);
@@ -121,25 +125,21 @@ function QuickEntry({
   const [lessons, setLessons] = useState(lessonsDefault ? String(lessonsDefault) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // The fee the server already holds: a retry after a failed payment does not send it again.
-  const [savedFee, setSavedFee] = useState<number | null>(row.monthly_fee);
   // The server is asked only for rows that have been in view: a long list does not fire a request per row.
   const [seen, setSeen] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   useOnceVisible(formRef, () => setSeen(true));
 
-  // The fee typed in this row (not saved yet) goes into the question, so a part of a month is priced from it.
-  const feeValue = parseMonthlyFee(fee).value;
   const query = useMemo(() => buildQuoteQuery({
-    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched, monthlyFee: feeValue,
-  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched, feeValue]);
+    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched,
+  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched]);
   const queryKey = quoteQueryKey(query);
   const quoteState = usePaymentQuote({
     enabled: seen,
     membershipId: row.membership_id,
     query,
     onQuote: (quote: PaymentQuote) => {
-      // The period only: the amount of this row is derived below from the fee typed in it.
+      // The period only: the amount of this row is derived below.
       const patch = quotePrefill(quote, { from: false, to: toTouched, amount: true }, periodMode);
       if (patch.validFrom) setValidFrom(patch.validFrom);
       if (patch.validTo) setValidTo(patch.validTo);
@@ -156,22 +156,21 @@ function QuickEntry({
     if (!toTouched) setValidTo(fixedDay !== null ? billingPeriodEndOf(paidOn, fixedDay) : addMonthMinusDay(paidOn));
   }, [quoteFailed, paidOn]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // The answer counts only if it was made for the fee on screen (a server that ignores `monthly_fee` answers for the saved one).
-  const answered = fresh !== null && (fresh.monthly_fee ?? null) === feeValue;
-  const suggestion = answered && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
-  // A period of an odd length has no price: the amount is stated by hand, not taken from the fee.
+  const suggestion = fresh !== null && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
+  // A period of an odd length has no price: the amount is stated by hand, not taken from the price.
   const custom = fresh?.basis === "custom";
   const partial = fresh ? fresh.partial : fixedDay !== null && isPartialPeriod(validFrom, validTo, fixedDay);
-  // Never the full fee for a part of a month: without a suggestion the field stays empty.
-  const defaultAmount = custom ? null : suggestion ?? (partial ? null : feeValue);
-  const showAmount = amountTouched || custom || partial || (suggestion !== null && suggestion !== feeValue);
+  // Never the full price for a part of a month: without a suggestion the field stays empty.
+  const defaultAmount = custom ? null : suggestion ?? (partial ? null : priceAmount);
+  const showAmount = amountTouched || custom || partial || priceAmount === null || (suggestion !== null && suggestion !== priceAmount);
   const amountText = amountTouched ? amount : formatMoneyInput(defaultAmount);
   const waiting = seen && quoteLoading && !(amountTouched && toTouched);
   const caption = quoteFailed
     ? QUOTE_FAILED_NOTE
     : partial && defaultAmount === null && !amountTouched
       ? PARTIAL_AMOUNT_PROMPT
-      : answered && fresh ? quoteCaption(fresh, feeModeOf(row, periodMode)) : "";
+      // «Цена группы не задана» is said (with the link) over the form already
+      : fresh && !quoteLacksPrice(fresh) ? quoteCaption(fresh) : "";
 
   const changePaidOn = (value: string) => {
     setError(null);
@@ -190,9 +189,6 @@ function QuickEntry({
 
   const save = async () => {
     if (busy || waiting) return;
-    const parsed = parseMonthlyFee(fee);
-    if (parsed.error) { setError(parsed.error); return; }
-    if (!parsed.value) { setError(texts.required); return; }
     const values: PaymentFormValues = {
       amount: amountText, paidOn, validFrom, validTo, lessons, note: "", reason: "",
     };
@@ -200,20 +196,11 @@ function QuickEntry({
     if (problem) { setError(problem); return; }
     setBusy(true);
     setError(null);
-    let feeSavedNow = false;
     try {
-      if (parsed.value !== savedFee) {
-        await orgApi.setMembershipFee(row.membership_id, parsed.value);
-        setSavedFee(parsed.value);
-        feeSavedNow = true;
-      }
       const result = await orgApi.createPayment(row.membership_id, buildPaymentPayload(values, periodMode));
       onDone(result.row, result.warnings || []);
     } catch (cause) {
-      const reason = (cause instanceof Error ? cause.message : "Не удалось сохранить оплату").replace(/[.\s]+$/, "");
-      setError(feeSavedNow
-        ? `${texts.saved}, но оплата не внесена: ${reason}. Нажмите «Сохранить» ещё раз.`
-        : reason);
+      setError((cause instanceof Error ? cause.message : "Не удалось сохранить оплату").replace(/[.\s]+$/, ""));
       setBusy(false);
     }
   };
@@ -228,19 +215,19 @@ function QuickEntry({
       className="space-y-1.5"
       noValidate
     >
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-        <div className="col-span-2 sm:col-span-1">
-          <label htmlFor={`${id}-fee`} className="mb-0.5 block text-[11px] font-medium text-slate-500">{texts.field}</label>
-          <input
-            id={`${id}-fee`}
-            value={fee}
-            onChange={(event) => { setError(null); setFee(reformatMoneyTyping(event.target.value)); }}
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="450 000"
-            className={FIELD}
-          />
-        </div>
+      <p className="text-xs" data-testid="quick-price">
+        {priceView.kind === "none" ? (
+          <>
+            <span className="font-medium text-amber-800">{priceView.title}</span>
+            {" · "}
+            <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="font-semibold text-primary-700 hover:underline">задать цену группы</Link>
+            <span className="text-slate-500"> — сумму оплаты введите вручную</span>
+          </>
+        ) : (
+          <span className="text-slate-600">{priceView.text}</span>
+        )}
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <div>
           <label htmlFor={`${id}-paid`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Дата оплаты</label>
           <input id={`${id}-paid`} type="date" value={paidOn} max={today} onChange={(event) => changePaidOn(event.target.value)} className={FIELD} />
@@ -314,7 +301,7 @@ function QuickEntry({
   );
 }
 
-function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePath: string }) {
+function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const bucket = parseBucket(searchParams?.get("bucket"));
@@ -519,7 +506,7 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
             <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_DEFAULT}`}>
               <span>Ученик</span>
               <span>Группа</span>
-              <span>{feeColumnLabel(items, periodMode)}</span>
+              <span>{priceLabelOf(periodMode)}</span>
               <span>Статус</span>
               <span>Последняя оплата</span>
               <span />
@@ -534,6 +521,7 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
                 periodMode={periodMode}
                 lessonsDefault={lessonsDefault}
                 studentProfileBasePath={studentProfileBasePath}
+                groupsBasePath={groupsBasePath}
                 onPay={() => setForm({ kind: row.last_payment ? "extend" : "create", row, payment: null })}
                 onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
                 onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
@@ -560,14 +548,16 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
         kind={form?.kind ?? "create"}
         membership={form ? {
           membership_id: form.row.membership_id,
+          group_id: form.row.group_id,
           student_name: form.row.student_name,
           group_name: form.row.group_name,
-          monthly_fee: form.row.monthly_fee,
+          monthly_fee: priceOfRow(form.row).amount,
           paid_until: form.row.paid_until,
         } : null}
         payment={form?.payment ?? null}
         periodMode={periodMode}
         lessonsDefault={lessonsDefault}
+        groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
       />
@@ -584,13 +574,14 @@ function PaymentsPageContent({ studentProfileBasePath }: { studentProfileBasePat
 }
 
 function PaymentRow({
-  row, bucket, periodMode, lessonsDefault, studentProfileBasePath, onPay, onCorrect, onVoid, onQuickDone,
+  row, bucket, periodMode, lessonsDefault, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onQuickDone,
 }: {
   row: MembershipPaymentRow;
   bucket: PaymentBucket;
   periodMode: PeriodMode;
   lessonsDefault: number | null;
   studentProfileBasePath: string;
+  groupsBasePath: string;
   onPay: () => void;
   onCorrect: (payment: PaymentOut) => void;
   onVoid: (payment: PaymentOut) => void;
@@ -601,6 +592,8 @@ function PaymentRow({
   const tone = STATUS_TONE_CLASS[statusTone(row.status)];
   const detail = statusDetail(row);
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
+  const price = priceOfRow(row);
+  const tag = priceSourceTag(price);
 
   const menu: RowMenuItem[] = [];
   if (last) {
@@ -636,16 +629,21 @@ function PaymentRow({
 
       {quick ? (
         <div className="mt-1.5 xl:mt-0">
-          <QuickEntry row={row} periodMode={periodMode} lessonsDefault={lessonsDefault} onDone={onQuickDone} />
+          <QuickEntry row={row} periodMode={periodMode} lessonsDefault={lessonsDefault} groupsBasePath={groupsBasePath} onDone={onQuickDone} />
         </div>
       ) : (
         <>
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
-            <span className="text-xs text-slate-400 xl:hidden">{feeTexts(feeModeOf(row, periodMode)).label}</span>
-            {row.monthly_fee === null || row.monthly_fee === undefined ? (
-              <span className="text-slate-400">не задана</span>
+            <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
+            {price.amount === null || price.amount === undefined ? (
+              <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
+                цена группы не задана
+              </Link>
             ) : (
-              <span className="font-medium tabular-nums text-slate-800">{formatMoney(row.monthly_fee)}</span>
+              <span className="text-right xl:text-left">
+                <span className="font-medium tabular-nums text-slate-800">{formatMoney(price.amount)}</span>
+                {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
+              </span>
             )}
           </div>
 
@@ -689,8 +687,11 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
   );
 }
 
-/** «Оплаты»: who has paid and until when, for every student × group. Shared by /owner/payments and /admin/payments. */
-export function PaymentsPage(props: { studentProfileBasePath: string }) {
+/**
+ * «Оплаты»: who has paid and until when, for every student × group. Shared by /owner/payments and /admin/payments.
+ * `groupsBasePath`: where the groups live - «цена группы не задана» links to the price of the group.
+ */
+export function PaymentsPage(props: { studentProfileBasePath: string; groupsBasePath: string }) {
   return (
     <Suspense
       fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}

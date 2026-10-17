@@ -2,29 +2,23 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronDown, ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, Trash2, X, XCircle } from "lucide-react";
+import { ChevronDown, ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, Trash2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatFileSize } from "@/lib/attendance-excuses";
 import {
   canAttachFile,
   carriedOutLabel,
   checkPaymentFile,
-  feeModeOf,
-  feeTexts,
   formatDateRu,
-  formatMoney,
-  formatMoneyInput,
   hasReceipt,
   isCarryOver,
   paymentAmountLabel,
   paymentPeriodLabel,
-  parseMonthlyFee,
   PARTIAL_PERIOD_TAG,
   PAYMENT_FILE_ACCEPT,
   PAYMENT_FILE_MAX_COUNT,
   receiptHref,
   receiptNumberLabel,
-  reformatMoneyTyping,
   statusDetail,
   statusLabel,
   statusTone,
@@ -35,11 +29,13 @@ import {
   type PaymentSaveResult,
   type PeriodMode,
 } from "@/lib/payments";
+import { priceOfRow } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { MembershipPriceSection } from "./membership-price";
 import { PaymentFormModal, type PaymentFormKind } from "./payment-form-modal";
 import { PaymentVoidModal } from "./payment-void-modal";
 
@@ -52,8 +48,10 @@ interface MembershipPaymentsProps {
   lessonsDefault: number | null;
   /** `/owner/payments` or `/admin/payments`: where the receipt pages of this workspace live. */
   paymentsBasePath: string;
+  /** `/owner/groups` or `/admin/groups`: «Задать цену группы» leads to the group. */
+  groupsBasePath: string;
   /**
-   * The student is in the archive: history only - no «Внести / Продлить», no fee edit, no «Исправить» (the server
+   * The student is in the archive: history only - no «Внести / Продлить», no individual price, no «Исправить» (the server
    * answers 409 «Ученик в архиве — сначала верните его»); «Отменить» stays, so a mistaken payment can be cancelled.
    */
   archived?: boolean;
@@ -63,24 +61,16 @@ interface MembershipPaymentsProps {
 }
 
 /**
- * Money of one membership inside the «Группы» block of the student card: monthly fee,
- * status, payment history (cancelled ones grey) and the actions Внести / Исправить / Отменить.
+ * Money of one membership inside the «Группы» block of the student card: the price (of the group, or the
+ * individual one), status, payment history (cancelled ones grey) and the actions Внести / Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const editable = row.is_active && !archived;
   // «Отменить» of a payment: an active membership, or any membership of an archived student (history stays correctable by cancelling).
   const voidable = row.is_active || archived;
-  // «Оплата в месяц» for a calendar membership, «Стоимость пакета» for a package.
-  const texts = feeTexts(feeModeOf(row, periodMode));
-
-  const [editingFee, setEditingFee] = useState(false);
-  const [feeText, setFeeText] = useState("");
-  const [feeBusy, setFeeBusy] = useState(false);
-  const [feeError, setFeeError] = useState<string | null>(null);
-
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<PaymentOut[] | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
@@ -119,30 +109,6 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
     onRowChange(next);
     void refreshSummary(true);
     if (historyOpen) void loadHistory();
-  };
-
-  const startFeeEdit = () => {
-    setFeeText(formatMoneyInput(row.monthly_fee));
-    setFeeError(null);
-    setEditingFee(true);
-  };
-
-  const saveFee = async () => {
-    if (feeBusy) return;
-    const parsed = parseMonthlyFee(feeText);
-    if (parsed.error) { setFeeError(parsed.error); return; }
-    setFeeBusy(true);
-    setFeeError(null);
-    try {
-      const next = await orgApi.setMembershipFee(row.membership_id, parsed.value);
-      setEditingFee(false);
-      changed(next);
-      onNotify(texts.saved);
-    } catch (error) {
-      setFeeError(error instanceof Error ? error.message : "Не удалось сохранить");
-    } finally {
-      setFeeBusy(false);
-    }
   };
 
   const onSaved = (result: PaymentSaveResult) => {
@@ -222,52 +188,22 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
 
   return (
     <div className="mt-3 space-y-3 border-t border-slate-200/70 pt-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-xs text-slate-500">{texts.label}</span>
-          {editingFee ? (
-            <form
-              onSubmit={(event) => { event.preventDefault(); void saveFee(); }}
-              className="flex items-center gap-1.5"
-              noValidate
-            >
-              <input
-                value={feeText}
-                onChange={(event) => { setFeeError(null); setFeeText(reformatMoneyTyping(event.target.value)); }}
-                inputMode="numeric"
-                autoComplete="off"
-                autoFocus
-                aria-label={texts.field}
-                placeholder="450 000"
-                className="w-32 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-              />
-              <button type="submit" disabled={feeBusy} aria-label="Сохранить" className="rounded-lg p-1.5 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
-                {feeBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              </button>
-              <button type="button" onClick={() => setEditingFee(false)} disabled={feeBusy} aria-label="Отмена" className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50">
-                <X className="h-4 w-4" />
-              </button>
-            </form>
-          ) : (
-            <>
-              <span className="font-semibold tabular-nums text-slate-900">{row.monthly_fee !== null ? formatMoney(row.monthly_fee) : texts.unset}</span>
-              {editable && (
-                <button type="button" onClick={startFeeEdit} aria-label={texts.editAria} title="Изменить" className="rounded-lg p-1 text-slate-400 hover:bg-white hover:text-slate-700">
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-              )}
-            </>
-          )}
-        </div>
+      <MembershipPriceSection
+        row={row}
+        studentName={studentName}
+        periodMode={periodMode}
+        groupsBasePath={groupsBasePath}
+        editable={editable}
+        onRowChange={changed}
+        onNotify={onNotify}
+      />
 
-        {editable && (
+      {editable && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${tone}`}>{statusLabel(row)}</span>
             {detail && <span className="text-[11px] text-slate-400">{detail}</span>}
           </div>
-        )}
-
-        {editable && (
           <button
             type="button"
             onClick={() => setForm({ kind: row.last_payment ? "extend" : "create", payment: null })}
@@ -275,9 +211,8 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
           >
             {row.last_payment ? "Продлить" : "Внести"}
           </button>
-        )}
-      </div>
-      {feeError && <p role="alert" className="text-xs font-medium text-rose-700">{feeError}</p>}
+        </div>
+      )}
 
       <div>
         <button
@@ -340,14 +275,16 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
         kind={form?.kind ?? "create"}
         membership={{
           membership_id: row.membership_id,
+          group_id: row.group_id,
           student_name: studentName,
           group_name: row.group_name,
-          monthly_fee: row.monthly_fee,
+          monthly_fee: priceOfRow(row).amount,
           paid_until: row.paid_until,
         }}
         payment={form?.payment ?? null}
         periodMode={periodMode}
         lessonsDefault={lessonsDefault}
+        groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
       />

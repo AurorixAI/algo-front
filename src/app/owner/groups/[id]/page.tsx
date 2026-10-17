@@ -15,6 +15,7 @@ import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
+import { GroupPriceBlock } from "@/components/groups/group-price-block";
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
@@ -401,6 +402,16 @@ export default function OwnerGroupDetailPage() {
         </div>
       </motion.div>
 
+      {/* Price of the group (#105): only for a role that may see money - the key is absent for everybody else */}
+      {"price_current" in group && (
+        <GroupPriceBlock
+          groupId={groupId}
+          groupName={group.name}
+          onNotify={showToast}
+          onChanged={(price) => setGroup((prev) => (prev ? { ...prev, price_current: price } : prev))}
+        />
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([
@@ -472,6 +483,7 @@ export default function OwnerGroupDetailPage() {
         open={addOpen}
         groupId={groupId}
         groupClassLevel={group.class_level}
+        groupPrice={group.price_current}
         existingStudentIds={existingIds}
         onClose={() => setAddOpen(false)}
         onAdded={handleStudentsAdded}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { HelpCircle } from "lucide-react";
 import { MAX_MONEY, formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
 import {
   buildBlocks,
@@ -14,10 +15,26 @@ import {
   setFeeEdit,
   setIncludeEdit,
   sheetTotal,
+  UNPAID_INCLUDED_MARK_HINT,
+  UNPAID_MARK_HINT,
   type LineView,
   type PayrollSheet,
   type SheetEdits,
 } from "@/lib/payroll";
+import {
+  COUNTED_HEADER_HINT,
+  INCLUDE_DONE_LABEL,
+  INCLUDE_HINT,
+  INCLUDE_LABEL,
+  INCLUDE_NOT_DONE_LABEL,
+  priceSourceNote,
+  priceStepsLines,
+  PRICE_HEADER_HINT,
+  SHEET_INCLUDE_NOTE,
+  SHEET_LEGEND,
+  UNPAID_HEADER_HINT,
+} from "@/lib/payroll-help";
+import { Hint } from "@/components/ui/hint";
 
 const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
@@ -37,6 +54,9 @@ function FeeCell({
   const [draft, setDraft] = useState<string | null>(null);
   const label = `Оплата в месяц: ${line.student_name}, ${line.group_name}`;
   const source = line.source_fee;
+  // #105: whose price this is, and the steps when it changed inside the month
+  const sourceNote = priceSourceNote(line);
+  const steps = priceStepsLines(line);
   return (
     <div className="flex flex-col items-end gap-0.5">
       {editable ? (
@@ -65,6 +85,17 @@ function FeeCell({
           изменена{source !== null ? ` · было ${formatMoney(source)}` : ""}
         </span>
       )}
+      {sourceNote && (
+        <span className="text-[10px] font-medium text-primary-700 print:text-black" title="Индивидуальная цена ученика (исключение из цены группы)">
+          {sourceNote}
+        </span>
+      )}
+      {steps.length > 0 && (
+        <span className="flex flex-col items-end text-[10px] leading-tight text-slate-500 print:text-black" aria-label="Цена менялась в течение месяца">
+          <span className="font-medium text-amber-700 print:text-black">цена менялась</span>
+          {steps.map((step) => <span key={step} className="whitespace-nowrap tabular-nums">{step}</span>)}
+        </span>
+      )}
     </div>
   );
 }
@@ -78,9 +109,9 @@ function IncludeCell({
 }) {
   const { line } = view;
   if (line.unpaid <= 0) return <span className="text-slate-300">—</span>;
-  const label = `Включить неоплаченные уроки (${line.unpaid}): ${line.student_name}, ${line.group_name}`;
+  const label = `Начислить за неоплаченные уроки (${line.unpaid}): ${line.student_name}, ${line.group_name}`;
   return (
-    <label className={`inline-flex items-center gap-1.5 whitespace-nowrap ${editable ? "cursor-pointer" : ""}`}>
+    <label className={`inline-flex items-center gap-1.5 whitespace-nowrap ${editable ? "cursor-pointer" : ""}`} title={editable ? INCLUDE_HINT : undefined}>
       <span className="font-semibold tabular-nums text-slate-700">{line.unpaid}</span>
       {editable ? (
         <>
@@ -91,11 +122,37 @@ function IncludeCell({
             aria-label={label}
             className="h-4 w-4 accent-primary-600 print:hidden"
           />
-          <span className="text-xs text-slate-500 print:hidden">включить</span>
+          <span className="text-xs text-slate-500 print:hidden">{INCLUDE_LABEL}</span>
+          <Hint text={INCLUDE_HINT} className="inline-flex print:hidden">
+            <HelpCircle className="h-3.5 w-3.5 text-slate-400" aria-label={`Что значит «${INCLUDE_LABEL}»`} />
+          </Hint>
         </>
       ) : null}
-      <span className={`${editable ? "hidden print:inline" : ""} text-xs text-slate-600`}>{view.include ? "включены" : "не включены"}</span>
+      <span className={`${editable ? "hidden print:inline" : ""} text-xs text-slate-600`}>{view.include ? INCLUDE_DONE_LABEL : INCLUDE_NOT_DONE_LABEL}</span>
     </label>
+  );
+}
+
+/** The legend over the table: what the marks mean (the dashed «1» is the one the owner asks about most). */
+function SheetLegend({ showIncludeNote }: { showIncludeNote: boolean }) {
+  const looks: Record<string, string> = {
+    counted: "font-semibold text-slate-800",
+    zero: "font-bold text-rose-600 print:text-black",
+    pending: "rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
+    unpaid: "rounded border border-dashed border-slate-300 px-1 text-slate-500",
+    empty: "text-slate-400",
+  };
+  return (
+    <div className="space-y-1">
+      <ul aria-label="Обозначения" className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-600">
+        {SHEET_LEGEND.map((item) => (
+          <li key={item.key}>
+            <span className={looks[item.key]}>{item.mark}</span> — {item.text}
+          </li>
+        ))}
+      </ul>
+      {showIncludeNote && <p className="text-xs text-slate-500 print:hidden">{SHEET_INCLUDE_NOTE}</p>}
+    </div>
   );
 }
 
@@ -130,6 +187,7 @@ export function PayrollSheetTable({
 
   return (
     <div className="min-w-0 space-y-5 print:space-y-4">
+      <SheetLegend showIncludeNote={blocks.some((block) => block.unpaid > 0)} />
       {blocks.map((block) => {
         const span = 3 + block.columns.length;
         return (
@@ -148,21 +206,27 @@ export function PayrollSheetTable({
               role="region"
               tabIndex={0}
               aria-label={`Таблица группы ${block.groupName}: прокручивается вбок`}
-              className="max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible"
+              className="relative max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible"
             >
               <table className="w-full border-collapse text-sm print:text-[11px]">
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${STICKY} bg-slate-50`}>Ученик</th>
-                    <th scope="col" className={`${HEAD} text-right`}>Оплата в месяц</th>
+                    <th scope="col" className={`${HEAD} text-right`}>
+                      <Hint text={PRICE_HEADER_HINT}>Оплата в месяц</Hint>
+                    </th>
                     <th scope="col" className={`${HEAD} text-right`}>%</th>
                     {block.columns.map((column) => (
                       <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-[11px] font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
                         {formatDayMonth(column.date)}
                       </th>
                     ))}
-                    <th scope="col" className={`${HEAD} text-right`}>Засчитано</th>
-                    <th scope="col" className={HEAD}>Не оплачено</th>
+                    <th scope="col" className={`${HEAD} text-right`}>
+                      <Hint text={COUNTED_HEADER_HINT}>Засчитано</Hint>
+                    </th>
+                    <th scope="col" className={HEAD}>
+                      <Hint text={UNPAID_HEADER_HINT}>Не оплачено</Hint>
+                    </th>
                     <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
                   </tr>
                 </thead>
@@ -199,10 +263,19 @@ export function PayrollSheetTable({
                               className="px-1 py-2 text-center align-middle text-sm print:px-0.5 print:py-1"
                               title={`${line.student_name}, ${formatDayMonth(column.date)}: ${cell.title}`}
                             >
-                              <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
-                                {cell.label}
-                                <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
-                              </span>
+                              {cell.tone === "unpaid" || cell.tone === "unpaid_included" ? (
+                                <Hint text={cell.tone === "unpaid" ? UNPAID_MARK_HINT : UNPAID_INCLUDED_MARK_HINT} className="inline-block">
+                                  <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
+                                    {cell.label}
+                                    <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
+                                  </span>
+                                </Hint>
+                              ) : (
+                                <span className={`inline-block min-w-[1.25rem] ${cell.className}`}>
+                                  {cell.label}
+                                  <span className="sr-only">{`${formatDayMonth(column.date)}: ${cell.title}`}</span>
+                                </span>
+                              )}
                             </td>
                           );
                         })}
@@ -240,19 +313,6 @@ export function PayrollSheetTable({
         <span className="text-sm font-semibold uppercase tracking-wider">ИТОГО</span>
         <span className="text-xl font-bold tabular-nums" data-testid="payroll-total">{formatMoney(total)}</span>
       </div>
-
-      <ul aria-label="Обозначения" className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-500">
-        <li><span className="font-semibold text-slate-800">1</span> — засчитан</li>
-        <li><span className="font-bold text-rose-600 print:text-black">0</span> — не засчитан</li>
-        <li><span className="rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black">Ув.?</span> — уважительная ждёт подтверждения (засчитан)</li>
-        <li><span className="rounded border border-dashed border-slate-300 px-1 text-slate-400">1</span> — урок не оплачен (в сумму не входит)</li>
-        <li>пусто — ученика ещё нет в группе</li>
-      </ul>
-      {blocks.some((block) => block.unpaid > 0) && (
-        <p className="text-xs text-slate-500 print:hidden">
-          Неоплаченные уроки входят в сумму строки, только если поставить «включить».
-        </p>
-      )}
     </div>
   );
 }

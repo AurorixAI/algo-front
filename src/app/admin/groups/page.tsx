@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { orgApi, GroupInfo } from "@/lib/api";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -10,11 +11,26 @@ import {
 } from "lucide-react";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { GroupPriceFilter } from "@/components/groups/group-price-filter";
+import { countGroupsWithoutPrice, lacksGroupPrice, parsePriceFilter } from "@/lib/group-price";
 import { ImportButton } from "@/components/import/import-button";
 
 type StatusFilter = "active" | "waiting" | "archived";
 
 export default function AdminGroupsPage() {
+  // The page reads `?price=`, so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>}>
+      <AdminGroupsPageContent />
+    </Suspense>
+  );
+}
+
+function AdminGroupsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // «Без цены»: the groups the students of which have no price (only for a role that sees money).
+  const priceFilter = parsePriceFilter(searchParams?.get("price"));
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,8 +59,12 @@ export default function AdminGroupsPage() {
 
   const teachers = members.filter((m: any) => m.org_role === "teacher");
 
+  const withoutPrice = countGroupsWithoutPrice(groups);
   const filtered = groups.filter((g) => {
-    if (filterStatus === "waiting") {
+    // «Без цены»: every live group that lacks a price, whatever its status tab (the payroll warning leads here)
+    if (priceFilter === "none") {
+      if (g.status === "archived" || !lacksGroupPrice(g)) return false;
+    } else if (filterStatus === "waiting") {
       if (g.status !== "active" || !!g.teacher_id) return false;
     } else if (filterStatus === "active") {
       if (g.status !== "active" || !g.teacher_id) return false;
@@ -96,7 +116,7 @@ export default function AdminGroupsPage() {
       {/* Filters bar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative w-[340px] shrink-0">
+        <div className="relative w-full sm:w-[340px] sm:shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
@@ -116,9 +136,9 @@ export default function AdminGroupsPage() {
           ] as const).map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setFilterStatus(key)}
+              onClick={() => { setFilterStatus(key); if (priceFilter === "none") router.replace("?", { scroll: false }); }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                filterStatus === key
+                filterStatus === key && priceFilter !== "none"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
               }`}
@@ -127,6 +147,12 @@ export default function AdminGroupsPage() {
             </button>
           ))}
         </div>
+
+        <GroupPriceFilter
+          count={withoutPrice}
+          active={priceFilter === "none"}
+          onToggle={() => router.replace(priceFilter === "none" ? "?" : "?price=none", { scroll: false })}
+        />
       </div>
 
       {/* Create modal */}

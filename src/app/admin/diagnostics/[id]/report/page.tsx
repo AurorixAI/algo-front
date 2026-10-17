@@ -684,6 +684,7 @@ export default function DiagnosticReportPage() {
           studentGrade={invite.class_level}
           currentGroupId={currentStudentGroup?.id || null}
           currentGroupName={currentStudentGroup?.name || null}
+          groupsBasePath="/admin/groups"
           onClose={() => setAssignModalOpen(false)}
           onAssigned={(group) => {
             setAssignModalOpen(false);

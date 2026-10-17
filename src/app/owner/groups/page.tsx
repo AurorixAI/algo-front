@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus, GraduationCap, Users, Target, TrendingUp,
@@ -10,6 +11,8 @@ import { orgApi, GroupInfo } from "@/lib/api";
 import { staffDisplayName } from "@/lib/staff-name";
 import { GroupCard } from "@/components/groups/group-card";
 import { GroupCreateModal } from "@/components/groups/group-create-modal";
+import { GroupPriceFilter } from "@/components/groups/group-price-filter";
+import { countGroupsWithoutPrice, lacksGroupPrice, parsePriceFilter } from "@/lib/group-price";
 import { ImportButton } from "@/components/import/import-button";
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
@@ -17,6 +20,19 @@ const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 type StatusFilter = "active" | "waiting" | "archived";
 
 export default function OwnerGroupsPage() {
+  // The page reads `?price=`, so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" /></div>}>
+      <OwnerGroupsPageContent />
+    </Suspense>
+  );
+}
+
+function OwnerGroupsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // «Без цены»: the groups the students of which have no price (only for a role that sees money).
+  const priceFilter = parsePriceFilter(searchParams?.get("price"));
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,8 +91,12 @@ export default function OwnerGroupsPage() {
   }));
 
   // Filtered + searched
+  const withoutPrice = countGroupsWithoutPrice(groups);
   const filtered = groups.filter((g) => {
-    if (filterStatus === "waiting") {
+    // «Без цены»: every live group that lacks a price, whatever its status tab (the payroll warning leads here)
+    if (priceFilter === "none") {
+      if (g.status === "archived" || !lacksGroupPrice(g)) return false;
+    } else if (filterStatus === "waiting") {
       if (g.status !== "active" || !!g.teacher_id) return false;
     } else if (filterStatus === "active") {
       if (g.status !== "active" || !g.teacher_id) return false;
@@ -126,13 +146,13 @@ export default function OwnerGroupsPage() {
       {/* Filters bar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Search */}
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Поиск по названию или учителю..."
-            className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none w-[340px] shrink-0"
+            className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none w-full sm:w-[340px] sm:shrink-0"
           />
         </div>
 
@@ -145,9 +165,9 @@ export default function OwnerGroupsPage() {
           ] as const).map(({ key, label }) => (
             <button
               key={key}
-              onClick={() => setFilterStatus(key)}
+              onClick={() => { setFilterStatus(key); if (priceFilter === "none") router.replace("?", { scroll: false }); }}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                filterStatus === key
+                filterStatus === key && priceFilter !== "none"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
               }`}
@@ -156,6 +176,12 @@ export default function OwnerGroupsPage() {
             </button>
           ))}
         </div>
+
+        <GroupPriceFilter
+          count={withoutPrice}
+          active={priceFilter === "none"}
+          onToggle={() => router.replace(priceFilter === "none" ? "?" : "?price=none", { scroll: false })}
+        />
       </div>
 
       {/* Groups grid */}
@@ -214,6 +240,8 @@ export default function OwnerGroupsPage() {
           setGroups((prev) => [g, ...prev]);
           setShowCreate(false);
           showToast(`Группа «${g.name}» создана`);
+          // The answer of the creation has no price (`price_current`); the list does: read it again quietly.
+          void orgApi.listGroups().then((list) => { if (Array.isArray(list)) setGroups(list); }).catch(() => undefined);
         }}
       />
 
