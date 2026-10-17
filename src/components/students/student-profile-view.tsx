@@ -29,7 +29,7 @@ import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
-  ARCHIVED_TOAST, archiveBannerTitle, archiveGroupNames, studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
+  ARCHIVED_TOAST, archiveBannerTitle, archiveGroupNames, restoreNeedsReading, studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
 } from "@/lib/student-archive";
 
 const TAB_ICON: Record<ProfileTab, typeof Brain> = {
@@ -134,13 +134,15 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   // to another student) must not start a request for a student that is gone.
   const currentStudentIdRef = useRef(studentId);
 
-  const loadProfile = useCallback(async () => {
+  // `silent`: the card stays on screen while it is read again (a dialog standing on it is not torn down by the spinner).
+  const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (!canStartRequest(studentId, currentStudentIdRef.current)) return;
+    const silent = Boolean(options?.silent);
     const token = profileSeq.next();
     examsSeq.next();
     const isCurrent = () => profileSeq.isCurrent(token);
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       setExamsError(null);
       setExamsRetrying(false);
@@ -164,11 +166,15 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
       setCommentVal(profileWithHistory.student.comment || "");
     } catch (err: any) {
       console.error("Failed to load student profile:", err);
-      if (isCurrent()) setError(err?.message || "Ученик не найден");
+      // A silent reload never swaps the card (and the dialog on it) for the error screen.
+      if (isCurrent()) {
+        if (silent) showToast("Не удалось обновить карточку ученика — обновите страницу", "error");
+        else setError(err?.message || "Ученик не найден");
+      }
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [studentId, profileSeq, examsSeq]);
+  }, [studentId, profileSeq, examsSeq, showToast]);
 
   useEffect(() => {
     currentStudentIdRef.current = studentId;
@@ -284,22 +290,35 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const access = studentArchiveAccess({ isTeacher: Boolean(isTeacher), status: student.status, demo: DEMO_MODE });
   const archiveInfo = studentArchiveInfo(profile);
   const formerGroupNames = archiveGroupNames(profile.archived_groups);
+  // The archived state changed: read again everything that depends on it - the card (status, banner, actions,
+  // groups, payments), the attendance summary and the payment counters of the menu.
+  const reloadCard = (options?: { silent?: boolean }) => {
+    void loadProfile(options);
+    void loadAttendanceSummary();
+    void usePaymentsSummary.getState().refresh(true);
+  };
   const handleArchived = () => {
     setArchiveOpen(false);
     showToast(ARCHIVED_TOAST, "success");
-    void loadProfile();
+    reloadCard();
   };
+  // Called once, the moment the server has taken him back.  Nothing to read: close, toast, the spinner hides the
+  // old card.  Something to read: the dialog stays on screen as the notice (no toast, it would repeat it) and the
+  // card behind it is read again silently, so «Готово» has nothing left to refresh.
   const handleRestored = (outcome: RestoreOutcome) => {
-    setRestoreOpen(false);
-    showToast(outcome.text, outcome.type, outcome.lines);
-    void loadProfile();
+    const dialogStays = restoreNeedsReading(outcome);
+    if (!dialogStays) {
+      setRestoreOpen(false);
+      showToast(outcome.text, outcome.type, outcome.lines);
+    }
+    reloadCard({ silent: dialogStays });
   };
   // 409: the card was out of date (archived or restored in another tab); read it again.
   const handleStale = (message: string) => {
     setArchiveOpen(false);
     setRestoreOpen(false);
     showToast(message, "error");
-    void loadProfile();
+    reloadCard();
   };
 
   return (
@@ -911,7 +930,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           onStale={handleStale}
         />
       )}
-      {access.canRestore && (
+      {/* Stays mounted while its notice is open: the reload that follows a return turns `canRestore` off. */}
+      {(access.canRestore || restoreOpen) && (
         <StudentRestoreModal
           open={restoreOpen}
           studentId={student.id}

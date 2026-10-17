@@ -22,9 +22,13 @@ interface StudentRestoreModalProps {
   studentName: string;
   /** Groups the last archiving closed (`archived_groups` of the profile). */
   archivedGroups: StudentArchivedGroup[] | null | undefined;
-  /** Closed without a restore. */
+  /** Cancelled, or «Готово» after a return (the card was already refreshed by `onRestored`). */
   onClose: () => void;
-  /** The student is back; the outcome lists the groups the server skipped.  Called once, after the owner has read it. */
+  /**
+   * The student is back; the outcome lists the groups the server skipped.  Called once, right after the server
+   * answered, so the card refreshes at once.  A return with something to read keeps this dialog open as the notice
+   * (the caller must not close it); «Готово» then only calls `onClose`.
+   */
   onRestored: (outcome: RestoreOutcome) => void;
   /** «Ученик не в архиве» (409): the card is out of date and must be read again. Other refusals stay in the dialog. */
   onStale: (message: string) => void;
@@ -42,13 +46,18 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<RestoreOutcome | null>(null);
 
+  // The notice is cleared only when the dialog opens: the card reloads under it right after the return and
+  // `archived_groups` empties, which must not close the result the owner is reading.
   useEffect(() => {
     if (open) {
-      setSelected(defaultRestoreSelection(options));
       setBusy(false);
       setError(null);
       setDone(null);
     }
+  }, [open, studentId]);
+
+  useEffect(() => {
+    if (open) setSelected(defaultRestoreSelection(options));
     // `options` follows `optionsKey`: a new array of the same groups must not wipe the ticks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, studentId, optionsKey]);
@@ -61,9 +70,10 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
     try {
       const result = await orgApi.restoreStudent(studentId, ids);
       const outcome = restoreOutcome(result, ids.length, options);
-      // Nothing to read: done.  Otherwise the dialog stays and shows the skipped groups and the hints.
-      if (!restoreNeedsReading(outcome)) onRestored(outcome);
-      else setDone(outcome);
+      // Something to read: the dialog stays and shows the skipped groups and the hints.  He is back either way,
+      // so the card is told at once - not when the owner has finished reading.
+      if (restoreNeedsReading(outcome)) setDone(outcome);
+      onRestored(outcome);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Не удалось вернуть ученика из архива";
       if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("restore", message)) onStale(message);
@@ -73,18 +83,15 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
     }
   };
 
-  // The student is already back once the result is on screen: closing it must refresh the card.
-  const close = () => { if (done) onRestored(done); else onClose(); };
-
   if (done) {
     return (
       <Modal
         open={open}
         title="Ученик возвращён из архива"
         description={studentName}
-        onClose={close}
+        onClose={onClose}
         footer={
-          <button type="button" onClick={close} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
+          <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
         }
       >
         <div className="space-y-4 pb-2" role="status">
@@ -122,7 +129,7 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
       open={open}
       title="Вернуть из архива?"
       description={studentName}
-      onClose={close}
+      onClose={onClose}
       busy={busy}
       footer={
         <>

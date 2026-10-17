@@ -266,20 +266,45 @@ test("the card: «⋯ → В архив», the banner and the modals follow stud
   assert.match(view, /Причина: \{archiveInfo\.reason\}/);
   // modals are not even mounted for a role / state that cannot use them
   assert.match(view, /\{access\.canArchive && \(\s*<StudentArchiveModal/);
-  assert.match(view, /\{access\.canRestore && \(\s*<StudentRestoreModal/);
+  // the restore dialog outlives `canRestore`: the reload that follows a return turns it off while the notice is open
+  assert.match(view, /\{\(access\.canRestore \|\| restoreOpen\) && \(\s*<StudentRestoreModal/);
   assert.match(view, /archivedGroups=\{profile\.archived_groups\}/);
   // no group action on an archived card: the assign dialog follows the same switch
   assert.match(view, /\{access\.groupActions && \(\s*<AssignGroupModal/);
   assert.doesNotMatch(view, /\{!isTeacher && \(\s*<AssignGroupModal/);
   // success: toast + reload; 409: the card is out of date, error toast + reload
-  assert.match(view, /showToast\(ARCHIVED_TOAST, "success"\);\s*void loadProfile\(\);/);
-  assert.match(view, /showToast\(outcome\.text, outcome\.type, outcome\.lines\);\s*void loadProfile\(\);/);
-  assert.match(view, /showToast\(message, "error"\);\s*void loadProfile\(\);/);
+  assert.match(view, /showToast\(ARCHIVED_TOAST, "success"\);\s*reloadCard\(\);/);
+  assert.match(view, /showToast\(message, "error"\);\s*reloadCard\(\);/);
+  // one reload helper for both directions: the card, the attendance summary and the payment counters of the menu
+  assert.match(view, /const reloadCard = \(options\?: \{ silent\?: boolean \}\) => \{\s*void loadProfile\(options\);\s*void loadAttendanceSummary\(\);\s*void usePaymentsSummary\.getState\(\)\.refresh\(true\);\s*\};/);
   // the toast survives the reload (the loading and the error screens render it too)
   assert.equal((view.match(/\{toastNode\}/g) || []).length, 3);
   // the only places that open the archive dialog: the menu item above (behind access.canArchive)
   assert.equal((view.match(/setArchiveOpen\(true\)/g) || []).length, 1);
   assert.equal((view.match(/setRestoreOpen\(true\)/g) || []).length, 1);
+});
+
+test("the return refreshes the card at once, whether or not the dialog stays open for warnings; «Готово» does not refresh again", () => {
+  const view = read("src/components/students/student-profile-view.tsx");
+  // one handler, called by the dialog right after the server answered: reload in every case ...
+  const handler = view.match(/const handleRestored = \(outcome: RestoreOutcome\) => \{[\s\S]*?\n  \};/)[0];
+  assert.match(handler, /const dialogStays = restoreNeedsReading\(outcome\);/);
+  assert.match(handler, /reloadCard\(\{ silent: dialogStays \}\);/);
+  // ... but the dialog is closed and the toast shown only when there is nothing to read
+  assert.match(handler, /if \(!dialogStays\) \{\s*setRestoreOpen\(false\);\s*showToast\(outcome\.text, outcome\.type, outcome\.lines\);\s*\}/);
+  assert.equal((handler.match(/reloadCard\(/g) || []).length, 1, "no double refresh");
+  // a silent reload keeps the card (and the notice on it): no spinner, and a failure is a toast, not the error screen
+  assert.match(view, /const loadProfile = useCallback\(async \(options\?: \{ silent\?: boolean \}\) => \{/);
+  assert.match(view, /if \(!silent\) setLoading\(true\);/);
+  assert.match(view, /if \(silent\) showToast\("Не удалось обновить карточку ученика — обновите страницу", "error"\);\s*else setError\(/);
+  // the only callers of reloadCard with `silent` are the restore handler
+  assert.equal((view.match(/silent:/g) || []).length, 1);
+  // the archive direction has no dialog that stays open: it closes, toasts and reloads behind the spinner
+  const archived = view.match(/const handleArchived = \(\) => \{[\s\S]*?\n  \};/)[0];
+  assert.match(archived, /setArchiveOpen\(false\);\s*showToast\(ARCHIVED_TOAST, "success"\);\s*reloadCard\(\);/);
+  const archiveModal = read("src/components/students/student-archive-modal.tsx");
+  assert.match(archiveModal, /onArchived\(result\);/);
+  assert.doesNotMatch(archiveModal, /setDone|restoreNeedsReading/);
 });
 
 test("an archived card hides «Добавить в группу / Перевести / Зачислить» and the payment actions", () => {
@@ -337,10 +362,16 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
   assert.match(modal, />Вернуть\s*<\/button>|Вернуть\s*\n\s*<\/button>/);
   assert.match(modal, /Не удалось вернуть ученика в эти группы:/);
   assert.match(modal, /Готово/);
-  // the student is back once the result is shown: any way of closing it refreshes the card
-  assert.match(modal, /const close = \(\) => \{ if \(done\) onRestored\(done\); else onClose\(\); \};/);
+  // the student is back the moment the server answers: the card is told at once (once), the notice only keeps the dialog open
+  assert.match(modal, /if \(restoreNeedsReading\(outcome\)\) setDone\(outcome\);\s*onRestored\(outcome\);/);
+  assert.equal((modal.match(/onRestored\(/g) || []).length, 1, "onRestored is called from exactly one place");
+  // «Готово», the cross, Escape and the backdrop only close: nothing to refresh any more
+  assert.match(modal, /onClick=\{onClose\} className="rounded-xl bg-primary-600[^"]*">Готово</);
+  assert.doesNotMatch(modal, /const close = /);
+  // the card reloading under the notice (archived_groups empties) must not wipe the notice: it is cleared only on open
+  assert.match(modal, /if \(open\) \{\s*setBusy\(false\);\s*setError\(null\);\s*setDone\(null\);\s*\}\s*\}, \[open, studentId\]\);/);
+  assert.match(modal, /if \(open\) setSelected\(defaultRestoreSelection\(options\)\);/);
   assert.match(modal, /\.status === 409 && isStaleArchiveConflict\("restore", message\)\) onStale\(message\);\s*else setError\(message\);/);
-  assert.match(modal, /if \(!restoreNeedsReading\(outcome\)\) onRestored\(outcome\);/);
   assert.match(modal, /Обратите внимание:/);
 });
 

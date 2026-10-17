@@ -264,7 +264,10 @@ export function restoreOutcome(
   };
 }
 
-/** True when the owner has something to read after a return (skipped groups or hints): the dialog then stays open. */
+/**
+ * True when the owner has something to read after a return (skipped groups or hints): the dialog then stays open
+ * as the notice.  The card is refreshed at once either way; «Готово» only closes the dialog.
+ */
 export function restoreNeedsReading(outcome: Pick<RestoreOutcome, "lines" | "warnings">): boolean {
   return outcome.lines.length > 0 || outcome.warnings.length > 0;
 }
