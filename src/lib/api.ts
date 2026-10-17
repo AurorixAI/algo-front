@@ -698,7 +698,12 @@ export interface AttendanceExcuseItem {
   files: AttendanceExcuseFile[];
   /** Pending excuses: when to confirm by (a date or the lessons left in a package). Absent on an older server. */
   deadline?: ExcuseServerDeadline | null;
+  /** How the student's latest live payment in this group is billed; null: no payment. Absent on an older server. */
+  billing_mode?: ExcuseBillingModeValue | null;
 }
+
+/** `billing_mode` of an excuse: a lessons package or a calendar period. */
+export type ExcuseBillingModeValue = "calendar" | "package";
 
 /** Sidebar counters: excuses to decide and lessons to close. */
 export interface AttendanceExcuseSummary {
@@ -807,6 +812,8 @@ export interface AttendanceExcuseInfo {
   reviewed_at: string | null;
   review_note?: string | null;
   has_files: boolean;
+  /** Owner / administrator only (the key is absent for a teacher): billing mode of the student's latest payment in the group, null = none. */
+  billing_mode?: ExcuseBillingModeValue | null;
 }
 
 /** Last correction of a completed lesson. */

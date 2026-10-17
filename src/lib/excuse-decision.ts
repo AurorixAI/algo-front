@@ -1,12 +1,14 @@
 /**
  * Texts of the confirmation dialog of «Подтвердить» / «Отклонить» an excused absence (#103).
  * The consequence is the rule of auth-service (`payroll_engine`, `payment_status.lesson_counts`), true for every case:
- *  - a CONFIRMED excuse: the lesson is not counted for the teacher (the payroll cell is 0); in the lessons-PACKAGE
- *    mode it also consumes nothing of the student's package, which shifts the later coverage;
+ *  - a CONFIRMED excuse: the lesson is not counted for the teacher (the payroll cell is 0); in the PACKAGE mode of the
+ *    student's payment it also consumes nothing of the package, which shifts the later coverage;
  *  - a pending or rejected one is an ordinary lesson: counted for the teacher (when a payment covers it) and, in the
  *    package mode, spent from the package;
- *  - the calendar mode has no payment effect, so it adds no line; an unknown mode adds none either (never guess).
- * The text depends on the CURRENT status: changing a decision says so.  Pure: no React and no network.
+ *  - the calendar mode has no payment effect, so it adds no line; no payment (null) or no information (the key is
+ *    absent: a teacher, an older server) adds none either - never guessed.
+ * The mode is the one of the STUDENT'S latest payment in the group, delivered with every excuse (`billing_mode`), not
+ * the centre's setting.  The text depends on the CURRENT status: changing a decision says so.  Pure.
  */
 
 import { reasonMeta, reasonMetaOf } from "./excuse-row";
@@ -14,8 +16,16 @@ import { reasonMeta, reasonMetaOf } from "./excuse-row";
 export type ExcuseDecision = "confirmed" | "rejected";
 /** Where the excuse stands now (what the server has). */
 export type ExcuseStatus = "pending" | "confirmed" | "rejected";
-/** How the centre bills: `lessons` = packages, `calendar` = periods, null = this user cannot see it (not guessed). */
-export type ExcuseBillingMode = "calendar" | "lessons" | null;
+/**
+ * How the student's latest payment in this group is billed (`billing_mode` of the excuse): `package` = a lessons package,
+ * `calendar` = a period; null = no payment, or not known (the key is absent for a teacher and on an older server).
+ */
+export type ExcuseBillingMode = "calendar" | "package" | null;
+
+/** Only the two known values; anything else (absent, null, garbage) is "not known". */
+export function normalizeBillingMode(value: unknown): ExcuseBillingMode {
+  return value === "package" || value === "calendar" ? value : null;
+}
 
 /**
  * What the confirmation dialog shows about one excuse, whichever screen it comes from (the «Пропуски» list or
@@ -26,6 +36,8 @@ export interface ExcuseDecisionSubject {
   studentName: string;
   /** The decision the excuse has now: the consequence of a new one depends on it. */
   status: ExcuseStatus;
+  /** Billing mode of the student's latest payment in the group: only `package` adds a line about the package. */
+  billingMode: ExcuseBillingMode;
   /** YYYY-MM-DD */
   lessonDate: string;
   /** Empty when the screen does not know it (the date alone is shown). */
@@ -39,6 +51,7 @@ export interface ExcuseDecisionSubject {
 export function subjectOfItem(item: {
   id: string;
   status: ExcuseStatus;
+  billing_mode?: string | null;
   lesson_date: string;
   group: { name: string };
   student: { full_name: string };
@@ -49,6 +62,7 @@ export function subjectOfItem(item: {
   return {
     id: item.id,
     status: item.status,
+    billingMode: normalizeBillingMode(item.billing_mode),
     studentName: item.student.full_name,
     lessonDate: item.lesson_date,
     groupName: item.group.name,
@@ -59,7 +73,10 @@ export function subjectOfItem(item: {
 
 /** Subject of a cell of the group journal (`AttendanceExcuseInfo` + the student, the lesson date and the group). */
 export function subjectOfJournalCell(args: {
-  excuse: { id: string; status: ExcuseStatus; reason: string; reason_by_name: string | null; reason_at: string | null };
+  excuse: {
+    id: string; status: ExcuseStatus; billing_mode?: string | null;
+    reason: string; reason_by_name: string | null; reason_at: string | null;
+  };
   studentName: string;
   lessonDate: string;
   groupName?: string | null;
@@ -67,6 +84,7 @@ export function subjectOfJournalCell(args: {
   return {
     id: args.excuse.id,
     status: args.excuse.status,
+    billingMode: normalizeBillingMode(args.excuse.billing_mode),
     studentName: args.studentName,
     lessonDate: args.lessonDate,
     groupName: args.groupName ?? "",
@@ -77,14 +95,14 @@ export function subjectOfJournalCell(args: {
 
 /**
  * What the decision changes, in plain words, for an excuse that stands at `current` (sentences, in the order they are shown).
- * `mode` null / `calendar`: the payroll sentence only.  `lessons`: plus what happens to the student's package.
+ * `mode` null / `calendar`: the payroll sentence only.  `package`: plus what happens to the student's package.
  */
 export function excuseConsequenceLines(
   decision: ExcuseDecision,
   current: ExcuseStatus = "pending",
   mode: ExcuseBillingMode = null,
 ): string[] {
-  const packages = mode === "lessons";
+  const packages = mode === "package";
   if (decision === "confirmed") {
     if (current === "rejected") {
       return [
@@ -110,16 +128,18 @@ export function excuseConsequenceLines(
   ];
 }
 
-/** The lines for several excuses (a bulk action): those of each distinct current status, without repeats. */
+/**
+ * The lines for several excuses (a bulk action): those of each distinct (current status, billing mode), without repeats.
+ * Nothing given reads as one waiting excuse with no known mode.
+ */
 export function excuseConsequenceLinesFor(
   decision: ExcuseDecision,
-  statuses: readonly ExcuseStatus[],
-  mode: ExcuseBillingMode = null,
+  cases: ReadonlyArray<{ status: ExcuseStatus; billingMode?: ExcuseBillingMode }>,
 ): string[] {
-  const distinct = Array.from(new Set(statuses.length ? statuses : (["pending"] as ExcuseStatus[])));
   const lines: string[] = [];
-  for (const status of distinct) {
-    for (const line of excuseConsequenceLines(decision, status, mode)) if (!lines.includes(line)) lines.push(line);
+  const list = cases.length ? cases : [{ status: "pending" as ExcuseStatus, billingMode: null }];
+  for (const { status, billingMode } of list) {
+    for (const line of excuseConsequenceLines(decision, status, billingMode ?? null)) if (!lines.includes(line)) lines.push(line);
   }
   return lines;
 }
@@ -149,17 +169,17 @@ export interface ExcuseDecisionCopy {
 }
 
 /**
- * Copy of the dialog for `count` excuses (1 for a row, more for a bulk action).  `statuses` are the current decisions
- * of those excuses (default: waiting), `mode` the billing mode when it is known.
+ * Copy of the dialog for `count` excuses (1 for a row, more for a bulk action).  `excuses` carry the current decision and
+ * the billing mode of each (default: one waiting excuse, mode not known).
  */
 export function excuseDecisionCopy(
   decision: ExcuseDecision,
   count = 1,
-  context: { statuses?: readonly ExcuseStatus[]; mode?: ExcuseBillingMode } = {},
+  context: { excuses?: ReadonlyArray<{ status: ExcuseStatus; billingMode?: ExcuseBillingMode }> } = {},
 ): ExcuseDecisionCopy {
   const many = count > 1;
   const verb = decision === "confirmed" ? "Подтвердить" : "Отклонить";
-  const lines = excuseConsequenceLinesFor(decision, context.statuses ?? [], context.mode ?? null);
+  const lines = excuseConsequenceLinesFor(decision, context.excuses ?? []);
   return {
     title: many ? `${verb} ${count} ${excusesWord(count)}?` : `${verb} пропуск?`,
     confirmLabel: verb,

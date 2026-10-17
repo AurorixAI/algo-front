@@ -57,7 +57,6 @@ import {
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
-import { usePaymentsSummary } from "@/lib/payments-summary";
 import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
@@ -233,9 +232,6 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   // Every «Подтвердить» / «Отклонить» goes through the confirmation dialog before a request is sent.
   const [dialog, setDialog] = useState<ExcuseDecisionTarget | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
-  // How the centre bills decides whether the dialog speaks about the student's package; only a user who may see
-  // payments knows it (the summary the layout already keeps), otherwise the package sentence is left out.
-  const billingMode = usePaymentsSummary((state) => (state.available ? state.periodMode : null));
   // Excuses whose decision is on its way: a second click (or the dialog after the row button) sends nothing.
   const reviewing = useRef<Set<string>>(new Set());
 
@@ -729,7 +725,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       />
 
       {/* «Подтвердить» / «Отклонить»: who, which lesson, why, what changes - and only then the request */}
-      <ExcuseDecisionDialog target={dialog} busy={dialogBusy} error={dialogError} billingMode={billingMode} onClose={closeDialog} onSubmit={submitDialog} />
+      <ExcuseDecisionDialog target={dialog} busy={dialogBusy} error={dialogError} onClose={closeDialog} onSubmit={submitDialog} />
 
       {/* Certificate viewer */}
       <Modal

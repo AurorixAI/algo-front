@@ -55,7 +55,6 @@ import {
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
-import { usePaymentsSummary } from "@/lib/payments-summary";
 import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor } from "@/lib/journal-period";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -342,8 +341,6 @@ export function GroupAttendanceJournal({
   const reviewingRef = useRef<Set<string>>(new Set());
   // The cell button that opened the dialog: focus goes back to it when the dialog closes (the menu item is gone by then).
   const reviewOpenerRef = useRef<HTMLElement | null>(null);
-  // How the centre bills, when this user may see it: decides whether the dialog speaks about the student's package.
-  const billingMode = usePaymentsSummary((state) => (state.available ? state.periodMode : null));
   const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const cellMenuRef = useRef<HTMLDivElement | null>(null);
   // Attendance saves of one journal go out one at a time, in click order.
@@ -791,6 +788,7 @@ export function GroupAttendanceJournal({
                 reviewed_by_name: item.reviewed_by?.name ?? null,
                 reviewed_at: item.reviewed_at ?? null,
                 review_note: item.review_note ?? null,
+                ...(item.billing_mode !== undefined ? { billing_mode: item.billing_mode } : {}),
               },
             },
           },
@@ -1592,7 +1590,6 @@ export function GroupAttendanceJournal({
         target={reviewDialog}
         busy={reviewDialog ? reviewBusyId === reviewDialog.excuse.id : false}
         error={reviewDialog?.error ?? null}
-        billingMode={billingMode}
         onClose={closeReviewDialog}
         onSubmit={submitReviewDialog}
       />
