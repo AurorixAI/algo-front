@@ -15,7 +15,8 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   const teacher = await org.addStaff("teacher", "Правилов");
   const admin = await org.addStaff("admin", "Админов");
   const group = await org.createGroup({ name: "Группа Р1", teacherId: teacher.userId });
-  const student = await org.addStudent(group, "Анвар", "Закрытый", 100000);
+  await org.setGroupPrice(group.id, 100000); // the price lives on the group (#105)
+  const student = await org.addStudent(group, "Анвар", "Закрытый");
   await org.setPaymentSettings({ admin_can_manage: false });
 
   const adminPage = await signIn(admin);
@@ -34,6 +35,12 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
 
   // the server says the same (not only the menu hides it)
   await expect(admin.api.get("/auth/org/payments/summary")).rejects.toMatchObject({ status: 403 });
+  // #105: no price of the group either - the block is not on the page and the server sends no `price_current`
+  await adminPage.goto(`/admin/groups/${group.id}`);
+  await expect(adminPage.getByRole("heading", { name: group.name }).first()).toBeVisible();
+  await expect(adminPage.getByRole("region", { name: "Цена группы" })).toHaveCount(0);
+  await expect(admin.api.get(`/auth/org/groups/${group.id}/prices`)).rejects.toMatchObject({ status: 403 });
+  expect(await admin.api.get(`/auth/org/groups/${group.id}`)).not.toHaveProperty("price_current");
 
   // --- the owner switches the right on in the settings
   const owner = await signIn(org.owner);
@@ -53,6 +60,9 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   await expect(adminPage.getByRole("tab", { name: "Оплаты" })).toBeVisible();
   await adminPage.goto("/admin/payments");
   await expect(adminPage.getByRole("heading", { name: "Оплаты", level: 1 })).toBeVisible();
+  await adminPage.goto(`/admin/groups/${group.id}`);
+  await expect(adminPage.getByRole("region", { name: "Цена группы" })).toContainText("100 000"); // the price of the group (set by the owner above)
+  await adminPage.goto("/admin/payments");
   await expect(adminPage.getByRole("navigation").first().getByRole("link", { name: "Зарплата" })).toHaveCount(0);
   await expect(admin.api.get("/auth/org/payroll/settings")).rejects.toMatchObject({ status: 403 }); // payroll: owner only
 });
@@ -60,7 +70,8 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
 test("teacher: owner pages redirect to his dashboard; the student card has no «Оплаты» tab", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Учителев");
   const group = await org.createGroup({ name: "Группа Р2", teacherId: teacher.userId });
-  const student = await org.addStudent(group, "Мадина", "Учебная", 100000);
+  await org.setGroupPrice(group.id, 100000);
+  const student = await org.addStudent(group, "Мадина", "Учебная");
   const page = await signIn(teacher);
 
   for (const path of ["/owner/payroll", "/owner/payments", "/owner/settings"]) {

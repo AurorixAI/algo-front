@@ -6,7 +6,7 @@ import { dmy, groupedDigits, money, toast } from "../support/ui";
 /**
  * Owner: settings «Оплаты» -> «Единый день оплаты». A student who joined today then pays for an INCOMPLETE
  * month: the quick-pay row suggests today..end of the centre's period, the caption says «Неполный месяц»,
- * and the amount is the fee prorated by the group's lessons:  round_1000( fee * lessons_in_part / lessons_in_period ).
+ * and the amount is the price of the group prorated by its lessons:  round_1000( price * lessons_in_part / lessons_in_period ).
  * The expected numbers are computed here from the seeded weekly schedule and the calendar, not read from the API.
  */
 let org: Org;
@@ -28,7 +28,8 @@ test("fixed payment day: a student who joined today pays a prorated, «Непо�
   for (const dayOfWeek of weekdays) {
     await teacher.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek, startTime: "23:00", endTime: "23:30" });
   }
-  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, no fee yet
+  await org.setGroupPrice(group.id, fee); // #105: the price lives on the group, valid from today = the day the student joins
+  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
 
   const page = await signIn(org.owner);
 
@@ -53,7 +54,8 @@ test("fixed payment day: a student who joined today pays a prorated, «Непо�
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Нет данных/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
-  await row.getByRole("textbox", { name: "Оплата в месяц, сум" }).fill(String(fee));
+  await expect(row).toContainText(new RegExp(`Цена группы: ${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум/мес`));
+  await expect(row.getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
 
   await expect(row).toContainText(
     new RegExp(`Неполный месяц: ${inPart} ${lessonsWord(inPart)} из ${inPeriod} по расписанию — ${String(expectedAmount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")} сум из ${String(fee).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")}`),

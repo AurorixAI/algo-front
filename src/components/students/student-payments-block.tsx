@@ -14,6 +14,8 @@ interface StudentPaymentsBlockProps {
   profile: StudentProfile;
   /** `/owner/payments` or `/admin/payments`: where the receipt pages of this workspace live. */
   paymentsBasePath: string;
+  /** `/owner/groups` or `/admin/groups`: where the price of a group is set. */
+  groupsBasePath: string;
   /** A teacher never sees (and never requests) money. */
   isTeacher: boolean;
   /** Changes when the student joins or leaves a group, so the money is read again. */
@@ -21,11 +23,11 @@ interface StudentPaymentsBlockProps {
 }
 
 /**
- * «Оплаты» tab of the student card: for each group of the student the fee (or package price), the
- * status, the history, the actions, the receipts and the cheques.  Rendered only for a role that
+ * «Оплаты» tab of the student card: for each group of the student the price (of the group, or an individual
+ * one), the status, the history, the actions, the receipts and the cheques.  Rendered only for a role that
  * may see money and only while the server says so; nothing is requested otherwise.
  */
-export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, refreshKey }: StudentPaymentsBlockProps) {
+export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath, isTeacher, refreshKey }: StudentPaymentsBlockProps) {
   const studentId = profile.student.id;
   const studentName = profile.student.full_name;
 
@@ -33,7 +35,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, ref
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const lessonsDefault = usePaymentsSummary((state) => state.lessonsPerPayment);
   const moneyEnabled = !isTeacher && !DEMO_MODE && available;
-  // An archived student keeps his payment history, read-only: no «Внести / Продлить», no fee edit, no «Исправить»
+  // An archived student keeps his payment history, read-only: no «Внести / Продлить», no individual price, no «Исправить»
   // (the server refuses them); «Отменить» stays so that a mistaken payment can be cancelled.
   const access = studentArchiveAccess({ isTeacher, status: profile.student.status });
   const archived = access.showBanner;
@@ -94,6 +96,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, isTeacher, ref
         periodMode={periodMode}
         lessonsDefault={lessonsDefault}
         paymentsBasePath={paymentsBasePath}
+        groupsBasePath={groupsBasePath}
         archived={archived}
         onRowChange={replaceRow}
         onNotify={showToast}

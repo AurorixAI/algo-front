@@ -18,10 +18,21 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
+import {
+  checkEnrolOverride,
+  enrolPriceHint,
+  formatPrice,
+  groupPriceHref,
+  priceLabelOf,
+  targetGroupPriceHint,
+  targetGroupPriceText,
+  type GroupPriceBrief,
+} from "@/lib/group-price";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
+import { EnrolPriceToggle } from "@/components/payments/price-fields";
 
 export interface GroupInfo {
   id: string;
@@ -33,6 +44,8 @@ export interface GroupInfo {
   max_students?: number;
   student_count?: number;
   students_count?: number;
+  /** The price of the group today; the key is absent for a role that does not see money. */
+  price_current?: GroupPriceBrief | null;
 }
 
 interface TeacherInfo {
@@ -57,6 +70,8 @@ interface AssignGroupModalProps {
   currentGroupName?: string | null;
   /** Every group the student already attends: none of them is a valid destination. */
   excludeGroupIds?: string[];
+  /** Where the group pages of this workspace live (`/owner/groups`): the link «Задать цену группы» leads there. */
+  groupsBasePath?: string;
   onClose: () => void;
   onAssigned: (group?: GroupInfo | null) => void;
 }
@@ -70,6 +85,7 @@ export function AssignGroupModal({
   currentGroupId = null,
   currentGroupName = null,
   excludeGroupIds,
+  groupsBasePath,
   onClose,
   onAssigned,
 }: AssignGroupModalProps) {
@@ -91,6 +107,12 @@ export function AssignGroupModal({
   const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
   const paymentHint = transferPaymentHint({ transfer: isTransfer, moneyAvailable });
+  const priceHint = enrolPriceHint({ transfer: isTransfer, moneyAvailable });
+  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
+  // An individual price is an exception: off by default, a sum and a reason when on.
+  const [exceptionOn, setExceptionOn] = useState(false);
+  const [exceptionAmount, setExceptionAmount] = useState("");
+  const [exceptionReason, setExceptionReason] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -129,6 +151,9 @@ export function AssignGroupModal({
       setLoadError(null);
       setSearch("");
       setSelectedTeacherId("");
+      setExceptionOn(false);
+      setExceptionAmount("");
+      setExceptionReason("");
 
       Promise.all([
         orgApi.listGroups(),
@@ -200,10 +225,14 @@ export function AssignGroupModal({
       setAssignmentError("Ученик уже состоит в выбранной группе. Выберите другую группу.");
       return;
     }
+    const exception = moneyAvailable
+      ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
+      : { error: null, request: null };
+    if (exception.error) { setAssignmentError(exception.error); return; }
     setAssigning(true);
     setAssignmentError(null);
     try {
-      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, { mode });
+      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, { mode, price_override: exception.request });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
         setAssignmentError(isAdd ? "Ученик уже состоит в этой группе." : "Ученик уже состоит в этой группе. Перевод не выполнен.");
@@ -220,6 +249,10 @@ export function AssignGroupModal({
       setAssigning(false);
     }
   };
+
+  const selectedGroup = useMemo(() => groups.find((group) => group.id === selectedGroupId) ?? null, [groups, selectedGroupId]);
+  const selectedPriceLine = selectedGroup ? targetGroupPriceText(selectedGroup.price_current, priceLabel) : null;
+  const selectedPriceNote = selectedGroup ? targetGroupPriceHint(selectedGroup.price_current, 1) : null;
 
   if (!mounted) return null;
 
@@ -396,6 +429,7 @@ export function AssignGroupModal({
                       <p className="text-xs text-amber-700">Членство во всех текущих группах будет закрыто</p>
                     )}
                     {paymentHint && <p className="text-xs text-indigo-600/80">{paymentHint}</p>}
+                    {priceHint && <p className="text-xs text-indigo-600/80">{priceHint}</p>}
                   </div>
                 </div>
               )}
@@ -546,10 +580,15 @@ export function AssignGroupModal({
                               )}
                             </div>
 
-                            <div className="flex items-center gap-2 mt-1 text-xs text-slate-500">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-slate-500">
                               <span>
                                 {g.teacher_name ? `Учитель: ${g.teacher_name}` : "Преподаватель не назначен"}
                               </span>
+                              {moneyAvailable && g.price_current !== undefined && (
+                                <span className={g.price_current ? "font-medium text-slate-700" : "font-medium text-amber-700"}>
+                                  {g.price_current ? formatPrice(g.price_current.amount, priceLabel) : "цена не задана"}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -569,6 +608,36 @@ export function AssignGroupModal({
                 </div>
               )}
             </div>
+
+            {moneyAvailable && selectedGroup && (
+              <div className="mx-5 mb-4 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs">
+                {selectedPriceLine && (
+                  <>
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className={`font-semibold ${selectedGroup.price_current ? "text-slate-800" : "text-amber-800"}`}>
+                        «{selectedGroup.name}»: {selectedPriceLine.charAt(0).toLowerCase()}{selectedPriceLine.slice(1)}
+                      </span>
+                      {selectedGroup.price_current === null && groupsBasePath && (
+                        <a href={groupPriceHref(groupsBasePath, selectedGroup.id)} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
+                      )}
+                    </p>
+                    {selectedPriceNote && <p className="mt-0.5 text-slate-500">{selectedPriceNote}</p>}
+                  </>
+                )}
+                <div className={selectedPriceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+                  <EnrolPriceToggle
+                    idPrefix="assign-group-price"
+                    enabled={exceptionOn}
+                    amount={exceptionAmount}
+                    reason={exceptionReason}
+                    onEnabled={(value) => { setAssignmentError(null); setExceptionOn(value); }}
+                    onAmount={(text) => { setAssignmentError(null); setExceptionAmount(text); }}
+                    onReason={(text) => { setAssignmentError(null); setExceptionReason(text); }}
+                    compact
+                  />
+                </div>
+              </div>
+            )}
 
             {assignmentError && (
               <div role="alert" className="mx-5 mb-4 flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs font-medium leading-relaxed text-rose-700">

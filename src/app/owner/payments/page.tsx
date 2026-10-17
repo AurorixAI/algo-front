@@ -3,5 +3,5 @@
 import { PaymentsPage } from "@/components/payments/payments-page";
 
 export default function OwnerPaymentsPage() {
-  return <PaymentsPage studentProfileBasePath="/owner/students" />;
+  return <PaymentsPage studentProfileBasePath="/owner/students" groupsBasePath="/owner/groups" />;
 }

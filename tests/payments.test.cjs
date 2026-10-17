@@ -45,10 +45,11 @@ test("parseMoneyInput keeps digits only; an empty field is null", () => {
 });
 
 test("money fields are limited to 0..10 000 000 000", () => {
-  assert.deepEqual(rules.parseMonthlyFee(""), { value: null, error: null });
-  assert.deepEqual(rules.parseMonthlyFee("450 000"), { value: 450000, error: null });
-  assert.deepEqual(rules.parseMonthlyFee("10 000 000 000"), { value: 10_000_000_000, error: null });
-  assert.ok(rules.parseMonthlyFee("10 000 000 001").error);
+  // the amount of a payment (the price has its own checks: tests/n13-p4-price.test.cjs)
+  const form = (amount) => ({ amount, paidOn: "2026-10-01", validFrom: "2026-10-01", validTo: "2026-10-31", lessons: "", note: "", reason: "" });
+  assert.equal(rules.validatePaymentForm(form("10 000 000 000"), "calendar", "2026-10-17"), null);
+  assert.ok(rules.validatePaymentForm(form("10 000 000 001"), "calendar", "2026-10-17"));
+  assert.ok(rules.validatePaymentForm(form(""), "calendar", "2026-10-17"));
 });
 
 test("dates are shown as ДД.ММ.ГГГГ", () => {
@@ -441,7 +442,7 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
   for (const role of ["admin", "owner"]) {
     // each workspace opens the student card under its own prefix (N13 P1.4)
-    assert.match(read(`src/app/${role}/payments/page.tsx`), new RegExp(`<PaymentsPage studentProfileBasePath="/${role}/students" />`), role);
+    assert.match(read(`src/app/${role}/payments/page.tsx`), new RegExp(`<PaymentsPage studentProfileBasePath="/${role}/students" groupsBasePath="/${role}/groups" />`), role);
     assert.match(read(`src/app/${role}/layout.tsx`), new RegExp(`<PaymentsAlertBanner paymentsBasePath="/${role}/payments" />`), role);
   }
   const sidebar = read("src/components/layout/sidebar.tsx");

@@ -17,8 +17,9 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   const today = businessNow().date;
   const teacher = await org.addStaff("teacher", "Архивов");
   const group = await org.createGroup({ name: "Группа А1", teacherId: teacher.userId });
-  const leaver = await org.addStudent(group, "Анвар", "Уходящий", 450000);
-  const stayer = await org.addStudent(group, "Мадина", "Остающаяся", 450000);
+  await org.setGroupPrice(group.id, 450000); // the price lives on the group (#105)
+  const leaver = await org.addStudent(group, "Анвар", "Уходящий");
+  const stayer = await org.addStudent(group, "Мадина", "Остающаяся");
   await org.pay(leaver.id, 450000);
   await org.pay(stayer.id, 450000);
 

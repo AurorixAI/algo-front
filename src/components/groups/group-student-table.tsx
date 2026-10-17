@@ -121,8 +121,10 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
     );
   }
 
+  // `relative`: the sr-only «Действия» of the header is absolute and would otherwise leak out of the scroller
+  // (a page-wide horizontal scroll on a phone).
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className={`w-full text-left border-collapse table-fixed ${removable ? "min-w-[760px]" : ""}`}>
         <colgroup>
           <col className={removable ? "w-[34%]" : "w-[36%]"} />

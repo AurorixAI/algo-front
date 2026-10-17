@@ -1,11 +1,13 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { GraduationCap, Users, ChevronRight, Archive, BookOpen } from "lucide-react";
+import { GraduationCap, Users, ChevronRight, Archive, BookOpen, Wallet } from "lucide-react";
 import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
 import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
 import { lessonTypeLabel } from "@/lib/payroll";
+import { formatPrice, GROUP_PRICE_ANCHOR, priceLabelOf } from "@/lib/group-price";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 interface GroupCardProps {
   group: GroupInfo & { avg_level?: "below_grade" | "at_grade" | "above_grade" | null };
@@ -14,6 +16,9 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
+  // The price is shown only when the server sent it: the key `price_current` exists for money roles alone.
+  const showPrice = "price_current" in group;
+  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const fillPct = group.max_students > 0
     ? Math.min(100, Math.round(((group.student_count || 0) / group.max_students) * 100))
     : 0;
@@ -89,6 +94,24 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
           </span>
         )}
       </div>
+
+      {showPrice && (
+        <p className="relative z-20 mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm" data-testid="group-card-price">
+          <Wallet className="h-4 w-4 text-slate-400" aria-hidden="true" />
+          {group.price_current ? (
+            <span className="font-semibold tabular-nums text-slate-800">{formatPrice(group.price_current.amount, priceLabel)}</span>
+          ) : (
+            <>
+              <span className="font-medium text-amber-800">Цена не задана</span>
+              {href && (
+                <Link href={`${href}#${GROUP_PRICE_ANCHOR}`} className="text-xs font-semibold text-primary-700 hover:underline">
+                  задать
+                </Link>
+              )}
+            </>
+          )}
+        </p>
+      )}
 
       <div className="relative z-10 mt-auto">
         <div className="flex items-center justify-between text-xs text-slate-500 mb-2 font-medium">

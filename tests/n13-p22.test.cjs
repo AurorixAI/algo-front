@@ -31,46 +31,25 @@ const plain = (text) => text.replace(/ /g, " ");
 
 // ---- 1. what the amount is called (ROADMAP №68) ----------------------------------------------
 
-test("the fee is «Оплата в месяц» for months and «Стоимость пакета» for a package, in every phrase", () => {
-  assert.equal(P.feeTexts("calendar").label, "Оплата в месяц");
-  assert.equal(P.feeTexts("lessons").label, "Стоимость пакета");
-  assert.deepEqual(P.feeTexts("lessons"), {
-    label: "Стоимость пакета",
-    field: "Стоимость пакета, сум",
-    editAria: "Изменить стоимость пакета",
-    saved: "Стоимость пакета сохранена",
-    required: "Укажите стоимость пакета",
-    unset: "не указана",
-  });
-  assert.equal(P.feeTexts("calendar").field, "Оплата в месяц, сум");
-  assert.equal(P.feeTexts("calendar").saved, "Оплата в месяц сохранена");
-  assert.equal(P.feeTexts("calendar").required, "Укажите оплату в месяц");
+test("the price is «Оплата в месяц» for months and «Стоимость пакета» for a package (#105: the centre's mode names it)", () => {
+  const G = require(path.join(root, "src/lib/group-price.ts"));
+  assert.equal(G.priceLabelOf("calendar"), "Оплата в месяц");
+  assert.equal(G.priceLabelOf("lessons"), "Стоимость пакета");
+  assert.equal(G.priceLabelOf(undefined), "Оплата в месяц");
   // no phrase of the package mentions a month
-  for (const text of Object.values(P.feeTexts("lessons"))) assert.doesNotMatch(text, /месяц/i);
+  assert.equal(plain(G.formatPrice(600000, "Стоимость пакета")), "600 000 сум за пакет");
+  assert.doesNotMatch(G.formatPrice(600000, "Стоимость пакета"), /мес/);
+  assert.equal(plain(G.formatPrice(600000, "Оплата в месяц")), "600 000 сум/мес");
 });
 
-test("the mode of a fee: the membership's own payments, else the center's", () => {
-  assert.equal(P.feeModeOf({ period_mode: "lessons" }, "calendar"), "lessons"); // an old package in a calendar center
-  assert.equal(P.feeModeOf({ period_mode: "calendar" }, "lessons"), "calendar");
-  assert.equal(P.feeModeOf({ period_mode: null }, "lessons"), "lessons"); // no payments yet
-  assert.equal(P.feeModeOf(null, "calendar"), "calendar");
-  assert.equal(P.feeModeOf(undefined, "lessons"), "lessons");
-});
-
-test("the fee column of a list names the kind, or stays neutral for a mix", () => {
-  assert.equal(P.feeColumnLabel([{ period_mode: "lessons" }, { period_mode: null }], "lessons"), "Стоимость пакета");
-  assert.equal(P.feeColumnLabel([{ period_mode: "calendar" }, { period_mode: null }], "calendar"), "Оплата в месяц");
-  assert.equal(P.feeColumnLabel([{ period_mode: "calendar" }, { period_mode: "lessons" }], "calendar"), "Стоимость");
-  assert.equal(P.feeColumnLabel([], "lessons"), "Стоимость пакета");
-});
-
-test("screens take the fee wording from the helper, not from literals", () => {
-  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx"]) {
-    const source = read(`src/${file}`);
-    assert.match(source, /feeTexts\(feeModeOf\(row, periodMode\)\)/, file);
-    assert.doesNotMatch(source, /["'>]Оплата в месяц[<"',]/, file);
+test("screens take the price wording from the helper, not from literals", () => {
+  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-price.tsx"]) {
+    assert.match(read(`src/${file}`), /priceLabelOf\(/, file);
   }
-  assert.match(read("src/components/groups/add-student-drawer.tsx"), /feeTexts\(usePaymentsSummary/);
+  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx", "components/payments/membership-price.tsx", "components/groups/group-price-block.tsx"]) {
+    assert.doesNotMatch(read(`src/${file}`), /["'>]Оплата в месяц[<"',]/, file);
+  }
+  assert.match(read("src/components/groups/add-student-drawer.tsx"), /priceLabelOf\(usePaymentsSummary/);
 });
 
 // ---- 2. periods of the «единый день оплаты» -------------------------------------------------------
@@ -558,20 +537,24 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
 
 // ---- R3 follow-ups -----------------------------------------------------------------------------
 
-test("the caption under the amount is worded by the mode, whatever an older server writes", () => {
+test("the caption under the amount says «Цена группы не задана», whatever an older server writes", () => {
   const quote = (over) => ({ basis: "full", monthly_fee: 500000, explanation: "Полный месяц", partial: false, suggested_amount: 500000, ...over });
-  assert.equal(P.quoteCaption(quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Оплата в месяц не задана" }), "lessons"), "Стоимость пакета не указана");
-  assert.equal(P.quoteCaption(quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Стоимость пакета не задана" }), "calendar"), "Оплата в месяц не указана");
-  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, suggested_amount: 0 }), "calendar"), "Бесплатно — сумма 0");
-  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, basis: "none", suggested_amount: null }), "lessons"), "Бесплатно — сумма 0");
-  assert.equal(P.quoteCaption(quote({ explanation: "Неполный месяц: 6 уроков из 12" }), "calendar"), "Неполный месяц: 6 уроков из 12");
-  // a part of a month with no price asks for an amount instead of repeating the full fee
-  assert.equal(P.quoteCaption(quote({ partial: true, suggested_amount: null, basis: "days" }), "calendar"), "Для неполного месяца введите сумму");
+  const none = quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Оплата в месяц не задана" });
+  assert.equal(P.quoteCaption(none), "Цена группы не задана — введите сумму вручную");
+  assert.equal(P.quoteCaption({ ...none, explanation: "Стоимость пакета не задана" }), P.PRICE_NOT_SET_TEXT);
+  assert.equal(P.quoteLacksPrice(none), true);
+  assert.equal(P.quoteLacksPrice(quote({ monthly_fee: 0, basis: "none", suggested_amount: null })), false); // a price of 0 is a price
+  assert.equal(P.quoteLacksPrice(quote()), false);
+  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, suggested_amount: 0 })), "Бесплатно — сумма 0");
+  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, basis: "none", suggested_amount: null })), "Бесплатно — сумма 0");
+  assert.equal(P.quoteCaption(quote({ explanation: "Неполный месяц: 6 уроков из 12" })), "Неполный месяц: 6 уроков из 12");
+  // a part of a month with no price asks for an amount instead of repeating the full price
+  assert.equal(P.quoteCaption(quote({ partial: true, suggested_amount: null, basis: "days" })), "Для неполного месяца введите сумму");
   assert.equal(P.PARTIAL_AMOUNT_PROMPT, "Для неполного месяца введите сумму");
   assert.equal(P.QUOTE_FAILED_NOTE, "Подсказка суммы недоступна — проверьте даты и сумму");
 });
 
-test("a fee typed but not saved goes into the quote question (and into its key)", () => {
+test("a one-off sum goes into the quote question (and into its key)", () => {
   const inputs = { mode: "calendar", paidOn: "2026-10-15", validFrom: "2026-10-15", validTo: "2026-11-14", lessons: "", fromTouched: false, toTouched: false };
   assert.deepEqual(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 }), { paid_on: "2026-10-15", monthly_fee: 500000 });
   assert.deepEqual(P.buildQuoteQuery({ ...inputs, toTouched: true, validTo: "2026-10-31", monthlyFee: 400000 }),
@@ -588,11 +571,13 @@ test("a fee typed but not saved goes into the quote question (and into its key)"
   assert.match(read("src/lib/api.ts"), /params\.set\("monthly_fee", String\(q\.monthly_fee\)\)/);
 });
 
-test("quick pay prices a new student from the typed fee and never prefills the full fee for a part of a month", () => {
+test("quick pay suggests from the price of the group, has no price field, and never prefills the full price for a part of a month", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /monthlyFee: feeValue,/);
-  assert.match(page, /\(fresh\.monthly_fee \?\? null\) === feeValue/); // an answer for another fee (older server) is not used
-  assert.match(page, /const defaultAmount = custom \? null : suggestion \?\? \(partial \? null : feeValue\);/);
+  // #105: the price is not typed here any more - the row says what the price is, links to the group, and the sum is by hand
+  assert.doesNotMatch(page, /setMembershipFee|monthlyFee: feeValue|parseMonthlyFee|texts\.field|setSavedFee/);
+  assert.match(page, /const defaultAmount = custom \? null : suggestion \?\? \(partial \? null : priceAmount\);/);
+  assert.match(page, /priceAmount === null/); // no price: the sum field is open
+  assert.match(page, /groupPriceHref\(groupsBasePath, row\.group_id\)/);
   assert.match(page, /PARTIAL_AMOUNT_PROMPT/);
   assert.match(page, /QUOTE_FAILED_NOTE/);
   assert.doesNotMatch(page, /изменена — сумму за неполный месяц/); // the misleading hint is gone
@@ -624,7 +609,7 @@ test("the payment form falls back to the center's day, says the quote is unavail
   assert.match(modal, /next\.validTo = defaultTo\(next\.validFrom\)/);
   assert.match(modal, /if \(!amountTouched && quote\) next\.amount = "";/);
   assert.match(modal, /QUOTE_FAILED_NOTE/);
-  assert.match(modal, /quoteCaption\(fresh, mode\)/);
+  assert.match(modal, /quoteCaption\(fresh\)/);
 });
 
 test("«Оплаты» validates and sends only the fields its card shows", () => {

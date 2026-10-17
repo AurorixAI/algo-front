@@ -816,6 +816,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           <StudentPaymentsBlock
             profile={profile}
             paymentsBasePath={paymentsBasePath}
+            groupsBasePath={groupsBasePath}
             isTeacher={Boolean(isTeacher)}
             refreshKey={memberships.map((item) => item.membership_id || item.group_id).join(",")}
           />
@@ -921,6 +922,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           currentGroupId={student.group_id}
           currentGroupName={assignMode === "add" ? memberships.map((item) => item.group_name).join(", ") || null : group?.name || null}
           excludeGroupIds={memberships.map((item) => item.group_id)}
+          groupsBasePath={groupsBasePath}
           onClose={() => setAssignModalOpen(false)}
           onAssigned={() => {
             setAssignModalOpen(false);

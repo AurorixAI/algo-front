@@ -21,8 +21,9 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   const today = businessNow().date;
   const teacher = await org.addStaff("teacher", "Пропускин");
   const group = await org.createGroup({ name: "Группа П1", teacherId: teacher.userId });
-  const paid = await org.addStudent(group, "Анвар", "Оплативший", 450000);
-  const unpaid = await org.addStudent(group, "Мадина", "Безоплатная", 450000);
+  await org.setGroupPrice(group.id, 450000); // the price lives on the group (#105)
+  const paid = await org.addStudent(group, "Анвар", "Оплативший");
+  const unpaid = await org.addStudent(group, "Мадина", "Безоплатная");
   await org.pay(paid.id, 450000);
   const lesson = await org.createLessonStartingNow(group.id);
   await runLesson(teacher, lesson, {

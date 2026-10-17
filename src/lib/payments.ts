@@ -8,6 +8,7 @@
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
 import { CHIP_TONE_CLASS } from "./chip-tone";
+import type { PriceInfo } from "./group-price";
 
 // ── API contract (spec §3) ─────────────────────────────────────────────────
 
@@ -128,7 +129,10 @@ export interface PaymentQuote {
   valid_to: string | null;
   lessons_count: number | null;
   partial: boolean;
+  /** The sum the suggestion was made from (the price at the start of the period, or the one-off sum that was sent). */
   monthly_fee: number | null;
+  /** The effective price at the start of the period (#105); an older server does not send it. */
+  price?: PriceInfo;
   suggested_amount: number | null;
   basis: QuoteBasis;
   parts: PaymentQuotePart[];
@@ -142,7 +146,7 @@ export interface PaymentQuoteQuery {
   valid_from?: string;
   valid_to?: string;
   lessons_count?: number;
-  /** Whole сум: replaces the membership's saved fee for this calculation only (a fee typed but not saved yet). */
+  /** Whole сум: replaces the price for this calculation only (a one-off sum; nothing is saved). */
   monthly_fee?: number;
 }
 
@@ -185,6 +189,12 @@ export interface MembershipPaymentRow {
   teacher_name: string | null;
   is_primary: boolean;
   is_active: boolean;
+  /**
+   * #105: the effective price today - the price of the group, the individual price of the student, or none.
+   * Money roles only.  An older server has no `price`; `priceOfRow` reads `monthly_fee` then.
+   */
+  price?: PriceInfo;
+  /** The same sum as `price.amount`, kept by the server as a synonym; the front reads `price`. */
   monthly_fee: number | null;
   status: PaymentStatus;
   period_mode: PeriodMode | null;
@@ -427,54 +437,6 @@ export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";
 
 export function lessonsWord(count: number): string {
   return pluralRu(count, ["урок", "урока", "уроков"]);
-}
-
-// ── What the amount is called (ROADMAP №68) ────────────────────────────────
-
-/** The mode that names a membership's fee: its own payments' mode, or the center's while it has none. */
-export function feeModeOf(row: { period_mode?: PeriodMode | null } | null | undefined, centerMode: PeriodMode): PeriodMode {
-  return row?.period_mode ?? centerMode;
-}
-
-export interface FeeTexts {
-  /** «Оплата в месяц» / «Стоимость пакета». */
-  label: string;
-  /** For an input: «Оплата в месяц, сум». */
-  field: string;
-  editAria: string;
-  saved: string;
-  required: string;
-  /** Said when the fee is empty. */
-  unset: string;
-}
-
-/** All wording that depends on what the fee is: one place, so a label never disagrees with its toast. */
-export function feeTexts(mode: PeriodMode): FeeTexts {
-  if (mode === "lessons") {
-    return {
-      label: "Стоимость пакета",
-      field: "Стоимость пакета, сум",
-      editAria: "Изменить стоимость пакета",
-      saved: "Стоимость пакета сохранена",
-      required: "Укажите стоимость пакета",
-      unset: "не указана",
-    };
-  }
-  return {
-    label: "Оплата в месяц",
-    field: "Оплата в месяц, сум",
-    editAria: "Изменить оплату в месяц",
-    saved: "Оплата в месяц сохранена",
-    required: "Укажите оплату в месяц",
-    unset: "не указана",
-  };
-}
-
-/** Header of the fee column of a list that may mix both kinds. */
-export function feeColumnLabel(rows: ReadonlyArray<{ period_mode?: PeriodMode | null }>, centerMode: PeriodMode): string {
-  const modes = new Set(rows.map((row) => feeModeOf(row, centerMode)));
-  if (modes.size === 1) return feeTexts([...modes][0]).label;
-  return modes.size === 0 ? feeTexts(centerMode).label : "Стоимость";
 }
 
 /** «Оплачено до 04.11.2026», «Сегодня последний день», «Закончилась 3 дн. назад», «Через 2 дн.», «Осталось 3 урока из 12»… */
@@ -731,13 +693,6 @@ export function validateVoidReason(value: string | null | undefined): string | n
   return null;
 }
 
-/** Monthly fee field: empty clears it (null), otherwise 0..10 000 000 000. */
-export function parseMonthlyFee(text: string): { value: number | null; error: string | null } {
-  const value = parseMoneyInput(text);
-  if (value !== null && value > MAX_MONEY) return { value: null, error: "Сумма слишком большая" };
-  return { value, error: null };
-}
-
 // ── Quote of the next payment (N13 P2.2) ───────────────────────────────────
 
 export interface QuoteInputs {
@@ -749,7 +704,7 @@ export interface QuoteInputs {
   /** The user typed the field, so it is sent and never overwritten. */
   fromTouched: boolean;
   toTouched: boolean;
-  /** A fee typed in the form but not saved yet; sent so the suggestion is made for it. Omit when the saved fee counts. */
+  /** A one-off sum for this calculation only (nothing is saved); sent so the suggestion is made for it. Omit when the price counts. */
   monthlyFee?: number | null;
 }
 
@@ -823,17 +778,24 @@ export const QUOTE_FAILED_NOTE = "Подсказка суммы недоступ
 /** A part of a center period has no price until the quote (or the user) states one. */
 export const PARTIAL_AMOUNT_PROMPT = "Для неполного месяца введите сумму";
 
+/** Under the amount when the group (and the student) has no price: the amount is typed by hand. */
+export const PRICE_NOT_SET_TEXT = "Цена группы не задана — введите сумму вручную";
+
+/** The answer says there is no price to suggest from (a price of 0 is a price: «Бесплатно»). */
+export function quoteLacksPrice(quote: Pick<PaymentQuote, "basis" | "monthly_fee">): boolean {
+  return quote.monthly_fee !== 0 && quote.basis === "none";
+}
+
 /**
- * Caption under the amount.  Where the answer says there is no price, the wording is built here from the
- * fee name of the mode («Стоимость пакета не указана»), so it is right whatever an older server writes;
- * everything else is the server's own explanation.
+ * Caption under the amount.  Where the answer says there is no price, the wording is the screen's own
+ * («Цена группы не задана»), so it is right whatever an older server writes; everything else is the server's own
+ * explanation.
  */
 export function quoteCaption(
   quote: Pick<PaymentQuote, "basis" | "monthly_fee" | "explanation" | "partial" | "suggested_amount">,
-  mode: PeriodMode,
 ): string {
   if (quote.monthly_fee === 0) return "Бесплатно — сумма 0";
-  if (quote.basis === "none") return `${feeTexts(mode).label} ${feeTexts(mode).unset}`;
+  if (quote.basis === "none") return PRICE_NOT_SET_TEXT;
   if (quote.partial && quote.suggested_amount === null) return PARTIAL_AMOUNT_PROMPT;
   return quote.explanation || "";
 }
