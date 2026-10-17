@@ -42,6 +42,12 @@ import {
   type PayrollSheetBrief,
 } from "./payroll";
 
+/**
+ * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
+ * `GET /org/memberships/{id}/price-override` (PriceOverrideChange); the shapes are declared next to their renderers.
+ */
+export type { GroupPriceChange, GroupPriceRow, PriceOverrideChange, PriceOverrideRow } from "./group-price";
+
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 function demoApiV1(): string {

@@ -216,38 +216,84 @@ test("a past day warns that calculations change and payments never do; a future 
 
 // ── group-price.ts: history and the audit trail ─────────────────────────────────────────────────────────────
 
-test("the audit trail `changes` is optional and never prints [object Object]", () => {
-  const label = "Оплата в месяц";
-  assert.equal(G.describeChange("сумма изменена", label), "сумма изменена");
-  assert.equal(G.describeChange({ text: "исправлено" }, label), "исправлено");
-  assert.equal(plain(G.describeChange({ field: "amount", from: 500000, to: 600000 }, label)), "сумма: 500 000 сум/мес → 600 000 сум/мес");
-  assert.equal(plain(G.describeChange({ field: "amount", old: 500000, new: 600000 }, label)), "сумма: 500 000 сум/мес → 600 000 сум/мес");
-  assert.equal(G.describeChange({ field: "note", before: null, after: "Новый год" }, label), "примечание: — → Новый год");
-  assert.equal(G.describeChange({ field: "valid_from", from: "2026-10-01", to: "2026-10-15" }, label), "действует с: 01.10.2026 → 15.10.2026");
-  for (const unknown of [null, undefined, 5, {}, { foo: 1 }, { field: "amount" }, ["x"]]) assert.equal(G.describeChange(unknown, label), null, JSON.stringify(unknown));
+test("the audit trail of a group price: who, when (business clock), from what to what, the note", () => {
+  const change = (over) => ({ at: "2026-10-17T09:05:00", actor_name: "Ахмедов", old_amount: 450000, new_amount: 500000, note: "Новый год", ...over });
+  // `at` is naive UTC: 09:05 UTC is 14:05 in Tashkent
+  assert.equal(plain(G.groupChangeLine(change({}))), "17.10.2026 14:05 · Ахмедов: 450 000 → 500 000 · Новый год");
+  assert.equal(plain(G.groupChangeLine(change({ note: null }))), "17.10.2026 14:05 · Ахмедов: 450 000 → 500 000");
+  assert.equal(plain(G.groupChangeLine(change({ note: "   " }))), "17.10.2026 14:05 · Ахмедов: 450 000 → 500 000");
+  // the first price has nothing before it
+  assert.equal(plain(G.groupChangeLine(change({ old_amount: null, note: null }))), "17.10.2026 14:05 · Ахмедов: не была задана → 500 000");
+  // a write near midnight lands on the next business day
+  assert.equal(plain(G.groupChangeLine(change({ at: "2026-10-17T19:30:00", note: null }))), "18.10.2026 00:30 · Ахмедов: 450 000 → 500 000");
+  // an unknown writer / time (a row the migration made) never prints «null»
+  assert.equal(plain(G.groupChangeLine(change({ actor_name: null }))), "17.10.2026 14:05: 450 000 → 500 000 · Новый год");
+  assert.equal(plain(G.groupChangeLine(change({ at: null, actor_name: "Ахмедов", note: null }))), "Ахмедов: 450 000 → 500 000");
+  assert.equal(plain(G.groupChangeLine(change({ at: null, actor_name: null, note: null }))), "450 000 → 500 000");
+  // a price of 0 is a price
+  assert.equal(plain(G.groupChangeLine(change({ new_amount: 0, note: null }))), "17.10.2026 14:05 · Ахмедов: 450 000 → 0");
+  for (const text of [G.groupChangeLine(change({})), G.groupChangeLine(change({ old_amount: null, actor_name: null, at: null }))]) assert.doesNotMatch(text, /null|undefined|object/);
+});
+
+test("the audit trail of an individual price: what stood before, what stands now, the reason", () => {
+  const change = (over) => ({ at: "2026-10-17T09:05:00", actor_name: "Ахмедов", old_amount: 500000, old_source: "group", new_amount: 400000, reason: "Сестра ученика", ...over });
+  assert.equal(plain(G.overrideChangeLine(change({}))), "17.10.2026 14:05 · Ахмедов: цена группы 500 000 → индивидуальная 400 000 · Сестра ученика");
+  // back to the price of the group
+  assert.equal(plain(G.overrideChangeLine(change({ old_amount: 400000, old_source: "override", new_amount: null, reason: null }))), "17.10.2026 14:05 · Ахмедов: индивидуальная 400 000 → цена группы");
+  // an exception changed to another sum
+  assert.equal(plain(G.overrideChangeLine(change({ old_amount: 400000, old_source: "override", new_amount: 350000, reason: "Договорённость" }))), "17.10.2026 14:05 · Ахмедов: индивидуальная 400 000 → индивидуальная 350 000 · Договорённость");
+  // nothing was in force before (the group had no price)
+  assert.equal(plain(G.overrideChangeLine(change({ old_amount: null, old_source: "none" }))), "17.10.2026 14:05 · Ахмедов: цена не задана → индивидуальная 400 000 · Сестра ученика");
+  assert.equal(plain(G.overrideChangeLine(change({ old_amount: null, old_source: null, actor_name: null, at: null, reason: null }))), "цена не задана → индивидуальная 400 000");
+  // the reason of a return is shown when there is one
+  assert.equal(plain(G.overrideChangeLine(change({ old_amount: 400000, old_source: "override", new_amount: null, reason: "Скидка закончилась" }))), "17.10.2026 14:05 · Ахмедов: индивидуальная 400 000 → цена группы · Скидка закончилась");
 });
 
 test("history rows: amount, start, state, note, author and the audit lines", () => {
   const rows = [
-    { id: "3", amount: 600000, valid_from: "2026-11-01", note: null, created_by_name: "Владелец", created_at: "2026-10-17T09:30:00", is_current: false, is_future: true },
+    { id: "3", amount: 600000, valid_from: "2026-11-01", note: null, created_by_name: "Владелец", created_at: "2026-10-17T09:30:00", is_current: false, is_future: true,
+      changes: [{ at: "2026-10-17T09:30:00", actor_name: "Владелец", old_amount: null, new_amount: 600000, note: null }] },
     { id: "2", amount: 500000, valid_from: "2026-10-01", note: " Новый год ", created_by_name: "Админ", created_at: "2026-09-20T05:00:00", is_current: true, is_future: false,
-      changes: [{ field: "amount", from: 450000, to: 500000 }, { weird: true }, "исправление"] },
-    { id: "1", amount: 450000, valid_from: "2000-01-01", note: null, created_by_name: null, created_at: null, is_current: false, is_future: false },
+      changes: [
+        { at: "2026-09-21T05:00:00", actor_name: "Админ", old_amount: 480000, new_amount: 500000, note: "Новый год" },
+        { at: "2026-09-20T05:00:00", actor_name: "Админ", old_amount: 450000, new_amount: 480000, note: null },
+      ] },
+    { id: "1", amount: 450000, valid_from: "2000-01-01", note: null, created_by_name: null, created_at: null, is_current: false, is_future: false, changes: [] },
   ];
-  const views = G.historyViews(rows, "Оплата в месяц", (value) => `в ${value}`);
+  const views = G.historyViews(rows, "Оплата в месяц");
   assert.deepEqual(views.map((v) => [v.id, plain(v.amount), v.since, v.status]), [
     ["3", "600 000 сум/мес", "с 01.11.2026", "future"],
     ["2", "500 000 сум/мес", "с 01.10.2026", "current"],
     ["1", "450 000 сум/мес", "с 01.01.2000", "past"],
   ]);
   assert.equal(views[1].note, "Новый год");
-  assert.equal(views[0].author, "Владелец · в 2026-10-17T09:30:00");
+  assert.equal(views[0].author, "Владелец · 17.10.2026 14:30");
   assert.equal(views[2].author, "");
-  assert.deepEqual(views[1].changes.map(plain), ["сумма: 450 000 сум/мес → 500 000 сум/мес", "исправление"]);
-  assert.deepEqual(views[0].changes, []); // no `changes` from an older server
+  // newest first, as the server sends them
+  assert.deepEqual(views[1].changes.map(plain), [
+    "21.09.2026 10:00 · Админ: 480 000 → 500 000 · Новый год",
+    "20.09.2026 10:00 · Админ: 450 000 → 480 000",
+  ]);
+  assert.deepEqual(views[0].changes.map(plain), ["17.10.2026 14:30 · Владелец: не была задана → 600 000"]);
+  assert.deepEqual(views[2].changes, []);
   // the individual-price history
-  assert.equal(plain(G.overrideRowText({ id: "a", amount: 400000, valid_from: "2026-10-15", reason: "Сестра", created_by_name: null, created_at: null, is_current: true, is_future: false }, "Оплата в месяц")), "с 15.10.2026 — 400 000 сум/мес · Сестра");
-  assert.equal(G.overrideRowText({ id: "b", amount: null, valid_from: "2026-11-20", reason: "лишнее", created_by_name: null, created_at: null, is_current: false, is_future: true }, "Оплата в месяц"), "с 20.11.2026 — цена группы");
+  const row = { id: "a", amount: 400000, valid_from: "2026-10-15", reason: "Сестра", created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] };
+  assert.equal(plain(G.overrideRowText(row, "Оплата в месяц")), "с 15.10.2026 — 400 000 сум/мес · Сестра");
+  assert.equal(G.overrideRowText({ ...row, id: "b", amount: null, valid_from: "2026-11-20", reason: "лишнее", is_current: false, is_future: true }, "Оплата в месяц"), "с 20.11.2026 — цена группы");
+});
+
+test("the audit shapes are typed in api.ts and rendered by the screens, with nothing defensive left", () => {
+  const api = read("src/lib/api.ts");
+  assert.match(api, /export type \{ GroupPriceChange, GroupPriceRow, PriceOverrideChange, PriceOverrideRow \} from "\.\/group-price";/);
+  const lib = read("src/lib/group-price.ts");
+  assert.doesNotMatch(lib, /describeChange|\bPriceChange\b|FIELD_WORDS/);
+  for (const field of ["at: string | null;", "actor_name: string | null;", "old_amount: number | null;", "new_amount: number;", "note: string | null;", "old_source: PriceSource | null;", "new_amount: number | null;", "reason: string | null;"]) {
+    assert.ok(lib.includes(field), field);
+  }
+  assert.match(lib, /groupChangeLine\(change, formatAt\)/);
+  assert.match(lib, /formatAt: \(value: string \| null \| undefined\) => string = formatUtcNaiveAsBusinessDateTime/);
+  assert.match(read("src/components/payments/membership-price.tsx"), /overrideChangeLine\(change\)/);
+  assert.match(read("src/components/groups/group-price-block.tsx"), /historyViews\(data\.history, label, formatUtcNaiveAsBusinessDateTime\)/);
 });
 
 // ── group-price.ts: enrolment and transfer ──────────────────────────────────────────────────────────────────

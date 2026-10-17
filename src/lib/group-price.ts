@@ -11,6 +11,7 @@ import {
   addDays,
   formatDateRu,
   formatMoney,
+  formatMoneyInput,
   isIsoDate,
   MAX_MONEY,
   parseMoneyInput,
@@ -18,7 +19,7 @@ import {
   type MembershipPaymentRow,
   type PeriodMode,
 } from "./payments";
-import { monthYearLabelRu } from "./business-time";
+import { formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
 
 // ── Shapes of the API ───────────────────────────────────────────────────────
 
@@ -45,10 +46,31 @@ export interface GroupPriceCurrent extends GroupPriceBrief {
 }
 
 /**
- * One line of the audit trail of a history row.  The server may send it as a plain sentence or as a record of
- * what changed (`field` + `from`/`to`); every shape is turned into words by `describeChange`.
+ * One write of the price of a day (the audit trail, `group_audit`; `changes` of a history item, newest first, only for that
+ * `valid_from`): who, when (naive UTC), from what to what.
  */
-export type PriceChange = string | Record<string, unknown>;
+export interface GroupPriceChange {
+  /** Naive UTC, ISO: show it through `formatUtcNaiveAsBusinessDateTime`. */
+  at: string | null;
+  actor_name: string | null;
+  /** In force on that day just before the write; null - none. */
+  old_amount: number | null;
+  new_amount: number;
+  note: string | null;
+}
+
+/** One write of the individual price of a day (`changes` of the override history). */
+export interface PriceOverrideChange {
+  at: string | null;
+  actor_name: string | null;
+  /** The EFFECTIVE price that day just before the write; null - none. */
+  old_amount: number | null;
+  /** Where it came from: the group, an individual price, nowhere. */
+  old_source: PriceSource | null;
+  /** null - «вернули цену группы». */
+  new_amount: number | null;
+  reason: string | null;
+}
 
 export interface GroupPriceRow {
   id: string;
@@ -60,8 +82,8 @@ export interface GroupPriceRow {
   created_at: string | null;
   is_current: boolean;
   is_future: boolean;
-  /** Audit trail (optional: an older server does not send it). */
-  changes?: PriceChange[] | null;
+  /** The writes of THIS `valid_from`, newest first. */
+  changes: GroupPriceChange[];
 }
 
 export interface GroupPrices {
@@ -120,6 +142,8 @@ export interface PriceOverrideRow {
   created_at: string | null;
   is_current: boolean;
   is_future: boolean;
+  /** The writes of THIS `valid_from`, newest first. */
+  changes: PriceOverrideChange[];
 }
 
 export interface MembershipPrice {
@@ -412,37 +436,57 @@ export function futureDateNote(validFrom: string, today: string): string | null 
 
 // ── History ────────────────────────────────────────────────────────────────
 
-function pick(record: Record<string, unknown>, keys: string[]): unknown {
-  for (const key of keys) if (key in record && record[key] !== undefined) return record[key];
-  return undefined;
+/** «450 000» (no unit: the line says «→» and the label is on the block). */
+function amountOrNone(amount: number | null | undefined, none: string): string {
+  return amount === null || amount === undefined ? none : formatMoneyInput(amount);
 }
 
-function changeValue(field: string, value: unknown, label: string): string {
-  if (value === null || value === undefined || value === "") return "—";
-  if (field === "amount" && typeof value === "number") return formatPrice(value, label);
-  if (field === "valid_from" && typeof value === "string") return formatDateRu(value) || value;
-  return String(value);
+/** «17.10.2026 14:05 · Ахмедов» (the writer may be unknown, the time too). */
+function whoAndWhen(at: string | null | undefined, actor: string | null | undefined, formatAt: (value: string | null | undefined) => string): string {
+  const when = at ? formatAt(at) : "";
+  const who = (actor ?? "").trim();
+  return [when, who].filter(Boolean).join(" · ");
 }
 
-const FIELD_WORDS: Record<string, string> = { amount: "сумма", valid_from: "действует с", note: "примечание" };
+function withTail(head: string, text: string | null | undefined): string {
+  const tail = (text ?? "").trim();
+  return tail ? `${head} · ${tail}` : head;
+}
 
 /**
- * One audit line in words.  A sentence stays as it is; a record `{field, from, to}` (also `old`/`new`,
- * `before`/`after`) becomes «сумма: 500 000 сум/мес → 600 000 сум/мес»; a record with a text (`text`, `message`,
- * `label`) shows that text.  Anything else is not shown (null): an unknown shape must never print «[object Object]».
+ * One write of the price of a group in words: «17.10.2026 14:05 · Ахмедов: 450 000 → 500 000 · примечание».  A first
+ * price has no «before»: «не была задана → 500 000».  `at` is naive UTC: it goes through the business clock.
  */
-export function describeChange(change: PriceChange | null | undefined, label: string = PRICE_LABEL_CALENDAR): string | null {
-  if (change === null || change === undefined) return null;
-  if (typeof change === "string") return change.trim() || null;
-  if (typeof change !== "object") return null;
-  const text = pick(change, ["text", "message", "label", "description"]);
-  if (typeof text === "string" && text.trim()) return text.trim();
-  const field = pick(change, ["field", "name", "key"]);
-  const before = pick(change, ["from", "old", "before", "was"]);
-  const after = pick(change, ["to", "new", "after", "now"]);
-  if (typeof field !== "string" || (before === undefined && after === undefined)) return null;
-  const word = FIELD_WORDS[field] ?? field;
-  return `${word}: ${changeValue(field, before, label)} → ${changeValue(field, after, label)}`;
+export function groupChangeLine(
+  change: GroupPriceChange,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
+): string {
+  const head = `${amountOrNone(change.old_amount, "не была задана")} → ${formatMoneyInput(change.new_amount)}`;
+  const line = withTail(head, change.note);
+  const lead = whoAndWhen(change.at, change.actor_name, formatAt);
+  return lead ? `${lead}: ${line}` : line;
+}
+
+/** What stood before an individual price was written: «индивидуальная 400 000», «цена группы 500 000», «цена не задана». */
+function overrideSide(amount: number | null, source: PriceSource | null | undefined): string {
+  if (amount === null || amount === undefined) return "цена не задана";
+  if (source === "override") return `индивидуальная ${formatMoneyInput(amount)}`;
+  if (source === "group") return `цена группы ${formatMoneyInput(amount)}`;
+  return formatMoneyInput(amount);
+}
+
+/**
+ * One write of an individual price in words: «17.10.2026 14:05 · Ахмедов: индивидуальная 400 000 → цена группы» (the
+ * student is back on the price of the group) or «…: цена группы 500 000 → индивидуальная 400 000 · Сестра ученика».
+ */
+export function overrideChangeLine(
+  change: PriceOverrideChange,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
+): string {
+  const after = change.new_amount === null ? "цена группы" : `индивидуальная ${formatMoneyInput(change.new_amount)}`;
+  const line = withTail(`${overrideSide(change.old_amount, change.old_source)} → ${after}`, change.reason);
+  const lead = whoAndWhen(change.at, change.actor_name, formatAt);
+  return lead ? `${lead}: ${line}` : line;
 }
 
 export interface HistoryItemView {
@@ -463,12 +507,12 @@ export interface HistoryItemView {
 export function historyViews(
   history: ReadonlyArray<GroupPriceRow>,
   label: string,
-  formatAt: (value: string | null | undefined) => string,
+  formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
 ): HistoryItemView[] {
   return history.map((row) => {
     const at = row.created_at ? formatAt(row.created_at) : "";
     const author = [row.created_by_name, at].filter(Boolean).join(" · ");
-    const changes = (row.changes ?? []).map((change) => describeChange(change, label)).filter((line): line is string => Boolean(line));
+    const changes = (row.changes ?? []).map((change) => groupChangeLine(change, formatAt));
     return {
       id: row.id,
       amount: formatPrice(row.amount, label),

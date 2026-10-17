@@ -11,6 +11,7 @@ import {
   formatPrice,
   groupPriceHref,
   membershipPriceView,
+  overrideChangeLine,
   overrideRowText,
   pastDateWarning,
   priceDateRange,
@@ -126,6 +127,9 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
                     {overrideRowText(item, history.price_label)}
                     {item.is_future && <span className="ml-1.5 text-amber-700">· ожидает даты</span>}
                     {item.created_by_name && <span className="text-slate-400"> · {item.created_by_name}</span>}
+                    {(item.changes ?? []).map((change, index) => (
+                      <span key={index} className="block text-[11px] font-normal text-slate-400">{overrideChangeLine(change)}</span>
+                    ))}
                   </li>
                 ))}
               </ul>
