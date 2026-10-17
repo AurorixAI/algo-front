@@ -66,13 +66,19 @@ test("only the really-UTC timestamps are converted: correction time yes, excuse 
 
 test("the greeting follows the Tashkent hour, whatever the browser zone is", () => {
   const g = (iso) => bt.businessGreeting(new Date(iso));
+  // Tashkent is UTC+5: every boundary of the four parts of the day, on both sides
+  assert.equal(g("2026-10-14T19:00:00Z"), "Доброй ночи");   // 00:00
+  assert.equal(g("2026-10-14T19:30:00Z"), "Доброй ночи");   // 00:30 - used to say «утро»
+  assert.equal(g("2026-10-14T23:59:00Z"), "Доброй ночи");   // 04:59
+  assert.equal(g("2026-10-15T00:00:00Z"), "Доброе утро");   // 05:00
   assert.equal(g("2026-10-15T04:00:00Z"), "Доброе утро");   // 09:00
   assert.equal(g("2026-10-15T06:59:00Z"), "Доброе утро");   // 11:59
   assert.equal(g("2026-10-15T07:00:00Z"), "Добрый день");   // 12:00
   assert.equal(g("2026-10-15T08:55:00Z"), "Добрый день");   // 13:55 - UTC hour 8 would say «утро»
   assert.equal(g("2026-10-15T12:59:00Z"), "Добрый день");   // 17:59
   assert.equal(g("2026-10-15T13:00:00Z"), "Добрый вечер");  // 18:00
-  assert.equal(g("2026-10-15T19:30:00Z"), "Доброе утро");   // 00:30 next day in Tashkent
+  assert.equal(g("2026-10-15T18:59:00Z"), "Добрый вечер");  // 23:59
+  assert.equal(g("2026-10-15T19:00:00Z"), "Доброй ночи");   // 00:00 next day
   const before = process.env.TZ;
   try {
     process.env.TZ = "America/New_York";

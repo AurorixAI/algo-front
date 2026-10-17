@@ -196,7 +196,7 @@ test("every helper gives the same answer under very different device timezones",
   assert.equal(byValue["garbage"].date, "");
   assert.equal(out.clock.businessDate, "2026-10-17");
   assert.equal(out.clock.dateTime, "17.10.2026 01:30");
-  assert.equal(out.clock.greeting, "Доброе утро");
+  assert.equal(out.clock.greeting, "Доброй ночи"); // 01:30 in Tashkent
 });
 
 // ── source guard: nobody formats a date in the device's zone again ─────────────────────────────

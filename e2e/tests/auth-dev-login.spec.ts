@@ -1,8 +1,8 @@
 import { test, expect } from "../support/fixtures";
 import { devLogin } from "../support/api";
 
-/** The dashboard greets by the Tashkent hour (`businessGreeting`): morning, day or evening - any of them is right. */
-const greeting = (name: string) => new RegExp(`^(Доброе утро|Добрый день|Добрый вечер), ${name}`);
+/** The dashboard greets by the Tashkent hour (`businessGreeting`): night, morning, day or evening - any of the four is right. */
+const greeting = (name: string) => new RegExp(`^(Доброй ночи|Доброе утро|Добрый день|Добрый вечер), ${name}`);
 
 /**
  * The harness signs people in with /auth/dev-login (APP_ENV=development, no password anywhere). This spec

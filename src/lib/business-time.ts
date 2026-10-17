@@ -229,10 +229,16 @@ export function isoDateDayOfWeek(isoDate: string | null | undefined): number {
   return utcDay === 0 ? 7 : utcDay;
 }
 
-/** «Доброе утро» / «Добрый день» / «Добрый вечер» by the Tashkent hour, never the browser's. */
+/**
+ * «Доброй ночи» (00:00-04:59) / «Доброе утро» (05:00-11:59) / «Добрый день» (12:00-17:59) / «Добрый вечер» (18:00-23:59)
+ * by the Tashkent hour, never the browser's.
+ */
 export function businessGreeting(value = new Date()): string {
   const hour = Math.floor(businessTimeMinutes(value) / 60);
-  return hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
+  if (hour < 5) return "Доброй ночи";
+  if (hour < 12) return "Доброе утро";
+  if (hour < 18) return "Добрый день";
+  return "Добрый вечер";
 }
 
 export function businessTimeMinutes(value = new Date()): number {
