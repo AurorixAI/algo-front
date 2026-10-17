@@ -51,6 +51,7 @@ import {
   type PayrollSheet,
   type SheetEdits,
 } from "@/lib/payroll";
+import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
@@ -58,6 +59,7 @@ import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
+import { PayrollHowItWorks } from "./how-it-works";
 import { PayrollSheetTable } from "./sheet-table";
 import { ConflictBanner, PayrollForbidden, PercentEditor, SaveBar, StatusChip, WarningLinks } from "./sheet-controls";
 
@@ -422,10 +424,13 @@ function PayrollMonthContent() {
       )}
 
       {overview && teachers.length > 0 && (
-        <p className="text-xs text-slate-500 print:hidden">
-          {payrollFormulaText(overview.divisor)}.{" "}
-          <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">Делитель — в настройках</Link>
-        </p>
+        <div className="space-y-2 print:hidden">
+          <p className="text-xs text-slate-500">
+            {payrollFormulaText(overview.divisor)}.{" "}
+            <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">Делитель — в настройках</Link>
+          </p>
+          <PayrollHowItWorks divisor={overview.divisor} />
+        </div>
       )}
 
       <section aria-label="Преподаватели месяца" className="print:hidden">
@@ -541,8 +546,8 @@ function PayrollMonthContent() {
           </header>
 
           {activeExisting && (
-            <p className="flex flex-wrap items-center gap-x-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700 print:hidden">
-              <span>У преподавателя уже есть сохранённая ведомость ({revisionLabel(activeExisting.revision)}): сохранение создаст новую редакцию, прежние правки сумм и включённые уроки сохранятся.</span>
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm text-slate-700 print:hidden" title={savedRevisionLine(activeExisting.revision).hint}>
+              <span>{savedRevisionLine(activeExisting.revision).text}</span>
               <Link href={`/owner/payroll/${encodeURIComponent(activeExisting.id)}`} className="inline-flex items-center gap-1 font-medium text-primary-700 hover:underline">
                 Открыть сохранённую <ExternalLink className="h-3.5 w-3.5" />
               </Link>
@@ -683,7 +688,7 @@ export function TeacherRow({
       </div>
 
       <div className="mt-3 min-w-0 space-y-1.5 xl:mt-0">
-        <StatusChip status={status} />
+        <StatusChip status={status} hint={statusHint(teacher.sheet)} />
         {status.detail && <p className="text-xs text-slate-500">{status.detail}</p>}
         {teacher.sheet && (
           <p>

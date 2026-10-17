@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, History, Loader2, RefreshCw, Save, Undo2, Wallet } from "lucide-react";
+import { AlertTriangle, HelpCircle, History, Loader2, RefreshCw, Save, Undo2, Wallet } from "lucide-react";
 import { formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
+import { Hint } from "@/components/ui/hint";
 import {
   FORBIDDEN_TEXT,
   NOTE_MAX_LENGTH,
@@ -29,13 +30,18 @@ import {
   type SheetStatusView,
 } from "@/lib/payroll";
 
-/** «не рассчитано» / «сохранено · редакция 3 · 1 250 000 сум» / «данные изменились». */
-export function StatusChip({ status }: { status: SheetStatusView }) {
-  return (
-    <span className={`inline-flex max-w-full items-center rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS[status.tone]}`}>
+/**
+ * «не рассчитано» / «сохранено · редакция 3 · 1 250 000 сум» / «данные изменились».  With `hint` (see `statusHint`) the
+ * chip is a label of a short explanation: it opens on hover, focus and a tap.
+ */
+export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: string }) {
+  const chip = (
+    <span className={`inline-flex max-w-full items-center gap-1 rounded-2xl border px-2.5 py-1 text-xs font-semibold ${STATUS_CHIP_CLASS[status.tone]}`}>
       <span className="min-w-0 break-words">{status.label}</span>
+      {hint && <HelpCircle className="h-3 w-3 shrink-0 opacity-60" aria-hidden="true" />}
     </span>
   );
+  return hint ? <Hint text={hint} className="inline-block max-w-full">{chip}</Hint> : chip;
 }
 
 /** One percent field per lesson type of the sheet.  On paper they become a line of text. */
@@ -363,7 +369,10 @@ export function DiffBanner({
   );
 }
 
-/** The warnings of a teacher's month or a sheet: only what is above 0, each one a link to where it is fixed. */
+/**
+ * The warnings of a teacher's month or a sheet: only what is above 0, each one a link to where it is fixed (the title
+ * says where) and a «?» with what it means and what to do.
+ */
 export function WarningLinks({
   counts, label, stacked = false,
 }: {
@@ -379,7 +388,10 @@ export function WarningLinks({
       {views.map((view) => (
         <li key={view.key} className={`flex items-start gap-1.5 text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <Link href={view.href} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
+          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
+          <Hint text={view.hint} className="mt-px inline-flex">
+            <HelpCircle className="h-3.5 w-3.5 opacity-60" aria-label={`Что это: ${view.text}`} />
+          </Hint>
         </li>
       ))}
     </ul>

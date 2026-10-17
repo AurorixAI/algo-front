@@ -342,7 +342,7 @@ test("warnings are counts: the texts and the links are the screen's, a zero show
   assert.deepEqual(all.map((v) => [v.key, v.text, v.href, v.tone]), [
     ["open_lessons", "1 незакрытый урок", "/owner/attendance?tab=open", "warning"],
     ["pending_excused", "2 уважительные ждут решения", "/owner/attendance?tab=excuses", "warning"],
-    ["no_fee", "не задана оплата: 4", "/owner/payments?bucket=none", "warning"],
+    ["no_fee", "не задана цена: 4", "/owner/groups?price=none", "warning"],
     ["unpaid", "5 уроков не оплачено", "/owner/payments?bucket=due", "info"],
   ]);
   assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 0, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|2 урока не оплачено");
@@ -467,7 +467,7 @@ test("the fee field: a number sets, an empty field returns to the membership's f
 test("lines without a fee or a percent say so on the screen", () => {
   const sheet = sheetOf({ lines: [line({ membership_id: "m2", monthly_fee: null, source_fee: null, counted: 3, amount: 0 }), line({ membership_id: "m3", percent: null, amount: 0 })] });
   const [noFee, noPercent] = R.buildLineViews(sheet, R.EMPTY_EDITS);
-  assert.deepEqual(R.lineNotes(noFee), ["Не задана оплата в месяц"]);
+  assert.deepEqual(R.lineNotes(noFee), ["Не задана цена группы"]);
   assert.deepEqual(R.lineNotes(noPercent), ["Не указан процент преподавателя"]);
   // typing the fee makes the note go away at once
   assert.deepEqual(R.lineNotes(R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000))[0]), []);
@@ -656,12 +656,12 @@ test("the sheet table: the partner's layout, accessible names, sticky name colum
   const markup = html();
   const text = plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
-    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана оплата в месяц", "Итого по группе", "ИТОГО", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "включить"]) {
+    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана цена группы", "Итого по группе", "ИТОГО", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
     assert.ok(text.includes(part), `the sheet shows «${part}»`);
   }
   // accessible names of the editable cells
   assert.match(markup, /aria-label="Оплата в месяц: Каримова Дилноза, Алгебра 8А"/);
-  assert.match(markup, /aria-label="Включить неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
+  assert.match(markup, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
   // the first column keeps its place on a phone; the table scrolls sideways inside its block, not the page
   assert.match(markup, /sticky left-0/);
   assert.match(markup, /overflow-x-auto/);
@@ -695,7 +695,7 @@ test("the warnings and the diff banner render the real shapes", () => {
   const text = (node) => plain(renderToStaticMarkup(node).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   const links = renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: 2, pending_excused: 0, no_fee: 1, unpaid: 0 }, label: "Предупреждения" }));
   assert.match(links, /href="\/owner\/attendance\?tab=open"/);
-  assert.match(links, /href="\/owner\/payments\?bucket=none"/);
+  assert.match(links, /href="\/owner\/groups\?price=none"/);
   assert.doesNotMatch(links, /tab=excuses/);
   assert.equal(renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }, label: "x" })), "");
 
@@ -1318,7 +1318,7 @@ test("the data moved after the preview / the diff: the fingerprint is sent, a 40
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /isDataChanged\(error\)\) patchPreview\(teacherId, \{ saving: false, dataChanged: payrollErrorText\(error\) \}\)/);
   assert.match(month, /actionLabel="Пересчитать"/);
-  assert.match(month, /прежние правки сумм и включённые уроки сохранятся/);
+  assert.match(month, /savedRevisionLine\(activeExisting\.revision\)/); // one compact line (#104); the words are tested in n13-p4-price
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(page, /isDataChanged\(error\)\) setDataChanged/);
   assert.match(page, /expectedFingerprint: diff\?\.source_fingerprint \?\? dataChanged\?\.fingerprint \?\? null/);

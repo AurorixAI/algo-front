@@ -9,13 +9,15 @@ const total = (amount: number) => new RegExp(`ИТОГО\\s*${moneyPattern(amoun
 /**
  * Owner: «Зарплата». Percent per teacher and kind of lessons -> «Рассчитать всех» -> the sheet total equals the
  * partner's formula for the seeded marks (computed here independently):
- *     line = round_half_up( monthly fee x percent / 100 x counted lessons / 12 )
+ *     line = round_half_up( price x percent / 100 x counted lessons / 12 )
+ * where the price is the price of the GROUP (#105) or, for three of the students, an individual price with a reason.
  * -> «Сохранить ведомость» -> edit a fee on the sheet -> «Сохранить как редакцию 2» -> «История редакций».
  *
  * Seeded lesson of today (one lesson per teacher, both completed):
- *   teacher 1, «Группа», 62.5 %:  Анвар 600 000 present | Мадина 900 000 absent | Булат 300 000 excused (not yet confirmed)
- *                                 | Эльдар 450 000 present but NEVER PAID (shown, not in the sum)
- *   teacher 2, «Индивидуально», 40 %:  Дилшод 800 000 present
+ *   teacher 1, «Группа» (price of the group 600 000), 62.5 %:  Анвар 600 000 (the group's) present
+ *                                 | Мадина 900 000 (individual) absent | Булат 300 000 (individual) excused (not yet confirmed)
+ *                                 | Эльдар 450 000 (individual) present but NEVER PAID (shown, not in the sum)
+ *   teacher 2, «Индивидуально» (price of the group 800 000), 40 %:  Дилшод 800 000 present
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -28,11 +30,14 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
   const t2 = await org.addStaff("teacher", "Индивидуальный");
   const group = await org.createGroup({ name: "Группа З1", teacherId: t1.userId, lessonType: "group" });
   const solo = await org.createGroup({ name: "Индивид З2", teacherId: t2.userId, lessonType: "individual" });
-  const anvar = await org.addStudent(group, "Анвар", "Первый", 600000);
-  const madina = await org.addStudent(group, "Мадина", "Второй", 900000);
-  const bulat = await org.addStudent(group, "Булат", "Третий", 300000);
-  const eldar = await org.addStudent(group, "Эльдар", "Неплательщик", 450000);
-  const dilshod = await org.addStudent(solo, "Дилшод", "Одиночкин", 800000);
+  // #105: the price lives on the group; three students carry an individual price (a sum and a reason)
+  await org.setGroupPrice(group.id, 600000);
+  await org.setGroupPrice(solo.id, 800000);
+  const anvar = await org.addStudent(group, "Анвар", "Первый");
+  const madina = await org.addStudent(group, "Мадина", "Второй", { amount: 900000, reason: "Договорённость с родителями" });
+  const bulat = await org.addStudent(group, "Булат", "Третий", { amount: 300000, reason: "Скидка многодетным" });
+  const eldar = await org.addStudent(group, "Эльдар", "Неплательщик", { amount: 450000, reason: "Рассрочка" });
+  const dilshod = await org.addStudent(solo, "Дилшод", "Одиночкин");
   for (const [s, fee] of [[anvar, 600000], [madina, 900000], [bulat, 300000], [dilshod, 800000]] as const) await org.pay(s.id, fee);
 
   const lesson1 = await org.createLessonStartingNow(group.id);
@@ -70,7 +75,9 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
   await expect(lineOf("Второй Мадина")).toContainText(`${groupedDigits(payrollLine(900000, "62.5", 1))} сум`);
   await expect(lineOf("Третий Булат")).toContainText("Ув.?"); // the excuse waits for a decision, the lesson counts
   await expect(lineOf("Третий Булат")).toContainText(`${groupedDigits(payrollLine(300000, "62.5", 1))} сум`);
-  await expect(lineOf("Неплательщик Эльдар")).toContainText("Урок не оплачен: в сумму не входит"); // shown, but not in the sum
+  await expect(lineOf("Неплательщик Эльдар")).toContainText("Был на уроке, урок не оплачен — не входит в сумму"); // shown, but not in the sum
+  await expect(lineOf("Второй Мадина")).toContainText("индивидуальная"); // the individual price is marked on the sheet
+  await expect(lineOf("Первый Анвар")).not.toContainText("индивидуальная"); // the price of the group is not
   await expect(lineOf("Неплательщик Эльдар")).toContainText("0 сум");
   await preview.getByRole("tab", { name: /Индивидуальный/ }).click();
   await expect(preview).toContainText(total(t2Total));
