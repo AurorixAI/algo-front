@@ -410,12 +410,13 @@ export default function AdminDiagnosticsPage() {
                     <Link
                       href={`/admin/students/${inv.student_id}`}
                       className={
-                        "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 hover:opacity-80 transition-opacity " +
+                        "w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 hover:opacity-80 transition-opacity outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 " +
                         (isCompleted
                           ? "bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700"
                           : "bg-gradient-to-br from-primary-100 to-primary-200 text-primary-700")
                       }
                       title="Открыть профиль ученика"
+                      aria-label={`Профиль ученика: ${inv.student_name}`}
                     >
                       {inv.student_name.charAt(0).toUpperCase()}
                     </Link>
@@ -438,7 +439,8 @@ export default function AdminDiagnosticsPage() {
                       {inv.student_id ? (
                         <Link
                           href={`/admin/students/${inv.student_id}`}
-                          className="max-w-full min-w-0 break-words font-semibold text-slate-900 hover:text-primary-600 transition-colors"
+                          className="max-w-full min-w-0 break-words font-semibold text-slate-900 underline-offset-2 hover:text-primary-600 hover:underline focus-visible:underline focus-visible:outline-none transition-colors"
+                          title="Открыть профиль ученика"
                         >
                           {inv.student_name}
                         </Link>

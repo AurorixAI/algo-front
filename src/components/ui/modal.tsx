@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
+/** A click on the backdrop right after the dialog opened is the tail of the double click that opened it: not a dismissal. */
+export const BACKDROP_GRACE_MS = 300;
+
 const FOCUSABLE = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
 
 interface ModalProps {
@@ -31,7 +34,9 @@ export function Modal({
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const openedAtRef = useRef(0);
   useEffect(() => setMounted(true), []);
+  useEffect(() => { if (open) openedAtRef.current = Date.now(); }, [open]);
 
   // Remember the control the user used last outside the dialog.  An autoFocus
   // field inside the dialog takes focus before any effect runs, and Safari does
@@ -115,7 +120,7 @@ export function Modal({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
-            onClick={() => { if (!busy) onClose(); }}
+            onClick={() => { if (!busy && Date.now() - openedAtRef.current >= BACKDROP_GRACE_MS) onClose(); }}
           />
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
             <motion.div

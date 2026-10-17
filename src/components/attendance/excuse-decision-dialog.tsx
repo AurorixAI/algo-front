@@ -7,6 +7,7 @@ import {
   canSubmitExcuseDecision,
   excuseDecisionCopy,
   excuseNoteToSend,
+  type ExcuseBillingMode,
   type ExcuseDecision,
   type ExcuseDecisionSubject,
   type ExcuseNoteMode,
@@ -33,6 +34,7 @@ export function ExcuseDecisionDialog({
   target,
   busy,
   error = null,
+  billingMode = null,
   onClose,
   onSubmit,
 }: {
@@ -41,6 +43,8 @@ export function ExcuseDecisionDialog({
   busy: boolean;
   /** Why the last attempt failed (shown inside the dialog, which stays open); null when there is nothing to say. */
   error?: string | null;
+  /** How the centre bills, when this user can see it (the payments summary); null: the package sentence is left out. */
+  billingMode?: ExcuseBillingMode;
   onClose: () => void;
   /** Sends the decision; the page closes the dialog itself when the server accepted it. */
   onSubmit: (note: string) => Promise<void>;
@@ -100,7 +104,7 @@ export function ExcuseDecisionDialog({
     >
       {target && (
         <>
-          <ExcuseDecisionBody items={target.items} decision={target.decision} />
+          <ExcuseDecisionBody items={target.items} decision={target.decision} billingMode={billingMode} />
           {noteMode !== "none" && (
             <div className="space-y-1.5 pb-2 pt-3">
               <label htmlFor="excuse-decision-note" className="block text-xs font-medium text-slate-600">

@@ -55,7 +55,7 @@ export function DiagnosticStatusBadge({
   return (
     <span data-testid={testId} className={`${BADGE_BASE} ${DIAGNOSTIC_BADGE_WIDTH} ${tone}`}>
       <span aria-hidden="true" className={`h-1.5 w-1.5 shrink-0 rounded-full ${dot}`} />
-      <span className="min-w-0 truncate">{children}</span>
+      <span className="min-w-0 truncate" title={typeof children === "string" ? children : undefined}>{children}</span>
     </span>
   );
 }

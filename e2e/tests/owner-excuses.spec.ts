@@ -32,6 +32,11 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   });
 
   const page = await signIn(org.owner);
+  // every request that decides an excuse (counted below: asking comes first, and one press sends once)
+  const reviewPosts: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "POST" && /\/attendance\/excuses\/[^/]+\/review$/.test(request.url())) reviewPosts.push(request.url());
+  });
   await page.goto("/owner/attendance");
   await expect(page.getByRole("tab", { name: "Ожидают (2)" })).toBeVisible();
 
@@ -47,17 +52,31 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await expect(item("Оплативший Анвар")).toContainText("Болел, справка");
   await expect(item("Оплативший Анвар")).toContainText(`${group.name}`);
 
-  // confirm one: the button only opens the confirmation dialog (student, lesson, reason, consequence); nothing is sent yet
-  await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).click();
+  // confirm one: the button only opens the confirmation dialog (student, lesson, reason, consequence); nothing is sent yet.
+  // A double click on the row button must not flash the dialog away: its second click lands on the backdrop.
+  await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).dblclick();
   const dialog = page.getByRole("dialog", { name: "Подтвердить пропуск?" });
+  await expect(dialog).toBeVisible();
+  await page.waitForTimeout(600);
+  await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Оплативший Анвар");
   await expect(dialog).toContainText(group.name);
   await expect(dialog).toContainText("Болел, справка");
-  await expect(dialog).toContainText("Урок не будет засчитан преподавателю в зарплату (уважительная причина).");
+  await expect(dialog).toContainText("Урок не будет засчитан преподавателю в зарплату.");
   await expect(page.getByRole("tab", { name: "Ожидают (2)" })).toBeVisible();
   const stillPending = await org.owner.api.get("/auth/org/attendance/excuses", { status: "pending" });
   expect(stillPending.items).toHaveLength(2);
-  await dialog.getByRole("button", { name: "Подтвердить", exact: true }).click();
+  expect(reviewPosts, "nothing is sent before the dialog is confirmed").toHaveLength(0);
+
+  // «Отмена» sends nothing either
+  await dialog.getByRole("button", { name: "Отмена" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(reviewPosts).toHaveLength(0);
+
+  // confirm for real, with a double click on the dialog's button: ONE request
+  await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Подтвердить", exact: true }).dblclick();
   await expect(toast(page, "Пропуск подтверждён")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Ожидают (1)" })).toBeVisible();
   await expect(item("Оплативший Анвар")).toHaveCount(0);
@@ -67,6 +86,8 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await page.getByRole("tab", { name: /Подтверждено/ }).click();
   await expect(item("Оплативший Анвар")).toContainText(`Подтвердил: ${org.ownerName}`);
   await expect(item("Безоплатная Мадина")).toHaveCount(0);
+
+  expect(reviewPosts, "a double click on the confirm button sent exactly one request").toHaveLength(1);
 
   // and the API agrees
   const confirmed = await org.owner.api.get("/auth/org/attendance/excuses", { status: "confirmed" });

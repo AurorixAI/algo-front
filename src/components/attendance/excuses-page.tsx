@@ -57,6 +57,7 @@ import {
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
@@ -231,6 +232,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   // Every «Подтвердить» / «Отклонить» goes through the confirmation dialog before a request is sent.
   const [dialog, setDialog] = useState<ExcuseDecisionTarget | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  // How the centre bills decides whether the dialog speaks about the student's package; only a user who may see
+  // payments knows it (the summary the layout already keeps), otherwise the package sentence is left out.
+  const billingMode = usePaymentsSummary((state) => (state.available ? state.periodMode : null));
   // Excuses whose decision is on its way: a second click (or the dialog after the row button) sends nothing.
   const reviewing = useRef<Set<string>>(new Set());
 
@@ -325,9 +330,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
-  /** true when the decision was saved (the dialog closes only then, so a typed note survives an error). */
-  const review = async (item: { id: string }, decision: ExcuseDecision, noteText = ""): Promise<boolean> => {
-    if (reviewing.current.has(item.id)) return false;
+  /**
+   * null when the decision was saved, else why it was not.  The dialog closes only when saved; a refusal is shown inside
+   * it (the toast is for the success), so a typed note survives an error.
+   */
+  const review = async (item: { id: string }, decision: ExcuseDecision, noteText = ""): Promise<string | null> => {
+    if (reviewing.current.has(item.id)) return "Решение уже отправляется";
     reviewing.current.add(item.id);
     markBusy(item.id, true);
     try {
@@ -336,11 +344,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён");
       await load(true);
       refreshBadge();
-      return true;
+      return null;
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Не удалось сохранить решение", "error");
       void load(true);
-      return false;
+      return error instanceof Error ? error.message : "Не удалось сохранить решение";
     } finally {
       reviewing.current.delete(item.id);
       markBusy(item.id, false);
@@ -361,14 +368,18 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     }
   };
 
-  const openDialog = (item: AttendanceExcuseItem, decision: ExcuseDecision, noteMode: ExcuseNoteMode) =>
+  const openDialog = (item: AttendanceExcuseItem, decision: ExcuseDecision, noteMode: ExcuseNoteMode) => {
+    setDialogError(null);
     setDialog({ items: [subjectOfItem(item)], decision, noteMode });
-  const closeDialog = () => setDialog(null);
+  };
+  const closeDialog = () => { setDialog(null); setDialogError(null); };
   const submitDialog = async (note: string) => {
     if (!dialog) return;
+    setDialogError(null);
     // One by one, stopping at the first failure: the dialog stays open so a typed note survives an error.
     for (const item of dialog.items) {
-      if (!(await review(item, dialog.decision, note))) return;
+      const error = await review(item, dialog.decision, note);
+      if (error) { setDialogError(error); return; }
     }
     closeDialog();
   };
@@ -718,7 +729,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       />
 
       {/* «Подтвердить» / «Отклонить»: who, which lesson, why, what changes - and only then the request */}
-      <ExcuseDecisionDialog target={dialog} busy={dialogBusy} onClose={closeDialog} onSubmit={submitDialog} />
+      <ExcuseDecisionDialog target={dialog} busy={dialogBusy} error={dialogError} billingMode={billingMode} onClose={closeDialog} onSubmit={submitDialog} />
 
       {/* Certificate viewer */}
       <Modal

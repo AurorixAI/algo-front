@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { Info } from "lucide-react";
-import { excuseDecisionCopy, previewTargets, type ExcuseDecision, type ExcuseDecisionSubject } from "../../lib/excuse-decision";
+import {
+  excuseDecisionCopy, previewTargets, type ExcuseBillingMode, type ExcuseDecision, type ExcuseDecisionSubject,
+} from "../../lib/excuse-decision";
 import { lessonShortLabel } from "../../lib/excuse-row";
 
 /** «Чт, 15.10 · Математика 9А» */
@@ -21,8 +23,17 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
  * Body of the dialog (no modal frame, so node:test can render it): who, which lesson, why, and what the
  * decision changes.  One excuse shows the three facts; several show the count and the first few students.
  */
-export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionSubject[]; decision: ExcuseDecision }) {
-  const copy = excuseDecisionCopy(decision, items.length);
+export function ExcuseDecisionBody({
+  items,
+  decision,
+  billingMode = null,
+}: {
+  items: ExcuseDecisionSubject[];
+  decision: ExcuseDecision;
+  /** How the centre bills, when this user can see it: decides whether the package sentence is shown. */
+  billingMode?: ExcuseBillingMode;
+}) {
+  const copy = excuseDecisionCopy(decision, items.length, { statuses: items.map((item) => item.status), mode: billingMode });
   const single = items.length === 1 ? items[0] : null;
   const { shown, more } = previewTargets(items, 5);
   return (
@@ -60,7 +71,9 @@ export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionS
         <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-primary-600" />
         <div className="min-w-0">
           <p className="text-xs font-semibold text-slate-600">Что изменится</p>
-          <p className="mt-0.5 text-sm text-slate-800">{copy.consequence}</p>
+          {copy.consequenceLines.map((line) => (
+            <p key={line} className="mt-0.5 text-sm text-slate-800">{line}</p>
+          ))}
         </div>
       </div>
     </div>

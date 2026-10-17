@@ -126,13 +126,49 @@ test("#102: the diagnostics list and the student card use the shared badge and a
 
 const decision = () => require(path.join(root, "src/lib/excuse-decision.ts"));
 
-test("#103: the consequence texts are the payroll rule in plain words", () => {
+const PAYROLL_CONFIRM = "Урок не будет засчитан преподавателю в зарплату.";
+const PAYROLL_REJECT = "Пропуск останется неуважительным: урок засчитывается преподавателю как обычный урок.";
+const CHANGED_TO_CONFIRMED = "Решение изменится: урок не будет засчитан преподавателю в зарплату.";
+const CHANGED_TO_REJECTED = "Решение изменится: урок снова будет засчитан преподавателю как обычный урок.";
+
+test("#103: the consequence is true for every decision x current status x billing mode (the rule of payroll_engine / lesson_counts)", () => {
   const D = decision();
-  assert.equal(D.EXCUSE_CONSEQUENCE.confirmed, "Урок не будет засчитан преподавателю в зарплату (уважительная причина).");
-  assert.equal(D.EXCUSE_CONSEQUENCE.rejected, "Пропуск останется неуважительным: урок засчитывается преподавателю.");
+  const E = D.excuseConsequenceLines;
+  // calendar mode and an unknown mode: the payroll sentence only (no payment effect, nothing guessed)
+  for (const mode of ["calendar", null, undefined]) {
+    assert.deepEqual(E("confirmed", "pending", mode), [PAYROLL_CONFIRM], `confirm from pending, ${mode}`);
+    assert.deepEqual(E("rejected", "pending", mode), [PAYROLL_REJECT], `reject from pending, ${mode}`);
+    assert.deepEqual(E("rejected", "confirmed", mode), [CHANGED_TO_REJECTED], `reject a confirmed one, ${mode}`);
+    assert.deepEqual(E("confirmed", "rejected", mode), [CHANGED_TO_CONFIRMED], `confirm a rejected one, ${mode}`);
+  }
+  // package mode: what happens to the student's package follows
+  assert.deepEqual(E("confirmed", "pending", "lessons"), [PAYROLL_CONFIRM, "Урок не спишется из пакета ученика."]);
+  assert.deepEqual(E("rejected", "pending", "lessons"), [PAYROLL_REJECT, "Урок спишется из пакета ученика."]);
+  assert.deepEqual(E("rejected", "confirmed", "lessons"), [
+    "Решение изменится: урок снова будет засчитан преподавателю как обычный урок и снова спишется из пакета ученика.",
+  ]);
+  assert.deepEqual(E("confirmed", "rejected", "lessons"), [CHANGED_TO_CONFIRMED, "Урок вернётся в пакет ученика."]);
+  // the current status defaults to waiting; a decision that is already the current one reads like the first one
+  assert.deepEqual(E("confirmed"), [PAYROLL_CONFIRM]);
+  assert.deepEqual(E("confirmed", "confirmed", "lessons"), E("confirmed", "pending", "lessons"));
+  assert.deepEqual(E("rejected", "rejected", "lessons"), E("rejected", "pending", "lessons"));
+  // a confirmed excuse never promises the lesson to the teacher, a rejected one never takes it away
+  for (const status of ["pending", "confirmed", "rejected"]) for (const mode of ["calendar", "lessons", null]) {
+    assert.ok(!/засчитывается|засчитан преподавателю как/.test(E("confirmed", status, mode).join(" ")) || status === "rejected", `${status} ${mode}`);
+    assert.ok(!E("rejected", status, mode).join(" ").includes("не будет засчитан"), `${status} ${mode}`);
+  }
+});
+
+test("#103: the dialog copy: title, buttons, the lines and their joined text", () => {
+  const D = decision();
   const one = D.excuseDecisionCopy("confirmed");
-  assert.deepEqual(one, { title: "Подтвердить пропуск?", confirmLabel: "Подтвердить", cancelLabel: "Отмена", consequence: D.EXCUSE_CONSEQUENCE.confirmed, countLine: null });
-  assert.deepEqual(D.excuseDecisionCopy("rejected", 1), { title: "Отклонить пропуск?", confirmLabel: "Отклонить", cancelLabel: "Отмена", consequence: D.EXCUSE_CONSEQUENCE.rejected, countLine: null });
+  assert.deepEqual(one, { title: "Подтвердить пропуск?", confirmLabel: "Подтвердить", cancelLabel: "Отмена", consequenceLines: [PAYROLL_CONFIRM], consequence: PAYROLL_CONFIRM, countLine: null });
+  const rejectPack = D.excuseDecisionCopy("rejected", 1, { statuses: ["pending"], mode: "lessons" });
+  assert.deepEqual(rejectPack, {
+    title: "Отклонить пропуск?", confirmLabel: "Отклонить", cancelLabel: "Отмена",
+    consequenceLines: [PAYROLL_REJECT, "Урок спишется из пакета ученика."], consequence: `${PAYROLL_REJECT} Урок спишется из пакета ученика.`, countLine: null,
+  });
+  assert.deepEqual(D.excuseDecisionCopy("rejected", 1, { statuses: ["confirmed"] }).consequenceLines, [CHANGED_TO_REJECTED]);
 });
 
 test("#103: a bulk action says how many (with the right plural) and keeps the same consequence", () => {
@@ -143,7 +179,12 @@ test("#103: a bulk action says how many (with the right plural) and keeps the sa
   assert.equal(three.title, "Подтвердить 3 пропуска?");
   assert.equal(three.countLine, "Пропусков: 3");
   assert.equal(three.confirmLabel, "Подтвердить");
-  assert.equal(three.consequence, D.EXCUSE_CONSEQUENCE.confirmed);
+  assert.equal(three.consequence, PAYROLL_CONFIRM);
+  // mixed current statuses: the lines of each, without repeats; a bulk of the same status says it once
+  assert.deepEqual(D.excuseDecisionCopy("confirmed", 3, { statuses: ["pending", "pending", "rejected"], mode: "lessons" }).consequenceLines, [
+    PAYROLL_CONFIRM, "Урок не спишется из пакета ученика.", CHANGED_TO_CONFIRMED, "Урок вернётся в пакет ученика.",
+  ]);
+  assert.deepEqual(D.excuseConsequenceLinesFor("rejected", []), [PAYROLL_REJECT]);
   assert.equal(D.excuseDecisionCopy("rejected", 7).title, "Отклонить 7 пропусков?");
   assert.deepEqual(D.previewTargets([1, 2, 3, 4, 5, 6, 7], 5), { shown: [1, 2, 3, 4, 5], more: 2 });
   assert.deepEqual(D.previewTargets([1, 2], 5), { shown: [1, 2], more: 0 });
@@ -174,9 +215,18 @@ test("#103: the dialog body shows the student, the lesson (date + group), the re
   const subject = decision().subjectOfItem(item());
   const confirm = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed" })));
   for (const part of ["Ученик", "Иванова Ольга", "Урок", "Чт, 15.10 · Математика 9А", "Причина", "Болела, справка", "Дилноза Каримова · 09.10.2026 16:35",
-    "Урок не будет засчитан преподавателю в зарплату (уважительная причина)."]) assert.ok(confirm.includes(part), part);
+    PAYROLL_CONFIRM]) assert.ok(confirm.includes(part), part);
+  assert.equal(confirm.includes("пакет"), false, "no package sentence without a known package mode");
+  const confirmPack = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed", billingMode: "lessons" })));
+  assert.ok(confirmPack.includes(`${PAYROLL_CONFIRM} Урок не спишется из пакета ученика.`));
+  const confirmCalendar = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed", billingMode: "calendar" })));
+  assert.equal(confirmCalendar.includes("пакет"), false);
+  // the current decision decides the words: changing a confirmed excuse to a refusal says so
+  const changed = decision().subjectOfItem(item({ status: "confirmed" }));
+  const changedText = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [changed], decision: "rejected", billingMode: "lessons" })));
+  assert.ok(changedText.includes("Решение изменится: урок снова будет засчитан преподавателю как обычный урок и снова спишется из пакета ученика."), changedText);
   const reject = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "rejected" })));
-  assert.ok(reject.includes("Пропуск останется неуважительным: урок засчитывается преподавателю."));
+  assert.ok(reject.includes(PAYROLL_REJECT));
   assert.equal(reject.includes("не будет засчитан"), false);
 });
 
@@ -199,13 +249,15 @@ test("#103: every «Подтвердить» / «Отклонить» of the lis
   assert.match(page, /key: "confirm", label: "Подтвердить", icon: Check, onSelect: \(\) => openDialog\(item, "confirmed", "none"\)/);
   // ...and `review` (the only caller of the API) is reached from the dialog's submit only
   assert.equal(page.match(/\breview\(/g).length, 1, "the only call of review() is in submitDialog");
-  assert.match(page, /if \(!\(await review\(item, dialog\.decision, note\)\)\) return;/);
+  assert.match(page, /const error = await review\(item, dialog\.decision, note\);\s*if \(error\) \{ setDialogError\(error\); return; \}/);
   assert.equal((page.match(/orgApi\.reviewAttendanceExcuse/g) || []).length, 1);
   // a second request for the same excuse is dropped, with or without the dialog
-  assert.match(page, /if \(reviewing\.current\.has\(item\.id\)\) return false;/);
+  assert.match(page, /if \(reviewing\.current\.has\(item\.id\)\) return "Решение уже отправляется";/);
   assert.match(page, /reviewing\.current\.delete\(item\.id\);/);
-  // the success toasts are unchanged
+  // the success toasts are unchanged; a refusal is shown inside the dialog, not as a toast
   assert.match(page, /showToast\(decision === "confirmed" \? "Пропуск подтверждён" : "Пропуск отклонён"\)/);
+  assert.doesNotMatch(page, /showToast\(error instanceof Error \? error\.message : "Не удалось сохранить решение"/);
+  assert.match(page, /<ExcuseDecisionDialog target=\{dialog\} busy=\{dialogBusy\} error=\{dialogError\} billingMode=\{billingMode\}/);
   const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
   assert.match(dialog, /if \(!target \|\| sending\.current \|\| !canSubmit\) return;/);
   assert.match(dialog, /disabled=\{!canSubmit\}/);
@@ -250,16 +302,16 @@ test("#103: the journal cell and the list give the dialog the same facts", () =>
   const D = decision();
   const fromList = D.subjectOfItem(item());
   const fromJournal = D.subjectOfJournalCell({
-    excuse: { id: "ex-1", reason: "Болела, справка", reason_by_name: "Дилноза Каримова", reason_at: "2026-10-09T16:35:00" },
+    excuse: { id: "ex-1", status: "pending", reason: "Болела, справка", reason_by_name: "Дилноза Каримова", reason_at: "2026-10-09T16:35:00" },
     studentName: "Иванова Ольга", lessonDate: "2026-10-15", groupName: "Математика 9А",
   });
   assert.deepEqual(fromJournal, fromList);
   // a journal that does not know the group names the lesson by its date alone
   const { ExcuseDecisionBody } = require(path.join(root, "src/components/attendance/excuse-decision-body.tsx"));
-  const noGroup = D.subjectOfJournalCell({ excuse: { id: "e", reason: "Болел", reason_by_name: null, reason_at: null }, studentName: "Петров Иван", lessonDate: "2026-10-15" });
+  const noGroup = D.subjectOfJournalCell({ excuse: { id: "e", status: "pending", reason: "Болел", reason_by_name: null, reason_at: null }, studentName: "Петров Иван", lessonDate: "2026-10-15" });
   const text = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [noGroup], decision: "rejected" })));
   assert.ok(text.includes("Чт, 15.10") && !text.includes("Чт, 15.10 ·"), text);
-  assert.ok(text.includes("Пропуск останется неуважительным: урок засчитывается преподавателю."));
+  assert.ok(text.includes(PAYROLL_REJECT));
 });
 
 test("#103: in the journal «Подтвердить» / «Отклонить» open the dialog; only «Сбросить решение» and the dialog send a request", () => {
@@ -274,7 +326,7 @@ test("#103: in the journal «Подтвердить» / «Отклонить» o
   assert.match(journal, /if \(reviewingRef\.current\.has\(excuse\.id\)\) return "Решение уже отправляется";/);
   assert.match(journal, /reviewingRef\.current\.delete\(excuse\.id\);/);
   // a failed attempt stays in the dialog (its note survives), a saved one closes it
-  assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else setReviewDialog\(null\);/);
+  assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else closeReviewDialog\(\);/);
   // role rules are untouched: only the administrator / owner journal (adminMode) can review
   assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
   assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /adminMode/);
@@ -301,4 +353,48 @@ test("#103: no other path of the front sends an excuse decision: two callers of 
   assert.match(dialog, /role="alert"/);
   // the typed note survives an error shown in the dialog: the reset key is the excuse and the decision, not the object
   assert.match(dialog, /useEffect\(\(\) => \{ setNote\(""\); \}, \[targetKey\]\);/);
+});
+
+// ── R3 decisions: where the billing mode comes from, focus, backdrop, badge title, profile links ────────────
+
+test("#103: the package sentence appears only when the user may see the billing mode (the payments summary the layout keeps)", () => {
+  const hook = /usePaymentsSummary\(\(state\) => \(state\.available \? state\.periodMode : null\)\)/;
+  assert.match(read("src/components/attendance/excuses-page.tsx"), hook);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), hook);
+  // no request of its own: the summary store answers (403 for an administrator without payments -> `available` false -> null)
+  assert.doesNotMatch(read("src/components/attendance/excuses-page.tsx"), /getPaymentSettings|getPaymentsSummary/);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /billingMode=\{billingMode\}/);
+  assert.match(read("src/components/attendance/excuses-page.tsx"), /billingMode=\{billingMode\}/);
+  const summary = require(path.join(root, "src/lib/payments-summary.ts"));
+  assert.equal(summary.summaryToState({ period_mode: "lessons" }).periodMode, "lessons");
+  assert.equal(summary.summaryToState({ period_mode: "calendar" }).periodMode, "calendar");
+  assert.equal(summary.summaryToState({ period_mode: "calendar" }).available, true);
+});
+
+test("#103: the journal gives the focus back to the cell that asked the question; the dialog shows a refusal inline", () => {
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /reviewOpenerRef\.current = document\.querySelector<HTMLElement>\(`\[aria-controls="attendance-menu-\$\{student\.id\}-\$\{lessonKey\}"\]`\);/);
+  assert.match(journal, /if \(opener\) window\.setTimeout\(\(\) => \{ if \(document\.contains\(opener\)\) opener\.focus\(\); \}, 0\);/);
+  assert.match(journal, /onClose=\{closeReviewDialog\}/);
+  assert.match(journal, /else closeReviewDialog\(\);/);
+});
+
+test("nit: a click on the backdrop right after the dialog opened is not a dismissal (the tail of a double click)", () => {
+  const modal = read("src/components/ui/modal.tsx");
+  assert.match(modal, /export const BACKDROP_GRACE_MS = 300;/);
+  assert.match(modal, /useEffect\(\(\) => \{ if \(open\) openedAtRef\.current = Date\.now\(\); \}, \[open\]\);/);
+  assert.match(modal, /onClick=\{\(\) => \{ if \(!busy && Date\.now\(\) - openedAtRef\.current >= BACKDROP_GRACE_MS\) onClose\(\); \}\}/);
+});
+
+test("nit: a badge cut by its slot still tells its full label (title)", () => {
+  const { DiagnosticStatusBadge } = chrome();
+  const html = renderToStaticMarkup(React.createElement(DiagnosticStatusBadge, { tone: "x", dot: "y" }, "Ожидает подтверждения"));
+  assert.match(html, /<span class="min-w-0 truncate" title="Ожидает подтверждения">Ожидает подтверждения<\/span>/);
+});
+
+test("#102: a pending invite of an enrolled student shows «Ссылка» only; the student is reached by name and avatar, both visibly links", () => {
+  const page = read("src/app/admin/diagnostics/page.tsx");
+  assert.match(page, /aria-label=\{`Профиль ученика: \$\{inv\.student_name\}`\}/);
+  assert.match(page, /hover:text-primary-600 hover:underline focus-visible:underline/);
+  assert.match(page, /focus-visible:ring-2 focus-visible:ring-primary-500/);
 });

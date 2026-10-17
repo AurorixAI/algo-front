@@ -55,6 +55,7 @@ import {
   type AdminLessonAction,
 } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor } from "@/lib/journal-period";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -339,6 +340,10 @@ export function GroupAttendanceJournal({
   >(null);
   // An excuse whose decision is on its way: a second click sends nothing.
   const reviewingRef = useRef<Set<string>>(new Set());
+  // The cell button that opened the dialog: focus goes back to it when the dialog closes (the menu item is gone by then).
+  const reviewOpenerRef = useRef<HTMLElement | null>(null);
+  // How the centre bills, when this user may see it: decides whether the dialog speaks about the student's package.
+  const billingMode = usePaymentsSummary((state) => (state.available ? state.periodMode : null));
   const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const cellMenuRef = useRef<HTMLDivElement | null>(null);
   // Attendance saves of one journal go out one at a time, in click order.
@@ -822,6 +827,7 @@ export function GroupAttendanceJournal({
     lesson: Lesson,
     decision: ExcuseDecision,
   ) => {
+    reviewOpenerRef.current = document.querySelector<HTMLElement>(`[aria-controls="attendance-menu-${student.id}-${lessonKey}"]`);
     setOpenCell(null);
     setSaveError(null);
     setReviewDialog({
@@ -835,13 +841,21 @@ export function GroupAttendanceJournal({
     });
   };
 
+  const closeReviewDialog = () => {
+    setReviewDialog(null);
+    const opener = reviewOpenerRef.current;
+    reviewOpenerRef.current = null;
+    // After the dialog has left the screen the cell that asked the question takes the focus back.
+    if (opener) window.setTimeout(() => { if (document.contains(opener)) opener.focus(); }, 0);
+  };
+
   const submitReviewDialog = async (note: string) => {
     if (!reviewDialog) return;
     const { excuse, lessonKey, studentId, decision } = reviewDialog;
     setReviewDialog((current) => (current ? { ...current, error: null } : current));
     const error = await sendReview(excuse, lessonKey, studentId, decision, note);
     if (error) setReviewDialog((current) => (current ? { ...current, error } : current));
-    else setReviewDialog(null);
+    else closeReviewDialog();
   };
 
   // ── Lesson column actions (administrator / owner) ─────────────────────
@@ -1578,7 +1592,8 @@ export function GroupAttendanceJournal({
         target={reviewDialog}
         busy={reviewDialog ? reviewBusyId === reviewDialog.excuse.id : false}
         error={reviewDialog?.error ?? null}
-        onClose={() => setReviewDialog(null)}
+        billingMode={billingMode}
+        onClose={closeReviewDialog}
         onSubmit={submitReviewDialog}
       />
 
