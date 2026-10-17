@@ -183,21 +183,32 @@ export function priceLabelOf(mode: PeriodMode | null | undefined): string {
   return mode === "lessons" ? PRICE_LABEL_LESSONS : PRICE_LABEL_CALENDAR;
 }
 
-/** «500 000 сум/мес» / «500 000 сум за пакет»: the unit follows the label the server sent. */
+/**
+ * «500 000 сум/мес» / «500 000 сум за пакет»: the unit follows the label the server sent.  A price of 0 is a price - the
+ * lessons are free: «бесплатно», never «0 сум/мес» and never «не задана».
+ */
 export function formatPrice(amount: number | null | undefined, label: string): string {
   if (amount === null || amount === undefined) return "не задана";
+  if (amount === 0) return FREE_WORD;
   return `${formatMoney(amount)}${label === PRICE_LABEL_LESSONS ? " за пакет" : "/мес"}`;
 }
 
-/** «с 15.10.2026» */
+export const FREE_WORD = "бесплатно";
+
+/** The first day of the prices the migration made from the old fees: «always so». */
+export const PRICE_EPOCH = "2000-01-01";
+
+/** «с 15.10.2026»; a price that starts on 2000-01-01 has always been so: «с самого начала». */
 export function sinceText(validFrom: string | null | undefined): string {
+  if (validFrom && validFrom.slice(0, 10) === PRICE_EPOCH) return "с самого начала";
   const text = formatDateRu(validFrom);
   return text ? `с ${text}` : "";
 }
 
-/** Group price on a list card / row: «500 000 сум» or null when there is none. */
+/** Group price on a list card / row: «500 000 сум», «бесплатно» for 0, or null when there is none. */
 export function priceBriefText(price: GroupPriceBrief | null | undefined): string | null {
-  return price ? formatMoney(price.amount) : null;
+  if (!price) return null;
+  return price.amount === 0 ? FREE_WORD : formatMoney(price.amount);
 }
 
 /** The price of a money row; an older server has only `monthly_fee`. */
@@ -219,6 +230,13 @@ export interface PriceView {
   text: string;
 }
 
+/** «цена группы 500 000 сум» / «цена группы — бесплатно» / «цена группы не задана». */
+function groupAmountPart(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined) return "цена группы не задана";
+  if (amount === 0) return `цена группы — ${FREE_WORD}`;
+  return `цена группы ${formatMoney(amount)}`;
+}
+
 /** How the student card says what the student pays in one group. */
 export function membershipPriceView(price: PriceInfo | null | undefined, label: string): PriceView {
   if (!price || price.source === "none" || price.amount === null || price.amount === undefined) {
@@ -226,7 +244,7 @@ export function membershipPriceView(price: PriceInfo | null | undefined, label: 
   }
   const value = formatPrice(price.amount, label);
   if (price.source === "override") {
-    const groupPart = `цена группы ${price.group_amount === null || price.group_amount === undefined ? "не задана" : formatMoney(price.group_amount)}`;
+    const groupPart = groupAmountPart(price.group_amount);
     const reason = (price.reason ?? "").trim();
     const note = reason ? `${reason} · ${groupPart}` : groupPart;
     return { kind: "override", title: "Индивидуальная цена", value, note, text: `Индивидуальная цена: ${value} · ${reason ? `${reason} (${groupPart})` : groupPart}` };
@@ -330,6 +348,24 @@ export function groupPriceKey(request: GroupPriceRequest | null): string {
   return request ? `${request.amount}|${request.valid_from}` : "";
 }
 
+/**
+ * The change writes nothing new: the day already has this sum and this note.  «Сохранить» is off then (the server answers
+ * the same request twice with no change).
+ */
+export function isNoopPriceChange(history: ReadonlyArray<GroupPriceRow> | null | undefined, request: GroupPriceRequest | null): boolean {
+  if (!request) return false;
+  return (history ?? []).some((row) =>
+    row.valid_from === request.valid_from && row.amount === request.amount && (row.note ?? "").trim() === (request.note ?? ""));
+}
+
+/** 409 PRICE_CONFLICT: somebody else wrote the price of this day while the dialog was open. */
+export const PRICE_CONFLICT_TEXT = "Цену только что изменил другой пользователь. Данные обновлены — проверьте и сохраните ещё раз.";
+
+/** The error of a price write is the server's PRICE_CONFLICT (the text above replaces the server's own, which says «Обновите страницу»). */
+export function isPriceConflict(cause: unknown): boolean {
+  return (cause as { code?: string } | null)?.code === "PRICE_CONFLICT";
+}
+
 export function reasonProblem(reason: string): string | null {
   const text = reason.trim();
   if (text.length < OVERRIDE_REASON_MIN) return `Укажите причину — от ${OVERRIDE_REASON_MIN} до ${OVERRIDE_REASON_MAX} символов`;
@@ -354,11 +390,65 @@ export function checkOverrideForm(values: OverrideFormValues, today: string): Fo
   return { error: null, request: { amount: amount.value, valid_from: values.validFrom, reason: values.reason.trim() } };
 }
 
-/** «Вернуть цену группы» from a date: no sum, no reason. */
-export function checkReturnForm(validFrom: string, today: string): FormCheck<PriceOverrideRequest> {
+/**
+ * «Вернуть цену группы» from a date: no sum, no reason.  `notBefore`: the day the individual price in force started - an
+ * earlier day changes nothing (the exception still wins from its own day), so it is refused here with a clear message.
+ */
+export function checkReturnForm(validFrom: string, today: string, notBefore?: string | null): FormCheck<PriceOverrideRequest> {
   const dateError = validatePriceDate(validFrom, today);
   if (dateError) return { error: dateError, request: null };
+  if (notBefore && validFrom < notBefore) {
+    return {
+      error: `Индивидуальная цена действует ${sinceText(notBefore)} — выберите эту дату или позже: с более ранней даты ничего не изменится`,
+      request: null,
+    };
+  }
   return { error: null, request: { amount: null, valid_from: validFrom } };
+}
+
+/** The day the individual price in force today started; null when the student pays the price of the group. */
+export function activeOverrideFrom(price: PriceInfo | null | undefined): string | null {
+  return price && price.source === "override" ? price.valid_from : null;
+}
+
+/** The scheduled individual prices (a sum, a day after today), the soonest first: each can be cancelled. */
+export function scheduledOverrides(history: ReadonlyArray<PriceOverrideRow> | null | undefined): PriceOverrideRow[] {
+  return (history ?? []).filter((row) => row.is_future && row.amount !== null).sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+}
+
+export const RETURN_TO_GROUP_LABEL = "Вернуть цену группы";
+export const CANCEL_SCHEDULED_LABEL = "Отменить запланированную индивидуальную цену";
+
+export type OverrideAction = { kind: "return"; label: string } | { kind: "cancel"; label: string; row: PriceOverrideRow };
+
+/**
+ * The actions a student's price offers besides «Назначить»: «Вернуть цену группы» while an individual price is in force, and
+ * «Отменить запланированную индивидуальную цену» for each scheduled one (with its day when there are several).
+ */
+export function overrideActions(price: PriceInfo | null | undefined, history: ReadonlyArray<PriceOverrideRow> | null | undefined): OverrideAction[] {
+  const out: OverrideAction[] = [];
+  if (activeOverrideFrom(price) !== null) out.push({ kind: "return", label: RETURN_TO_GROUP_LABEL });
+  const scheduled = scheduledOverrides(history);
+  for (const row of scheduled) {
+    out.push({ kind: "cancel", row, label: scheduled.length > 1 ? `${CANCEL_SCHEDULED_LABEL} (${sinceText(row.valid_from)})` : CANCEL_SCHEDULED_LABEL });
+  }
+  return out;
+}
+
+/**
+ * The request that cancels a scheduled individual price.  A write for the same day is a correction, so the row of that day
+ * is replaced: with «цена группы» (`amount` null) when the student pays the group price just before that day, and - so the
+ * cancellation does not switch him to the group price - with the individual price in force just before it when there is one.
+ */
+export function cancelScheduledRequest(history: ReadonlyArray<PriceOverrideRow>, target: PriceOverrideRow): PriceOverrideRequest {
+  const before = history
+    .filter((row) => row.valid_from < target.valid_from)
+    .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
+  if (before && before.amount !== null) {
+    const reason = (before.reason ?? "").trim();
+    return { amount: before.amount, valid_from: target.valid_from, reason: reasonProblem(reason) === null ? reason : "Прежняя индивидуальная цена" };
+  }
+  return { amount: null, valid_from: target.valid_from };
 }
 
 export interface EnrolOverrideValues {
@@ -425,7 +515,7 @@ export const PAID_NEVER_CHANGE_TEXT = "Уже внесённые оплаты н
 /** The past date warning: the calculations before today change, the recorded payments do not. */
 export function pastDateWarning(validFrom: string, today: string): string | null {
   if (!isIsoDate(validFrom) || !isIsoDate(today) || validFrom >= today) return null;
-  return `Дата в прошлом: подсказки сумм оплат и зарплата за период с ${formatDateRu(validFrom)} пересчитаются по новой цене. ${PAID_NEVER_CHANGE_TEXT}`;
+  return `Дата в прошлом: подсказки сумм оплат и зарплата за период ${sinceText(validFrom)} пересчитаются по новой цене. ${PAID_NEVER_CHANGE_TEXT}`;
 }
 
 /** A price that starts later: until then the old one is in force. */
@@ -436,9 +526,10 @@ export function futureDateNote(validFrom: string, today: string): string | null 
 
 // ── History ────────────────────────────────────────────────────────────────
 
-/** «450 000» (no unit: the line says «→» and the label is on the block). */
+/** «450 000» (no unit: the line says «→» and the label is on the block); 0 is «бесплатно». */
 function amountOrNone(amount: number | null | undefined, none: string): string {
-  return amount === null || amount === undefined ? none : formatMoneyInput(amount);
+  if (amount === null || amount === undefined) return none;
+  return amount === 0 ? FREE_WORD : formatMoneyInput(amount);
 }
 
 /** «17.10.2026 14:05 · Ахмедов» (the writer may be unknown, the time too). */
@@ -461,18 +552,23 @@ export function groupChangeLine(
   change: GroupPriceChange,
   formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
 ): string {
-  const head = `${amountOrNone(change.old_amount, "не была задана")} → ${formatMoneyInput(change.new_amount)}`;
+  const head = `${amountOrNone(change.old_amount, "не была задана")} → ${amountOrNone(change.new_amount, "не задана")}`;
   const line = withTail(head, change.note);
   const lead = whoAndWhen(change.at, change.actor_name, formatAt);
   return lead ? `${lead}: ${line}` : line;
 }
 
+/** «индивидуальная 400 000» / «цена группы — бесплатно»: a word and the sum after it. */
+function priceSide(word: string, amount: number): string {
+  return amount === 0 ? `${word} — ${FREE_WORD}` : `${word} ${formatMoneyInput(amount)}`;
+}
+
 /** What stood before an individual price was written: «индивидуальная 400 000», «цена группы 500 000», «цена не задана». */
 function overrideSide(amount: number | null, source: PriceSource | null | undefined): string {
   if (amount === null || amount === undefined) return "цена не задана";
-  if (source === "override") return `индивидуальная ${formatMoneyInput(amount)}`;
-  if (source === "group") return `цена группы ${formatMoneyInput(amount)}`;
-  return formatMoneyInput(amount);
+  if (source === "override") return priceSide("индивидуальная", amount);
+  if (source === "group") return priceSide("цена группы", amount);
+  return amount === 0 ? FREE_WORD : formatMoneyInput(amount);
 }
 
 /**
@@ -483,7 +579,7 @@ export function overrideChangeLine(
   change: PriceOverrideChange,
   formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime,
 ): string {
-  const after = change.new_amount === null ? "цена группы" : `индивидуальная ${formatMoneyInput(change.new_amount)}`;
+  const after = change.new_amount === null ? "цена группы" : priceSide("индивидуальная", change.new_amount);
   const line = withTail(`${overrideSide(change.old_amount, change.old_source)} → ${after}`, change.reason);
   const lead = whoAndWhen(change.at, change.actor_name, formatAt);
   return lead ? `${lead}: ${line}` : line;

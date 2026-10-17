@@ -911,7 +911,7 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   assert.doesNotMatch(read("src/lib/api.ts"), /normalizeSheet|normalizeMonthOverview|normalizeDiff|normalizeRevisions|normalizePayrollSettings/);
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
-  assert.match(month, /payrollFormulaText\(overview\.divisor\)/);
+  assert.match(month, /payrollFormulaText\(overview\.divisor, priceLabel\)/);
   assert.match(month, /<WarningLinks counts=\{teacher\.warnings\}/);
   assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) setShowErrors\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");

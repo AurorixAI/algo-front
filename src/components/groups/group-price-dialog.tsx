@@ -10,12 +10,16 @@ import {
   GROUP_PRICE_NOTE_MAX,
   groupPriceKey,
   impactStudentsText,
+  isNoopPriceChange,
+  isPriceConflict,
   PAID_NEVER_CHANGE_TEXT,
   pastDateWarning,
+  PRICE_CONFLICT_TEXT,
   priceDateRange,
   staleSheetsText,
   type GroupPriceCurrent,
   type GroupPriceResult,
+  type GroupPriceRow,
   type PriceImpact,
 } from "@/lib/group-price";
 import { formatMoneyInput } from "@/lib/payments";
@@ -25,7 +29,6 @@ import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/pric
 
 /** Wait this long after the last keystroke before asking the server what the change would touch. */
 const IMPACT_DEBOUNCE_MS = 350;
-const CONFLICT_CODE = "PRICE_CONFLICT";
 
 interface GroupPriceDialogProps {
   open: boolean;
@@ -34,6 +37,8 @@ interface GroupPriceDialogProps {
   /** «Оплата в месяц» | «Стоимость пакета»: names the amount. */
   label: string;
   current: GroupPriceCurrent | null;
+  /** The saved rows: a request that equals one of them writes nothing new. */
+  history: GroupPriceRow[];
   onClose: () => void;
   /** The server accepted the price (the block replaces what it shows). */
   onSaved: (result: GroupPriceResult) => void;
@@ -47,7 +52,7 @@ interface GroupPriceDialogProps {
  * payroll sheets would turn «данные изменились» - and the answer is on screen; «Сохранить» waits for the answer
  * that belongs to exactly the sum and the day typed.
  */
-export function GroupPriceDialog({ open, groupId, groupName, label, current, onClose, onSaved, onConflict }: GroupPriceDialogProps) {
+export function GroupPriceDialog({ open, groupId, groupName, label, current, history, onClose, onSaved, onConflict }: GroupPriceDialogProps) {
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const [amount, setAmount] = useState("");
   const [validFrom, setValidFrom] = useState("");
@@ -113,6 +118,9 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
   }, [open, groupId, key, nonce]);
 
   const ready = Boolean(check.request) && impact !== null && impact.key === key && !checking;
+  // The same sum and note on a day that already has them is no change: nothing to save
+  const noop = isNoopPriceChange(history, check.request);
+  const canSave = ready && !noop;
   const shownImpact = impact && impact.key === key ? impact.data : null;
   // «Укажите сумму» is not an error yet while the field is untouched.
   const problem = check.error && (amount !== "" || check.error !== "Укажите сумму") ? check.error : null;
@@ -122,7 +130,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
   const range = priceDateRange(today);
 
   const save = async () => {
-    if (!check.request || !ready || saving) return;
+    if (!check.request || !canSave || saving) return;
     setSaving(true);
     setError(null);
     try {
@@ -130,12 +138,11 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
       onSaved(result);
       onClose();
     } catch (cause) {
-      const code = (cause as { code?: string } | null)?.code;
-      if (code === CONFLICT_CODE) {
+      if (isPriceConflict(cause)) {
         onConflict();
         setImpact(null);
         setNonce((value) => value + 1);
-        setError(`${cause instanceof Error ? cause.message : "Цену только что изменили."} Данные обновлены — проверьте и повторите.`);
+        setError(PRICE_CONFLICT_TEXT);
       } else {
         setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
       }
@@ -159,8 +166,8 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
           <button
             type="submit"
             form="group-price-form"
-            disabled={!ready || saving}
-            title={ready ? undefined : "Кнопка включится, когда будут показаны последствия"}
+            disabled={!canSave || saving}
+            title={noop ? "Такая цена с этой даты уже сохранена" : ready ? undefined : "Кнопка включится, когда будут показаны последствия"}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -181,7 +188,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
           />
           <p id="group-price-amount-note" className="mt-1 text-xs text-slate-500">
             {current
-              ? `Сейчас: ${formatMoneyInput(current.amount)} сум. `
+              ? current.amount === 0 ? "Сейчас: бесплатно. " : `Сейчас: ${formatMoneyInput(current.amount)} сум. `
               : "Сейчас цена не задана. "}
             Цена 0 — занятия бесплатные.
           </p>
@@ -253,6 +260,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, onC
               </>
             ) : null}
             {future && <p className="text-slate-500">{future}</p>}
+            {noop && <p className="font-medium text-slate-700">Такая цена с этой даты уже сохранена — менять нечего.</p>}
           </div>
         )}
 

@@ -8,7 +8,9 @@ import {
 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { priceLabelOf } from "@/lib/group-price";
 import { pluralRu } from "@/lib/payments";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
@@ -102,6 +104,8 @@ function PayrollMonthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const today = useMemo(() => formatBusinessDate(), []);
+  // what the price is called in the centre: the formula speaks the same words
+  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const month = parseMonthParam(searchParams?.get("month"), today);
   const user = useAuthStore((state) => state.user);
   const denied = Boolean(user) && effectiveRole(user) !== "owner";
@@ -426,7 +430,7 @@ function PayrollMonthContent() {
       {overview && teachers.length > 0 && (
         <div className="space-y-2 print:hidden">
           <p className="text-xs text-slate-500">
-            {payrollFormulaText(overview.divisor)}.{" "}
+            {payrollFormulaText(overview.divisor, priceLabel)}.{" "}
             <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">Делитель — в настройках</Link>
           </p>
           <PayrollHowItWorks divisor={overview.divisor} />

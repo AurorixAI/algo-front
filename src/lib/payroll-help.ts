@@ -79,6 +79,21 @@ export function priceStepText(step: PayrollPriceStep): string {
   return `с ${day} — ${amount}`;
 }
 
+/**
+ * What the price field of a line whose price changed in the month says: every lesson is priced at its own day; a sum typed
+ * replaces the price of all lessons, the shown (last) price typed brings the prices of the days back.  null: nothing to say.
+ */
+export function priceFieldHint(
+  line: Pick<PayrollLine, "price_changed" | "fee_overridden">,
+  editable: boolean,
+): string | null {
+  if (line.fee_overridden || !line.price_changed) return null;
+  const base = "Цена менялась в течение месяца: каждый урок посчитан по цене своего дня.";
+  return editable
+    ? `${base} Если ввести сумму, она заменит цену во всех уроках строки; ввод показанной цены вернёт цены по дням уроков.`
+    : base;
+}
+
 /** The steps of a price that changed inside the month, one text each; [] when it did not (or the owner overwrote it). */
 export function priceStepsLines(line: Pick<PayrollLine, "price_changed" | "price_steps" | "fee_overridden">): string[] {
   if (line.fee_overridden || !line.price_changed) return [];

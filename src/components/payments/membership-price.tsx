@@ -1,31 +1,37 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
+  activeOverrideFrom,
+  cancelScheduledRequest,
   checkOverrideForm,
   checkReturnForm,
   formatPrice,
   groupPriceHref,
+  isPriceConflict,
   membershipPriceView,
+  overrideActions,
   overrideChangeLine,
   overrideRowText,
   pastDateWarning,
   priceDateRange,
   priceLabelOf,
   priceOfRow,
+  PRICE_CONFLICT_TEXT,
   sinceText,
   type MembershipPrice,
+  type PriceOverrideRow,
 } from "@/lib/group-price";
-import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
+import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
 
-type Dialog = "assign" | "return" | null;
+type Dialog = "assign" | "return" | { cancel: PriceOverrideRow } | null;
 
 interface MembershipPriceSectionProps {
   row: MembershipPaymentRow;
@@ -54,19 +60,39 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<MembershipPrice | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  /** Bumped after a write: the history is read again (a scheduled price does not change `price`). */
+  const [reloads, setReloads] = useState(0);
   const requests = useMemo(() => createRequestSequence(), []);
 
-  // The history is read when it is opened, and again after every change of the price.
+  // The history is read when it is opened - and, for an editable membership, at once: it says whether an individual
+  // price is scheduled (it can be cancelled) - and again after every write.
   const priceKey = `${price.source}|${price.amount ?? ""}|${price.valid_from ?? ""}`;
   useEffect(() => {
-    if (!historyOpen) return undefined;
+    if (!historyOpen && !editable) return undefined;
     const token = requests.next();
     setHistoryError(null);
     orgApi.getMembershipPrice(row.membership_id)
       .then((result) => { if (requests.isCurrent(token)) setHistory(result); })
       .catch((cause) => { if (requests.isCurrent(token)) setHistoryError(cause instanceof Error ? cause.message : "Не удалось загрузить историю цены"); });
     return () => { requests.next(); };
-  }, [historyOpen, row.membership_id, priceKey, requests]);
+  }, [historyOpen, editable, row.membership_id, priceKey, reloads, requests]);
+
+  // The individual price in force starts on `activeFrom`; the scheduled ones can be cancelled.
+  const activeFrom = activeOverrideFrom(price);
+  const actions = overrideActions(price, history?.history);
+
+  /** Somebody else wrote meanwhile: the price of the row and the history are read again. */
+  const refreshAfterConflict = useCallback(async () => {
+    try {
+      const fresh = await orgApi.getMembershipPrice(row.membership_id);
+      onRowChange({ ...row, price: fresh.price, monthly_fee: fresh.price.amount });
+    } catch {
+      // the next opening of the dialog shows what the server holds
+    }
+    setReloads((value) => value + 1);
+    // `row` is the parent's: a new one arrives with the answer
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.membership_id, onRowChange]);
 
   return (
     <div className="min-w-0 space-y-1.5">
@@ -92,11 +118,17 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
             <button type="button" onClick={() => setDialog("assign")} className="text-left text-xs font-semibold text-primary-700 hover:underline">
               Назначить индивидуальную цену
             </button>
-            {view.kind === "override" && (
-              <button type="button" onClick={() => setDialog("return")} className="text-left text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">
-                Вернуть цену группы
+            {actions.map((action) => (
+              <button
+                key={action.kind === "cancel" ? action.row.id : action.kind}
+                type="button"
+                onClick={() => setDialog(action.kind === "cancel" ? { cancel: action.row } : "return")}
+                title={action.kind === "cancel" ? overrideRowText(action.row, label) : undefined}
+                className="text-left text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline"
+              >
+                {action.label}
               </button>
-            )}
+            ))}
           </span>
         )}
       </div>
@@ -144,14 +176,32 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
         studentName={studentName}
         label={label}
         onClose={() => setDialog(null)}
-        onSaved={(next, since) => { onRowChange(next); onNotify(since ? `Индивидуальная цена сохранена, действует ${since}` : "Индивидуальная цена сохранена"); }}
+        onConflict={() => void refreshAfterConflict()}
+        onSaved={(next, since) => {
+          onRowChange(next);
+          setReloads((value) => value + 1);
+          onNotify(since ? `Индивидуальная цена сохранена, действует ${since}` : "Индивидуальная цена сохранена");
+        }}
       />
       <ReturnPriceDialog
         open={dialog === "return"}
         row={row}
         studentName={studentName}
+        label={label}
+        notBefore={activeFrom}
         onClose={() => setDialog(null)}
-        onSaved={(next) => { onRowChange(next); onNotify("Ученик снова платит по цене группы"); }}
+        onConflict={() => void refreshAfterConflict()}
+        onSaved={(next) => { onRowChange(next); setReloads((value) => value + 1); onNotify("Ученик снова платит по цене группы"); }}
+      />
+      <CancelScheduledDialog
+        target={typeof dialog === "object" && dialog !== null ? dialog.cancel : null}
+        history={history?.history ?? []}
+        row={row}
+        studentName={studentName}
+        label={label}
+        onClose={() => setDialog(null)}
+        onConflict={() => void refreshAfterConflict()}
+        onSaved={(next) => { onRowChange(next); setReloads((value) => value + 1); onNotify("Запланированная индивидуальная цена отменена"); }}
       />
     </div>
   );
@@ -159,13 +209,15 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
 
 /** «Назначить индивидуальную цену»: a sum, the day it starts and the reason (3..200 characters, required). */
 function AssignOverrideDialog({
-  open, row, studentName, label, onClose, onSaved,
+  open, row, studentName, label, onClose, onConflict, onSaved,
 }: {
   open: boolean;
   row: MembershipPaymentRow;
   studentName: string;
   label: string;
   onClose: () => void;
+  /** PRICE_CONFLICT: somebody wrote the price meanwhile; the section reads it again. */
+  onConflict: () => void;
   /** `since`: «с 20.11.2026» when the price starts later than today, else "". */
   onSaved: (row: MembershipPaymentRow, since: string) => void;
 }) {
@@ -202,7 +254,8 @@ function AssignOverrideDialog({
       onSaved(result.row, check.request.valid_from && check.request.valid_from > today ? sinceText(check.request.valid_from) : "");
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
+      if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
     } finally {
       setBusy(false);
     }
@@ -259,12 +312,16 @@ function AssignOverrideDialog({
 
 /** «Вернуть цену группы»: from a day the student pays the price of the group again (no sum, no reason). */
 function ReturnPriceDialog({
-  open, row, studentName, onClose, onSaved,
+  open, row, studentName, label, notBefore, onClose, onConflict, onSaved,
 }: {
   open: boolean;
   row: MembershipPaymentRow;
   studentName: string;
+  label: string;
+  /** The day the individual price in force started: an earlier day changes nothing. */
+  notBefore: string | null;
   onClose: () => void;
+  onConflict: () => void;
   onSaved: (row: MembershipPaymentRow) => void;
 }) {
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -273,6 +330,7 @@ function ReturnPriceDialog({
   const [error, setError] = useState<string | null>(null);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
+  const earliest = notBefore && notBefore > range.min ? notBefore : range.min;
 
   useEffect(() => {
     if (!open) return;
@@ -286,7 +344,7 @@ function ReturnPriceDialog({
 
   const submit = async () => {
     if (busy) return;
-    const check = checkReturnForm(validFrom, today);
+    const check = checkReturnForm(validFrom, today, notBefore);
     if (check.error || !check.request) { setError(check.error); return; }
     setBusy(true);
     setError(null);
@@ -295,7 +353,8 @@ function ReturnPriceDialog({
       onSaved(result.row);
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось вернуть цену группы");
+      if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else setError(cause instanceof Error ? cause.message : "Не удалось вернуть цену группы");
     } finally {
       setBusy(false);
     }
@@ -326,7 +385,7 @@ function ReturnPriceDialog({
       <form id="membership-price-return-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-3.5 pb-2" noValidate>
         <p className="text-sm text-slate-700">
           С выбранного дня ученик снова платит по цене группы
-          {price.group_amount !== null && price.group_amount !== undefined ? ` (${formatMoney(price.group_amount)})` : ""}.
+          {price.group_amount !== null && price.group_amount !== undefined ? ` (${formatPrice(price.group_amount, label)})` : ""}.
           Индивидуальная цена остаётся в истории.
         </p>
         <div>
@@ -335,7 +394,7 @@ function ReturnPriceDialog({
             id="membership-price-return-from"
             type="date"
             value={validFrom}
-            min={range.min}
+            min={earliest}
             max={range.max}
             onChange={(event) => { setError(null); setValidFrom(event.target.value); }}
             className={`${PRICE_FIELD} sm:w-1/2`}
@@ -344,6 +403,78 @@ function ReturnPriceDialog({
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
+    </Modal>
+  );
+}
+
+/**
+ * «Отменить запланированную индивидуальную цену»: a write for the day of the scheduled price replaces it (a correction),
+ * with «цена группы» - or with the individual price in force just before, so the cancellation does not switch the student
+ * to the group price (`cancelScheduledRequest`).
+ */
+function CancelScheduledDialog({
+  target, history, row, studentName, label, onClose, onConflict, onSaved,
+}: {
+  target: PriceOverrideRow | null;
+  history: PriceOverrideRow[];
+  row: MembershipPaymentRow;
+  studentName: string;
+  label: string;
+  onClose: () => void;
+  onConflict: () => void;
+  onSaved: (row: MembershipPaymentRow) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBusy(false);
+    setError(null);
+  }, [target?.id]);
+
+  const submit = async () => {
+    if (!target || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await orgApi.setMembershipPrice(row.membership_id, cancelScheduledRequest(history, target));
+      onSaved(result.row);
+      onClose();
+    } catch (cause) {
+      if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else setError(cause instanceof Error ? cause.message : "Не удалось отменить цену");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal
+      open={target !== null}
+      title="Отменить запланированную цену?"
+      description={`${studentName} · ${row.group_name}`}
+      onClose={onClose}
+      busy={busy}
+      footer={(
+        <>
+          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Не отменять</button>
+          <button
+            type="button"
+            onClick={() => void submit()}
+            disabled={busy}
+            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+            Отменить цену
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-3 pb-2">
+        {target && <p className="text-sm font-medium text-slate-800">{overrideRowText(target, label)}</p>}
+        <p className="text-sm text-slate-600">Ученик продолжит платить так же, как сейчас. Запись останется в истории.</p>
+        {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
+      </div>
     </Modal>
   );
 }

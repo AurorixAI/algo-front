@@ -44,7 +44,7 @@ import {
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
-import { groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag } from "@/lib/group-price";
+import { FREE_WORD, groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -641,7 +641,7 @@ function PaymentRow({
               </Link>
             ) : (
               <span className="text-right xl:text-left">
-                <span className="font-medium tabular-nums text-slate-800">{formatMoney(price.amount)}</span>
+                <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
                 {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
               </span>
             )}

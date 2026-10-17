@@ -101,6 +101,23 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(page.getByTestId("membership-price")).toContainText(priceText(500000));
   expect((await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`)).price).toMatchObject({ amount: 500000, source: "group" });
 
+  // --- a SCHEDULED individual price shows only from its day and can be cancelled
+  await page.getByRole("button", { name: "Назначить индивидуальную цену" }).click();
+  const planned = page.getByRole("dialog", { name: "Индивидуальная цена" });
+  await planned.getByLabel(/Оплата в месяц ученика/).fill("350000");
+  await planned.getByLabel("Действует с").fill(addDays(today, 30));
+  await planned.getByLabel("Причина").fill("С нового месяца");
+  await planned.getByRole("button", { name: "Сохранить" }).click();
+  await expect(toast(page, /действует с/)).toBeVisible();
+  await expect(page.getByTestId("membership-price")).toContainText("Цена группы:"); // today it is still the price of the group
+  await page.getByRole("button", { name: "Отменить запланированную индивидуальную цену" }).click();
+  await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
+  await expect(toast(page, "Запланированная индивидуальная цена отменена")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Отменить запланированную/ })).toHaveCount(0);
+  const afterCancel = await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`);
+  expect(afterCancel.price).toMatchObject({ amount: 500000, source: "group" });
+  expect(afterCancel.history.find((r: any) => r.valid_from === addDays(today, 30))).toMatchObject({ amount: null });
+
   // --- a teacher gets no price anywhere
   expect(await org.owner.api.get(`/auth/org/groups/${group.id}`)).toHaveProperty("price_current"); // the owner has it ...
   const forTeacher = await teacher.api.get(`/auth/org/groups/${group.id}`);

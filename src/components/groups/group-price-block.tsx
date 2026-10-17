@@ -198,6 +198,7 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged }: Gro
         groupName={groupName}
         label={label}
         current={current}
+        history={data?.history ?? []}
         onClose={() => setDialogOpen(false)}
         onSaved={saved}
         onConflict={() => void load(true)}

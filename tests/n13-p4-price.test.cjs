@@ -230,8 +230,9 @@ test("the audit trail of a group price: who, when (business clock), from what to
   assert.equal(plain(G.groupChangeLine(change({ actor_name: null }))), "17.10.2026 14:05: 450 000 → 500 000 · Новый год");
   assert.equal(plain(G.groupChangeLine(change({ at: null, actor_name: "Ахмедов", note: null }))), "Ахмедов: 450 000 → 500 000");
   assert.equal(plain(G.groupChangeLine(change({ at: null, actor_name: null, note: null }))), "450 000 → 500 000");
-  // a price of 0 is a price
-  assert.equal(plain(G.groupChangeLine(change({ new_amount: 0, note: null }))), "17.10.2026 14:05 · Ахмедов: 450 000 → 0");
+  // a price of 0 is a price: «бесплатно», never «0»
+  assert.equal(plain(G.groupChangeLine(change({ new_amount: 0, note: null }))), "17.10.2026 14:05 · Ахмедов: 450 000 → бесплатно");
+  assert.equal(plain(G.groupChangeLine(change({ old_amount: 0, note: null }))), "17.10.2026 14:05 · Ахмедов: бесплатно → 500 000");
   for (const text of [G.groupChangeLine(change({})), G.groupChangeLine(change({ old_amount: null, actor_name: null, at: null }))]) assert.doesNotMatch(text, /null|undefined|object/);
 });
 
@@ -264,7 +265,7 @@ test("history rows: amount, start, state, note, author and the audit lines", () 
   assert.deepEqual(views.map((v) => [v.id, plain(v.amount), v.since, v.status]), [
     ["3", "600 000 сум/мес", "с 01.11.2026", "future"],
     ["2", "500 000 сум/мес", "с 01.10.2026", "current"],
-    ["1", "450 000 сум/мес", "с 01.01.2000", "past"],
+    ["1", "450 000 сум/мес", "с самого начала", "past"],
   ]);
   assert.equal(views[1].note, "Новый год");
   assert.equal(views[0].author, "Владелец · 17.10.2026 14:30");
@@ -325,21 +326,54 @@ test("the amount of a line whose price changed in the month: each lesson at its 
   assert.equal(R.amountByPrices(0, [[600000, 12]]), 0);
   assert.equal(R.amountByPrices(5000, []), 0);
 
+  // the real wire shape of a priced mark: `price_source` is set (a priced mark with no price that day carries "none")
   const marks = [
-    { state: "counted", divisor: 12, price: 400000 },
-    { state: "counted", divisor: 12, price: 500000 },
-    { state: "unpaid", divisor: 12, price: 500000 },
-    { state: "excused_confirmed", divisor: null },
+    { state: "counted", divisor: 12, price: 400000, price_source: "group" },
+    { state: "counted", divisor: 12, price: 500000, price_source: "group" },
+    { state: "unpaid", divisor: 12, price: 500000, price_source: "group" },
+    { state: "excused_confirmed", divisor: null, price: null, price_source: null },
   ];
   const base = { fee: 500000, percentHundredths: 5000, marks, defaultDivisor: 12 };
   assert.equal(R.marksAmount({ ...base, includeUnpaid: false }), Math.round((400000 + 500000) * 0.5 / 12));
   assert.equal(R.marksAmount({ ...base, includeUnpaid: true }), Math.round((400000 + 500000 + 500000) * 0.5 / 12));
   // the owner's overwrite of the price replaces the price of EVERY lesson
   assert.equal(R.marksAmount({ ...base, fee: 700000, overridden: true, includeUnpaid: false }), Math.round(2 * 700000 * 0.5 / 12));
-  // a mark of a sheet saved before #105 has no price: the line's fee stands for it
-  assert.equal(R.marksAmount({ ...base, marks: marks.map(({ state, divisor }) => ({ state, divisor })), includeUnpaid: false }), Math.round(2 * 500000 * 0.5 / 12));
-  // a priced mark with no price that day (null) is worth nothing
-  assert.equal(R.marksAmount({ ...base, marks: [{ state: "counted", divisor: 12, price: null }, { state: "counted", divisor: 12, price: 600000 }], includeUnpaid: false }), 25000);
+  // a priced mark with no price that day is worth nothing
+  assert.equal(R.marksAmount({ ...base, marks: [{ state: "counted", divisor: 12, price: null, price_source: "none" }, { state: "counted", divisor: 12, price: 600000, price_source: "group" }], includeUnpaid: false }), 25000);
+});
+
+test("a mark of a sheet saved BEFORE #105 is not priced: the wire shape {price: null, price_source: null} is worth source_fee", () => {
+  // the API serialises the missing fields as nulls: `price === undefined` can never tell an old mark from a priced one
+  assert.equal(R.isPricedMark({ price: null, price_source: null }), false);
+  assert.equal(R.isPricedMark({}), false);
+  assert.equal(R.isPricedMark({ price: null, price_source: "none" }), true);
+  assert.equal(R.isPricedMark({ price: 5, price_source: "override" }), true);
+  const wire = (date) => ({ date, lesson_id: `l-${date}`, mark: 1, state: "counted", divisor: 12, price: null, price_source: null });
+  const dates = ["2026-09-01", "2026-09-03", "2026-09-08", "2026-09-10", "2026-09-15"];
+  const line = {
+    membership_id: "m1", student_id: "s1", student_name: "Каримова Дилноза", display_id: null, group_id: "g1", group_name: "Алгебра 8А", lesson_type: "group", lesson_time: null,
+    monthly_fee: 500000, source_fee: 500000, fee_overridden: false, price_source: null, price_changed: false, price_steps: [], no_price_lessons: null, unpaid_due: null,
+    percent: "50", divisor: 12, marks: dates.map(wire), counted: 5, unpaid: 0, pending_excused: 0, include_unpaid: false, amount: 104167, warnings: [],
+  };
+  const sheet = {
+    id: "s", saved: true, month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, teacher_id: "t1", teacher_name: "Иванов", revision: 1,
+    percents: { group: "50" }, divisor_default: 12, lines: [line],
+    groups: [{ group_id: "g1", group_name: "Алгебра 8А", lesson_type: "group", lesson_time: null, percent: "50", dates: line.marks.map((m) => ({ date: m.date, lesson_id: m.lesson_id })), line_count: 1, counted: 5, unpaid: 0, total_amount: 104167 }],
+    total_amount: 104167, counted_total: 5, unpaid_total: 0, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 },
+    source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null,
+  };
+  // 50 -> 60 %: 5 lessons at source_fee 500 000 / 12 x 0.6 = 125 000 (the server's recompute_line) - NOT 0
+  const edited = R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60"))[0];
+  assert.equal(edited.amount, 125000);
+  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60")), R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60")), 125000);
+  // the same line after a reset of an overwrite, and with an overwrite of the price
+  assert.equal(R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000))[0].amount, Math.round(5 * 600000 * 0.5 / 12));
+  const overwritten = { ...sheet, lines: [{ ...line, fee_overridden: true, monthly_fee: 600000 }] };
+  assert.equal(R.buildLineViews(overwritten, R.setFeeEdit(R.EMPTY_EDITS, overwritten, "m1", null))[0].amount, 104167);
+  // «начислить» on a line of an old sheet: the unpaid lesson is worth source_fee too
+  const withUnpaid = { ...sheet, lines: [{ ...line, marks: [...line.marks, { ...wire("2026-09-17"), state: "unpaid" }], unpaid: 1 }] };
+  const included = R.buildLineViews(withUnpaid, R.setIncludeEdit(R.EMPTY_EDITS, withUnpaid, "m1", true))[0];
+  assert.equal(included.amount, Math.round(6 * 500000 * 0.5 / 12));
 });
 
 test("an edited line of a sheet with a price step is previewed per lesson", () => {
@@ -622,7 +656,7 @@ test("the group page shows the price block only when the group carries `price_cu
     assert.match(list, /GroupPriceFilter/, role);
     assert.match(list, /parsePriceFilter\(searchParams\?\.get\("price"\)\)/, role);
   }
-  assert.match(read("src/components/groups/group-card.tsx"), /const showPrice = "price_current" in group;/);
+  assert.match(read("src/components/groups/group-card.tsx"), /const showPrice = "price_current" in group && !\(group\.status === "archived" && group\.price_current === null\);/);
 });
 
 test("no money for a teacher: the teacher screens never touch a price", () => {
@@ -681,14 +715,217 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   assert.match(dialog, /const asked = \{ amount: check\.request\.amount, valid_from: check\.request\.valid_from \};/);
   // the answer counts for the key it was asked for, and the button waits for it
   assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking;/);
-  assert.match(dialog, /disabled=\{!ready \|\| saving\}/);
-  assert.match(dialog, /if \(!check\.request \|\| !ready \|\| saving\) return;/);
+  assert.match(dialog, /const canSave = ready && !noop;/);
+  assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
+  assert.match(dialog, /if \(!check\.request \|\| !canSave \|\| saving\) return;/);
   // the shown words are the helpers' (tested above)
   for (const helper of ["impactStudentsText(shownImpact)", "staleSheetsText(shownImpact)", "pastDateWarning(", "futureDateNote("]) assert.ok(dialog.includes(helper), helper);
   // PRICE_CONFLICT: the block reads the price again, the old answer is dropped, the message stays
-  assert.match(dialog, /const CONFLICT_CODE = "PRICE_CONFLICT";/);
-  assert.match(dialog, /if \(code === CONFLICT_CODE\) \{\s*onConflict\(\);\s*setImpact\(null\);\s*setNonce/);
+  assert.match(dialog, /if \(isPriceConflict\(cause\)\) \{\s*onConflict\(\);\s*setImpact\(null\);\s*setNonce/);
   assert.match(read("src/components/groups/group-price-block.tsx"), /onConflict=\{\(\) => void load\(true\)\}/);
   // the individual price: 422 REASON_REQUIRED and 409 «в архиве» come with the server's Russian text
   assert.match(read("src/components/payments/membership-price.tsx"), /setError\(cause instanceof Error \? cause\.message : "Не удалось сохранить цену"\)/);
+});
+
+// ── R3 follow-ups ────────────────────────────────────────────────────────────────────────────────────────────
+
+test("a price from 2000-01-01 has always been so: «с самого начала», everywhere a date would show", () => {
+  assert.equal(G.sinceText("2000-01-01"), "с самого начала");
+  assert.equal(G.sinceText("2000-01-02"), "с 02.01.2000");
+  assert.equal(G.sinceText("2026-10-15"), "с 15.10.2026");
+  assert.match(G.pastDateWarning("2000-01-01", "2026-10-17"), /за период с самого начала пересчитаются/);
+  assert.doesNotMatch(G.pastDateWarning("2000-01-01", "2026-10-17"), /01\.01\.2000/);
+  const row = { id: "a", amount: 450000, valid_from: "2000-01-01", reason: "Цена до введения цены группы", created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] };
+  assert.equal(plain(G.overrideRowText(row, "Оплата в месяц")), "с самого начала — 450 000 сум/мес · Цена до введения цены группы");
+  assert.equal(G.historyViews([{ id: "1", amount: 1, valid_from: "2000-01-01", note: null, created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] }], "Оплата в месяц")[0].since, "с самого начала");
+  // nothing in the screens writes the epoch by hand
+  for (const file of ["src/components/groups/group-price-block.tsx", "src/components/payments/membership-price.tsx", "src/components/groups/group-price-dialog.tsx"]) {
+    assert.doesNotMatch(read(file), /01\.01\.2000|2000-01-01/, file);
+  }
+});
+
+test("«Вернуть цену группы»: the day is not before the individual price in force; a scheduled price is cancelled", () => {
+  const today = "2026-10-17";
+  const price = { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "Сестра" };
+  // (b) an earlier day changes nothing: refused with a clear message, the day itself and later are fine
+  assert.equal(G.activeOverrideFrom(price), "2026-10-05");
+  assert.equal(G.activeOverrideFrom({ ...price, source: "group" }), null);
+  assert.equal(G.activeOverrideFrom(null), null);
+  const early = G.checkReturnForm("2026-10-04", today, "2026-10-05");
+  assert.equal(early.request, null);
+  assert.match(early.error, /Индивидуальная цена действует с 05\.10\.2026 — выберите эту дату или позже/);
+  assert.deepEqual(G.checkReturnForm("2026-10-05", today, "2026-10-05"), { error: null, request: { amount: null, valid_from: "2026-10-05" } });
+  assert.equal(G.checkReturnForm(today, today, "2026-10-05").error, null);
+  assert.equal(G.checkReturnForm("2026-10-04", today).error, null); // no individual price in force: no lower bound
+  assert.match(G.checkReturnForm("2026-10-01", today, "2000-01-01").error ?? "", /^$/); // an always-so price: nothing is earlier
+  assert.match(G.checkReturnForm("2026-10-04", today, "2026-10-05").error, /ничего не изменится/);
+  assert.match(G.checkReturnForm("2026-10-04", today, "2026-10-05").error, /^Индивидуальная цена действует с 05\.10\.2026/);
+  const startOfTime = G.checkReturnForm("2000-01-01", today, "2000-01-01");
+  assert.equal(startOfTime.error, null);
+
+  // (a) scheduled individual prices: only future rows with a sum, soonest first
+  const row = (over) => ({ id: "r", amount: 350000, valid_from: "2026-11-20", reason: "Договорённость", created_by_name: null, created_at: null, is_current: false, is_future: true, changes: [], ...over });
+  const history = [
+    row({ id: "far", valid_from: "2026-12-20", amount: 300000 }),
+    row({ id: "soon" }),
+    row({ id: "returned", valid_from: "2026-11-25", amount: null }), // a scheduled return is not an individual price
+    row({ id: "now", valid_from: "2026-10-05", amount: 400000, is_current: true, is_future: false }),
+  ];
+  assert.deepEqual(G.scheduledOverrides(history).map((r) => r.id), ["soon", "far"]);
+  assert.deepEqual(G.scheduledOverrides(null), []);
+  // the actions the card offers, with the exact labels
+  const labels = (p, h) => G.overrideActions(p, h).map((a) => [a.kind, a.label]);
+  assert.deepEqual(labels({ ...price, source: "group" }, []), []);
+  assert.deepEqual(labels(price, []), [["return", "Вернуть цену группы"]]);
+  assert.deepEqual(labels({ ...price, source: "group" }, [row({ id: "soon" })]), [["cancel", "Отменить запланированную индивидуальную цену"]]);
+  assert.deepEqual(labels(price, [row({ id: "soon" })]), [["return", "Вернуть цену группы"], ["cancel", "Отменить запланированную индивидуальную цену"]]);
+  assert.deepEqual(labels({ ...price, source: "group" }, [row({ id: "a" }), row({ id: "b", valid_from: "2026-12-20" })]), [
+    ["cancel", "Отменить запланированную индивидуальную цену (с 20.11.2026)"],
+    ["cancel", "Отменить запланированную индивидуальную цену (с 20.12.2026)"],
+  ]);
+
+  // the cancel request: a write for the SAME day (a correction) - «цена группы» when nothing individual stood before it ...
+  const only = row({ id: "only" });
+  assert.deepEqual(G.cancelScheduledRequest([only], only), { amount: null, valid_from: "2026-11-20" });
+  const returned = row({ id: "ret", valid_from: "2026-10-30", amount: null, is_future: false });
+  assert.deepEqual(G.cancelScheduledRequest([only, returned], only), { amount: null, valid_from: "2026-11-20" });
+  // ... and the individual price in force before it, so the student is not switched to the group price by a cancellation
+  const active = row({ id: "act", valid_from: "2026-10-05", amount: 400000, reason: "Сестра", is_current: true, is_future: false });
+  assert.deepEqual(G.cancelScheduledRequest([only, active], only), { amount: 400000, valid_from: "2026-11-20", reason: "Сестра" });
+  const noReason = { ...active, reason: null };
+  assert.deepEqual(G.cancelScheduledRequest([only, noReason], only), { amount: 400000, valid_from: "2026-11-20", reason: "Прежняя индивидуальная цена" });
+  // a scheduled price between two others looks at the one right before it
+  const second = row({ id: "second", valid_from: "2026-12-20", amount: 300000, reason: "Позже" });
+  assert.deepEqual(G.cancelScheduledRequest([second, only, active], second), { amount: 350000, valid_from: "2026-12-20", reason: "Договорённость" });
+  // the screens wire it: the section, the history read at once, the confirmation with the exact words
+  const section = read("src/components/payments/membership-price.tsx");
+  assert.match(section, /overrideActions\(price, history\?\.history\)/);
+  assert.match(section, /if \(!historyOpen && !editable\) return undefined;/);
+  assert.match(section, /checkReturnForm\(validFrom, today, notBefore\)/);
+  assert.match(section, /orgApi\.setMembershipPrice\(row\.membership_id, cancelScheduledRequest\(history, target\)\)/);
+  assert.match(section, /min=\{earliest\}/);
+});
+
+test("a price of 0 is «бесплатно»: never «0 сум/мес», never «не задана»", () => {
+  assert.equal(G.formatPrice(0, "Оплата в месяц"), "бесплатно");
+  assert.equal(G.formatPrice(0, "Стоимость пакета"), "бесплатно");
+  assert.equal(G.formatPrice(null, "Оплата в месяц"), "не задана");
+  assert.equal(G.priceBriefText({ amount: 0, valid_from: "2026-10-01" }), "бесплатно");
+  const free = G.membershipPriceView({ amount: 0, source: "group", valid_from: null, group_amount: 0, reason: null }, "Оплата в месяц");
+  assert.equal(free.kind, "group");
+  assert.equal(free.text, "Цена группы: бесплатно");
+  const own = G.membershipPriceView({ amount: 0, source: "override", valid_from: null, group_amount: 500000, reason: "Стипендия" }, "Оплата в месяц");
+  assert.equal(own.value, "бесплатно");
+  assert.equal(plain(own.text), "Индивидуальная цена: бесплатно · Стипендия (цена группы 500 000 сум)");
+  assert.equal(G.membershipPriceView({ amount: 400000, source: "override", valid_from: null, group_amount: 0, reason: "Договорённость" }, "Оплата в месяц").note, "Договорённость · цена группы — бесплатно");
+  assert.equal(G.targetGroupPriceText({ amount: 0, valid_from: "2026-10-01" }, "Оплата в месяц"), "Цена группы: бесплатно");
+  // the list card and the history
+  const { GroupCard } = require(path.join(root, "src/components/groups/group-card.tsx"));
+  const base = { id: "g1", org_id: "o", name: "Алгебра", class_level: 8, teacher_id: "t", teacher_name: "Иванов", description: null, status: "active", max_students: 20, student_count: 5, created_at: null };
+  const card = textOf(renderToStaticMarkup(React.createElement(GroupCard, { group: { ...base, price_current: { amount: 0, valid_from: "2026-10-01" } }, href: "/owner/groups/g1" })));
+  assert.match(card, /бесплатно/);
+  assert.doesNotMatch(card, /0 сум|не задана/);
+  assert.equal(G.historyViews([{ id: "1", amount: 0, valid_from: "2026-10-01", note: null, created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] }], "Оплата в месяц")[0].amount, "бесплатно");
+  assert.equal(G.overrideRowText({ id: "a", amount: 0, valid_from: "2026-10-15", reason: "Стипендия", created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] }, "Оплата в месяц"), "с 15.10.2026 — бесплатно · Стипендия");
+  // the override audit line
+  assert.equal(plain(G.overrideChangeLine({ at: null, actor_name: null, old_amount: 0, old_source: "group", new_amount: 0, reason: null })), "цена группы — бесплатно → индивидуальная — бесплатно");
+  const block = read("src/components/groups/group-price-block.tsx");
+  assert.match(block, /formatPrice\(current\.amount, label\)/); // the big number is formatPrice's: «бесплатно» for 0
+  assert.match(read("src/components/groups/group-price-dialog.tsx"), /current\.amount === 0 \? "Сейчас: бесплатно\. "/);
+});
+
+test("a group card of an ARCHIVED group with no price has no «Цена не задана · задать»", () => {
+  const { GroupCard } = require(path.join(root, "src/components/groups/group-card.tsx"));
+  const base = { id: "g1", org_id: "o", name: "Алгебра", class_level: 8, teacher_id: "t", teacher_name: "Иванов", description: null, max_students: 20, student_count: 5, created_at: null };
+  const html = (group) => renderToStaticMarkup(React.createElement(GroupCard, { group, href: "/owner/groups/g1" }));
+  assert.doesNotMatch(textOf(html({ ...base, status: "archived", price_current: null })), /Цена не задана|задать/);
+  assert.doesNotMatch(html({ ...base, status: "archived", price_current: null }), /group-card-price/);
+  assert.match(textOf(html({ ...base, status: "archived", price_current: { amount: 500000, valid_from: "2026-10-01" } })), /500 000 сум\/мес/); // a price is still shown
+  assert.match(textOf(html({ ...base, status: "active", price_current: null })), /Цена не задана/);
+});
+
+test("the conflict text does not contradict itself; «Сохранить» is off when nothing would change", () => {
+  assert.equal(G.PRICE_CONFLICT_TEXT, "Цену только что изменил другой пользователь. Данные обновлены — проверьте и сохраните ещё раз.");
+  assert.equal(G.isPriceConflict({ code: "PRICE_CONFLICT", message: "Цену только что изменили. Обновите страницу и повторите." }), true);
+  assert.equal(G.isPriceConflict({ code: "REASON_REQUIRED" }), false);
+  assert.equal(G.isPriceConflict(null), false);
+  assert.equal(G.isPriceConflict(new Error("x")), false);
+  const dialog = read("src/components/groups/group-price-dialog.tsx");
+  assert.match(dialog, /setError\(PRICE_CONFLICT_TEXT\)/);
+  assert.doesNotMatch(dialog, /Обновите страницу|повторите\./);
+  assert.match(read("src/components/payments/membership-price.tsx"), /isPriceConflict\(cause\)\) \{ setError\(PRICE_CONFLICT_TEXT\); onConflict\(\); \}/);
+  // no-op: the day already has this sum and this note
+  const history = [
+    { id: "2", amount: 500000, valid_from: "2026-10-01", note: " Новый год ", created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] },
+    { id: "1", amount: 450000, valid_from: "2026-09-01", note: null, created_by_name: null, created_at: null, is_current: false, is_future: false, changes: [] },
+  ];
+  const request = (over) => ({ amount: 500000, valid_from: "2026-10-01", note: "Новый год", ...over });
+  assert.equal(G.isNoopPriceChange(history, request({})), true);
+  assert.equal(G.isNoopPriceChange(history, request({ note: undefined })), false); // a note would be erased
+  assert.equal(G.isNoopPriceChange(history, request({ note: "Другое" })), false);
+  assert.equal(G.isNoopPriceChange(history, request({ amount: 510000 })), false);
+  assert.equal(G.isNoopPriceChange(history, request({ valid_from: "2026-10-17" })), false); // the same sum from another day is a new row
+  assert.equal(G.isNoopPriceChange(history, { amount: 450000, valid_from: "2026-09-01" }), true);
+  assert.equal(G.isNoopPriceChange([], request({})), false);
+  assert.equal(G.isNoopPriceChange(null, request({})), false);
+  assert.equal(G.isNoopPriceChange(history, null), false);
+  assert.match(dialog, /const noop = isNoopPriceChange\(history, check\.request\);/);
+  assert.match(dialog, /const canSave = ready && !noop;/);
+  assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
+  assert.match(read("src/components/groups/group-price-block.tsx"), /history=\{data\?\.history \?\? \[\]\}/);
+});
+
+test("the payroll table speaks the centre's mode, names its headers, has one tooltip per cell, explains a changed price", () => {
+  const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
+  const mark = (date, state, price) => ({ date, lesson_id: `l-${date}`, mark: 1, state, divisor: 12, price, price_source: "group" });
+  const marks = [mark("2026-10-01", "counted", 400000), mark("2026-10-15", "counted", 500000), mark("2026-10-22", "unpaid", 500000)];
+  const line = {
+    membership_id: "m1", student_id: "s1", student_name: "Каримова Дилноза", display_id: null, group_id: "g1", group_name: "Алгебра 8А", lesson_type: "group", lesson_time: null,
+    monthly_fee: 500000, source_fee: 500000, fee_overridden: false, price_source: "group", price_changed: true,
+    price_steps: [{ date: "2026-10-01", amount: 400000 }, { date: "2026-10-15", amount: 500000 }], no_price_lessons: 0, unpaid_due: 1,
+    percent: "50", divisor: 12, marks, counted: 2, unpaid: 1, pending_excused: 0, include_unpaid: false, amount: 37500, warnings: [],
+  };
+  const sheet = {
+    id: "s", saved: true, month: "2026-10", period_start: "2026-10-01", period_end: "2026-10-31", month_open: false, teacher_id: "t1", teacher_name: "Иванов", revision: 1,
+    percents: { group: "50" }, divisor_default: 12, lines: [line],
+    groups: [{ group_id: "g1", group_name: "Алгебра 8А", lesson_type: "group", lesson_time: null, percent: "50", dates: marks.map((m) => ({ date: m.date, lesson_id: m.lesson_id })), line_count: 1, counted: 2, unpaid: 1, total_amount: 37500 }],
+    total_amount: 37500, counted_total: 2, unpaid_total: 1, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1 },
+    source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null,
+  };
+  const render = (editable = true, priceLabel = undefined) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable, onEdits: () => {}, priceLabel }));
+  {
+    // a calendar centre (the default of the store)
+    const calendar = render();
+    assert.match(calendar, /<th scope="col" aria-label="Оплата в месяц"/);
+    assert.match(calendar, /aria-label="Оплата в месяц: Каримова Дилноза, Алгебра 8А"/);
+    // a package centre: the page hands the label of the centre's mode (the table reads the same store by default)
+    const pack = render(true, "Стоимость пакета");
+    assert.match(read("src/components/payroll/sheet-table.tsx"), /priceLabelOf\(usePaymentsSummary\(\(state\) => state\.periodMode\)\)/);
+    assert.match(pack, /<th scope="col" aria-label="Стоимость пакета"/);
+    assert.match(pack, /aria-label="Стоимость пакета: Каримова Дилноза, Алгебра 8А"/);
+    assert.doesNotMatch(pack, /Оплата в месяц/);
+    // the column headers are named by themselves, the tooltip text is not part of their names
+    for (const name of ["Засчитано", "Не оплачено"]) assert.match(pack, new RegExp(`<th scope="col" aria-label="${name}"`));
+    // one tooltip per unpaid cell: the Hint, not a title next to it
+    assert.doesNotMatch(pack, /title="Каримова Дилноза, 22\.10: Был на уроке/);
+    assert.match(pack, /title="Каримова Дилноза, 01\.10: Засчитан"/); // a counted cell keeps its own title
+    assert.ok(textOf(pack).includes(R.UNPAID_MARK_HINT));
+    // the changed price explains itself (editable and read-only)
+    assert.ok(textOf(pack).includes("Если ввести сумму, она заменит цену во всех уроках строки; ввод показанной цены вернёт цены по дням уроков."));
+    assert.ok(textOf(render(false)).includes("Цена менялась в течение месяца: каждый урок посчитан по цене своего дня."));
+    assert.ok(!textOf(render(false)).includes("ввод показанной цены"));
+  }
+  // the pure words
+  assert.equal(H.priceFieldHint({ price_changed: false, fee_overridden: false }, true), null);
+  assert.equal(H.priceFieldHint({ price_changed: true, fee_overridden: true }, true), null);
+  assert.match(H.priceFieldHint({ price_changed: true, fee_overridden: false }, true), /ввод показанной цены вернёт цены по дням уроков/);
+  assert.doesNotMatch(H.priceFieldHint({ price_changed: true, fee_overridden: false }, false), /ввод/);
+  // typing the shown (last) price of such a line is no overwrite: it brings the prices of the days back
+  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000), R.EMPTY_EDITS);
+  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000).fees, { m1: 600000 });
+  // the formula of the month speaks the same words
+  assert.equal(R.payrollFormulaText(12), "Оплата в месяц × % ÷ 12 × засчитанные уроки");
+  assert.equal(R.payrollFormulaText(8, "Стоимость пакета"), "Стоимость пакета × % ÷ 8 × засчитанные уроки");
+  // no stale words of the old name
+  assert.doesNotMatch(read("src/lib/payroll.ts"), /включить|включён/i);
 });

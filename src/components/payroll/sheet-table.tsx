@@ -27,6 +27,7 @@ import {
   INCLUDE_HINT,
   INCLUDE_LABEL,
   INCLUDE_NOT_DONE_LABEL,
+  priceFieldHint,
   priceSourceNote,
   priceStepsLines,
   PRICE_HEADER_HINT,
@@ -35,6 +36,8 @@ import {
   UNPAID_HEADER_HINT,
 } from "@/lib/payroll-help";
 import { Hint } from "@/components/ui/hint";
+import { priceLabelOf } from "@/lib/group-price";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
@@ -42,21 +45,24 @@ const HEAD = "px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-w
 const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
 
 function FeeCell({
-  view, editable, onChange,
+  view, editable, priceLabel, onChange,
 }: {
   view: LineView;
   editable: boolean;
+  /** What the price is called in the centre («Оплата в месяц» / «Стоимость пакета»). */
+  priceLabel: string;
   onChange: (fee: number | null) => void;
 }) {
   const { line } = view;
   // While the field has focus it shows what is typed: an emptied field means «the membership's own fee» and must not
   // be refilled under the owner's fingers; on leaving it shows the fee in force.
   const [draft, setDraft] = useState<string | null>(null);
-  const label = `Оплата в месяц: ${line.student_name}, ${line.group_name}`;
+  const label = `${priceLabel}: ${line.student_name}, ${line.group_name}`;
   const source = line.source_fee;
   // #105: whose price this is, and the steps when it changed inside the month
   const sourceNote = priceSourceNote(line);
   const steps = priceStepsLines(line);
+  const stepsHint = priceFieldHint(line, editable);
   return (
     <div className="flex flex-col items-end gap-0.5">
       {editable ? (
@@ -92,7 +98,11 @@ function FeeCell({
       )}
       {steps.length > 0 && (
         <span className="flex flex-col items-end text-[10px] leading-tight text-slate-500 print:text-black" aria-label="Цена менялась в течение месяца">
-          <span className="font-medium text-amber-700 print:text-black">цена менялась</span>
+          {stepsHint ? (
+            <Hint text={stepsHint} className="font-medium text-amber-700 print:text-black">цена менялась</Hint>
+          ) : (
+            <span className="font-medium text-amber-700 print:text-black">цена менялась</span>
+          )}
           {steps.map((step) => <span key={step} className="whitespace-nowrap tabular-nums">{step}</span>)}
         </span>
       )}
@@ -111,7 +121,7 @@ function IncludeCell({
   if (line.unpaid <= 0) return <span className="text-slate-300">—</span>;
   const label = `Начислить за неоплаченные уроки (${line.unpaid}): ${line.student_name}, ${line.group_name}`;
   return (
-    <label className={`inline-flex items-center gap-1.5 whitespace-nowrap ${editable ? "cursor-pointer" : ""}`} title={editable ? INCLUDE_HINT : undefined}>
+    <label className={`inline-flex items-center gap-1.5 whitespace-nowrap ${editable ? "cursor-pointer" : ""}`}>
       <span className="font-semibold tabular-nums text-slate-700">{line.unpaid}</span>
       {editable ? (
         <>
@@ -165,17 +175,22 @@ function SheetLegend({ showIncludeNote }: { showIncludeNote: boolean }) {
  * On a phone every block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
  */
 export function PayrollSheetTable({
-  sheet, edits, editable = true, onEdits,
+  sheet, edits, editable = true, onEdits, priceLabel: priceLabelProp,
 }: {
   sheet: PayrollSheet;
   edits: SheetEdits;
   editable?: boolean;
   onEdits?: (update: (previous: SheetEdits) => SheetEdits) => void;
+  /** What the price is called («Оплата в месяц» / «Стоимость пакета»); by default the centre's mode, as everywhere. */
+  priceLabel?: string;
 }) {
   const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
   const blocks = useMemo(() => buildBlocks(sheet, views), [sheet, views]);
   const total = sheetTotal(sheet, views, edits);
   const canEdit = editable && Boolean(onEdits);
+  // The price is called by the centre's mode, like everywhere else
+  const centreLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
+  const priceLabel = priceLabelProp ?? centreLabel;
 
   if (sheet.lines.length === 0) {
     return (
@@ -212,8 +227,8 @@ export function PayrollSheetTable({
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${STICKY} bg-slate-50`}>Ученик</th>
-                    <th scope="col" className={`${HEAD} text-right`}>
-                      <Hint text={PRICE_HEADER_HINT}>Оплата в месяц</Hint>
+                    <th scope="col" aria-label={priceLabel} className={`${HEAD} text-right`}>
+                      <Hint text={PRICE_HEADER_HINT}>{priceLabel}</Hint>
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>%</th>
                     {block.columns.map((column) => (
@@ -221,10 +236,10 @@ export function PayrollSheetTable({
                         {formatDayMonth(column.date)}
                       </th>
                     ))}
-                    <th scope="col" className={`${HEAD} text-right`}>
+                    <th scope="col" aria-label="Засчитано" className={`${HEAD} text-right`}>
                       <Hint text={COUNTED_HEADER_HINT}>Засчитано</Hint>
                     </th>
-                    <th scope="col" className={HEAD}>
+                    <th scope="col" aria-label="Не оплачено" className={HEAD}>
                       <Hint text={UNPAID_HEADER_HINT}>Не оплачено</Hint>
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
@@ -250,6 +265,7 @@ export function PayrollSheetTable({
                           <FeeCell
                             view={view}
                             editable={canEdit}
+                            priceLabel={priceLabel}
                             onChange={(fee) => onEdits?.((previous) => setFeeEdit(previous, sheet, id, fee))}
                           />
                         </td>
@@ -261,7 +277,8 @@ export function PayrollSheetTable({
                             <td
                               key={column.key}
                               className="px-1 py-2 text-center align-middle text-sm print:px-0.5 print:py-1"
-                              title={`${line.student_name}, ${formatDayMonth(column.date)}: ${cell.title}`}
+                              // an unpaid cell has its own tooltip (the Hint below): no second one
+                              title={cell.tone === "unpaid" || cell.tone === "unpaid_included" ? undefined : `${line.student_name}, ${formatDayMonth(column.date)}: ${cell.title}`}
                             >
                               {cell.tone === "unpaid" || cell.tone === "unpaid_included" ? (
                                 <Hint text={cell.tone === "unpaid" ? UNPAID_MARK_HINT : UNPAID_INCLUDED_MARK_HINT} className="inline-block">

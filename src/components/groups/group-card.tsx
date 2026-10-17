@@ -17,7 +17,8 @@ interface GroupCardProps {
 
 export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
   // The price is shown only when the server sent it: the key `price_current` exists for money roles alone.
-  const showPrice = "price_current" in group;
+  // An archived group with no price has nothing to set: no «Цена не задана · задать» there.
+  const showPrice = "price_current" in group && !(group.status === "archived" && group.price_current === null);
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const fillPct = group.max_students > 0
     ? Math.min(100, Math.round(((group.student_count || 0) / group.max_students) * 100))

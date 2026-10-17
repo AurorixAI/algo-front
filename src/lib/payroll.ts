@@ -147,8 +147,9 @@ export function parseDivisor(text: string | number | null | undefined): { value:
 export const PAYROLL_FORMULA_TEXT = "Оплата в месяц × % ÷ 12 × засчитанные уроки";
 export const PAYROLL_PACKAGE_TEXT = "Для оплаты пакетом уроков делитель — размер пакета, который покрывает урок: преподаватель получает свой процент от цены одного урока пакета.";
 
-export function payrollFormulaText(divisor: number): string {
-  return `Оплата в месяц × % ÷ ${divisor} × засчитанные уроки`;
+/** `label`: what the price is called in the centre («Оплата в месяц» / «Стоимость пакета»). */
+export function payrollFormulaText(divisor: number, label: string = "Оплата в месяц"): string {
+  return `${label} × % ÷ ${divisor} × засчитанные уроки`;
 }
 
 // ── Month ───────────────────────────────────────────────────────────────────
@@ -622,15 +623,25 @@ export function amountByPrices(
 }
 
 /**
+ * A mark carries a price iff the server priced it: `price_source` is set (a priced mark with no price that day carries
+ * "none").  The API sends `{price: null, price_source: null}` for a mark of a sheet saved before #105, so `price` alone
+ * (null both for «no price that day» and for «never priced») cannot tell the two apart - exactly the server's `priced`.
+ */
+export function isPricedMark(mark: { price_source?: string | null }): boolean {
+  return mark.price_source !== null && mark.price_source !== undefined;
+}
+
+/**
  * The amount of a line from its marks: the counted and the pending-excuse lessons, plus the unpaid ones when «начислить» is
- * on; each lesson with its own divisor (`null` = the sheet's default) and its own price: the price of the mark (#105),
- * else `fee` (a mark of a sheet saved before #105 has none).  `overridden`: the owner's overwrite of the price replaces
- * the price of EVERY lesson with `fee`.
+ * on; each lesson with its own divisor (`null` = the sheet's default) and its own price - the server's rule
+ * (`compute_line` / `recompute_line`): the price of a priced mark (#105; null: none that day, worth nothing), else
+ * `fee` (a mark of a sheet saved before #105 is not priced: the line's `source_fee`).  `overridden`: the owner's
+ * overwrite of the price replaces the price of EVERY lesson with `fee`.
  */
 export function marksAmount(input: {
   fee: number | null | undefined;
   percentHundredths: number | null | undefined;
-  marks: ReadonlyArray<Pick<PayrollMark, "state" | "divisor"> & { price?: number | null }>;
+  marks: ReadonlyArray<Pick<PayrollMark, "state" | "divisor"> & { price?: number | null; price_source?: string | null }>;
   includeUnpaid: boolean;
   defaultDivisor: number;
   overridden?: boolean;
@@ -639,7 +650,7 @@ export function marksAmount(input: {
   for (const mark of input.marks) {
     const inSum = mark.state === "counted" || mark.state === "excused_pending" || (input.includeUnpaid && mark.state === "unpaid");
     if (!inSum) continue;
-    const own = input.overridden || mark.price === undefined ? input.fee : mark.price;
+    const own = input.overridden || !isPricedMark(mark) ? input.fee : mark.price;
     lessons.push([own, mark.divisor ?? input.defaultDivisor]);
   }
   return amountByPrices(input.percentHundredths, lessons);
@@ -653,7 +664,7 @@ export interface SheetEdits {
   percents: Record<string, string>;
   /** Membership id -> the fee; null returns to the membership's own fee. */
   fees: Record<string, number | null>;
-  /** Membership id -> «включить неоплаченные». */
+  /** Membership id -> «начислить» (the unpaid lessons of the student are paid to the teacher too). */
   include: Record<string, boolean>;
 }
 
@@ -685,6 +696,8 @@ function findLine(sheet: PayrollSheet, membershipId: string): PayrollLine | unde
 /**
  * The fee field of a line.  A number sets the fee on this sheet; an empty field (null), or the membership's own fee typed
  * in, returns to the membership's fee.  What changes nothing (the same fee, a reset of a line that is not overridden) is no edit.
+ * For a line whose price changed in the month the shown price is the LAST one: typing it is not an overwrite - it brings
+ * the prices of the lessons back (the field says so, see `priceFieldHint`).
  */
 export function setFeeEdit(edits: SheetEdits, sheet: PayrollSheet, membershipId: string, fee: number | null): SheetEdits {
   const line = findLine(sheet, membershipId);
@@ -769,7 +782,8 @@ export function buildLineViews(sheet: PayrollSheet, edits: SheetEdits): LineView
       percent,
       percentHundredths: hundredths,
       amount: touched
-        ? marksAmount({ fee, percentHundredths: hundredths, marks: line.marks, includeUnpaid: include, defaultDivisor: sheet.divisor_default, overridden: feeOverridden })
+        // the server's rule: an unpriced mark (a sheet saved before #105) is worth the line's `source_fee`, an overwrite replaces every price
+        ? marksAmount({ fee: feeOverridden ? fee : line.source_fee, percentHundredths: hundredths, marks: line.marks, includeUnpaid: include, defaultDivisor: sheet.divisor_default, overridden: feeOverridden })
         : line.amount,
       edited: touched,
     };
@@ -859,7 +873,7 @@ export function buildPercentsPayload(sheet: PayrollSheet, edits: SheetEdits): Pa
   return out;
 }
 
-/** Only the lines whose fee or «включить» the owner changed. */
+/** Only the lines whose price or «начислить» the owner changed. */
 export function buildLineOverrides(sheet: PayrollSheet, edits: SheetEdits): PayrollLineOverride[] {
   const ids = new Set([...Object.keys(edits.fees), ...Object.keys(edits.include)]);
   const out: PayrollLineOverride[] = [];
