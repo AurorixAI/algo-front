@@ -7,6 +7,7 @@
  * only turns those answers into what the owner reads and clicks.
  */
 import { formatUtcNaiveAsBusinessDate } from "./business-time";
+import { isInviteRunning, isInviteWaiting } from "./diagnostic-invite";
 
 /** The server accepts a reason of up to this many characters. */
 export const ARCHIVE_REASON_MAX = 300;
@@ -33,6 +34,8 @@ export interface StudentArchiveAccess {
   showBanner: boolean;
   /** «Добавить в группу», «Перевести», «Зачислить в группу». */
   groupActions: boolean;
+  /** «Назначить диагностику»: an archived student gets no new invite (the server answers 409). */
+  diagnosticActions: boolean;
   /** «Внести», «Продлить», fee and payment corrections: the archived card shows the history only. */
   paymentActions: boolean;
 }
@@ -51,6 +54,7 @@ export function studentArchiveAccess(input: { isTeacher: boolean; status: string
     canRestore: staff && live && archived,
     showBanner: archived,
     groupActions: staff && !archived,
+    diagnosticActions: staff && !archived,
     paymentActions: staff && !archived,
   };
 }
@@ -72,6 +76,46 @@ export function validateArchiveReason(raw: string | null | undefined): string | 
 /** «12 / 300». */
 export function archiveReasonCounter(raw: string | null | undefined): string {
   return `${(raw ?? "").length} / ${ARCHIVE_REASON_MAX}`;
+}
+
+/** The two lines of the archive dialog about the student's diagnostics. */
+export const ARCHIVE_DIAGNOSTICS_RUNNING_NOTE = "её можно закончить, результат сохранится в карточке";
+
+export interface ArchiveDiagnosticCounts {
+  /** pending / confirmed invites: archiving cancels them. */
+  cancel: number;
+  /** in_progress: left running, the student may finish. */
+  running: number;
+}
+
+/** What archiving does to the diagnostics on the card (`profile.diagnostics[]`): cancelled, left running; done and expired are history. */
+export function archiveDiagnosticCounts(diagnostics: ReadonlyArray<{ status?: string | null }> | null | undefined): ArchiveDiagnosticCounts {
+  let cancel = 0;
+  let running = 0;
+  for (const item of diagnostics ?? []) {
+    if (isInviteWaiting(item.status)) cancel += 1;
+    else if (isInviteRunning(item.status)) running += 1;
+  }
+  return { cancel, running };
+}
+
+/** «Будут отменены приглашения на диагностику: 2» and «Идёт диагностика: 1 — её можно закончить, …»; none when there is nothing. */
+export function archiveDiagnosticLines(counts: ArchiveDiagnosticCounts): string[] {
+  const lines: string[] = [];
+  if (counts.cancel > 0) lines.push(`Будут отменены приглашения на диагностику: ${counts.cancel}`);
+  if (counts.running > 0) lines.push(`Идёт диагностика: ${counts.running} — ${ARCHIVE_DIAGNOSTICS_RUNNING_NOTE}`);
+  return lines;
+}
+
+/** What the server did (`diagnostic_invites_cancelled` / `_in_progress` of the archive answer), for the toast; only numbers above zero. */
+export function archiveResultDetails(result: { diagnostic_invites_cancelled?: unknown; diagnostic_invites_in_progress?: unknown } | null | undefined): string[] {
+  const whole = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
+  const lines: string[] = [];
+  const cancelled = whole(result?.diagnostic_invites_cancelled);
+  const running = whole(result?.diagnostic_invites_in_progress);
+  if (cancelled > 0) lines.push(`Отменено приглашений на диагностику: ${cancelled}`);
+  if (running > 0) lines.push(`Идёт диагностика: ${running} — ${ARCHIVE_DIAGNOSTICS_RUNNING_NOTE}`);
+  return lines;
 }
 
 /** «Он будет убран из групп:» for several, «…из группы:» for one, or the line for a student without groups. */

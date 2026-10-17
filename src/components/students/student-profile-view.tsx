@@ -10,7 +10,7 @@ import {
   FileText, Clock, ChevronRight, UserCheck, Plus, Wallet, Archive, ArchiveRestore
 } from "lucide-react";
 import Link from "next/link";
-import { DEMO_MODE, examsApi, orgApi, StudentAttendanceSummary, StudentProfile } from "@/lib/api";
+import { DEMO_MODE, examsApi, orgApi, StudentAttendanceSummary, StudentProfile, type StudentArchiveResult } from "@/lib/api";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentGroupsBlock, profileMemberships } from "@/components/students/student-groups-block";
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
@@ -28,9 +28,11 @@ import { shiftMonth } from "@/lib/attendance-excuses";
 import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { formatMembershipPeriods } from "@/lib/membership-periods";
+import { inviteCancelHint, isInviteDead, studentCardInviteLabel } from "@/lib/diagnostic-invite";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
-  ARCHIVED_TOAST, archiveBannerTitle, archiveGroupNames, restoreNeedsReading, studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
+  ARCHIVED_TOAST, archiveBannerTitle, archiveDiagnosticCounts, archiveGroupNames, archiveResultDetails, restoreNeedsReading,
+  studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
 } from "@/lib/student-archive";
 
 const TAB_ICON: Record<ProfileTab, typeof Brain> = {
@@ -298,9 +300,10 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     void loadAttendanceSummary();
     void usePaymentsSummary.getState().refresh(true);
   };
-  const handleArchived = () => {
+  // The server's own numbers (invites it cancelled, tests it left running) go under the toast when there are any.
+  const handleArchived = (result: StudentArchiveResult) => {
     setArchiveOpen(false);
-    showToast(ARCHIVED_TOAST, "success");
+    showToast(ARCHIVED_TOAST, "success", archiveResultDetails(result));
     reloadCard();
   };
   // Called once, the moment the server has taken him back.  Nothing to read: close, toast, the spinner hides the
@@ -491,7 +494,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   <p className="text-xs text-slate-400 max-w-sm mx-auto mb-3">
                     Ученик ещё не проходил адаптивное диагностическое тестирование.
                   </p>
-                  {!isTeacher && (
+                  {access.diagnosticActions && (
                     <Link
                       href="/admin/students/new"
                       className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-primary-600 text-white rounded-xl text-xs font-medium hover:bg-primary-700 shadow-sm"
@@ -504,6 +507,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 <div className="grid grid-cols-1 gap-4">
                   {diagnostics.map((diag) => {
                     const isCompleted = diag.status === "completed";
+                    // Cancelled (the student was archived) and expired invites are history: grey, never «ожидает».
+                    const isDead = isInviteDead(diag.status);
+                    const cancelHint = inviteCancelHint(diag);
                     const res = diag.result;
                     return (
                       <div
@@ -516,7 +522,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                               className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
                                 isCompleted
                                   ? "bg-blue-50 text-blue-600 border border-blue-200/60"
-                                  : "bg-amber-50 text-amber-600 border border-amber-200/60"
+                                  : isDead
+                                    ? "bg-slate-100 text-slate-400 border border-slate-200/60"
+                                    : "bg-amber-50 text-amber-600 border border-amber-200/60"
                               }`}
                             >
                               <Brain className="w-5 h-5" />
@@ -530,6 +538,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                   {diag.class_level} класс
                                 </span>
                               </div>
+                              {cancelHint && <p className="mt-0.5 text-xs text-slate-400">{cancelHint}</p>}
                             </div>
                           </div>
 
@@ -543,8 +552,12 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                               <span>Открыть полный отчёт</span>
                             </Link>
                           ) : (
-                            <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                              {diag.status === "in_progress" ? "В процессе" : "Ожидает прохождения"}
+                            <span
+                              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
+                                isDead ? "bg-slate-50 text-slate-500 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                              }`}
+                            >
+                              {studentCardInviteLabel(diag.status)}
                             </span>
                           )}
                         </div>
@@ -930,6 +943,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           studentId={student.id}
           studentName={student.full_name}
           groupNames={archiveGroupNames(memberships)}
+          diagnostics={archiveDiagnosticCounts(diagnostics)}
           onClose={() => setArchiveOpen(false)}
           onArchived={handleArchived}
           onStale={handleStale}

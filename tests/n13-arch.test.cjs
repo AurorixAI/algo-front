@@ -21,9 +21,9 @@ const group = (id, extra = {}) => ({ group_id: id, group_name: `Группа ${i
 
 test("owner and administrator archive an active student and restore an archived one; a teacher gets nothing", () => {
   assert.deepEqual(A.studentArchiveAccess({ isTeacher: false, status: "active" }),
-    { canArchive: true, canRestore: false, showBanner: false, groupActions: true, paymentActions: true });
+    { canArchive: true, canRestore: false, showBanner: false, groupActions: true, diagnosticActions: true, paymentActions: true });
   assert.deepEqual(A.studentArchiveAccess({ isTeacher: false, status: "archived" }),
-    { canArchive: false, canRestore: true, showBanner: true, groupActions: false, paymentActions: false });
+    { canArchive: false, canRestore: true, showBanner: true, groupActions: false, diagnosticActions: false, paymentActions: false });
   for (const status of ["new", "diagnosed", "active"]) {
     const staff = A.studentArchiveAccess({ isTeacher: false, status });
     assert.equal(staff.canArchive, true, status);
@@ -34,6 +34,7 @@ test("owner and administrator archive an active student and restore an archived 
     assert.equal(teacher.canArchive, false, String(status));
     assert.equal(teacher.canRestore, false, String(status));
     assert.equal(teacher.groupActions, false, String(status));
+    assert.equal(teacher.diagnosticActions, false, String(status));
     assert.equal(teacher.paymentActions, false, String(status));
   }
 });
@@ -273,7 +274,7 @@ test("the card: «⋯ → В архив», the banner and the modals follow stud
   assert.match(view, /\{access\.groupActions && \(\s*<AssignGroupModal/);
   assert.doesNotMatch(view, /\{!isTeacher && \(\s*<AssignGroupModal/);
   // success: toast + reload; 409: the card is out of date, error toast + reload
-  assert.match(view, /showToast\(ARCHIVED_TOAST, "success"\);\s*reloadCard\(\);/);
+  assert.match(view, /showToast\(ARCHIVED_TOAST, "success", archiveResultDetails\(result\)\);\s*reloadCard\(\);/);
   assert.match(view, /showToast\(message, "error"\);\s*reloadCard\(\);/);
   // one reload helper for both directions: the card, the attendance summary and the payment counters of the menu
   assert.match(view, /const reloadCard = \(options\?: \{ silent\?: boolean \}\) => \{\s*void loadProfile\(options\);\s*void loadAttendanceSummary\(\);\s*void usePaymentsSummary\.getState\(\)\.refresh\(true\);\s*\};/);
@@ -300,8 +301,8 @@ test("the return refreshes the card at once, whether or not the dialog stays ope
   // the only callers of reloadCard with `silent` are the restore handler
   assert.equal((view.match(/silent:/g) || []).length, 1);
   // the archive direction has no dialog that stays open: it closes, toasts and reloads behind the spinner
-  const archived = view.match(/const handleArchived = \(\) => \{[\s\S]*?\n  \};/)[0];
-  assert.match(archived, /setArchiveOpen\(false\);\s*showToast\(ARCHIVED_TOAST, "success"\);\s*reloadCard\(\);/);
+  const archived = view.match(/const handleArchived = \(result: StudentArchiveResult\) => \{[\s\S]*?\n  \};/)[0];
+  assert.match(archived, /setArchiveOpen\(false\);\s*showToast\(ARCHIVED_TOAST, "success", archiveResultDetails\(result\)\);\s*reloadCard\(\);/);
   const archiveModal = read("src/components/students/student-archive-modal.tsx");
   assert.match(archiveModal, /onArchived\(result\);/);
   assert.doesNotMatch(archiveModal, /setDone|restoreNeedsReading/);

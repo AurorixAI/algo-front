@@ -12,6 +12,7 @@ import Link from "next/link";
 import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 import { matchesBusinessPeriod } from "@/lib/business-period";
 import { formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
+import { INVITE_CANCELLED_LABEL, inviteCancelHint, isInviteCancelled, isInviteRunning, isInviteWaiting } from "@/lib/diagnostic-invite";
 
 interface DiagnosticInvite {
   id: string;
@@ -24,6 +25,9 @@ interface DiagnosticInvite {
   created_at: string;
   started_at: string | null;
   completed_at: string | null;
+  /** Only a cancelled invite: when (naive UTC) and why ("student_archived"). */
+  cancelled_at?: string | null;
+  cancel_reason?: string | null;
   session_id?: string | null;
   student_status?: string | null;
   group_id?: string | null;
@@ -99,7 +103,13 @@ export default function AdminDiagnosticsPage() {
     in_progress: { label: "Проходит тест", color: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-400" },
     completed: { label: "Завершён", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-400" },
     expired: { label: "Истёк", color: "bg-slate-50 text-slate-500 border-slate-200", dot: "bg-slate-400" },
+    // History with a reason (the student was archived): grey, never counted as waiting or enrolled.
+    cancelled: { label: INVITE_CANCELLED_LABEL, color: "bg-slate-100 text-slate-500 border-slate-200", dot: "bg-slate-300" },
   };
+
+  // «Зачислен» is about the student; a cancelled invite keeps its own status and is not listed under «Зачислены».
+  const isAssignedInvite = (inv: DiagnosticInvite) =>
+    !isInviteCancelled(inv.status) && Boolean(inv.is_assigned || inv.group_id || inv.student_status === "active");
 
   const typeLabels: Record<string, string> = {
     initial: "Первичная",
@@ -113,15 +123,13 @@ export default function AdminDiagnosticsPage() {
 
   const periodInvites = invites.filter((inv) => matchesTimePeriod(inv, timePeriod));
 
-  const assignedCount = periodInvites.filter(
-    (i) => i.is_assigned || i.group_id || i.student_status === "active"
-  ).length;
+  const assignedCount = periodInvites.filter(isAssignedInvite).length;
 
   const filtered = periodInvites.filter((inv) => {
-    const isAssigned = inv.is_assigned || !!inv.group_id || inv.student_status === "active";
+    const isAssigned = isAssignedInvite(inv);
     if (assignedOnly && !isAssigned) return false;
     if (filter === "awaiting_start") {
-      if (!["pending", "confirmed"].includes(inv.status)) return false;
+      if (!isInviteWaiting(inv.status)) return false;
     } else if (filter === "completed") {
       if (inv.status !== "completed" || isAssigned) return false;
     } else if (filter !== "all" && inv.status !== filter) {
@@ -138,11 +146,9 @@ export default function AdminDiagnosticsPage() {
 
   const counts = {
     all: periodInvites.length,
-    awaiting_start: periodInvites.filter((i) => ["pending", "confirmed"].includes(i.status)).length,
-    in_progress: periodInvites.filter((i) => i.status === "in_progress").length,
-    completed: periodInvites.filter(
-      (i) => i.status === "completed" && !(i.is_assigned || !!i.group_id || i.student_status === "active")
-    ).length,
+    awaiting_start: periodInvites.filter((i) => isInviteWaiting(i.status)).length,
+    in_progress: periodInvites.filter((i) => isInviteRunning(i.status)).length,
+    completed: periodInvites.filter((i) => i.status === "completed" && !isAssignedInvite(i)).length,
   };
 
   if (loading) {
@@ -387,7 +393,8 @@ export default function AdminDiagnosticsPage() {
         <div className="space-y-3">
           {filtered.map((inv) => {
             const isCompleted = inv.status === "completed";
-            const isAssigned = inv.is_assigned || !!inv.group_id || inv.student_status === "active";
+            const isAssigned = isAssignedInvite(inv);
+            const cancelHint = inviteCancelHint(inv);
             const currentStatus = isAssigned
               ? { label: "Зачислен", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" }
               : (statusConfig[inv.status] || statusConfig.pending);
@@ -459,6 +466,9 @@ export default function AdminDiagnosticsPage() {
                       <span className="text-xs text-slate-400">
                         {formatUtcNaiveAsBusinessDayTime(inv.created_at)}
                       </span>
+                      {cancelHint && (
+                        <span data-testid="diagnostic-cancel-hint" className="text-xs text-slate-400">{cancelHint}</span>
+                      )}
                       {isCompleted && (() => {
                         const lv = storedLevelDisplay(inv.result);
                         if (!lv) return null;

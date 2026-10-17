@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 
 import { analyticsApi, orgApi } from "@/lib/api";
+import { INVITE_CANCELLED_MESSAGE, inviteCancelHint, isInviteCancelled } from "@/lib/diagnostic-invite";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
@@ -65,6 +66,7 @@ interface InviteInfo {
   session_id?: string | null;
   class_level: number; diagnostic_type: string; status: string;
   student_status?: string; completed_at: string | null;
+  cancelled_at?: string | null; cancel_reason?: string | null;
   result?: { theta?: number; accuracy?: number; total_questions?: number; correct_answers?: number };
 }
 
@@ -700,11 +702,24 @@ export default function DiagnosticReportPage() {
       {isPending && (
         <div className="flex flex-col items-center gap-3 py-16 bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-center">
           <XCircle className="w-10 h-10 text-slate-200" />
-          <p className="text-slate-600 font-semibold text-sm">Диагностика ещё не пройдена</p>
-          <p className="text-xs text-slate-400">
-            Ученик <span className="font-semibold">{invite.student_name}</span> не завершил тест
-            по коду <span className="font-mono font-bold">{invite.code}</span>.
-          </p>
+          {isInviteCancelled(invite.status) ? (
+            <>
+              <p className="text-slate-600 font-semibold text-sm">{INVITE_CANCELLED_MESSAGE}</p>
+              <p className="text-xs text-slate-400">
+                Ученик <span className="font-semibold">{invite.student_name}</span> не проходил тест
+                по коду <span className="font-mono font-bold">{invite.code}</span>.
+                {inviteCancelHint(invite) && <> Отменено: {inviteCancelHint(invite)}.</>}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-slate-600 font-semibold text-sm">Диагностика ещё не пройдена</p>
+              <p className="text-xs text-slate-400">
+                Ученик <span className="font-semibold">{invite.student_name}</span> не завершил тест
+                по коду <span className="font-mono font-bold">{invite.code}</span>.
+              </p>
+            </>
+          )}
         </div>
       )}
 

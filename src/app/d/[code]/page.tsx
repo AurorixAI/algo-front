@@ -24,6 +24,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
+import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, isInviteCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
@@ -90,6 +91,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   const [canRetry, setCanRetry] = useState(true);
   const [checkVersion, setCheckVersion] = useState(0);
   const [errorContext, setErrorContext] = useState<"invite" | "answer" | "result">("invite");
+  // The centre switched the invite off (the student is in the archive): not an error to retry, only the centre can help.
+  const [inviteCancelled, setInviteCancelled] = useState(false);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const submitInFlightRef = useRef(false);
   const requestEpochRef = useRef(0);
@@ -191,6 +194,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
         return;
       }
       setErrorContext("invite");
+      setInviteCancelled(isInviteCancelledError(err));
       setCanRetry(!(err instanceof ApiError) || ![403, 410].includes(err.status));
       setErrorMsg(err.message || "Не удалось начать диагностику");
       setPhase("error");
@@ -310,6 +314,15 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
       const info = await diagnosticInviteApi.getInfo(code);
       if (epoch !== requestEpochRef.current) return;
       setInviteInfo(info);
+      if (isInviteCancelled(info.status)) {
+        // 200 with status «cancelled»: nothing to confirm, resume or start - the same end as the 410 INVITE_CANCELLED below.
+        setErrorContext("invite");
+        setInviteCancelled(true);
+        setCanRetry(false);
+        setErrorMsg(info.message || INVITE_CANCELLED_MESSAGE);
+        setPhase("error");
+        return;
+      }
       if (info.status === "pending") {
         setPhase("confirm");
         return;
@@ -356,6 +369,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
       setErrorContext(recoveringAnswer ? "answer" : "invite");
+      setInviteCancelled(isInviteCancelledError(err));
       setCanRetry(!(err instanceof ApiError) || ![403, 404, 410].includes(err.status));
       setErrorMsg(err?.message || "Не удалось проверить состояние диагностики. Проверьте подключение и повторите проверку.");
       setPhase("error");
@@ -374,6 +388,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     }
     setPhase("loading");
     setErrorMsg(null);
+    setInviteCancelled(false);
     setIsSubmitting(false);
     setConfirmLoading(false);
     setResult(null);
@@ -919,10 +934,10 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
                   </div>
 
                   <h1 className="text-xl font-bold text-slate-900 mb-2">
-                    {errorContext === "result" ? "Ответы сохранены" : "Не удалось продолжить"}
+                    {inviteCancelled ? INVITE_CANCELLED_MESSAGE : errorContext === "result" ? "Ответы сохранены" : "Не удалось продолжить"}
                   </h1>
                   <p className="text-slate-500 mb-6">
-                    {errorMsg || "Произошла непредвиденная ошибка"}
+                    {inviteCancelled ? INVITE_CANCELLED_CENTER_HINT : errorMsg || "Произошла непредвиденная ошибка"}
                   </p>
 
                   <div className="space-y-3">

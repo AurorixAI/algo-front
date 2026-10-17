@@ -6,11 +6,13 @@ import { orgApi, type StudentArchiveResult } from "@/lib/api";
 import {
   ARCHIVE_KEEPS_NOTE,
   ARCHIVE_REASON_MAX,
+  archiveDiagnosticLines,
   archiveGroupsHeading,
   archiveReasonCounter,
   isStaleArchiveConflict,
   normalizeArchiveReason,
   validateArchiveReason,
+  type ArchiveDiagnosticCounts,
 } from "@/lib/student-archive";
 import { Modal } from "@/components/ui/modal";
 
@@ -20,6 +22,8 @@ interface StudentArchiveModalProps {
   studentName: string;
   /** Groups the student is in now (his active memberships): the server removes him from every one. */
   groupNames: string[];
+  /** What archiving does to his diagnostics (`archiveDiagnosticCounts` of the card): invites to cancel, tests left running. */
+  diagnostics?: ArchiveDiagnosticCounts;
   onClose: () => void;
   onArchived: (result: StudentArchiveResult) => void;
   /** «Ученик уже в архиве» (409): the card is out of date and must be read again. Other refusals stay in the dialog. */
@@ -27,7 +31,8 @@ interface StudentArchiveModalProps {
 }
 
 /** «Ученик ушёл из центра?»: the groups he leaves, an optional reason of up to 300 characters, what stays. */
-export function StudentArchiveModal({ open, studentId, studentName, groupNames, onClose, onArchived, onStale }: StudentArchiveModalProps) {
+export function StudentArchiveModal({ open, studentId, studentName, groupNames, diagnostics, onClose, onArchived, onStale }: StudentArchiveModalProps) {
+  const diagnosticLines = archiveDiagnosticLines(diagnostics ?? { cancel: 0, running: 0 });
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +107,14 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
           />
           <p className="text-right text-[11px] tabular-nums text-slate-400" aria-hidden>{archiveReasonCounter(reason)}</p>
         </div>
+
+        {diagnosticLines.length > 0 && (
+          <ul className="space-y-1" aria-label="Диагностика">
+            {diagnosticLines.map((line) => (
+              <li key={line} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm text-amber-900">{line}</li>
+            ))}
+          </ul>
+        )}
 
         <p className="text-xs text-slate-500">{ARCHIVE_KEEPS_NOTE}</p>
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

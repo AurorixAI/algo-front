@@ -892,6 +892,10 @@ export type StudentArchiveResult = Record<string, any> & {
   id: string;
   status: string;
   closed_groups: Array<{ group_id: string; group_name: string }>;
+  /** pending / confirmed diagnostic invites the archiving cancelled; absent on an older server. */
+  diagnostic_invites_cancelled?: number;
+  /** in_progress invites left running: the student may finish them. */
+  diagnostic_invites_in_progress?: number;
 };
 
 /** Why the server did not return the student to a group (`message` is the Russian text for the administrator). */
@@ -954,10 +958,14 @@ export interface StudentProfile {
     code: string;
     class_level: number;
     diagnostic_type: string;
+    /** pending | confirmed | in_progress | completed | expired | cancelled */
     status: string;
     created_at: string | null;
     started_at: string | null;
     completed_at: string | null;
+    /** Only a cancelled invite: when (naive UTC) and why ("student_archived"). */
+    cancelled_at?: string | null;
+    cancel_reason?: string | null;
     result?: {
       id: string;
       theta?: number | null;
