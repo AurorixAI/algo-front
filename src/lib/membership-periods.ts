@@ -3,7 +3,7 @@
  * A student who returned to a group has several; the old `joined_at` / `left_at` mean the current (or last) one.
  * Pure: no React and no network, so node:test can load this file.
  */
-import { formatUtcNaiveAsBusinessDate, utcNaiveToBusinessIsoDate } from "./business-time";
+import { businessWallTimeToInstant, formatUtcNaiveAsBusinessDate, parseUtcNaive, utcNaiveToBusinessIsoDate } from "./business-time";
 
 /** `periods[]` of the profile (`group_history`, `groups`), of the group card (`students`) and of the journal (`historicalStudents`). */
 export interface MembershipPeriod {
@@ -40,11 +40,31 @@ export function membershipPeriods(source: MembershipSource | null | undefined): 
 }
 
 /**
- * Did the student belong to the group on this lesson date (YYYY-MM-DD, business calendar)?  ANY period covers it:
- * the business day of `joined_at` is not after the date, and `left_at` is open or the date is before the business
- * day of `left_at` (the day he left is already outside).  Nothing known about the membership never shades a lesson.
+ * Did the student belong to the group at this exact instant?  The server's rule (`membership_covers_instant`),
+ * asked of every stay: `joined_at <= instant` (a missing one counts) and `left_at` open or `left_at > instant`.
+ * All naive UTC; a stamp that is not a date-time is no bound.
  */
-export function wasMemberOn(source: MembershipSource | null | undefined, lessonDate: string): boolean {
+export function wasMemberAt(source: MembershipSource | null | undefined, instant: Date): boolean {
+  const at = instant.getTime();
+  const periods = membershipPeriods(source);
+  if (periods.length === 0) return true;
+  return periods.some((period) => {
+    const joined = parseUtcNaive(period.joined_at);
+    const left = parseUtcNaive(period.left_at);
+    return (!joined || joined.getTime() <= at) && (!left || left.getTime() > at);
+  });
+}
+
+/**
+ * Did the student belong to the group on this lesson?  With the lesson's start time ("HH:MM", Tashkent) it is exactly
+ * the server's rule at the lesson start (`wasMemberAt`), so the journal and the frozen roster never disagree around the
+ * day he joined or left.  A lesson with no start time cannot be placed on the clock: only then the rule falls back to
+ * the business DAY - the day of `joined_at` is already inside, the day of `left_at` is already outside.  Nothing
+ * known about the membership never shades a lesson.
+ */
+export function wasMemberOn(source: MembershipSource | null | undefined, lessonDate: string, startTime?: string | null): boolean {
+  const start = businessWallTimeToInstant(lessonDate, startTime);
+  if (start) return wasMemberAt(source, start);
   const periods = membershipPeriods(source);
   if (periods.length === 0) return true;
   return periods.some((period) => {

@@ -540,9 +540,9 @@ export function GroupAttendanceJournal({
     if (student.isHistorical) {
       return Boolean(localRecords[instanceKey(lesson)]?.[student.id]);
     }
-    // Scheduled rows have no frozen roster yet.  A student who joined after the date must not be shown as
-    // missing from a lesson they could not take; one who came back belonged during EVERY stay, not only the last.
-    return wasMemberOn(student, lesson.date);
+    // Scheduled rows have no frozen roster yet.  A student who joined after the lesson must not be shown as missing
+    // from it; one who came back belonged during EVERY stay.  Decided at the lesson's start, like the server does.
+    return wasMemberOn(student, lesson.date, lesson.startTime || lesson.start_time);
   }, [attendanceData?.rosterStudentIds, localRecords]);
 
   const getStatus = useCallback(

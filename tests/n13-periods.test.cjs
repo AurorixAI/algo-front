@@ -19,7 +19,7 @@ const SEP = { joined_at: "2026-09-01T05:00:00", left_at: "2026-09-30T15:00:00" }
 const NOV = { joined_at: "2026-11-01T05:00:00", left_at: null };
 const returned = { joined_at: NOV.joined_at, periods: [SEP, NOV] };
 
-test("a returning student belonged during every stay: September in, October out, November in", () => {
+test("a returning student belonged during every stay (day rule, no start time): September in, October out, November in", () => {
   for (const day of ["2026-09-01", "2026-09-15", "2026-09-29"]) assert.equal(P.wasMemberOn(returned, day), true, day);
   for (const day of ["2026-10-01", "2026-10-15", "2026-10-31"]) assert.equal(P.wasMemberOn(returned, day), false, day);
   for (const day of ["2026-11-01", "2026-11-20", "2027-01-05"]) assert.equal(P.wasMemberOn(returned, day), true, day);
@@ -78,7 +78,7 @@ test("the card prints every stay on the business calendar: «01.09.2026 – 30.0
 
 test("wiring: the journal asks the helper, the card lists the stays, the API types carry periods", () => {
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /return wasMemberOn\(student, lesson\.date\);/);
+  assert.match(journal, /return wasMemberOn\(student, lesson\.date, lesson\.startTime \|\| lesson\.start_time\);/);
   assert.doesNotMatch(journal, /student\.joined_at\.slice\(0, 10\)/);
   // a frozen roster still wins over the dates, a historical student is judged by his marks
   assert.match(journal, /if \(frozenRoster\) return frozenRoster\.includes\(student\.id\);/);
@@ -88,4 +88,87 @@ test("wiring: the journal asks the helper, the card lists the stays, the API typ
   assert.match(groups, /formatMembershipPeriods\(item\.periods\)/);
   const api = read("src/lib/api.ts");
   assert.equal((api.match(/periods\?: MembershipPeriodDto\[\] \| null;/g) || []).length, 4, "students[], historicalStudents[], groups[], group_history[]");
+});
+
+// ---- the exact rule: the server decides with instants at the lesson start (membership_covers_instant) -------------
+
+const T = require(path.join(root, "src/lib/business-time.ts"));
+
+test("a lesson start is its Tashkent date + wall time as an instant (UTC+5), whatever the device zone is", () => {
+  assert.equal(T.businessWallTimeToInstant("2026-09-30", "10:00").toISOString(), "2026-09-30T05:00:00.000Z");
+  assert.equal(T.businessWallTimeToInstant("2026-09-30", "19:00").toISOString(), "2026-09-30T14:00:00.000Z");
+  assert.equal(T.businessWallTimeToInstant("2026-09-30", "10:00:00").toISOString(), "2026-09-30T05:00:00.000Z");
+  assert.equal(T.businessWallTimeToInstant("2026-09-30", "9:05").toISOString(), "2026-09-30T04:05:00.000Z");
+  // before 05:00 local the UTC day is the day before
+  assert.equal(T.businessWallTimeToInstant("2026-10-01", "00:30").toISOString(), "2026-09-30T19:30:00.000Z");
+  assert.equal(T.businessWallTimeToInstant("2026-12-31", "23:59").toISOString(), "2026-12-31T18:59:00.000Z");
+  for (const [date, time] of [["2026-02-30", "10:00"], ["2026-13-01", "10:00"], ["bad", "10:00"], ["2026-09-30", "24:00"], ["2026-09-30", "10:60"], ["2026-09-30", ""], ["2026-09-30", null], [null, "10:00"]]) {
+    assert.equal(T.businessWallTimeToInstant(date, time), null, `${date} ${time}`);
+  }
+});
+
+test("left 18:00 Tashkent: his 10:00 lesson that day is IN, a 19:00 lesson is OUT", () => {
+  const left = { periods: [{ joined_at: "2026-09-01T05:00:00", left_at: "2026-09-30T13:00:00" }] };
+  assert.equal(P.wasMemberOn(left, "2026-09-30", "10:00"), true);
+  assert.equal(P.wasMemberOn(left, "2026-09-30", "19:00"), false);
+  // exactly at the instant he left he is already out (left_at > instant), a minute before he is in
+  assert.equal(P.wasMemberOn(left, "2026-09-30", "18:00"), false);
+  assert.equal(P.wasMemberOn(left, "2026-09-30", "17:59"), true);
+  assert.equal(P.wasMemberOn(left, "2026-10-01", "10:00"), false);
+});
+
+test("joined 11:00 Tashkent: a 10:00 lesson that day is OUT, a 14:00 lesson is IN", () => {
+  const joined = { periods: [{ joined_at: "2026-11-01T06:00:00", left_at: null }] };
+  assert.equal(P.wasMemberOn(joined, "2026-11-01", "10:00"), false);
+  assert.equal(P.wasMemberOn(joined, "2026-11-01", "14:00"), true);
+  // exactly at the instant he joined he is in (joined_at <= instant), a minute before he is out
+  assert.equal(P.wasMemberOn(joined, "2026-11-01", "11:00"), true);
+  assert.equal(P.wasMemberOn(joined, "2026-11-01", "10:59"), false);
+  assert.equal(P.wasMemberOn(joined, "2026-10-31", "20:00"), false);
+});
+
+test("Sep stay + Nov return at the lesson start: September in, October out, November in", () => {
+  const lesson = (date) => P.wasMemberOn(returned, date, "10:00");
+  for (const day of ["2026-09-01", "2026-09-15", "2026-09-29"]) assert.equal(lesson(day), true, day);
+  // the September stay ended 30.09 20:00 Tashkent: the 10:00 lesson of that day is still his
+  assert.equal(lesson("2026-09-30"), true);
+  for (const day of ["2026-10-01", "2026-10-15", "2026-10-31"]) assert.equal(lesson(day), false, day);
+  // he came back 01.11 10:00 Tashkent (05:00 UTC): a 10:00 lesson is the first one he is in
+  for (const day of ["2026-11-01", "2026-11-20"]) assert.equal(lesson(day), true, day);
+  assert.equal(P.wasMemberOn(returned, "2026-08-31", "10:00"), false);
+});
+
+test("the instant rule is the server's: any period, a missing joined_at counts, the answer does not depend on the device zone", () => {
+  const at = (iso) => new Date(iso);
+  assert.equal(P.wasMemberAt({ periods: [SEP, NOV] }, at("2026-10-15T05:00:00Z")), false);
+  assert.equal(P.wasMemberAt({ periods: [SEP, NOV] }, at("2026-09-15T05:00:00Z")), true);
+  assert.equal(P.wasMemberAt({ periods: [SEP, NOV] }, at("2026-11-01T05:00:00Z")), true);
+  assert.equal(P.wasMemberAt({ joined_at: null, left_at: "2026-09-30T13:00:00" }, at("2026-09-30T12:59:00Z")), true);
+  assert.equal(P.wasMemberAt({}, at("2026-09-30T12:59:00Z")), true);
+  // a stamp with microseconds, as Python writes it
+  assert.equal(P.wasMemberAt({ left_at: "2026-09-30T13:00:00.500000" }, at("2026-09-30T13:00:00Z")), true);
+  assert.equal(P.wasMemberAt({ left_at: "2026-09-30T13:00:00.500000" }, at("2026-09-30T13:00:01Z")), false);
+  const probe = `
+    const ts = require("typescript"); const fs = require("fs");
+    require.extensions[".ts"] = (m, f) => m._compile(ts.transpileModule(fs.readFileSync(f, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, f);
+    const P = require(${JSON.stringify(path.join(root, "src/lib/membership-periods.ts"))});
+    const s = { periods: [{ joined_at: "2026-09-01T05:00:00", left_at: "2026-09-30T13:00:00" }, { joined_at: "2026-11-01T06:00:00", left_at: null }] };
+    console.log(JSON.stringify([["2026-09-30","10:00"],["2026-09-30","19:00"],["2026-11-01","10:00"],["2026-11-01","14:00"],["2026-10-10","10:00"],["2026-09-30",null]].map(([d, t]) => P.wasMemberOn(s, d, t))));
+  `;
+  const { execFileSync } = require("node:child_process");
+  const run = (TZ) => execFileSync(process.execPath, ["-e", probe], { env: { ...process.env, TZ }, encoding: "utf8", cwd: root });
+  const baseline = run("Asia/Tashkent");
+  assert.equal(baseline.trim(), "[true,false,false,true,false,false]");
+  for (const zone of ["UTC", "America/Los_Angeles", "Pacific/Kiritimati", "Pacific/Pago_Pago", "Asia/Kolkata"]) assert.equal(run(zone), baseline, zone);
+});
+
+test("a lesson with no start time falls back to the business day (the day he left is outside), and says so", () => {
+  const left = { periods: [{ joined_at: "2026-09-01T05:00:00", left_at: "2026-09-30T13:00:00" }] };
+  assert.equal(P.wasMemberOn(left, "2026-09-30"), false);
+  assert.equal(P.wasMemberOn(left, "2026-09-29", null), true);
+  assert.equal(P.wasMemberOn(left, "2026-09-30", ""), false);
+  assert.equal(P.wasMemberOn(left, "2026-09-30", "not a time"), false);
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /return wasMemberOn\(student, lesson\.date, lesson\.startTime \|\| lesson\.start_time\);/);
+  assert.match(read("src/lib/membership-periods.ts"), /only then the rule falls back to\n \* the business DAY/);
 });

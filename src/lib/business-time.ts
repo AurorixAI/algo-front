@@ -100,6 +100,25 @@ export function parseUtcNaive(value: string | null | undefined): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/** Tashkent is a fixed UTC+5: no daylight saving, so a wall time maps to one instant all year. */
+const BUSINESS_UTC_OFFSET_MINUTES = 5 * 60;
+
+/**
+ * The instant of a business-calendar date ("YYYY-MM-DD") and wall time ("HH:MM" or "HH:MM:SS") - the twin of the
+ * server's `lesson_start_as_naive_utc`.  Never reads the device zone.  null when the date or the time is not valid.
+ */
+export function businessWallTimeToInstant(isoDate: string | null | undefined, time: string | null | undefined): Date | null {
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec((isoDate ?? "").trim());
+  const wall = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec((time ?? "").trim());
+  if (!day || !wall) return null;
+  const [year, month, date] = [Number(day[1]), Number(day[2]), Number(day[3])];
+  const [hour, minute] = [Number(wall[1]), Number(wall[2])];
+  if (hour > 23 || minute > 59) return null;
+  const calendar = new Date(Date.UTC(year, month - 1, date));
+  if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== date) return null;
+  return new Date(Date.UTC(year, month - 1, date, hour, minute) - BUSINESS_UTC_OFFSET_MINUTES * 60_000);
+}
+
 /** YYYY-MM-DD of a naive-UTC timestamp on the business calendar; a date-only value is returned as is; "" if invalid. */
 export function utcNaiveToBusinessIsoDate(value: string | null | undefined): string {
   const instant = parseUtcNaive(value);
