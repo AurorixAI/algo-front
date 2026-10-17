@@ -5,7 +5,8 @@ import { dm, toast } from "../support/ui";
 
 /**
  * Owner: «Посещаемость» -> «Пропуски» -> «Ожидают»: an excuse the teacher marked is waiting, with the
- * deadline by which it must be confirmed; «Подтвердить» takes it out of the pending list.
+ * deadline by which it must be confirmed; «Подтвердить» asks for confirmation in a dialog (N13 P4 #103),
+ * and the confirmed excuse leaves the pending list.
  *
  * Deadline rule (owner decision 15.10; the oracle below is written from that rule, not from the API):
  *  - paid student: the calendar payment that covers the lesson ends on V; deadline = V - 5 days (default setting);
@@ -46,8 +47,17 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await expect(item("Оплативший Анвар")).toContainText("Болел, справка");
   await expect(item("Оплативший Анвар")).toContainText(`${group.name}`);
 
-  // confirm one
+  // confirm one: the button only opens the confirmation dialog (student, lesson, reason, consequence); nothing is sent yet
   await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).click();
+  const dialog = page.getByRole("dialog", { name: "Подтвердить пропуск?" });
+  await expect(dialog).toContainText("Оплативший Анвар");
+  await expect(dialog).toContainText(group.name);
+  await expect(dialog).toContainText("Болел, справка");
+  await expect(dialog).toContainText("Урок не будет засчитан преподавателю в зарплату (уважительная причина).");
+  await expect(page.getByRole("tab", { name: "Ожидают (2)" })).toBeVisible();
+  const stillPending = await org.owner.api.get("/auth/org/attendance/excuses", { status: "pending" });
+  expect(stillPending.items).toHaveLength(2);
+  await dialog.getByRole("button", { name: "Подтвердить", exact: true }).click();
   await expect(toast(page, "Пропуск подтверждён")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Ожидают (1)" })).toBeVisible();
   await expect(item("Оплативший Анвар")).toHaveCount(0);

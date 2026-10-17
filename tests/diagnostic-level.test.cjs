@@ -24,7 +24,7 @@ test("category and status dictionaries use the agreed Russian labels", () => {
   for (const m of [...Object.values(L.LEVEL_CATEGORY_META), ...Object.values(L.LEVEL_STATUS_META)]) {
     assert.ok(L.LEVEL_TONES[m.tone], "every entry has a tone");
   }
-  assert.equal(L.PROVISIONAL_LABEL, "предварительно");
+  assert.equal("PROVISIONAL_LABEL" in L, false, "the provisional label is gone (#102)");
 });
 
 test("legacy status codes map to current ones; unknown codes stay unknown", () => {
@@ -81,18 +81,24 @@ test("resolveReportLevel prefers report.level, falls back to legacy fields", () 
     overall: { status: "critical", class_equivalent: "начало 7 класса" },   // stored by older reports: ignored (N03a)
     report_meta: { total_questions: 99, questions_correct: 1 },
   });
-  assert.deepEqual(withLevel, { category: "at_grade", status: "on_level", provisional: true, solved: 6, total: 30 });
+  // the service flag `provisional` is tolerated in the data but never part of what the UI reads (#102)
+  assert.deepEqual(withLevel, { category: "at_grade", status: "on_level", solved: 6, total: 30 });
   const legacy = L.resolveReportLevel({
     overall: { status: "below_level", class_equivalent: "начало 7 класса" },
     report_meta: { total_questions: 25, questions_correct: 5 },
   });
-  assert.deepEqual(legacy, { category: "below_grade", status: "below", provisional: false, solved: 5, total: 25 });
+  assert.deepEqual(legacy, { category: "below_grade", status: "below", solved: 5, total: 25 });
 });
 
 test("storedLevelDisplay: status wins, category fallback, no invented default", () => {
   assert.equal(L.storedLevelDisplay({ recommended_level: "at_grade", level_status: "partial_gap" }).label, "Частичные пробелы");
   assert.equal(L.storedLevelDisplay({ recommended_level: "above_grade" }).label, "Выше уровня класса");
-  assert.equal(L.storedLevelDisplay({ recommended_level: "above_grade", level_provisional: true }).provisional, true);
+  // `level_provisional` may still arrive from the API: it changes nothing on screen (#102)
+  assert.deepEqual(
+    L.storedLevelDisplay({ recommended_level: "above_grade", level_provisional: true }),
+    L.storedLevelDisplay({ recommended_level: "above_grade", level_provisional: false }),
+  );
+  assert.equal("provisional" in L.storedLevelDisplay({ recommended_level: "above_grade", level_provisional: true }), false);
   assert.equal(L.storedLevelDisplay({ recommended_level: null }), null);
   assert.equal(L.storedLevelDisplay(null), null);
   // the "beginning/middle/end of grade N" equivalent is neither read nor returned (N03a, O4)

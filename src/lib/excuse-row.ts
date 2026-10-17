@@ -33,6 +33,11 @@ export function lessonShortLabel(isoDate: string | null | undefined): string {
   return `${WEEKDAYS[real.getUTCDay()]}, ${match[3]}.${match[2]}`;
 }
 
+/** «Дилноза Каримова · 09.10.2026 16:35»: who wrote the reason and when (shown as written, Tashkent clock). */
+export function reasonMeta(item: { reason_by?: { name: string } | null; reason_at?: string | null }): string {
+  return [item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · ");
+}
+
 /** The link under the reason: «справка, 1 фото», «справка, 2 фото, 1 PDF»; «справки нет» when nothing is attached. */
 export function excuseFilesLabel(files: ReadonlyArray<{ content_type: string }> | null | undefined): string {
   const list = files ?? [];

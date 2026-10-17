@@ -203,10 +203,12 @@ test("«Пропуски»: one outline «Подтвердить» + «⋯», no
   assert.match(page, /aria-expanded=\{interactive \? expanded : undefined\}/);
   assert.match(page, /expanded \? "" : "xl:line-clamp-2"/);
   assert.doesNotMatch(page, /line-clamp-3/);
-  assert.match(page, /formatDateTimeRu\(item\.reason_at\)/);
-  // ...and at the top of both decision dialogs
-  assert.match(page, /Причина пропуска/);
-  assert.match(page, /reasonMeta\(dialog\.item\)/);
+  assert.match(read("src/lib/excuse-row.ts"), /formatDateTimeRu\(item\.reason_at\)/);
+  // ...and in the confirmation dialog (#103), which shows the student, the lesson and the reason before any request
+  const body = read("src/components/attendance/excuse-decision-body.tsx");
+  assert.match(body, /label="Причина"/);
+  assert.match(body, /reasonMeta\(single\)/);
+  assert.match(page, /<ExcuseDecisionDialog target=\{dialog\}/);
   // phone: a visible tel: link on its own line on cards, the icon (32px, 8px from the name) on the wide table
   assert.match(page, /xl:hidden"\s*>\s*<Phone className="h-3 w-3" \/>\s*\{item\.student\.phone\}/);
   assert.match(page, /flex items-center gap-2">\s*<Link/);

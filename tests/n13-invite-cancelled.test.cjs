@@ -120,7 +120,7 @@ test("the staff list: «Отменено» in grey with its hint; not «Ожид
   assert.match(page, /const cancelHint = inviteCancelHint\(inv\);/);
   assert.match(page, /\{cancelHint && \(\s*<span data-testid="diagnostic-cancel-hint" className="text-xs text-slate-500">/);
   // the link to copy is for a pending invite only
-  assert.match(page, /\{inv\.status === "pending" && \(\s*<button/);
+  assert.match(page, /\{inv\.status === "pending" \? \(\s*<button/);
 });
 
 test("«Зачислен» is the student's, never a cancelled invite's (the real helper the staff list uses)", () => {

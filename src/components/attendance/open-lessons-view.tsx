@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Ban, ClipboardCheck, Loader2, NotebookPen } from "lucide-react";
 import { orgApi, type OpenAttendanceAction } from "@/lib/api";
+import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 import { formatDateRu } from "@/lib/attendance-excuses";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import {
@@ -17,15 +18,23 @@ import {
   shouldRefetchForBadge,
 } from "@/lib/open-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 
-/** Calm chips: only a started-but-unfinished lesson gets a subtle amber. */
-const CHIP_CLASS: Record<OpenAttendanceAction["actionType"], string> = {
-  missed: "border-slate-200 bg-slate-50 text-slate-600",
-  in_progress: "border-amber-200 bg-amber-50 text-amber-700",
+/** Calm chips (the palette and the size of the «Пропуски» tab): only a started-but-unfinished lesson gets a subtle amber. */
+const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
+  missed: "neutral",
+  in_progress: "warn",
 };
+
+/**
+ * Columns of the wide layout, from 1024 px (the sidebar leaves 784 px; at a tablet the four columns would squeeze the text).
+ * The header and every row share the template, the padding and the gap, so a header and its cells have
+ * one left edge, and cells are top-aligned like in «Пропуски».  Below `lg` a row is a card.
+ */
+const COLS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_40px]";
 
 /** Focus and visibility events fire together; one re-read is enough. */
 const FOCUS_REFETCH_GAP_MS = 1500;
@@ -182,40 +191,39 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
   return (
     <>
       {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center gap-1.5 py-14 text-center">
-          <ClipboardCheck className="h-6 w-6 text-slate-300" />
-          <p className="text-sm font-medium text-slate-700">Все уроки закрыты</p>
-        </div>
+        <EmptyState icon={ClipboardCheck} title="Все уроки закрыты" hint="Уроки, по которым не отмечена посещаемость или журнал не завершён, появятся здесь." />
       ) : (
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-          {groups.map((group, index) => (
-            <div key={group.key} className={index > 0 ? "border-t border-slate-100" : undefined}>
-              <p className="px-4 pb-1 pt-4 text-xs font-semibold text-slate-500 sm:px-5">
-                {group.teacherName} · {group.items.length}
+        <section className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white">
+          <TableHeader show="lg" gridClass={COLS} labels={["Урок", "Группа", "Статус", ""]} />
+          {groups.map((group) => (
+            <div key={group.key} className="mt-5 first:mt-0 lg:mt-0 lg:border-t lg:border-slate-100 lg:first:border-t-0">
+              <p className="mb-2 flex items-baseline gap-1.5 px-1 text-xs font-semibold text-slate-600 lg:mb-0 lg:bg-slate-50/70 lg:px-4 lg:py-2">
+                <span className="min-w-0 break-words">{group.teacherName}</span>
+                <span className="font-medium text-slate-400">· {group.items.length}</span>
               </p>
-              <ul className="divide-y divide-slate-100">
+              <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:border-t lg:border-slate-100">
                 {group.items.map((item) => (
                   <li
                     key={openLessonKey(item)}
-                    className="relative flex flex-col gap-2 py-3 pl-4 pr-14 sm:pl-5 md:grid md:grid-cols-[150px_minmax(0,1fr)_minmax(0,1.1fr)_auto] md:items-center md:gap-4 md:pr-5"
+                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-14 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS}`}
                   >
-                    <div className="flex flex-wrap items-baseline gap-x-2 md:block">
-                      <p className="text-sm font-bold text-slate-900">{formatLessonDate(item.lessonDate)}</p>
-                      <p className="text-xs tabular-nums text-slate-400">{openLessonTime(item)}</p>
+                    <div className="flex flex-wrap items-baseline gap-x-2 lg:block">
+                      <p className="text-sm font-semibold leading-5 text-slate-900">{formatLessonDate(item.lessonDate)}</p>
+                      <p className="text-xs tabular-nums text-slate-500">{openLessonTime(item)}</p>
                     </div>
 
-                    <p className="min-w-0 break-words text-sm font-semibold text-slate-900">{item.groupName}</p>
+                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900">{item.groupName}</p>
 
-                    <div>
+                    <div className="flex min-w-0 lg:-my-px">
                       <span
                         title={openLessonStatusHint(item)}
-                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${CHIP_CLASS[item.actionType]}`}
+                        className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[CHIP_TONE[item.actionType]]}`}
                       >
                         {openLessonStatus(item)}
                       </span>
                     </div>
 
-                    <div className="absolute right-3 top-2.5 md:static md:justify-self-end">
+                    <div className="absolute right-2 top-2 lg:static lg:-my-1.5 lg:justify-self-end">
                       <RowMenu
                         items={menuItemsOf(item)}
                         label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}

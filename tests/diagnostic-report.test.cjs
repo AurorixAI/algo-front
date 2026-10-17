@@ -1099,7 +1099,7 @@ const textOf = (html) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim
 const headerHtml = renderHeader;
 
 test("DIAG-5: header reads «Решено N из M заданий разной трудности» next to the level, without any percent", () => {
-  const html = headerHtml({ status: "on_level", levelText: "Соответствует уровню", provisional: false, solved: 5, total: 25, correct: 5, wrong: 20 });
+  const html = headerHtml({ status: "on_level", levelText: "Соответствует уровню", solved: 5, total: 25, correct: 5, wrong: 20 });
   const text = textOf(html);
   assert.ok(text.includes("Соответствует уровню"));
   assert.ok(text.includes("Решено 5 из 25 заданий разной трудности"), text);
@@ -1114,7 +1114,7 @@ test("DIAG-5: header reads «Решено N из M заданий разной �
   assert.equal(html.includes("stroke-dasharray"), false);
 });
 
-test("DIAG-5: header edge cases - unknown numbers hide the line, unknown level stays neutral, provisional badge kept", () => {
+test("DIAG-5: header edge cases - unknown numbers hide the line, unknown level stays neutral, the provisional flag shows nothing", () => {
   const noNumbers = headerHtml({ status: "below", levelText: "Ниже уровня класса", solved: null, total: null });
   assert.equal(noNumbers.includes("diagnostic-report-solved"), false);
   assert.equal(textOf(noNumbers).includes("Решено"), false);
@@ -1123,8 +1123,11 @@ test("DIAG-5: header edge cases - unknown numbers hide the line, unknown level s
   assert.equal(unknown.includes("diagnostic-report-level\""), false, "no level pill without a level");
   assert.ok(unknown.includes("border-slate-200/80"), "neutral card, never a green one");
   assert.equal(unknown.includes("emerald-200/80"), false);
+  // owner decision 17.10 (#102): «предварительно» is never shown, whatever the data says
   const prov = headerHtml({ status: "partial_gap", levelText: "Частичные пробелы", provisional: true, solved: 6, total: 30 });
-  assert.ok(prov.includes("diagnostic-report-provisional") && textOf(prov).includes("предварительно"));
+  assert.equal(prov.includes("diagnostic-report-provisional"), false);
+  assert.equal(/предварительн/i.test(textOf(prov)), false);
+  assert.equal(prov, headerHtml({ status: "partial_gap", levelText: "Частичные пробелы", solved: 6, total: 30 }), "the flag changes nothing in the markup");
   // no level: the medallion says so in words (the pill is absent, so the caption is the only cue)
   assert.ok(textOf(unknown).includes("Уровень не определён"));
   const known = headerHtml({ status: "on_level", levelText: "Соответствует уровню", solved: 5, total: 25 });

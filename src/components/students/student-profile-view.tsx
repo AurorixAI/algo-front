@@ -23,11 +23,12 @@ import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, form
 import { DataLoadError } from "@/components/ui/data-load-error";
 import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
-import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 import { shiftMonth } from "@/lib/attendance-excuses";
 import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { formatMembershipPeriods } from "@/lib/membership-periods";
+import { DiagnosticStatusBadge, diagnosticActionClass } from "@/components/diagnostics/list-chrome";
 import { inviteCancelHint, isInviteDead, studentCardInviteLabel } from "@/lib/diagnostic-invite";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
@@ -542,23 +543,19 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                             </div>
                           </div>
 
-                          {/* Action Button: Open Report */}
+                          {/* Action Button: Open Report (same size as the badge and buttons of the diagnostics list) */}
                           {isCompleted ? (
-                            <Link
-                              href={`${diagnosticsBasePath}/${diag.invite_id}/report`}
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-primary-600 to-indigo-600 hover:from-primary-700 hover:to-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm shadow-primary-600/20 transition-all self-stretch sm:self-auto justify-center"
-                            >
+                            <Link href={`${diagnosticsBasePath}/${diag.invite_id}/report`} className={diagnosticActionClass("solid")}>
                               <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Открыть полный отчёт</span>
+                              <span>Полный отчёт</span>
                             </Link>
                           ) : (
-                            <span
-                              className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
-                                isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"
-                              }`}
+                            <DiagnosticStatusBadge
+                              tone={isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}
+                              dot={isDead ? "bg-slate-400" : "bg-amber-400"}
                             >
                               {studentCardInviteLabel(diag.status)}
-                            </span>
+                            </DiagnosticStatusBadge>
                           )}
                         </div>
 
@@ -574,14 +571,9 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                 <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Уровень по классу</p>
                                 <div className="mt-1 flex flex-col items-center gap-1">
                                   {levelView ? (
-                                    <>
-                                      <span className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium border ${levelView.tone.badge}`}>
-                                        {levelView.label}
-                                      </span>
-                                      {levelView.provisional && (
-                                        <span className="text-[10px] uppercase tracking-wide text-amber-600">{PROVISIONAL_LABEL}</span>
-                                      )}
-                                    </>
+                                    <span className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium border ${levelView.tone.badge}`}>
+                                      {levelView.label}
+                                    </span>
                                   ) : (
                                     <span className="text-xs text-slate-400">—</span>
                                   )}

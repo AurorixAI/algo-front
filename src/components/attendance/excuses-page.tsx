@@ -7,6 +7,7 @@ import {
   AlertCircle,
   BookOpen,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -26,8 +27,9 @@ import {
   type ExcuseReviewStatus,
 } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { CHIP_TONE_CLASS } from "@/lib/chip-tone";
+import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineChip } from "@/lib/excuse-deadline";
+import type { ExcuseDecision, ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
   excuseDecisionLabel,
@@ -35,6 +37,7 @@ import {
   excuseJournalHref,
   excusePickerAccept,
   lessonShortLabel,
+  reasonMeta,
   shortPersonName,
 } from "@/lib/excuse-row";
 import { telHref } from "@/lib/phone";
@@ -50,11 +53,12 @@ import {
   monthLabelRu,
   monthOf,
   monthRangeOf,
-  REVIEW_NOTE_MAX,
   shiftMonth,
 } from "@/lib/attendance-excuses";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
+import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -65,9 +69,11 @@ const PAGE_SIZE = 50;
 /**
  * Columns of the wide layout (cards below `xl`: the sidebar takes 240 px from a tablet up, so a
  * five-column row only fits from 1280 px). Pending tabs show the deadline, decided ones the decision.
+ * The header and every row use the same template, the same horizontal padding and the same gap, so a
+ * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const GRID_PENDING = "xl:grid xl:grid-cols-[minmax(0,1.45fr)_96px_minmax(0,1.55fr)_168px_164px] xl:items-center xl:gap-x-3";
-const GRID_DECIDED = "xl:grid xl:grid-cols-[minmax(0,1.45fr)_96px_minmax(0,1.55fr)_minmax(0,1.3fr)_40px] xl:items-center xl:gap-x-3";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.45fr)_104px_minmax(0,1.55fr)_176px_184px]";
+const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.45fr)_104px_minmax(0,1.55fr)_minmax(0,1.3fr)_40px]";
 
 type Tab = ExcuseReviewStatus;
 
@@ -75,6 +81,12 @@ const EMPTY_TEXT: Record<Tab, string> = {
   pending: "Нет пропусков, ожидающих решения",
   confirmed: "Подтверждённых пропусков нет",
   rejected: "Отклонённых пропусков нет",
+};
+
+const EMPTY_HINT: Record<Tab, string> = {
+  pending: "Пропуски, которые преподаватели отметят уважительными, появятся здесь для решения.",
+  confirmed: "Здесь будут пропуски, которые вы подтвердили за выбранный месяц.",
+  rejected: "Здесь будут пропуски, которые вы отклонили за выбранный месяц.",
 };
 
 /** Shrink a photo so the longer side is at most 1600 px and re-encode it as JPEG. */
@@ -132,11 +144,6 @@ async function downscaleToJpeg(file: File): Promise<{ blob: Blob; name: string }
   }
 }
 
-/** «Дилноза Каримова · 09.10.2026 16:35»: who wrote the reason and when (shown as written, Tashkent clock). */
-function reasonMeta(item: AttendanceExcuseItem): string {
-  return [item.reason_by?.name, formatDateTimeRu(item.reason_at)].filter(Boolean).join(" · ");
-}
-
 /**
  * A text that a card (< xl) shows in full and the wide table cuts to two lines. When something is cut
  * off the whole cell is a toggle (click, Enter, Space; `aria-expanded`) that shows the rest and the
@@ -146,7 +153,7 @@ function ExpandableText({
   text,
   meta,
   className = "text-sm text-slate-800",
-  metaClassName = "text-xs text-slate-400",
+  metaClassName = "text-xs text-slate-500",
 }: {
   text: string;
   meta?: string;
@@ -196,12 +203,6 @@ export function ExcusesPage(props: { studentProfileBasePath: string; groupsBaseP
   return <ExcusesPageContent {...props} />;
 }
 
-/** Decision dialog: «Отклонить…» (note optional) or «Подтвердить с примечанием…» (note required). */
-interface DecisionDialog {
-  item: AttendanceExcuseItem;
-  decision: "confirmed" | "rejected";
-}
-
 function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
   const router = useRouter();
   const { showToast, toastNode } = useToast();
@@ -228,8 +229,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [fileBusyId, setFileBusyId] = useState<string | null>(null);
 
-  const [dialog, setDialog] = useState<DecisionDialog | null>(null);
-  const [dialogNote, setDialogNote] = useState("");
+  // Every «Подтвердить» / «Отклонить» goes through the confirmation dialog before a request is sent.
+  const [dialog, setDialog] = useState<ExcuseDecisionTarget | null>(null);
+  // Excuses whose decision is on its way: a second click (or the dialog after the row button) sends nothing.
+  const reviewing = useRef<Set<string>>(new Set());
 
   const [viewer, setViewer] = useState<{ excuseId: string; file: AttendanceExcuseFile; url: string | null; error: string | null } | null>(null);
   const [fileToDelete, setFileToDelete] = useState<{ excuseId: string; file: AttendanceExcuseFile } | null>(null);
@@ -323,7 +326,9 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
   /** true when the decision was saved (the dialog closes only then, so a typed note survives an error). */
-  const review = async (item: AttendanceExcuseItem, decision: "confirmed" | "rejected", noteText = ""): Promise<boolean> => {
+  const review = async (item: AttendanceExcuseItem, decision: ExcuseDecision, noteText = ""): Promise<boolean> => {
+    if (reviewing.current.has(item.id)) return false;
+    reviewing.current.add(item.id);
     markBusy(item.id, true);
     try {
       const note = noteText.trim();
@@ -337,6 +342,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       void load(true);
       return false;
     } finally {
+      reviewing.current.delete(item.id);
       markBusy(item.id, false);
     }
   };
@@ -355,15 +361,16 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     }
   };
 
-  const openDialog = (item: AttendanceExcuseItem, decision: "confirmed" | "rejected") => {
-    setDialogNote("");
-    setDialog({ item, decision });
-  };
-  const closeDialog = () => { setDialog(null); setDialogNote(""); };
-  const submitDialog = async () => {
+  const openDialog = (item: AttendanceExcuseItem, decision: ExcuseDecision, noteMode: ExcuseNoteMode) =>
+    setDialog({ items: [item], decision, noteMode });
+  const closeDialog = () => setDialog(null);
+  const submitDialog = async (note: string) => {
     if (!dialog) return;
-    if (dialog.decision === "confirmed" && !dialogNote.trim()) return;
-    if (await review(dialog.item, dialog.decision, dialogNote)) closeDialog();
+    // One by one, stopping at the first failure: the dialog stays open so a typed note survives an error.
+    for (const item of dialog.items) {
+      if (!(await review(item, dialog.decision, note))) return;
+    }
+    closeDialog();
   };
 
   // ── Files ───────────────────────────────────────────────────────────────
@@ -465,8 +472,8 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     const attach: RowMenuItem = atLimit
       ? { key: "attach", label: `Максимум файлов: ${EXCUSE_FILE_MAX_COUNT}`, icon: Paperclip, disabled: true, onSelect: () => undefined }
       : { key: "attach", label: "Приложить справку", icon: Paperclip, onSelect: () => pickFile(item) };
-    const reject: RowMenuItem = { key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: () => openDialog(item, "rejected") };
-    const confirmWithNote: RowMenuItem = { key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: () => openDialog(item, "confirmed") };
+    const reject: RowMenuItem = { key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: () => openDialog(item, "rejected", "optional") };
+    const confirmWithNote: RowMenuItem = { key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: () => openDialog(item, "confirmed", "required") };
     const journal: RowMenuItem = { key: "journal", label: "Открыть журнал", icon: BookOpen, onSelect: () => router.push(excuseJournalHref(groupsBasePath, item)) };
     const card: RowMenuItem = { key: "card", label: "Карточка ученика", icon: UserRound, onSelect: () => router.push(`${studentProfileBasePath}/${item.student.id}`) };
     const reset: RowMenuItem = { key: "reset", label: "Сбросить решение", icon: Undo2, onSelect: () => void resetDecision(item) };
@@ -474,7 +481,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     if (item.status === "pending") return [reject, attach, confirmWithNote, journal, card];
     if (item.status === "confirmed") return [reject, reset, attach, journal, card];
     return [
-      { key: "confirm", label: "Подтвердить", icon: Check, onSelect: () => void review(item, "confirmed") },
+      { key: "confirm", label: "Подтвердить", icon: Check, onSelect: () => openDialog(item, "confirmed", "none") },
       confirmWithNote,
       reset,
       attach,
@@ -490,8 +497,8 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     { key: "rejected", label: "Отклонено" },
   ];
   const pendingTab = tab === "pending";
-  const grid = pendingTab ? GRID_PENDING : GRID_DECIDED;
-  const dialogBusy = dialog ? busyIds.has(dialog.item.id) : false;
+  const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
+  const dialogBusy = dialog ? dialog.items.some((item) => busyIds.has(item.id)) : false;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -558,16 +565,14 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
             <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
         ) : items.length === 0 ? (
-          <p className="py-14 text-center text-sm text-slate-400">{EMPTY_TEXT[tab]}</p>
+          <EmptyState icon={CheckCircle2} title={EMPTY_TEXT[tab]} hint={EMPTY_HINT[tab]} />
         ) : (
           <>
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${grid}`}>
-              <span>Ученик</span>
-              <span>Урок</span>
-              <span>Причина</span>
-              <span>{pendingTab ? "Срок" : "Решение"}</span>
-              <span />
-            </div>
+            <TableHeader
+              show="xl"
+              gridClass={cols}
+              labels={["Ученик", "Урок", "Причина", pendingTab ? "Срок" : "Решение", ""]}
+            />
             <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {items.map((item) => {
                 const busy = busyIds.has(item.id);
@@ -579,14 +584,14 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                 return (
                   <li
                     key={item.id}
-                    className={`relative flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-2.5 ${grid}`}
+                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 ${cols}`}
                   >
-                    {/* Ученик */}
+                    {/* Ученик: the name leads, id and group are secondary */}
                     <div className={`min-w-0 ${pendingTab ? "" : "pr-8 xl:pr-0"}`}>
                       <div className="flex items-center gap-2">
                         <Link
                           href={`${studentProfileBasePath}/${item.student.id}`}
-                          className="min-w-0 break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate"
+                          className="min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:truncate"
                           title="Открыть карточку ученика"
                         >
                           {item.student.full_name}
@@ -619,7 +624,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
                     {/* Урок */}
                     <div className="min-w-0 text-xs text-slate-500 xl:text-sm">
-                      <p className="xl:truncate">
+                      <p className="xl:truncate xl:leading-5">
                         <span className="font-medium text-slate-800">{lessonShortLabel(item.lesson_date)}</span>
                         <span className="xl:hidden"> · {teacherShort}</span>
                       </p>
@@ -642,26 +647,23 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                             {excuseFilesLabel(item.files)}
                           </button>
                         ) : (
-                          <span className="text-slate-400">{excuseFilesLabel(item.files)}</span>
+                          <span className="text-slate-500">{excuseFilesLabel(item.files)}</span>
                         )}
                       </p>
                     </div>
 
-                    {/* Срок / Решение */}
+                    {/* Срок / Решение: a badge keeps its left edge on the left edge of its header */}
                     {pendingTab ? (
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 xl:-my-px">
                         {chip && (
-                          <span
-                            className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${CHIP_TONE_CLASS[chip.tone]}`}
-                            title={chip.title}
-                          >
+                          <span className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[chip.tone]}`} title={chip.title}>
                             {chip.text}
                           </span>
                         )}
                       </div>
                     ) : (
                       <div className="min-w-0">
-                        <p className="break-words text-xs text-slate-700 xl:text-sm" title={formatDateTimeRu(item.reviewed_at) || undefined}>
+                        <p className="break-words text-xs text-slate-700 xl:text-sm xl:leading-5" title={formatDateTimeRu(item.reviewed_at) || undefined}>
                           {excuseDecisionLabel(item) || "—"}
                         </p>
                         {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" />}
@@ -670,13 +672,13 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
                     {/* Действия */}
                     {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
-                    <div className={`flex items-center justify-end gap-1.5 ${pendingTab ? "mt-1 xl:mt-0" : "absolute right-2 top-2 xl:static"}`}>
+                    <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
                       {pendingTab && (
                         <button
                           type="button"
                           disabled={busy}
-                          onClick={() => void review(item, "confirmed")}
-                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 xl:flex-none"
+                          onClick={() => openDialog(item, "confirmed", "none")}
+                          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 xl:flex-none"
                         >
                           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           Подтвердить
@@ -715,51 +717,8 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
         onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; onFilePicked(picked); }}
       />
 
-      {/* Reject / confirm with a note */}
-      <Modal
-        open={dialog !== null}
-        title={dialog?.decision === "rejected" ? "Отклонить пропуск?" : "Подтвердить с примечанием"}
-        description={dialog ? `${dialog.item.student.full_name} · ${lessonShortLabel(dialog.item.lesson_date)}` : undefined}
-        onClose={closeDialog}
-        busy={dialogBusy}
-        footer={
-          <>
-            <button type="button" onClick={closeDialog} disabled={dialogBusy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
-            <button
-              type="button"
-              onClick={() => void submitDialog()}
-              disabled={dialogBusy || (dialog?.decision === "confirmed" && !dialogNote.trim())}
-              className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${
-                dialog?.decision === "rejected" ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"
-              }`}
-            >
-              {dialogBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-              {dialog?.decision === "rejected" ? "Отклонить" : "Подтвердить"}
-            </button>
-          </>
-        }
-      >
-        {dialog && (
-          <div className="mb-3 rounded-xl bg-slate-50 px-3 py-2.5">
-            <p className="text-xs font-medium text-slate-500">Причина пропуска</p>
-            <p className="mt-0.5 whitespace-pre-line break-words text-sm text-slate-800">{dialog.item.reason}</p>
-            {reasonMeta(dialog.item) && <p className="mt-1 text-xs text-slate-400">{reasonMeta(dialog.item)}</p>}
-          </div>
-        )}
-        <div className="space-y-1.5 pb-2">
-          <label htmlFor="excuse-decision-note" className="block text-xs font-medium text-slate-600">
-            {dialog?.decision === "rejected" ? "Причина отказа (необязательно)" : "Примечание"}
-          </label>
-          <textarea
-            id="excuse-decision-note"
-            value={dialogNote}
-            onChange={(event) => setDialogNote(event.target.value)}
-            maxLength={REVIEW_NOTE_MAX}
-            rows={3}
-            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-          />
-        </div>
-      </Modal>
+      {/* «Подтвердить» / «Отклонить»: who, which lesson, why, what changes - and only then the request */}
+      <ExcuseDecisionDialog target={dialog} busy={dialogBusy} onClose={closeDialog} onSubmit={submitDialog} />
 
       {/* Certificate viewer */}
       <Modal

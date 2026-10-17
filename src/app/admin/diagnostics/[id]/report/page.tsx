@@ -850,7 +850,6 @@ export default function DiagnosticReportPage() {
             <ReportScoreHeader
               status={level?.status}
               levelText={levelText}
-              provisional={level?.provisional === true}
               solved={level?.solved}
               total={level?.total}
               correct={rj.report_meta.questions_correct}

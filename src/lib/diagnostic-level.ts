@@ -106,8 +106,6 @@ export const LEVEL_STATUS_META: Record<LevelStatus, { label: string; tone: Level
   above: { label: "Выше уровня класса", tone: "violet" },
 };
 
-export const PROVISIONAL_LABEL = "предварительно";
-
 /** Tone of a report without a known level: neutral, never a good (green) level. */
 export const NEUTRAL_TONE: LevelToneClasses = {
   text: "text-slate-700",
@@ -222,6 +220,7 @@ export function formatSolvedMixed(solved?: number | null, total?: number | null)
 export interface ReportLevel {
   category?: string | null;
   status?: string | null;
+  /** Service flag for calibration: the API still sends it, the UI never shows it (owner 17.10). */
   provisional?: boolean | null;
   theta?: number | null;
   se?: number | null;
@@ -232,7 +231,6 @@ export interface ReportLevel {
 export interface ResolvedLevel {
   category: LevelCategory | null;
   status: LevelStatus | null;
-  provisional: boolean;
   solved: number | null;
   total: number | null;
 }
@@ -254,7 +252,6 @@ export function resolveReportLevel(report: {
   return {
     category,
     status,
-    provisional: lv?.provisional === true,
     solved: lv?.solved ?? report.report_meta?.questions_correct ?? null,
     total: lv?.total ?? report.report_meta?.total_questions ?? null,
   };
@@ -264,6 +261,7 @@ export function resolveReportLevel(report: {
 export interface StoredLevelFields {
   recommended_level?: string | null;
   level_status?: string | null;
+  /** Service flag for calibration: tolerated on input, never shown (owner 17.10). */
   level_provisional?: boolean | null;
 }
 
@@ -274,16 +272,12 @@ export interface StoredLevelFields {
  */
 export function storedLevelDisplay(
   res?: StoredLevelFields | null,
-): { label: string; tone: LevelToneClasses; provisional: boolean } | null {
+): { label: string; tone: LevelToneClasses } | null {
   if (!res) return null;
   const status = normalizeStatus(res.level_status);
   const category = normalizeCategory(res.recommended_level);
   const label = (status && levelStatusLabel(status)) || (category && levelCategoryLabel(category));
   const tone = (status && levelStatusTone(status)) || (category && levelCategoryTone(category));
   if (!label || !tone) return null;
-  return {
-    label,
-    tone,
-    provisional: res.level_provisional === true,
-  };
+  return { label, tone };
 }

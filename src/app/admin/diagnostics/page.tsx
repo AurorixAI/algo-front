@@ -9,9 +9,12 @@ import {
   Sparkles, Users, User, Calendar, RotateCcw, X, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
-import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
+import { formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 import { matchesBusinessPeriod } from "@/lib/business-period";
 import { formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
+import {
+  DIAGNOSTIC_ACTIONS_COLUMN, DiagnosticActionSpacer, DiagnosticStatusBadge, diagnosticActionClass,
+} from "@/components/diagnostics/list-chrome";
 import { INVITE_CANCELLED_LABEL, inviteCancelHint, isInviteAssigned, isInviteRunning, isInviteWaiting } from "@/lib/diagnostic-invite";
 
 interface DiagnosticInvite {
@@ -475,7 +478,6 @@ export default function AdminDiagnosticsPage() {
                             className={"inline-flex flex-wrap items-center gap-1.5 text-xs px-2 py-0.5 rounded-md border font-medium " + lv.tone.badge}
                           >
                             {lv.label}
-                            {lv.provisional && <span className="font-normal italic">· {PROVISIONAL_LABEL}</span>}
                             {solved && <span className="font-normal opacity-80">· {solved}</span>}
                           </span>
                         );
@@ -485,23 +487,17 @@ export default function AdminDiagnosticsPage() {
 
 
 
-                  {/* Status + Actions — adaptive flex column/row */}
-                  <div className="flex w-full min-w-0 flex-wrap items-center gap-2 justify-end lg:ml-auto lg:w-auto lg:max-w-[50%]">
-                    <div
-                      data-testid="diagnostic-status"
-                      className={
-                        "flex max-w-full min-w-0 items-center justify-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border whitespace-normal text-center " +
-                        currentStatus.color
-                      }
-                    >
-                      <div className={"w-1.5 h-1.5 rounded-full shrink-0 " + currentStatus.dot} />
-                      <span className="min-w-0 break-words">{currentStatus.label}</span>
-                    </div>
+                  {/* Status + action: one fixed-size badge and one fixed-size button, so rows do not jump */}
+                  <div className={DIAGNOSTIC_ACTIONS_COLUMN}>
+                    <DiagnosticStatusBadge testId="diagnostic-status" tone={currentStatus.color} dot={currentStatus.dot}>
+                      {currentStatus.label}
+                    </DiagnosticStatusBadge>
 
-                    {inv.status === "pending" && (
+                    {inv.status === "pending" ? (
                       <button
+                        type="button"
                         onClick={() => copyLink(inv.code)}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap"
+                        className={diagnosticActionClass("primary")}
                         title="Скопировать ссылку для ученика"
                       >
                         {copiedCode === "link-" + inv.code ? (
@@ -514,24 +510,16 @@ export default function AdminDiagnosticsPage() {
                           </>
                         )}
                       </button>
-                    )}
-
-                    {isCompleted && !isAssigned && (
-                      <Link
-                        href={`/admin/diagnostics/${inv.id}/report`}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 transition-colors whitespace-nowrap"
-                      >
+                    ) : isCompleted && !isAssigned ? (
+                      <Link href={`/admin/diagnostics/${inv.id}/report`} className={diagnosticActionClass("primary")}>
                         <ExternalLink className="w-3.5 h-3.5" /> Отчёт
                       </Link>
-                    )}
-
-                    {isAssigned && inv.student_id && (
-                      <Link
-                        href={`/admin/students/${inv.student_id}`}
-                        className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors whitespace-nowrap w-[110px]"
-                      >
+                    ) : isAssigned && inv.student_id ? (
+                      <Link href={`/admin/students/${inv.student_id}`} className={diagnosticActionClass("neutral")}>
                         <User className="w-3.5 h-3.5 text-slate-500" /> Профиль
                       </Link>
+                    ) : (
+                      <DiagnosticActionSpacer />
                     )}
                   </div>
                 </div>

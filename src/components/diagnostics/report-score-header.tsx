@@ -1,7 +1,7 @@
 import React from "react";
 import { Activity, AlertTriangle, CheckCircle2, Gauge, Target, TrendingDown, TrendingUp, XCircle, type LucideIcon } from "lucide-react";
 import {
-  PROVISIONAL_LABEL, formatSolvedMixed, normalizeStatus, toneForStatus,
+  formatSolvedMixed, normalizeStatus, toneForStatus,
   type LevelStatus,
 } from "../../lib/diagnostic-level";
 
@@ -51,7 +51,6 @@ export interface ReportScoreHeaderProps {
   status?: string | null;
   /** Level in words, e.g. «Соответствует уровню». */
   levelText?: string | null;
-  provisional?: boolean;
   solved?: number | null;
   total?: number | null;
   /** Counts for the wide-screen side cards (numbers only, no shares). */
@@ -59,7 +58,7 @@ export interface ReportScoreHeaderProps {
   wrong?: number | null;
 }
 
-export function ReportScoreHeader({ status, levelText, provisional, solved, total, correct, wrong }: ReportScoreHeaderProps) {
+export function ReportScoreHeader({ status, levelText, solved, total, correct, wrong }: ReportScoreHeaderProps) {
   const tone = toneForStatus(status);
   const solvedText = formatSolvedMixed(solved, total);
   return (
@@ -82,11 +81,6 @@ export function ReportScoreHeader({ status, levelText, provisional, solved, tota
             </div>
           )}
           <div className="mt-2 flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 text-sm text-slate-600 sm:justify-start">
-            {provisional && (
-              <span data-testid="diagnostic-report-provisional" className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                {PROVISIONAL_LABEL}
-              </span>
-            )}
             {solvedText && <span data-testid="diagnostic-report-solved" className="min-w-0 break-words text-center sm:text-left">{solvedText}</span>}
           </div>
         </div>
