@@ -15,7 +15,8 @@ test.beforeAll(async () => {
 test("journal: «Отклонить» asks first, sends the note once, and the note is visible on the excuse", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Журналов");
   const group = await org.createGroup({ name: "Группа Ж1", teacherId: teacher.userId });
-  const student = await org.addStudent(group, "Дилшод", "Отклонённый", 450000);
+  await org.setGroupPrice(group.id, 450000); // the price lives on the group (#105)
+  const student = await org.addStudent(group, "Дилшод", "Отклонённый");
   const lesson = await org.createLessonStartingNow(group.id);
   await runLesson(teacher, lesson, {
     records: { [student.id]: "excused" },
