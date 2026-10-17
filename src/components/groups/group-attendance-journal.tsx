@@ -59,6 +59,8 @@ import { parseJournalHighlight, parseJournalMonth } from "@/lib/open-lessons";
 import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor } from "@/lib/journal-period";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
+import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
+import { subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
 import { Modal } from "@/components/ui/modal";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
@@ -72,6 +74,8 @@ interface GroupAttendanceJournalProps {
   studentProfileBasePath?: string;
   /** Administrator / owner: lesson-column actions, correction mode and excuse review. */
   adminMode?: boolean;
+  /** Name of the group: the confirmation of an excuse names the lesson with it (the date alone when absent). */
+  groupName?: string | null;
   /** `YYYY-MM`: open on that month instead of the current week (initial value only). */
   initialMonth?: string | null;
   /** `?lesson=` / `?date=` of a deep link (open-lessons list): this lesson's column is highlighted. */
@@ -299,6 +303,7 @@ export function GroupAttendanceJournal({
   canEdit = false,
   studentProfileBasePath,
   adminMode = false,
+  groupName = null,
   initialMonth = null,
   highlightLessonId = null,
   highlightDate = null,
@@ -328,6 +333,12 @@ export function GroupAttendanceJournal({
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
+  // «Подтвердить» / «Отклонить» ask first, like in the «Пропуски» list: the cell it came from rides along with the dialog.
+  const [reviewDialog, setReviewDialog] = useState<
+    (ExcuseDecisionTarget & { excuse: AttendanceExcuseInfo; lessonKey: string; studentId: string; error: string | null }) | null
+  >(null);
+  // An excuse whose decision is on its way: a second click sends nothing.
+  const reviewingRef = useRef<Set<string>>(new Set());
   const columnMenuRef = useRef<HTMLDivElement | null>(null);
   const cellMenuRef = useRef<HTMLDivElement | null>(null);
   // Attendance saves of one journal go out one at a time, in click order.
@@ -745,19 +756,21 @@ export function GroupAttendanceJournal({
     void handleSelectStatus("excused", student, lesson, text.trim());
   };
 
-  const handleReview = async (
+  /** Sends one decision and updates the cell. Returns null when it was saved, else the reason it was not. */
+  const sendReview = async (
     excuse: AttendanceExcuseInfo,
     lessonKey: string,
     studentId: string,
     action: ReviewAction,
-  ) => {
-    setOpenCell(null);
-    setSaveError(null);
+    note = "",
+  ): Promise<string | null> => {
+    if (reviewingRef.current.has(excuse.id)) return "Решение уже отправляется";
+    reviewingRef.current.add(excuse.id);
     setReviewBusyId(excuse.id);
     try {
       const item = action === "reset"
         ? await orgApi.resetAttendanceExcuse(excuse.id)
-        : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action });
+        : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action, ...(note ? { note } : {}) });
       setAttendanceData((previous) => {
         const current = previous?.excuses?.[lessonKey]?.[studentId];
         if (!previous || !current) return previous;
@@ -779,11 +792,56 @@ export function GroupAttendanceJournal({
         };
       });
       void useExcuseBadge.getState().refresh(true);
+      return null;
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Не удалось сохранить решение");
+      return error instanceof Error ? error.message : "Не удалось сохранить решение";
     } finally {
+      reviewingRef.current.delete(excuse.id);
       setReviewBusyId(null);
     }
+  };
+
+  /** «Сбросить решение» needs no question: it only returns the excuse to the waiting list. */
+  const handleReview = async (
+    excuse: AttendanceExcuseInfo,
+    lessonKey: string,
+    studentId: string,
+    action: ReviewAction,
+  ) => {
+    setOpenCell(null);
+    setSaveError(null);
+    const error = await sendReview(excuse, lessonKey, studentId, action);
+    if (error) setSaveError(error);
+  };
+
+  /** «Подтвердить» / «Отклонить»: the dialog (student, lesson, reason, what changes) comes first, the request after it. */
+  const askReview = (
+    excuse: AttendanceExcuseInfo,
+    lessonKey: string,
+    student: StudentInGroup,
+    lesson: Lesson,
+    decision: ExcuseDecision,
+  ) => {
+    setOpenCell(null);
+    setSaveError(null);
+    setReviewDialog({
+      items: [subjectOfJournalCell({ excuse, studentName: student.full_name || "Ученик", lessonDate: lesson.date, groupName })],
+      decision,
+      noteMode: decision === "rejected" ? "optional" : "none",
+      excuse,
+      lessonKey,
+      studentId: student.id,
+      error: null,
+    });
+  };
+
+  const submitReviewDialog = async (note: string) => {
+    if (!reviewDialog) return;
+    const { excuse, lessonKey, studentId, decision } = reviewDialog;
+    setReviewDialog((current) => (current ? { ...current, error: null } : current));
+    const error = await sendReview(excuse, lessonKey, studentId, decision, note);
+    if (error) setReviewDialog((current) => (current ? { ...current, error } : current));
+    else setReviewDialog(null);
   };
 
   // ── Lesson column actions (administrator / owner) ─────────────────────
@@ -1253,7 +1311,7 @@ export function GroupAttendanceJournal({
                                       <button
                                         type="button"
                                         role="menuitem"
-                                        onClick={() => void handleReview(excuse, key, student.id, "confirmed")}
+                                        onClick={() => askReview(excuse, key, student, lesson, "confirmed")}
                                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
                                       >
                                         <Check className="h-3.5 w-3.5" />
@@ -1264,7 +1322,7 @@ export function GroupAttendanceJournal({
                                       <button
                                         type="button"
                                         role="menuitem"
-                                        onClick={() => void handleReview(excuse, key, student.id, "rejected")}
+                                        onClick={() => askReview(excuse, key, student, lesson, "rejected")}
                                         className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
                                       >
                                         <X className="h-3.5 w-3.5" />
@@ -1514,6 +1572,15 @@ export function GroupAttendanceJournal({
           </div>
         )}
       </Modal>
+
+      {/* «Подтвердить» / «Отклонить» an excuse: the same dialog as in the «Пропуски» list */}
+      <ExcuseDecisionDialog
+        target={reviewDialog}
+        busy={reviewDialog ? reviewBusyId === reviewDialog.excuse.id : false}
+        error={reviewDialog?.error ?? null}
+        onClose={() => setReviewDialog(null)}
+        onSubmit={submitReviewDialog}
+      />
 
       {/* "Lesson did not take place" for a forgotten past lesson */}
       <CancelMissedLessonModal

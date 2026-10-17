@@ -171,17 +171,18 @@ const item = (over = {}) => ({
 
 test("#103: the dialog body shows the student, the lesson (date + group), the reason and the consequence", () => {
   const { ExcuseDecisionBody } = require(path.join(root, "src/components/attendance/excuse-decision-body.tsx"));
-  const confirm = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [item()], decision: "confirmed" })));
+  const subject = decision().subjectOfItem(item());
+  const confirm = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "confirmed" })));
   for (const part of ["Ученик", "Иванова Ольга", "Урок", "Чт, 15.10 · Математика 9А", "Причина", "Болела, справка", "Дилноза Каримова · 09.10.2026 16:35",
     "Урок не будет засчитан преподавателю в зарплату (уважительная причина)."]) assert.ok(confirm.includes(part), part);
-  const reject = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [item()], decision: "rejected" })));
+  const reject = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [subject], decision: "rejected" })));
   assert.ok(reject.includes("Пропуск останется неуважительным: урок засчитывается преподавателю."));
   assert.equal(reject.includes("не будет засчитан"), false);
 });
 
 test("#103: the bulk body shows the count and the first students, «и ещё N» for the rest", () => {
   const { ExcuseDecisionBody } = require(path.join(root, "src/components/attendance/excuse-decision-body.tsx"));
-  const items = Array.from({ length: 7 }, (_, i) => item({ id: `ex-${i}`, student: { id: `s${i}`, full_name: `Ученик ${i + 1}`, display_id: null } }));
+  const items = Array.from({ length: 7 }, (_, i) => decision().subjectOfItem(item({ id: `ex-${i}`, student: { id: `s${i}`, full_name: `Ученик ${i + 1}`, display_id: null } })));
   const text = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items, decision: "confirmed" })));
   assert.ok(text.includes("Пропусков: 7"));
   assert.ok(text.includes("Ученик 1") && text.includes("Ученик 5") && !text.includes("Ученик 6"));
@@ -241,4 +242,63 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   // empty states are one component
   assert.match(excuses, /<EmptyState icon=\{CheckCircle2\}/);
   assert.match(open, /<EmptyState icon=\{ClipboardCheck\} title="Все уроки закрыты"/);
+});
+
+// ── #103: the group journal asks the same way ──────────────────────────────────────────────────
+
+test("#103: the journal cell and the list give the dialog the same facts", () => {
+  const D = decision();
+  const fromList = D.subjectOfItem(item());
+  const fromJournal = D.subjectOfJournalCell({
+    excuse: { id: "ex-1", reason: "Болела, справка", reason_by_name: "Дилноза Каримова", reason_at: "2026-10-09T16:35:00" },
+    studentName: "Иванова Ольга", lessonDate: "2026-10-15", groupName: "Математика 9А",
+  });
+  assert.deepEqual(fromJournal, fromList);
+  // a journal that does not know the group names the lesson by its date alone
+  const { ExcuseDecisionBody } = require(path.join(root, "src/components/attendance/excuse-decision-body.tsx"));
+  const noGroup = D.subjectOfJournalCell({ excuse: { id: "e", reason: "Болел", reason_by_name: null, reason_at: null }, studentName: "Петров Иван", lessonDate: "2026-10-15" });
+  const text = textOf(renderToStaticMarkup(React.createElement(ExcuseDecisionBody, { items: [noGroup], decision: "rejected" })));
+  assert.ok(text.includes("Чт, 15.10") && !text.includes("Чт, 15.10 ·"), text);
+  assert.ok(text.includes("Пропуск останется неуважительным: урок засчитывается преподавателю."));
+});
+
+test("#103: in the journal «Подтвердить» / «Отклонить» open the dialog; only «Сбросить решение» and the dialog send a request", () => {
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /onClick=\{\(\) => askReview\(excuse, key, student, lesson, "confirmed"\)\}/);
+  assert.match(journal, /onClick=\{\(\) => askReview\(excuse, key, student, lesson, "rejected"\)\}/);
+  assert.match(journal, /onClick=\{\(\) => void handleReview\(excuse, key, student\.id, "reset"\)\}/);
+  assert.doesNotMatch(journal, /handleReview\(excuse, key, student\.id, "(confirmed|rejected)"\)/);
+  // the same dialog, the same note rule as the list (none for a confirm, optional for a refusal), one request at a time
+  assert.match(journal, /<ExcuseDecisionDialog\s+target=\{reviewDialog\}/);
+  assert.match(journal, /noteMode: decision === "rejected" \? "optional" : "none"/);
+  assert.match(journal, /if \(reviewingRef\.current\.has\(excuse\.id\)\) return "Решение уже отправляется";/);
+  assert.match(journal, /reviewingRef\.current\.delete\(excuse\.id\);/);
+  // a failed attempt stays in the dialog (its note survives), a saved one closes it
+  assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else setReviewDialog\(null\);/);
+  // role rules are untouched: only the administrator / owner journal (adminMode) can review
+  assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
+  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /adminMode/);
+  for (const role of ["owner", "admin"]) {
+    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    assert.match(page, /adminMode\s+groupName=\{group\.name\}/, role);
+  }
+});
+
+test("#103: no other path of the front sends an excuse decision: two callers of the API, both behind the dialog", () => {
+  const callers = sources.filter((f) => /reviewAttendanceExcuse\(/.test(fs.readFileSync(f, "utf8"))).map(rel).sort();
+  assert.deepEqual(callers, [
+    "src/components/attendance/excuses-page.tsx",
+    "src/components/groups/group-attendance-journal.tsx",
+  ]);
+  assert.equal((read("src/components/groups/group-attendance-journal.tsx").match(/orgApi\.reviewAttendanceExcuse/g) || []).length, 1);
+  // the review endpoint is not reached any other way (no raw fetch / api() call to it)
+  for (const f of sources) {
+    if (rel(f) === "src/lib/api.ts") continue;
+    assert.doesNotMatch(fs.readFileSync(f, "utf8"), /excuses\/[^`'"]*\/review/, rel(f));
+  }
+  const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
+  assert.match(dialog, /error = null/);
+  assert.match(dialog, /role="alert"/);
+  // the typed note survives an error shown in the dialog: the reset key is the excuse and the decision, not the object
+  assert.match(dialog, /useEffect\(\(\) => \{ setNote\(""\); \}, \[targetKey\]\);/);
 });

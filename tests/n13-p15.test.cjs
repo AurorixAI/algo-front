@@ -56,7 +56,7 @@ test("only the really-UTC timestamps are converted: correction time yes, excuse 
   // reason_at / reviewed_at are written as Tashkent wall time by the server (_business_now): shown as written
   assert.match(journal, /formatDateTimeRu\(excuse\.reason_at\)/);
   // the author / time line under a reason comes from one helper (#103), which reads reason_at as written
-  assert.match(read("lib/excuse-row.ts"), /formatDateTimeRu\(item\.reason_at\)/);
+  assert.match(read("lib/excuse-row.ts"), /formatDateTimeRu\(at\)/);
   assert.match(read("components/attendance/excuses-page.tsx"), /reasonMeta\(item\)/);
   assert.match(read("components/attendance/excuses-page.tsx"), /formatDateTimeRu\(item\.reviewed_at\)/);
   assert.doesNotMatch(read("components/attendance/excuses-page.tsx"), /formatUtcNaiveAsBusinessDateTime/);

@@ -458,6 +458,7 @@ export default function OwnerGroupDetailPage() {
               students={group.students || []}
               canEdit
               adminMode
+              groupName={group.name}
               studentProfileBasePath="/owner/students"
               initialMonth={searchParams?.get("month")}
               highlightLessonId={searchParams?.get("lesson")}

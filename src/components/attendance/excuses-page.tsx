@@ -29,7 +29,7 @@ import {
 import { formatBusinessDate } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineChip } from "@/lib/excuse-deadline";
-import type { ExcuseDecision, ExcuseNoteMode } from "@/lib/excuse-decision";
+import { subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
   excuseDecisionLabel,
@@ -326,7 +326,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
   /** true when the decision was saved (the dialog closes only then, so a typed note survives an error). */
-  const review = async (item: AttendanceExcuseItem, decision: ExcuseDecision, noteText = ""): Promise<boolean> => {
+  const review = async (item: { id: string }, decision: ExcuseDecision, noteText = ""): Promise<boolean> => {
     if (reviewing.current.has(item.id)) return false;
     reviewing.current.add(item.id);
     markBusy(item.id, true);
@@ -362,7 +362,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   };
 
   const openDialog = (item: AttendanceExcuseItem, decision: ExcuseDecision, noteMode: ExcuseNoteMode) =>
-    setDialog({ items: [item], decision, noteMode });
+    setDialog({ items: [subjectOfItem(item)], decision, noteMode });
   const closeDialog = () => setDialog(null);
   const submitDialog = async (note: string) => {
     if (!dialog) return;

@@ -5,7 +5,62 @@
  * the lesson is counted.  Pure: no React and no network, so node:test can load this file.
  */
 
+import { reasonMeta, reasonMetaOf } from "./excuse-row";
+
 export type ExcuseDecision = "confirmed" | "rejected";
+
+/**
+ * What the confirmation dialog shows about one excuse, whichever screen it comes from (the «Пропуски» list or
+ * the cell of the group journal): who, which lesson, why.
+ */
+export interface ExcuseDecisionSubject {
+  id: string;
+  studentName: string;
+  /** YYYY-MM-DD */
+  lessonDate: string;
+  /** Empty when the screen does not know it (the date alone is shown). */
+  groupName: string;
+  reason: string;
+  /** «Дилноза Каримова · 09.10.2026 16:35» or "". */
+  reasonMeta: string;
+}
+
+/** Subject of a row of the «Пропуски» list. */
+export function subjectOfItem(item: {
+  id: string;
+  lesson_date: string;
+  group: { name: string };
+  student: { full_name: string };
+  reason: string;
+  reason_by?: { name: string } | null;
+  reason_at?: string | null;
+}): ExcuseDecisionSubject {
+  return {
+    id: item.id,
+    studentName: item.student.full_name,
+    lessonDate: item.lesson_date,
+    groupName: item.group.name,
+    reason: item.reason,
+    reasonMeta: reasonMeta(item),
+  };
+}
+
+/** Subject of a cell of the group journal (`AttendanceExcuseInfo` + the student, the lesson date and the group). */
+export function subjectOfJournalCell(args: {
+  excuse: { id: string; reason: string; reason_by_name: string | null; reason_at: string | null };
+  studentName: string;
+  lessonDate: string;
+  groupName?: string | null;
+}): ExcuseDecisionSubject {
+  return {
+    id: args.excuse.id,
+    studentName: args.studentName,
+    lessonDate: args.lessonDate,
+    groupName: args.groupName ?? "",
+    reason: args.excuse.reason,
+    reasonMeta: reasonMetaOf(args.excuse.reason_by_name, args.excuse.reason_at),
+  };
+}
 
 /** What a decision changes, in plain words (shown in the dialog before the request is sent). */
 export const EXCUSE_CONSEQUENCE: Record<ExcuseDecision, string> = {

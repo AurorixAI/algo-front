@@ -2,21 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
-import type { AttendanceExcuseItem } from "@/lib/api";
 import { REVIEW_NOTE_MAX } from "@/lib/attendance-excuses";
 import {
   canSubmitExcuseDecision,
   excuseDecisionCopy,
   excuseNoteToSend,
   type ExcuseDecision,
+  type ExcuseDecisionSubject,
   type ExcuseNoteMode,
 } from "@/lib/excuse-decision";
 import { Modal } from "@/components/ui/modal";
 import { ExcuseDecisionBody } from "@/components/attendance/excuse-decision-body";
 
-/** What the dialog is about: one row, or (bulk) several; `noteMode` says whether a note can / must be typed. */
+/**
+ * What the dialog is about: one excuse, or (bulk) several; `noteMode` says whether a note can / must be typed.
+ * Used by the «Пропуски» list and by the cells of the group journal: one dialog, one wording.
+ */
 export interface ExcuseDecisionTarget {
-  items: AttendanceExcuseItem[];
+  items: ExcuseDecisionSubject[];
   decision: ExcuseDecision;
   noteMode: ExcuseNoteMode;
 }
@@ -29,12 +32,15 @@ export interface ExcuseDecisionTarget {
 export function ExcuseDecisionDialog({
   target,
   busy,
+  error = null,
   onClose,
   onSubmit,
 }: {
   target: ExcuseDecisionTarget | null;
   /** True while the request of this dialog is in flight. */
   busy: boolean;
+  /** Why the last attempt failed (shown inside the dialog, which stays open); null when there is nothing to say. */
+  error?: string | null;
   onClose: () => void;
   /** Sends the decision; the page closes the dialog itself when the server accepted it. */
   onSubmit: (note: string) => Promise<void>;
@@ -42,7 +48,9 @@ export function ExcuseDecisionDialog({
   const [note, setNote] = useState("");
   // The state `busy` arrives a render later than the second click of a double click: a ref closes that gap.
   const sending = useRef(false);
-  useEffect(() => { setNote(""); }, [target]);
+  // A fresh note for every excuse / decision; an error shown in the dialog (a new `target` object) keeps what was typed.
+  const targetKey = target ? `${target.decision}:${target.items.map((item) => item.id).join(",")}` : "";
+  useEffect(() => { setNote(""); }, [targetKey]);
 
   const decision = target?.decision ?? "confirmed";
   const noteMode = target?.noteMode ?? "none";
@@ -108,6 +116,7 @@ export function ExcuseDecisionDialog({
               />
             </div>
           )}
+          {error && <p role="alert" className="pt-3 text-xs font-medium text-rose-600">{error}</p>}
           {noteMode === "none" && <div className="pb-2" />}
         </>
       )}

@@ -465,6 +465,7 @@ export default function AdminGroupDetailPage() {
               students={group.students || []}
               canEdit
               adminMode
+              groupName={group.name}
               studentProfileBasePath="/admin/students"
               initialMonth={searchParams?.get("month")}
               highlightLessonId={searchParams?.get("lesson")}

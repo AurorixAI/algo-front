@@ -477,7 +477,8 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
   const start = src.indexOf("id={`attendance-menu-${student.id}-${key}`}");
   const menu = src.slice(start, src.indexOf("</FloatingMenu>", start));
   assert.match(menu, /\{excuse && \(\s*<p/, "the reason is the only unguarded part");
-  const marking = [...menu.matchAll(/handleSelectStatus\(|handleReview\(/g)];
+  // confirm and reject now open the confirmation dialog (askReview), the request itself is sent from the dialog
+  const marking = [...menu.matchAll(/handleSelectStatus\(|handleReview\(|askReview\(/g)];
   assert.equal(marking.length, 5, "status options, reset, confirm, reject, reset-decision");
   // each marking call lives in a block opened by one of the guards, and the block opens before the call
   const guards = [
@@ -499,7 +500,7 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
   }
   for (const g of guards) assert.equal(perGuard.get(g.open), g.calls, `calls owned by ${g.open}`);
   assert.ok(menu.indexOf("{!locked && STATUS_OPTIONS.map(") < menu.indexOf("handleSelectStatus(item.value"));
-  assert.ok(menu.indexOf("{reviewable && excuse && (") < menu.indexOf('handleReview(excuse, key, student.id, "confirmed")'));
+  assert.ok(menu.indexOf("{reviewable && excuse && (") < menu.indexOf('askReview(excuse, key, student, lesson, "confirmed")'));
   // `reviewable` itself needs admin mode and no correction in progress, and `locked` still covers completed / cancelled / future / view-only
   assert.match(src, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
   assert.match(src, /const locked = !wasInLesson \|\| !canEdit \|\| columnBusyKey === key \|\| isFutureLesson \|\| lessonStatus === "scheduled" \|\| \(lessonStatus === "completed" && !inCorrection\) \|\| lessonStatus === "cancelled";/);
