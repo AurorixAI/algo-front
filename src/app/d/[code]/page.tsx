@@ -24,7 +24,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { ApiError, diagnosticApi, diagnosticInviteApi, type DiagTaskOut, type DiagAnswerResult, type DiagReport } from "@/lib/api";
-import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, isInviteCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
+import { INVITE_CANCELLED_CENTER_HINT, INVITE_CANCELLED_MESSAGE, inviteEndsCancelled, isInviteCancelledError } from "@/lib/diagnostic-invite";
 import { useDiagnosticStore, useAuthStore } from "@/lib/store";
 import { useRouter } from "next/navigation";
 import { MathRenderer } from "@/components/ui/math-renderer";
@@ -310,19 +310,15 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   /** Invitation controls new starts; diagnostic-service owns the attempt. */
   const checkInvite = async (offerResume = true, recoveringAnswer = false) => {
     const epoch = requestEpochRef.current;
+    let inviteStatus: string | undefined;
     try {
       const info = await diagnosticInviteApi.getInfo(code);
       if (epoch !== requestEpochRef.current) return;
+      inviteStatus = info.status;
       setInviteInfo(info);
-      if (isInviteCancelled(info.status)) {
-        // 200 with status «cancelled»: nothing to confirm, resume or start - the same end as the 410 INVITE_CANCELLED below.
-        setErrorContext("invite");
-        setInviteCancelled(true);
-        setCanRetry(false);
-        setErrorMsg(info.message || INVITE_CANCELLED_MESSAGE);
-        setPhase("error");
-        return;
-      }
+      // A «cancelled» invite (200) is not closed here: a session that started BEFORE the cancellation may finish, and
+      // only diagnostic-service knows it.  So it goes through the same resolve / resume path below.  Never a new
+      // session: «pending» is the only status that confirms, and only «confirmed» (not «cancelled») may start one.
       if (info.status === "pending") {
         setPhase("confirm");
         return;
@@ -369,7 +365,8 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
     } catch (err: any) {
       if (epoch !== requestEpochRef.current) return;
       setErrorContext(recoveringAnswer ? "answer" : "invite");
-      setInviteCancelled(isInviteCancelledError(err));
+      // Nothing to resume of a cancelled invite (410 INVITE_CANCELLED, or no session of it) ends on «Приглашение отменено».
+      setInviteCancelled(inviteEndsCancelled(inviteStatus, err));
       setCanRetry(!(err instanceof ApiError) || ![403, 404, 410].includes(err.status));
       setErrorMsg(err?.message || "Не удалось проверить состояние диагностики. Проверьте подключение и повторите проверку.");
       setPhase("error");

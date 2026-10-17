@@ -523,7 +523,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                 isCompleted
                                   ? "bg-blue-50 text-blue-600 border border-blue-200/60"
                                   : isDead
-                                    ? "bg-slate-100 text-slate-400 border border-slate-200/60"
+                                    ? "bg-slate-100 text-slate-500 border border-slate-200/60"
                                     : "bg-amber-50 text-amber-600 border border-amber-200/60"
                               }`}
                             >
@@ -538,7 +538,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                                   {diag.class_level} класс
                                 </span>
                               </div>
-                              {cancelHint && <p className="mt-0.5 text-xs text-slate-400">{cancelHint}</p>}
+                              {cancelHint && <p className="mt-0.5 text-xs text-slate-500">{cancelHint}</p>}
                             </div>
                           </div>
 
@@ -554,7 +554,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                           ) : (
                             <span
                               className={`px-3 py-1.5 rounded-full text-xs font-medium border ${
-                                isDead ? "bg-slate-50 text-slate-500 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"
+                                isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"
                               }`}
                             >
                               {studentCardInviteLabel(diag.status)}
@@ -783,21 +783,22 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 <h3 className="text-sm font-semibold text-slate-800">История зачислений и переводов</h3>
                 <div className="divide-y divide-slate-100">
                   {group_history.map((gh, idx) => (
-                    <div key={idx} className="py-3 flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-3">
+                    <div key={idx} className="py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">
+                      <div className="min-w-0 flex items-center gap-3">
                         <div
-                          className={`w-2 h-2 rounded-full ${
+                          className={`w-2 h-2 shrink-0 rounded-full ${
                             gh.is_active ? "bg-emerald-500 ring-4 ring-emerald-100" : "bg-slate-300"
                           }`}
                         />
-                        <div>
+                        <div className="min-w-0 break-words">
                           <span className="font-semibold text-slate-800">{gh.group_name}</span>
                           {gh.class_level && (
                             <span className="text-xs text-slate-400 ml-2">({gh.class_level} класс)</span>
                           )}
                         </div>
                       </div>
-                      <div className="text-right text-xs text-slate-400">
+                      {/* On a phone the stays wrap under the name (ml-auto keeps them at the right edge). */}
+                      <div className="ml-auto min-w-0 max-w-full break-words text-right text-xs text-slate-500">
                         {gh.is_active && (
                           <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Текущая группа</span>
                         )}

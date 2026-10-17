@@ -66,10 +66,10 @@ test("periods are listed oldest first as the server sent them; an older server g
   assert.deepEqual(P.membershipPeriods(null), []);
 });
 
-test("the card prints every stay on the business calendar: «01.09.2026 – 30.09.2026, с 01.11.2026»", () => {
-  assert.equal(P.formatMembershipPeriods(returned.periods), "01.09.2026 – 30.09.2026, с 01.11.2026");
+test("the card prints every stay on the business calendar: «01.09.2026 — 30.09.2026, с 01.11.2026»", () => {
+  assert.equal(P.formatMembershipPeriods(returned.periods), "01.09.2026 — 30.09.2026, с 01.11.2026");
   assert.equal(P.formatMembershipPeriods([NOV]), "с 01.11.2026");
-  assert.equal(P.formatMembershipPeriods([SEP]), "01.09.2026 – 30.09.2026");
+  assert.equal(P.formatMembershipPeriods([SEP]), "01.09.2026 — 30.09.2026");
   // 19:00 UTC is already the next day in Tashkent
   assert.equal(P.formatMembershipPeriods([{ joined_at: "2026-09-30T19:00:00", left_at: null }]), "с 01.10.2026");
   assert.equal(P.formatMembershipPeriods([]), "");
@@ -171,4 +171,34 @@ test("a lesson with no start time falls back to the business day (the day he lef
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /return wasMemberOn\(student, lesson\.date, lesson\.startTime \|\| lesson\.start_time\);/);
   assert.match(read("src/lib/membership-periods.ts"), /only then the rule falls back to\n \* the business DAY/);
+});
+
+test("the Tashkent offset constant is what Intl says for the zone, in winter and in summer (a change of the rules is caught)", () => {
+  assert.equal(T.BUSINESS_TIME_ZONE, "Asia/Tashkent");
+  assert.equal(T.BUSINESS_UTC_OFFSET_MINUTES, 300);
+  const intlOffsetMinutes = (zone, iso) => {
+    const instant = new Date(iso);
+    const parts = Object.fromEntries(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
+      }).formatToParts(instant).map((part) => [part.type, part.value]),
+    );
+    const wallAsUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute, +parts.second);
+    return Math.round((wallAsUtc - instant.getTime()) / 60000);
+  };
+  // January, July, and the days Europe / the USA move their clocks
+  for (const iso of ["2026-01-15T12:00:00Z", "2026-07-15T12:00:00Z", "2026-03-08T12:00:00Z", "2026-03-29T12:00:00Z", "2026-10-25T12:00:00Z", "2026-11-01T12:00:00Z", "2030-12-31T23:59:00Z"]) {
+    assert.equal(intlOffsetMinutes(T.BUSINESS_TIME_ZONE, iso), T.BUSINESS_UTC_OFFSET_MINUTES, iso);
+  }
+  // the lesson start uses it: 10:00 Tashkent is 05:00 UTC in January and in July
+  assert.equal(T.businessWallTimeToInstant("2026-01-15", "10:00").toISOString(), "2026-01-15T05:00:00.000Z");
+  assert.equal(T.businessWallTimeToInstant("2026-07-15", "10:00").toISOString(), "2026-07-15T05:00:00.000Z");
+});
+
+test("375 px: the enrolment-history row wraps - the group name keeps its width, the stays go under it at the right edge", () => {
+  const card = read("src/components/students/student-profile-view.tsx");
+  assert.match(card, /<div key=\{idx\} className="py-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-sm">/);
+  assert.match(card, /<div className="min-w-0 break-words">\s*<span className="font-semibold text-slate-800">\{gh\.group_name\}<\/span>/);
+  assert.match(card, /<div className="ml-auto min-w-0 max-w-full break-words text-right text-xs text-slate-500">/);
+  assert.match(card, /w-2 h-2 shrink-0 rounded-full/);
 });

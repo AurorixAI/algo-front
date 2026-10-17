@@ -74,13 +74,13 @@ export function wasMemberOn(source: MembershipSource | null | undefined, lessonD
   });
 }
 
-/** «01.09.2026 – 30.09.2026, с 01.11.2026»: every stay on the business calendar, an open one as «с …». "" when there is none. */
+/** «01.09.2026 — 30.09.2026, с 01.11.2026» (a spaced em dash, as every date range of the app): every stay on the business calendar, an open one as «с …». "" when there is none. */
 export function formatMembershipPeriods(periods: ReadonlyArray<MembershipPeriod> | null | undefined): string {
   return (periods ?? [])
     .map((period) => {
       const from = formatUtcNaiveAsBusinessDate(period.joined_at);
       const to = formatUtcNaiveAsBusinessDate(period.left_at);
-      if (from && to) return `${from} – ${to}`;
+      if (from && to) return `${from} — ${to}`;
       if (from) return `с ${from}`;
       return to ? `до ${to}` : "";
     })

@@ -366,9 +366,12 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
   // the student is back the moment the server answers: the card is told at once (once), the notice only keeps the dialog open
   assert.match(modal, /if \(restoreNeedsReading\(outcome\)\) setDone\(outcome\);\s*onRestored\(outcome\);/);
   assert.equal((modal.match(/onRestored\(/g) || []).length, 1, "onRestored is called from exactly one place");
-  // «Готово», the cross, Escape and the backdrop only close: nothing to refresh any more
-  assert.match(modal, /onClick=\{onClose\} className="rounded-xl bg-primary-600[^"]*">Готово</);
-  assert.doesNotMatch(modal, /const close = /);
+  // «Готово», the cross, Escape, the backdrop and «Отмена» only close: nothing to refresh any more ...
+  assert.equal((modal.match(/onClose=\{close\}/g) || []).length, 2, "both dialogs");
+  assert.match(modal, /onClick=\{close\} className="rounded-xl bg-primary-600[^"]*">Готово</);
+  assert.match(modal, /onClick=\{close\} disabled=\{busy\}[^>]*>Отмена</);
+  // ... and every way out forgets the notice, so a dialog that opens again never shows the old result for a frame
+  assert.match(modal, /const close = \(\) => \{ setDone\(null\); onClose\(\); \};/);
   // the card reloading under the notice (archived_groups empties) must not wipe the notice: it is cleared only on open
   assert.match(modal, /if \(open\) \{\s*setBusy\(false\);\s*setError\(null\);\s*setDone\(null\);\s*\}\s*\}, \[open, studentId\]\);/);
   assert.match(modal, /if \(open\) setSelected\(defaultRestoreSelection\(options\)\);/);

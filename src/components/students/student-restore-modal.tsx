@@ -62,6 +62,10 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, studentId, optionsKey]);
 
+  // Every way out clears the notice: a dialog that opens again (the card could not be re-read, so it is still
+  // archived) never shows the old result for a frame before the open-effect runs.
+  const close = () => { setDone(null); onClose(); };
+
   const submit = async () => {
     if (busy) return;
     const ids = restoreGroupIds(selected, options);
@@ -89,9 +93,9 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
         open={open}
         title="Ученик возвращён из архива"
         description={studentName}
-        onClose={onClose}
+        onClose={close}
         footer={
-          <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
+          <button type="button" onClick={close} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">Готово</button>
         }
       >
         <div className="space-y-4 pb-2" role="status">
@@ -129,11 +133,11 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
       open={open}
       title="Вернуть из архива?"
       description={studentName}
-      onClose={onClose}
+      onClose={close}
       busy={busy}
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
+          <button type="button" onClick={close} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Отмена</button>
           <button
             type="submit"
             form="student-restore-form"

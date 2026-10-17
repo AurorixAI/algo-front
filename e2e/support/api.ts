@@ -210,12 +210,15 @@ export class Org {
     teacherId?: string;
     lessonType?: "group" | "mini_group" | "pair" | "individual";
     classLevel?: number;
+    /** The group's capacity (1-100); the server's default (30) when omitted. */
+    maxStudents?: number;
   }): Promise<GroupInfo> {
     const g = await this.owner.api.post("/auth/org/groups", {
       name: opts.name,
       class_level: opts.classLevel ?? 7,
       teacher_id: opts.teacherId,
       lesson_type: opts.lessonType ?? "group",
+      max_students: opts.maxStudents,
     });
     return { id: g.id, name: g.name, teacherId: g.teacher_id ?? null };
   }

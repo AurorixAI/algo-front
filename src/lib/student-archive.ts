@@ -79,7 +79,8 @@ export function archiveReasonCounter(raw: string | null | undefined): string {
 }
 
 /** The two lines of the archive dialog about the student's diagnostics. */
-export const ARCHIVE_DIAGNOSTICS_RUNNING_NOTE = "её можно закончить, результат сохранится в карточке";
+// No object («её» / «их»): the same words are right for 1, 2 and 5 running tests.
+export const ARCHIVE_DIAGNOSTICS_RUNNING_NOTE = "ученик сможет закончить, результат сохранится в карточке";
 
 export interface ArchiveDiagnosticCounts {
   /** pending / confirmed invites: archiving cancels them. */
@@ -99,7 +100,7 @@ export function archiveDiagnosticCounts(diagnostics: ReadonlyArray<{ status?: st
   return { cancel, running };
 }
 
-/** «Будут отменены приглашения на диагностику: 2» and «Идёт диагностика: 1 — её можно закончить, …»; none when there is nothing. */
+/** «Будут отменены приглашения на диагностику: 2» and «Идёт диагностика: 2 — ученик сможет закончить, …»; none when there is nothing. */
 export function archiveDiagnosticLines(counts: ArchiveDiagnosticCounts): string[] {
   const lines: string[] = [];
   if (counts.cancel > 0) lines.push(`Будут отменены приглашения на диагностику: ${counts.cancel}`);

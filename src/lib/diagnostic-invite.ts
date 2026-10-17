@@ -11,8 +11,8 @@ export type DiagnosticInviteStatus = "pending" | "confirmed" | "in_progress" | "
 /** `cancel_reason` of an invite cancelled by archiving the student. */
 export const CANCEL_REASON_STUDENT_ARCHIVED = "student_archived";
 
-/** Short label of the status in lists and badges. */
-export const INVITE_CANCELLED_LABEL = "Отменено";
+/** Short label of the status in lists and badges; agrees with its siblings «Завершён» / «Истёк». */
+export const INVITE_CANCELLED_LABEL = "Отменён";
 /** What the student reads on the public page (the server's own text, kept for a server that sends none). */
 export const INVITE_CANCELLED_MESSAGE = "Приглашение отменено";
 /** Under the message: only the centre can help. */
@@ -34,6 +34,19 @@ export function isInviteRunning(status: string | null | undefined): boolean {
 }
 
 /** An invite that can no longer be used and will never be finished: cancelled or expired (neutral colours). */
+/**
+ * «Зачислен» / «Зачислены» is about the student, not the invite: any invite of a student who is in a group counts,
+ * except a cancelled one, which keeps its own status and is never listed as enrolled.
+ */
+export function isInviteAssigned(invite: {
+  status?: string | null;
+  is_assigned?: boolean | null;
+  group_id?: string | null;
+  student_status?: string | null;
+}): boolean {
+  return !isInviteCancelled(invite.status) && Boolean(invite.is_assigned || invite.group_id || invite.student_status === "active");
+}
+
 export function isInviteDead(status: string | null | undefined): boolean {
   return status === "cancelled" || status === "expired";
 }
@@ -57,6 +70,20 @@ export function studentCardInviteLabel(status: string | null | undefined): strin
   if (status === "cancelled") return INVITE_CANCELLED_LABEL;
   if (status === "expired") return "Истёк";
   return "Ожидает прохождения";
+}
+
+/**
+ * Does the entry page end on «Приглашение отменено»?  A cancelled invite is not closed at once: a session that started
+ * BEFORE the cancellation may finish (diagnostic-service decides - `GET /sessions/by-invite` answers it or refuses), so
+ * the page asks.  It ends cancelled when the service says so (410 `INVITE_CANCELLED`) or when there is nothing to
+ * resume (403 / 404 / 410 for an invite the auth-service reports as cancelled).  Anything else (a network error, a
+ * 5xx, a 429) is a failure to ask, not an answer: the page offers to check again.
+ */
+export function inviteEndsCancelled(inviteStatus: string | null | undefined, error: unknown): boolean {
+  if (isInviteCancelledError(error)) return true;
+  if (!isInviteCancelled(inviteStatus)) return false;
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  return status === 403 || status === 404 || status === 410;
 }
 
 /** The 410 `INVITE_CANCELLED` of the public diagnostic paths (an `ApiError` carries it as `code`). */

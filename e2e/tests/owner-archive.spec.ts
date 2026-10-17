@@ -90,3 +90,69 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   const students = await org.owner.api.get("/auth/org/students", { status: "archived" });
   expect(students).toHaveLength(0);
 });
+
+/**
+ * The return that leaves something to read. The dialog of «Вернуть из архива» was opened while the group still had a
+ * free place; before the owner presses «Вернуть» the group fills up (the card he looks at cannot know), so the server
+ * brings the student back WITHOUT that group and says why. The student is back from that moment: the card behind the
+ * dialog must already show it, and «Готово» only closes the dialog (no second read of the card).
+ *
+ * Data, all through the API of the throw-away organisation (owner token):
+ *   POST /auth/org/invitations + /auth/invite/accept        a teacher (Org.addStaff)
+ *   POST /auth/org/groups {max_students: 2}                 the group with two places (Org.createGroup)
+ *   POST /auth/org/students + POST /auth/org/groups/{g}/students/{s}   the leaver and the stayer: 2 of 2 (Org.addStudent)
+ *   POST /auth/org/students/{leaver}/archive {reason}       the leaver goes: 1 of 2, the restore dialog offers the group
+ * and, with the dialog already open (the only moment-dependent step, ordered by the test itself):
+ *   POST /auth/org/students + POST /auth/org/groups/{g}/students/{s}   a third student takes the free place: 2 of 2
+ * The server then answers the restore with skipped: [{reason: "group_full", message: "В группе достигнут лимит учеников"}].
+ */
+test("restore into a group that filled up meanwhile: the dialog stays with the notice, the card behind it is already restored, «Готово» only closes", async ({ signIn }) => {
+  const org2 = await Org.create("Возврат");
+  const teacher = await org2.addStaff("teacher", "Возвратов");
+  const group = await org2.createGroup({ name: "Группа В1", teacherId: teacher.userId, maxStudents: 2 });
+  const leaver = await org2.addStudent(group, "Рустам", "Возвращающийся");
+  await org2.addStudent(group, "Лола", "Остающаяся");
+  await org2.owner.api.post(`/auth/org/students/${leaver.id}/archive`, { reason: "Каникулы" });
+
+  const page = await signIn(org2.owner);
+  const profileReads: string[] = [];
+  page.on("request", (request) => {
+    if (request.method() === "GET" && request.url().includes(`/auth/org/students/${leaver.id}/profile`)) profileReads.push(request.url());
+  });
+  const archiveBanner = page.getByText(/В архиве с/);
+  const restoreButton = page.getByRole("button", { name: "Вернуть из архива" });
+
+  await page.goto(`/owner/students/${leaver.id}`);
+  await expect(archiveBanner).toBeVisible();
+  await restoreButton.click();
+  const form = page.getByRole("dialog", { name: "Вернуть из архива?" });
+  await expect(form.getByRole("checkbox", { name: group.name })).toBeChecked(); // a free place, as far as the card knows
+
+  // meanwhile the group fills up
+  await org2.addStudent(group, "Тимур", "Занявший");
+  const readsBefore = profileReads.length;
+  await form.getByRole("button", { name: "Вернуть", exact: true }).click();
+
+  // the dialog stays and tells what the server did not do
+  const notice = page.getByRole("dialog", { name: "Ученик возвращён из архива" });
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("Не удалось вернуть ученика в эти группы");
+  await expect(notice).toContainText(`«${group.name}» — В группе достигнут лимит учеников`);
+
+  // the card behind it is already the restored one: no banner, no «Вернуть из архива», the actions menu is back
+  await expect(archiveBanner).toHaveCount(0);
+  await expect(restoreButton).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Действия/ }).first()).toBeVisible();
+  await expect(notice).toBeVisible(); // the reload did not tear the dialog down
+  expect(profileReads.length - readsBefore, "one read of the card, started by the return itself").toBe(1);
+
+  // «Готово» only closes: no second read, the card stays restored
+  await notice.getByRole("button", { name: "Готово" }).click();
+  await expect(notice).toHaveCount(0);
+  await page.waitForTimeout(600); // a read started by «Готово» would be on its way by now
+  expect(profileReads.length - readsBefore, "«Готово» must not read the card again").toBe(1);
+  await expect(archiveBanner).toHaveCount(0);
+
+  const fresh = await org2.owner.api.get(`/auth/org/students/${leaver.id}`);
+  expect(fresh.status).not.toBe("archived");
+});

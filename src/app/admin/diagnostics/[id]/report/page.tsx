@@ -47,6 +47,7 @@ import {
 
 import { analyticsApi, orgApi } from "@/lib/api";
 import { INVITE_CANCELLED_MESSAGE, inviteCancelHint, isInviteCancelled } from "@/lib/diagnostic-invite";
+import { isArchivedStatus } from "@/lib/student-archive";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
@@ -621,7 +622,8 @@ export default function DiagnosticReportPage() {
         {/* A teacher reuses this report view, but group membership is an
             organisation-admin operation. The API enforces it too; this keeps
             the teacher UI strictly read-only. */}
-        {!isTeacher && invite.status === "completed" && invite.student_id && (
+        {/* The server refuses to enrol a student who is in the archive: no «В группу» until he is brought back. */}
+        {!isTeacher && invite.status === "completed" && invite.student_id && !isArchivedStatus(invite.student_status) && (
           <button
             onClick={() => setAssignModalOpen(true)}
             className={`flex max-w-full items-center gap-1.5 px-4 py-2 rounded-xl transition-all font-medium text-sm shadow ${
@@ -705,7 +707,7 @@ export default function DiagnosticReportPage() {
           {isInviteCancelled(invite.status) ? (
             <>
               <p className="text-slate-600 font-semibold text-sm">{INVITE_CANCELLED_MESSAGE}</p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 Ученик <span className="font-semibold">{invite.student_name}</span> не проходил тест
                 по коду <span className="font-mono font-bold">{invite.code}</span>.
                 {inviteCancelHint(invite) && <> Отменено: {inviteCancelHint(invite)}.</>}

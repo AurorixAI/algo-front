@@ -46,9 +46,9 @@ test("the student card names every unfinished status: cancelled and expired are 
   assert.equal(D.studentCardInviteLabel("pending"), "Ожидает прохождения");
   assert.equal(D.studentCardInviteLabel("confirmed"), "Ожидает прохождения");
   assert.equal(D.studentCardInviteLabel("in_progress"), "В процессе");
-  assert.equal(D.studentCardInviteLabel("cancelled"), "Отменено");
+  assert.equal(D.studentCardInviteLabel("cancelled"), "Отменён"); // agrees with «Истёк» / «Завершён» next to it
   assert.equal(D.studentCardInviteLabel("expired"), "Истёк");
-  assert.equal(D.INVITE_CANCELLED_LABEL, "Отменено");
+  assert.equal(D.INVITE_CANCELLED_LABEL, "Отменён");
 });
 
 test("the 410 INVITE_CANCELLED of diagnostic-service is recognised by its code", () => {
@@ -69,17 +69,26 @@ test("the archive dialog counts pending / confirmed (to cancel) and in_progress 
   assert.deepEqual(A.archiveDiagnosticCounts(undefined), { cancel: 0, running: 0 });
   assert.deepEqual(A.archiveDiagnosticLines({ cancel: 3, running: 1 }), [
     "Будут отменены приглашения на диагностику: 3",
-    "Идёт диагностика: 1 — её можно закончить, результат сохранится в карточке",
+    "Идёт диагностика: 1 — ученик сможет закончить, результат сохранится в карточке",
   ]);
   assert.deepEqual(A.archiveDiagnosticLines({ cancel: 2, running: 0 }), ["Будут отменены приглашения на диагностику: 2"]);
-  assert.deepEqual(A.archiveDiagnosticLines({ cancel: 0, running: 2 }), ["Идёт диагностика: 2 — её можно закончить, результат сохранится в карточке"]);
+  assert.deepEqual(A.archiveDiagnosticLines({ cancel: 0, running: 2 }), ["Идёт диагностика: 2 — ученик сможет закончить, результат сохранится в карточке"]);
   assert.deepEqual(A.archiveDiagnosticLines({ cancel: 0, running: 0 }), []);
+});
+
+test("the running-test line has no object, so it is grammatical for 1, 2 and 5", () => {
+  for (const n of [1, 2, 5, 21]) {
+    const [line] = A.archiveDiagnosticLines({ cancel: 0, running: n });
+    assert.equal(line, `Идёт диагностика: ${n} — ученик сможет закончить, результат сохранится в карточке`);
+    assert.doesNotMatch(line, /\bеё\b|\bих\b/);
+    assert.equal(A.archiveResultDetails({ diagnostic_invites_in_progress: n })[0], line, "the dialog and the toast say it the same way");
+  }
 });
 
 test("after archiving the toast reports the SERVER's numbers, only those above zero", () => {
   assert.deepEqual(A.archiveResultDetails({ diagnostic_invites_cancelled: 2, diagnostic_invites_in_progress: 1 }), [
     "Отменено приглашений на диагностику: 2",
-    "Идёт диагностика: 1 — её можно закончить, результат сохранится в карточке",
+    "Идёт диагностика: 1 — ученик сможет закончить, результат сохранится в карточке",
   ]);
   assert.deepEqual(A.archiveResultDetails({ diagnostic_invites_cancelled: 1, diagnostic_invites_in_progress: 0 }), ["Отменено приглашений на диагностику: 1"]);
   assert.deepEqual(A.archiveResultDetails({ diagnostic_invites_cancelled: 0, diagnostic_invites_in_progress: 0 }), []);
@@ -100,23 +109,34 @@ test("an archived student gets no «Назначить диагностику»;
 
 test("the staff list: «Отменено» in grey with its hint; not «Ожидают старта», not «Зачислены»", () => {
   const page = read("src/app/admin/diagnostics/page.tsx");
-  assert.match(page, /cancelled: \{ label: INVITE_CANCELLED_LABEL, color: "bg-slate-100 text-slate-500 border-slate-200"/);
+  assert.match(page, /cancelled: \{ label: INVITE_CANCELLED_LABEL, color: "bg-slate-100 text-slate-600 border-slate-200"/); // AA at 12px: slate-600 on slate-100
   // the counters ask the helpers, never a hand-written list of statuses
   assert.match(page, /awaiting_start: periodInvites\.filter\(\(i\) => isInviteWaiting\(i\.status\)\)\.length/);
   assert.match(page, /if \(!isInviteWaiting\(inv\.status\)\) return false;/);
   assert.doesNotMatch(page, /\["pending", "confirmed"\]/);
   // «Зачислен» is the student's; a cancelled invite keeps its own status label and is not in the «Зачислены» filter
-  assert.match(page, /const isAssignedInvite = \(inv: DiagnosticInvite\) =>\s*!isInviteCancelled\(inv\.status\) && Boolean\(/);
-  assert.equal((page.match(/is_assigned \|\|/g) || []).length, 1, "one definition of «assigned»");
+  assert.match(page, /periodInvites\.filter\(isInviteAssigned\)\.length/);
+  assert.equal((page.match(/is_assigned \|\|/g) || []).length, 0, "the page has no definition of «assigned» of its own");
   assert.match(page, /const cancelHint = inviteCancelHint\(inv\);/);
-  assert.match(page, /\{cancelHint && \(\s*<span data-testid="diagnostic-cancel-hint"/);
+  assert.match(page, /\{cancelHint && \(\s*<span data-testid="diagnostic-cancel-hint" className="text-xs text-slate-500">/);
   // the link to copy is for a pending invite only
   assert.match(page, /\{inv\.status === "pending" && \(\s*<button/);
 });
 
-test("the staff list, simulated: a cancelled invite of an enrolled student is counted nowhere but «Всего»", () => {
-  // the rule of the page in miniature
-  const isAssigned = (inv) => !D.isInviteCancelled(inv.status) && Boolean(inv.is_assigned || inv.group_id || inv.student_status === "active");
+test("«Зачислен» is the student's, never a cancelled invite's (the real helper the staff list uses)", () => {
+  const enrolled = { is_assigned: true, group_id: "g", student_status: "active" };
+  assert.equal(D.isInviteAssigned({ status: "pending", ...enrolled }), true);
+  assert.equal(D.isInviteAssigned({ status: "completed", student_status: "active" }), true);
+  assert.equal(D.isInviteAssigned({ status: "in_progress", group_id: "g" }), true);
+  assert.equal(D.isInviteAssigned({ status: "completed", is_assigned: true }), true);
+  // a cancelled invite of an enrolled student (he was archived and came back) keeps its own status
+  assert.equal(D.isInviteAssigned({ status: "cancelled", ...enrolled }), false);
+  assert.equal(D.isInviteAssigned({ status: "cancelled", student_status: "archived" }), false);
+  // not in a group at all
+  assert.equal(D.isInviteAssigned({ status: "pending", student_status: "new" }), false);
+  assert.equal(D.isInviteAssigned({ status: "completed", student_status: "archived" }), false);
+  assert.equal(D.isInviteAssigned({}), false);
+  // the counters of the list, with the real predicates: a cancelled invite is counted nowhere but «Всего»
   const invites = [
     { status: "pending" }, { status: "confirmed" }, { status: "in_progress" },
     { status: "cancelled", student_status: "active", group_id: "g" }, { status: "cancelled", student_status: "archived" },
@@ -124,7 +144,7 @@ test("the staff list, simulated: a cancelled invite of an enrolled student is co
   ];
   assert.equal(invites.filter((i) => D.isInviteWaiting(i.status)).length, 2);
   assert.equal(invites.filter((i) => D.isInviteRunning(i.status)).length, 1);
-  assert.equal(invites.filter(isAssigned).length, 1);
+  assert.equal(invites.filter(D.isInviteAssigned).length, 1);
   assert.equal(invites.length, 6);
 });
 
@@ -133,7 +153,9 @@ test("the student card: a grey badge and the hint for a cancelled invite; no «�
   assert.match(card, /const isDead = isInviteDead\(diag\.status\);/);
   assert.match(card, /\{studentCardInviteLabel\(diag\.status\)\}/);
   assert.doesNotMatch(card, /"Ожидает прохождения"/);
-  assert.match(card, /\{cancelHint && <p className="mt-0\.5 text-xs text-slate-400">\{cancelHint\}<\/p>\}/);
+  assert.match(card, /\{cancelHint && <p className="mt-0\.5 text-xs text-slate-500">\{cancelHint\}<\/p>\}/);
+  // the grey chip reaches AA at 12px (slate-600 on slate-50); the muted hint is slate-500 on white at least
+  assert.match(card, /isDead \? "bg-slate-50 text-slate-600 border-slate-200"/);
   assert.match(card, /\{access\.diagnosticActions && \(\s*<Link\s+href="\/admin\/students\/new"/);
   assert.doesNotMatch(card, /\{!isTeacher && \(\s*<Link\s+href="\/admin\/students\/new"/);
 });
@@ -158,22 +180,51 @@ test("the diagnostic detail says «Приглашение отменено» wit
   assert.match(read("src/app/teacher/diagnostics/[id]/report/page.tsx"), /export \{ default \} from "@\/app\/admin\/diagnostics\/\[id\]\/report\/page"/);
 });
 
-test("the student's entry page: status «cancelled» and the 410 INVITE_CANCELLED end in «Приглашение отменено» + the centre, no retry", () => {
+test("a cancelled invite still asks diagnostic-service for a session that started BEFORE the cancellation; nothing to resume ends cancelled", () => {
+  const e = (status, code) => ({ status, code });
+  // the 410 INVITE_CANCELLED of the service: cancelled, whatever the auth-service said
+  assert.equal(D.inviteEndsCancelled("cancelled", e(410, "INVITE_CANCELLED")), true);
+  assert.equal(D.inviteEndsCancelled("confirmed", e(410, "INVITE_CANCELLED")), true);
+  // the invite is cancelled and there is no session to resume (404 / 403 / any other 410): cancelled
+  assert.equal(D.inviteEndsCancelled("cancelled", e(404, "SESSION_NOT_FOUND")), true);
+  assert.equal(D.inviteEndsCancelled("cancelled", e(410, "SESSION_EXPIRED")), true);
+  assert.equal(D.inviteEndsCancelled("cancelled", e(403, "INVITE_SESSION_MISMATCH")), true);
+  // a failure to ask is not an answer: network error, 5xx, 429 -> the usual error screen with «Повторить»
+  assert.equal(D.inviteEndsCancelled("cancelled", new Error("Failed to fetch")), false);
+  assert.equal(D.inviteEndsCancelled("cancelled", e(500, "SESSION_RESTORE_FAILED")), false);
+  assert.equal(D.inviteEndsCancelled("cancelled", e(429, undefined)), false);
+  assert.equal(D.inviteEndsCancelled("cancelled", null), false);
+  // an invite that is not cancelled keeps its own handling of 404 / 410 (expired, session gone)
+  assert.equal(D.inviteEndsCancelled("expired", e(410, "INVITE_EXPIRED")), false);
+  assert.equal(D.inviteEndsCancelled("confirmed", e(404, "SESSION_NOT_FOUND")), false);
+  assert.equal(D.inviteEndsCancelled(undefined, e(404, "SESSION_NOT_FOUND")), false);
+});
+
+test("the student's entry page: a 200 «cancelled» goes through resolve / resume; only the service's refusal ends on «Приглашение отменено», never a new session", () => {
   const page = read("src/app/d/[code]/page.tsx");
-  // 200 with status cancelled: nothing is confirmed, resumed or started
-  assert.match(page, /if \(isInviteCancelled\(info\.status\)\) \{[\s\S]*?setInviteCancelled\(true\);\s*setCanRetry\(false\);[\s\S]*?setPhase\("error"\);\s*return;\s*\}/);
-  // the 410 of diagnostic-service (resolve / start) gets the same screen
-  assert.equal((page.match(/setInviteCancelled\(isInviteCancelledError\(err\)\);/g) || []).length, 2);
+  // no early return on the status: it is not closed before the service has been asked
+  assert.doesNotMatch(page, /isInviteCancelled\(info\.status\)/);
+  assert.match(page, /let inviteStatus: string \| undefined;/);
+  assert.match(page, /inviteStatus = info\.status;/);
+  assert.match(page, /diagnosticApi\.resolveSession\(code\)/);
+  // the end of the page follows the pure decision, in the check ...
+  assert.match(page, /setInviteCancelled\(inviteEndsCancelled\(inviteStatus, err\)\);/);
+  // ... and in the start of a session (a 410 INVITE_CANCELLED there)
+  assert.equal((page.match(/setInviteCancelled\(isInviteCancelledError\(err\)\);/g) || []).length, 1);
   assert.match(page, /\{inviteCancelled \? INVITE_CANCELLED_MESSAGE : /);
   assert.match(page, /\{inviteCancelled \? INVITE_CANCELLED_CENTER_HINT : /);
   // every new check starts clean
   assert.match(page, /setErrorMsg\(null\);\s*setInviteCancelled\(false\);/);
-  // the confirm step is only for a pending invite: a cancelled one never gets there
+  // only a pending invite is confirmed, only a CONFIRMED one with no session of its own may start a new one
   assert.match(page, /if \(info\.status === "pending"\) \{\s*setPhase\("confirm"\);/);
+  assert.match(page, /!recoveringAnswer && info\.status === "confirmed" && err instanceof ApiError && err\.status === 404 && err\.code === "SESSION_NOT_FOUND"/);
+  assert.equal((page.match(/setPhase\("welcome"\)/g) || []).length, 2, "the two existing ways to the welcome screen: after confirm, and no session of a confirmed invite");
 });
 
-test("creating a diagnostic for an archived student (409) shows the server's text", () => {
-  const page = read("src/app/admin/students/new/page.tsx");
-  assert.match(page, /setApiError\(err\.message \|\| "Ошибка при создании ученика"\);/);
-  assert.match(read("src/lib/api.ts"), /createDiagnostic: \(data: \{ student_id: string; class_level: number; diagnostic_type\?: string \}\) =>/);
+test("the report offers «В группу» only for a student who is not in the archive (the server refuses an archived one)", () => {
+  const report = read("src/app/admin/diagnostics/[id]/report/page.tsx");
+  assert.match(report, /\{!isTeacher && invite\.status === "completed" && invite\.student_id && !isArchivedStatus\(invite\.student_status\) && \(\s*<button/);
+  assert.match(report, /import \{ isArchivedStatus \} from "@\/lib\/student-archive";/);
+  // the status it reads is the profile's, loaded with the report
+  assert.match(report, /found\.student_status = studentData\.student\.status;/);
 });

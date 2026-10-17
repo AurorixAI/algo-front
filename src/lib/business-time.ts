@@ -3,6 +3,11 @@
  * not the browser's timezone. The API uses the same Asia/Tashkent timezone.
  */
 export const BUSINESS_TIME_ZONE = "Asia/Tashkent";
+/**
+ * Offset of BUSINESS_TIME_ZONE from UTC, in minutes.  Tashkent has no daylight saving, so a wall time maps to one
+ * instant all year.  A unit test pins this number to what Intl says for the zone, so a change of the rules is caught.
+ */
+export const BUSINESS_UTC_OFFSET_MINUTES = 5 * 60;
 
 type BusinessDateParts = {
   year: number;
@@ -99,9 +104,6 @@ export function parseUtcNaive(value: string | null | undefined): Date | null {
   const date = new Date(HAS_ZONE.test(text) ? text : `${text}Z`);
   return Number.isNaN(date.getTime()) ? null : date;
 }
-
-/** Tashkent is a fixed UTC+5: no daylight saving, so a wall time maps to one instant all year. */
-const BUSINESS_UTC_OFFSET_MINUTES = 5 * 60;
 
 /**
  * The instant of a business-calendar date ("YYYY-MM-DD") and wall time ("HH:MM" or "HH:MM:SS") - the twin of the
