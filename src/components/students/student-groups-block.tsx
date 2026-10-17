@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Plus, Users } from "lucide-react";
 import { type StudentGroupMembership, type StudentProfile } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { studentArchiveAccess } from "@/lib/student-archive";
 
 /** Active memberships of the profile; an older server sends only the single `group`. */
@@ -101,7 +102,9 @@ export function StudentGroupsBlock({ profile, groupsBasePath, isTeacher, onAssig
                   </div>
                   <p className="text-sm text-slate-500">
                     Преподаватель: <span className="font-medium text-slate-800">{item.teacher_name || "Не назначен"}</span>
-                    {item.joined_at && <span className="text-slate-400"> · с {formatUtcNaiveAsBusinessDate(item.joined_at)}</span>}
+                    {item.periods && item.periods.length > 1 ? (
+                      <span className="text-slate-400"> · {formatMembershipPeriods(item.periods)}</span>
+                    ) : item.joined_at && <span className="text-slate-400"> · с {formatUtcNaiveAsBusinessDate(item.joined_at)}</span>}
                   </p>
                 </div>
                 <Link

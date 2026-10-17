@@ -702,6 +702,12 @@ export interface AttendanceExcuseQuery {
   offset?: number;
 }
 
+/** One stay of a student in a group (naive-UTC ISO); a returning student has several, oldest first. */
+export interface MembershipPeriodDto {
+  joined_at: string | null;
+  left_at: string | null;
+}
+
 export interface StudentInGroup {
   id: string;
   first_name: string;
@@ -712,6 +718,8 @@ export interface StudentInGroup {
   display_id: string | null;   // публичный ID вида "AL15-001" (null пока не зачислен)
   student_phone: string | null;
   joined_at: string | null;
+  /** Every stay in this group, oldest first; `joined_at` is the current one. Older servers do not send it. */
+  periods?: MembershipPeriodDto[] | null;
   last_theta: number | null;
   last_level: "below_grade" | "at_grade" | "above_grade" | null;
   last_level_status?: "critical" | "below" | "partial_gap" | "on_level" | "above" | null;
@@ -809,6 +817,7 @@ export interface GroupAttendance {
     class_level?: number | null;
     display_id?: string | null;
     left_at?: string | null;
+    periods?: MembershipPeriodDto[] | null;
     transferred_to_group_name?: string | null;
   }>;
   /** Entry into the currently opened group during the selected period. */
@@ -866,6 +875,8 @@ export interface StudentGroupMembership {
   class_level: number | null;
   is_primary: boolean;
   joined_at: string | null;
+  /** Every stay in this group, oldest first (a returning student has several). */
+  periods?: MembershipPeriodDto[] | null;
 }
 
 /** A group the archiving closed: the restore dialog offers it back (`group_status !== "active"` or `is_full` block it). */
@@ -935,6 +946,8 @@ export interface StudentProfile {
     is_active: boolean;
     joined_at: string | null;
     left_at: string | null;
+    /** Every stay in this group, oldest first; `joined_at` / `left_at` are the last one. */
+    periods?: MembershipPeriodDto[] | null;
   }>;
   diagnostics: Array<{
     invite_id: string;

@@ -27,6 +27,7 @@ import { PROVISIONAL_LABEL, formatSolved, storedLevelDisplay } from "@/lib/diagn
 import { shiftMonth } from "@/lib/attendance-excuses";
 import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
   ARCHIVED_TOAST, archiveBannerTitle, archiveGroupNames, restoreNeedsReading, studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
@@ -784,9 +785,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                         </div>
                       </div>
                       <div className="text-right text-xs text-slate-400">
-                        {gh.is_active ? (
+                        {gh.is_active && (
                           <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium">Текущая группа</span>
-                        ) : (
+                        )}
+                        {/* Every stay of a student who came back; the current group lists them only when there are several. */}
+                        {gh.periods && gh.periods.length > (gh.is_active ? 1 : 0) ? (
+                          <p className={gh.is_active ? "mt-1" : ""}>{formatMembershipPeriods(gh.periods)}</p>
+                        ) : !gh.is_active && (
                           <span>
                             {gh.joined_at ? formatUtcNaiveAsBusinessDate(gh.joined_at) : "—"} — {gh.left_at ? formatUtcNaiveAsBusinessDate(gh.left_at) : "переведён"}
                           </span>
