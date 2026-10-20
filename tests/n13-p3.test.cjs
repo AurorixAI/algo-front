@@ -360,13 +360,13 @@ test("lessons without a teacher: a month-level warning, nothing at 0", () => {
 });
 
 test("status of a teacher: not calculated / saved · revision · sum / data changed (stale)", () => {
-  assert.deepEqual(R.sheetStatus(null), { tone: "none", label: "не рассчитано", detail: "" });
+  assert.deepEqual(R.sheetStatus(null), { tone: "none", label: "Не рассчитано", detail: "" });
   const saved = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: false });
   assert.equal(saved.tone, "saved");
-  assert.equal(plain(saved.label), "сохранено · редакция 3 · 1 250 000 сум");
+  assert.equal(plain(saved.label), "Сохранено · редакция 3 · 1 250 000 сум");
   const changed = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: true });
   assert.equal(changed.tone, "changed");
-  assert.equal(changed.label, "данные изменились");
+  assert.equal(changed.label, "Данные изменились");
   assert.equal(plain(changed.detail), "редакция 3 · 1 250 000 сум");
 });
 

@@ -1048,7 +1048,7 @@ export interface CalculationGate {
   /** Teachers of the scope that still need a percent. */
   missing: number;
   total: number;
-  /** Why the button is off («Чтобы рассчитать всех, укажите процент: осталось 2 из 5 преподавателей»); null when it is on. */
+  /** Why the button is off («Не указан процент у 2 из 5 преподавателей — укажите его, чтобы рассчитать всех»); null when it is on. */
   text: string | null;
 }
 
@@ -1062,10 +1062,14 @@ export function calculationGate(scope: PayrollMonthTeacher[], typed: Record<stri
   const ready = total > 0 && missing === 0;
   let text: string | null = null;
   if (missing > 0 && total === 1) {
-    text = `Чтобы рассчитать${subject === "all" ? "" : " выбранного"}, укажите процент преподавателя`;
+    text = subject === "all"
+      ? "Не указан процент у преподавателя — укажите его, чтобы рассчитать"
+      : "Не указан процент у выбранного преподавателя — укажите его, чтобы рассчитать";
   } else if (missing > 0) {
+    // «из N» takes the genitive: «из 2 преподавателей», «из 21 преподавателя».
     const people = pluralRu(total, ["преподавателя", "преподавателей", "преподавателей"]);
-    text = `Чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}, укажите процент: осталось ${missing} из ${total} ${people}`;
+    const scopeWord = subject === "all" ? "" : "выбранных ";
+    text = `Не указан процент у ${missing} из ${total} ${scopeWord}${people} — укажите его, чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}`;
   }
   return { ready, missing, total, text };
 }
@@ -1083,12 +1087,12 @@ export function revisionLabel(revision: number): string {
   return `редакция ${revision}`;
 }
 
-/** «не рассчитано» / «сохранено · редакция 3 · 1 250 000 сум» / «данные изменились». */
+/** «Не рассчитано» / «Сохранено · редакция 3 · 1 250 000 сум» / «Данные изменились»: a chip starts with a capital letter. */
 export function sheetStatus(sheet: Pick<PayrollMonthSheetRef, "revision" | "total_amount" | "stale"> | null): SheetStatusView {
-  if (!sheet) return { tone: "none", label: "не рассчитано", detail: "" };
+  if (!sheet) return { tone: "none", label: "Не рассчитано", detail: "" };
   const detail = `${revisionLabel(sheet.revision)} · ${formatMoney(sheet.total_amount)}`;
-  if (sheet.stale) return { tone: "changed", label: "данные изменились", detail };
-  return { tone: "saved", label: `сохранено · ${detail}`, detail: "" };
+  if (sheet.stale) return { tone: "changed", label: "Данные изменились", detail };
+  return { tone: "saved", label: `Сохранено · ${detail}`, detail: "" };
 }
 
 export const STATUS_CHIP_CLASS: Record<StatusChipTone, string> = {

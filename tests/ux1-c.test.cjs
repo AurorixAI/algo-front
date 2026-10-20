@@ -98,7 +98,7 @@ test("the gate of «Рассчитать»: off until every teacher of the scope
   const all = R.calculationGate(teachers, {}, "all");
   assert.equal(all.ready, false);
   assert.deepEqual([all.missing, all.total], [2, 3]);
-  assert.equal(all.text, "Чтобы рассчитать всех, укажите процент: осталось 2 из 3 преподавателей");
+  assert.equal(all.text, "Не указан процент у 2 из 3 преподавателей — укажите его, чтобы рассчитать всех");
   // typing the percents opens the gate, and the text goes
   const typed = { [R.percentKey("t1", "pair")]: "40", [R.percentKey("t3", "group")]: "50" };
   const ready = R.calculationGate(teachers, typed, "all");
@@ -110,14 +110,14 @@ test("the gate of «Рассчитать»: off until every teacher of the scope
   const chosen = R.calculationGate(teachers.filter((t) => t.teacher_id === "t2"), {}, "selected");
   assert.deepEqual([chosen.ready, chosen.text], [true, null]);
   assert.equal(R.calculationGate(teachers.filter((t) => t.teacher_id !== "t2"), {}, "selected").text,
-    "Чтобы рассчитать выбранных, укажите процент: осталось 2 из 2 преподавателей");
+    "Не указан процент у 2 из 2 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
   // one teacher, nobody
-  assert.equal(R.calculationGate([teachers[0]], {}, "all").text, "Чтобы рассчитать, укажите процент преподавателя");
-  assert.equal(R.calculationGate([teachers[0]], {}, "selected").text, "Чтобы рассчитать выбранного, укажите процент преподавателя");
+  assert.equal(R.calculationGate([teachers[0]], {}, "all").text, "Не указан процент у преподавателя — укажите его, чтобы рассчитать");
+  assert.equal(R.calculationGate([teachers[0]], {}, "selected").text, "Не указан процент у выбранного преподавателя — укажите его, чтобы рассчитать");
   assert.deepEqual(R.calculationGate([], {}, "all"), { ready: false, missing: 0, total: 0, text: null });
   // the number of teachers declines
   const many = Array.from({ length: 21 }, (_, i) => teacher(`m${i}`, [["group", null]]));
-  assert.equal(R.calculationGate(many, {}, "all").text, "Чтобы рассчитать всех, укажите процент: осталось 21 из 21 преподавателя");
+  assert.equal(R.calculationGate(many, {}, "all").text, "Не указан процент у 21 из 21 преподавателя — укажите его, чтобы рассчитать всех");
 });
 
 test("the row of a teacher: the calm hint is not red; after an attempt the field shows the error next to it", () => {

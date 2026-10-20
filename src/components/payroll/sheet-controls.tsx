@@ -31,7 +31,7 @@ import {
 } from "@/lib/payroll";
 
 /**
- * «не рассчитано» / «сохранено · редакция 3 · 1 250 000 сум» / «данные изменились».  With `hint` (see `statusHint`) the
+ * «Не рассчитано» / «Сохранено · редакция 3 · 1 250 000 сум» / «Данные изменились».  With `hint` (see `statusHint`) the
  * chip is a label of a short explanation: it opens on hover, focus and a tap.
  */
 export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: string }) {

@@ -626,7 +626,7 @@ test("the month list: a status chip with its explanation, warnings with links an
     onToggle: () => {}, onType: () => {}, onCalculate: () => {}, onOpen: () => {}, onExport: () => {},
   }));
   const text = textOf(html);
-  assert.ok(text.includes("данные изменились"));
+  assert.ok(text.includes("Данные изменились"));
   assert.ok(text.includes(H.statusHint(teacher.sheet))); // the explanation is read by a screen reader and shown on hover / tap
   assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
   assert.match(html, /href="\/owner\/groups\?price=none"[^>]*>не задана цена: 2</);
@@ -637,7 +637,7 @@ test("the month list: a status chip with its explanation, warnings with links an
     teacher: { ...teacher, sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } }, typed: {}, showErrors: false, selected: false, calculating: false,
     onToggle: () => {}, onType: () => {}, onCalculate: () => {}, onOpen: () => {}, onExport: () => {},
   })));
-  assert.ok(fresh.includes("не рассчитано"));
+  assert.ok(fresh.includes("Не рассчитано"));
   assert.ok(fresh.includes(H.statusHint(null)));
   // the formula with the example: the body of the dialog «Как считается зарплата» (UX-1 C: no accordion over the table any more)
   const how = renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 12 }));

@@ -17,7 +17,7 @@ import {
 
 // ── Statuses of a teacher's month ───────────────────────────────────────────
 
-/** The explanation behind a status chip («не рассчитано» / «данные изменились» / «сохранено · редакция N»). */
+/** The explanation behind a status chip («Не рассчитано» / «Данные изменились» / «Сохранено · редакция N»). */
 export function statusHint(sheet: Pick<PayrollMonthSheetRef, "revision" | "stale"> | null | undefined): string {
   if (!sheet) {
     return "Ведомость за этот месяц ещё не сохранена. Задайте проценты, нажмите «Рассчитать» и сохраните результат.";
