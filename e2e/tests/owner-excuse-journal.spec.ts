@@ -69,7 +69,8 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   await expect(rejected).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(reviewPosts, "a double click sent exactly one request").toHaveLength(1);
-  expect(JSON.parse(reviewPosts[0].body || "{}")).toEqual({ decision: "rejected", note });
+  // the dialog sends the status it showed, so a stale decision is refused (#115)
+  expect(JSON.parse(reviewPosts[0].body || "{}")).toEqual({ decision: "rejected", note, expected_status: "pending" });
 
   // the focus is back on the cell that asked
   await expect(rejected).toBeFocused();
