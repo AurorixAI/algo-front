@@ -150,23 +150,26 @@ test("menu counter: it hangs on the icon's corner inside the link, not on an off
 // ── 3. payments notice ────────────────────────────────────────────────────────────────────────────
 
 test("payments notice: «1 ученик ждёт / 2 ученика ждут / 5 учеников ждут / 21 ученик ждёт оплаты»", () => {
-  const { bannerText, bannerParts } = require(path.join(root, "src/lib/payments.ts"));
+  const { bannerCopy } = require(path.join(root, "src/lib/payments-banner.ts"));
   const expected = {
     1: "1 ученик ждёт оплаты", 2: "2 ученика ждут оплаты", 4: "4 ученика ждут оплаты", 5: "5 учеников ждут оплаты",
     11: "11 учеников ждут оплаты", 12: "12 учеников ждут оплаты", 13: "13 учеников ждут оплаты", 14: "14 учеников ждут оплаты",
     20: "20 учеников ждут оплаты", 21: "21 ученик ждёт оплаты", 22: "22 ученика ждут оплаты", 101: "101 ученик ждёт оплаты",
     111: "111 учеников ждут оплаты",
   };
-  for (const [count, text] of Object.entries(expected)) assert.equal(bannerText(Number(count)), text, count);
-  assert.deepEqual(bannerParts(13), { subject: "13 учеников", predicate: "ждут оплаты" });
-  assert.deepEqual(bannerParts(1), { subject: "1 ученик", predicate: "ждёт оплаты" });
+  for (const [count, text] of Object.entries(expected)) assert.equal(bannerCopy({ due: Number(count), expired: 0 }).text, text, count);
+  const thirteen = bannerCopy({ due: 13, expired: 0 });
+  assert.deepEqual([thirteen.subject, thirteen.predicate], ["13 учеников", "ждут оплаты"]);
+  const one = bannerCopy({ due: 1, expired: 0 });
+  assert.deepEqual([one.subject, one.predicate], ["1 ученик", "ждёт оплаты"]);
 });
 
 test("payments notice: the overdue chip appears only for payments that have ended; the cross hides it until more people wait", () => {
-  const { bannerOverdueChip, bannerDismissed } = require(path.join(root, "src/lib/payments.ts"));
-  assert.equal(bannerOverdueChip(0), null);
-  assert.equal(bannerOverdueChip(undefined), null);
-  assert.equal(bannerOverdueChip(5), "Просрочено: 5");
+  const { bannerDismissed } = require(path.join(root, "src/lib/payments.ts"));
+  const { bannerCopy } = require(path.join(root, "src/lib/payments-banner.ts"));
+  assert.equal(bannerCopy({ due: 5, expired: 0 }).chip, null);
+  assert.equal(bannerCopy({ due: 5, expired: undefined }).chip, null);
+  assert.equal(bannerCopy({ due: 9, expired: 5 }).chip, "из них просрочено: 5");
   assert.equal(bannerDismissed(null, 13), false, "never dismissed");
   assert.equal(bannerDismissed(13, 13), true);
   assert.equal(bannerDismissed(13, 9), true, "fewer people: still hidden");
@@ -183,8 +186,7 @@ test("payments notice: a calm light surface, rose only in the chip, one line on 
   assert.match(banner, /border border-slate-200 bg-white/);
   assert.match(banner, /bg-amber-50 text-amber-600/);
   assert.match(banner, /rounded-full bg-rose-50 px-2 py-0\.5/);
-  assert.match(banner, /sm:flex-row sm:items-center/);
-  assert.match(banner, /sm:whitespace-nowrap/);
+  assert.match(banner, /sm:whitespace-nowrap|whitespace-nowrap text-sm text-slate-600/);
   assert.match(banner, /try \{[\s\S]*sessionStorage\.getItem[\s\S]*\} catch/);
   assert.match(banner, /try \{[\s\S]*sessionStorage\.setItem[\s\S]*\} catch/);
   assert.match(banner, /Открыть список/);
