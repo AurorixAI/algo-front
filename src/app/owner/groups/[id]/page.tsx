@@ -202,7 +202,6 @@ export default function OwnerGroupDetailPage() {
         animate={{ opacity: 1, y: 0 }}
         className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"
       >
-        <div className="h-1.5 bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
         <div className="p-6">
           {editing ? (
             /* ── Edit form ── */
@@ -399,18 +398,19 @@ export default function OwnerGroupDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Price of the group (#105): one line under the title; only for a role that may see money - the key is absent for everybody else */}
+          {"price_current" in group && (
+            <GroupPriceBlock
+              groupId={groupId}
+              groupName={group.name}
+              onNotify={showToast}
+              onChanged={(price) => setGroup((prev) => (prev ? { ...prev, price_current: price } : prev))}
+              className={editing ? "hidden" : "mt-3 sm:pl-[4.5rem]"}
+            />
+          )}
         </div>
       </motion.div>
-
-      {/* Price of the group (#105): only for a role that may see money - the key is absent for everybody else */}
-      {"price_current" in group && (
-        <GroupPriceBlock
-          groupId={groupId}
-          groupName={group.name}
-          onNotify={showToast}
-          onChanged={(price) => setGroup((prev) => (prev ? { ...prev, price_current: price } : prev))}
-        />
-      )}
 
       {/* Tabs */}
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">

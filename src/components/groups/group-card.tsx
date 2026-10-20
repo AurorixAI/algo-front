@@ -35,9 +35,6 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
       transition={{ delay: index * 0.05, duration: 0.3 }}
       className="relative bg-white rounded-2xl p-6 border border-slate-100 hover:border-primary-200 hover:shadow-xl hover:shadow-primary-100/40 transition-all duration-300 group flex flex-col h-full overflow-hidden"
     >
-      {/* Decorative gradient ribbon at the top */}
-      <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
-
       {/* Decorative background blob */}
       <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-primary-100 to-indigo-100 rounded-full blur-3xl opacity-30 group-hover:opacity-60 transition-opacity duration-500 -mr-10 -mt-10 pointer-events-none" />
       
