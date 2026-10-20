@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Search, UserPlus, Check, Loader2 } from "lucide-react";
+import { Search, UserPlus, Check, Loader2 } from "lucide-react";
 import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
@@ -20,7 +18,7 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 
 interface Student {
   id: string;
@@ -75,8 +73,6 @@ export function AddStudentDrawer({
   const [selected, setSelected] = useState<Map<string, Student>>(new Map());
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [mounted, setMounted] = useState(false);
-  useScrollLock(open);
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
   // Students already in another group: move them here or keep both groups.
@@ -94,10 +90,6 @@ export function AddStudentDrawer({
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
   // must not replace the list of the current one.
   const [listSeq] = useState(() => createRequestSequence());
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -235,206 +227,182 @@ export function AddStudentDrawer({
   // The class filter is on: the group has a class and «Все классы» is off.
   const classFilterOn = Boolean(groupClassLevel) && !allClasses;
 
-  const drawerContent = (
-    <AnimatePresence>
-      {open && (
+  return (
+    <Modal
+      open={open}
+      placement="right"
+      title="Добавить учеников"
+      description={selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для добавления"}
+      onClose={onClose}
+      maxWidthClassName="max-w-md"
+      bodyClassName="flex-1 min-h-0 flex flex-col"
+      footerClassName="p-3 sm:p-4 space-y-2 sm:space-y-3"
+      footer={
         <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50 touch-none"
-            onClick={onClose}
-          />
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", stiffness: 400, damping: 35 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-[60] flex flex-col"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-slate-100">
-              <div>
-                <h2 className="font-semibold text-slate-900">Добавить учеников</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для добавления"}
-                </p>
-              </div>
-              <button onClick={onClose} className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+        {transfers.length > 0 && (
+          <fieldset>
+            <legend className="mb-1 text-xs font-semibold text-slate-600">
+              {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}
+            </legend>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
+              {([
+                ["transfer", "Перевести сюда"],
+                ["add", "Добавить ещё и в эту группу"],
+              ] as const).map(([value, title]) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="radio"
+                  aria-checked={mode === value}
+                  onClick={() => setMode(value)}
+                  className={`rounded-lg px-2 py-1.5 text-xs font-semibold leading-tight transition-all ${mode === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+                >
+                  {title}
+                </button>
+              ))}
             </div>
-
-            {/* Search */}
-            <div className="p-4 border-b border-slate-50">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Поиск по имени или ID…"
-                  autoFocus
-                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-                />
-              </div>
-              {groupClassLevel ? (
-                <div className="mt-2 flex justify-end">
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={allClasses}
-                    onClick={() => setAllClasses((value) => !value)}
-                    className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
-                    Все классы
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            {/* Student list */}
-            <div className="flex-1 overflow-y-auto overscroll-contain">
-              {tooShort && <p className="px-4 pt-3 text-xs text-slate-400">Введите минимум 2 символа</p>}
-              {loading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
-                </div>
-              ) : available.length === 0 ? (
-                <p className="px-6 py-10 text-center text-sm text-slate-400">
-                  {searching
-                    ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
-                    : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
-                </p>
-              ) : (
-                <div className="divide-y divide-slate-50">
-                  {available.map((s) => {
-                    const isSelected = selected.has(s.id);
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => toggle(s)}
-                        className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
-                      >
-                        {/* Avatar */}
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
-                          isSelected ? "bg-primary-600 text-white" : "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600"
-                        }`}>
-                          {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {s.full_name || `${s.last_name} ${s.first_name}`}
-                          </p>
-                          <p className="text-xs text-slate-400 truncate">
-                            {s.class_level} класс
-                            {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
-                              <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
-                            )}
-                          </p>
-                        </div>
-
-                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
-                          {studentStatusLabel(s)}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {!loading && totalFound > students.length && (
-                <p className="px-4 py-3 text-xs text-slate-400 text-center">
-                  Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
-                </p>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="p-3 sm:p-4 border-t border-slate-100 space-y-2 sm:space-y-3">
-              {transfers.length > 0 && (
-                <fieldset>
-                  <legend className="mb-1 text-xs font-semibold text-slate-600">
-                    {transfers.length === 1 ? "Ученик уже в другой группе" : `Уже в другой группе: ${transfers.length}`}
-                  </legend>
-                  <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
-                    {([
-                      ["transfer", "Перевести сюда"],
-                      ["add", "Добавить ещё и в эту группу"],
-                    ] as const).map(([value, title]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        role="radio"
-                        aria-checked={mode === value}
-                        onClick={() => setMode(value)}
-                        className={`rounded-lg px-2 py-1.5 text-xs font-semibold leading-tight transition-all ${mode === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-                      >
-                        {title}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
-                  </p>
-                  {paymentHint && <p className="mt-0.5 text-[11px] text-slate-400">{paymentHint}</p>}
-                  {priceHint && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
-                  <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
-                    {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
-                  </p>
-                </fieldset>
-              )}
-              {moneyAvailable && (
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
-                  {priceLine && (
-                    <>
-                      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                        <span className={`font-semibold ${groupPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
-                        {groupPrice === null && (
-                          <a href={`#${GROUP_PRICE_ANCHOR}`} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
-                        )}
-                      </p>
-                      {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
-                      {priceHint && transfers.length === 0 && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
-                    </>
+            <p className="mt-1 text-xs text-slate-500">
+              {mode === "transfer" ? "Прошлая группа закроется, эта станет основной" : "Прошлые группы останутся, основная не изменится"}
+            </p>
+            {paymentHint && <p className="mt-0.5 text-[11px] text-slate-400">{paymentHint}</p>}
+            {priceHint && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
+            <p className="mt-0.5 max-h-8 overflow-y-auto text-[11px] text-slate-400">
+              {transfers.map((t) => `${t.name} — из «${t.from}»`).join("; ")}
+            </p>
+          </fieldset>
+        )}
+        {moneyAvailable && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+            {priceLine && (
+              <>
+                <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className={`font-semibold ${groupPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
+                  {groupPrice === null && (
+                    <a href={`#${GROUP_PRICE_ANCHOR}`} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
                   )}
-                  <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
-                    <EnrolPriceToggle
-                      idPrefix="add-student-price"
-                      enabled={exceptionOn}
-                      amount={exceptionAmount}
-                      reason={exceptionReason}
-                      onEnabled={(value) => { setAddError(null); setExceptionOn(value); }}
-                      onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
-                      onReason={(text) => { setAddError(null); setExceptionReason(text); }}
-                      shared={selected.size > 1}
-                      compact
-                    />
-                  </div>
-                </div>
-              )}
-              {addError && (
-                <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
-              )}
-              <button
-                onClick={handleAdd}
-                disabled={selected.size === 0 || adding}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {adding ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <UserPlus className="w-4 h-4" />
-                )}
-                {adding ? "Добавление…" : `Добавить${selected.size > 0 ? ` (${selected.size})` : ""}`}
-              </button>
+                </p>
+                {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}
+                {priceHint && transfers.length === 0 && <p className="mt-0.5 text-[11px] text-slate-400">{priceHint}</p>}
+              </>
+            )}
+            <div className={priceLine ? "mt-2 border-t border-slate-200 pt-2" : ""}>
+              <EnrolPriceToggle
+                idPrefix="add-student-price"
+                enabled={exceptionOn}
+                amount={exceptionAmount}
+                reason={exceptionReason}
+                onEnabled={(value) => { setAddError(null); setExceptionOn(value); }}
+                onAmount={(text) => { setAddError(null); setExceptionAmount(text); }}
+                onReason={(text) => { setAddError(null); setExceptionReason(text); }}
+                shared={selected.size > 1}
+                compact
+              />
             </div>
-          </motion.div>
+          </div>
+        )}
+        {addError && (
+          <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{addError}</p>
+        )}
+        <button
+          onClick={handleAdd}
+          disabled={selected.size === 0 || adding}
+          className="w-full flex items-center justify-center gap-2 py-2.5 bg-primary-600 text-white rounded-xl font-medium text-sm hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {adding ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <UserPlus className="w-4 h-4" />
+          )}
+          {adding ? "Добавление…" : `Добавить${selected.size > 0 ? ` (${selected.size})` : ""}`}
+        </button>
         </>
-      )}
-    </AnimatePresence>
-  );
+      }
+    >
+      {/* Search */}
+      <div className="p-4 border-b border-slate-50">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по имени или ID…"
+            autoFocus
+            className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+          />
+        </div>
+        {groupClassLevel ? (
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={allClasses}
+              onClick={() => setAllClasses((value) => !value)}
+              className={`inline-flex items-center gap-1 rounded-md px-1 text-xs font-medium transition-colors ${allClasses ? "text-primary-700" : "text-slate-400 hover:text-slate-600"}`}
+            >
+              {allClasses && <Check className="h-3 w-3" aria-hidden="true" />}
+              Все классы
+            </button>
+          </div>
+        ) : null}
+      </div>
 
-  return mounted ? createPortal(drawerContent, document.body) : null;
+      {/* Student list */}
+      <div className="flex-1 overflow-y-auto overscroll-contain">
+        {tooShort && <p className="px-4 pt-3 text-xs text-slate-400">Введите минимум 2 символа</p>}
+        {loading ? (
+          <div className="flex items-center justify-center h-32">
+            <Loader2 className="w-5 h-5 text-slate-400 animate-spin" />
+          </div>
+        ) : available.length === 0 ? (
+          <p className="px-6 py-10 text-center text-sm text-slate-400">
+            {searching
+              ? `Ничего не найдено${classFilterOn ? ". Попробуйте «Все классы»" : ""}`
+              : "Нет учеников без группы. Найдите ученика по имени или ID, чтобы перевести или добавить его в эту группу."}
+          </p>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {available.map((s) => {
+              const isSelected = selected.has(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggle(s)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 transition-colors ${isSelected ? "bg-primary-50/50" : ""}`}
+                >
+                  {/* Avatar */}
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                    isSelected ? "bg-primary-600 text-white" : "bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600"
+                  }`}>
+                    {isSelected ? <Check className="w-4 h-4" /> : (s.first_name?.[0] || "?").toUpperCase()}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">
+                      {s.full_name || `${s.last_name} ${s.first_name}`}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate">
+                      {s.class_level} класс
+                      {currentGroupOf(s) && currentGroupOf(s) !== groupId && (
+                        <span className="text-amber-700"> · сейчас в «{groupNames[currentGroupOf(s) as string] || "другой группе"}»</span>
+                      )}
+                    </p>
+                  </div>
+
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${statusColors[studentStatusKey(s)] || statusColors.new}`}>
+                    {studentStatusLabel(s)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!loading && totalFound > students.length && (
+          <p className="px-4 py-3 text-xs text-slate-400 text-center">
+            Показаны первые {students.length} из {totalFound}. Уточните поиск, чтобы найти остальных.
+          </p>
+        )}
+      </div>
+
+    </Modal>
+  );
 }

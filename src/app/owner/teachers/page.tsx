@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { staffDisplayName } from "@/lib/staff-name";
 import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 
 interface Member {
   id: string; // user id
@@ -51,7 +50,6 @@ export default function OwnerTeachersPage() {
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [newCode, setNewCode] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   const loadData = async () => {
     try {
@@ -68,9 +66,8 @@ export default function OwnerTeachersPage() {
     }
   };
 
-  useEffect(() => { loadData(); setMounted(true); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  useScrollLock(showInvite);
 
   const handleInvite = async () => {
     setSaving(true);
@@ -319,139 +316,111 @@ export default function OwnerTeachersPage() {
         )}
       </AnimatePresence>
 
-      {/* Invite Modal Overlay */}
-      {mounted && createPortal(
-        <AnimatePresence>
-          {showInvite && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4"
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100"
+      {/* Invite dialog: the shared Modal (Escape, focus trap, scroll lock, the stack of dialogs) */}
+      <Modal
+        open={showInvite}
+        title="Новый сотрудник"
+        description="Сгенерируйте ссылку для приглашения"
+        onClose={() => setShowInvite(false)}
+        busy={saving}
+        maxWidthClassName="max-w-lg"
+        bodyClassName="p-6 sm:p-8 overflow-y-auto overscroll-contain min-h-0"
+      >
+        {newCode ? (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-emerald-500" />
+            </div>
+            <h4 className="text-2xl font-bold text-slate-900 mb-2">Приглашение готово!</h4>
+            <p className="text-slate-500 mb-6">Отправьте эту ссылку сотруднику. Она позволит ему зарегистрироваться и сразу присоединиться к вашей организации.</p>
+            
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6">
+              <div className="text-left overflow-hidden">
+                <p className="text-xs font-semibold text-slate-500 mb-1">Код доступа</p>
+                <p className="font-mono text-lg font-bold text-slate-900">{newCode}</p>
+              </div>
+              <button 
+                onClick={() => handleCopy(newCode)} 
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  copied === newCode 
+                    ? "bg-emerald-100 text-emerald-700" 
+                    : "bg-primary-100 text-primary-700 hover:bg-primary-200"
+                }`}
               >
-                {/* Modal Header */}
-                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">Новый сотрудник</h3>
-                    <p className="text-sm text-slate-500 mt-1">Сгенерируйте ссылку для приглашения</p>
-                  </div>
-                  <button 
-                    onClick={() => setShowInvite(false)} 
-                    className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
+                {copied === newCode ? "Скопировано!" : "Копировать"}
+              </button>
+            </div>
+            
+            <button 
+              onClick={() => { setShowInvite(false); setNewCode(null); }}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
+            >
+              Готово
+            </button>
+          </motion.div>
+        ) : (
+          <div className="space-y-6">
+            <div>
+              <span id="owner-invite-role-label" className="block text-sm font-bold text-slate-700 mb-2">Роль сотрудника</span>
+              <div role="radiogroup" aria-labelledby="owner-invite-role-label" className="grid grid-cols-2 gap-3">
+                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+                  inviteForm.org_role === "teacher" ? "border-primary-500 bg-primary-50/50" : "border-slate-100 hover:border-slate-200"
+                }`}>
+                  <input type="radio" name="role" value="teacher" className="sr-only" 
+                    checked={inviteForm.org_role === "teacher"} 
+                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
+                  />
+                  <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-400"}`} />
+                  <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Учитель</div>
+                  <div className="text-xs text-slate-500 mt-1">Доступ к группам и диагностикам</div>
+                </label>
+                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+                  inviteForm.org_role === "admin" ? "border-blue-500 bg-blue-50/50" : "border-slate-100 hover:border-slate-200"
+                }`}>
+                  <input type="radio" name="role" value="admin" className="sr-only" 
+                    checked={inviteForm.org_role === "admin"} 
+                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
+                  />
+                  <Shield className={`w-6 h-6 mb-2 ${inviteForm.org_role === "admin" ? "text-blue-600" : "text-slate-400"}`} />
+                  <div className={`font-semibold ${inviteForm.org_role === "admin" ? "text-blue-900" : "text-slate-700"}`}>Администратор</div>
+                  <div className="text-xs text-slate-500 mt-1">Доступ ко всем данным школы</div>
+                </label>
+              </div>
+            </div>
 
-                {/* Modal Body */}
-                <div className="p-8">
-                  {newCode ? (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-                      <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <CheckCircle className="w-10 h-10 text-emerald-500" />
-                      </div>
-                      <h4 className="text-2xl font-bold text-slate-900 mb-2">Приглашение готово!</h4>
-                      <p className="text-slate-500 mb-6">Отправьте эту ссылку сотруднику. Она позволит ему зарегистрироваться и сразу присоединиться к вашей организации.</p>
-                      
-                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6">
-                        <div className="text-left overflow-hidden">
-                          <p className="text-xs font-semibold text-slate-500 mb-1">Код доступа</p>
-                          <p className="font-mono text-lg font-bold text-slate-900">{newCode}</p>
-                        </div>
-                        <button 
-                          onClick={() => handleCopy(newCode)} 
-                          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                            copied === newCode 
-                              ? "bg-emerald-100 text-emerald-700" 
-                              : "bg-primary-100 text-primary-700 hover:bg-primary-200"
-                          }`}
-                        >
-                          {copied === newCode ? "Скопировано!" : "Копировать"}
-                        </button>
-                      </div>
-                      
-                      <button 
-                        onClick={() => { setShowInvite(false); setNewCode(null); }}
-                        className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
-                      >
-                        Готово
-                      </button>
-                    </motion.div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div>
-                        <span id="owner-invite-role-label" className="block text-sm font-bold text-slate-700 mb-2">Роль сотрудника</span>
-                        <div role="radiogroup" aria-labelledby="owner-invite-role-label" className="grid grid-cols-2 gap-3">
-                          <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
-                            inviteForm.org_role === "teacher" ? "border-primary-500 bg-primary-50/50" : "border-slate-100 hover:border-slate-200"
-                          }`}>
-                            <input type="radio" name="role" value="teacher" className="sr-only" 
-                              checked={inviteForm.org_role === "teacher"} 
-                              onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
-                            />
-                            <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-400"}`} />
-                            <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Учитель</div>
-                            <div className="text-xs text-slate-500 mt-1">Доступ к группам и диагностикам</div>
-                          </label>
-                          <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
-                            inviteForm.org_role === "admin" ? "border-blue-500 bg-blue-50/50" : "border-slate-100 hover:border-slate-200"
-                          }`}>
-                            <input type="radio" name="role" value="admin" className="sr-only" 
-                              checked={inviteForm.org_role === "admin"} 
-                              onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
-                            />
-                            <Shield className={`w-6 h-6 mb-2 ${inviteForm.org_role === "admin" ? "text-blue-600" : "text-slate-400"}`} />
-                            <div className={`font-semibold ${inviteForm.org_role === "admin" ? "text-blue-900" : "text-slate-700"}`}>Администратор</div>
-                            <div className="text-xs text-slate-500 mt-1">Доступ ко всем данным школы</div>
-                          </label>
-                        </div>
-                      </div>
+            <div>
+              <label htmlFor="owner-invite-email-dlya-priglasheniya" className="block text-sm font-bold text-slate-700 mb-2">
+                Email для приглашения <span className="text-slate-400 font-normal">(опционально)</span>
+              </label>
+              <input
+                id="owner-invite-email-dlya-priglasheniya"
+                type="email"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                placeholder="Например, ivan@school.com"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:text-slate-400"
+              />
+              <p className="text-xs font-medium text-slate-500 mt-2">
+                Если указать email, код будет привязан именно к нему. Иначе — любой сможет зарегистрироваться по ссылке.
+              </p>
+            </div>
 
-                      <div>
-                        <label htmlFor="owner-invite-email-dlya-priglasheniya" className="block text-sm font-bold text-slate-700 mb-2">
-                          Email для приглашения <span className="text-slate-400 font-normal">(опционально)</span>
-                        </label>
-                        <input
-                          id="owner-invite-email-dlya-priglasheniya"
-                          type="email"
-                          value={inviteForm.email}
-                          onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                          placeholder="Например, ivan@school.com"
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:text-slate-400"
-                        />
-                        <p className="text-xs font-medium text-slate-500 mt-2">
-                          Если указать email, код будет привязан именно к нему. Иначе — любой сможет зарегистрироваться по ссылке.
-                        </p>
-                      </div>
-
-                      <div className="pt-2">
-                        <button
-                          onClick={handleInvite}
-                          disabled={saving}
-                          className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-sm active:scale-[0.98]"
-                        >
-                          {saving ? (
-                            <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <>Сгенерировать ссылку</>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>,
-        document.body
-      )}
+            <div className="pt-2">
+              <button
+                onClick={handleInvite}
+                disabled={saving}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 disabled:opacity-70 disabled:cursor-not-allowed transition-all shadow-sm active:scale-[0.98]"
+              >
+                {saving ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <>Сгенерировать ссылку</>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
     </div>
   );

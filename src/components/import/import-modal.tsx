@@ -1,17 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { createPortal } from "react-dom";
 import {
-  X, Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
+  Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
   Loader2, GraduationCap, UserSquare2, Check, ArrowRight, ArrowLeft,
 } from "lucide-react";
 import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
 } from "@/lib/api";
 import { pluralRu } from "@/lib/payments";
-import { useScrollLock } from "@/components/ui/modal";
+import { Modal } from "@/components/ui/modal";
 
 interface ImportModalProps {
   open: boolean;
@@ -22,7 +20,6 @@ interface ImportModalProps {
 type Step = "upload" | "review" | "done";
 
 export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
-  const [mounted, setMounted] = useState(false);
   const [step, setStep] = useState<Step>("upload");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -32,15 +29,12 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => { setMounted(true); }, []);
-
   useEffect(() => {
     if (open) {
       setStep("upload"); setFile(null); setBusy(false); setError(null);
       setPreview(null); setResult(null); setDragging(false);
     }
   }, [open]);
-  useScrollLock(open);
 
   const handleDownloadTemplate = async () => {
     try {
@@ -103,131 +97,91 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
     }
   };
 
-  if (!mounted) return null;
-
-  const content = (
-    <AnimatePresence>
-      {open && (
+  return (
+    <Modal
+      open={open}
+      title="Импорт данных"
+      description={
+        step === "upload" ? "Загрузите заполненный шаблон .xlsx"
+          : step === "review" ? "Проверьте данные перед записью"
+          : "Импорт завершён"
+      }
+      icon={<FileSpreadsheet className="w-5 h-5" />}
+      onClose={onClose}
+      busy={busy}
+      maxWidthClassName="max-w-[620px]"
+      bodyClassName="px-6 py-3 overflow-y-auto overscroll-contain min-h-0"
+      footerClassName="flex items-center justify-between gap-3 p-6 pt-4 bg-slate-50/50"
+      footer={
         <>
-          <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] touch-none"
-            onClick={busy ? undefined : onClose}
-          />
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 10 }}
-              transition={{ type: "spring", stiffness: 500, damping: 30 }}
-              className="bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-[620px] pointer-events-auto overflow-hidden flex flex-col max-h-[88vh]"
-            >
-
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-primary-50 to-primary-100/50 flex items-center justify-center border border-primary-100">
-                    <FileSpreadsheet className="w-5 h-5 text-primary-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-slate-900">Импорт данных</h2>
-                    <p className="text-xs text-slate-500">
-                      {step === "upload" && "Загрузите заполненный шаблон .xlsx"}
-                      {step === "review" && "Проверьте данные перед записью"}
-                      {step === "done" && "Импорт завершён"}
-                    </p>
-                  </div>
-                </div>
+          <div className="text-xs text-slate-400">
+            {step === "review" && preview && (
+              <span>{preview.issues.filter(i => i.level === "error").length} ошибок · {preview.issues.filter(i => i.level === "warning").length} предупреждений</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {step === "upload" && (
+              <>
+                <button onClick={onClose} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">Отмена</button>
                 <button
-                  onClick={busy ? undefined : onClose}
-                  disabled={busy}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-40"
+                  onClick={runPreview}
+                  disabled={!file || busy}
+                  className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-600/20 active:scale-95 flex items-center gap-2"
                 >
-                  <X className="w-5 h-5" />
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  Далее
                 </button>
-              </div>
-
-              {/* Stepper */}
-              <div className="px-6 pb-2">
-                <StepBar step={step} />
-              </div>
-
-              {/* Body */}
-              <div className="px-6 py-3 overflow-y-auto overscroll-contain">
-                {step === "upload" && (
-                  <UploadStep
-                    file={file}
-                    dragging={dragging}
-                    setDragging={setDragging}
-                    inputRef={inputRef}
-                    pickFile={pickFile}
-                    onDownloadTemplate={handleDownloadTemplate}
-                  />
-                )}
-                {step === "review" && preview && (
-                  <ReviewStep preview={preview} />
-                )}
-                {step === "done" && result && (
-                  <DoneStep result={result} />
-                )}
-
-                {error && (
-                  <div className="mt-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2">
-                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Footer */}
-              <div className="p-6 pt-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-3">
-                <div className="text-xs text-slate-400">
-                  {step === "review" && preview && (
-                    <span>{preview.issues.filter(i => i.level === "error").length} ошибок · {preview.issues.filter(i => i.level === "warning").length} предупреждений</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  {step === "upload" && (
-                    <>
-                      <button onClick={onClose} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors">Отмена</button>
-                      <button
-                        onClick={runPreview}
-                        disabled={!file || busy}
-                        className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 disabled:opacity-50 transition-all shadow-sm shadow-primary-600/20 active:scale-95 flex items-center gap-2"
-                      >
-                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-                        Далее
-                      </button>
-                    </>
-                  )}
-                  {step === "review" && (
-                    <>
-                      <button onClick={() => { setStep("upload"); setError(null); }} disabled={busy} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-40">
-                        <ArrowLeft className="w-4 h-4" /> Назад
-                      </button>
-                      <button
-                        onClick={runCommit}
-                        disabled={!preview?.ok || busy}
-                        className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 flex items-center gap-2"
-                      >
-                        {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                        Подтвердить импорт
-                      </button>
-                    </>
-                  )}
-                  {step === "done" && (
-                    <button onClick={onClose} className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-all active:scale-95">Готово</button>
-                  )}
-                </div>
-              </div>
-            </motion.div>
+              </>
+            )}
+            {step === "review" && (
+              <>
+                <button onClick={() => { setStep("upload"); setError(null); }} disabled={busy} className="px-5 py-2.5 text-sm text-slate-600 hover:bg-slate-100 rounded-xl font-medium transition-colors flex items-center gap-2 disabled:opacity-40">
+                  <ArrowLeft className="w-4 h-4" /> Назад
+                </button>
+                <button
+                  onClick={runCommit}
+                  disabled={!preview?.ok || busy}
+                  className="px-6 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-all shadow-sm shadow-emerald-600/20 active:scale-95 flex items-center gap-2"
+                >
+                  {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  Подтвердить импорт
+                </button>
+              </>
+            )}
+            {step === "done" && (
+              <button onClick={onClose} className="px-6 py-2.5 bg-primary-600 text-white rounded-xl text-sm font-semibold hover:bg-primary-700 transition-all active:scale-95">Готово</button>
+            )}
           </div>
         </>
-      )}
-    </AnimatePresence>
-  );
+      }
+    >
+      <div className="pb-3">
+        <StepBar step={step} />
+      </div>
+          {step === "upload" && (
+            <UploadStep
+              file={file}
+              dragging={dragging}
+              setDragging={setDragging}
+              inputRef={inputRef}
+              pickFile={pickFile}
+              onDownloadTemplate={handleDownloadTemplate}
+            />
+          )}
+          {step === "review" && preview && (
+            <ReviewStep preview={preview} />
+          )}
+          {step === "done" && result && (
+            <DoneStep result={result} />
+          )}
 
-  return createPortal(content, document.body);
+          {error && (
+            <div className="mt-4 p-3 bg-red-50/80 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" /> <span>{error}</span>
+            </div>
+          )}
+    </Modal>
+  );
 }
 
 // ── Stepper bar ─────────────────────────────────────────────────────────────
