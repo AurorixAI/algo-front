@@ -291,7 +291,8 @@ test("role layouts: no left margin on a phone, room under the bar, tablet and de
     const layout = read(`src/app/${role}/layout.tsx`);
     assert.match(layout, /<Sidebar \/>/, role);
     assert.doesNotMatch(layout, /ml-\[68px\] \$\{/, `${role}: the 68 px rail margin is gone on phones`);
-    assert.match(layout, /\$\{collapsed \? "md:ml-\[68px\]" : "md:ml-\[240px\]"\}/, role);
+    // the rail is 68 / 240 px plus the notch of a phone held sideways (env() is 0 everywhere else)
+    assert.match(layout, /\$\{collapsed \? "md:ml-\[calc\(68px\+env\(safe-area-inset-left\)\)\]" : "md:ml-\[calc\(240px\+env\(safe-area-inset-left\)\)\]"\}/, role);
     assert.match(layout, /\$\{BOTTOM_NAV_CLEARANCE\}/, role);
   }
 });

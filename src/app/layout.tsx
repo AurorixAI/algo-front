@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Noto_Serif } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -12,6 +12,17 @@ export const metadata: Metadata = {
   icons: {
     icon: "/favicon.ico",
   },
+};
+
+/**
+ * `viewport-fit=cover` lets the page use the whole screen of a notched phone, and only then `env(safe-area-inset-*)` has a
+ * value: every layer that touches an edge (the bottom bar, the toast column, dialogs and sheets, the menu rail) keeps that
+ * much clear.  Without it iOS answers 0 and the home indicator / the notch sit on top of the controls.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

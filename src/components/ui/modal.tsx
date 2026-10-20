@@ -194,7 +194,7 @@ export function Modal({
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                className={`bg-white shadow-2xl w-full ${maxWidthClassName} h-full pointer-events-auto flex flex-col outline-none`}
+                className={`bg-white shadow-2xl w-full ${maxWidthClassName} h-full pointer-events-auto flex flex-col outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]`}
               >
                 {header}
                 {body}
@@ -202,7 +202,7 @@ export function Modal({
               </motion.div>
             </div>
           ) : (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
+            <div className="pad-safe fixed inset-0 z-[110] flex items-center justify-center pointer-events-none">
               <motion.div
                 ref={dialogRef}
                 tabIndex={-1}
@@ -213,7 +213,7 @@ export function Modal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 10 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-[calc(100vh-1.5rem)] pointer-events-auto overflow-hidden flex flex-col outline-none`}
+                className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none`}
               >
                 {header}
                 {body}

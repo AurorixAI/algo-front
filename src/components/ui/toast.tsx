@@ -28,7 +28,7 @@ const HOST_ID = "toast-host";
  * The bottom padding keeps clear of the phone's home indicator (safe area).
  */
 const HOST_CLASS =
-  "pointer-events-none fixed inset-x-0 bottom-0 z-[120] flex flex-col items-center gap-2 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] print:hidden";
+  "pointer-events-none fixed inset-x-0 bottom-0 z-[120] flex flex-col items-center gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] print:hidden";
 
 function ToastPortal({ children }: { children: ReactNode }) {
   const [host, setHost] = useState<HTMLElement | null>(null);

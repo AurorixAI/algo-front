@@ -26,6 +26,25 @@ body {
 body {
   background: var(--background);
   color: #1e293b;
+  /* A standalone (home-screen) page runs under the status bar: keep the page below it.  0 in a browser tab. */
+  padding-top: env(safe-area-inset-top);
+}
+
+/* The wrapper of a centred dialog: 12 px (16 px from `sm`) of air around the card, never less than the window's safe area
+   (notch, rounded corners, home indicator). */
+.pad-safe {
+  padding-top: max(0.75rem, env(safe-area-inset-top));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+}
+@media (min-width: 640px) {
+  .pad-safe {
+    padding-top: max(1rem, env(safe-area-inset-top));
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
 }
 
 /* Glass morphism utilities */

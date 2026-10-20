@@ -15,7 +15,7 @@ export default function AdminLayout({
     <AuthGuard allowedRoles={["admin", "owner"]} forbiddenPath="/">
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-primary-50/30 print:bg-none print:bg-white">
         <Sidebar />
-        <main className={`${collapsed ? "md:ml-[68px]" : "md:ml-[240px]"} min-w-0 p-4 md:p-8 ${BOTTOM_NAV_CLEARANCE} transition-all duration-300 print:ml-0 print:p-0`}>
+        <main className={`${collapsed ? "md:ml-[calc(68px+env(safe-area-inset-left))]" : "md:ml-[calc(240px+env(safe-area-inset-left))]"} min-w-0 p-4 md:p-8 max-md:pl-[max(1rem,env(safe-area-inset-left))] max-md:pr-[max(1rem,env(safe-area-inset-right))] ${BOTTOM_NAV_CLEARANCE} transition-all duration-300 print:ml-0 print:p-0`}>
           <PaymentsAlertBanner paymentsBasePath="/admin/payments" />
           {children}
         </main>

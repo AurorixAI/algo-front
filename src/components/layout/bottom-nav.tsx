@@ -109,7 +109,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
         aria-label="Основное меню"
         data-testid="bottom-nav"
         aria-busy={pending ? true : undefined}
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden print:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur-md md:hidden print:hidden"
       >
         {pending ? (
           <ul aria-hidden="true" data-testid="bottom-nav-skeleton" className="flex h-16 items-stretch">
@@ -239,7 +239,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.32, 0.72, 0, 1] }}
-            className="fixed inset-x-0 bottom-0 z-[110] flex max-h-[85vh] flex-col rounded-t-3xl border-t border-slate-100 bg-white shadow-2xl outline-none md:hidden print:hidden"
+            className="fixed inset-x-0 bottom-0 z-[110] flex max-h-[85vh] supports-[height:100dvh]:max-h-[85dvh] flex-col rounded-t-3xl border-t border-slate-100 bg-white pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] shadow-2xl outline-none md:hidden print:hidden"
           >
             <div className="flex shrink-0 items-center gap-3 px-4 pb-3 pt-4">
               <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 text-sm font-bold uppercase text-white">

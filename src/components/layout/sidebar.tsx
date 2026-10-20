@@ -213,7 +213,9 @@ export function Sidebar() {
     <aside
       className={cn(
         "fixed left-0 top-0 hidden h-screen bg-white border-r border-slate-200/80 md:flex flex-col transition-all duration-300 shrink-0 z-40 select-none print:hidden",
-        collapsed ? "w-[68px]" : "w-[240px]"
+        // The rail grows by the notch of a phone held sideways, so its content stays clear of it.
+        "pl-[env(safe-area-inset-left)] pt-[env(safe-area-inset-top)]",
+        collapsed ? "w-[calc(68px+env(safe-area-inset-left))]" : "w-[calc(240px+env(safe-area-inset-left))]"
       )}
     >
       {/* Header: Logo, Organization */}
