@@ -115,7 +115,7 @@ test("scroll lock: Modal uses the hook, scrolls its body with overscroll-contain
   const modal = read("src/components/ui/modal.tsx");
   assert.match(modal, /export function useScrollLock\(open: boolean\)/);
   assert.match(modal, /useScrollLock\(open\);/);
-  assert.match(modal, /overflow-y-auto overscroll-contain/);
+  assert.match(read("src/lib/modal-layout.ts"), /overflow-y-auto overscroll-contain/); // the body classes live in modal-layout.ts
   const offenders = sources
     .filter((f) => rel(f) !== "src/lib/scroll-lock.ts")
     .filter((f) => /(document\.body|document\.documentElement|\bhtml|\bbody)\.style\.(overflow|position|paddingRight)\b/.test(fs.readFileSync(f, "utf8")))

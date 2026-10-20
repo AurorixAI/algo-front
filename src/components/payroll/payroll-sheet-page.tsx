@@ -421,19 +421,23 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               )}
               <PercentEditor sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
               <PayrollSheetTable sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
-              <SaveBar
-                dirty={dirty}
-                problem={editsProblem(sheet, edits) ?? saveError}
-                saveLabel={`Сохранить как редакцию ${(sheet.revision ?? 1) + 1}`}
-                canSaveClean={false}
-                blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
-                saving={saving}
-                note={note}
-                onNote={setNote}
-                onSave={() => void apply(false)}
-                onDiscard={() => { setEdits(EMPTY_EDITS); setSaveError(null); }}
-              />
             </div>
+          )}
+          {/* A direct child of the page, not of the tab panel: a sticky bar can only move inside its parent, and the
+              panel starts far below the top, so on a short phone the bar would stay behind the bottom navigation. */}
+          {tab !== "history" && (
+            <SaveBar
+              dirty={dirty}
+              problem={editsProblem(sheet, edits) ?? saveError}
+              saveLabel={`Сохранить как редакцию ${(sheet.revision ?? 1) + 1}`}
+              canSaveClean={false}
+              blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
+              saving={saving}
+              note={note}
+              onNote={setNote}
+              onSave={() => void apply(false)}
+              onDiscard={() => { setEdits(EMPTY_EDITS); setSaveError(null); }}
+            />
           )}
         </>
       ) : null}

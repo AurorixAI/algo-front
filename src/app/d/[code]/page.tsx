@@ -431,7 +431,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
   }, [currentTask, taskDisplay]);
 
   return (
-    <div className="min-h-screen w-full relative bg-background-light text-slate-800 font-sans flex flex-col">
+    <div className="min-h-screen w-full relative bg-background-light text-slate-800 font-sans flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <TestBackground />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
@@ -660,7 +660,7 @@ export default function DiagnosticPage({ params }: { params: { code: string } })
               exit={{ opacity: 0 }}
               className="flex-1 flex flex-col w-full"
             >
-              <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+              <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
                 <TestHeader
                   mode="diagnostic"
                   timer={formatTime(elapsedMs)}

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { lockScroll } from "@/lib/scroll-lock";
 import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
+import { modalLayout, shouldRememberOpener } from "@/lib/modal-layout";
 
 /** A click on the backdrop right after the dialog opened is the tail of the double click that opened it: not a dismissal. */
 export const BACKDROP_GRACE_MS = 300;
@@ -77,13 +78,16 @@ interface ModalProps {
  * (`placement="right"`) is the same dialog on the same stack, so a drawer never reinvents any of it.
  */
 export function Modal({
-  open, title, description, onClose, children, footer, maxWidthClassName = "max-w-[480px]", busy = false,
+  open, title, description, onClose, children, footer, maxWidthClassName, busy = false,
   icon, bodyClassName, footerClassName, placement = "center",
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
   const openedAtRef = useRef(0);
+  // Read by the opener tracking below.  Set during render, so it is already true in the commit that opens the dialog.
+  const openRef = useRef(open);
+  openRef.current = open;
   useEffect(() => setMounted(true), []);
   useEffect(() => { if (open) openedAtRef.current = Date.now(); }, [open]);
   useScrollLock(open);
@@ -94,7 +98,10 @@ export function Modal({
   useEffect(() => {
     const remember = (event: Event) => {
       const target = event.target;
-      if (!(target instanceof Element) || dialogRef.current?.contains(target)) return;
+      if (!(target instanceof Element)) return;
+      // While THIS dialog is open nothing changes the opener: an `autoFocus` field takes focus before the dialog's ref
+      // is attached and would be remembered as the control to return to.
+      if (!shouldRememberOpener({ dialogOpen: openRef.current, targetInsideDialog: Boolean(dialogRef.current?.contains(target)) })) return;
       const control = target.closest<HTMLElement>("button, a[href], input, textarea, select, [tabindex]");
       if (control) openerRef.current = control;
     };
@@ -131,12 +138,10 @@ export function Modal({
   }, [open, mounted]);
 
   const side = placement === "right";
+  const layout = modalLayout({ placement, maxWidthClassName, bodyClassName, footerClassName });
 
   const header = (
-    <div className={side
-      ? "flex items-start justify-between gap-3 p-5 border-b border-slate-100 shrink-0"
-      : "flex items-start justify-between gap-3 p-5 sm:p-6 pb-3 sm:pb-4 shrink-0"}
-    >
+    <div className={layout.header}>
       <div className="flex min-w-0 items-center gap-3">
         {icon && (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary-100 bg-gradient-to-br from-primary-50 to-primary-100/50 text-primary-600">
@@ -144,7 +149,7 @@ export function Modal({
           </div>
         )}
         <div className="min-w-0">
-          <h2 className={side ? "font-semibold text-slate-900" : "text-lg sm:text-xl font-bold text-slate-900"}>{title}</h2>
+          <h2 className={layout.title}>{title}</h2>
           {description && <div className="mt-1 text-xs text-slate-500">{description}</div>}
         </div>
       </div>
@@ -160,15 +165,9 @@ export function Modal({
     </div>
   );
 
-  const body = (
-    <div className={bodyClassName ?? "px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0"}>{children}</div>
-  );
+  const body = <div className={layout.body}>{children}</div>;
 
-  const footerRow = footer && (
-    <div className={`shrink-0 border-t border-slate-100 ${footerClassName ?? "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3"}`}>
-      {footer}
-    </div>
-  );
+  const footerRow = footer && <div className={layout.footer}>{footer}</div>;
 
   const content = (
     <AnimatePresence>
@@ -194,7 +193,7 @@ export function Modal({
                 animate={{ x: 0 }}
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", stiffness: 400, damping: 35 }}
-                className={`bg-white shadow-2xl w-full ${maxWidthClassName} h-full pointer-events-auto flex flex-col outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]`}
+                className={layout.card}
               >
                 {header}
                 {body}
@@ -213,7 +212,7 @@ export function Modal({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.96, y: 10 }}
                 transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none`}
+                className={layout.card}
               >
                 {header}
                 {body}

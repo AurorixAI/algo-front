@@ -611,19 +611,22 @@ function PayrollMonthContent() {
             edits={active.edits}
             onEdits={(update) => updateEdits(active.sheet.teacher_id, update)}
           />
-          <SaveBar
-            dirty={editsDirty(active.sheet, active.edits)}
-            problem={editsProblem(active.sheet, active.edits) ?? active.error}
-            saveLabel={activeExisting ? `Сохранить как редакцию ${activeExisting.revision + 1}` : "Сохранить ведомость"}
-            canSaveClean
-            blockedReason={active.sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
-            saving={active.saving}
-            note={active.note}
-            onNote={(text) => patchPreview(active.sheet.teacher_id, { note: text })}
-            onSave={() => void savePreview(active.sheet.teacher_id)}
-            onDiscard={() => patchPreview(active.sheet.teacher_id, { edits: EMPTY_EDITS, error: null })}
-          />
         </section>
+      )}
+      {/* Outside the preview section on purpose: a sticky bar only moves inside its parent (see payroll-sheet-page.tsx). */}
+      {previewList.length > 0 && active && (
+        <SaveBar
+          dirty={editsDirty(active.sheet, active.edits)}
+          problem={editsProblem(active.sheet, active.edits) ?? active.error}
+          saveLabel={activeExisting ? `Сохранить как редакцию ${activeExisting.revision + 1}` : "Сохранить ведомость"}
+          canSaveClean
+          blockedReason={active.sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
+          saving={active.saving}
+          note={active.note}
+          onNote={(text) => patchPreview(active.sheet.teacher_id, { note: text })}
+          onSave={() => void savePreview(active.sheet.teacher_id)}
+          onDiscard={() => patchPreview(active.sheet.teacher_id, { edits: EMPTY_EDITS, error: null })}
+        />
       )}
       {toastNode}
     </div>

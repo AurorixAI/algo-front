@@ -633,7 +633,7 @@ export default function ExamPage() {
   }
 
   return (
-    <div className="min-h-screen w-full relative bg-background-light flex flex-col">
+    <div className="min-h-screen w-full relative bg-background-light flex flex-col pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
       <TestBackground />
 
       <main className="relative z-10 w-full flex-1 flex flex-col">
@@ -970,7 +970,7 @@ export default function ExamPage() {
         {/* ═══════════════ EXAM ═══════════════ */}
         {phase === "exam" && task && (
           <div className="relative z-10 w-full flex-1 flex flex-col">
-            <div className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
+            <div className="sticky top-[env(safe-area-inset-top)] z-30 bg-white/70 backdrop-blur-xl border-b border-slate-200/60 shadow-2xs">
               <TestHeader
                 mode="exam"
                 timer={formatTime(timeLeft)}
