@@ -31,7 +31,7 @@ import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
 import { waitingPeopleCount } from "@/lib/payments-banner";
-import { BOTTOM_NAV_PRIORITY, splitBottomNav } from "@/lib/bottom-nav";
+import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomNav } from "@/lib/bottom-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 
 // Shared sidebar state so layouts can read collapsed width
@@ -111,6 +111,7 @@ export function Sidebar() {
   // administrator once the owner enabled it). The summary itself is kept fresh by the banner
   // in the layout; a teacher never reads it.
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
+  const paymentsKnown = usePaymentsSummary((state) => state.loaded);
   // The badge counts the same people as the banner («5 учеников ждут оплаты»), not memberships (waitingPeopleCount).
   const paymentsDue = usePaymentsSummary((state) =>
     waitingPeopleCount({ due: state.due, expired: state.expired, studentsDue: state.studentsDue, studentsExpired: state.studentsExpired }),
@@ -125,7 +126,7 @@ export function Sidebar() {
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
     ...(showExcuses
-      ? [{ href: "/admin/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
+      ? [{ href: "/admin/attendance", label: "Посещаемость", shortLabel: "Посещения", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
       ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
@@ -137,7 +138,7 @@ export function Sidebar() {
     { href: "/owner/groups", label: "Группы", icon: Users },
     { href: "/owner/students", label: "Ученики", icon: GraduationCap },
     ...(showExcuses
-      ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
+      ? [{ href: "/owner/attendance", label: "Посещаемость", shortLabel: "Посещения", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
       ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
@@ -164,6 +165,20 @@ export function Sidebar() {
     navItems.filter((item) => !item.comingSoon),
     BOTTOM_NAV_PRIORITY[rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher"],
   );
+
+  // The administrator's bar waits (as a skeleton) for the one fact that decides its slots; see `bottomBarPending`.
+  const [barGaveUp, setBarGaveUp] = useState(false);
+  useEffect(() => {
+    if (paymentsKnown || barGaveUp) return undefined;
+    const timer = window.setTimeout(() => setBarGaveUp(true), BOTTOM_BAR_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [paymentsKnown, barGaveUp]);
+  const barPending = bottomBarPending({
+    role: rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher",
+    demo: DEMO_MODE,
+    summaryLoaded: paymentsKnown,
+    gaveUp: barGaveUp,
+  });
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();
@@ -470,6 +485,7 @@ export function Sidebar() {
     <BottomNav
       bar={barItems}
       more={moreItems}
+      pending={barPending}
       pathname={pathname}
       quickAction={isTeacher ? { href: "/teacher/exams/new", label: "Создать экзамен", icon: Plus } : undefined}
       settingsPath={settingsPath}

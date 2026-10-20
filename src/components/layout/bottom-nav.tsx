@@ -27,6 +27,8 @@ export interface BottomNavProps {
   bar: BottomNavItem[];
   /** The rest of the menu: they live in the «Ещё» sheet. */
   more: BottomNavItem[];
+  /** The sections are not known yet: the bar is drawn as a skeleton of five slots, so nothing moves when they arrive. */
+  pending?: boolean;
   pathname: string;
   /** A role's quick action (the teacher's «Создать экзамен»): the first row under the sections. */
   quickAction?: { href: string; label: string; icon: React.ComponentType<{ className?: string }> };
@@ -72,7 +74,7 @@ function Counter({ count, className }: { count: number | undefined; className?: 
  * «Ещё» opens a bottom sheet with the remaining sections, the profile, the settings and «Выйти из системы».  The
  * counters of the sections hidden in the sheet are summed on the «Ещё» icon.
  */
-export function BottomNav({ bar, more, pathname, quickAction, settingsPath, profile, onLogout }: BottomNavProps) {
+export function BottomNav({ bar, more, pending = false, pathname, quickAction, settingsPath, profile, onLogout }: BottomNavProps) {
   const [open, setOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -106,8 +108,19 @@ export function BottomNav({ bar, more, pathname, quickAction, settingsPath, prof
       <nav
         aria-label="Основное меню"
         data-testid="bottom-nav"
+        aria-busy={pending ? true : undefined}
         className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md md:hidden print:hidden"
       >
+        {pending ? (
+          <ul aria-hidden="true" data-testid="bottom-nav-skeleton" className="flex h-16 items-stretch">
+            {Array.from({ length: 5 }, (_, index) => (
+              <li key={index} className="flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5">
+                <span className="h-7 w-14 rounded-full bg-slate-100" />
+                <span className="h-2 w-10 rounded bg-slate-100" />
+              </li>
+            ))}
+          </ul>
+        ) : (
         <ul className="flex h-16 items-stretch">
           {bar.map((item) => {
             const active = isNavActive(pathname, item.href);
@@ -141,6 +154,7 @@ export function BottomNav({ bar, more, pathname, quickAction, settingsPath, prof
               aria-expanded={open}
               aria-controls={open ? MORE_ID : undefined}
               aria-label={moreName}
+              aria-current={moreActive ? "page" : undefined}
               onClick={() => setOpen((value) => !value)}
               className={cn(cell, "w-full")}
             >
@@ -154,10 +168,11 @@ export function BottomNav({ bar, more, pathname, quickAction, settingsPath, prof
             </button>
           </li>
         </ul>
+        )}
       </nav>
 
       <MoreSheet
-        open={open}
+        open={open && !pending}
         onClose={close}
         returnFocusTo={moreButtonRef}
         more={more}

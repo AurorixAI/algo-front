@@ -46,6 +46,19 @@ export function splitBottomNav<T extends { href: string }>(
   return { bar: items.filter((item) => chosen.has(item)), more: items.filter((item) => !chosen.has(item)) };
 }
 
+/** How long the bar waits for the payments summary before it shows what it knows (a slow or failing request must not hide the menu). */
+export const BOTTOM_BAR_WAIT_MS = 2500;
+
+/**
+ * Is the bar still a skeleton?  The administrator's four slots depend on one fact the page learns from the payments
+ * summary (does this administrator see the payments?), so the bar is drawn only once that is known: the sections never
+ * swap places under the thumb.  The owner (always sees payments) and the teacher (never) know it from the first paint;
+ * after `BOTTOM_BAR_WAIT_MS` the bar is drawn with what is known, so a failing request cannot hide the menu.
+ */
+export function bottomBarPending(input: { role: "owner" | "admin" | "teacher"; demo: boolean; summaryLoaded: boolean; gaveUp: boolean }): boolean {
+  return input.role === "admin" && !input.demo && !input.summaryLoaded && !input.gaveUp;
+}
+
 /** The menu item (or one of its sub-pages) is the open page. */
 export function isNavActive(pathname: string | null | undefined, href: string): boolean {
   if (!pathname) return false;
