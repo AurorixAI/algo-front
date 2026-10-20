@@ -104,70 +104,7 @@ test("journal deep link keeps tab, month, lesson and date from the lesson key", 
   }
 });
 
-// ---- deadline chip -----------------------------------------------------------------
-
-const today = "2026-10-15";
-const pending = (deadlineValue, over = {}) => ({ lesson_date: "2026-10-03", status: "pending", deadline: deadlineValue, ...over });
-const chip = (value, over) => deadline.excuseDeadlineChip(pending(value, over), today);
-
-test("calendar deadline: grey far away, amber in 3 days or less, red when over", () => {
-  assert.deepEqual(chip({ kind: "date", date: "2026-10-31", overdue: false, days_left: 16 }),
-    { text: "до 31.10 · 16 дн.", tone: "neutral", title: "Подтвердить до 31.10 · осталось 16 дн." });
-  assert.equal(chip({ kind: "date", date: "2026-10-19", overdue: false, days_left: 4 }).tone, "neutral");
-  assert.deepEqual(
-    (({ text, tone }) => ({ text, tone }))(chip({ kind: "date", date: "2026-10-18", overdue: false, days_left: 3 })),
-    { text: "до 18.10 · 3 дн.", tone: "warn" });
-  assert.equal(chip({ kind: "date", date: "2026-10-17", overdue: false, days_left: 2 }).text, "до 17.10 · 2 дн.");
-  assert.equal(chip({ kind: "date", date: "2026-10-17", overdue: false, days_left: 2 }).tone, "warn");
-  assert.deepEqual(
-    (({ text, tone }) => ({ text, tone }))(chip({ kind: "date", date: "2026-10-15", overdue: false, days_left: 0 })),
-    { text: "до 15.10 · сегодня", tone: "warn" });
-  assert.deepEqual(
-    (({ text, tone }) => ({ text, tone }))(chip({ kind: "date", date: "2026-10-12", overdue: true, days_left: -3 })),
-    { text: "срок прошёл", tone: "danger" });
-  // days_left is optional: it is counted from the date
-  assert.equal(chip({ kind: "date", date: "2026-10-31", overdue: false }).text, "до 31.10 · 16 дн.");
-  assert.equal(chip({ kind: "date", date: "2026-10-10", overdue: false }).tone, "danger");
-});
-
-test("lessons package (N = threshold): more than N grey, exactly N amber, fewer red", () => {
-  const pick = (value) => { const c = chip(value); return { text: c.text, tone: c.tone }; };
-  // N = 2
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 8, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 8 уроков", tone: "neutral" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 3, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 3 урока", tone: "neutral" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 1, urgent: true, due_now: false, overdue: true }), { text: "срок прошёл", tone: "danger" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true }), { text: "срок прошёл", tone: "danger" });
-  // N = 1 and N = 0
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: false, due_now: false, overdue: false }), { text: "пакет: осталось 2 урока", tone: "neutral" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 1, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: true, due_now: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
-  // an empty package nobody flagged is over; a server without due_now reads urgent as the last lesson
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 0, urgent: false, overdue: false }), { text: "срок прошёл", tone: "danger" });
-  assert.deepEqual(pick({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }), { text: "последний урок для подтверждения", tone: "warn" });
-  assert.equal(chip({ kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false }).title, "Подтвердить до конца пакета · осталось 5 уроков");
-  assert.equal(chip({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }).title, "Последний урок для подтверждения");
-});
-
-test("no server value or a broken one: the month end of the lesson is used", () => {
-  const pick = (c) => c && { text: c.text, tone: c.tone };
-  assert.deepEqual(pick(chip(undefined)), { text: "до 31.10 · 16 дн.", tone: "neutral" });
-  assert.deepEqual(pick(chip(null)), { text: "до 31.10 · 16 дн.", tone: "neutral" });
-  assert.deepEqual(pick(chip(undefined, { lesson_date: "2026-09-20" })), { text: "срок прошёл", tone: "danger" });
-  const last = deadline.excuseDeadlineChip({ lesson_date: "2026-10-03", status: "pending" }, "2026-10-29");
-  assert.deepEqual(pick(last), { text: "до 31.10 · 2 дн.", tone: "warn" });
-  assert.deepEqual(pick(deadline.excuseDeadlineChip({ lesson_date: "2026-10-03", status: "pending" }, "2026-10-31")), { text: "до 31.10 · сегодня", tone: "warn" });
-  for (const broken of [{}, { kind: "date" }, { kind: "date", date: "31.10" }, { kind: "lessons" }, { kind: "x" }, "soon", 7]) {
-    assert.deepEqual(pick(chip(broken)), { text: "до 31.10 · 16 дн.", tone: "neutral" }, JSON.stringify(broken));
-  }
-  assert.equal(chip(undefined, { lesson_date: "nope" }), null);
-});
-
-test("decided excuses have no deadline chip", () => {
-  for (const status of ["confirmed", "rejected"]) {
-    assert.equal(chip({ kind: "date", date: "2026-10-31", overdue: false, days_left: 16 }, { status }), null, status);
-  }
-});
+// ---- the deadline column is in words now (UX-1 B): see tests/n13-ux1b.test.cjs ------------------
 
 // ---- one palette for deadline and payment chips -----------------------------------------
 
@@ -186,15 +123,17 @@ test("payment status chips use the same grey / amber / red as the deadline chips
 
 // ---- the screens ---------------------------------------------------------------------
 
-test("«Пропуски»: one outline «Подтвердить» + «⋯», no note field in the row, no separate camera button", () => {
+test("«Пропуски»: «Подтвердить» (primary) and «Отклонить» (secondary) side by side + «⋯», no note field in the row, no separate camera button", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /RowMenu/);
   for (const label of ["Отклонить…", "Приложить справку", "Подтвердить с примечанием…", "Открыть журнал", "Карточка ученика", "Сбросить решение"]) {
     assert.ok(page.includes(label), label);
   }
   assert.match(page, /excuseJournalHref\(groupsBasePath, item\)/);
-  assert.match(page, /border-emerald-300 bg-white[^"]*text-emerald-700/); // outline, not filled
-  assert.doesNotMatch(page, /bg-emerald-600 px-3|Примечание \(необязательно\)|aria-label="Примечание к решению"/);
+  // owner decision 20.10: both decisions sit side by side in every waiting row; the filled one is the main action, the outlined one is calm (not red: it is reversible)
+  assert.match(page, /bg-emerald-600 px-3 text-xs font-semibold text-white/);
+  assert.match(page, /border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700/);
+  assert.doesNotMatch(page, /Примечание \(необязательно\)|aria-label="Примечание к решению"/);
   assert.doesNotMatch(page, /Снять фото|capture=|Camera/);
   assert.match(page, /справки нет|excuseFilesLabel/);
   assert.match(page, /xl:line-clamp-2/); // reason clamps to two lines on the wide layout

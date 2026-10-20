@@ -1,11 +1,12 @@
 import { test, expect } from "../support/fixtures";
 import { Org, runLesson } from "../support/api";
 import { addMonthMinusDay, addDays, businessNow, daysBetween, monthEnd } from "../support/time";
-import { dm, toast } from "../support/ui";
+import { deadlineWords, dm, toast } from "../support/ui";
 
 /**
  * Owner: «Посещаемость» -> «Пропуски» -> «Ожидают»: an excuse the teacher marked is waiting, with the
- * deadline by which it must be confirmed; «Подтвердить» asks for confirmation in a dialog (N13 P4 #103),
+ * deadline by which it must be confirmed, in words («Осталось 24 дня», the date small under it; UX-1 B);
+ * «Подтвердить» and «Отклонить» sit side by side in the row and both ask for confirmation in a dialog (N13 P4 #103),
  * and the confirmed excuse leaves the pending list.
  *
  * Deadline rule (owner decision 15.10; the oracle below is written from that rule, not from the API):
@@ -47,9 +48,20 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   // deadlines
   const paidUntil = addMonthMinusDay(today);
   const paidDeadline = addDays(paidUntil, -5);
-  await expect(item("Оплативший Анвар")).toContainText(`до ${dm(paidDeadline)} · ${daysBetween(today, paidDeadline)} дн.`);
+  await expect(item("Оплативший Анвар")).toContainText(deadlineWords(daysBetween(today, paidDeadline)));
+  await expect(item("Оплативший Анвар")).toContainText(`до ${dm(paidDeadline)}`);
   const monthLast = monthEnd(today);
-  await expect(item("Безоплатная Мадина")).toContainText(`до ${dm(monthLast)} · ${daysBetween(today, monthLast)} дн.`);
+  await expect(item("Безоплатная Мадина")).toContainText(deadlineWords(daysBetween(today, monthLast)));
+  await expect(item("Безоплатная Мадина")).toContainText(`до ${dm(monthLast)}`);
+  // no abbreviations in the column
+  await expect(item("Оплативший Анвар")).not.toContainText("дн.");
+
+  // both decisions are visible in the row, side by side (owner decision 20.10): «Подтвердить» left of «Отклонить»
+  const confirmBox = await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).boundingBox();
+  const rejectBox = await item("Оплативший Анвар").getByRole("button", { name: "Отклонить" }).boundingBox();
+  expect(confirmBox && rejectBox, "both buttons are on the screen").toBeTruthy();
+  expect(rejectBox!.x, "«Отклонить» is to the right of «Подтвердить»").toBeGreaterThan(confirmBox!.x);
+  expect(Math.abs(rejectBox!.y - confirmBox!.y), "...on the same line").toBeLessThan(2);
   await expect(item("Оплативший Анвар")).toContainText("Болел, справка");
   await expect(item("Оплативший Анвар")).toContainText(`${group.name}`);
 
@@ -81,6 +93,16 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await expect(toast(page, "Пропуск подтверждён")).toBeVisible();
   await expect(page.getByRole("tab", { name: "Ожидают (1)" })).toBeVisible();
   await expect(item("Оплативший Анвар")).toHaveCount(0);
+  await expect(item("Безоплатная Мадина")).toHaveCount(1);
+
+  // «Отклонить» of the other row asks first too (the same dialog, an optional reason); «Отмена» sends nothing
+  await item("Безоплатная Мадина").getByRole("button", { name: "Отклонить" }).click();
+  const rejectDialog = page.getByRole("dialog", { name: "Отклонить пропуск?" });
+  await expect(rejectDialog).toBeVisible();
+  await expect(rejectDialog).toContainText("Безоплатная Мадина");
+  await expect(rejectDialog).toContainText("Пропуск останется неуважительным: урок засчитывается преподавателю как обычный урок.");
+  await rejectDialog.getByRole("button", { name: "Отмена" }).click();
+  await expect(rejectDialog).toHaveCount(0);
   await expect(item("Безоплатная Мадина")).toHaveCount(1);
 
   // it moved to «Подтверждено», signed by the owner

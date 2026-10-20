@@ -20,6 +20,25 @@ export const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 /** "2026-10-31" -> "31.10.2026" */
 export const dmy = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
+/**
+ * The «Срок» of a waiting excuse in the words of the screen (UX-1 B), written from the rule and not from the app's helper:
+ * «Остался 1 день» / «Осталось 25 дней» / «Срок сегодня» / «Срок прошёл 3 дня назад».
+ */
+export function deadlineWords(daysLeft: number): string {
+  const noun = (n: number) => {
+    const tail = n % 100;
+    const last = n % 10;
+    if (tail >= 11 && tail <= 14) return "дней";
+    if (last === 1) return "день";
+    if (last >= 2 && last <= 4) return "дня";
+    return "дней";
+  };
+  if (daysLeft < 0) return `Срок прошёл ${-daysLeft} ${noun(-daysLeft)} назад`;
+  if (daysLeft === 0) return "Срок сегодня";
+  const verb = daysLeft % 10 === 1 && daysLeft % 100 !== 11 ? "Остался" : "Осталось";
+  return `${verb} ${daysLeft} ${noun(daysLeft)}`;
+}
+
 /** The page must never scroll sideways (a regression class on 375px phones). */
 export async function expectNoHorizontalScroll(page: Page) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

@@ -60,7 +60,10 @@ import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
-import { subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
+import { afterDeadlineMark, subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
+import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
+import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
+import { AttendanceLegend } from "@/components/groups/attendance-legend";
 import { Modal } from "@/components/ui/modal";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
@@ -192,29 +195,29 @@ const STATUS_OPTIONS: Array<{
 }> = [
   {
     value: "present",
-    short: "Был",
-    label: "Был на уроке",
+    short: MARK_CELL_LABEL.present,
+    label: MARK_MENU_LABEL.present,
     className: "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100",
     dotClassName: "bg-emerald-500",
   },
   {
     value: "late",
-    short: "Опоздал",
-    label: "Опоздал",
+    short: MARK_CELL_LABEL.late,
+    label: MARK_MENU_LABEL.late,
     className: "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100",
     dotClassName: "bg-amber-500",
   },
   {
     value: "absent",
-    short: "Н/Б",
-    label: "Не был (Н/Б)",
+    short: MARK_CELL_LABEL.absent,
+    label: MARK_MENU_LABEL.absent,
     className: "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100",
     dotClassName: "bg-rose-500",
   },
   {
     value: "excused",
-    short: "Ув.",
-    label: "Уважительная причина",
+    short: MARK_CELL_LABEL.excused,
+    label: MARK_MENU_LABEL.excused,
     className: "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-100",
     dotClassName: "bg-sky-500",
   },
@@ -276,7 +279,7 @@ function lessonStatusPresentation(status: string, lessonDate: string, today: str
   };
 }
 
-function excuseTooltip(excuse: AttendanceExcuseInfo): string {
+function excuseTooltip(excuse: AttendanceExcuseInfo, { withLate = true }: { withLate?: boolean } = {}): string {
   const lines = [`Причина: ${excuse.reason}`];
   const marked = [excuse.reason_by_name, formatDateTimeRu(excuse.reason_at)].filter(Boolean).join(", ");
   if (marked) lines.push(`Отметил(а): ${marked}`);
@@ -285,6 +288,9 @@ function excuseTooltip(excuse: AttendanceExcuseInfo): string {
     const reviewed = [excuse.reviewed_by_name, formatDateTimeRu(excuse.reviewed_at)].filter(Boolean).join(", ");
     lines.push(reviewed ? `${verb}: ${reviewed}` : verb);
     if (excuse.review_note) lines.push(`Примечание: ${excuse.review_note}`);
+    // The menu shows this as a chip instead of a line of text.
+    const late = withLate ? afterDeadlineMark(excuse) : null;
+    if (late) lines.push(late.title);
   } else {
     lines.push("Ожидает решения администратора");
   }
@@ -728,7 +734,7 @@ export function GroupAttendanceJournal({
         const message = error instanceof Error ? error.message : "";
         setSaveError(
           /причин/i.test(message) && /ув|уважит/i.test(message)
-            ? "Для уважительного пропуска нужна причина. Нажмите на отметку «Ув.» у ученика и введите причину."
+            ? "Для уважительного пропуска нужна причина. Нажмите на отметку «Уважительная» у ученика и введите причину."
             : message || "Не удалось сохранить отметку",
         );
       } finally {
@@ -1069,13 +1075,18 @@ export function GroupAttendanceJournal({
         ) : lessons.length === 0 ? (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-slate-500"><CalendarDays className="h-10 w-10 text-slate-300" /><p className="font-semibold text-slate-800">Нет занятий в выбранном периоде</p><p className="max-w-sm text-sm">Журнал показывает только занятия из утверждённого расписания группы.</p></div>
         ) : (
+          <>
+          <AttendanceLegend
+            marks={STATUS_OPTIONS}
+            decisionTones={EXCUSE_TONE_CLASS}
+          />
           <div ref={journalScrollRef} className="overflow-x-auto">
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
                   <th
                     scope="col"
-                    className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 font-bold uppercase tracking-wide text-slate-700"
+                    className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 text-[13px] font-semibold text-slate-500"
                   >
                     Ученик ({activeStudents.length})
                   </th>
@@ -1269,7 +1280,7 @@ export function GroupAttendanceJournal({
                               title={cellTitle}
                               aria-expanded={isOpen}
                               aria-controls={isOpen ? `attendance-menu-${student.id}-${key}` : undefined}
-                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? (excuse ? "cursor-help opacity-70" : "cursor-not-allowed opacity-70") : "cursor-pointer"}`}
+                              className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? cellClassName : "border-slate-200 bg-slate-50 text-slate-400"} ${locked && !reviewable ? (excuse ? "cursor-help opacity-70" : "cursor-not-allowed opacity-70") : "cursor-pointer"}`}
                             >
                               {option ? (
                                 <>
@@ -1284,7 +1295,10 @@ export function GroupAttendanceJournal({
                               <FloatingMenu anchor={openCell.anchor} menuRef={cellMenuRef} id={`attendance-menu-${student.id}-${key}`} role={readOnlyExcuse ? "group" : "menu"}>
                                 {/* The reason of an absence used to live only in the cell's hover title. */}
                                 {excuse && (
-                                  <p className="mb-1 whitespace-pre-line break-words rounded-xl bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-600">{excuseTooltip(excuse)}</p>
+                                  <div className="mb-1 rounded-xl bg-slate-50 px-3 py-2">
+                                    <p className="whitespace-pre-line break-words text-[11px] leading-relaxed text-slate-600">{excuseTooltip(excuse, { withLate: false })}</p>
+                                    {afterDeadlineMark(excuse) && <div className="mt-1.5 flex"><AfterDeadlineChip mark={afterDeadlineMark(excuse)!} /></div>}
+                                  </div>
                                 )}
                                 {!locked && STATUS_OPTIONS.map((item) => (
                                   <button
@@ -1318,7 +1332,7 @@ export function GroupAttendanceJournal({
                                 {reviewable && excuse && (
                                   <>
                                     {!locked && <div className="my-1 h-px bg-slate-100" />}
-                                    <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Уважительный пропуск</p>
+                                    <p className="px-3 pb-1 pt-1.5 text-xs font-semibold text-slate-500">Уважительный пропуск</p>
                                     {excuse.status !== "confirmed" && (
                                       <button
                                         type="button"
@@ -1371,6 +1385,7 @@ export function GroupAttendanceJournal({
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
 
@@ -1384,7 +1399,7 @@ export function GroupAttendanceJournal({
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50">
-                  <th scope="col" className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 font-bold uppercase tracking-wide text-slate-600">
+                  <th scope="col" className="sticky left-0 z-20 min-w-[235px] border-r border-slate-200 bg-slate-50 px-5 py-3.5 text-[13px] font-semibold text-slate-500">
                     Ученик
                   </th>
                   {lessons.map((lesson) => {
@@ -1450,12 +1465,12 @@ export function GroupAttendanceJournal({
                                   onClick={(event) => toggleAttendanceMenu(event, student.id, key, isOpen)}
                                   title={`${transferDescription} Пока урок открыт, отметку можно поставить или изменить.`}
                                   aria-expanded={isOpen}
-                                  className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"}`}
+                                  className={`mx-auto flex min-h-8 min-w-[92px] cursor-pointer items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold transition-colors ${option ? option.className : "border-slate-200 bg-slate-50 text-slate-400"}`}
                                 >
                                   {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
                                 </button>
                               ) : (
-                                <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1.5 rounded-xl border px-2 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-400"}`}>
+                                <span title={transferDescription} className={`mx-auto flex min-h-8 min-w-[92px] items-center justify-center gap-1 rounded-xl border px-1.5 py-1.5 font-bold ${option ? option.className.replace(/\shover:bg-\S+/, "") : "border-slate-200 bg-slate-50 text-slate-400"}`}>
                                   {option ? <><span className={`h-1.5 w-1.5 rounded-full ${option.dotClassName}`} />{option.short}</> : "—"}
                                 </span>
                               )
@@ -1504,7 +1519,7 @@ export function GroupAttendanceJournal({
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
           <FloatingMenu anchor={columnMenu.anchor} width={240} align="end" menuRef={columnMenuRef}>
-            <p className="px-3 pb-1 pt-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+            <p className="px-3 pb-1 pt-1.5 text-xs font-semibold text-slate-500">
               Урок {formatDateRu(lesson.date)}
             </p>
             {actions.includes("reconcile") && (
@@ -1563,7 +1578,7 @@ export function GroupAttendanceJournal({
       >
         {reasonEditor && (
           <div className="space-y-2 pb-2">
-            <label htmlFor="excuse-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина</label>
+            <label htmlFor="excuse-reason" className="block text-[13px] font-semibold text-slate-500">Причина</label>
             <textarea
               id="excuse-reason"
               value={reasonEditor.text}
@@ -1630,7 +1645,7 @@ export function GroupAttendanceJournal({
         {correctionDialog && correcting && (
           <div className="space-y-4 pb-2">
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-slate-500">Изменения ({correctionChanges.length})</p>
+              <p className="mb-1.5 text-[13px] font-semibold text-slate-500">Изменения ({correctionChanges.length})</p>
               <ul className="max-h-48 divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
                 {correctionChanges.map((change) => (
                   <li key={change.studentId} className="px-3 py-2 text-sm">
@@ -1656,7 +1671,7 @@ export function GroupAttendanceJournal({
               </ul>
             </div>
             <div className="space-y-2">
-              <label htmlFor="correction-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина исправления</label>
+              <label htmlFor="correction-reason" className="block text-[13px] font-semibold text-slate-500">Причина исправления</label>
               <textarea
                 id="correction-reason"
                 value={correctionDialog.reason}

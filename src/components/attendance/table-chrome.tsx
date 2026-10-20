@@ -12,8 +12,8 @@ import type { ComponentType, ReactNode } from "react";
 /** Horizontal padding of a header and of a row of the wide table. */
 export const TABLE_PAD_X = "px-4";
 
-/** Header cell: small caps, muted.  Rows put their content on the same left edge. */
-export const TABLE_HEAD_CELL = "min-w-0 text-xs font-semibold uppercase tracking-wider text-slate-500";
+/** Header cell: ordinary case (never ALL CAPS), semibold 13 px, muted.  Rows put their content on the same left edge. */
+export const TABLE_HEAD_CELL = "min-w-0 text-[13px] font-semibold text-slate-500";
 
 /** Header row of the wide table; `gridClass` is the same template the rows use. */
 export function TableHeader({ gridClass, labels, show }: { gridClass: string; labels: string[]; show: "lg" | "xl" }) {

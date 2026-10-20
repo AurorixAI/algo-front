@@ -13,7 +13,7 @@
 
 import { formatIsoDateLabel } from "./business-time";
 import { excuseDeadlinePassed, type ExcuseDeadlinePassed, type ServerExcuseDeadline } from "./excuse-deadline";
-import { reasonMeta, reasonMetaOf } from "./excuse-row";
+import { dayMonthRu, reasonMeta, reasonMetaOf } from "./excuse-row";
 
 export type ExcuseDecision = "confirmed" | "rejected";
 /** Where the excuse stands now (what the server has). */
@@ -181,6 +181,35 @@ export function lateDecisionNote(items: ReadonlyArray<Pick<ExcuseDecisionSubject
     ? "Решения можно принять: в списке и в журнале останется, кто принял их и когда."
     : "Решение можно принять: в списке и в журнале останется, кто принял его и когда.";
   return `${lead} ${rest}`;
+}
+
+/** What the small neutral chip next to a decision says: «после срока» and, on hover, when the deadline was. */
+export interface AfterDeadlineMark {
+  label: string;
+  /** «12.10», or "" when the deadline has no date (a lessons package) or the server did not send it. */
+  date: string;
+  /** «Решение принято после срока (до 12.10)»; no date for a lessons package or when the server did not send it. */
+  title: string;
+}
+
+export const AFTER_DEADLINE_LABEL = "после срока";
+
+/**
+ * The «после срока» mark of a DECIDED excuse (`decided_after_deadline` and `deadline_at_decision` of the list item and of the
+ * journal excuse).  Only `true` marks; false, null and an absent key (an older server) show nothing, and so does a pending excuse.
+ * Deciding after the deadline stays allowed - the mark only tells it.
+ */
+export function afterDeadlineMark(
+  source: { status?: string; decided_after_deadline?: boolean | null; deadline_at_decision?: string | null } | null | undefined,
+): AfterDeadlineMark | null {
+  if (!source || source.decided_after_deadline !== true) return null;
+  if (source.status !== undefined && source.status !== "confirmed" && source.status !== "rejected") return null;
+  const date = dayMonthRu(source.deadline_at_decision);
+  return {
+    label: AFTER_DEADLINE_LABEL,
+    date,
+    title: date ? `Решение принято после срока (до ${date})` : "Решение принято после срока",
+  };
 }
 
 /** 1 пропуск, 2 пропуска, 5 пропусков. */

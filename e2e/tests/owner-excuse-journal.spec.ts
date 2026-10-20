@@ -3,7 +3,7 @@ import { Org, runLesson } from "../support/api";
 
 /**
  * Owner: the group journal (cell menu) asks before it decides an excused absence, exactly like «Посещаемость» → «Пропуски»
- * (N13 P4 #103): «Отклонить» opens the confirmation dialog (student, lesson with the group, reason, consequence); the
+ * (N13 P4 #103; the cells say whole words, «Ждёт решения» / «Отклонена», with a legend above the table - UX-1 B): «Отклонить» opens the confirmation dialog (student, lesson with the group, reason, consequence); the
  * optional note of a refusal is sent with the decision and shows on the excuse; one press sends one request; the focus
  * returns to the cell that asked.
  */
@@ -34,7 +34,21 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
 
   await page.goto(`/owner/groups/${group.id}?tab=attendance`);
   const row = page.getByRole("row").filter({ hasText: "Отклонённый Дилшод" });
-  const cell = row.getByRole("button", { name: "Ув.?" });
+  const cell = row.getByRole("button", { name: "Ждёт решения" });
+
+  // the legend above the table explains every word a cell can show
+  const legend = page.getByRole("group", { name: "Обозначения в журнале" });
+  await expect(legend).toBeVisible();
+  for (const word of ["Был", "Опоздал", "Не был", "Уважительная", "Ждёт решения", "Подтверждена", "Отклонена"]) {
+    await expect(legend).toContainText(word);
+  }
+  const legendBox = await legend.boundingBox();
+  const tableBox = await page.getByRole("table").first().boundingBox();
+  expect(legendBox && tableBox, "legend and table are on the screen").toBeTruthy();
+  expect(legendBox!.y + legendBox!.height, "the legend is above the table").toBeLessThanOrEqual(tableBox!.y + 1);
+  // no abbreviation is left in the table
+  await expect(page.getByRole("table").first()).not.toContainText(/Н\/Б|Ув\./);
+
   await cell.click();
   await page.getByRole("menuitem", { name: "Отклонить" }).click();
 
@@ -51,7 +65,7 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   const note = "Справка не принесена";
   await dialog.getByLabel("Причина отказа (необязательно)").fill(note);
   await dialog.getByRole("button", { name: "Отклонить", exact: true }).dblclick();
-  const rejected = row.getByRole("button", { name: "Ув. ✗" });
+  const rejected = row.getByRole("button", { name: "Отклонена" });
   await expect(rejected).toBeVisible();
   await expect(dialog).toHaveCount(0);
   expect(reviewPosts, "a double click sent exactly one request").toHaveLength(1);

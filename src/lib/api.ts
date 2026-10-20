@@ -700,6 +700,10 @@ export interface AttendanceExcuseItem {
   deadline?: ExcuseServerDeadline | null;
   /** How the student's latest live payment in this group is billed; null: no payment. Absent on an older server. */
   billing_mode?: ExcuseBillingModeValue | null;
+  /** Decided excuses: the decision was made after the confirmation deadline. null / absent: not known, nothing is shown. */
+  decided_after_deadline?: boolean | null;
+  /** The day the deadline was (YYYY-MM-DD) when the decision was made; null for a lessons package or when not known. */
+  deadline_at_decision?: string | null;
 }
 
 /** `billing_mode` of an excuse: a lessons package or a calendar period. */
@@ -814,6 +818,10 @@ export interface AttendanceExcuseInfo {
   has_files: boolean;
   /** Owner / administrator only (the key is absent for a teacher): billing mode of the student's latest payment in the group, null = none. */
   billing_mode?: ExcuseBillingModeValue | null;
+  /** The decision was made after the confirmation deadline (owner / administrator only). null / absent: not known, nothing is shown. */
+  decided_after_deadline?: boolean | null;
+  /** The day the deadline was (YYYY-MM-DD) when the decision was made; null for a lessons package or when not known. */
+  deadline_at_decision?: string | null;
 }
 
 /** Last correction of a completed lesson. */
