@@ -85,7 +85,7 @@ export function CancelMissedLessonModal({
     >
       {target && (
         <div className="space-y-2 pb-2">
-          <label htmlFor="cancel-missed-reason" className="block text-xs font-semibold uppercase tracking-widest text-slate-500">Причина</label>
+          <label htmlFor="cancel-missed-reason" className="block text-[13px] font-semibold text-slate-500">Причина</label>
           <textarea
             id="cancel-missed-reason"
             value={reason}

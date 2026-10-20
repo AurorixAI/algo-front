@@ -249,13 +249,13 @@ export default function NewStudentPage() {
                   {/* QR Code */}
                   <div className="p-5 bg-white rounded-2xl shadow-sm border border-slate-200/80 flex flex-col items-center justify-center shrink-0">
                     <QRCode value={diagnosticLink} size={168} />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mt-3">QR-код ссылки</span>
+                    <span className="text-xs font-semibold text-slate-500 mt-3">QR-код ссылки</span>
                   </div>
 
                   {/* Link & Actions */}
                   <div className="flex-1 w-full min-w-0 space-y-4 flex flex-col justify-center">
                     <div>
-                      <p className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                      <p className="block text-xs font-semibold text-slate-500 mb-2">
                         Ссылка для прохождения
                       </p>
                       <div className="flex flex-col sm:flex-row gap-2.5">

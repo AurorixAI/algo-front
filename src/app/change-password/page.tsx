@@ -104,7 +104,6 @@ export default function ChangePasswordPage() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-[420px] bg-white rounded-[24px] shadow-xl border border-slate-100 overflow-hidden"
       >
-        <div className="h-1 w-full bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
         <div className="p-7">
           <div className="w-12 h-12 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center mb-4">
             <ShieldCheck className="w-6 h-6 text-primary-600" />

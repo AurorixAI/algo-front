@@ -220,7 +220,7 @@ export default function AdminGroupDetailPage() {
               <div className="grid grid-cols-2 gap-5">
                 {/* Group Name */}
                 <div className="col-span-2 space-y-2">
-                  <label htmlFor="admin-group-nazvanie-gruppy" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-nazvanie-gruppy" className="block text-[13px] font-semibold text-slate-500">
                     Название группы <span className="text-red-500">*</span>
                   </label>
                   <div className="relative">
@@ -268,7 +268,7 @@ export default function AdminGroupDetailPage() {
 
                 {/* Max Students */}
                 <div className="space-y-2">
-                  <label htmlFor="admin-group-maksimum-uchenikov" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-maksimum-uchenikov" className="block text-[13px] font-semibold text-slate-500">
                     Максимум учеников
                   </label>
                   <div className="relative">
@@ -303,7 +303,7 @@ export default function AdminGroupDetailPage() {
 
                 {/* Description */}
                 <div className="col-span-2 space-y-2">
-                  <label htmlFor="admin-group-opisanie-gruppy" className="block text-xs font-semibold text-slate-500 uppercase tracking-widest">
+                  <label htmlFor="admin-group-opisanie-gruppy" className="block text-[13px] font-semibold text-slate-500">
                     Описание группы
                   </label>
                   <textarea

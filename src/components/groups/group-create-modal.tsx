@@ -100,8 +100,6 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className="bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-[480px] pointer-events-auto overflow-hidden flex flex-col"
             >
-              {/* Top Accent Line */}
-              <div className="h-1 w-full bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
 
               {/* Header */}
               <div className="flex items-center justify-between p-6 pb-4">
@@ -253,7 +251,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
 
                 {error && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} className="p-3 bg-red-50/80 border border-red-200 rounded-xl text-sm text-red-600 flex items-start gap-2">
-                    <span className="shrink-0 font-bold">ОШИБКА:</span> {error}
+                    <span className="shrink-0 font-bold">Ошибка:</span> {error}
                   </motion.div>
                 )}
               </div>

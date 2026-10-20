@@ -178,7 +178,7 @@ export default function AdminExamsPage() {
   return (
     <div className="space-y-5">
       <section className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.16em] text-primary-600">Операционный контроль</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Экзамены организации</h1></div>
+        <div><p className="text-xs font-semibold text-primary-600">Операционный контроль</p><h1 className="mt-1 text-2xl font-bold text-slate-900">Экзамены организации</h1></div>
         <button type="button" onClick={() => void load({ manual: true })} disabled={refreshState === "loading"} className={`inline-flex min-w-32 items-center justify-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-semibold transition-all disabled:cursor-wait ${refreshState === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
           {refreshState === "success" ? <CheckCircle2 className="h-4 w-4" /> : <RefreshCw className={`h-4 w-4 ${refreshState === "loading" ? "animate-spin" : ""}`} />}
           {refreshState === "loading" ? "Обновляем…" : refreshState === "success" ? "Обновлено" : "Обновить"}

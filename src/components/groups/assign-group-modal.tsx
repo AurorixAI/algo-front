@@ -403,7 +403,7 @@ export function AssignGroupModal({
                     <Users className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
+                    <p className="text-xs font-semibold text-indigo-500">{isAdd ? "Уже занимается в группах" : "Текущая группа"}</p>
                     <p className="truncate text-sm font-bold text-indigo-950">
                       {currentGroupLabel || "Определяем группу ученика…"}
                       {!isAdd && currentGroup?.class_level ? ` · ${currentGroup.class_level} класс` : ""}
@@ -510,7 +510,7 @@ export function AssignGroupModal({
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  <div className="flex items-center justify-between px-1 mb-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <div className="flex items-center justify-between px-1 mb-1 text-xs font-semibold text-slate-500">
                     <span>{isTransfer ? "Группы для перевода" : isAdd ? "Группы для добавления" : "Доступные группы"} ({filteredGroups.length})</span>
                     <span>Заполняемость</span>
                   </div>

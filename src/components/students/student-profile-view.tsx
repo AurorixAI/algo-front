@@ -568,7 +568,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                           return (
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100/80 mt-2">
                               <div className="text-center">
-                                <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Уровень по классу</p>
+                                <p className="text-xs font-semibold text-slate-500">Уровень по классу</p>
                                 <div className="mt-1 flex flex-col items-center gap-1">
                                   {levelView ? (
                                     <span className={`inline-flex px-2.5 py-0.5 rounded-md text-xs font-medium border ${levelView.tone.badge}`}>
@@ -581,14 +581,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                               </div>
 
                               <div className="text-center">
-                                <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Результат</p>
+                                <p className="text-xs font-semibold text-slate-500">Результат</p>
                                 <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1">
                                   {solvedText ?? "—"}
                                 </p>
                               </div>
 
                               <div className="text-center">
-                                <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Время теста</p>
+                                <p className="text-xs font-semibold text-slate-500">Время теста</p>
                                 <p className="text-xs sm:text-sm font-medium text-slate-700 mt-1">
                                   {res.duration_seconds ? `${Math.round(res.duration_seconds / 60)} мин` : "—"}
                                 </p>
@@ -743,7 +743,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     </div>
                     {attendanceSummary.groups.length > 0 && (
                       <div className="overflow-hidden rounded-xl border border-slate-100">
-                        <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-2 text-xs font-semibold text-slate-500">
                           По группам за месяц
                         </div>
                         <div className="divide-y divide-slate-100">

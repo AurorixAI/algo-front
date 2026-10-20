@@ -232,13 +232,15 @@ test("deadline passed: exactly when the list says «срок прошёл» - da
   assert.deepEqual(excuseDeadlinePassed(excuseItem({ deadline: null, lesson_date: "2026-09-12" }), TODAY), { date: "2026-09-30" });
 });
 
-test("deadline passed: the dialog note names the real date and promises only what the server stores", () => {
+test("deadline passed: the dialog note names the real date and says the decision will be marked «после срока»", () => {
   const D = require(path.join(root, "src/lib/excuse-decision.ts"));
   const late = D.subjectOfItem(excuseItem({ deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } }), TODAY);
+  const decision = D;
   const note = D.lateDecisionNote([late]);
-  assert.equal(note, "Срок подтверждения прошёл (до 12.10). Решение можно принять: в списке и в журнале останется, кто принял его и когда.");
-  // the server has NO «late» flag: stored are who decided, when and the note - the text must not claim a mark that is not there
-  assert.doesNotMatch(note, /отмечено|помечено|просроч/i);
+  assert.equal(note, "Срок подтверждения прошёл (до 12.10). Решение будет отмечено «после срока».");
+  // the server stores the mark (`decided_after_deadline`) and the list shows it as the «после срока» chip: the note names that very word
+  assert.ok(note.includes("«" + decision.AFTER_DEADLINE_LABEL + "»"));
+  assert.doesNotMatch(note, /можно принять|останется, кто/);
   // a package: no date to name
   const pack = D.subjectOfItem(excuseItem({ deadline: { kind: "lessons", lessons_left: 0, urgent: true, overdue: true } }), TODAY);
   assert.ok(D.lateDecisionNote([pack]).startsWith("Срок подтверждения прошёл (по пакету ученика)."));
@@ -249,8 +251,9 @@ test("deadline passed: the dialog note names the real date and promises only wha
   const journal = D.subjectOfJournalCell({ excuse: { id: "e", status: "pending", reason: "Болел", reason_by_name: null, reason_at: null }, studentName: "Петров", lessonDate: "2026-09-01" });
   assert.equal(D.lateDecisionNote([journal]), null);
   // bulk
-  assert.equal(D.lateDecisionNote([late, inTime, inTime]), "Срок подтверждения прошёл у 1 из 3 пропусков. Решения можно принять: в списке и в журнале останется, кто принял их и когда.");
-  assert.ok(D.lateDecisionNote([late, late]).startsWith("Срок подтверждения прошёл у всех пропусков (2)."));
+  assert.equal(D.lateDecisionNote([late, inTime, inTime]), "Срок подтверждения прошёл у 1 из 3 пропусков. Это решение будет отмечено «после срока».");
+  assert.equal(D.lateDecisionNote([late, late, inTime]), "Срок подтверждения прошёл у 2 из 3 пропусков. Эти решения будут отмечены «после срока».");
+  assert.equal(D.lateDecisionNote([late, late]), "Срок подтверждения прошёл у всех пропусков (2). Решения будут отмечены «после срока».");
 });
 
 test("deadline passed: the amber note sits above «Что изменится» and only when the deadline has passed", () => {
@@ -262,7 +265,7 @@ test("deadline passed: the amber note sits above «Что изменится» a
   const late = html({ deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } });
   assert.ok(late.includes('data-testid="excuse-decision-late"'));
   assert.ok(late.indexOf("excuse-decision-late") < late.indexOf("excuse-decision-consequence"), "above the consequence");
-  assert.ok(textOf(late).includes("Срок подтверждения прошёл (до 12.10)."));
+  assert.ok(textOf(late).includes("Срок подтверждения прошёл (до 12.10). Решение будет отмечено «после срока»."));
   assert.match(late, /border-amber-200 bg-amber-50/);
   assert.equal(html({ deadline: { kind: "date", date: "2026-10-31", overdue: false, days_left: 11 } }).includes("excuse-decision-late"), false);
   assert.equal(html({}).includes("excuse-decision-late"), false, "no deadline, nothing claimed");

@@ -123,7 +123,6 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className="bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-[620px] pointer-events-auto overflow-hidden flex flex-col max-h-[88vh]"
             >
-              <div className="h-1 w-full bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
 
               {/* Header */}
               <div className="flex items-center justify-between p-6 pb-4">

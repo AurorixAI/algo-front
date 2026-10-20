@@ -325,8 +325,6 @@ export default function TeacherGroupDetailPage() {
         {/* Subtle blur glow in top-right */}
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-primary-50/40 to-indigo-50/20 rounded-full blur-3xl -z-0 pointer-events-none" />
 
-        {/* Color accent line */}
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary-500 via-sky-400 to-indigo-500 rounded-t-3xl" />
 
         <div className="relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
           <div className="flex items-center gap-5">
@@ -641,7 +639,6 @@ export default function TeacherGroupDetailPage() {
                         transition={{ type: "spring", stiffness: 380, damping: 26 }}
                         className="relative z-10 w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-7 text-center overflow-hidden"
                       >
-                        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-primary-600 via-violet-600 to-emerald-400" />
                         
                         <button
                           onClick={() => setModalState("none")}

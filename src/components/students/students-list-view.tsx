@@ -417,12 +417,12 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
           <div className="hidden overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm xl:block">
             <table className="w-full">
               <thead>
-                <tr className="bg-slate-50/80 text-left text-xs text-slate-500 uppercase tracking-wider">
-                  <th className="px-6 py-3 font-medium">Ученик</th>
-                  <th className="px-6 py-3 font-medium">ID</th>
-                  <th className="px-6 py-3 font-medium">Класс</th>
-                  <th className="px-6 py-3 font-medium">{activeTab === "archived" ? "Статус" : "Группа"}</th>
-                  <th className="px-6 py-3 font-medium">Телефон</th>
+                <tr className="bg-slate-50/80 text-left text-[13px] font-semibold text-slate-500">
+                  <th className="px-6 py-3 font-semibold">Ученик</th>
+                  <th className="px-6 py-3 font-semibold">ID</th>
+                  <th className="px-6 py-3 font-semibold">Класс</th>
+                  <th className="px-6 py-3 font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
+                  <th className="px-6 py-3 font-semibold">Телефон</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">

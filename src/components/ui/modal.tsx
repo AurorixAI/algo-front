@@ -138,7 +138,6 @@ export function Modal({
               transition={{ type: "spring", stiffness: 500, damping: 30 }}
               className={`bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${maxWidthClassName} max-h-[calc(100vh-1.5rem)] pointer-events-auto overflow-hidden flex flex-col outline-none`}
             >
-              <div className="h-1 w-full shrink-0 bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400" />
               <div className="flex items-start justify-between gap-3 p-5 sm:p-6 pb-3 sm:pb-4 shrink-0">
                 <div className="min-w-0">
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900">{title}</h2>

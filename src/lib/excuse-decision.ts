@@ -158,29 +158,24 @@ export function excuseConsequenceLinesFor(
 
 /**
  * The amber note of the dialog when the confirmation deadline has passed.  A decision after the deadline is allowed
- * (the owner's rule), but the server does NOT flag it as late: it stores who decided, when (`reviewed_by`, `reviewed_at`)
- * and the note, and the list and the journal show exactly that.  So the text promises only that.
+ * (the owner's rule), and the server stores the mark (`decided_after_deadline`): the list and the journal show it as the
+ * «после срока» chip.  So the note says exactly that: the decision will be marked.
  * null when no excuse of the dialog is late (or the screen does not know the deadline).
  */
 export function lateDecisionNote(items: ReadonlyArray<Pick<ExcuseDecisionSubject, "deadlinePassed">>): string | null {
   const late = items.filter((item) => item.deadlinePassed);
   if (late.length === 0) return null;
-  const many = items.length > 1;
-  let lead: string;
-  if (!many) {
+  const mark = `«${AFTER_DEADLINE_LABEL}»`;
+  if (items.length === 1) {
     const date = late[0].deadlinePassed?.date;
-    lead = date
+    const lead = date
       ? `Срок подтверждения прошёл (до ${formatIsoDateLabel(date, { day: "2-digit", month: "2-digit" })}).`
       : "Срок подтверждения прошёл (по пакету ученика).";
-  } else {
-    lead = late.length === items.length
-      ? `Срок подтверждения прошёл у всех пропусков (${items.length}).`
-      : `Срок подтверждения прошёл у ${late.length} из ${items.length} пропусков.`;
+    return `${lead} Решение будет отмечено ${mark}.`;
   }
-  const rest = many
-    ? "Решения можно принять: в списке и в журнале останется, кто принял их и когда."
-    : "Решение можно принять: в списке и в журнале останется, кто принял его и когда.";
-  return `${lead} ${rest}`;
+  if (late.length === items.length) return `Срок подтверждения прошёл у всех пропусков (${items.length}). Решения будут отмечены ${mark}.`;
+  const rest = late.length === 1 ? `Это решение будет отмечено ${mark}.` : `Эти решения будут отмечены ${mark}.`;
+  return `Срок подтверждения прошёл у ${late.length} из ${items.length} пропусков. ${rest}`;
 }
 
 /** What the small neutral chip next to a decision says: «после срока» and, on hover, when the deadline was. */

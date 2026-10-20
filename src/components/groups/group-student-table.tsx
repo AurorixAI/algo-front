@@ -93,7 +93,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
     align?: "text-left" | "text-center" | "text-right";
   }) => (
     <th
-      className={`group/th px-4 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider cursor-pointer select-none hover:text-slate-900 whitespace-nowrap align-middle ${align} ${className}`}
+      className={`group/th px-4 py-3.5 text-[13px] font-semibold text-slate-500 cursor-pointer select-none hover:text-slate-900 whitespace-nowrap align-middle ${align} ${className}`}
       onClick={() => handleSort(col)}
     >
       <div

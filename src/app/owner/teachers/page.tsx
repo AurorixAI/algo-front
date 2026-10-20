@@ -200,7 +200,7 @@ export default function OwnerTeachersPage() {
                   <div key={roleKey}>
                     <div className="flex items-center gap-2 mb-3 px-1">
                       <rConfig.icon className="w-4 h-4 text-slate-400" />
-                      <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wide">
+                      <h3 className="text-sm font-semibold text-slate-500">
                         {rConfig.pluralLabel} ({groupMembers.length})
                       </h3>
                     </div>
@@ -361,7 +361,7 @@ export default function OwnerTeachersPage() {
                       
                       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6">
                         <div className="text-left overflow-hidden">
-                          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Код доступа</p>
+                          <p className="text-xs font-semibold text-slate-500 mb-1">Код доступа</p>
                           <p className="font-mono text-lg font-bold text-slate-900">{newCode}</p>
                         </div>
                         <button 

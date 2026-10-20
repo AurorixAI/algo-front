@@ -231,7 +231,7 @@ export default function AdminDiagnosticsPage() {
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
-                <span className={`text-xs font-bold tracking-wider uppercase ${filter === filterKey(stat.label) && !assignedOnly ? "text-primary-700" : "text-slate-500"}`}>
+                <span className={`text-xs font-semibold ${filter === filterKey(stat.label) && !assignedOnly ? "text-primary-700" : "text-slate-500"}`}>
                   {stat.label}
                 </span>
               </div>

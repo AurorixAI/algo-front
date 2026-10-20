@@ -227,7 +227,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
 
             <div className="h-px bg-slate-100 my-1 mx-4" />
 
-            <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-1.5">
+            <div className="text-xs font-semibold text-slate-500 px-4 py-1.5">
               Преподаватели
             </div>
 

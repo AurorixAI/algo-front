@@ -337,7 +337,7 @@ export function Select({
             e.preventDefault();
             triggerRef.current?.focus({ preventScroll: true });
           }}
-          className="block text-xs font-semibold text-slate-500 uppercase tracking-widest mb-1.5"
+          className="block text-[13px] font-semibold text-slate-500 mb-1.5"
         >
           {label}
         </label>

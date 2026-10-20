@@ -227,7 +227,7 @@ export function Sidebar() {
         <div className="h-6 px-3 flex items-center shrink-0">
           <span
             className={cn(
-              "text-[10px] font-bold tracking-wider uppercase text-slate-400 transition-opacity duration-300 whitespace-nowrap select-none overflow-hidden",
+              "text-xs font-semibold text-slate-500 transition-opacity duration-300 whitespace-nowrap select-none overflow-hidden",
               collapsed ? "opacity-0" : "opacity-100"
             )}
           >
@@ -327,7 +327,7 @@ export function Sidebar() {
               <div className="flex-1 border-t border-dashed border-slate-200" />
               {!collapsed && (
                 <>
-                  <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-300 whitespace-nowrap">
+                  <span className="text-xs font-semibold text-slate-300 whitespace-nowrap">
                     После подключения
                   </span>
                   <div className="flex-1 border-t border-dashed border-slate-200" />
@@ -358,7 +358,7 @@ export function Sidebar() {
                   {item.label}
                 </span>
                 {!collapsed && (
-                  <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-300 shrink-0">
+                  <span className="ml-auto text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-300 shrink-0">
                     {LOCK_COPY.badge}
                   </span>
                 )}

@@ -142,7 +142,7 @@ export default function OwnerDashboard() {
             <div className="max-w-2xl">
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 backdrop-blur-md mb-5 shadow-inner">
                 <span className={`w-2 h-2 rounded-full ${org?.status === "active" ? "bg-emerald-400 animate-pulse" : "bg-amber-400"}`} />
-                <span className="text-xs font-semibold tracking-wide text-white/90 uppercase">
+                <span className="text-xs font-semibold text-white/90">
                   {org?.status === "active" ? "Система активна" : "Ожидание"}
                 </span>
               </div>
