@@ -1073,10 +1073,13 @@ export function calculationGate(scope: PayrollMonthTeacher[], typed: Record<stri
       ? "Не указан процент у преподавателя — укажите его, чтобы рассчитать"
       : "Не указан процент у выбранного преподавателя — укажите его, чтобы рассчитать";
   } else if (missing > 0) {
-    // «из N» takes the genitive: «из 2 преподавателей», «из 21 преподавателя».
+    // «из N» takes the genitive and the adjective agrees with the number: «из 2 выбранных преподавателей»,
+    // «из 21 выбранного преподавателя».
     const people = pluralRu(total, ["преподавателя", "преподавателей", "преподавателей"]);
-    const scopeWord = subject === "all" ? "" : "выбранных ";
-    text = `Не указан процент у ${missing} из ${total} ${scopeWord}${people} — укажите его, чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}`;
+    const chosen = subject === "all" ? "" : `${pluralRu(total, ["выбранного", "выбранных", "выбранных"])} `;
+    // Everybody is missing: «у всех 3 преподавателей», not the odd «у 3 из 3».
+    const who = missing === total ? `у всех ${total} ${chosen}${people}` : `у ${missing} из ${total} ${chosen}${people}`;
+    text = `Не указан процент ${who} — укажите его, чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}`;
   }
   return { ready, missing, total, text };
 }

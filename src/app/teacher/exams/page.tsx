@@ -243,12 +243,6 @@ function ExamCard({
       exit={{ opacity: 0, y: -6 }}
       className="group relative bg-white hover:bg-slate-50/70 rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-200 transition-all duration-200"
     >
-      {/* Pin stripe — full-width curved seamlessly with rounded-2xl card */}
-      {exam.is_pinned && !isArchived && (
-        <div className="absolute inset-x-0 top-0 h-4 rounded-t-[15px] overflow-hidden pointer-events-none">
-          <div className="h-1 w-full bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400" />
-        </div>
-      )}
 
       <Link href={examHref} className={`block p-5 ${isArchived ? "cursor-default opacity-85" : ""}`}>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

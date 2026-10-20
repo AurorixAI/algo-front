@@ -1156,10 +1156,10 @@ export default function ExamPage() {
           </div>
         )}
 
-        {/* ═══════════════ SUBMITTING ═══════════════ */}
+        {/* ═══════════════ Отправка ответов ═══════════════ */}
         {phase === "submitting" && (
           <>
-            <AnalyzingToast visible={true} text="SUBMITTING ANSWERS..." />
+            <AnalyzingToast visible={true} text="Отправляем ответы…" />
             <div className="flex-1 flex items-center justify-center p-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
                 <div className="relative w-20 h-20 mx-auto mb-6 rounded-full overflow-hidden border border-slate-200 bg-slate-100 shadow-inner">

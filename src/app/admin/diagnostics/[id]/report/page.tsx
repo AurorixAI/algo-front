@@ -864,7 +864,7 @@ export default function DiagnosticReportPage() {
               <div className="flex gap-3">
                 <div className="w-1 rounded-full bg-primary-400 flex-shrink-0 self-stretch" />
                 <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Краткое резюме (сформировано автоматически)</p>
+                  <p className="text-xs font-semibold text-slate-500 mb-2">Краткое резюме (сформировано автоматически)</p>
                   <p className="text-sm text-slate-700 leading-relaxed break-words">{rj.overall.student_summary}</p>
                 </div>
               </div>
@@ -942,7 +942,7 @@ export default function DiagnosticReportPage() {
 
                         {/* ── Entry Top Bar: number pill + skill name ── */}
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-black tracking-wider bg-slate-900 text-white shadow-2xs">
+                          <span className="px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-slate-900 text-white shadow-2xs">
                             № {globalIdx}
                           </span>
                           {err.skill_name_ru && (
@@ -954,7 +954,7 @@ export default function DiagnosticReportPage() {
 
                         {/* ── Task Question Container ── */}
                         <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
-                          <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                          <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                             <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                             Условие задачи
                           </div>
@@ -1052,7 +1052,7 @@ export default function DiagnosticReportPage() {
                               <div className="min-w-0 rounded-xl border bg-white border-rose-200/90 p-4 sm:p-5 shadow-2xs">
                                 <div className="flex items-center gap-1.5 mb-2">
                                   <XCircle className="w-3.5 h-3.5 text-rose-400" />
-                                  <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Ответ ученика</span>
+                                  <span className="text-xs font-semibold text-slate-500">Ответ ученика</span>
                                 </div>
                                 {err.student_answer
                                   ? <MathRenderer text={pickAnswerDisplayText(err.student_answer, err.student_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
@@ -1063,7 +1063,7 @@ export default function DiagnosticReportPage() {
                               <div className="min-w-0 rounded-xl border bg-emerald-50/70 border-emerald-200/90 p-4 sm:p-5 shadow-2xs">
                                 <div className="flex items-center gap-1.5 mb-2">
                                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                  <span className="text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">Верный ответ</span>
+                                  <span className="text-xs font-semibold text-slate-500">Верный ответ</span>
                                 </div>
                                 {(err.correct_answer_latex || err.correct_answer)
                                   ? <MathRenderer text={pickAnswerDisplayText(err.correct_answer || "", err.correct_answer_latex)} block className="text-[14px] sm:text-[14.5px] font-normal text-slate-800 leading-relaxed break-words" />
@@ -1076,7 +1076,7 @@ export default function DiagnosticReportPage() {
                           {/* Distractor explanation (real from DB) */}
                           {isDistractor && err.distractor_explanation && (
                             <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
-                              <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                                 <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                                 Анализ ошибки
                               </div>
@@ -1089,7 +1089,7 @@ export default function DiagnosticReportPage() {
                           {/* Generic distractor notice (no explanation available) */}
                           {isDistractor && !err.distractor_explanation && (
                             <div className="min-w-0 rounded-2xl bg-slate-50/70 border border-slate-200/80 p-4 sm:p-5 md:p-6 shadow-2xs">
-                              <div className="mb-2 flex items-center gap-1.5 text-[9px] sm:text-[9.5px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                              <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                                 <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0 inline-block" />
                                 Анализ ошибки
                               </div>
@@ -1167,7 +1167,7 @@ export default function DiagnosticReportPage() {
 
               {achievements.length > 0 && (
                 <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  <div className="text-xs font-semibold text-slate-500">
                     {achievementsInfo.fallback ? achievementsTitle : unavailable ? "Сильные стороны (по данным отчёта)" : "Подтверждённые навыки"}
                   </div>
                   <div className="flex flex-wrap gap-2" data-testid="diagnostic-report-achievements">
@@ -1188,7 +1188,7 @@ export default function DiagnosticReportPage() {
 
               {errorFree && rj.action_plan.length > 0 && (
                 <div className="rounded-xl border border-primary-100 bg-primary-50/40 p-4 space-y-1" data-testid="diagnostic-report-next-step">
-                  <div className="text-xs font-bold uppercase tracking-wider text-primary-700">Следующий шаг развития</div>
+                  <div className="text-xs font-semibold text-primary-700">Следующий шаг развития</div>
                   <div className="text-sm font-semibold text-slate-900">{rj.action_plan[0].action_title || rj.action_plan[0].skill_name_ru}</div>
                   <p className="text-sm text-slate-700 leading-relaxed">{rj.action_plan[0].full_description}</p>
                 </div>
@@ -1218,7 +1218,7 @@ export default function DiagnosticReportPage() {
                     <div className="min-w-0 rounded-xl border border-slate-200 hover:border-emerald-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
-                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <span className="min-w-0 break-words text-xs font-semibold text-slate-800 flex items-center gap-2">
                             <Anchor className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                             Опорный фундамент
                           </span>
@@ -1247,7 +1247,7 @@ export default function DiagnosticReportPage() {
                     <div className="min-w-0 rounded-xl border border-slate-200 hover:border-rose-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
-                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <span className="min-w-0 break-words text-xs font-semibold text-slate-800 flex items-center gap-2">
                             <ShieldAlert className="w-4 h-4 text-rose-600 flex-shrink-0" />
                             {breakpoint.title}
                           </span>
@@ -1276,7 +1276,7 @@ export default function DiagnosticReportPage() {
                     <div className="min-w-0 rounded-xl border border-slate-200 hover:border-slate-300 transition-colors bg-white p-4 sm:p-6 flex flex-col justify-between space-y-4">
                       <div>
                         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 mb-2.5">
-                          <span className="min-w-0 break-words text-xs font-bold uppercase tracking-wider text-slate-800 flex items-center gap-2">
+                          <span className="min-w-0 break-words text-xs font-semibold text-slate-800 flex items-center gap-2">
                             <Lock className="w-4 h-4 text-slate-500 flex-shrink-0" />
                             Ошибки в текущем классе
                           </span>

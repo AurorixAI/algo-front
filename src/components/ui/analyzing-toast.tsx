@@ -37,7 +37,7 @@ export function AnalyzingToast({ visible, text = "ANALYZING RESPONSE...", varian
   // Centred by a full-width flex row, not by a half-width offset plus a negative translate: framer-motion owns the
   // element's `transform` and would drop that translate, leaving the pill starting at the middle of the screen.
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center">
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center pt-[env(safe-area-inset-top)]">
     <AnimatePresence>
       {visible && (
         <motion.div
@@ -51,7 +51,7 @@ export function AnalyzingToast({ visible, text = "ANALYZING RESPONSE...", varian
             <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", c.ping)} />
             <span className={cn("relative inline-flex rounded-full h-2.5 w-2.5", c.dot)} />
           </span>
-          <span className={cn("text-xs font-semibold tracking-wide uppercase", c.text)}>{text}</span>
+          <span className={cn("text-xs font-semibold", c.text)}>{text}</span>
         </motion.div>
       )}
     </AnimatePresence>

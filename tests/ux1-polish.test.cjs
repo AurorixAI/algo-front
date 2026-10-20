@@ -42,11 +42,11 @@ test("payroll: «Не указан процент у N из M преподава
   const teacher = (id) => ({ teacher_id: id, teacher_name: id, lessons_count: 1, lesson_types: [{ lesson_type: "group", groups: 1, suggested_percent: null }], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
   const many = (n) => Array.from({ length: n }, (_, i) => teacher(`t${i}`));
   const text = (n, subject = "all") => R.calculationGate(many(n), {}, subject).text;
-  assert.equal(text(2), "Не указан процент у 2 из 2 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(text(5), "Не указан процент у 5 из 5 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(text(21), "Не указан процент у 21 из 21 преподавателя — укажите его, чтобы рассчитать всех");
+  assert.equal(text(2), "Не указан процент у всех 2 преподавателей — укажите его, чтобы рассчитать всех");
+  assert.equal(text(5), "Не указан процент у всех 5 преподавателей — укажите его, чтобы рассчитать всех");
+  assert.equal(text(21), "Не указан процент у всех 21 преподавателя — укажите его, чтобы рассчитать всех");
   assert.equal(text(1), "Не указан процент у преподавателя — укажите его, чтобы рассчитать");
-  assert.equal(text(3, "selected"), "Не указан процент у 3 из 3 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+  assert.equal(text(3, "selected"), "Не указан процент у всех 3 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
   assert.doesNotMatch(read("src/lib/payroll.ts"), /осталось \$\{missing\}/);
 });
 

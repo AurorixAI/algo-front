@@ -119,7 +119,7 @@ export function SaveBar({
   const disabled = saving || Boolean(problem) || Boolean(blockedReason) || (!dirty && !canSaveClean);
   return (
     <div
-      className={`rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-20 border-primary-200 shadow-lg" : "border-slate-200"}`}
+      className={`rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-30 border-primary-200 shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "border-slate-200"}`}
     >
       {dirty && (
         <p className="mb-2 text-xs text-slate-600">

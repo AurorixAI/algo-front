@@ -14,6 +14,7 @@
 import { formatIsoDateLabel } from "./business-time";
 import { excuseDeadlinePassed, type ExcuseDeadlinePassed, type ServerExcuseDeadline } from "./excuse-deadline";
 import { dayMonthRu, reasonMeta, reasonMetaOf } from "./excuse-row";
+import { pluralRu } from "./plural";
 
 export type ExcuseDecision = "confirmed" | "rejected";
 /** Where the excuse stands now (what the server has). */
@@ -207,15 +208,9 @@ export function afterDeadlineMark(
   };
 }
 
-/** 1 пропуск, 2 пропуска, 5 пропусков. */
+/** 1 пропуск, 2 пропуска, 5 пропусков (the one plural helper of the project). */
 export function excusesWord(count: number): string {
-  const n = Math.abs(Math.trunc(count));
-  const last = n % 10;
-  const lastTwo = n % 100;
-  if (lastTwo >= 11 && lastTwo <= 14) return "пропусков";
-  if (last === 1) return "пропуск";
-  if (last >= 2 && last <= 4) return "пропуска";
-  return "пропусков";
+  return pluralRu(count, "пропуск", "пропуска", "пропусков");
 }
 
 export interface ExcuseDecisionCopy {

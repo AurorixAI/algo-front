@@ -38,7 +38,7 @@ export function LevelRing({ status }: { status?: string | null }) {
       </svg>
       <div className="relative flex flex-col items-center text-center select-none">
         <Icon aria-hidden="true" className={`w-9 h-9 ${tone.ring}`} />
-        <div className={`text-[9px] text-slate-500 font-bold tracking-widest uppercase mt-1 leading-tight${code ? "" : " max-w-[4.75rem]"}`}>
+        <div className={`text-xs text-slate-500 font-semibold mt-1 leading-tight${code ? "" : " max-w-[4.75rem]"}`}>
           {code ? "Уровень" : "Уровень не определён"}
         </div>
       </div>
@@ -93,7 +93,7 @@ export function ReportScoreHeader({ status, levelText, solved, total, correct, w
             </div>
             <div>
               <div className="text-lg font-black text-slate-900 leading-none">{correct ?? "—"}</div>
-              <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mt-1">Верных</div>
+              <div className="text-xs font-semibold text-emerald-600 mt-1">Верных</div>
             </div>
           </div>
 
@@ -103,7 +103,7 @@ export function ReportScoreHeader({ status, levelText, solved, total, correct, w
             </div>
             <div>
               <div className="text-lg font-black text-slate-900 leading-none">{wrong ?? "—"}</div>
-              <div className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mt-1">Ошибок</div>
+              <div className="text-xs font-semibold text-rose-600 mt-1">Ошибок</div>
             </div>
           </div>
         </div>

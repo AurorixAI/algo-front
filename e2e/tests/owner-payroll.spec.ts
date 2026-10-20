@@ -73,7 +73,7 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
   await expect(teachers).toContainText("Укажите процент — это делается один раз");
   await expect(teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ })).toHaveAttribute("aria-invalid", "false");
   await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeDisabled();
-  await expect(page.getByText("Не указан процент у 2 из 2 преподавателей — укажите его, чтобы рассчитать всех")).toBeVisible();
+  await expect(page.getByText("Не указан процент у всех 2 преподавателей — укажите его, чтобы рассчитать всех")).toBeVisible();
 
   // --- percents and the calculation of everybody
   await teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ }).fill("62.5");

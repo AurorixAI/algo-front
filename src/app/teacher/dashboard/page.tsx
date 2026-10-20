@@ -2402,7 +2402,7 @@ export default function TeacherDashboardPage() {
                             Отметка посещаемости ({Object.keys(attendance).length} из {groupStudents.length})
                           </h4>
                           {groupStudents.length > Object.keys(attendance).length && (
-                            <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
+                            <span className="whitespace-nowrap text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
                               Осталось: {groupStudents.length - Object.keys(attendance).length}
                             </span>
                           )}

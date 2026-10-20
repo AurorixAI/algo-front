@@ -20,6 +20,9 @@ html,
 body {
   max-width: 100vw;
   overflow-x: hidden;
+  /* `clip` cuts the same way but does not make the root a scroll container, so `position: sticky` works inside
+     (the save bar of the payroll sheet).  A browser without `clip` keeps `hidden`. */
+  overflow-x: clip;
   font-family: 'Inter', sans-serif;
 }
 
