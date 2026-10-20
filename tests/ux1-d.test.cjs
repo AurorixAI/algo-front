@@ -308,9 +308,10 @@ test("toasts: the column rests on top of the bar while the bar is on the page", 
 test("payments notice: all overdue -> «2 ученика с просроченной оплатой», no chip", () => {
   const { bannerCopy } = lib("payments-banner.ts");
   const two = bannerCopy({ due: 3, expired: 3, studentsDue: 2, studentsExpired: 2 });
-  assert.equal(two.text, "2 ученика с просроченной оплатой");
+  // 3 payments of 2 students: the page counts rows, so the notice names both numbers
+  assert.equal(two.text, "2 ученика с просроченной оплатой (3\u00A0оплаты)");
   assert.equal(two.chip, null);
-  assert.deepEqual([two.subject, two.predicate], ["2 ученика", "с просроченной оплатой"]);
+  assert.deepEqual([two.subject, two.predicate], ["2 ученика", "с просроченной оплатой (3\u00A0оплаты)"]);
   assert.equal(two.count, 2);
   assert.equal(bannerCopy({ due: 1, expired: 1, studentsDue: 1, studentsExpired: 1 }).text, "1 ученик с просроченной оплатой");
   assert.equal(bannerCopy({ due: 5, expired: 5, studentsDue: 5, studentsExpired: 5 }).text, "5 учеников с просроченной оплатой");
@@ -321,16 +322,30 @@ test("payments notice: all overdue -> «2 ученика с просроченн
 test("payments notice: some overdue -> «5 учеников ждут оплаты» + the chip «из них просрочено: 2»", () => {
   const { bannerCopy } = lib("payments-banner.ts");
   const mixed = bannerCopy({ due: 7, expired: 3, studentsDue: 5, studentsExpired: 2 });
-  assert.equal(mixed.text, "5 учеников ждут оплаты");
+  assert.equal(mixed.text, "5 учеников ждут оплаты (7\u00A0оплат)");
   assert.equal(mixed.chip, "из них просрочено: 2");
-  assert.deepEqual([mixed.subject, mixed.predicate], ["5 учеников", "ждут оплаты"]);
+  assert.deepEqual([mixed.subject, mixed.predicate], ["5 учеников", "ждут оплаты (7\u00A0оплат)"]);
   // the phone: one sentence with the noun («5» alone says nothing), the chip folded in
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`, "5 учеников ждут оплаты, 2\u00A0просрочено");
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/\u00A0/g, " "), "5 учеников ждут оплаты, 2 просрочено");
-  assert.equal(bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 }).text, "21 ученик ждёт оплаты");
+  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`, "5 учеников ждут оплаты (7\u00A0оплат), 2\u00A0просрочено");
+  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/\u00A0/g, " "), "5 учеников ждут оплаты (7 оплат), 2 просрочено");
+  assert.equal(bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 }).text, "21 ученик ждёт оплаты (22\u00A0оплаты)");
   const phone = bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 });
-  assert.equal(`${phone.compactSubject} ${phone.compactPredicate}`.replace(/\u00A0/g, " "), "21 ученик ждёт оплаты, 1 просрочено");
+  assert.equal(`${phone.compactSubject} ${phone.compactPredicate}`.replace(/\u00A0/g, " "), "21 ученик ждёт оплаты (22 оплаты), 1 просрочено");
   assert.equal(bannerCopy({ due: 4, expired: 1, studentsDue: 4, studentsExpired: 1 }).text, "4 ученика ждут оплаты");
+});
+
+test("payments notice: rows more than people -> «(9 оплат)», plurals; equal counts or an old server -> no parenthesis", () => {
+  const { bannerCopy } = lib("payments-banner.ts");
+  const note = (due, students) => bannerCopy({ due, expired: 0, studentsDue: students, studentsExpired: 0 }).text.replace(/\u00A0/g, " ");
+  assert.equal(note(9, 7), "7 учеников ждут оплаты (9 оплат)");
+  assert.equal(note(2, 1), "1 ученик ждёт оплаты (2 оплаты)");
+  assert.equal(note(22, 21), "21 ученик ждёт оплаты (22 оплаты)");
+  assert.equal(note(21, 20), "20 учеников ждут оплаты (21 оплата)");
+  assert.equal(note(15, 12), "12 учеников ждут оплаты (15 оплат)");
+  assert.equal(note(7, 7), "7 учеников ждут оплаты", "the same number: nothing to explain");
+  assert.equal(bannerCopy({ due: 9, expired: 0 }).text, "9 учеников ждут оплаты", "an older server counts memberships only");
+  // the nbsp keeps «(9 оплат)» whole when the phone wraps the line
+  assert.match(bannerCopy({ due: 9, expired: 0, studentsDue: 7, studentsExpired: 0 }).text, /\(9\u00A0оплат\)/);
 });
 
 test("payments notice: nobody overdue -> «5 учеников ждут оплаты» with no chip", () => {

@@ -48,6 +48,8 @@ export function waitingPeopleCount(input: BannerCounts): number {
  * Distinct students are used when the server sends both counts; an older server's membership counts replace them as a
  * pair, never one by one (a student in two groups would otherwise look more overdue than waiting).  «Ends today» is
  * still paid, so the words are «ждут оплаты» and never «оплата закончилась» for those.
+ * The payments page counts ROWS (a student of two groups has two): when the rows are more than the people the notice
+ * says both - «7 учеников ждут оплаты (9 оплат)» - so the tab «Требуют оплаты (9)» does not look like a different number.
  */
 export function bannerCopy(input: BannerCounts): BannerCopy {
   const byStudents = isCount(input.studentsDue) && isCount(input.studentsExpired);
@@ -55,10 +57,13 @@ export function bannerCopy(input: BannerCounts): BannerCopy {
   const expired = Math.min(byStudents ? count(input.studentsExpired) : count(input.expired), total);
   const noun = pluralRu(total, "ученик", "ученика", "учеников");
   const subject = `${total} ${noun}`;
-  const waiting = `${noun === "ученик" ? "ждёт" : "ждут"} оплаты`;
+  const rows = count(input.due);
+  // A non-breaking space keeps «(9 оплат)» in one piece when the line wraps.
+  const rowsNote = byStudents && rows > total ? ` (${rows}\u00A0${pluralRu(rows, "оплата", "оплаты", "оплат")})` : "";
+  const waiting = `${noun === "ученик" ? "ждёт" : "ждут"} оплаты${rowsNote}`;
 
   if (total > 0 && expired === total) {
-    const predicate = "с просроченной оплатой";
+    const predicate = `с просроченной оплатой${rowsNote}`;
     return { count: total, expired, subject, predicate, chip: null, text: `${subject} ${predicate}`, compactSubject: subject, compactPredicate: predicate };
   }
   const chip = expired > 0 ? `из них просрочено: ${expired}` : null;

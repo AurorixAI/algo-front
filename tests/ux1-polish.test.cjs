@@ -178,7 +178,7 @@ test("payroll cells: the pending excuse is «Ждёт» (short form of «Ждё�
 test("payments banner on a phone: the whole sentence, 14 px, wraps, no ellipsis; «Открыть» and the cross stay", () => {
   const { bannerCopy } = lib("payments-banner.ts");
   const mixed = bannerCopy({ due: 7, expired: 3, studentsDue: 5, studentsExpired: 2 });
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/ /g, " "), "5 учеников ждут оплаты, 2 просрочено");
+  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/ /g, " "), "5 учеников ждут оплаты (7 оплат), 2 просрочено");
   const banner = read("src/components/payments/payments-alert-banner.tsx");
   assert.match(banner, /<p className="min-w-0 flex-1 text-sm leading-5 text-slate-600 sm:hidden">/);
   assert.doesNotMatch(banner, /line-clamp|truncate|text-ellipsis/);
