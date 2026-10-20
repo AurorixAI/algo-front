@@ -342,7 +342,7 @@ test("Hint replaces hover-only title tooltips of the badges whose detail was onl
   assert.doesNotMatch(journal, /title=\{transferDescription\} className="mt-1 inline-flex rounded-md/);
   assert.match(journal, /<Hint text=\{formatMembershipEvent\(membershipEvent\)\}/);
   assert.match(journal, /<Hint\s+text=\{\[\s*`Исправлено:/);
-  assert.match(journal, /\{excuse && \(\s*<p className="mb-1 whitespace-pre-line[^"]*">\{excuseTooltip\(excuse\)\}<\/p>/, "the absence reason is also in the opened cell menu");
+  assert.match(journal, /\{excuse && \(\s*<div className="mb-1 rounded-xl bg-slate-50 px-3 py-2">\s*<p className="whitespace-pre-line[^"]*">\{excuseTooltip\(excuse, \{ withLate: false \}\)\}<\/p>/, "the absence reason is also in the opened cell menu");
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /<Hint text=\{state\.description\}/);
 
   const React = require("react");
@@ -472,11 +472,11 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
   assert.match(src, /const menuAvailable = isOpen && \(!locked \|\| reviewable \|\| Boolean\(excuse\)\);/);
   assert.match(src, /const readOnlyExcuse = locked && !reviewable && Boolean\(excuse\);/);
   assert.match(src, /role=\{readOnlyExcuse \? "group" : "menu"\}/, "no empty role=menu");
-  assert.match(src, /<p className="mb-1 whitespace-pre-line break-words /, "a long reason wraps");
+  assert.match(src, /<p className="whitespace-pre-line break-words /, "a long reason wraps");
   // the cell menu: everything that marks, resets or reviews sits behind a guard that a locked, non-reviewable cell fails
   const start = src.indexOf("id={`attendance-menu-${student.id}-${key}`}");
   const menu = src.slice(start, src.indexOf("</FloatingMenu>", start));
-  assert.match(menu, /\{excuse && \(\s*<p/, "the reason is the only unguarded part");
+  assert.match(menu, /\{excuse && \(\s*<div className="mb-1 rounded-xl bg-slate-50 px-3 py-2">\s*<p/, "the reason is the only unguarded part");
   // confirm and reject now open the confirmation dialog (askReview), the request itself is sent from the dialog
   const marking = [...menu.matchAll(/handleSelectStatus\(|handleReview\(|askReview\(/g)];
   assert.equal(marking.length, 5, "status options, reset, confirm, reject, reset-decision");

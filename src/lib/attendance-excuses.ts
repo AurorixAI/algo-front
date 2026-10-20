@@ -3,6 +3,7 @@
  * No React (only the pure business-time helpers), so node:test can load this file directly.
  */
 
+import { EXCUSE_REVIEW_LABEL, MARK_CELL_LABEL } from "./attendance-marks";
 import { formatBusinessDateTime, shiftBusinessMonth } from "./business-time";
 
 export type LessonState = "scheduled" | "in_progress" | "completed" | "cancelled";
@@ -98,12 +99,12 @@ export interface ExcuseCellView {
   tone: "pending" | "confirmed" | "rejected" | "plain";
 }
 
-/** Journal cell text and tone for an "excused" mark by the review status. */
+/** Journal cell text and tone for an "excused" mark by the review status (whole words, see `attendance-marks`). */
 export function excuseCellView(status: ExcuseStatus | null | undefined): ExcuseCellView {
-  if (status === "confirmed") return { label: "Ув. ✓", tone: "confirmed" };
-  if (status === "rejected") return { label: "Ув. ✗", tone: "rejected" };
-  if (status === "pending") return { label: "Ув.?", tone: "pending" };
-  return { label: "Ув.", tone: "plain" };
+  if (status === "confirmed" || status === "rejected" || status === "pending") {
+    return { label: EXCUSE_REVIEW_LABEL[status], tone: status };
+  }
+  return { label: MARK_CELL_LABEL.excused, tone: "plain" };
 }
 
 /** Scale (width, height) so that the longer side is at most `maxSide`; never upscales. */

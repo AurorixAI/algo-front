@@ -144,11 +144,12 @@ test("dates are shown as ДД.ММ.ГГГГ and times on the Tashkent clock", ()
 });
 
 test("journal cell reflects the review state of an excuse", () => {
-  assert.deepEqual(rules.excuseCellView("pending"), { label: "Ув.?", tone: "pending" });
-  assert.deepEqual(rules.excuseCellView("confirmed"), { label: "Ув. ✓", tone: "confirmed" });
-  assert.deepEqual(rules.excuseCellView("rejected"), { label: "Ув. ✗", tone: "rejected" });
+  // whole words, no abbreviations (UX-1 B)
+  assert.deepEqual(rules.excuseCellView("pending"), { label: "Ждёт решения", tone: "pending" });
+  assert.deepEqual(rules.excuseCellView("confirmed"), { label: "Подтверждена", tone: "confirmed" });
+  assert.deepEqual(rules.excuseCellView("rejected"), { label: "Отклонена", tone: "rejected" });
   // legacy mark with no excuse record
-  assert.deepEqual(rules.excuseCellView(undefined), { label: "Ув.", tone: "plain" });
+  assert.deepEqual(rules.excuseCellView(undefined), { label: "Уважительная", tone: "plain" });
 });
 
 test("excuse list period: current month by default, at most 93 days", () => {

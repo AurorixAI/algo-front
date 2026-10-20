@@ -259,6 +259,7 @@ test("#103: every «Подтвердить» / «Отклонить» of the lis
   const page = read("src/components/attendance/excuses-page.tsx");
   // the row button and the menu items open the dialog
   assert.match(page, /onClick=\{\(\) => openDialog\(item, "confirmed", "none"\)\}/);
+  assert.match(page, /onClick=\{\(\) => openDialog\(item, "rejected", "optional"\)\}/); // the visible «Отклонить» of a waiting row (UX-1 B)
   assert.match(page, /key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: \(\) => openDialog\(item, "rejected", "optional"\)/);
   assert.match(page, /key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: \(\) => openDialog\(item, "confirmed", "required"\)/);
   assert.match(page, /key: "confirm", label: "Подтвердить", icon: Check, onSelect: \(\) => openDialog\(item, "confirmed", "none"\)/);
@@ -289,17 +290,17 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   const excuses = read("src/components/attendance/excuses-page.tsx");
   assert.match(excuses, /<TableHeader\s+show="xl"\s+gridClass=\{cols\}/);
   assert.match(excuses, /xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 \$\{cols\}/);
-  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.45fr\)_104px_minmax\(0,1\.55fr\)_176px_184px\]"/);
+  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.45fr\)_104px_minmax\(0,1\.55fr\)_200px_232px\]"/);
   const open = read("src/components/attendance/open-lessons-view.tsx");
   assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{\["Урок", "Группа", "Статус", ""\]\}/);
   assert.match(open, /lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 \$\{COLS\}/);
   // the same horizontal padding in both (px-4) and the same header look
   assert.match(chromeSrc, /TABLE_PAD_X = "px-4"/);
-  assert.match(chromeSrc, /TABLE_HEAD_CELL = "min-w-0 text-xs font-semibold uppercase tracking-wider text-slate-500"/);
+  assert.match(chromeSrc, /TABLE_HEAD_CELL = "min-w-0 text-\[13px\] font-semibold text-slate-500"/); // ordinary case, never ALL CAPS (UX-1 B)
   // badges: one base class (size, radius, type), tones from the shared palette; placed as flex items so no line box shifts them
   const tone = require(path.join(root, "src/lib/chip-tone.ts"));
   assert.match(tone.CHIP_BASE_CLASS, /rounded-md border px-2 py-0\.5 text-left text-xs font-medium leading-4/);
-  assert.match(excuses, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[chip\.tone\]\}/);
+  assert.match(excuses, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}/);
   assert.match(open, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[CHIP_TONE\[item\.actionType\]\]\}/);
   assert.match(excuses, /<div className="flex min-w-0 xl:-my-px">/);
   assert.match(open, /<div className="flex min-w-0 lg:-my-px">/);
