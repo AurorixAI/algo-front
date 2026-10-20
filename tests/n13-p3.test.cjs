@@ -205,7 +205,7 @@ test("month switcher: shift across a year, the next button stops at the current 
 
 // ---- 5. the cells of the sheet ----------------------------------------------------------------------------------
 
-test("cells: 1 counted, 0 red, «Ув.?» yellow, empty not in the group, grey unpaid", () => {
+test("cells: 1 counted, 0 red, «Ждёт» yellow, empty not in the group, grey unpaid", () => {
   const counted = R.markCell(1, "counted");
   assert.deepEqual([counted.tone, counted.label], ["counted", "1"]);
   const zero = R.markCell(0, "excused_confirmed");
@@ -213,7 +213,7 @@ test("cells: 1 counted, 0 red, «Ув.?» yellow, empty not in the group, grey u
   assert.match(zero.className, /rose-600/);
   assert.match(zero.title, /подтверждена/);
   const pending = R.markCell(1, "excused_pending");
-  assert.deepEqual([pending.tone, pending.label], ["pending", "Ув.?"]);
+  assert.deepEqual([pending.tone, pending.label], ["pending", "Ждёт"]);
   assert.match(pending.className, /amber/);
   const empty = R.markCell(null, "not_in_group");
   assert.deepEqual([empty.tone, empty.label], ["empty", ""]);
@@ -653,7 +653,7 @@ test("the sheet table: the partner's layout, accessible names, sticky name colum
   const markup = html();
   const text = plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
-    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана цена группы", "Итого по группе", "Итого", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
+    "01.09", "03.09", "08.09", "10.09", "Ждёт", "ожидает: 1", "Не задана цена группы", "Итого по группе", "Итого", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
     assert.ok(text.includes(part), `the sheet shows «${part}»`);
   }
   assert.match(markup, />Итого<\/span>/); // the sheet's total is not in capitals

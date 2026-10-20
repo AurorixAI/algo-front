@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "@/lib/store";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { formatAttendanceSummary } from "@/lib/attendance-summary";
+import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import {
   examsApi,
   orgApi,
@@ -258,7 +259,7 @@ export default function TeacherDashboardPage() {
   const [activeCancellationReason, setActiveCancellationReason] = useState<string | null>(null);
   const [groupStudents, setGroupStudents] = useState<StudentInGroup[]>([]);
   const [attendance, setAttendance] = useState<Record<string, AttendanceStatus>>({});
-  // Reasons for "Ув." typed in this dialog, and excuses the server already holds for the lesson.
+  // Reasons for "Уважительная" typed in this dialog, and excuses the server already holds for the lesson.
   const [excuseReasons, setExcuseReasons] = useState<Record<string, string>>({});
   const [savedExcuses, setSavedExcuses] = useState<Record<string, { reason: string }>>({});
   const [excuseReasonInvalidId, setExcuseReasonInvalidId] = useState<string | null>(null);
@@ -545,7 +546,7 @@ export default function TeacherDashboardPage() {
       }
       return { ...prev, [studentId]: status };
     });
-    // Leaving "Ув." drops the typed reason; the server removes the excuse on save.
+    // Leaving "Уважительная" drops the typed reason; the server removes the excuse on save.
     if (status !== "excused" || attendance[studentId] === "excused") {
       setExcuseReasons((prev) => {
         if (!(studentId in prev)) return prev;
@@ -710,17 +711,17 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  /** Server refused an "Ув." without a reason (old mark with no record): say what to do. */
+  /** Server refused an "Уважительная" without a reason (old mark with no record): say what to do. */
   const excuseReasonHint = (err: unknown): string | null => {
     const message = err instanceof Error ? err.message : "";
     if (/причин/i.test(message) && /ув|уважит/i.test(message)) {
       setIsMarkingAttendance(true);
-      return "Для уважительного пропуска нужна причина. Впишите причину в поле под учеником с отметкой «Ув.» и сохраните снова.";
+      return "Для уважительного пропуска нужна причина. Впишите причину в поле под учеником с отметкой «Уважительная» и сохраните снова.";
     }
     return null;
   };
 
-  /** Reasons to send with the save, or an error text when an "Ув." mark has no valid reason. */
+  /** Reasons to send with the save, or an error text when an "Уважительная" mark has no valid reason. */
   const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
     const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
     if (missing) {
@@ -2442,54 +2443,54 @@ export default function TeacherDashboardPage() {
                                 </div>
                               </div>
 
-                              <div className="flex items-center gap-1 shrink-0">
+                              <div className="grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(st.id, "present")}
-                                  title={status === "present" ? "Снять отметку «Был»" : "Отметить «Был»"}
+                                  title={status === "present" ? `Снять отметку «${MARK_MENU_LABEL.present}»` : `Отметить «${MARK_MENU_LABEL.present}»`}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "present"
                                       ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
                                       : "bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50/50"
                                   }`}
                                 >
-                                  Был
+                                  {MARK_CELL_LABEL.present}
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleAttendanceChange(st.id, "late")}
-                                  title={status === "late" ? "Снять отметку «Опоздал»" : "Отметить «Опоздал»"}
+                                  title={status === "late" ? `Снять отметку «${MARK_MENU_LABEL.late}»` : `Отметить «${MARK_MENU_LABEL.late}»`}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "late"
                                       ? "bg-amber-500 text-white border-amber-500 shadow-xs"
                                       : "bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50/50"
                                   }`}
                                 >
-                                  Опоздал
+                                  {MARK_CELL_LABEL.late}
                                 </button>
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "absent")}
-                                title={status === "absent" ? "Снять отметку «Н/Б»" : "Отметить «Н/Б»"}
+                                title={status === "absent" ? `Снять отметку «${MARK_MENU_LABEL.absent}»` : `Отметить «${MARK_MENU_LABEL.absent}»`}
                                   className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                     status === "absent"
                                       ? "bg-rose-600 text-white border-rose-600 shadow-xs"
                                       : "bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:text-rose-700 hover:bg-rose-50/50"
                                   }`}
                               >
-                                Н/Б
+                                {MARK_CELL_LABEL.absent}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => handleAttendanceChange(st.id, "excused")}
-                                title={status === "excused" ? "Снять отметку «Уважительная причина»" : "Отметить «Уважительная причина»"}
+                                title={status === "excused" ? `Снять отметку «${MARK_MENU_LABEL.excused}»` : `Отметить «${MARK_MENU_LABEL.excused}»`}
                                 className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition-all ${
                                   status === "excused"
                                     ? "bg-sky-600 text-white border-sky-600 shadow-xs"
                                     : "bg-white text-slate-600 border-slate-200 hover:border-sky-300 hover:text-sky-700 hover:bg-sky-50/50"
                                 }`}
                               >
-                                Ув.
+                                {MARK_CELL_LABEL.excused}
                               </button>
                               </div>
                               {status === "excused" && (

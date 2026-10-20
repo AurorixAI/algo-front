@@ -168,7 +168,7 @@ function SheetLegend({ showIncludeNote }: { showIncludeNote: boolean }) {
 
 /**
  * The sheet as the partner keeps it: a block per group - the students in rows, the lessons of the month in
- * columns (1 counted, 0 red, «Ув.?» yellow, empty not in the group, grey not paid) - then the fee, the
+ * columns (1 counted, 0 red, «Ждёт» yellow, empty not in the group, grey not paid) - then the fee, the
  * percent, the counted and unpaid lessons and the pay of each line, a subtotal per group and the sheet's «Итого».
  *
  * The amounts are the server's; a line the owner has edited is previewed with the same formula until saved.

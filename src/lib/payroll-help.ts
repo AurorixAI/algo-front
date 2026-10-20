@@ -9,6 +9,7 @@ import { formatMoney, formatMoneyInput } from "./payments";
 import {
   formatDayMonth,
   lineAmount,
+  PENDING_CELL_LABEL,
   revisionLabel,
   type PayrollLine,
   type PayrollMonthSheetRef,
@@ -57,7 +58,7 @@ export const PRICE_HEADER_HINT =
 export const SHEET_LEGEND: ReadonlyArray<{ key: string; mark: string; text: string }> = [
   { key: "counted", mark: "1", text: "засчитан" },
   { key: "zero", mark: "0", text: "не засчитан (уважительная причина подтверждена)" },
-  { key: "pending", mark: "Ув.?", text: "уважительная ждёт подтверждения (засчитан)" },
+  { key: "pending", mark: PENDING_CELL_LABEL, text: "уважительная, решение ещё не принято (урок засчитан)" },
   { key: "unpaid", mark: "1", text: "был на уроке, урок не оплачен — не входит в сумму" },
   { key: "empty", mark: "пусто", text: "ученика ещё нет в группе" },
 ];

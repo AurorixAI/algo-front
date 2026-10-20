@@ -8,6 +8,7 @@
  * divisor, summed, rounded once half up to a whole sum.
  */
 import { formatMoney, pluralRu } from "./payments";
+import { EXCUSE_REVIEW_LABEL } from "./attendance-marks";
 import { capitalizeFirst, formatIsoDateLabel, monthYearLabelRu, shiftBusinessMonth } from "./business-time";
 import { groupsWithoutPriceHref, type PriceSource } from "./group-price";
 
@@ -512,7 +513,10 @@ export type MarkTone = "counted" | "zero" | "pending" | "empty" | "unpaid" | "un
 
 export interface MarkCellView {
   tone: MarkTone;
-  /** What is written in the cell: «1», «0», «Ув.?» or nothing. */
+  /**
+   * What is written in the cell: «1», «0», «Ждёт» or nothing.  The cell is narrow, so the pending mark is the first word
+   * of the map's «Ждёт решения»; the legend over the table (SHEET_LEGEND) and the tooltip say the whole of it.
+   */
   label: string;
   /** The words for a tooltip and a screen reader. */
   title: string;
@@ -529,6 +533,9 @@ export const MARK_CELL_CLASS: Record<MarkTone, string> = {
   unpaid_included: "rounded border border-dashed border-slate-400 px-1 text-slate-700",
 };
 
+/** The cell of an excuse that waits for a decision: the short form of «Ждёт решения», explained by the legend of the sheet. */
+export const PENDING_CELL_LABEL = "Ждёт";
+
 /** The dashed «1»: the student was at the lesson, nobody paid for it. */
 export const UNPAID_MARK_HINT = "Был на уроке, урок не оплачен — не входит в сумму";
 export const UNPAID_INCLUDED_MARK_HINT = "Был на уроке, урок не оплачен — начислен по вашему выбору";
@@ -536,7 +543,7 @@ export const UNPAID_INCLUDED_MARK_HINT = "Был на уроке, урок не 
 const MARK_TITLE: Record<MarkTone, string> = {
   counted: "Засчитан",
   zero: "Не засчитан",
-  pending: "Уважительная ждёт подтверждения: засчитан",
+  pending: `${EXCUSE_REVIEW_LABEL.pending}: уважительная, урок пока засчитан`,
   empty: "Ученика ещё нет в группе",
   unpaid: UNPAID_MARK_HINT,
   unpaid_included: UNPAID_INCLUDED_MARK_HINT,
@@ -557,7 +564,7 @@ export function markCell(
     case "unpaid": tone = options.includeUnpaid ? "unpaid_included" : "unpaid"; break;
     default: tone = mark === 1 ? "counted" : mark === 0 ? "zero" : "empty";
   }
-  const label = tone === "pending" ? "Ув.?" : tone === "zero" ? "0" : tone === "empty" ? "" : "1";
+  const label = tone === "pending" ? PENDING_CELL_LABEL : tone === "zero" ? "0" : tone === "empty" ? "" : "1";
   const title = state === "excused_confirmed" ? "Уважительная причина подтверждена: не засчитан" : MARK_TITLE[tone];
   return { tone, label, title, className: MARK_CELL_CLASS[tone] };
 }

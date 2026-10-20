@@ -3,7 +3,7 @@ import { Org, type Staff, type GroupInfo, type StudentInfo, type LessonInfo } fr
 import { expectNoHorizontalScroll } from "../support/ui";
 
 /**
- * Teacher: the day of a lesson. Dashboard shows the lesson -> «Начать урок» -> marks (Был / Ув. with a reason)
+ * Teacher: the day of a lesson. Dashboard shows the lesson -> «Начать урок» -> marks (Был / Уважительная with a reason)
  * -> «Сохранить отметки» -> «Завершить урок» -> completed. Checked in the UI and, for the marks, in the journal API.
  */
 let org: Org;
@@ -34,11 +34,11 @@ test("teacher runs a lesson from the dashboard to «Завершён» @mobile",
   await page.getByRole("button", { name: "Начать урок" }).click();
   await expect(page.getByRole("heading", { name: /Отметка посещаемости \(0 из 2\)/ })).toBeVisible();
 
-  // 3. «Был» for the first student, «Ув.» for the second - with a reason of at least 3 characters
+  // 3. «Был» for the first student, «Уважительная» for the second - with a reason of at least 3 characters
   const row = (fullName: string) =>
-    page.getByText(fullName, { exact: true }).locator('xpath=ancestor::div[.//button[normalize-space()="Ув."]][1]');
+    page.getByText(fullName, { exact: true }).locator('xpath=ancestor::div[.//button[normalize-space()="Уважительная"]][1]');
   await row(`Каримов${"Т1"} Анвар`).getByRole("button", { name: "Был", exact: true }).click();
-  await row(`Рахимова${"Т1"} Мадина`).getByRole("button", { name: "Ув.", exact: true }).click();
+  await row(`Рахимова${"Т1"} Мадина`).getByRole("button", { name: "Уважительная", exact: true }).click();
   const reason = page.getByRole("textbox", { name: /Причина уважительного пропуска/ });
   await reason.fill("ab");
   await page.getByRole("button", { name: "Сохранить отметки" }).click();
@@ -48,7 +48,7 @@ test("teacher runs a lesson from the dashboard to «Завершён» @mobile",
   await reason.fill("Болела, температура");
   await page.getByRole("button", { name: "Сохранить отметки" }).click();
   await expect(page.getByText("Идёт урок · Посещаемость отмечена")).toBeVisible();
-  await expect(page.getByText("Присутствовали: 1 · Ув.: 1")).toBeVisible();
+  await expect(page.getByText("Был: 1 · Уважительная: 1")).toBeVisible();
 
   // the journal holds exactly what was clicked
   const journal = await teacher.api.get(`/auth/org/groups/${group.id}/attendance`, { month: lesson.date.slice(0, 7) });

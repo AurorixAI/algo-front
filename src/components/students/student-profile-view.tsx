@@ -25,11 +25,12 @@ import { ExamHistoryError, toExamHistoryError } from "@/lib/exam-history-error";
 import { canStartRequest, createRequestSequence } from "@/lib/request-sequence";
 import { formatSolved, storedLevelDisplay } from "@/lib/diagnostic-level";
 import { shiftMonth } from "@/lib/attendance-excuses";
-import { pluralRu } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { DiagnosticStatusBadge, diagnosticActionClass } from "@/components/diagnostics/list-chrome";
 import { inviteCancelHint, isInviteDead, studentCardInviteLabel } from "@/lib/diagnostic-invite";
+import { MARK_CELL_LABEL } from "@/lib/attendance-marks";
+import { formatGroupMonthLine } from "@/lib/attendance-summary";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
   ARCHIVED_TOAST, archiveBannerTitle, archiveDiagnosticCounts, archiveGroupNames, archiveResultDetails, restoreNeedsReading,
@@ -726,10 +727,10 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                       {[
                         ["Занятий", attendanceSummary.totals.total_lessons, "text-slate-800"],
-                        ["Был", attendanceSummary.totals.present, "text-emerald-700"],
-                        ["Опоздал", attendanceSummary.totals.late, "text-amber-700"],
-                        ["Н/Б", attendanceSummary.totals.absent, "text-rose-600"],
-                        ["Уваж.", attendanceSummary.totals.excused, "text-sky-700"],
+                        [MARK_CELL_LABEL.present, attendanceSummary.totals.present, "text-emerald-700"],
+                        [MARK_CELL_LABEL.late, attendanceSummary.totals.late, "text-amber-700"],
+                        [MARK_CELL_LABEL.absent, attendanceSummary.totals.absent, "text-rose-600"],
+                        [MARK_CELL_LABEL.excused, attendanceSummary.totals.excused, "text-sky-700"],
                       ].map(([label, value, color]) => (
                         <div key={String(label)} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
                           <p className="text-[11px] font-medium text-slate-500">{label}</p>
@@ -753,7 +754,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                               <p className="font-semibold text-slate-800">{groupSummary.group_name}</p>
                               <p className="text-xs text-slate-500">{groupSummary.teacher_name || "Преподаватель не назначен"}</p>
                             </div>
-                            <p className="text-xs font-medium text-slate-600">{groupSummary.total_lessons} {pluralRu(groupSummary.total_lessons, ["занятие", "занятия", "занятий"])} · был {groupSummary.present + groupSummary.late} · Н/Б {groupSummary.absent}</p>
+                            <p className="text-xs font-medium text-slate-600">{formatGroupMonthLine(groupSummary)}</p>
                           </div>
                         ))}
                         </div>

@@ -89,7 +89,7 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
   const lineOf = (name: string) => preview.getByRole("row", { name: new RegExp(name) });
   await expect(lineOf("Первый Анвар")).toContainText(`${groupedDigits(payrollLine(600000, "62.5", 1))} сум`);
   await expect(lineOf("Второй Мадина")).toContainText(`${groupedDigits(payrollLine(900000, "62.5", 1))} сум`);
-  await expect(lineOf("Третий Булат")).toContainText("Ув.?"); // the excuse waits for a decision, the lesson counts
+  await expect(lineOf("Третий Булат")).toContainText("Ждёт"); // the excuse waits for a decision, the lesson counts
   await expect(lineOf("Третий Булат")).toContainText(`${groupedDigits(payrollLine(300000, "62.5", 1))} сум`);
   await expect(lineOf("Неплательщик Эльдар")).toContainText("Был на уроке, урок не оплачен — не входит в сумму"); // shown, but not in the sum
   await expect(lineOf("Второй Мадина")).toContainText("индивидуальная"); // the individual price is marked on the sheet
