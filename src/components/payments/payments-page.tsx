@@ -10,6 +10,7 @@ import {
   addMonthMinusDay,
   billingPeriodEndOf,
   bucketCount,
+  bucketTabLabel,
   buildPaymentPayload,
   buildQuoteQuery,
   fixedDayChips,
@@ -21,6 +22,8 @@ import {
   paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
+  payActionOf,
+  PAY_ACTION_LABEL,
   PARTIAL_AMOUNT_PROMPT,
   PARTIAL_PERIOD_BADGE,
   QUOTE_FAILED_NOTE,
@@ -49,6 +52,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
+import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { PaymentFormModal, type PaymentFormKind } from "./payment-form-modal";
@@ -57,7 +61,7 @@ import { PaymentVoidModal } from "./payment-void-modal";
 const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
-const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_120px_minmax(0,1.4fr)_112px_124px] xl:items-center xl:gap-x-4";
+const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_156px] xl:items-center xl:gap-x-4";
 const GRID_NONE = "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,2.6fr)] xl:items-center xl:gap-x-4";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -65,7 +69,7 @@ const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   due: "Нет учеников, которым пора платить",
   expiring: "Скоро заканчивающихся оплат нет",
-  none: "У всех учеников есть данные об оплате",
+  none: "Учеников без оплат нет",
   active: "Оплаченных учеников пока нет",
 };
 
@@ -98,7 +102,7 @@ function useOnceVisible(ref: React.RefObject<Element | null>, callback: () => vo
 }
 
 /**
- * Quick entry of a first payment right in the row of the «Нет данных» tab.  The sum is suggested from the price of the
+ * Quick entry of a first payment right in the row of the «Без оплат» tab.  The sum is suggested from the price of the
  * group (or the individual price of the student); the price is never typed here - where there is none, the row says so,
  * links to the group and the amount of the payment is typed by hand.
  */
@@ -309,7 +313,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const available = usePaymentsSummary((state) => state.available);
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
   const due = usePaymentsSummary((state) => state.due);
+  const expiring = usePaymentsSummary((state) => state.expiring);
   const none = usePaymentsSummary((state) => state.none);
+  const activeCount = usePaymentsSummary((state) => state.active);
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const lessonsDefault = usePaymentsSummary((state) => state.lessonsPerPayment);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
@@ -333,6 +339,17 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const [voidTarget, setVoidTarget] = useState<{ payment: PaymentOut; studentName: string } | null>(null);
 
   const requests = useRef(createRequestSequence());
+  const tabsRef = useRef<HTMLDivElement | null>(null);
+
+  // The open tab is brought into view in the sideways-scrolling tab bar of a phone (a link to the 4th tab opens scrolled to it).
+  useEffect(() => {
+    const list = tabsRef.current?.querySelector<HTMLElement>(".scroll-hint");
+    const tab = list?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!list || !tab || list.scrollWidth <= list.clientWidth) return;
+    const start = tab.getBoundingClientRect().left - list.getBoundingClientRect().left + list.scrollLeft;
+    list.scrollLeft = Math.max(0, start - (list.clientWidth - tab.offsetWidth) / 2);
+    // the counters widen the labels once the summary has arrived
+  }, [bucket, summaryLoaded]);
 
   // The summary is also read by the layout; this keeps the page's own numbers fresh on entry.
   useEffect(() => { void refreshSummary(true); }, [refreshSummary]);
@@ -415,7 +432,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   };
 
   const onQuickDone = (row: MembershipPaymentRow, warnings: PaymentWarning[]) => {
-    // The row has a status now: it leaves the «Нет данных» tab without reloading the page.
+    // The row has a status now: it leaves the «Без оплат» tab without reloading the page.
     setItems((previous) => previous.filter((item) => item.membership_id !== row.membership_id));
     setTotal((value) => Math.max(0, value - 1));
     if (warnings.length > 0) showToast("Оплата внесена", "warning", warningLines(warnings));
@@ -436,7 +453,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     );
   }
 
-  const summaryForTabs = { due, none };
+  // Every tab carries its number; none is shown while the summary is not known yet.
+  const summaryForTabs = summaryLoaded ? { due, expiring, none, active: activeCount } : null;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -447,24 +465,27 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
       {/* One row: tabs on the left, search and filter on the right */}
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 xl:w-fit" role="tablist">
-          {PAYMENT_BUCKETS.map(({ key, label }) => {
-            const count = bucketCount(summaryForTabs, key);
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={bucket === key}
-                onClick={() => switchBucket(key)}
-                className={`whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
-                  bucket === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                }`}
-              >
-                {count !== null && count > 0 ? `${label} (${count})` : label}
-              </button>
-            );
-          })}
+        {/* On a phone the tabs scroll sideways; the edge that hides a tab fades out (ScrollHint) */}
+        <div ref={tabsRef} className="min-w-0 xl:w-fit">
+          <ScrollHint focusable={false} className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
+            {/* the role sits one level below the scroller: ScrollHint owns the attributes of its own box */}
+            <div role="tablist" className="flex w-max min-w-full gap-1">
+              {PAYMENT_BUCKETS.map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={bucket === key}
+                  onClick={() => switchBucket(key)}
+                  className={`shrink-0 whitespace-nowrap rounded-lg px-3.5 py-2 text-sm font-medium transition-all ${
+                    bucket === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                  }`}
+                >
+                  {bucketTabLabel(label, bucketCount(summaryForTabs, key))}
+                </button>
+              ))}
+            </div>
+          </ScrollHint>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1 xl:w-64 xl:flex-none">
@@ -503,7 +524,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       ) : (
         <section className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
           {bucket !== "none" && (
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID_DEFAULT}`}>
+            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
               <span>Ученик</span>
               <span>Группа</span>
               <span>{priceLabelOf(periodMode)}</span>
@@ -522,7 +543,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                 lessonsDefault={lessonsDefault}
                 studentProfileBasePath={studentProfileBasePath}
                 groupsBasePath={groupsBasePath}
-                onPay={() => setForm({ kind: row.last_payment ? "extend" : "create", row, payment: null })}
+                onPay={() => setForm({ kind: payActionOf(row), row, payment: null })}
                 onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
                 onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
                 onQuickDone={onQuickDone}
@@ -680,9 +701,9 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
     <button
       type="button"
       onClick={onPay}
-      className="flex-1 rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:flex-none"
+      className="flex-1 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:flex-none"
     >
-      {row.last_payment ? "Продлить" : "Внести"}
+      {PAY_ACTION_LABEL[payActionOf(row)]}
     </button>
   );
 }

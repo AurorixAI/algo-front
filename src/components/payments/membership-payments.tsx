@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, Trash2, XCircle } from "lucide-react";
+import { ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, Trash2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatFileSize } from "@/lib/attendance-excuses";
 import {
@@ -12,6 +12,8 @@ import {
   formatDateRu,
   hasReceipt,
   isCarryOver,
+  payActionOf,
+  PAY_ACTION_LABEL,
   paymentAmountLabel,
   paymentPeriodLabel,
   PARTIAL_PERIOD_TAG,
@@ -35,7 +37,7 @@ import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
-import { MembershipPriceSection } from "./membership-price";
+import { useMembershipPriceControls } from "./membership-price";
 import { PaymentFormModal, type PaymentFormKind } from "./payment-form-modal";
 import { PaymentVoidModal } from "./payment-void-modal";
 
@@ -43,6 +45,8 @@ const HISTORY_PREVIEW = 5;
 
 interface MembershipPaymentsProps {
   row: MembershipPaymentRow;
+  /** Row 1, left: the name of the group (with its badges and the teacher). */
+  heading: ReactNode;
   studentName: string;
   periodMode: PeriodMode;
   lessonsDefault: number | null;
@@ -61,11 +65,14 @@ interface MembershipPaymentsProps {
 }
 
 /**
- * Money of one membership inside the «Группы» block of the student card: the price (of the group, or the
- * individual one), status, payment history (cancelled ones grey) and the actions Внести / Исправить / Отменить.
+ * Money of one membership on the «Оплаты» tab of the student card, ordered by importance:
+ *  1. the group, its status chip and the one main button («Внести оплату» when overdue or never paid, «Продлить» when running);
+ *  2. the price in a line: «Цена 500 000 сум/мес · цена группы» / «Индивидуальная цена … · причина»;
+ *  3. in «⋯»: the individual price (assign / return / cancel a scheduled one), the history of the price, the history of payments
+ *     (cancelled payments grey) with the actions Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, studentName, periodMode, lessonsDefault, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, heading, studentName, periodMode, lessonsDefault, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const editable = row.is_active && !archived;
@@ -185,90 +192,106 @@ export function MembershipPayments({ row, studentName, periodMode, lessonsDefaul
   const tone = STATUS_TONE_CLASS[statusTone(row.status)];
   const detail = statusDetail(row);
   const visible = history ? (showAll ? history : history.slice(0, HISTORY_PREVIEW)) : [];
+  const action = payActionOf(row);
+
+  const price = useMembershipPriceControls({
+    row, studentName, periodMode, groupsBasePath, editable, onRowChange: changed, onNotify,
+  });
+  // Rare actions: the price first, the histories last.
+  const menu: RowMenuItem[] = [
+    ...price.items,
+    { key: "payments-history", label: historyOpen ? "Скрыть историю оплат" : "История оплат", onSelect: () => setHistoryOpen((value) => !value) },
+  ];
 
   return (
-    <div className="mt-3 space-y-3 border-t border-slate-200/70 pt-3">
-      <MembershipPriceSection
-        row={row}
-        studentName={studentName}
-        periodMode={periodMode}
-        groupsBasePath={groupsBasePath}
-        editable={editable}
-        onRowChange={changed}
-        onNotify={onNotify}
-      />
-
-      {editable && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${tone}`}>{statusLabel(row)}</span>
-            {detail && <span className="text-[11px] text-slate-400">{detail}</span>}
-          </div>
-          <button
-            type="button"
-            onClick={() => setForm({ kind: row.last_payment ? "extend" : "create", payment: null })}
-            className="ml-auto rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-700 hover:bg-primary-50"
-          >
-            {row.last_payment ? "Продлить" : "Внести"}
-          </button>
-        </div>
-      )}
-
-      <div>
-        <button
-          type="button"
-          onClick={() => setHistoryOpen((value) => !value)}
-          aria-expanded={historyOpen}
-          className="flex items-center gap-1 text-xs font-semibold text-slate-500 hover:text-slate-800"
-        >
-          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${historyOpen ? "rotate-180" : ""}`} />
-          История оплат
-        </button>
-
-        {historyOpen && (
-          <div className="mt-2">
-            {historyError ? (
-              <p role="alert" className="text-xs font-medium text-rose-700">
-                {historyError}{" "}
-                <button type="button" onClick={() => void loadHistory()} className="underline">Повторить</button>
-              </p>
-            ) : history === null ? (
-              <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-            ) : history.length === 0 ? (
-              <p className="text-xs text-slate-400">Оплат пока нет</p>
-            ) : (
-              <>
-                <ul className="divide-y divide-slate-100">
-                  {visible.map((payment) => (
-                    <HistoryItem
-                      key={payment.id}
-                      payment={payment}
-                      editable={editable}
-                      voidable={voidable}
-                      uploading={uploadingId === payment.id}
-                      uploadRunning={uploadingId !== null}
-                      onCorrect={() => setForm({ kind: "replace", payment })}
-                      onVoid={() => setVoidTarget(payment)}
-                      onReceipt={() => {
-                        markReceiptNavigation(payment.id);
-                        router.push(receiptHref(paymentsBasePath, payment.id));
-                      }}
-                      onAttach={() => pickFile(payment)}
-                      onOpenFile={(file) => void openFile(payment, file)}
-                      onDeleteFile={(file) => setFileToDelete({ payment, file })}
-                    />
-                  ))}
-                </ul>
-                {history.length > HISTORY_PREVIEW && !showAll && (
-                  <button type="button" onClick={() => setShowAll(true)} className="mt-1.5 text-xs font-semibold text-primary-700 hover:underline">
-                    Показать все ({history.length})
-                  </button>
-                )}
-              </>
-            )}
+    <div className="space-y-2.5">
+      {/* Row 1: the group, the status, the one main button, «⋯».  A phone: the group and «⋯», under them the status, then the button. */}
+      <div
+        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 ${
+          editable
+            ? "sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'heading_menu'_'status_status'_'button_button'] sm:[grid-template-areas:'heading_status_button_menu']"
+            : "[grid-template-areas:'heading_menu']"
+        }`}
+      >
+        <div className="min-w-0 [grid-area:heading]">{heading}</div>
+        {editable && (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:block">
+            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
+            {detail && <p className="text-[11px] text-slate-500 sm:mt-0.5">{detail}</p>}
           </div>
         )}
+        {editable && (
+          <button
+            type="button"
+            onClick={() => setForm({ kind: action, payment: null })}
+            className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold [grid-area:button] sm:justify-self-end sm:py-1.5 ${
+              action === "create"
+                ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+                : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
+            }`}
+          >
+            {PAY_ACTION_LABEL[action]}
+          </button>
+        )}
+        <div className="justify-self-end [grid-area:menu]">
+          <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
+        </div>
       </div>
+
+      {/* Row 2: what the student pays */}
+      {price.line}
+
+      {price.panel}
+
+      {historyOpen && (
+        <section aria-label="История оплат" className="rounded-xl border border-slate-200 bg-white px-3.5 py-3">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h3 className="text-xs font-semibold text-slate-700">История оплат</h3>
+            <button type="button" onClick={() => setHistoryOpen(false)} className="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline">Скрыть</button>
+          </div>
+          {historyError ? (
+            <p role="alert" className="text-xs font-medium text-rose-700">
+              {historyError}{" "}
+              <button type="button" onClick={() => void loadHistory()} className="underline">Повторить</button>
+            </p>
+          ) : history === null ? (
+            <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+          ) : history.length === 0 ? (
+            <p className="text-xs text-slate-400">Оплат пока нет</p>
+          ) : (
+            <>
+              <ul className="divide-y divide-slate-100">
+                {visible.map((payment) => (
+                  <HistoryItem
+                    key={payment.id}
+                    payment={payment}
+                    editable={editable}
+                    voidable={voidable}
+                    uploading={uploadingId === payment.id}
+                    uploadRunning={uploadingId !== null}
+                    onCorrect={() => setForm({ kind: "replace", payment })}
+                    onVoid={() => setVoidTarget(payment)}
+                    onReceipt={() => {
+                      markReceiptNavigation(payment.id);
+                      router.push(receiptHref(paymentsBasePath, payment.id));
+                    }}
+                    onAttach={() => pickFile(payment)}
+                    onOpenFile={(file) => void openFile(payment, file)}
+                    onDeleteFile={(file) => setFileToDelete({ payment, file })}
+                  />
+                ))}
+              </ul>
+              {history.length > HISTORY_PREVIEW && !showAll && (
+                <button type="button" onClick={() => setShowAll(true)} className="mt-1.5 text-xs font-semibold text-primary-700 hover:underline">
+                  Показать все ({history.length})
+                </button>
+              )}
+            </>
+          )}
+        </section>
+      )}
+
+      {price.dialogs}
 
       <PaymentFormModal
         open={form !== null}

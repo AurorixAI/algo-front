@@ -235,11 +235,11 @@ test("the groups base path reaches the excuses list for the journal link", () =>
   assert.match(read("src/components/attendance/attendance-section.tsx"), /<ExcusesPage studentProfileBasePath=\{studentProfileBasePath\} groupsBasePath=\{groupsBasePath\} \/>/);
 });
 
-test("«Оплаты»: one «Продлить» / «Внести» + «⋯», unset fee reads «не задана»", () => {
+test("«Оплаты»: one «Продлить» / «Внести оплату» + «⋯», unset fee reads «не задана»", () => {
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /не задана/);
   assert.doesNotMatch(page, /monthly_fee !== null \? formatMoney\(row\.monthly_fee\) : "—"/);
-  assert.match(page, /row\.last_payment \? "Продлить" : "Внести"/);
+  assert.match(page, /PAY_ACTION_LABEL\[payActionOf\(row\)\]/); // «Внести оплату» when overdue or never paid, «Продлить» when running (UX-1 A)
   assert.equal(page.split("<RowMenu items={menu} label={`Действия: ${row.student_name}`} />").length - 1, 1); // a single action cell for cards and the table, named by its student
   assert.equal((page.match(/<PayButton row=\{row\} onPay=\{onPay\} \/>/g) || []).length, 1);
   assert.doesNotMatch(page, /bg-emerald-600|bg-rose-600|bg-red-600/);

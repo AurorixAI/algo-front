@@ -61,3 +61,27 @@ export async function expectWithinViewport(page: Page, locator: Locator) {
 export function toast(page: Page, text: string | RegExp) {
   return page.getByRole("status").filter({ hasText: text });
 }
+
+/**
+ * The «⋯» menu of a group block on the «Оплаты» tab of the student card (UX-1 A): the rare actions live there -
+ * «Назначить индивидуальную цену», «Вернуть цену группы», «Отменить запланированную…», «История цены», «История оплат».
+ */
+export async function openPaymentCardMenu(page: Page) {
+  await page.getByRole("button", { name: /^Действия по оплате:/ }).first().click();
+  await expect(page.getByRole("menu")).toBeVisible();
+}
+
+/** Open the card's «⋯» menu and choose an item (its dialog / panel opens). */
+export async function cardMenuItem(page: Page, name: string | RegExp) {
+  await openPaymentCardMenu(page);
+  await page.getByRole("menuitem", { name, exact: typeof name === "string" }).click();
+}
+
+/** The labels of the card's «⋯» menu (it is closed again). */
+export async function cardMenuLabels(page: Page): Promise<string[]> {
+  await openPaymentCardMenu(page);
+  const labels = (await page.getByRole("menuitem").allTextContents()).map((text) => text.trim());
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  return labels;
+}

@@ -1,14 +1,14 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dmy, expectNoHorizontalScroll, expectWithinViewportWidth, moneyPattern, toast } from "../support/ui";
+import { cardMenuItem, cardMenuLabels, dmy, expectNoHorizontalScroll, expectWithinViewportWidth, moneyPattern, toast } from "../support/ui";
 
 /**
  * #105 «цена группы»: the price is set on the GROUP (owner), the students of the group take it from there; the student
  * card only shows it, and an individual price is an explicit exception with a reason.
  *   groups list «Цена не задана» -> «Без цены» -> the group page: «Задать цену» -> the consequences are shown before saving
- *   -> a past day warns -> the student card: «Цена группы: …» (no field to type a fee) -> «Назначить индивидуальную цену»
- *   (reason required) -> «Вернуть цену группы».
+ *   -> a past day warns -> the student card: «Цена … · цена группы» (no field to type a fee) -> «⋯» -> «Назначить
+ *   индивидуальную цену» (reason required) -> «Вернуть цену группы».
  * A teacher gets no price anywhere (the API sends no `price_current`, the page has no price block).
  */
 let org: Org;
@@ -91,13 +91,14 @@ test("price of the group -> consequences before saving -> student card shows it 
   await page.goto(`/owner/students/${anvar.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
   const price = page.getByTestId("membership-price");
-  await expect(price).toContainText("Цена группы:");
+  await expect(price).toContainText(/^Цена\s/);
+  await expect(price).toContainText("· цена группы");
   await expect(price).toContainText(priceText(500000));
   await expect(page.getByRole("textbox", { name: /Оплата в месяц/ })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Вернуть цену группы" })).toHaveCount(0);
+  expect(await cardMenuLabels(page)).not.toContain("Вернуть цену группы"); // no individual price in force
 
   // --- an individual price: a reason is required
-  await page.getByRole("button", { name: "Назначить индивидуальную цену" }).click();
+  await cardMenuItem(page, "Назначить индивидуальную цену");
   const own = page.getByRole("dialog", { name: "Индивидуальная цена" });
   await own.getByLabel(/Оплата в месяц ученика/).fill("400000");
   await own.getByLabel("Причина").fill("ab");
@@ -106,34 +107,34 @@ test("price of the group -> consequences before saving -> student card shows it 
   await own.getByLabel("Причина").fill("Сестра ученика");
   await own.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Индивидуальная цена сохранена")).toBeVisible();
-  await expect(page.getByTestId("membership-price")).toContainText("Индивидуальная цена:");
+  await expect(page.getByTestId("membership-price")).toContainText("Индивидуальная цена");
   await expect(page.getByTestId("membership-price")).toContainText(priceText(400000));
-  await expect(page.getByText(/Сестра ученика · цена группы/)).toBeVisible();
+  await expect(page.getByTestId("membership-price")).toContainText("· Сестра ученика"); // the reason follows the price
   const membership = await org.membershipId(anvar.id);
   const mine = await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`);
   expect(mine.price).toMatchObject({ amount: 400000, source: "override", group_amount: 500000, reason: "Сестра ученика" });
 
   // --- and back to the price of the group
-  await page.getByRole("button", { name: "Вернуть цену группы" }).click();
+  await cardMenuItem(page, "Вернуть цену группы");
   await page.getByRole("dialog", { name: "Вернуть цену группы" }).getByRole("button", { name: "Вернуть" }).click();
   await expect(toast(page, "Ученик снова платит по цене группы")).toBeVisible();
-  await expect(page.getByTestId("membership-price")).toContainText("Цена группы:");
+  await expect(page.getByTestId("membership-price")).toContainText("· цена группы");
   await expect(page.getByTestId("membership-price")).toContainText(priceText(500000));
   expect((await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`)).price).toMatchObject({ amount: 500000, source: "group" });
 
   // --- a SCHEDULED individual price shows only from its day and can be taken back
-  await page.getByRole("button", { name: "Назначить индивидуальную цену" }).click();
+  await cardMenuItem(page, "Назначить индивидуальную цену");
   const planned = page.getByRole("dialog", { name: "Индивидуальная цена" });
   await planned.getByLabel(/Оплата в месяц ученика/).fill("350000");
   await planned.getByLabel("Действует с").fill(addDays(today, 30));
   await planned.getByLabel("Причина").fill("С нового месяца");
   await planned.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, /действует с/)).toBeVisible();
-  await expect(page.getByTestId("membership-price")).toContainText("Цена группы:"); // today it is still the price of the group
-  await page.getByRole("button", { name: "Отменить запланированную индивидуальную цену" }).click();
+  await expect(page.getByTestId("membership-price")).toContainText("· цена группы"); // today it is still the price of the group
+  await cardMenuItem(page, "Отменить запланированную индивидуальную цену");
   await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
   await expect(toast(page, "Запланированная индивидуальная цена отменена")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Отменить запланированную/ })).toHaveCount(0);
+  expect((await cardMenuLabels(page)).filter((label) => /Отменить запланированную/.test(label))).toHaveLength(0);
   const afterCancel = await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`);
   expect(afterCancel.price).toMatchObject({ amount: 500000, source: "group" });
   expect(afterCancel.history.some((r: any) => r.valid_from === addDays(today, 30))).toBe(false); // the row is gone

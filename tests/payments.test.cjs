@@ -90,34 +90,47 @@ test("day arithmetic never depends on the browser zone", () => {
   assert.equal(rules.isIsoDate("2026-02-28"), true);
 });
 
-test("status wording: calendar mode", () => {
+test("status wording: calendar mode (UX-1 A: human words, plurals, no abbreviations)", () => {
   const base = { period_mode: "calendar", paid_until: "2026-11-04", days_overdue: null, days_left: null, lessons_total: null, lessons_left: null };
-  assert.equal(rules.statusLabel({ ...base, status: "active" }), "Оплачено до 04.11.2026");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 2 }), "Через 2 дн.");
+  assert.equal(rules.statusLabel({ ...base, status: "active" }), "Оплачено");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 2 }), "Осталось 2 дня");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 1 }), "Осталось 1 день");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 5 }), "Осталось 5 дней");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: null }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "ends_today" }), "Сегодня последний день");
-  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 3 }), "Закончилась 3 дн. назад");
-  assert.equal(rules.statusLabel({ ...base, status: "none", period_mode: null, paid_until: null }), "Нет данных");
+  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 3 }), "Просрочено на 3 дня");
+  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 31 }), "Просрочено на 31 день");
+  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: 11 }), "Просрочено на 11 дней");
+  assert.equal(rules.statusLabel({ ...base, status: "expired", days_overdue: null }), "Оплата просрочена");
+  assert.equal(rules.statusLabel({ ...base, status: "none", period_mode: null, paid_until: null }), "Без оплат");
   assert.equal(rules.statusLabel({ ...base, status: "free", period_mode: null, paid_until: null }), "Бесплатно");
-  // the date the payment runs to is the second line of the badge
-  assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "expired" }), "до 04.11.2026");
-  assert.equal(rules.statusDetail({ ...base, status: "active" }), "");
+  // the date the payment runs to is the second line of the badge - for every state that has one
+  assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "оплачено до 04.11.2026");
+  assert.equal(rules.statusDetail({ ...base, status: "expired" }), "оплачено до 04.11.2026");
+  assert.equal(rules.statusDetail({ ...base, status: "ends_today" }), "оплачено до 04.11.2026");
+  assert.equal(rules.statusDetail({ ...base, status: "active" }), "оплачено до 04.11.2026");
+  assert.equal(rules.statusDetail({ ...base, status: "none", paid_until: null }), "");
+  assert.equal(rules.statusDetail({ ...base, status: "free", paid_until: null }), "");
 });
 
 test("status wording: lessons mode", () => {
   const base = { period_mode: "lessons", paid_until: null, days_overdue: null, days_left: null, lessons_total: 12, lessons_left: 3 };
   assert.equal(rules.statusLabel({ ...base, status: "expiring" }), "Осталось 3 урока из 12");
-  assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: 9 }), "Осталось 9 уроков из 12");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Осталось 1 урок из 12");
-  assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: 21 }), "Осталось 21 урок из 12");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: null }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "expired", lessons_left: 0 }), "Уроки закончились");
+  // a package that is paid and not running out: «Оплачено», the lessons left are the second line
+  assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: 9 }), "Оплачено");
+  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 9 }), "осталось 9 уроков из 12");
+  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 21 }), "осталось 21 урок из 12");
   assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: null, lessons_total: null }), "Оплачено");
+  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: null, lessons_total: null }), "");
   assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "");
 });
 
-test("tones: overdue is red, soon is amber, paid is green", () => {
+test("tones: overdue is red, the last day and «soon» are amber, paid is grey", () => {
   assert.equal(rules.statusTone("expired"), "danger");
-  assert.equal(rules.statusTone("ends_today"), "danger");
+  assert.equal(rules.statusTone("ends_today"), "warning"); // not overdue yet: red is for a real problem
   assert.equal(rules.statusTone("expiring"), "warning");
   assert.equal(rules.statusTone("active"), "ok");
   assert.equal(rules.statusTone("free"), "free");
@@ -231,7 +244,7 @@ test("request body: exactly one of «оплачено до» / «уроков»"
 });
 
 test("period hint counts both ends", () => {
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "calendar"), "Период 31 дн.");
+  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "calendar"), "Период 31 день");
   assert.equal(rules.periodHint({ validFrom: "2026-11-05", validTo: "2026-11-04" }, "calendar"), null);
   assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "" }, "calendar"), null);
   assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "lessons"), null);
@@ -252,17 +265,22 @@ test("cancellation reason is 3..500 characters", () => {
   assert.ok(rules.validateVoidReason("x".repeat(501)));
 });
 
-test("tabs: ?bucket= falls back to the most urgent one; counters only where the spec shows them", () => {
+test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter", () => {
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["due", "expiring", "none", "active"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Требуют оплаты", "Скоро заканчивается", "Без оплат", "Оплачено"]);
   assert.equal(rules.parseBucket("none"), "none");
   assert.equal(rules.parseBucket("active"), "active");
   assert.equal(rules.parseBucket("all"), "due");
   assert.equal(rules.parseBucket(null), "due");
   assert.equal(rules.parseBucket("<script>"), "due");
-  assert.equal(rules.bucketCount({ due: 4, none: 7 }, "due"), 4);
-  assert.equal(rules.bucketCount({ due: 4, none: 7 }, "none"), 7);
-  assert.equal(rules.bucketCount({ due: 4, none: 7 }, "expiring"), null);
+  const summary = { due: 4, expiring: 3, none: 7, active: 120 };
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(summary, b.key)), [4, 3, 7, 120]);
+  assert.equal(rules.bucketCount({ due: 0, expiring: 0, none: 0, active: 0 }, "expiring"), 0);
   assert.equal(rules.bucketCount(null, "due"), null);
+  assert.equal(rules.bucketCount({ due: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
+  assert.equal(rules.bucketTabLabel("Без оплат", 7), "Без оплат (7)");
+  assert.equal(rules.bucketTabLabel("Оплачено", 0), "Оплачено (0)");
+  assert.equal(rules.bucketTabLabel("Оплачено", null), "Оплачено");
 });
 
 test("center settings: ranges and PATCH diff", () => {
