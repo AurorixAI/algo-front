@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { lockScroll } from "@/lib/scroll-lock";
+import { FOCUSABLE, dialogLayers, handleDialogKey } from "@/lib/modal-stack";
 
 /** A click on the backdrop right after the dialog opened is the tail of the double click that opened it: not a dismissal. */
 export const BACKDROP_GRACE_MS = 300;
@@ -24,7 +25,26 @@ export function useScrollLock(open: boolean): void {
   }, [open]);
 }
 
-const FOCUSABLE = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
+/**
+ * Keyboard of an open dialog: Escape closes it, Tab stays inside it.  Only the TOPMOST open dialog reacts (see
+ * `lib/modal-stack.ts`): with a confirmation over a form one Escape closes the confirmation, the next one the form.
+ * The dialog joins the stack when it opens, so the order is the order of opening; `busy` and `onClose` are read at the
+ * moment of the key press, so a new `onClose` on every render does not reshuffle the stack.
+ */
+export function useDialogKeys(
+  open: boolean,
+  dialogRef: { current: HTMLElement | null },
+  options: { busy?: boolean; onClose: () => void },
+): void {
+  const latest = useRef(options);
+  latest.current = options;
+  useEffect(() => {
+    if (!open) return undefined;
+    const layer = dialogLayers.push((event) =>
+      handleDialogKey(event, dialogRef.current, { busy: Boolean(latest.current.busy), onClose: latest.current.onClose }));
+    return layer.remove;
+  }, [open, dialogRef]);
+}
 
 interface ModalProps {
   open: boolean;
@@ -73,42 +93,8 @@ export function Modal({
     };
   }, []);
 
-  // Keyboard: Escape closes; Tab and Shift+Tab stay inside the dialog.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !busy) {
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      const items = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true" && el.offsetParent !== null,
-      );
-      if (items.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const first = items[0];
-      const last = items[items.length - 1];
-      const active = document.activeElement as HTMLElement | null;
-      if (!active || !dialog.contains(active)) {
-        event.preventDefault();
-        first.focus();
-      } else if (event.shiftKey && active === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, busy, onClose]);
+  // Keyboard: Escape closes; Tab and Shift+Tab stay inside the dialog (the topmost dialog only).
+  useDialogKeys(open, dialogRef, { busy, onClose });
 
   // On open focus the first field (or the first control); on close return focus to the opener.
   useEffect(() => {

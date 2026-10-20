@@ -137,13 +137,9 @@ test("tones: overdue is red, the last day and «soon» are amber, paid is grey",
   assert.equal(rules.statusTone("none"), "muted");
 });
 
-test("plural forms of «урок» and the banner", () => {
+test("plural forms of «урок» (the banner words are in tests/ux1-d.test.cjs)", () => {
   assert.deepEqual([1, 2, 4, 5, 11, 12, 21, 22, 25].map(rules.lessonsWord),
     ["урок", "урока", "урока", "уроков", "уроков", "уроков", "урок", "урока", "уроков"]);
-  assert.equal(rules.bannerText(1), "1 ученик ждёт оплаты");
-  assert.equal(rules.bannerText(2), "2 ученика ждут оплаты");
-  assert.equal(rules.bannerText(5), "5 учеников ждут оплаты");
-  assert.equal(rules.bannerText(21), "21 ученик ждёт оплаты");
 });
 
 test("form defaults, calendar mode", () => {

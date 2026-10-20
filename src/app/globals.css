@@ -296,3 +296,12 @@ body {
   background: rgba(37, 99, 235, 0.2);
   color: #1e40af;
 }
+
+/* Phone navigation bar (components/layout/bottom-nav.tsx) marks <html> while it is on the page: the toast column rests on
+   top of the bar (4 rem + the iPhone's safe area) instead of being covered by it. */
+@media (max-width: 767px) {
+  html[data-bottom-nav] #toast-host {
+    bottom: calc(4rem + env(safe-area-inset-bottom));
+    padding-bottom: 0.75rem;
+  }
+}

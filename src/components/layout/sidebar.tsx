@@ -30,6 +30,8 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
+import { BOTTOM_NAV_PRIORITY, splitBottomNav } from "@/lib/bottom-nav";
+import { BottomNav } from "@/components/layout/bottom-nav";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -43,6 +45,8 @@ export const useSidebarStore = create<{
 interface NavItem {
   href: string;
   label: string;
+  /** Shorter text under the icon of the phone's bottom bar. */
+  shortLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
   comingSoon?: boolean;
   /** Counter shown over the icon (hidden when 0 or undefined). */
@@ -51,21 +55,16 @@ interface NavItem {
   badgeLabel?: string;
 }
 
-export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean }) {
+/**
+ * The role's menu.  Tablet and desktop (from 768 px): the left rail, collapsible.  Phone (under 768 px): the rail is
+ * hidden and the same menu is a bar at the bottom edge (`BottomNav`): four sections and «Ещё» with the rest, the profile
+ * and sign-out.  Both are fed from the lists below, so the counters and the role rules exist once.
+ */
+export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, org, logout } = useAuthStore();
-  const { collapsed: storedCollapsed, toggle } = useSidebarStore();
-  const [mobile, setMobile] = useState(false);
-  const collapsed = storedCollapsed || (compactOnMobile && mobile);
-  useEffect(() => {
-    if (!compactOnMobile) return;
-    const media = window.matchMedia("(max-width: 767px)");
-    const update = () => setMobile(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, [compactOnMobile]);
+  const { collapsed, toggle } = useSidebarStore();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
@@ -130,7 +129,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   ];
 
   const ownerNav: NavItem[] = [
-    { href: "/owner/dashboard", label: "Панель управления", icon: LayoutDashboard },
+    { href: "/owner/dashboard", label: "Панель управления", shortLabel: "Панель", icon: LayoutDashboard },
     { href: "/owner/groups", label: "Группы", icon: Users },
     { href: "/owner/students", label: "Ученики", icon: GraduationCap },
     ...(showExcuses
@@ -150,13 +149,17 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
     { href: "/teacher/dashboard", label: "Дашборд", icon: LayoutDashboard },
     { href: "/teacher/schedule", label: "Расписание", icon: Calendar },
     { href: "/teacher/exams", label: "Экзамены", icon: FileText },
-    { href: "/teacher/groups", label: "Мои группы", icon: Users },
+    { href: "/teacher/groups", label: "Мои группы", shortLabel: "Группы", icon: Users },
   ];
 
   const navItems = rawRole === "owner" ? ownerNav : role === "admin" ? adminNav : teacherNav;
   const settingsPath = rawRole === "owner" ? "/owner/settings" : role === "admin" ? "/admin/settings" : "/teacher/settings";
   const displayRole = rawRole === "owner" ? "Владелец" : role === "admin" ? "Администратор" : "Преподаватель";
   const displayName = staffDisplayName(user, displayRole);
+  const { bar: barItems, more: moreItems } = splitBottomNav(
+    navItems.filter((item) => !item.comingSoon),
+    BOTTOM_NAV_PRIORITY[rawRole === "owner" ? "owner" : role === "admin" ? "admin" : "teacher"],
+  );
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();
@@ -187,12 +190,11 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
   }, [profileOpen]);
 
   return (
+    <>
     <aside
       className={cn(
-        "fixed left-0 top-0 h-screen bg-white border-r border-slate-200/80 flex flex-col transition-all duration-300 shrink-0 z-40 select-none print:hidden",
-        compactOnMobile
-          ? (storedCollapsed ? "w-[68px]" : "w-[68px] md:w-[240px]")
-          : (collapsed ? "w-[68px]" : "w-[240px]")
+        "fixed left-0 top-0 hidden h-screen bg-white border-r border-slate-200/80 md:flex flex-col transition-all duration-300 shrink-0 z-40 select-none print:hidden",
+        collapsed ? "w-[68px]" : "w-[240px]"
       )}
     >
       {/* Header: Logo, Organization */}
@@ -220,7 +222,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-3 px-3 overflow-x-hidden overflow-y-auto flex flex-col">
+      <nav aria-label="Основное меню" className="flex-1 py-3 px-3 overflow-x-hidden overflow-y-auto flex flex-col">
         {/* Fixed-height section title container so navigation items never jump vertically */}
         <div className="h-6 px-3 flex items-center shrink-0">
           <span
@@ -367,7 +369,7 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
       </nav>
 
       {/* Collapse button (above profile) - centered horizontally */}
-      <div className={cn("px-3 pt-1 pb-1 shrink-0", compactOnMobile && "hidden md:block")}>
+      <div className="px-3 pt-1 pb-1 shrink-0">
         <button
           type="button"
           onClick={toggle}
@@ -460,5 +462,21 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
         </button>
       </div>
     </aside>
+
+    <BottomNav
+      bar={barItems}
+      more={moreItems}
+      pathname={pathname}
+      quickAction={isTeacher ? { href: "/teacher/exams/new", label: "Создать экзамен", icon: Plus } : undefined}
+      settingsPath={settingsPath}
+      profile={{
+        name: displayName,
+        role: displayRole,
+        org: orgName,
+        initial: user?.first_name?.[0] || user?.full_name?.[0] || role[0],
+      }}
+      onLogout={handleLogout}
+    />
+    </>
   );
 }

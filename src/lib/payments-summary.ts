@@ -16,6 +16,9 @@ interface PaymentsSummaryState {
   due: number;
   /** Of `due`, those whose payment has already ended (the rest end today): the overdue chip of the banner. */
   expired: number;
+  /** The same as `due` / `expired`, in distinct students (a student of two groups counts once); null from an older server. */
+  studentsDue: number | null;
+  studentsExpired: number | null;
   expiring: number;
   none: number;
   active: number;
@@ -35,12 +38,17 @@ interface PaymentsSummaryState {
 }
 
 const count = (value: unknown) => Math.max(0, Math.floor(Number(value) || 0));
+/** A count the server may leave out: null when it is missing or not a number. */
+const optionalCount = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
 
 const EMPTY = {
   available: false,
   loaded: false,
   due: 0,
   expired: 0,
+  studentsDue: null as number | null,
+  studentsExpired: null as number | null,
   expiring: 0,
   none: 0,
   active: 0,
@@ -68,6 +76,8 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     loaded: true,
     due: count(summary?.due),
     expired: Math.min(count(summary?.expired), count(summary?.due)),
+    studentsDue: optionalCount(summary?.students_due),
+    studentsExpired: optionalCount(summary?.students_expired),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
     // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.
