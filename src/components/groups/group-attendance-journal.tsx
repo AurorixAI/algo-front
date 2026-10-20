@@ -60,6 +60,7 @@ import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
+import { excuseChange } from "@/lib/excuse-conflict";
 import { afterDeadlineMark, subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
 import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
@@ -775,10 +776,9 @@ export function GroupAttendanceJournal({
     if (reviewingRef.current.has(excuse.id)) return "Решение уже отправляется";
     reviewingRef.current.add(excuse.id);
     setReviewBusyId(excuse.id);
-    try {
-      const item = action === "reset"
-        ? await orgApi.resetAttendanceExcuse(excuse.id)
-        : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action, ...(note ? { note } : {}) });
+    // The request carries the status the person SAW (`expected_status`): if somebody decided meanwhile the server answers
+    // EXCUSE_CHANGED with the excuse as it is now; the cell takes it, the dialog stays open with the server's message.
+    const patchCell = (item: { status: AttendanceExcuseInfo["status"]; reviewed_by?: { name: string } | null; reviewed_at?: string | null; review_note?: string | null; billing_mode?: AttendanceExcuseInfo["billing_mode"] }) =>
       setAttendanceData((previous) => {
         const current = previous?.excuses?.[lessonKey]?.[studentId];
         if (!previous || !current) return previous;
@@ -800,9 +800,33 @@ export function GroupAttendanceJournal({
           },
         };
       });
+    try {
+      const item = action === "reset"
+        ? await orgApi.resetAttendanceExcuse(excuse.id, { expected_status: excuse.status })
+        : await orgApi.reviewAttendanceExcuse(excuse.id, { decision: action, expected_status: excuse.status, ...(note ? { note } : {}) });
+      patchCell(item);
       void useExcuseBadge.getState().refresh(true);
       return null;
     } catch (error) {
+      const changed = excuseChange(error);
+      if (changed) {
+        const fresh = changed.item as { id?: string; status?: AttendanceExcuseInfo["status"] } | null;
+        if (fresh && fresh.id === excuse.id && fresh.status) {
+          patchCell(fresh as Parameters<typeof patchCell>[0]);
+          // the open dialog now stands on the new state: a second press is a decision about THAT state
+          setReviewDialog((current) => (current && current.excuse.id === excuse.id
+            ? {
+              ...current,
+              excuse: { ...current.excuse, status: fresh.status as AttendanceExcuseInfo["status"] },
+              items: current.items.map((entry) => (entry.id === excuse.id ? { ...entry, status: fresh.status as AttendanceExcuseInfo["status"] } : entry)),
+            }
+            : current));
+        } else {
+          void loadAttendanceRef.current(true);
+        }
+        void useExcuseBadge.getState().refresh(true);
+        return changed.message;
+      }
       return error instanceof Error ? error.message : "Не удалось сохранить решение";
     } finally {
       reviewingRef.current.delete(excuse.id);

@@ -30,6 +30,8 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
 import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
+import { excuseChange } from "@/lib/excuse-conflict";
+import { afterDecision, createQueueGuard, type QueueGuard } from "@/lib/queue-guard";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
@@ -259,7 +261,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const live = useRef({ items, total, pendingTotal, hiddenPending, tab, page });
   live.current = { items, total, pendingTotal, hiddenPending, tab, page };
 
-  const requests = useRef(createRequestSequence());
+  // Reads of the list and the in-place patches take turns here: a patch invalidates every read that started before it, a
+  // silent read follows the last patch and every return to the window (see lib/queue-guard.ts).
+  const loadRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
+  const guardRef = useRef<QueueGuard | null>(null);
+  if (!guardRef.current) guardRef.current = createQueueGuard({ reload: () => { void loadRef.current(true); } });
+  const guard = guardRef.current;
   const viewerRequests = useRef(createRequestSequence());
   // One hidden picker for the whole list: the menu item of a row points it at that row's excuse.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -289,7 +296,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   }, []);
 
   const load = useCallback(async (silent = false) => {
-    const token = requests.current.next();
+    const token = guard.begin();
     if (!silent) setLoading(true);
     setLoadError(null);
     try {
@@ -303,7 +310,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       if (tab === "pending") {
         // The waiting queue is read whole (the urgency order needs all of it); decided tabs are paged below.
         const queue = await loadAllPending<AttendanceExcuseItem>((limit, offset) => orgApi.listAttendanceExcuses({ ...query, limit, offset }));
-        if (!requests.current.isCurrent(token)) return;
+        if (!guard.accepts(token)) return;
         setItems(queue.items);
         setTotal(queue.total);
         setHiddenPending(queue.hidden);
@@ -312,7 +319,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       }
       setHiddenPending(0);
       const data = await orgApi.listAttendanceExcuses({ ...query, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
-      if (!requests.current.isCurrent(token)) return;
+      if (!guard.accepts(token)) return;
       // The last item of a later page was handled: step back instead of showing an empty page.
       if ((data.items || []).length === 0 && page > 0) {
         setPage(Math.min(page - 1, Math.max(0, Math.ceil((data.total ?? 0) / PAGE_SIZE) - 1)));
@@ -322,14 +329,28 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       setTotal(data.total ?? 0);
       setPendingTotal(data.pending_total ?? 0);
     } catch (error) {
-      if (!requests.current.isCurrent(token)) return;
+      if (!guard.accepts(token)) return;
       setLoadError(error instanceof Error ? error.message : "Не удалось загрузить список");
     } finally {
-      if (requests.current.isCurrent(token)) setLoading(false);
+      if (guard.accepts(token)) setLoading(false);
     }
   }, [dateFrom, dateTo, filter.groupId, filter.teacherId, page, tab]);
 
+  loadRef.current = load;
   useEffect(() => { void load(); }, [load]);
+
+  // Back to the window (focus, the tab becomes visible): read the list silently - others may have decided meanwhile.
+  useEffect(() => {
+    const onFocus = () => guard.woke();
+    const onVisible = () => { if (document.visibilityState === "visible") guard.woke(); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
+      guard.cancel();
+    };
+  }, [guard]);
 
   // Object URL of the open certificate must not outlive the viewer.
   useEffect(() => () => { if (viewer?.url) URL.revokeObjectURL(viewer.url); }, [viewer?.url]);
@@ -355,6 +376,9 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     // Read the LATEST state, not the one of the render that created this closure: a dialog with several excuses sends
     // them one by one, and each answer must be patched onto the list as the previous answer left it.
     const now = live.current;
+    // An older read still in flight must never overwrite what is patched here; a silent read heals the rest in a moment.
+    guard.patched();
+    setLoading(false);
     const patched = now.hiddenPending === 0
       ? applyItemChange<AttendanceExcuseItem>({ items: now.items, total: now.total, pendingTotal: now.pendingTotal }, updated, now.tab)
       : null;
@@ -372,19 +396,31 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   /**
    * null when the decision was saved, else why it was not.  The dialog closes only when saved; a refusal is shown inside
    * it (the toast is for the success), so a typed note survives an error.
+   * The request carries `expected_status`, the status the dialog showed: if somebody decided in the meantime the server
+   * answers EXCUSE_CHANGED with the excuse as it is now - the row is patched with it, the dialog stays open with the
+   * server's message and the new state, and the administrator decides again knowing what happened.
    */
-  const review = async (item: { id: string }, decision: ExcuseDecision, noteText = ""): Promise<string | null> => {
+  const review = async (item: { id: string; status: ExcuseReviewStatus }, decision: ExcuseDecision, noteText = ""): Promise<string | null> => {
     if (reviewing.current.has(item.id)) return "Решение уже отправляется";
     reviewing.current.add(item.id);
     markBusy(item.id, true);
     try {
       const note = noteText.trim();
-      const updated = await orgApi.reviewAttendanceExcuse(item.id, { decision, ...(note ? { note } : {}) });
+      const updated = await orgApi.reviewAttendanceExcuse(item.id, { decision, expected_status: item.status, ...(note ? { note } : {}) });
       showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён");
-      await settleChange(updated);
-      refreshBadge();
+      await afterDecision(() => settleChange(updated), refreshBadge);
       return null;
     } catch (error) {
+      const changed = excuseChange(error);
+      if (changed) {
+        // The dialog now shows the new state: a second press is a decision about THAT state.
+        const fresh = changed.item as { id?: string; status?: ExcuseReviewStatus } | null;
+        if (fresh && fresh.id === item.id && fresh.status) {
+          setDialog((current) => (current ? { ...current, items: current.items.map((entry) => (entry.id === item.id ? { ...entry, status: fresh.status as ExcuseReviewStatus } : entry)) } : current));
+        }
+        await afterDecision(() => settleChange(changed.item), refreshBadge);
+        return changed.message;
+      }
       void load(true);
       return error instanceof Error ? error.message : "Не удалось сохранить решение";
     } finally {
@@ -396,12 +432,18 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const resetDecision = async (item: AttendanceExcuseItem) => {
     markBusy(item.id, true);
     try {
-      const updated = await orgApi.resetAttendanceExcuse(item.id);
+      const updated = await orgApi.resetAttendanceExcuse(item.id, { expected_status: item.status });
       showToast("Решение сброшено: пропуск снова ожидает");
-      await settleChange(updated);
-      refreshBadge();
+      await afterDecision(() => settleChange(updated), refreshBadge);
     } catch (error) {
-      showToast(error instanceof Error ? error.message : "Не удалось сбросить решение", "error");
+      const changed = excuseChange(error);
+      if (changed) {
+        // Somebody changed it first: show the new state in the list and say so.
+        await afterDecision(() => settleChange(changed.item), refreshBadge);
+        showToast(changed.message, "warning");
+      } else {
+        showToast(error instanceof Error ? error.message : "Не удалось сбросить решение", "error");
+      }
     } finally {
       markBusy(item.id, false);
     }

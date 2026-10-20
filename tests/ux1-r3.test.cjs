@@ -495,7 +495,7 @@ test("the excuses page patches a decision in place and reads the list again only
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /const updated = await orgApi\.reviewAttendanceExcuse\(/);
   assert.match(page, /const updated = await orgApi\.resetAttendanceExcuse\(/);
-  assert.equal((page.match(/await settleChange\(updated\)/g) || []).length, 2);
+  assert.equal((page.match(/afterDecision\(\(\) => settleChange\(updated\), refreshBadge\)/g) || []).length, 2, "a decision and a reset");
   assert.match(page, /now\.hiddenPending === 0\s*\? applyItemChange/);
   assert.match(page, /\(now\.tab !== "pending" && now\.total > PAGE_SIZE\)/);
   assert.match(page, /live\.current = \{ \.\.\.now, \.\.\.patched \}/, "a chain of answers builds on the previous patch");
@@ -571,11 +571,13 @@ test("public pages keep clear of the landscape notch; the sticky header of a stu
   }
 });
 
-test("the payroll save bar is a direct child of the page, so it can stick above the bottom bar on a short phone", () => {
+test("the payroll save bar: a direct child of the SHEET page (it can stick above the bottom bar on a short phone), inside the preview section of the MONTH page", () => {
   const sheet = read("src/components/payroll/payroll-sheet-page.tsx");
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(sheet, /\{tab !== "history" && \(\s*<SaveBar/);
-  assert.match(month, /\{previewList\.length > 0 && active && \(\s*<SaveBar/);
+  // the month page: the bar floats only while THIS preview is on screen, so it stays inside the preview section
+  const section = month.slice(month.indexOf('aria-label="Предпросмотр расчёта"'), month.indexOf("{toastNode}"));
+  assert.match(section, /<SaveBar[\s\S]*<\/section>/);
   // …and not inside the tab panel / the preview section any more
   assert.doesNotMatch(sheet.slice(sheet.indexOf('role="tabpanel" className="min-w-0 space-y-4"'), sheet.indexOf("A direct child of the page")), /<SaveBar/);
 });
@@ -583,4 +585,193 @@ test("the payroll save bar is a direct child of the page, so it can stick above 
 test("bottom bar labels: 11 px, 10 px under 360 px, so «Диагностика» is whole on a 320 px phone (measured in a browser: no label is cut for any role)", () => {
   const nav = read("src/components/layout/bottom-nav.tsx");
   assert.equal((nav.match(/max-w-full truncate text-\[11px\] max-\[359px\]:text-\[10px\] leading-none tracking-tight/g) || []).length, 2, "the sections and «Ещё»");
+});
+
+// ── a patched list stays honest: the order of reads and patches, the healing read, the wake-up read ──────
+
+function fakeClock() {
+  let now = 0;
+  const timers = new Map();
+  let nextId = 1;
+  return {
+    now: () => now,
+    setTimer: (run, ms) => { const id = nextId++; timers.set(id, { at: now + ms, run }); return id; },
+    clearTimer: (id) => { timers.delete(id); },
+    advance(ms) {
+      const target = now + ms;
+      for (;;) {
+        const due = [...timers.entries()].filter(([, t]) => t.at <= target).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!due) break;
+        timers.delete(due[0]);
+        now = due[1].at;
+        due[1].run();
+      }
+      now = target;
+    },
+    pending: () => timers.size,
+  };
+}
+
+test("queue guard: an older read that answers AFTER a patch is dropped; the silent read after the last patch heals the list", () => {
+  const { createQueueGuard, HEAL_DELAY_MS } = lib("queue-guard.ts");
+  const clock = fakeClock();
+  const reloads = [];
+  const guard = createQueueGuard({ reload: () => reloads.push(clock.now()), now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+  let list = "loaded";
+  // the fake order: a read starts, the administrator decides (patch), the read answers late
+  const slowRead = guard.begin();
+  list = "patched";
+  guard.patched();
+  if (guard.accepts(slowRead)) list = "answer of the old read";
+  assert.equal(list, "patched", "an older in-flight read can never overwrite a newer patch");
+  // the heal: one silent read 1.5 s after the last patch, not before
+  clock.advance(HEAL_DELAY_MS - 1);
+  assert.deepEqual(reloads, []);
+  clock.advance(1);
+  assert.deepEqual(reloads, [HEAL_DELAY_MS]);
+  const healing = guard.begin();
+  if (guard.accepts(healing)) list = "healed by the server's list";
+  assert.equal(list, "healed by the server's list");
+});
+
+test("queue guard: decisions in a row cost one healing read (debounce); every patch invalidates the reads before it", () => {
+  const { createQueueGuard } = lib("queue-guard.ts");
+  const clock = fakeClock();
+  const reloads = [];
+  const guard = createQueueGuard({ reload: () => reloads.push(clock.now()), now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+  guard.patched();
+  clock.advance(1000);
+  guard.patched();
+  clock.advance(1000);
+  guard.patched();
+  assert.deepEqual(reloads, [], "the timer restarts with every decision");
+  clock.advance(1499);
+  assert.deepEqual(reloads, []);
+  clock.advance(1);
+  assert.equal(reloads.length, 1, "one read for three decisions");
+  const a = guard.begin();
+  const b = guard.begin();
+  assert.equal(guard.accepts(a), false, "latest read wins");
+  assert.equal(guard.accepts(b), true);
+  guard.patched();
+  assert.equal(guard.accepts(b), false, "a patch beats a read that started before it");
+  guard.cancel();
+  assert.equal(clock.pending(), 0, "the page is gone: no read is left on the timer");
+  clock.advance(5000);
+  assert.equal(reloads.length, 1);
+});
+
+test("queue guard: back to the window (focus / visible) reads silently, at most once a second, and not right after a read", () => {
+  const { createQueueGuard } = lib("queue-guard.ts");
+  const clock = fakeClock();
+  const reloads = [];
+  const guard = createQueueGuard({ reload: () => reloads.push(clock.now()), now: clock.now, setTimer: clock.setTimer, clearTimer: clock.clearTimer });
+  clock.advance(10_000);
+  guard.woke();
+  assert.equal(reloads.length, 1);
+  guard.woke();
+  clock.advance(500);
+  guard.woke();
+  assert.equal(reloads.length, 1, "a flurry of focus and visibilitychange events is one read");
+  clock.advance(600);
+  guard.woke();
+  assert.equal(reloads.length, 2);
+  guard.begin(); // a read just started (a tab switch): focus does not start another one
+  guard.woke();
+  assert.equal(reloads.length, 2);
+});
+
+test("after a decision the list is patched (or read) and the badge of the sidebar is re-read - even when the patch fails", async () => {
+  const { afterDecision } = lib("queue-guard.ts");
+  const log = [];
+  await afterDecision(async () => { log.push("patch"); }, () => log.push("badge"));
+  assert.deepEqual(log, ["patch", "badge"], "badge after the patch, once");
+  const failing = [];
+  await assert.rejects(afterDecision(async () => { throw new Error("read failed"); }, () => failing.push("badge")), /read failed/);
+  assert.deepEqual(failing, ["badge"], "a failing read does not leave a stale counter in the sidebar");
+});
+
+test("the sidebar badge really re-reads the summary after a decision, and the tab badge follows the patch", async () => {
+  const { afterDecision } = lib("queue-guard.ts");
+  const { applyItemChange } = lib("excuses-pending.ts");
+  const Module = require("node:module");
+  const originalLoad = Module._load;
+  let reads = 0;
+  Module._load = function (request, ...rest) {
+    if (request === "./api") return { DEMO_MODE: false, orgApi: { getAttendanceExcuseSummary: async () => ({ pending_total: 4 - reads++ , open_lessons_total: 0 }) } };
+    return originalLoad.call(this, request, ...rest);
+  };
+  let badge;
+  try { badge = require(path.join(root, "src/lib/excuse-badge.ts")); } finally { Module._load = originalLoad; }
+  // the page's own line, as written there
+  assert.match(read("src/components/attendance/excuses-page.tsx"), /const refreshBadge = \(\) => \{ void useExcuseBadge\.getState\(\)\.refresh\(true\); \};/);
+  badge.useExcuseBadge.getState().setPending(5);
+  const state = { items: [{ id: "a", status: "pending" }, { id: "b", status: "pending" }], total: 2, pendingTotal: 5 };
+  let patched;
+  await afterDecision(() => { patched = applyItemChange(state, { id: "a", status: "confirmed" }, "pending"); }, () => { void badge.useExcuseBadge.getState().refresh(true); });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(reads, 1, "the summary was asked again after the decision");
+  assert.equal(badge.useExcuseBadge.getState().pending, 4, "the sidebar badge shows the server's new number");
+  assert.equal(patched.pendingTotal, 4, "the «Ожидают (N)» tab follows the patch at once");
+});
+
+// ── optimistic concurrency: expected_status and EXCUSE_CHANGED ────────────────────────────────────────
+
+test("excuseChange: only a 409 EXCUSE_CHANGED is a change; the message and the item are the server's", () => {
+  const { excuseChange, EXCUSE_CHANGED } = lib("excuse-conflict.ts");
+  assert.equal(EXCUSE_CHANGED, "EXCUSE_CHANGED");
+  const item = { id: "e1", status: "confirmed" };
+  const error = Object.assign(new Error("Пропуск уже подтвердил Алиев Рустам"), { status: 409, code: "EXCUSE_CHANGED", detail: { code: "EXCUSE_CHANGED", message: "Пропуск уже подтвердил Алиев Рустам", item } });
+  assert.deepEqual(excuseChange(error), { message: "Пропуск уже подтвердил Алиев Рустам", item });
+  // no item: the list is read again (item null); no message: a fallback sentence
+  const bare = excuseChange(Object.assign(new Error(""), { status: 409, code: "EXCUSE_CHANGED" }));
+  assert.equal(bare.item, null);
+  assert.match(bare.message, /уже изменили/);
+  // everything else is not a change
+  assert.equal(excuseChange(Object.assign(new Error("x"), { status: 409, code: "SHEET_REVISION_CONFLICT" })), null);
+  assert.equal(excuseChange(Object.assign(new Error("x"), { status: 500, code: "EXCUSE_CHANGED" })), null);
+  assert.equal(excuseChange(new Error("network")), null);
+  assert.equal(excuseChange(null), null);
+  assert.equal(excuseChange("EXCUSE_CHANGED"), null);
+});
+
+test("a decision and a reset carry expected_status (the status the dialog showed) from the list and from the journal", () => {
+  const api = read("src/lib/api.ts");
+  assert.match(api, /reviewAttendanceExcuse: \(id: string, data: \{ decision: "confirmed" \| "rejected"; note\?: string; expected_status\?: ExcuseReviewStatus \}\)/);
+  assert.match(api, /resetAttendanceExcuse: \(id: string, data\?: \{ expected_status\?: ExcuseReviewStatus \}\)/);
+  const list = read("src/components/attendance/excuses-page.tsx");
+  assert.match(list, /reviewAttendanceExcuse\(item\.id, \{ decision, expected_status: item\.status,/);
+  assert.match(list, /resetAttendanceExcuse\(item\.id, \{ expected_status: item\.status \}\)/);
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /resetAttendanceExcuse\(excuse\.id, \{ expected_status: excuse\.status \}\)/);
+  assert.match(journal, /reviewAttendanceExcuse\(excuse\.id, \{ decision: action, expected_status: excuse\.status,/);
+});
+
+test("on EXCUSE_CHANGED the dialog stays open with the server's message, the row takes the new state; both screens", () => {
+  const list = read("src/components/attendance/excuses-page.tsx");
+  const reviewBlock = list.slice(list.indexOf("const review = async"), list.indexOf("const resetDecision"));
+  assert.match(reviewBlock, /const changed = excuseChange\(error\);/);
+  assert.match(reviewBlock, /await afterDecision\(\(\) => settleChange\(changed\.item\), refreshBadge\);\s*return changed\.message;/, "the message is returned: the dialog shows it and stays open");
+  assert.match(reviewBlock, /status: fresh\.status as ExcuseReviewStatus/, "a second press is a decision about the NEW state");
+  const resetBlock = list.slice(list.indexOf("const resetDecision"), list.indexOf("const openDialog"));
+  assert.match(resetBlock, /showToast\(changed\.message, "warning"\)/);
+  assert.equal((list.match(/afterDecision\(\(\) => settleChange\([a-z.]+\), refreshBadge\)/g) || []).length, 4, "every settle goes through afterDecision with the badge");
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /const changed = excuseChange\(error\);[\s\S]*return changed\.message;/);
+  assert.match(journal, /items: current\.items\.map\(\(entry\) => \(entry\.id === excuse\.id \? \{ \.\.\.entry, status:/);
+  // the dialog shows the error and does not close on it (both screens): an error string means «stay open»
+  assert.match(list, /if \(error\) \{ setDialogError\(error\); return; \}/);
+  assert.match(journal, /if \(error\) setReviewDialog\(\(current\) => \(current \? \{ \.\.\.current, error \} : current\)\);\s*else closeReviewDialog\(\);/);
+});
+
+test("the excuses page: reads and patches go through the guard; a patch bumps the token; focus and visibility read silently", () => {
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /const token = guard\.begin\(\);/);
+  assert.equal((page.match(/guard\.accepts\(token\)/g) || []).length, 4, "every await of load asks the guard");
+  assert.doesNotMatch(page, /requests\.current/);
+  assert.match(page, /guard\.patched\(\);\s*setLoading\(false\);/, "a patch invalidates older reads");
+  assert.match(page, /window\.addEventListener\("focus", onFocus\)/);
+  assert.match(page, /document\.addEventListener\("visibilitychange", onVisible\)/);
+  assert.match(page, /document\.visibilityState === "visible"\) guard\.woke\(\)/);
+  assert.match(page, /guard\.cancel\(\);/);
 });

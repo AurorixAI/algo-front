@@ -1458,10 +1458,14 @@ export const orgApi = {
   },
   getAttendanceExcuseSummary: () =>
     api<AttendanceExcuseSummary>("/auth/org/attendance/excuses/summary"),
-  reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string }) =>
+  /**
+   * `expected_status` is the status the person SAW when deciding (optimistic concurrency): if somebody changed the excuse
+   * meanwhile the server answers 409 `{code: "EXCUSE_CHANGED", message, item}` and writes nothing (see lib/excuse-conflict.ts).
+   */
+  reviewAttendanceExcuse: (id: string, data: { decision: "confirmed" | "rejected"; note?: string; expected_status?: ExcuseReviewStatus }) =>
     api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/review`, { method: "POST", body: data }),
-  resetAttendanceExcuse: (id: string) =>
-    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset`, { method: "POST" }),
+  resetAttendanceExcuse: (id: string, data?: { expected_status?: ExcuseReviewStatus }) =>
+    api<AttendanceExcuseItem>(`/auth/org/attendance/excuses/${encodePathId(id)}/reset`, { method: "POST", ...(data ? { body: data } : {}) }),
   uploadAttendanceExcuseFile: (id: string, file: Blob, filename: string) =>
     uploadMultipart<AttendanceExcuseFile>(
       `/auth/org/attendance/excuses/${encodePathId(id)}/files`,
