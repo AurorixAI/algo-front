@@ -7,7 +7,7 @@ import { expectNoHorizontalScroll } from "../support/ui";
  * «Ещё» is a sheet with the rest of the menu, the profile, the settings and «Выйти из системы».  The tests are @mobile and
  * skip themselves on the desktop project (the rail is the menu there; permissions.spec.ts covers it).
  *   owner:   Панель, Группы, Ученики, Оплаты | Ещё: Посещаемость, Зарплата, Сотрудники
- *   admin:   Диагностика, Ученики, Группы + Посещаемость (without the payments right) | Ещё: Экзамены
+ *   admin:   Диагностика, Ученики, Группы + Посещения (= Посещаемость; without the payments right) | Ещё: Экзамены
  *   teacher: Дашборд, Расписание, Экзамены, Группы | Ещё: Создать экзамен
  */
 let org: Org;
@@ -46,6 +46,8 @@ test("@mobile owner: the bottom bar replaces the rail; «Ещё» opens the shee
   await sheet.getByRole("link", { name: /^Посещаемость/ }).click();
   await expect(page).toHaveURL(/\/owner\/attendance/);
   await expect(sheet).toHaveCount(0);
+  // the page lives inside the sheet: «Ещё» is the current place of the bar
+  await expect(bar.getByRole("button", { name: /^Ещё/ })).toHaveAttribute("aria-current", "page");
   await expectNoHorizontalScroll(page);
 
   // a bar link navigates too and is the current page afterwards
@@ -62,7 +64,8 @@ test("@mobile admin: four sections in the bar, «Экзамены» in «Ещё�
   await page.goto("/admin/students");
 
   const bar = page.getByRole("navigation", { name: "Основное меню" });
-  for (const name of ["Диагностика", "Ученики", "Группы", "Посещаемость"]) {
+  // «Посещаемость» is written «Посещения» under the icon (it is too long for a quarter of a phone)
+  for (const name of ["Диагностика", "Ученики", "Группы", "Посещения"]) {
     await expect(bar.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
   await expect(bar.getByRole("link", { name: /^Оплаты/ })).toHaveCount(0); // the owner has not given the right
