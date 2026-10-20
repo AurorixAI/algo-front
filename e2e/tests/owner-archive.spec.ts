@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { businessNow } from "../support/time";
-import { dmy, toast } from "../support/ui";
+import { cardMenuItem, dmy, toast } from "../support/ui";
 
 /**
  * Owner: student card «⋯» -> «В архив». The student leaves the group roster and the payments lists, shows up under
@@ -82,7 +82,7 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   await expect(roster().filter({ hasText: "Уходящий Анвар" })).toHaveCount(1);
   await page.goto(`/owner/students/${leaver.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
-  await page.getByRole("button", { name: "История оплат" }).click();
+  await cardMenuItem(page, "История оплат");
   await expect(page.getByText(/№\s*\d+/)).toBeVisible();
   const membership = await org.membershipId(leaver.id);
   const payments = await org.owner.api.get(`/auth/org/memberships/${membership}/payments`);

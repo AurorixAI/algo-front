@@ -8,6 +8,7 @@
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
 import { CHIP_TONE_CLASS } from "./chip-tone";
+import { daysLabel, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 
 // ── API contract (spec §3) ─────────────────────────────────────────────────
@@ -399,22 +400,15 @@ export function fixedDayChips(validFrom: string, validTo: string, billingDay: nu
   return { toEnd, plusNext };
 }
 
-/** Plural form for a Russian noun: [1 урок, 2 урока, 5 уроков]. */
-export function pluralRu(count: number, forms: [string, string, string]): string {
-  const n = Math.abs(Math.trunc(count));
-  const last = n % 10;
-  const lastTwo = n % 100;
-  if (last === 1 && lastTwo !== 11) return forms[0];
-  if (last >= 2 && last <= 4 && (lastTwo < 12 || lastTwo > 14)) return forms[1];
-  return forms[2];
-}
+// The one Russian plural of the project lives in `./plural`; it is re-exported here for the older imports.
+export { pluralRu };
 
 // ── Buckets (tabs) ─────────────────────────────────────────────────────────
 
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "due", label: "Требуют оплаты" },
   { key: "expiring", label: "Скоро заканчивается" },
-  { key: "none", label: "Нет данных" },
+  { key: "none", label: "Без оплат" },
   { key: "active", label: "Оплачено" },
 ];
 
@@ -423,12 +417,18 @@ export function parseBucket(value: string | null | undefined): PaymentBucket {
   return PAYMENT_BUCKETS.find((bucket) => bucket.key === value)?.key ?? "due";
 }
 
-/** Counters of the tabs that show one. */
-export function bucketCount(summary: Pick<PaymentsSummary, "due" | "none"> | null, key: PaymentBucket): number | null {
-  if (!summary) return null;
-  if (key === "due") return summary.due;
-  if (key === "none") return summary.none;
-  return null;
+/** The number on a tab - every tab has one; null while the summary is not known. */
+export function bucketCount(
+  summary: Partial<Pick<PaymentsSummary, "due" | "expiring" | "none" | "active">> | null,
+  key: PaymentBucket,
+): number | null {
+  const value = summary?.[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** «Требуют оплаты (12)»; the bare label while the number is not known. */
+export function bucketTabLabel(label: string, count: number | null): string {
+  return count === null ? label : `${label} (${count})`;
 }
 
 // ── Status wording ─────────────────────────────────────────────────────────
@@ -439,49 +439,66 @@ export function lessonsWord(count: number): string {
   return pluralRu(count, ["урок", "урока", "уроков"]);
 }
 
-/** «Оплачено до 04.11.2026», «Сегодня последний день», «Закончилась 3 дн. назад», «Через 2 дн.», «Осталось 3 урока из 12»… */
+/**
+ * The chip of a row, in words and without abbreviations:
+ * «Просрочено на 31 день» (red), «Осталось 5 дней» (amber, while the server calls it «скоро заканчивается»),
+ * «Сегодня последний день» (amber), «Оплачено» (grey), «Без оплат», «Бесплатно».
+ * By lessons: «Осталось 3 урока из 12» (amber), «Уроки закончились» (red).
+ */
 export function statusLabel(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left">,
+  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left">,
 ): string {
   const lessons = row.period_mode === "lessons";
   switch (row.status) {
     case "none":
-      return "Нет данных";
+      return "Без оплат";
     case "free":
       return "Бесплатно";
     case "ends_today":
       return "Сегодня последний день";
     case "expired":
       if (lessons) return "Уроки закончились";
-      return row.days_overdue ? `Закончилась ${row.days_overdue} дн. назад` : "Оплата закончилась";
+      return row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "Оплата просрочена";
     case "expiring":
+      if (lessons) return lessonsLeftText(row) || "Скоро закончится";
+      return row.days_left ? `Осталось ${daysLabel(row.days_left)}` : "Скоро закончится";
     case "active":
-      if (lessons) {
-        if (row.lessons_left === null || row.lessons_left === undefined) return "Оплачено";
-        const left = `Осталось ${row.lessons_left} ${lessonsWord(row.lessons_left)}`;
-        return row.lessons_total ? `${left} из ${row.lessons_total}` : left;
-      }
-      if (row.status === "expiring") return row.days_left ? `Через ${row.days_left} дн.` : "Скоро закончится";
-      return row.paid_until ? `Оплачено до ${formatDateRu(row.paid_until)}` : "Оплачено";
+      return "Оплачено";
   }
   return "";
 }
 
-/** Second line under the badge: the date the calendar payment runs to. */
-export function statusDetail(row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until">): string {
-  if (row.period_mode === "lessons" || !row.paid_until) return "";
-  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired") {
-    return `до ${formatDateRu(row.paid_until)}`;
+/** «Осталось 3 урока из 12» / «Осталось 3 урока»; "" when the count is not known. */
+function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "lessons_left">): string {
+  if (row.lessons_left === null || row.lessons_left === undefined) return "";
+  const left = `Осталось ${row.lessons_left} ${lessonsWord(row.lessons_left)}`;
+  return row.lessons_total ? `${left} из ${row.lessons_total}` : left;
+}
+
+/**
+ * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12» (a package that is
+ * paid and not running out yet).
+ */
+export function statusDetail(
+  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until" | "lessons_total" | "lessons_left">,
+): string {
+  if (row.period_mode === "lessons") {
+    return row.status === "active" ? lessonsLeftText(row).toLowerCase() : "";
+  }
+  if (!row.paid_until) return "";
+  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active") {
+    return `оплачено до ${formatDateRu(row.paid_until)}`;
   }
   return "";
 }
 
+/** Red is for a real problem (overdue, used up); the last day and «soon» are amber; paid is grey. */
 export function statusTone(status: PaymentStatus): StatusTone {
   switch (status) {
     case "expired":
-    case "ends_today":
       return "danger";
     case "expiring":
+    case "ends_today":
       return "warning";
     case "active":
       return "ok";
@@ -490,6 +507,19 @@ export function statusTone(status: PaymentStatus): StatusTone {
     default:
       return "muted";
   }
+}
+
+/** The primary action of a membership: a first or an overdue payment is «Внести оплату», a running one is «Продлить». */
+export type PayAction = "create" | "extend";
+
+export const PAY_ACTION_LABEL: Record<PayAction, string> = {
+  create: "Внести оплату",
+  extend: "Продлить",
+};
+
+export function payActionOf(row: Pick<MembershipPaymentRow, "status" | "last_payment">): PayAction {
+  if (!row.last_payment) return "create";
+  return row.status === "expired" || row.status === "none" ? "create" : "extend";
 }
 
 /** Same grey / amber / red as the deadline chips of «Пропуски»; paid, free and no-data states stay grey. */
@@ -678,11 +708,11 @@ export function buildPaymentPayload(values: PaymentFormValues, mode: PeriodMode)
   return payload;
 }
 
-/** «Период 31 дн.» under the dates; null while the dates are incomplete or reversed. */
+/** «Период 31 день» under the dates; null while the dates are incomplete or reversed. */
 export function periodHint(values: Pick<PaymentFormValues, "validFrom" | "validTo">, mode: PeriodMode): string | null {
   if (mode !== "calendar" || !isIsoDate(values.validFrom) || !isIsoDate(values.validTo)) return null;
   const days = periodDays(values.validFrom, values.validTo);
-  return days >= 1 ? `Период ${days} дн.` : null;
+  return days >= 1 ? `Период ${daysLabel(days)}` : null;
 }
 
 /** Reason of a cancellation: trimmed 3..500 characters. */

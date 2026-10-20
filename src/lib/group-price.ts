@@ -276,6 +276,43 @@ export function membershipPriceView(price: PriceInfo | null | undefined, label: 
   return { kind: "group", title: "Цена группы", value, note: null, text: `Цена группы: ${value}` };
 }
 
+export interface PriceLine {
+  kind: PriceSource;
+  /** What leads the line: «Цена» | «Индивидуальная цена» | «Цена группы не задана». */
+  lead: string;
+  /** «500 000 сум/мес» | «бесплатно» (capital at the start of the line); null when there is no price. */
+  value: string | null;
+  /** What follows the dot: «цена группы» | the reason of the individual price. */
+  tail: string;
+  /** The whole line: «Цена 500 000 сум/мес · цена группы». */
+  text: string;
+  /** The price of the group behind an individual price, for the tooltip. */
+  title: string | null;
+}
+
+/**
+ * The one line of the student card that says what the student pays in a group:
+ * «Цена 500 000 сум/мес · цена группы», «Индивидуальная цена 400 000 сум/мес · Сестра ученика», «Цена группы не задана».
+ * A price of 0 is a price: «Бесплатно · цена группы».
+ */
+export function membershipPriceLine(price: PriceInfo | null | undefined, label: string): PriceLine {
+  if (!price || price.source === "none" || price.amount === null || price.amount === undefined) {
+    return { kind: "none", lead: "Цена группы не задана", value: null, tail: "", text: "Цена группы не задана", title: null };
+  }
+  const free = price.amount === 0;
+  const money = formatPrice(price.amount, label); // «500 000 сум/мес» | «бесплатно»
+  const compose = (lead: string, value: string, tail: string): string => [lead, value].filter(Boolean).join(" ") + (tail ? ` · ${tail}` : "");
+  if (price.source === "override") {
+    const lead = free ? "Индивидуальная цена —" : "Индивидуальная цена";
+    const tail = (price.reason ?? "").trim();
+    const group = groupAmountPart(price.group_amount);
+    return { kind: "override", lead, value: money, tail, text: compose(lead, money, tail), title: group.charAt(0).toUpperCase() + group.slice(1) };
+  }
+  const lead = free ? "" : "Цена";
+  const value = free ? money.charAt(0).toUpperCase() + money.slice(1) : money;
+  return { kind: "group", lead, value, tail: "цена группы", text: compose(lead, value, "цена группы"), title: null };
+}
+
 /** «Индивидуальная цена» in a list row (payments); null for the price of the group. */
 export function priceSourceTag(price: PriceInfo | null | undefined): string | null {
   return price?.source === "override" ? "индивидуальная цена" : null;
@@ -466,6 +503,23 @@ export function overrideActions(price: PriceInfo | null | undefined, history: Re
     out.push({ kind: "cancel", row, label: scheduled.length > 1 ? `${CANCEL_SCHEDULED_LABEL} (${sinceText(row.valid_from)})` : CANCEL_SCHEDULED_LABEL });
   }
   return out;
+}
+
+export const ASSIGN_OVERRIDE_LABEL = "Назначить индивидуальную цену";
+
+export type PriceMenuAction = { kind: "assign"; label: string } | OverrideAction;
+
+/**
+ * What the «⋯» menu of a student's group offers about the price, in this order: «Назначить индивидуальную цену», then
+ * «Вернуть цену группы» / «Отменить запланированную…».  Nothing for a membership that cannot be changed.
+ */
+export function priceMenuActions(
+  editable: boolean,
+  price: PriceInfo | null | undefined,
+  history: ReadonlyArray<PriceOverrideRow> | null | undefined,
+): PriceMenuAction[] {
+  if (!editable) return [];
+  return [{ kind: "assign", label: ASSIGN_OVERRIDE_LABEL }, ...overrideActions(price, history)];
 }
 
 export interface EnrolOverrideValues {

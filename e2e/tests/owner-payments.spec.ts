@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addMonthMinusDay, businessNow } from "../support/time";
-import { dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
+import { cardMenuItem, dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
 
 /**
  * Owner: «Оплаты». A brand-new student of a group WITHOUT a price is shown with «цена группы не задана» and a link to the
@@ -22,9 +22,9 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   const page = await signIn(org.owner);
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Платёжкин Анвар", exact: true }) });
 
-  // --- a student without data waits in «Нет данных»; the group has no price: the row says so and links to the group
+  // --- a student without data waits in «Без оплат»; the group has no price: the row says so and links to the group
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Нет данных/ }).click();
+  await page.getByRole("tab", { name: /Без оплат/ }).click();
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText("Цена группы не задана");
   await expect(row().getByRole("link", { name: "задать цену группы" })).toHaveAttribute("href", new RegExp(`/owner/groups/${group.id}#price$`));
@@ -34,20 +34,23 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   // --- the price is set ON THE GROUP (its own spec covers the screen); the row now suggests the sum from it
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
-  await page.getByRole("tab", { name: /Нет данных/ }).click();
+  await page.getByRole("tab", { name: /Без оплат/ }).click();
   await expect(row()).toContainText(new RegExp(`Цена группы: ${moneyPattern(450000)}\\s*сум/мес`));
   await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0);
   await expect(row()).toContainText("Полный месяц — 450 000 сум");
   await expect(row().getByRole("textbox", { name: "Оплачено до" })).toHaveValue(addMonthMinusDay(today));
   await row().getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Оплата внесена")).toBeVisible();
-  await expect(row()).toHaveCount(0); // left «Нет данных»
+  await expect(row()).toHaveCount(0); // left «Без оплат»
 
   // --- it is now under «Оплачено»
   await page.getByRole("tab", { name: "Оплачено" }).click();
   const paidUntil = dmy(addMonthMinusDay(today));
   await expect(row()).toContainText(money(450000));
-  await expect(row()).toContainText(`Оплачено до ${paidUntil}`);
+  await expect(row()).toContainText("Оплачено"); // the grey chip ...
+  await expect(row()).toContainText(`оплачено до ${paidUntil}`); // ... and the date under it
+  await expect(row().getByRole("button", { name: "Продлить" })).toBeVisible(); // a running payment is extended, not entered again
+  await expect(page.getByRole("tab", { name: /^Оплачено \(\d+\)$/ })).toBeVisible(); // every tab carries its number
 
   // --- history: «№ N»
   const membership = await org.membershipId(student.id);
@@ -56,7 +59,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   expect(payment.receipt_no).toBeGreaterThan(0);
   await page.goto(`/owner/students/${student.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
-  await page.getByRole("button", { name: "История оплат" }).click();
+  await cardMenuItem(page, "История оплат");
   await expect(page.getByText(new RegExp(`№\\s*${payment.receipt_no}\\b`))).toBeVisible();
   await expect(page.getByText(new RegExp(`оплачено ${dmy(today).replace(/\./g, "\\.")}`))).toBeVisible();
 
@@ -76,8 +79,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await page.getByRole("button", { name: "Назад" }).click();
   await expect(page).toHaveURL(new RegExp(`/owner/students/${student.id}`));
   await page.getByRole("tab", { name: "Оплаты" }).click();
-  const history = page.getByRole("button", { name: "История оплат" });
-  if ((await history.getAttribute("aria-expanded")) !== "true") await history.click();
+  if (!(await page.getByRole("region", { name: "История оплат" }).isVisible())) await cardMenuItem(page, "История оплат");
   await page.getByRole("button", { name: /Действия с оплатой/ }).click();
   await page.getByRole("menuitem", { name: "Отменить", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
@@ -112,7 +114,7 @@ test("@mobile the payments list and the quick-pay row fit a phone", async ({ sig
   await org.addStudent(group, "Мадина", "Телефонова");
   const page = await signIn(org.owner);
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Нет данных/ }).click();
+  await page.getByRole("tab", { name: /Без оплат/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
   await expect(row.getByText("Цена группы не задана")).toBeVisible();
   await expect(row.getByRole("textbox", { name: "Дата оплаты" })).toBeVisible();

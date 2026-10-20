@@ -16,6 +16,8 @@
  *    step), never a "gap" scenario.
  */
 
+import { pluralRu } from "./plural";
+
 export interface PlanStepLike {
   skill_id?: string | null;
   skill_name_ru?: string | null;
@@ -203,16 +205,8 @@ export function reportAchievements(report: Obj | null | undefined): Obj[] {
 
 // ─── N04a: Russian plurals and step outcome ───────────────────────────────────
 
-/** 1 шаг / 2 шага / 5 шагов / 11 шагов / 21 шаг / 22 шага / 0 шагов. */
-export function pluralRu(n: number, one: string, few: string, many: string): string {
-  const v = Number.isFinite(n) ? Math.abs(Math.trunc(n)) : 0;
-  const tail = v % 100;
-  const last = v % 10;
-  if (tail >= 11 && tail <= 14) return many;
-  if (last === 1) return one;
-  if (last >= 2 && last <= 4) return few;
-  return many;
-}
+/** 1 шаг / 2 шага / 5 шагов / 11 шагов / 21 шаг / 22 шага / 0 шагов - the one plural of the project (`./plural`). */
+export { pluralRu };
 export const stepsLabel = (n: number) => `${n} ${pluralRu(n, "шаг", "шага", "шагов")}`;
 export const errorsLabel = (n: number) => `${n} ${pluralRu(n, "ошибка", "ошибки", "ошибок")}`;
 export const tasksLabel = (n: number) => `${n} ${pluralRu(n, "задание", "задания", "заданий")}`;

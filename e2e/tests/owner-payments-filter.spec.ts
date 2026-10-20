@@ -24,7 +24,7 @@ test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher
 
   const page = await signIn(org.owner);
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Нет данных/ }).click();
+  await page.getByRole("tab", { name: /Без оплат/ }).click();
   const names = ["Ивановский Анвар", "Геометрова Мадина", "Физиков Булат"];
   const visible = async () =>
     (await Promise.all(names.map(async (n) => ((await page.getByRole("link", { name: n, exact: true }).count()) > 0 ? n : null)))).filter(Boolean);

@@ -495,34 +495,59 @@ function priceRow(over = {}) {
   };
 }
 
-test("the student card shows the group price with no field to type it; the exception has its actions", () => {
-  const { MembershipPriceSection } = require(path.join(root, "src/components/payments/membership-price.tsx"));
-  const html = (row, editable = true, mode = "calendar") => renderToStaticMarkup(React.createElement(MembershipPriceSection, {
-    row, studentName: "Каримова Дилноза", periodMode: mode, groupsBasePath: "/owner/groups", editable, onRowChange: () => {}, onNotify: () => {},
+test("the student card shows the price in one line with no field to type it; the exception has its actions in «⋯»", () => {
+  // the card of a group uses the router (the receipt page): a stub is enough for a static render
+  const navigation = require.resolve("next/navigation");
+  require(navigation);
+  require.cache[navigation].exports = { ...require(navigation), useRouter: () => ({ push() {}, replace() {}, refresh() {} }) };
+  const { MembershipPayments } = require(path.join(root, "src/components/payments/membership-payments.tsx"));
+  const html = (row, editable = true, mode = "calendar") => renderToStaticMarkup(React.createElement(MembershipPayments, {
+    row: { ...row, is_active: editable }, heading: React.createElement("span", null, "Алгебра 8А"),
+    studentName: "Каримова Дилноза", periodMode: mode, lessonsDefault: null, paymentsBasePath: "/owner/payments", groupsBasePath: "/owner/groups",
+    onRowChange: () => {}, onNotify: () => {},
   }));
+  const priceOf = (markup) => {
+    const found = /<p[^>]*data-testid="membership-price"[^>]*>([\s\S]*?)<\/p>/.exec(markup);
+    return found ? textOf(found[0]) : "";
+  };
 
   const group = html(priceRow());
-  assert.match(textOf(group), /Цена группы: 500 000 сум\/мес/);
-  assert.match(textOf(group), /Назначить индивидуальную цену/);
-  assert.doesNotMatch(textOf(group), /Вернуть цену группы/);
-  assert.doesNotMatch(group, /<input/); // nothing to type per student
-  assert.match(textOf(html(priceRow(), true, "lessons")), /Цена группы: 500 000 сум за пакет/);
+  assert.equal(textOf(priceOf(group)), "Цена 500 000 сум/мес · цена группы");
+  assert.doesNotMatch(group, /<input(?![^>]*type="file")/); // nothing to type per student (the cheque picker is a hidden file input)
+  assert.equal(priceOf(html(priceRow(), true, "lessons")), "Цена 500 000 сум за пакет · цена группы");
+  // rare actions are not on the card: they are in the «⋯» menu (rendered when it is opened)
+  assert.doesNotMatch(textOf(group), /Назначить индивидуальную цену|Вернуть цену группы|История цены|История оплат/);
+  assert.match(group, /aria-label="Действия по оплате: Алгебра 8А"/);
 
   const own = html(priceRow({ price: { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "Сестра ученика" } }));
-  assert.match(textOf(own), /Индивидуальная цена: 400 000 сум\/мес/);
-  assert.match(textOf(own), /индивидуальная/);
-  assert.match(textOf(own), /Сестра ученика · цена группы 500 000 сум/);
-  assert.match(textOf(own), /Вернуть цену группы/);
+  assert.equal(priceOf(own), "Индивидуальная цена 400 000 сум/мес · Сестра ученика");
+  assert.match(plain(own), /title="Цена группы 500 000 сум"/); // the group's price stays one hover away
 
   const none = html(priceRow({ price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, monthly_fee: null }));
   assert.match(textOf(none), /Цена группы не задана/);
   assert.match(none, /href="\/owner\/groups\/g1#price"/);
   assert.match(textOf(none), /Задать цену группы/);
 
-  // an archived student / a closed membership: the price is shown, nothing can be changed
+  // an archived student / a closed membership: the price is shown, nothing can be changed (no status, no main button)
   const readOnly = textOf(html(priceRow({ price: { amount: 400000, source: "override", valid_from: null, group_amount: 500000, reason: "Сестра" } }), false));
-  assert.match(readOnly, /Индивидуальная цена/);
-  assert.doesNotMatch(readOnly, /Назначить|Вернуть/);
+  assert.match(readOnly, /Индивидуальная цена 400 000 сум\/мес · Сестра/);
+  assert.doesNotMatch(readOnly, /Внести оплату|Продлить|Оплачено/);
+  // status chip + one main button by the situation of the row
+  assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено .*оплачено до 31\.10\.2026 .*Продлить/);
+  assert.match(textOf(html(priceRow())), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/); // never paid: «Внести оплату»
+  const overdue = textOf(html(priceRow({ status: "expired", days_overdue: 31, days_left: null, last_payment: { id: "p" } })));
+  assert.match(overdue, /Просрочено на 31 день .*оплачено до 31\.10\.2026 .*Внести оплату/);
+  assert.doesNotMatch(overdue, /дн\./);
+});
+
+test("the «⋯» menu of the card offers the price actions in order, and nothing to a membership that cannot change", () => {
+  const price = { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "Сестра" };
+  const scheduled = { id: "soon", amount: 350000, valid_from: "2026-11-20", reason: "Договорённость", created_by_name: null, created_at: null, is_current: false, is_future: true, changes: [] };
+  const labels = (editable, p, h) => G.priceMenuActions(editable, p, h).map((a) => a.label);
+  assert.deepEqual(labels(true, { ...price, source: "group" }, []), ["Назначить индивидуальную цену"]);
+  assert.deepEqual(labels(true, price, [scheduled]), ["Назначить индивидуальную цену", "Вернуть цену группы", "Отменить запланированную индивидуальную цену"]);
+  assert.deepEqual(labels(false, price, [scheduled]), []);
+  assert.deepEqual(labels(false, null, null), []);
 });
 
 test("a group card shows its price to a money role and nothing to anybody else", () => {
@@ -786,7 +811,7 @@ test("«Вернуть цену группы»: the day is not before the indivi
 
   // the screens wire it: the section, the history read at once, the confirmation with the exact words
   const section = read("src/components/payments/membership-price.tsx");
-  assert.match(section, /overrideActions\(price, history\?\.history\)/);
+  assert.match(section, /priceMenuActions\(editable, price, history\?\.history\)/);
   assert.match(section, /if \(!historyOpen && !editable\) return undefined;/);
   assert.match(section, /checkReturnForm\(validFrom, today, notBefore\)/);
   assert.match(section, /orgApi\.cancelMembershipPrice\(row\.membership_id, target\.id\)/);

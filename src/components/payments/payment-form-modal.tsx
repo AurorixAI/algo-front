@@ -27,6 +27,7 @@ import {
   validatePaymentForm,
   MAX_LESSONS,
   NOTE_MAX,
+  PAY_ACTION_LABEL,
   PARTIAL_PERIOD_BADGE,
   REASON_MAX,
   type PaymentFormValues,
@@ -72,9 +73,10 @@ interface PaymentFormModalProps {
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
+// The title repeats the verb of the button that opened the dialog («Внести оплату» / «Продлить»).
 const TITLE: Record<PaymentFormKind, string> = {
-  create: "Внести оплату",
-  extend: "Продлить оплату",
+  create: PAY_ACTION_LABEL.create,
+  extend: `${PAY_ACTION_LABEL.extend} оплату`,
   replace: "Исправить оплату",
 };
 
