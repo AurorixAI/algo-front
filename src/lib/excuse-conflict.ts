@@ -28,3 +28,32 @@ export function excuseChange(error: unknown): ExcuseChange | null {
   const item = detail && detail.item && typeof detail.item === "object" ? detail.item : null;
   return { message, item };
 }
+
+/** What of a server's excuse a cell of the journal shows (the shape of `AttendanceExcuseItem`, the part that changes with a decision). */
+export interface ExcuseItemFields {
+  status: "pending" | "confirmed" | "rejected";
+  reviewed_by?: { name: string } | null;
+  reviewed_at?: string | null;
+  review_note?: string | null;
+  billing_mode?: string | null;
+  decided_after_deadline?: boolean | null;
+  deadline_at_decision?: string | null;
+}
+
+/**
+ * The cell of the journal after the server answered with the excuse (a decision, a reset, or the item of an EXCUSE_CHANGED):
+ * who decided, when, the note, the billing mode, and the «после срока» mark with its deadline - all of them, so the chip is
+ * right at once and not only after a reload.  A key the answer does not carry keeps what the cell had.
+ */
+export function applyExcuseItem<T extends { status: string }>(cell: T, item: ExcuseItemFields): T {
+  return {
+    ...cell,
+    status: item.status,
+    reviewed_by_name: item.reviewed_by?.name ?? null,
+    reviewed_at: item.reviewed_at ?? null,
+    review_note: item.review_note ?? null,
+    ...(item.billing_mode !== undefined ? { billing_mode: item.billing_mode } : {}),
+    ...(item.decided_after_deadline !== undefined ? { decided_after_deadline: item.decided_after_deadline } : {}),
+    ...(item.deadline_at_decision !== undefined ? { deadline_at_decision: item.deadline_at_decision } : {}),
+  };
+}

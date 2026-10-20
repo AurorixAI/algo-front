@@ -614,6 +614,7 @@ function PayrollMonthContent() {
           {/* Inside the preview section: a sticky bar moves only inside its parent, so it floats while THIS preview is on screen
               and goes away with it (on the sheet page, where the bar is the whole page's, it is a direct child of the page). */}
           <SaveBar
+            hideUntilFits
             dirty={editsDirty(active.sheet, active.edits)}
             problem={editsProblem(active.sheet, active.edits) ?? active.error}
             saveLabel={activeExisting ? `Сохранить как редакцию ${activeExisting.revision + 1}` : "Сохранить ведомость"}

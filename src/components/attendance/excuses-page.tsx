@@ -31,7 +31,7 @@ import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
 import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
 import { excuseChange } from "@/lib/excuse-conflict";
-import { afterDecision, createQueueGuard, type QueueGuard } from "@/lib/queue-guard";
+import { afterDecision, createOncePer, createQueueGuard, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, type QueueGuard } from "@/lib/queue-guard";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
@@ -263,6 +263,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   // Reads of the list and the in-place patches take turns here: a patch invalidates every read that started before it, a
   // silent read follows the last patch and every return to the window (see lib/queue-guard.ts).
+  const staleToastGate = useRef(createOncePer(STALE_LIST_TOAST_GAP_MS));
   const loadRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
   const guardRef = useRef<QueueGuard | null>(null);
   if (!guardRef.current) guardRef.current = createQueueGuard({ reload: () => { void loadRef.current(true); } });
@@ -297,8 +298,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   const load = useCallback(async (silent = false) => {
     const token = guard.begin();
-    if (!silent) setLoading(true);
-    setLoadError(null);
+    // A silent read leaves the screen alone until it has an answer: no spinner, and an error panel that is already there
+    // stays until a read succeeds.
+    if (!silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
     try {
       const query = {
         status: tab,
@@ -311,25 +316,32 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
         // The waiting queue is read whole (the urgency order needs all of it); decided tabs are paged below.
         const queue = await loadAllPending<AttendanceExcuseItem>((limit, offset) => orgApi.listAttendanceExcuses({ ...query, limit, offset }));
         if (!guard.accepts(token)) return;
+        setLoadError(null);
         setItems(queue.items);
         setTotal(queue.total);
         setHiddenPending(queue.hidden);
         setPendingTotal(queue.pendingTotal);
         return;
       }
-      setHiddenPending(0);
       const data = await orgApi.listAttendanceExcuses({ ...query, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
       if (!guard.accepts(token)) return;
+      setHiddenPending(0);
       // The last item of a later page was handled: step back instead of showing an empty page.
       if ((data.items || []).length === 0 && page > 0) {
         setPage(Math.min(page - 1, Math.max(0, Math.ceil((data.total ?? 0) / PAGE_SIZE) - 1)));
         return;
       }
+      setLoadError(null);
       setItems(data.items || []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pending_total ?? 0);
     } catch (error) {
       if (!guard.accepts(token)) return;
+      if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
+        // The list on screen stays; one quiet word about it, not more than once a minute.
+        if (staleToastGate.current()) showToast(STALE_LIST_TEXT, "warning");
+        return;
+      }
       setLoadError(error instanceof Error ? error.message : "Не удалось загрузить список");
     } finally {
       if (guard.accepts(token)) setLoading(false);

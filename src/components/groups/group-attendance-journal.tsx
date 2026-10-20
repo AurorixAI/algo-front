@@ -60,7 +60,7 @@ import { journalColumnDate, journalMonthAnchor, journalPeriod, moveJournalAnchor
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
-import { excuseChange } from "@/lib/excuse-conflict";
+import { applyExcuseItem, excuseChange, type ExcuseItemFields } from "@/lib/excuse-conflict";
 import { afterDeadlineMark, subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
 import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
@@ -778,7 +778,7 @@ export function GroupAttendanceJournal({
     setReviewBusyId(excuse.id);
     // The request carries the status the person SAW (`expected_status`): if somebody decided meanwhile the server answers
     // EXCUSE_CHANGED with the excuse as it is now; the cell takes it, the dialog stays open with the server's message.
-    const patchCell = (item: { status: AttendanceExcuseInfo["status"]; reviewed_by?: { name: string } | null; reviewed_at?: string | null; review_note?: string | null; billing_mode?: AttendanceExcuseInfo["billing_mode"] }) =>
+    const patchCell = (item: ExcuseItemFields) =>
       setAttendanceData((previous) => {
         const current = previous?.excuses?.[lessonKey]?.[studentId];
         if (!previous || !current) return previous;
@@ -788,14 +788,7 @@ export function GroupAttendanceJournal({
             ...previous.excuses,
             [lessonKey]: {
               ...previous.excuses?.[lessonKey],
-              [studentId]: {
-                ...current,
-                status: item.status,
-                reviewed_by_name: item.reviewed_by?.name ?? null,
-                reviewed_at: item.reviewed_at ?? null,
-                review_note: item.review_note ?? null,
-                ...(item.billing_mode !== undefined ? { billing_mode: item.billing_mode } : {}),
-              },
+              [studentId]: applyExcuseItem(current, item),
             },
           },
         };
@@ -812,7 +805,7 @@ export function GroupAttendanceJournal({
       if (changed) {
         const fresh = changed.item as { id?: string; status?: AttendanceExcuseInfo["status"] } | null;
         if (fresh && fresh.id === excuse.id && fresh.status) {
-          patchCell(fresh as Parameters<typeof patchCell>[0]);
+          patchCell(fresh as ExcuseItemFields);
           // the open dialog now stands on the new state: a second press is a decision about THAT state
           setReviewDialog((current) => (current && current.excuse.id === excuse.id
             ? {

@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, HelpCircle, History, Loader2, RefreshCw, Save, Undo2, Wallet } from "lucide-react";
 import { formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
+import { barFitsAbovePin } from "@/lib/save-bar";
 import { Hint } from "@/components/ui/hint";
 import {
   FORBIDDEN_TEXT,
@@ -101,8 +103,13 @@ export function PercentEditor({
  * sticks to the bottom of the screen while there is something to save, so a long sheet needs no scrolling back.
  */
 export function SaveBar({
-  dirty, problem, saveLabel, canSaveClean, blockedReason = null, saving, note, onNote, onSave, onDiscard,
+  dirty, problem, saveLabel, canSaveClean, blockedReason = null, saving, note, onNote, onSave, onDiscard, hideUntilFits = false,
 }: {
+  /**
+   * The bar lives in a section that can be far below the fold (the month page's preview): while it cannot float entirely
+   * above the bottom bar it is not shown (it keeps its place in the layout), instead of sitting partly behind the bar.
+   */
+  hideUntilFits?: boolean;
   dirty: boolean;
   problem: string | null;
   saveLabel: string;
@@ -117,9 +124,37 @@ export function SaveBar({
   onDiscard: () => void;
 }) {
   const disabled = saving || Boolean(problem) || Boolean(blockedReason) || (!dirty && !canSaveClean);
+  const barRef = useRef<HTMLDivElement | null>(null);
+  const [fits, setFits] = useState(true);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!hideUntilFits || !dirty || !bar) {
+      setFits(true);
+      return undefined;
+    }
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setFits(barFitsAbovePin({
+        barBottom: bar.getBoundingClientRect().bottom,
+        viewportHeight: window.innerHeight,
+        pinOffset: parseFloat(getComputedStyle(bar).bottom) || 0,
+      }));
+    };
+    const schedule = () => { if (!frame) frame = window.requestAnimationFrame(measure); };
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [hideUntilFits, dirty, problem]);
   return (
     <div
-      className={`rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-30 border-primary-200 shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "border-slate-200"}`}
+      ref={barRef}
+      className={`${fits ? "" : "invisible "}rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-30 border-primary-200 shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "border-slate-200"}`}
     >
       {dirty && (
         <p className="mb-2 text-xs text-slate-600">

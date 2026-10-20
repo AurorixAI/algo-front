@@ -775,3 +775,75 @@ test("the excuses page: reads and patches go through the guard; a patch bumps th
   assert.match(page, /document\.visibilityState === "visible"\) guard\.woke\(\)/);
   assert.match(page, /guard\.cancel\(\);/);
 });
+
+// ── a silent read that fails keeps the list; the journal chip; the save bar of the month page ─────────
+
+test("a failed SILENT read keeps the rows (no error panel); a read the person asked for still shows the error; the toast speaks once a minute", () => {
+  const { readFailureOutcome, createOncePer, STALE_LIST_TOAST_GAP_MS } = lib("queue-guard.ts");
+  assert.equal(readFailureOutcome({ silent: true, rows: 8 }), "keep-list", "8 rows, the server gives 503 on a focus reload: the rows stay");
+  assert.equal(readFailureOutcome({ silent: true, rows: 0 }), "show-error", "nothing to lose: the error is shown");
+  assert.equal(readFailureOutcome({ silent: false, rows: 8 }), "show-error", "opening a tab / paging keeps today's behaviour");
+  assert.equal(readFailureOutcome({ silent: false, rows: 0 }), "show-error");
+  let clock = 0;
+  const mayToast = createOncePer(STALE_LIST_TOAST_GAP_MS, () => clock);
+  assert.equal(STALE_LIST_TOAST_GAP_MS, 60_000);
+  assert.equal(mayToast(), true);
+  clock = 59_999;
+  assert.equal(mayToast(), false, "not twice within a minute");
+  clock = 60_000;
+  assert.equal(mayToast(), true);
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /readFailureOutcome\(\{ silent, rows: live\.current\.items\.length \}\) === "keep-list"/);
+  assert.match(page, /if \(staleToastGate\.current\(\)\) showToast\(STALE_LIST_TEXT, "warning"\);/);
+  // a silent read touches the screen only when it has an answer: no spinner, no cleared error before the answer
+  assert.match(page, /if \(!silent\) \{\s*setLoading\(true\);\s*setLoadError\(null\);\s*\}/);
+});
+
+test("the journal cell takes EVERYTHING from the server's excuse, «после срока» and its deadline included - from a decision and from a 409 item", () => {
+  const { applyExcuseItem, excuseChange } = lib("excuse-conflict.ts");
+  const { afterDeadlineMark } = lib("excuse-decision.ts");
+  const cell = { id: "e1", status: "pending", reason: "Болел", reason_by_name: "Д К", reason_at: "2026-10-09T16:35:00", reviewed_by_name: null, reviewed_at: null, has_files: false, billing_mode: null };
+  const decided = applyExcuseItem(cell, {
+    status: "confirmed", reviewed_by: { name: "Алиев Рустам" }, reviewed_at: "2026-10-18T10:20:00", review_note: "Справка принесена",
+    billing_mode: "package", decided_after_deadline: true, deadline_at_decision: "2026-10-12",
+  });
+  assert.deepEqual(
+    [decided.status, decided.reviewed_by_name, decided.reviewed_at, decided.review_note, decided.billing_mode, decided.decided_after_deadline, decided.deadline_at_decision],
+    ["confirmed", "Алиев Рустам", "2026-10-18T10:20:00", "Справка принесена", "package", true, "2026-10-12"],
+  );
+  assert.equal(decided.reason, "Болел", "what the item does not carry stays");
+  assert.deepEqual(afterDeadlineMark(decided), { label: "после срока", date: "12.10", title: "Решение принято после срока (до 12.10)" }, "the chip is right at once, no reload");
+  // the item of a 409 EXCUSE_CHANGED goes through the same function
+  const error = Object.assign(new Error("Пропуск уже отклонил Юсупов Тимур"), { status: 409, code: "EXCUSE_CHANGED", detail: { code: "EXCUSE_CHANGED", message: "Пропуск уже отклонил Юсупов Тимур", item: { id: "e1", status: "rejected", reviewed_by: { name: "Юсупов Тимур" }, reviewed_at: "2026-10-19T08:00:00", decided_after_deadline: false, deadline_at_decision: "2026-10-25" } } });
+  const changed = applyExcuseItem(cell, excuseChange(error).item);
+  assert.deepEqual([changed.status, changed.reviewed_by_name, changed.decided_after_deadline, changed.deadline_at_decision], ["rejected", "Юсупов Тимур", false, "2026-10-25"]);
+  assert.equal(afterDeadlineMark(changed), null, "in time: no chip");
+  // a reset: the excuse waits again, the chip goes (the mark is only for a decided one)
+  const reset = applyExcuseItem(decided, { status: "pending", reviewed_by: null, reviewed_at: null, review_note: null, decided_after_deadline: null, deadline_at_decision: null });
+  assert.equal(reset.status, "pending");
+  assert.equal(reset.decided_after_deadline, null);
+  assert.equal(afterDeadlineMark(reset), null);
+  // an answer without the keys keeps what the cell has (an older server)
+  const old = applyExcuseItem(decided, { status: "confirmed", reviewed_by: { name: "Алиев Рустам" } });
+  assert.equal(old.decided_after_deadline, true);
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /\[studentId\]: applyExcuseItem\(current, item\)/);
+  assert.doesNotMatch(journal, /reviewed_by_name: item\.reviewed_by/, "the fields are not copied by hand any more");
+});
+
+test("the month page's save bar is shown only where it can float entirely above the bottom bar", () => {
+  const { barFitsAbovePin } = lib("save-bar.ts");
+  // 390x700: the bar floats at 72 px above the bottom; its bottom edge is then at 628
+  assert.equal(barFitsAbovePin({ barBottom: 628, viewportHeight: 700, pinOffset: 72 }), true, "pinned where it should be");
+  assert.equal(barFitsAbovePin({ barBottom: 400, viewportHeight: 700, pinOffset: 72 }), true, "in the flow above the line");
+  assert.equal(barFitsAbovePin({ barBottom: 913, viewportHeight: 700, pinOffset: 72 }), false, "pushed down by the top of its section: behind the bottom bar");
+  assert.equal(barFitsAbovePin({ barBottom: 630, viewportHeight: 700, pinOffset: 72 }), false, "even a few pixels past the line is hidden");
+  assert.equal(barFitsAbovePin({ barBottom: 628.8, viewportHeight: 700, pinOffset: 72 }), true, "sub-pixel rounding is not a reason to hide it");
+  assert.equal(barFitsAbovePin({ barBottom: Number.NaN, viewportHeight: 700, pinOffset: 72 }), true, "if it cannot be measured a button is never hidden");
+  const bar = read("src/components/payroll/sheet-controls.tsx");
+  assert.match(bar, /hideUntilFits = false/);
+  assert.match(bar, /\$\{fits \? "" : "invisible "\}rounded-2xl border/, "it keeps its place in the layout: nothing jumps");
+  assert.match(bar, /pinOffset: parseFloat\(getComputedStyle\(bar\)\.bottom\) \|\| 0/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<SaveBar\s+hideUntilFits/);
+  assert.doesNotMatch(read("src/components/payroll/payroll-sheet-page.tsx"), /hideUntilFits/, "the sheet page's bar is the whole page's: always shown");
+});

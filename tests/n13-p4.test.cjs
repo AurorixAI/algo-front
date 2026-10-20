@@ -397,7 +397,9 @@ test("#103: the package sentence follows the excuse's own billing_mode (the stud
   assert.match(api.match(/interface AttendanceExcuseInfo[\s\S]*?\n\}/)[0], /billing_mode\?: ExcuseBillingModeValue \| null;/);
   assert.match(api, /export type ExcuseBillingModeValue = "calendar" \| "package";/);
   // a decision in the journal keeps the cell's mode in step with the server's answer
-  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /\.\.\.\(item\.billing_mode !== undefined \? \{ billing_mode: item\.billing_mode \} : \{\}\),/);
+  // (the copy lives in applyExcuseItem now, next to the «после срока» fields)
+  assert.match(read("src/lib/excuse-conflict.ts"), /\.\.\.\(item\.billing_mode !== undefined \? \{ billing_mode: item\.billing_mode \} : \{\}\),/);
+  assert.match(read("src/components/groups/group-attendance-journal.tsx"), /applyExcuseItem\(current, item\)/);
 });
 
 test("#103: the journal gives the focus back to the cell that asked the question; the dialog shows a refusal inline", () => {

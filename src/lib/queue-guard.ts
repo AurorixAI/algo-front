@@ -86,3 +86,26 @@ export async function afterDecision(patch: () => Promise<void> | void, refreshBa
     refreshBadge();
   }
 }
+
+/**
+ * What a FAILED read does to the list on screen.  A read the person asked for (opening a tab, paging) that fails shows the
+ * error, as always.  A SILENT read (the healing one, the one on returning to the window) that fails while the list has rows
+ * keeps the list: a hiccup of the server must not wipe 8 rows and put an error panel in their place.
+ */
+export function readFailureOutcome(input: { silent: boolean; rows: number }): "keep-list" | "show-error" {
+  return input.silent && input.rows > 0 ? "keep-list" : "show-error";
+}
+
+/** «At most once per `ms`»: true when the caller may speak now (the unobtrusive «не удалось обновить» toast). */
+export function createOncePer(ms: number, now: () => number = () => Date.now()): () => boolean {
+  let last = Number.NEGATIVE_INFINITY;
+  return () => {
+    const at = now();
+    if (at - last < ms) return false;
+    last = at;
+    return true;
+  };
+}
+
+export const STALE_LIST_TOAST_GAP_MS = 60_000;
+export const STALE_LIST_TEXT = "Не удалось обновить список: показаны последние полученные данные";
