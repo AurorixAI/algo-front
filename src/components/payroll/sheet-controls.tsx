@@ -57,7 +57,7 @@ export function PercentEditor({
   return (
     <>
       <fieldset className="rounded-2xl border border-slate-200 bg-white px-4 py-3 print:hidden">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Проценты преподавателя</legend>
+        <legend className="px-1 text-xs font-semibold text-slate-500">Проценты преподавателя</legend>
         <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
           {types.map((type) => {
             const text = percentFieldText(sheet, edits, type);
@@ -335,7 +335,7 @@ export function DiffBanner({
           <div className="mt-2 max-w-full overflow-x-auto">
             <table className="w-full min-w-[30rem] border-collapse text-xs">
               <thead>
-                <tr className="border-b border-amber-200 text-left text-[11px] uppercase tracking-wide text-amber-900/70">
+                <tr className="border-b border-amber-200 text-left text-xs text-amber-900/70">
                   <th scope="col" className="py-1.5 pr-3 font-semibold">Ученик</th>
                   <th scope="col" className="py-1.5 pr-3 font-semibold">Засчитано</th>
                   <th scope="col" className="py-1.5 pr-3 font-semibold">Не оплачено</th>

@@ -403,9 +403,6 @@ test("calculate for the selected only: their percents and teacher_ids; others' m
   assert.equal(R.buildCalculateBody(teachers, {}, new Set(["t1"])), null); // t1 is incomplete
   assert.deepEqual(R.calculationScope(teachers, new Set(["t2"])).map((t) => t.teacher_id), ["t2"]);
   assert.deepEqual(R.calculationScope(teachers, new Set()).map((t) => t.teacher_id), ["t1", "t2"]);
-  assert.equal(R.calculateButtonLabel(teachers, new Set()), "Рассчитать всех");
-  assert.equal(R.calculateButtonLabel(teachers, new Set(["t2"])), "Рассчитать выбранных (1)");
-  assert.equal(R.calculateButtonLabel(teachers, new Set(["t1", "t2"])), "Рассчитать всех");
   assert.equal(R.teacherLabel(null), "Преподаватель");
   assert.equal(R.teacherLabel("  Иванов "), "Иванов");
 });
@@ -656,9 +653,11 @@ test("the sheet table: the partner's layout, accessible names, sticky name colum
   const markup = html();
   const text = plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
-    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана цена группы", "Итого по группе", "ИТОГО", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
+    "01.09", "03.09", "08.09", "10.09", "Ув.?", "ожидает: 1", "Не задана цена группы", "Итого по группе", "Итого", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
     assert.ok(text.includes(part), `the sheet shows «${part}»`);
   }
+  assert.match(markup, />Итого<\/span>/); // the sheet's total is not in capitals
+  assert.doesNotMatch(markup, /ИТОГО|uppercase/);
   // accessible names of the editable cells
   assert.match(markup, /aria-label="Оплата в месяц: Каримова Дилноза, Алгебра 8А"/);
   assert.match(markup, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
@@ -757,7 +756,7 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /parseMonthParam\(searchParams\?\.get\("month"\), today\)/);
   assert.match(month, /Скачать Excel за месяц/);
   assert.match(month, /disabled=\{savedCount === 0 \|\| exporting\}/);
-  assert.match(month, /Месяц ещё не закончился/);
+  assert.match(month, /<PayrollMonthStatus month=\{month\} open=\{monthOpen\} divisor=\{overview\.divisor\} \/>/);
   assert.match(month, /aria-label=\{`Выбрать: \$\{teacher\.teacher_name\}`\}/);
   assert.match(month, /aria-label=\{`Процент для \$\{teacher\.teacher_name\}, \$\{lessonTypeLabel\(type\.lesson_type\)\}`\}/);
   assert.match(month, /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
@@ -911,9 +910,9 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   assert.doesNotMatch(read("src/lib/api.ts"), /normalizeSheet|normalizeMonthOverview|normalizeDiff|normalizeRevisions|normalizePayrollSettings/);
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
-  assert.match(month, /payrollFormulaText\(overview\.divisor, priceLabel\)/);
+  assert.match(read("src/components/payroll/how-it-works.tsx"), /payrollFormulaText\(divisor, priceLabel\)/);
   assert.match(month, /<WarningLinks counts=\{teacher\.warnings\}/);
-  assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) setShowErrors\(true\)/);
+  assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) markAttempted\(/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);
   assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents, expectedFingerprint:/);

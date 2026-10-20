@@ -229,6 +229,25 @@ export function sinceText(validFrom: string | null | undefined): string {
   return text ? `с ${text}` : "";
 }
 
+/**
+ * A scheduled price in the compact line of the group page: «с 01.11 — 480 000» (the year only when it is not the current one);
+ * 0 is «бесплатно».  `asOf`: the day the server counted «today» on.
+ */
+export function scheduledPriceText(row: Pick<GroupPriceRow, "amount" | "valid_from">, asOf?: string | null): string {
+  const date = formatDateRu(row.valid_from);
+  const sameYear = Boolean(asOf) && row.valid_from.slice(0, 4) === (asOf as string).slice(0, 4);
+  const when = sameYear ? date.slice(0, 5) : date;
+  return `с ${when} — ${row.amount === 0 ? FREE_WORD : formatMoneyInput(row.amount)}`;
+}
+
+/** The prices that start later, soonest first, one text each: [] when none is scheduled. */
+export function scheduledPriceLines(history: ReadonlyArray<GroupPriceRow> | null | undefined, asOf?: string | null): string[] {
+  return (history ?? [])
+    .filter((row) => row.is_future)
+    .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
+    .map((row) => scheduledPriceText(row, asOf));
+}
+
 /** Group price on a list card / row: «500 000 сум», «бесплатно» for 0, or null when there is none. */
 export function priceBriefText(price: GroupPriceBrief | null | undefined): string | null {
   if (!price) return null;

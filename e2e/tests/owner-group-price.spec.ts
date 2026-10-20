@@ -59,7 +59,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(toast(page, "Цена группы сохранена")).toBeVisible();
   await expect(block).toContainText(priceText(500000));
   await expect(block).toContainText(`с ${dmy(today)}`);
-  await block.getByRole("button", { name: /История изменений/ }).click();
+  await block.getByRole("button", { name: "История цены" }).click();
   await expect(block.getByRole("list", { name: "История цены" })).toContainText("Новый учебный год");
 
   const prices = await org.owner.api.get(`/auth/org/groups/${group.id}/prices`);
@@ -76,11 +76,13 @@ test("price of the group -> consequences before saving -> student card shows it 
   await plan.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы сохранена")).toBeVisible();
   await expect(block).toContainText(priceText(500000)); // today it is still the old price
-  await expect(block).toContainText("Дальше:");
+  const plannedDay = addDays(today, 30);
+  const plannedShort = plannedDay.slice(0, 4) === today.slice(0, 4) ? dmy(plannedDay).slice(0, 5) : dmy(plannedDay); // the year only when it is not this one
+  await expect(block).toContainText(new RegExp(`Запланировано: с ${plannedShort.replace(/\./g, "\\.")} — ${moneyPattern(550000)}`));
   await block.getByRole("button", { name: "Отменить", exact: true }).click();
   await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
   await expect(toast(page, "Запланированная цена отменена")).toBeVisible();
-  await expect(block).not.toContainText("Дальше:");
+  await expect(block).not.toContainText("Запланировано:");
   await expect(block.getByRole("list", { name: "Отменённые цены" })).toContainText("отменил запланированную цену");
   const afterGroupCancel = await org.owner.api.get(`/auth/org/groups/${group.id}/prices`);
   expect(afterGroupCancel.current).toMatchObject({ amount: 500000 });

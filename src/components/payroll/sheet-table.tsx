@@ -40,7 +40,7 @@ import { priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
-const HEAD = "px-2 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
 /** The first column keeps its place while the dates scroll; on paper there is nothing to scroll. */
 const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
 
@@ -169,7 +169,7 @@ function SheetLegend({ showIncludeNote }: { showIncludeNote: boolean }) {
 /**
  * The sheet as the partner keeps it: a block per group - the students in rows, the lessons of the month in
  * columns (1 counted, 0 red, «Ув.?» yellow, empty not in the group, grey not paid) - then the fee, the
- * percent, the counted and unpaid lessons and the pay of each line, a subtotal per group and the sheet's «ИТОГО».
+ * percent, the counted and unpaid lessons and the pay of each line, a subtotal per group and the sheet's «Итого».
  *
  * The amounts are the server's; a line the owner has edited is previewed with the same formula until saved.
  * On a phone every block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
@@ -232,7 +232,7 @@ export function PayrollSheetTable({
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>%</th>
                     {block.columns.map((column) => (
-                      <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-[11px] font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
+                      <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
                         {formatDayMonth(column.date)}
                       </th>
                     ))}
@@ -327,7 +327,7 @@ export function PayrollSheetTable({
       })}
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-900 bg-slate-900 px-5 py-4 text-white print:rounded-none print:border-black print:bg-transparent print:text-black">
-        <span className="text-sm font-semibold uppercase tracking-wider">ИТОГО</span>
+        <span className="text-sm font-semibold">Итого</span>
         <span className="text-xl font-bold tabular-nums" data-testid="payroll-total">{formatMoney(total)}</span>
       </div>
     </div>
