@@ -175,20 +175,23 @@ test("an excuse must be decided by the end of the lesson's month", () => {
   for (const bad of ["", null, undefined, "bad", "2026-13-01"]) assert.equal(deadline.excuseDeadline(bad), null, String(bad));
 });
 
-test("deadline hint: days left, the last day, overdue in amber, nothing for decided excuses", () => {
-  const hint = (lesson, status, today) => deadline.excuseDeadlineHint(lesson, status, today);
-  assert.deepEqual(hint("2026-10-03", "pending", "2026-10-15"), { text: "подтвердить до 31.10 · осталось 16 дн.", overdue: false, daysLeft: 16 });
-  assert.equal(hint("2026-10-03", "pending", "2026-10-30").text, "подтвердить до 31.10 · осталось 1 дн.");
-  assert.equal(hint("2026-10-03", "pending", "2026-10-31").text, "подтвердить до 31.10 · последний день");
-  assert.deepEqual(hint("2026-09-20", "pending", "2026-10-01"), { text: "подтвердить до 30.09 · срок прошёл", overdue: true, daysLeft: -1 });
-  assert.equal(hint("2026-09-20", "pending", "2027-01-05").overdue, true);
+test("deadline of a pending excuse by the month end: days left, today, passed (red), nothing for decided excuses", () => {
+  const cell = (lesson, status, today) => deadline.excuseDeadlineCell({ lesson_date: lesson, status }, today);
+  const look = (c) => c && { headline: c.headline, sub: c.sub, tone: c.tone };
+  assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-15")), { headline: "Осталось 16 дней", sub: "до 31.10", tone: "neutral" });
+  assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-30")), { headline: "Остался 1 день", sub: "до 31.10", tone: "warn" });
+  assert.deepEqual(look(cell("2026-10-03", "pending", "2026-10-31")), { headline: "Срок сегодня", sub: "до 31.10", tone: "warn" });
+  assert.deepEqual(look(cell("2026-09-20", "pending", "2026-10-01")), { headline: "Срок прошёл 1 день назад", sub: "до 30.09", tone: "danger" });
+  assert.equal(cell("2026-09-20", "pending", "2027-01-05").tone, "danger");
+  assert.equal(deadline.excuseDeadlinePassed({ lesson_date: "2026-09-20", status: "pending" }, "2027-01-05").date, "2026-09-30");
   // across a year edge and a leap day
-  assert.equal(hint("2026-12-10", "pending", "2026-12-30").text, "подтвердить до 31.12 · осталось 1 дн.");
-  assert.equal(hint("2028-02-01", "pending", "2028-02-27").text, "подтвердить до 29.02 · осталось 2 дн.");
-  assert.equal(hint("2026-10-03", "confirmed", "2026-10-15"), null);
-  assert.equal(hint("2026-10-03", "rejected", "2026-10-15"), null);
-  assert.equal(hint("nope", "pending", "2026-10-15"), null);
-  assert.equal(hint("2026-10-03", "pending", "nope"), null);
+  assert.equal(cell("2026-12-10", "pending", "2026-12-30").headline, "Остался 1 день");
+  assert.equal(cell("2028-02-01", "pending", "2028-02-27").headline, "Осталось 2 дня");
+  assert.equal(cell("2028-02-01", "pending", "2028-02-27").sub, "до 29.02");
+  assert.equal(cell("2026-10-03", "confirmed", "2026-10-15"), null);
+  assert.equal(cell("2026-10-03", "rejected", "2026-10-15"), null);
+  assert.equal(cell("nope", "pending", "2026-10-15"), null);
+  assert.equal(cell("2026-10-03", "pending", "nope"), null);
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /excuseDeadlineCell\(item, businessToday\)/);
   assert.match(fs.readFileSync(path.join(__dirname, "../src/lib/chip-tone.ts"), "utf8"), /warn: "border-amber-200 bg-amber-50 text-amber-800"/);

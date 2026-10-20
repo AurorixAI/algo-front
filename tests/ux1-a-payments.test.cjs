@@ -72,7 +72,12 @@ test("status chip: «Просрочено на N …» and «Осталось N 
     "Просрочено на 12 дней", "Просрочено на 21 день", "Просрочено на 22 дня", "Просрочено на 25 дней",
   ]);
   assert.equal(soon(5), "Осталось 5 дней");
-  assert.deepEqual([1, 2, 3, 4, 5].map(soon), ["Осталось 1 день", "Осталось 2 дня", "Осталось 3 дня", "Осталось 4 дня", "Осталось 5 дней"]);
+  // the verb agrees with the number: «Остался 1 день», «Остался 21 день», «Осталось 2 дня»
+  assert.deepEqual([1, 2, 3, 4, 5, 11, 21, 22].map(soon), [
+    "Остался 1 день", "Осталось 2 дня", "Осталось 3 дня", "Осталось 4 дня", "Осталось 5 дней", "Осталось 11 дней", "Остался 21 день", "Осталось 22 дня",
+  ]);
+  const lessonsLeft = (n) => rules.statusLabel({ ...calendar, period_mode: "lessons", lessons_total: 12, status: "expiring", lessons_left: n });
+  assert.deepEqual([1, 2, 5, 21].map(lessonsLeft), ["Остался 1 урок из 12", "Осталось 2 урока из 12", "Осталось 5 уроков из 12", "Остался 21 урок из 12"]);
   for (const text of [overdue(1), overdue(31), soon(1), soon(5), rules.statusLabel({ ...calendar, status: "ends_today" })]) {
     assert.doesNotMatch(text, /дн\./);
   }

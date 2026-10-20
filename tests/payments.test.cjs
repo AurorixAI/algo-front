@@ -94,7 +94,7 @@ test("status wording: calendar mode (UX-1 A: human words, plurals, no abbreviati
   const base = { period_mode: "calendar", paid_until: "2026-11-04", days_overdue: null, days_left: null, lessons_total: null, lessons_left: null };
   assert.equal(rules.statusLabel({ ...base, status: "active" }), "Оплачено");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 2 }), "Осталось 2 дня");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 1 }), "Осталось 1 день");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 1 }), "Остался 1 день");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: 5 }), "Осталось 5 дней");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", days_left: null }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "ends_today" }), "Сегодня последний день");
@@ -116,13 +116,13 @@ test("status wording: calendar mode (UX-1 A: human words, plurals, no abbreviati
 test("status wording: lessons mode", () => {
   const base = { period_mode: "lessons", paid_until: null, days_overdue: null, days_left: null, lessons_total: 12, lessons_left: 3 };
   assert.equal(rules.statusLabel({ ...base, status: "expiring" }), "Осталось 3 урока из 12");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Осталось 1 урок из 12");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Остался 1 урок из 12");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: null }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "expired", lessons_left: 0 }), "Уроки закончились");
   // a package that is paid and not running out: «Оплачено», the lessons left are the second line
   assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: 9 }), "Оплачено");
   assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 9 }), "осталось 9 уроков из 12");
-  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 21 }), "осталось 21 урок из 12");
+  assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: 21 }), "остался 21 урок из 12");
   assert.equal(rules.statusLabel({ ...base, status: "active", lessons_left: null, lessons_total: null }), "Оплачено");
   assert.equal(rules.statusDetail({ ...base, status: "active", lessons_left: null, lessons_total: null }), "");
   assert.equal(rules.statusDetail({ ...base, status: "expiring" }), "");

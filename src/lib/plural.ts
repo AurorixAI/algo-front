@@ -31,3 +31,16 @@ export function daysWord(count: number): string {
 export function daysLabel(count: number): string {
   return `${count} ${daysWord(count)}`;
 }
+
+/** «урок» / «урока» / «уроков» for the count. */
+export function lessonsWord(count: number): string {
+  return pluralRu(count, "урок", "урока", "уроков");
+}
+
+/**
+ * «Остался 1 день», «Осталось 5 дней», «Осталось 3 урока»: the verb agrees with the number as the noun does
+ * (1, 21, 101: «Остался»; the rest: «Осталось»).  The one phrase of every «left» in the project.
+ */
+export function leftPhrase(count: number, one: string, few: string, many: string): string {
+  return `${pluralRu(count, "Остался", "Осталось", "Осталось")} ${count} ${pluralRu(count, one, few, many)}`;
+}

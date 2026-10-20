@@ -202,57 +202,55 @@ test("settings carry the excuse deadline: defaults, limits, PATCH diff", () => {
   assert.match(settings, /до конца оплаты/);
 });
 
-test("plural forms", () => {
-  assert.deepEqual([1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111].map(deadline.lessonsWord),
+test("plural forms (lib/plural.ts: the one copy)", () => {
+  const plural = lib("plural");
+  assert.deepEqual([1, 2, 4, 5, 11, 12, 14, 21, 22, 25, 101, 111].map(plural.lessonsWord),
     ["урок", "урока", "урока", "уроков", "уроков", "уроков", "уроков", "урок", "урока", "уроков", "урок", "уроков"]);
-  assert.deepEqual([1, 2, 5, 11, 21, 30].map(deadline.daysWord), ["день", "дня", "дней", "дней", "день", "дней"]);
+  assert.deepEqual([1, 2, 5, 11, 21, 30].map(plural.daysWord), ["день", "дня", "дней", "дней", "день", "дней"]);
+  // the hand-written copies are gone
+  assert.equal(deadline.lessonsWord, undefined);
+  assert.equal(deadline.daysWord, undefined);
+  assert.doesNotMatch(read("lib/excuse-deadline.ts"), /lastTwo|excuseDeadlineView|excuseDeadlineHint|дн\./);
 });
 
-test("deadline line: the server value wins", () => {
-  const view = (deadlineValue, over = {}) =>
-    deadline.excuseDeadlineView({ lesson_date: "2026-10-03", status: "pending", deadline: deadlineValue, ...over }, "2026-10-15");
-  assert.deepEqual(view({ kind: "date", date: "2026-10-25", overdue: false, days_left: 10 }),
-    { text: "подтвердить до 25.10 · осталось 10 дн.", warn: false });
-  assert.deepEqual(view({ kind: "date", date: "2026-10-15", overdue: false, days_left: 0 }),
-    { text: "подтвердить до 15.10 · последний день", warn: false });
-  assert.deepEqual(view({ kind: "date", date: "2026-10-12", overdue: true, days_left: -3 }),
-    { text: "подтвердить до 12.10 · срок прошёл", warn: true });
+test("the «Срок» cell: the server value wins (date, lessons package)", () => {
+  const cell = (deadlineValue, over = {}) =>
+    deadline.excuseDeadlineCell({ lesson_date: "2026-10-03", status: "pending", deadline: deadlineValue, ...over }, "2026-10-15");
+  const look = (c) => ({ headline: c.headline, sub: c.sub, tone: c.tone });
+  assert.deepEqual(look(cell({ kind: "date", date: "2026-10-25", overdue: false, days_left: 10 })), { headline: "Осталось 10 дней", sub: "до 25.10", tone: "neutral" });
+  assert.deepEqual(look(cell({ kind: "date", date: "2026-10-15", overdue: false, days_left: 0 })), { headline: "Срок сегодня", sub: "до 15.10", tone: "warn" });
+  assert.deepEqual(look(cell({ kind: "date", date: "2026-10-12", overdue: true, days_left: -3 })), { headline: "Срок прошёл 3 дня назад", sub: "до 12.10", tone: "danger" });
   // the server's `overdue` is trusted over the client's guess
-  assert.equal(view({ kind: "date", date: "2026-10-25", overdue: true, days_left: 10 }).text, "подтвердить до 25.10 · срок прошёл");
+  assert.equal(cell({ kind: "date", date: "2026-10-25", overdue: true, days_left: 10 }).tone, "danger");
   // lessons package, N = 2: more than N left is calm, exactly N is the last lesson to confirm in, fewer is over
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false }),
-    { text: "подтвердить до конца пакета · осталось 5 уроков", warn: false });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 3, urgent: false, due_now: false, overdue: false }),
-    { text: "подтвердить до конца пакета · осталось 3 урока", warn: false });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false }),
-    { text: "последний урок для подтверждения", warn: true });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 1, urgent: true, due_now: false, overdue: true }),
-    { text: "подтвердить до конца пакета · срок прошёл", warn: true });
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true }),
-    { text: "подтвердить до конца пакета · срок прошёл", warn: true });
+  assert.deepEqual(look(cell({ kind: "lessons", lessons_left: 5, urgent: false, due_now: false, overdue: false })), { headline: "Осталось 5 уроков", sub: "по пакету уроков", tone: "neutral" });
+  assert.equal(cell({ kind: "lessons", lessons_left: 3, urgent: false, due_now: false, overdue: false }).headline, "Осталось 3 урока");
+  assert.equal(cell({ kind: "lessons", lessons_left: 1, urgent: false, due_now: false, overdue: false }).headline, "Остался 1 урок");
+  assert.deepEqual(look(cell({ kind: "lessons", lessons_left: 2, urgent: true, due_now: true, overdue: false })), { headline: "Последний урок для подтверждения", sub: "по пакету уроков", tone: "warn" });
+  assert.deepEqual(look(cell({ kind: "lessons", lessons_left: 1, urgent: true, due_now: false, overdue: true })), { headline: "Срок прошёл", sub: "по пакету уроков", tone: "danger" });
+  assert.equal(cell({ kind: "lessons", lessons_left: 0, urgent: true, due_now: false, overdue: true }).tone, "danger");
   // N = 0: an empty package is the last moment, not yet overdue
-  assert.deepEqual(view({ kind: "lessons", lessons_left: 0, urgent: true, due_now: true, overdue: false }),
-    { text: "последний урок для подтверждения", warn: true });
+  assert.equal(cell({ kind: "lessons", lessons_left: 0, urgent: true, due_now: true, overdue: false }).headline, "Последний урок для подтверждения");
   // a server that has no `due_now` yet: urgent is read as the last lesson, an empty package as over
-  assert.equal(view({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }).text, "последний урок для подтверждения");
-  assert.equal(view({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }).text, "подтвердить до конца пакета · срок прошёл");
+  assert.equal(cell({ kind: "lessons", lessons_left: 2, urgent: true, overdue: false }).headline, "Последний урок для подтверждения");
+  assert.equal(cell({ kind: "lessons", lessons_left: 0, urgent: true, overdue: true }).tone, "danger");
 });
 
-test("deadline line: nothing for decided excuses, month end when the server sent nothing usable", () => {
+test("the «Срок» cell: nothing for decided excuses, month end when the server sent nothing usable", () => {
   const item = (over) => ({ lesson_date: "2026-10-03", status: "pending", ...over });
   const today = "2026-10-15";
   for (const status of ["confirmed", "rejected"]) {
-    assert.equal(deadline.excuseDeadlineView(item({ status, deadline: { kind: "date", date: "2026-10-25", overdue: false, days_left: 10 } }), today), null);
+    assert.equal(deadline.excuseDeadlineCell(item({ status, deadline: { kind: "date", date: "2026-10-25", overdue: false, days_left: 10 } }), today), null);
   }
-  // older server: no field -> the old month-end rule
-  assert.deepEqual(deadline.excuseDeadlineView(item({}), today), { text: "подтвердить до 31.10 · осталось 16 дн.", warn: false });
-  assert.deepEqual(deadline.excuseDeadlineView(item({ deadline: null }), today), { text: "подтвердить до 31.10 · осталось 16 дн.", warn: false });
-  assert.deepEqual(deadline.excuseDeadlineView(item({ lesson_date: "2026-09-20" }), today), { text: "подтвердить до 30.09 · срок прошёл", warn: true });
+  // older server: no field -> the month-end rule
+  assert.equal(deadline.excuseDeadlineCell(item({}), today).headline, "Осталось 16 дней");
+  assert.equal(deadline.excuseDeadlineCell(item({ deadline: null }), today).sub, "до 31.10");
+  assert.equal(deadline.excuseDeadlineCell(item({ lesson_date: "2026-09-20" }), today).tone, "danger");
   // unreadable server values fall back too
   for (const broken of [{ kind: "date" }, { kind: "date", date: "soon" }, { kind: "lessons" }, { kind: "lessons", lessons_left: "2" }, { kind: "money", amount: 5 }, {}]) {
-    assert.equal(deadline.excuseDeadlineView(item({ deadline: broken }), today).text, "подтвердить до 31.10 · осталось 16 дн.", JSON.stringify(broken));
+    assert.equal(deadline.excuseDeadlineCell(item({ deadline: broken }), today).headline, "Осталось 16 дней", JSON.stringify(broken));
   }
-  assert.equal(deadline.excuseDeadlineView(item({ lesson_date: "nope" }), today), null);
+  assert.equal(deadline.excuseDeadlineCell(item({ lesson_date: "nope" }), today), null);
   // the page shows the deadline in words (UX-1 B: tests/n13-ux1b.test.cjs), not this long sentence
   const page = read("components/attendance/excuses-page.tsx");
   assert.match(page, /excuseDeadlineCell\(item, businessToday\)/);

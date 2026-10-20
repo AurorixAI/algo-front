@@ -205,8 +205,8 @@ const excuseItem = (over = {}) => ({
   reason_by: { name: "Дилноза Каримова" }, reason_at: "2026-10-09T16:35:00", ...over,
 });
 
-test("deadline passed: exactly when the list says «срок прошёл» - date, lessons package, month-end fallback", () => {
-  const { excuseDeadlinePassed, excuseDeadlineView } = require(path.join(root, "src/lib/excuse-deadline.ts"));
+test("deadline passed: exactly when the «Срок» cell is red - date, lessons package, month-end fallback", () => {
+  const { excuseDeadlinePassed, excuseDeadlineCell } = require(path.join(root, "src/lib/excuse-deadline.ts"));
   const cases = [
     { deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } },
     { deadline: { kind: "date", date: "2026-10-20", overdue: false, days_left: 0 } },
@@ -222,9 +222,9 @@ test("deadline passed: exactly when the list says «срок прошёл» - da
   ];
   for (const over of cases) {
     const item = excuseItem(over);
-    const view = excuseDeadlineView(item, TODAY);
+    const cell = excuseDeadlineCell(item, TODAY);
     const passed = excuseDeadlinePassed(item, TODAY);
-    assert.equal(passed !== null, Boolean(view && view.text.endsWith("срок прошёл")), JSON.stringify(over));
+    assert.equal(passed !== null, Boolean(cell && cell.tone === "danger"), JSON.stringify(over));
   }
   const datePassed = excuseDeadlinePassed(excuseItem({ deadline: { kind: "date", date: "2026-10-12", overdue: true, days_left: -8 } }), TODAY);
   assert.deepEqual(datePassed, { date: "2026-10-12" });

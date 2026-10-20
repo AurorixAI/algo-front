@@ -8,7 +8,7 @@
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
 import { CHIP_TONE_CLASS } from "./chip-tone";
-import { daysLabel, pluralRu } from "./plural";
+import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 
 // ── API contract (spec §3) ─────────────────────────────────────────────────
@@ -438,15 +438,14 @@ export function bucketTabLabel(label: string, count: number | null): string {
 
 export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";
 
-export function lessonsWord(count: number): string {
-  return pluralRu(count, ["урок", "урока", "уроков"]);
-}
+/** One word-forms helper of the project (`lib/plural.ts`); the payments screens import it from here as before. */
+export { lessonsWord };
 
 /**
  * The chip of a row, in words and without abbreviations:
- * «Просрочено на 31 день» (red), «Осталось 5 дней» (amber, while the server calls it «скоро заканчивается»),
+ * «Просрочено на 31 день» (red), «Осталось 5 дней» / «Остался 1 день» (amber, while the server calls it «скоро заканчивается»),
  * «Сегодня последний день» (amber), «Оплачено» (grey), «Без оплат», «Бесплатно».
- * By lessons: «Осталось 3 урока из 12» (amber), «Уроки закончились» (red).
+ * By lessons: «Осталось 3 урока из 12» / «Остался 1 урок из 12» (amber), «Уроки закончились» (red).
  */
 export function statusLabel(
   row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left">,
@@ -464,22 +463,22 @@ export function statusLabel(
       return row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "Оплата просрочена";
     case "expiring":
       if (lessons) return lessonsLeftText(row) || "Скоро закончится";
-      return row.days_left ? `Осталось ${daysLabel(row.days_left)}` : "Скоро закончится";
+      return row.days_left ? leftPhrase(row.days_left, "день", "дня", "дней") : "Скоро закончится";
     case "active":
       return "Оплачено";
   }
   return "";
 }
 
-/** «Осталось 3 урока из 12» / «Осталось 3 урока»; "" when the count is not known. */
+/** «Осталось 3 урока из 12» / «Остался 1 урок из 12» / «Осталось 3 урока»; "" when the count is not known. */
 function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "lessons_left">): string {
   if (row.lessons_left === null || row.lessons_left === undefined) return "";
-  const left = `Осталось ${row.lessons_left} ${lessonsWord(row.lessons_left)}`;
+  const left = leftPhrase(row.lessons_left, "урок", "урока", "уроков");
   return row.lessons_total ? `${left} из ${row.lessons_total}` : left;
 }
 
 /**
- * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12» (a package that is
+ * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12» / «остался 1 урок из 12» (a package that is
  * paid and not running out yet).
  */
 export function statusDetail(

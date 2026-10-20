@@ -39,7 +39,7 @@ import {
 } from "@/lib/payroll";
 import { formatMoney } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
-import { daysWord, lessonsWord } from "@/lib/excuse-deadline";
+import { daysWord, lessonsWord } from "@/lib/plural";
 import { effectiveRole } from "@/lib/role-home";
 import {
   parseSettingsSection,
