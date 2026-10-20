@@ -116,3 +116,72 @@ test("scroll lock: everywhere else <html> overflow is used and <body> is left al
   assert.equal(page.html.style.props.size, 0);
   assert.deepEqual(page.scrolls, []);
 });
+
+// ── the whole pending queue, then the urgency order ──────────────────────────────────────────────────
+
+/** A fake API: `total` excuses, newest lesson first (id 1 is the newest), paged like the server (limit <= 200). */
+function fakeQueue(total) {
+  const calls = [];
+  const readPage = async (limit, offset) => {
+    calls.push([limit, offset]);
+    assert.ok(limit <= 200, "never more than the API allows");
+    const items = Array.from({ length: Math.max(0, Math.min(limit, total - offset)) }, (_, i) => ({ id: `e${offset + i + 1}` }));
+    return { items, total, pending_total: total };
+  };
+  return { calls, readPage };
+}
+
+test("pending queue: a short queue is one request; a long one is read in pages of 200 up to the cap", async () => {
+  const { loadAllPending, PENDING_CAP } = lib("excuses-pending.ts");
+  const small = fakeQueue(37);
+  const one = await loadAllPending(small.readPage);
+  assert.equal(one.items.length, 37);
+  assert.equal(small.calls.length, 1);
+  assert.equal(one.hidden, 0);
+
+  const mid = fakeQueue(450);
+  const all = await loadAllPending(mid.readPage);
+  assert.equal(all.items.length, 450, "the whole queue, not the first 50");
+  assert.equal(new Set(all.items.map((item) => item.id)).size, 450);
+  assert.deepEqual(mid.calls.map(([, offset]) => offset), [0, 200, 400], "the first page is reused, then 200 and 400");
+  assert.equal(all.hidden, 0);
+  assert.equal(all.pendingTotal, 450);
+  assert.equal(PENDING_CAP, 500);
+});
+
+test("pending queue: over the cap the OLD end is read (the deadlines that passed), the rest is counted as hidden", async () => {
+  const { loadAllPending } = lib("excuses-pending.ts");
+  const big = fakeQueue(1200);
+  const queue = await loadAllPending(big.readPage);
+  assert.equal(queue.items.length, 500, "the safety cap");
+  assert.equal(queue.hidden, 700);
+  assert.equal(queue.total, 1200);
+  const ids = queue.items.map((item) => Number(item.id.slice(1)));
+  assert.equal(Math.max(...ids), 1200, "the oldest lesson is on screen");
+  assert.equal(Math.min(...ids), 701, "the newest 700 are the ones left out");
+  assert.ok(big.calls.every(([limit]) => limit === 200));
+});
+
+test("pending queue: a row that moved between two reads is not shown twice; an empty queue is an empty list", async () => {
+  const { loadAllPending } = lib("excuses-pending.ts");
+  let call = 0;
+  const readPage = async (limit, offset) => {
+    call += 1;
+    return offset === 0
+      ? { items: [{ id: "a" }, { id: "b" }], total: 4, pending_total: 4 }
+      : { items: [{ id: "b" }, { id: "c" }], total: 4, pending_total: 4 };
+  };
+  const queue = await loadAllPending(readPage, { pageLimit: 2 });
+  assert.deepEqual(queue.items.map((item) => item.id), ["a", "b", "c"]);
+  assert.equal(queue.hidden, 1);
+  const none = await loadAllPending(async () => ({ items: [], total: 0, pending_total: 0 }));
+  assert.deepEqual([none.items.length, none.total, none.hidden], [0, 0, 0]);
+});
+
+test("the «Ожидают» tab reads the whole queue; decided tabs keep paging", () => {
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /if \(tab === "pending"\) \{[\s\S]*loadAllPending<AttendanceExcuseItem>/);
+  assert.match(page, /limit: PAGE_SIZE, offset: page \* PAGE_SIZE/);
+  assert.match(page, /!pendingTab && total > PAGE_SIZE/, "no pager over a queue that is already whole");
+  assert.match(page, /sortExcusesByUrgency\(items, businessToday\)/);
+});

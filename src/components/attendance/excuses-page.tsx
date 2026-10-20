@@ -29,6 +29,7 @@ import {
 import { formatBusinessDate } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
+import { loadAllPending } from "@/lib/excuses-pending";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
@@ -74,8 +75,8 @@ const PAGE_SIZE = 50;
  * The header and every row use the same template, the same horizontal padding and the same gap, so a
  * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.45fr)_104px_minmax(0,1.55fr)_200px_232px]";
-const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.45fr)_104px_minmax(0,1.55fr)_minmax(0,1.3fr)_40px]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.9fr)_96px_minmax(0,1.3fr)_192px_224px]";
+const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.7fr)_96px_minmax(0,1.4fr)_minmax(0,1.3fr)_40px]";
 
 type Tab = ExcuseReviewStatus;
 
@@ -223,6 +224,8 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   const [items, setItems] = useState<AttendanceExcuseItem[]>([]);
   const [total, setTotal] = useState(0);
+  /** The waiting queue is longer than the screen holds (the newest lessons are not shown). */
+  const [hiddenPending, setHiddenPending] = useState(0);
   const [pendingTotal, setPendingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -285,15 +288,25 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     if (!silent) setLoading(true);
     setLoadError(null);
     try {
-      const data = await orgApi.listAttendanceExcuses({
+      const query = {
         status: tab,
         dateFrom,
         dateTo,
         groupId: filter.groupId || undefined,
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
-        limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
-      });
+      } as const;
+      if (tab === "pending") {
+        // The waiting queue is read whole (the urgency order needs all of it); decided tabs are paged below.
+        const queue = await loadAllPending<AttendanceExcuseItem>((limit, offset) => orgApi.listAttendanceExcuses({ ...query, limit, offset }));
+        if (!requests.current.isCurrent(token)) return;
+        setItems(queue.items);
+        setTotal(queue.total);
+        setHiddenPending(queue.hidden);
+        setPendingTotal(queue.pendingTotal);
+        return;
+      }
+      setHiddenPending(0);
+      const data = await orgApi.listAttendanceExcuses({ ...query, limit: PAGE_SIZE, offset: page * PAGE_SIZE });
       if (!requests.current.isCurrent(token)) return;
       // The last item of a later page was handled: step back instead of showing an empty page.
       if ((data.items || []).length === 0 && page > 0) {
@@ -508,7 +521,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   ];
   const pendingTab = tab === "pending";
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
-  // Waiting excuses: the deadline that has passed first, then the nearest (the order inside the loaded page).
+  // Waiting excuses: the deadline that has passed first, then the nearest - over the whole queue (see lib/excuses-pending.ts).
   const rows = useMemo(
     () => (pendingTab ? sortExcusesByUrgency(items, businessToday) : items),
     [items, pendingTab, businessToday],
@@ -607,7 +620,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                       <div className="flex items-center gap-2">
                         <Link
                           href={`${studentProfileBasePath}/${item.student.id}`}
-                          className="min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:truncate"
+                          className="min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:line-clamp-2"
                           title="Открыть карточку ученика"
                         >
                           {item.student.full_name}
@@ -729,7 +742,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       </section>
 
       {/* Paging */}
-      {!loading && !loadError && total > PAGE_SIZE && (
+      {!loading && !loadError && pendingTab && hiddenPending > 0 && (
+        <p className="text-sm text-slate-500" data-testid="pending-hidden">
+          Показаны самые давние {rows.length} из {total}: остальные появятся, когда эти будут обработаны.
+        </p>
+      )}
+      {!loading && !loadError && !pendingTab && total > PAGE_SIZE && (
         <div className="flex items-center justify-between gap-3 text-sm text-slate-600">
           <span>Всего: {total}</span>
           <div className="flex items-center gap-2">
