@@ -464,8 +464,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <p className="text-sm text-slate-500">Кто из учеников оплатил занятия и когда оплата заканчивается</p>
       </div>
 
-      {/* One row: tabs on the left, search and filter on the right */}
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+      {/* One row from 2xl (1536 px): tabs on the left, search and filter on the right.  Below it the toolbar sits under the
+          tabs: with the menu open a laptop (1280-1440) has no room for both, and the tabs must stay whole. */}
+      <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
         {/* On a phone the tabs scroll sideways; the edge that hides a tab fades out (ScrollHint) */}
         <div ref={tabsRef} className="min-w-0 xl:w-fit">
           <ScrollHint focusable={false} className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
@@ -489,7 +490,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           </ScrollHint>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative min-w-[200px] flex-1 xl:w-64 xl:flex-none">
+          <div className="relative min-w-[200px] flex-1 sm:max-w-sm 2xl:w-64 2xl:flex-none">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={search}
