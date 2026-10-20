@@ -29,7 +29,7 @@ import {
 import { formatBusinessDate } from "@/lib/business-time";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS } from "@/lib/chip-tone";
 import { excuseDeadlineCell, sortExcusesByUrgency } from "@/lib/excuse-deadline";
-import { loadAllPending } from "@/lib/excuses-pending";
+import { applyItemChange, loadAllPending } from "@/lib/excuses-pending";
 import { afterDeadlineMark, subjectOfItem, type ExcuseDecision, type ExcuseNoteMode } from "@/lib/excuse-decision";
 import {
   excuseDecisionDetail,
@@ -188,7 +188,8 @@ function ExpandableText({
       onClick={() => setExpanded((value) => !value)}
       className="block w-full cursor-default rounded text-left enabled:cursor-pointer enabled:hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
     >
-      <span ref={textRef} className={`block break-words ${className} ${expanded ? "" : "xl:line-clamp-2"}`}>{text}</span>
+      {/* A cut text keeps its whole in the tooltip: nothing is hidden for good (a click opens it in place). */}
+      <span ref={textRef} title={cut && !expanded ? text : undefined} className={`block break-words ${className} ${expanded ? "" : "xl:line-clamp-2"}`}>{text}</span>
       {meta && <span className={`block ${metaClassName} ${expanded ? "" : "xl:hidden"}`}>{meta}</span>}
     </button>
   );
@@ -253,6 +254,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     query.addEventListener?.("change", sync);
     return () => query.removeEventListener?.("change", sync);
   }, []);
+
+  // The latest state for the code that runs after an await (see settleChange).
+  const live = useRef({ items, total, pendingTotal, hiddenPending, tab, page });
+  live.current = { items, total, pendingTotal, hiddenPending, tab, page };
 
   const requests = useRef(createRequestSequence());
   const viewerRequests = useRef(createRequestSequence());
@@ -342,6 +347,29 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const refreshBadge = () => { void useExcuseBadge.getState().refresh(true); };
 
   /**
+   * The server answered a decision (or a reset) with the changed item: patch the list in place, no new read of the queue.
+   * The list is read again only when the answer cannot be used (no id / status, a row that is not on screen), when the open
+   * tab is a page of a longer list, or when the waiting queue is cut (a freed place may belong to a hidden row).
+   */
+  const settleChange = async (updated: unknown) => {
+    // Read the LATEST state, not the one of the render that created this closure: a dialog with several excuses sends
+    // them one by one, and each answer must be patched onto the list as the previous answer left it.
+    const now = live.current;
+    const patched = now.hiddenPending === 0
+      ? applyItemChange<AttendanceExcuseItem>({ items: now.items, total: now.total, pendingTotal: now.pendingTotal }, updated, now.tab)
+      : null;
+    const emptiedLaterPage = patched !== null && patched.items.length === 0 && now.page > 0;
+    if (!patched || emptiedLaterPage || (now.tab !== "pending" && now.total > PAGE_SIZE)) {
+      await load(true);
+      return;
+    }
+    live.current = { ...now, ...patched };
+    setItems(patched.items);
+    setTotal(patched.total);
+    setPendingTotal(patched.pendingTotal);
+  };
+
+  /**
    * null when the decision was saved, else why it was not.  The dialog closes only when saved; a refusal is shown inside
    * it (the toast is for the success), so a typed note survives an error.
    */
@@ -351,9 +379,9 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     markBusy(item.id, true);
     try {
       const note = noteText.trim();
-      await orgApi.reviewAttendanceExcuse(item.id, { decision, ...(note ? { note } : {}) });
+      const updated = await orgApi.reviewAttendanceExcuse(item.id, { decision, ...(note ? { note } : {}) });
       showToast(decision === "confirmed" ? "Пропуск подтверждён" : "Пропуск отклонён");
-      await load(true);
+      await settleChange(updated);
       refreshBadge();
       return null;
     } catch (error) {
@@ -368,9 +396,9 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const resetDecision = async (item: AttendanceExcuseItem) => {
     markBusy(item.id, true);
     try {
-      await orgApi.resetAttendanceExcuse(item.id);
+      const updated = await orgApi.resetAttendanceExcuse(item.id);
       showToast("Решение сброшено: пропуск снова ожидает");
-      await load(true);
+      await settleChange(updated);
       refreshBadge();
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Не удалось сбросить решение", "error");

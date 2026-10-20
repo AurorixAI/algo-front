@@ -143,7 +143,7 @@ test("pending queue: a short queue is one request; a long one is read in pages o
   const all = await loadAllPending(mid.readPage);
   assert.equal(all.items.length, 450, "the whole queue, not the first 50");
   assert.equal(new Set(all.items.map((item) => item.id)).size, 450);
-  assert.deepEqual(mid.calls.map(([, offset]) => offset), [0, 200, 400], "the first page is reused, then 200 and 400");
+  assert.deepEqual(mid.calls.map(([limit, offset]) => [limit, offset]), [[200, 0], [125, 200], [125, 325]], "the first page is kept; the rest in two balanced pages");
   assert.equal(all.hidden, 0);
   assert.equal(all.pendingTotal, 450);
   assert.equal(PENDING_CAP, 500);
@@ -159,7 +159,7 @@ test("pending queue: over the cap the OLD end is read (the deadlines that passed
   const ids = queue.items.map((item) => Number(item.id.slice(1)));
   assert.equal(Math.max(...ids), 1200, "the oldest lesson is on screen");
   assert.equal(Math.min(...ids), 701, "the newest 700 are the ones left out");
-  assert.ok(big.calls.every(([limit]) => limit === 200));
+  assert.ok(big.calls.every(([limit]) => limit <= 200));
 });
 
 test("pending queue: a row that moved between two reads is not shown twice; an empty queue is an empty list", async () => {
@@ -377,7 +377,7 @@ test("viewport-fit=cover and the safe area on every fixed edge", () => {
   assert.match(css, /\.pad-safe \{[\s\S]*max\(0\.75rem, env\(safe-area-inset-top\)\)[\s\S]*max\(0\.75rem, env\(safe-area-inset-left\)\)/);
   const modal = read("src/components/ui/modal.tsx");
   assert.match(modal, /pad-safe fixed inset-0 z-\[110\]/, "centred dialogs");
-  assert.match(modal, /pt-\[env\(safe-area-inset-top\)\] pb-\[env\(safe-area-inset-bottom\)\] pr-\[env\(safe-area-inset-right\)\]/, "the side sheet");
+  assert.match(read("src/lib/modal-layout.ts"), /pt-\[env\(safe-area-inset-top\)\] pb-\[env\(safe-area-inset-bottom\)\] pr-\[env\(safe-area-inset-right\)\]/, "the side sheet");
   const nav = read("src/components/layout/bottom-nav.tsx");
   assert.equal((nav.match(/pl-\[env\(safe-area-inset-left\)\] pr-\[env\(safe-area-inset-right\)\]/g) || []).length, 2, "the bar and the «Ещё» sheet");
   assert.match(read("src/components/ui/toast.tsx"), /pl-\[max\(1rem,env\(safe-area-inset-left\)\)\] pr-\[max\(1rem,env\(safe-area-inset-right\)\)\] pb-\[max\(1rem,env\(safe-area-inset-bottom\)\)\]/);
@@ -413,4 +413,174 @@ test("nits: «Осталось: N» does not wrap, the student toast says «От
     assert.match(page, /flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between/, role);
     assert.match(page, /flex flex-wrap items-center gap-2 sm:shrink-0/, role);
   }
+});
+
+// ── the plan of the reads (no row twice, no wasted page) and the in-place patch after a decision ──────
+
+test("pending queue plan: the rows of the first page that are in the window are kept, only the rest is requested, evenly", () => {
+  const { planPendingReads, PENDING_CAP } = lib("excuses-pending.ts");
+  const covered = (plan, firstLength, total) => (firstLength - plan.keepFirstFrom) + plan.reads.reduce((sum, read) => sum + read.limit, 0);
+  assert.deepEqual(planPendingReads({ total: 150, firstLength: 150 }), { keepFirstFrom: 0, reads: [], hidden: 0 });
+  const mid = planPendingReads({ total: 450, firstLength: 200 });
+  assert.deepEqual(mid.reads, [{ offset: 200, limit: 125 }, { offset: 325, limit: 125 }]);
+  assert.equal(mid.keepFirstFrom, 0);
+  // 600: the window starts at 100, the first page already holds rows 100-199: two requests (3 in all, the old plan needed 4)
+  const six = planPendingReads({ total: 600, firstLength: 200 });
+  assert.deepEqual(six.reads, [{ offset: 200, limit: 200 }, { offset: 400, limit: 200 }]);
+  assert.equal(six.keepFirstFrom, 100);
+  assert.equal(covered(six, 200, 600), PENDING_CAP);
+  // 620: rows 120-199 come from the first page, [200, 620) is 420 rows = 3 pages of 140 (500 rows cannot take fewer at 200 a page)
+  const over = planPendingReads({ total: 620, firstLength: 200 });
+  assert.deepEqual(over.reads, [{ offset: 200, limit: 140 }, { offset: 340, limit: 140 }, { offset: 480, limit: 140 }]);
+  assert.equal(over.keepFirstFrom, 120);
+  assert.equal(over.hidden, 120);
+  assert.equal(covered(over, 200, 620), PENDING_CAP);
+  // 1200: the first page was the question «how long is it»: none of its rows is in the window
+  const far = planPendingReads({ total: 1200, firstLength: 200 });
+  assert.equal(far.keepFirstFrom, 200);
+  assert.deepEqual(far.reads, [{ offset: 700, limit: 167 }, { offset: 867, limit: 167 }, { offset: 1034, limit: 166 }]);
+  assert.equal(covered(far, 200, 1200), PENDING_CAP);
+  assert.ok(far.reads.every((read) => read.limit <= 200));
+  // a server that sends fewer rows than it promised: the plan reads what is missing
+  assert.deepEqual(planPendingReads({ total: 300, firstLength: 50 }).reads, [{ offset: 50, limit: 125 }, { offset: 175, limit: 125 }]);
+});
+
+test("pending queue: 620 rows are read once each, and a queue of 600 costs three requests", async () => {
+  const { loadAllPending } = lib("excuses-pending.ts");
+  const six = fakeQueue(600);
+  const queue = await loadAllPending(six.readPage);
+  assert.equal(six.calls.length, 3);
+  assert.equal(queue.items.length, 500);
+  assert.equal(new Set(queue.items.map((item) => item.id)).size, 500);
+  assert.equal(queue.hidden, 100);
+  const ids = queue.items.map((item) => Number(item.id.slice(1)));
+  assert.deepEqual([Math.min(...ids), Math.max(...ids)], [101, 600], "the oldest 500 lessons");
+  const over = fakeQueue(620);
+  const rows = await loadAllPending(over.readPage);
+  assert.equal(rows.items.length, 500);
+  assert.equal(rows.hidden, 120);
+  assert.deepEqual(over.calls.map(([, offset]) => offset), [0, 200, 340, 480]);
+});
+
+test("a decision patches the queue in place: the row leaves the pending tab, the counters follow; a reset brings it back to the list of decided", () => {
+  const { applyItemChange } = lib("excuses-pending.ts");
+  const state = { items: [{ id: "a", status: "pending" }, { id: "b", status: "pending" }, { id: "c", status: "pending" }], total: 3, pendingTotal: 3 };
+  const decided = applyItemChange(state, { id: "b", status: "confirmed" }, "pending");
+  assert.deepEqual(decided.items.map((item) => item.id), ["a", "c"]);
+  assert.deepEqual([decided.total, decided.pendingTotal], [2, 2]);
+  assert.deepEqual(state.items.length, 3, "the old state is not mutated");
+  // still in the open tab (an edit of the same status): replaced where it stands, counters unchanged
+  const edited = applyItemChange(state, { id: "c", status: "pending", reason: "новая причина" }, "pending");
+  assert.deepEqual(edited.items.map((item) => item.id), ["a", "b", "c"]);
+  assert.equal(edited.items[2].reason, "новая причина");
+  assert.deepEqual([edited.total, edited.pendingTotal], [3, 3]);
+  // the decided tab: a reset moves the row to the waiting queue
+  const decidedTab = { items: [{ id: "x", status: "confirmed" }, { id: "y", status: "confirmed" }], total: 2, pendingTotal: 5 };
+  const reset = applyItemChange(decidedTab, { id: "x", status: "pending" }, "confirmed");
+  assert.deepEqual(reset.items.map((item) => item.id), ["y"]);
+  assert.deepEqual([reset.total, reset.pendingTotal], [1, 6]);
+  // a rejected one from the «Подтверждено» tab: leaves it, the waiting count does not move
+  assert.deepEqual(applyItemChange(decidedTab, { id: "y", status: "rejected" }, "confirmed").pendingTotal, 5);
+  // an answer that cannot be trusted, or a row that is not on screen: null = read the list again
+  assert.equal(applyItemChange(state, null, "pending"), null);
+  assert.equal(applyItemChange(state, { ok: true }, "pending"), null);
+  assert.equal(applyItemChange(state, { id: "zzz", status: "confirmed" }, "pending"), null);
+  // sequential answers (a dialog with several excuses) chain on each other
+  const second = applyItemChange(decided, { id: "a", status: "rejected" }, "pending");
+  assert.deepEqual(second.items.map((item) => item.id), ["c"]);
+  assert.deepEqual([second.total, second.pendingTotal], [1, 1]);
+});
+
+test("the excuses page patches a decision in place and reads the list again only when it must", () => {
+  const page = read("src/components/attendance/excuses-page.tsx");
+  assert.match(page, /const updated = await orgApi\.reviewAttendanceExcuse\(/);
+  assert.match(page, /const updated = await orgApi\.resetAttendanceExcuse\(/);
+  assert.equal((page.match(/await settleChange\(updated\)/g) || []).length, 2);
+  assert.match(page, /now\.hiddenPending === 0\s*\? applyItemChange/);
+  assert.match(page, /\(now\.tab !== "pending" && now\.total > PAGE_SIZE\)/);
+  assert.match(page, /live\.current = \{ \.\.\.now, \.\.\.patched \}/, "a chain of answers builds on the previous patch");
+  // the cut reason keeps its whole text in a tooltip
+  assert.match(page, /title=\{cut && !expanded \? text : undefined\}/);
+});
+
+// ── Modal: the defaults are pinned, an override lands where it should ────────────────────────────────
+
+test("Modal defaults: width 480, the body padding and scroll, the footer layout under a divider, the card of a centred dialog", () => {
+  const L = lib("modal-layout.ts");
+  const layout = L.modalLayout();
+  assert.equal(L.MODAL_DEFAULT_MAX_WIDTH, "max-w-[480px]");
+  assert.equal(L.MODAL_BODY_DEFAULT, "px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0");
+  assert.equal(L.MODAL_FOOTER_DEFAULT, "flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
+  assert.equal(layout.body, L.MODAL_BODY_DEFAULT);
+  assert.equal(layout.footer, "shrink-0 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 mt-3");
+  assert.equal(
+    layout.card,
+    "bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full max-w-[480px] max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none",
+  );
+  assert.equal(layout.header, "flex items-start justify-between gap-3 p-5 sm:p-6 pb-3 sm:pb-4 shrink-0");
+  assert.equal(layout.title, "text-lg sm:text-xl font-bold text-slate-900");
+});
+
+test("Modal overrides: the width replaces the default, bodyClassName REPLACES the body padding, footerClassName replaces the footer layout but keeps its divider", () => {
+  const L = lib("modal-layout.ts");
+  const custom = L.modalLayout({ maxWidthClassName: "max-w-[620px]", bodyClassName: "px-6 py-3 min-h-0", footerClassName: "flex items-center justify-between gap-3 p-6" });
+  assert.match(custom.card, / w-full max-w-\[620px\] max-h-full /);
+  assert.doesNotMatch(custom.card, /max-w-\[480px\]/);
+  assert.equal(custom.body, "px-6 py-3 min-h-0", "no default padding left over");
+  assert.equal(custom.footer, "shrink-0 border-t border-slate-100 flex items-center justify-between gap-3 p-6");
+  assert.doesNotMatch(custom.footer, /flex-col-reverse/);
+  // the side sheet: full height, no card chrome, safe areas, its own header and title
+  const side = L.modalLayout({ placement: "right", maxWidthClassName: "max-w-md" });
+  assert.match(side.card, /^bg-white shadow-2xl w-full max-w-md h-full /);
+  assert.doesNotMatch(side.card, /rounded-\[24px\]/);
+  assert.equal(side.header, "flex items-start justify-between gap-3 p-5 border-b border-slate-100 shrink-0");
+  assert.equal(side.title, "font-semibold text-slate-900");
+  assert.equal(side.body, L.MODAL_BODY_DEFAULT, "the default body is the same for a sheet");
+  // the component takes everything from the layout
+  const modal = read("src/components/ui/modal.tsx");
+  assert.match(modal, /modalLayout\(\{ placement, maxWidthClassName, bodyClassName, footerClassName \}\)/);
+  assert.equal((modal.match(/className=\{layout\.card\}/g) || []).length, 2);
+  assert.match(modal, /className=\{layout\.body\}/);
+  assert.match(modal, /className=\{layout\.footer\}/);
+  assert.doesNotMatch(modal, /maxWidthClassName = "/, "the default lives in modal-layout.ts");
+});
+
+test("Modal opener: nothing changes the control to return to while the dialog is open (an autoFocus field is not the opener)", () => {
+  const { shouldRememberOpener } = lib("modal-layout.ts");
+  assert.equal(shouldRememberOpener({ dialogOpen: false, targetInsideDialog: false }), true, "the button that is about to open it");
+  assert.equal(shouldRememberOpener({ dialogOpen: true, targetInsideDialog: false }), false, "autoFocus fires before the dialog's ref is attached: inside is not yet known");
+  assert.equal(shouldRememberOpener({ dialogOpen: true, targetInsideDialog: true }), false);
+  assert.equal(shouldRememberOpener({ dialogOpen: false, targetInsideDialog: true }), false, "the exit animation of a closing dialog");
+  const modal = read("src/components/ui/modal.tsx");
+  assert.match(modal, /openRef\.current = open;/, "set during render: already true in the commit that opens the dialog");
+  assert.match(modal, /shouldRememberOpener\(\{ dialogOpen: openRef\.current, targetInsideDialog: Boolean\(dialogRef\.current\?\.contains\(target\)\) \}\)/);
+});
+
+// ── public pages, student sticky headers ──────────────────────────────────────────────────────────────
+
+test("public pages keep clear of the landscape notch; the sticky header of a student's test sits below the status bar", () => {
+  for (const file of ["src/app/login/page.tsx", "src/app/register/page.tsx", "src/app/activate/page.tsx", "src/app/invite/[code]/page.tsx"]) {
+    const source = read(file);
+    assert.match(source, /p-6 pl-\[max\(1\.5rem,env\(safe-area-inset-left\)\)\] pr-\[max\(1\.5rem,env\(safe-area-inset-right\)\)\]/, file);
+  }
+  for (const file of ["src/app/e/[code]/page.tsx", "src/app/d/[code]/page.tsx"]) {
+    const source = read(file);
+    assert.match(source, /min-h-screen w-full relative [^"]* pl-\[env\(safe-area-inset-left\)\] pr-\[env\(safe-area-inset-right\)\]/, file);
+    assert.match(source, /sticky top-\[env\(safe-area-inset-top\)\] z-30/, file);
+    assert.doesNotMatch(source, /sticky top-0 z-30/, file);
+  }
+});
+
+test("the payroll save bar is a direct child of the page, so it can stick above the bottom bar on a short phone", () => {
+  const sheet = read("src/components/payroll/payroll-sheet-page.tsx");
+  const month = read("src/components/payroll/payroll-month-page.tsx");
+  assert.match(sheet, /\{tab !== "history" && \(\s*<SaveBar/);
+  assert.match(month, /\{previewList\.length > 0 && active && \(\s*<SaveBar/);
+  // …and not inside the tab panel / the preview section any more
+  assert.doesNotMatch(sheet.slice(sheet.indexOf('role="tabpanel" className="min-w-0 space-y-4"'), sheet.indexOf("A direct child of the page")), /<SaveBar/);
+});
+
+test("bottom bar labels: 11 px, 10 px under 360 px, so «Диагностика» is whole on a 320 px phone (measured in a browser: no label is cut for any role)", () => {
+  const nav = read("src/components/layout/bottom-nav.tsx");
+  assert.equal((nav.match(/max-w-full truncate text-\[11px\] max-\[359px\]:text-\[10px\] leading-none tracking-tight/g) || []).length, 2, "the sections and «Ещё»");
 });

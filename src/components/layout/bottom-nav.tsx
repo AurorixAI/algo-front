@@ -141,7 +141,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
                       <Counter count={item.badge} />
                     </span>
                   </span>
-                  <span className={cn("max-w-full truncate text-[11px] leading-none tracking-tight", active ? "font-semibold text-primary-700" : "font-medium text-slate-500")}>{label}</span>
+                  <span className={cn("max-w-full truncate text-[11px] max-[359px]:text-[10px] leading-none tracking-tight", active ? "font-semibold text-primary-700" : "font-medium text-slate-500")}>{label}</span>
                 </Link>
               </li>
             );
@@ -164,7 +164,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
                   <Counter count={more.some((item) => item.badge !== undefined) ? moreCount : undefined} />
                 </span>
               </span>
-              <span className={cn("max-w-full truncate text-[11px] leading-none tracking-tight", moreActive || open ? "font-semibold text-primary-700" : "font-medium text-slate-500")}>Ещё</span>
+              <span className={cn("max-w-full truncate text-[11px] max-[359px]:text-[10px] leading-none tracking-tight", moreActive || open ? "font-semibold text-primary-700" : "font-medium text-slate-500")}>Ещё</span>
             </button>
           </li>
         </ul>
