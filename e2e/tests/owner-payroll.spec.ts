@@ -77,7 +77,7 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
 
   // --- percents and the calculation of everybody
   await teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ }).fill("62.5");
-  await expect(page.getByText("осталось 1 из 2 преподавателей")).toBeVisible();
+  await expect(page.getByText("Не указан процент у 1 из 2 преподавателей — укажите его, чтобы рассчитать всех")).toBeVisible();
   await teachers.getByRole("textbox", { name: /Процент для .*Индивидуальный, Индивидуально/ }).fill("40");
   await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeEnabled();
   await page.getByRole("button", { name: "Рассчитать всех" }).click();

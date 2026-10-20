@@ -1294,7 +1294,7 @@ export default function TeacherDashboardPage() {
                   {primaryLessonAction ? <ClipboardCheck className="h-6 w-6" /> : activeExamAction ? <Radio className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">Ближайшее действие</p>
+                  <p className="text-xs font-semibold text-slate-500">Ближайшее действие</p>
                   <h2 className="mt-1 text-xl font-bold text-slate-900">
                     {primaryLessonAction?.cardLabel || primaryLessonAction?.label || (activeExamAction
                       ? activeExamAction.delivery_mode === "print"
@@ -1499,7 +1499,7 @@ export default function TeacherDashboardPage() {
 
                       <div className="mt-4">
                         <div>
-                          <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-slate-500">
+                          <p className="text-xs font-semibold text-slate-500">
                             {isClosed ? "Итог" : needsResolution ? "Занятие прошло" : isLobby ? "Комната ожидания" : isScheduled ? "Следующее действие" : timerReachedZero ? "Время истекло" : "До завершения"}
                           </p>
                           <p className={`mt-1 flex items-center gap-1.5 ${needsResolution ? "whitespace-nowrap text-sm" : "text-base"} font-bold tabular-nums ${
@@ -1766,7 +1766,7 @@ export default function TeacherDashboardPage() {
               >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary-700">Оперативный контроль</p>
+                    <p className="text-xs font-semibold text-primary-700">Оперативный контроль</p>
                     <h2 id="exam-queue-title" className="mt-1 text-xl font-bold text-slate-900">Очередь экзаменов</h2>
                     <p className="mt-1 text-sm leading-5 text-slate-500">Все ближайшие проведения и экзамены, для которых нужно принять решение.</p>
                   </div>
@@ -1888,7 +1888,7 @@ export default function TeacherDashboardPage() {
               >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-700">Оперативный контроль</p>
+                    <p className="text-xs font-semibold text-amber-700">Оперативный контроль</p>
                     <h2 id="action-centre-title" className="mt-1 text-xl font-bold text-slate-900">Требуют действия</h2>
                     <p className="mt-1 text-sm leading-5 text-slate-500">Здесь собраны незавершённые журналы и пропущенные уроки, по которым нужно принять явное решение.</p>
                   </div>
@@ -1984,7 +1984,7 @@ export default function TeacherDashboardPage() {
               >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 sm:px-7">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-rose-700">Требует разбора</p>
+                    <p className="text-xs font-semibold text-rose-700">Требует разбора</p>
                     <h2 id="missed-lesson-title" className="mt-1 text-xl font-bold text-slate-900">Пропущенный урок</h2>
                   </div>
                   <button
@@ -2116,7 +2116,7 @@ export default function TeacherDashboardPage() {
                 {/* Modal Header */}
                 <div className="flex items-start justify-between gap-3 mb-5">
                   <div>
-                    <span className="text-xs font-bold text-primary-600 uppercase tracking-wider">
+                    <span className="text-xs font-semibold text-primary-600">
                       {activeLesson.occurrenceDate
                         ? formatIsoDateLabel(activeLesson.occurrenceDate, { weekday: "long", day: "numeric", month: "long" })
                         : DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name || "День урока"} · {activeLesson.startTime} — {activeLesson.endTime}

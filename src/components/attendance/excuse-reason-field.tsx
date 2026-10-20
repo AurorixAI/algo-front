@@ -18,9 +18,9 @@ export function ExcuseReasonField({ value, onChange, invalid = false, saved = fa
   const inputId = useId();
   return (
     <div className="basis-full pt-2">
-      <label htmlFor={inputId} className="mb-1 flex items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+      <label htmlFor={inputId} className="mb-1 flex items-center justify-between gap-2 text-xs font-semibold text-slate-500">
         <span>Причина{saved ? " (сохранена)" : ""}</span>
-        <span className="font-medium normal-case tracking-normal text-slate-400">{value.trim().length}/{EXCUSE_REASON_MAX}</span>
+        <span className="font-medium text-slate-400">{value.trim().length}/{EXCUSE_REASON_MAX}</span>
       </label>
       <input
         id={inputId}

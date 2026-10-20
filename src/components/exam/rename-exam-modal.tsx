@@ -78,7 +78,7 @@ export function RenameExamModal({ open, currentTitle, onClose, onSave }: RenameE
             <Pencil className="h-5 w-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/70">Черновик экзамена</p>
+            <p className="text-xs font-semibold text-white/70">Черновик экзамена</p>
             <h2 id={`${inputId}-heading`} className="mt-1 text-xl font-bold">Изменить название</h2>
           </div>
           <button

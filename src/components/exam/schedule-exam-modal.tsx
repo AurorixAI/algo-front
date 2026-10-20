@@ -199,7 +199,7 @@ export function ScheduleExamModal({
           <div className="relative flex items-center gap-3.5 pr-10">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/20 shadow-inner"><CalendarDays className="h-5 w-5" /></div>
             <div>
-              <p className="text-xs font-semibold tracking-wide text-white/70">{isPrintDelivery ? "ПОДГОТОВКА ПЕЧАТНОГО КОМПЛЕКТА" : isReschedule ? "ПЕРЕНОС ПРОВЕДЕНИЯ" : "НАЗНАЧЕНИЕ НА ЗАНЯТИЕ"}</p>
+              <p className="text-xs font-semibold text-white/70">{isPrintDelivery ? "Подготовка печатного комплекта" : isReschedule ? "Перенос проведения" : "Назначение на занятие"}</p>
               <h2 className="mt-1 truncate text-lg font-bold tracking-tight">{examTitle}</h2>
             </div>
           </div>
@@ -217,7 +217,7 @@ export function ScheduleExamModal({
           <div className="space-y-3">
             <div className="flex items-center gap-2.5 px-0.5">
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-100 text-[11px] font-extrabold text-primary-700">1</span>
-              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Группа</p>
+              <p className="text-xs font-semibold text-slate-600">Группа</p>
               <span className="text-xs text-slate-400">Выберите класс</span>
             </div>
             <div className="grid max-h-40 grid-cols-1 gap-2 overflow-y-auto rounded-2xl bg-slate-100/80 p-2 sm:grid-cols-2">
@@ -238,7 +238,7 @@ export function ScheduleExamModal({
           <div className="space-y-3">
             <div className="flex items-center gap-2.5 px-0.5">
               <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-extrabold ${selectedGroup ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-500"}`}>2</span>
-              <p className="text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600">Занятие</p>
+              <p className="text-xs font-semibold text-slate-600">Занятие</p>
               {selectedGroup && <span className="text-xs text-slate-400">Ближайшее по расписанию</span>}
             </div>
             {loadingLessons || (selectedGroup && !statusesReady && !statusError) ? (

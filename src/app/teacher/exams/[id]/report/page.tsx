@@ -426,7 +426,7 @@ export default function ExamReportPage() {
           {/* 1. Средний балл */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Средний балл</span>
+              <span className="text-xs font-semibold text-slate-500">Средний балл</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
                 <BarChart3 className="h-4 w-4" />
               </div>
@@ -449,7 +449,7 @@ export default function ExamReportPage() {
           {/* 2. Сдали порог */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Сдали порог (≥60%)</span>
+              <span className="text-xs font-semibold text-slate-500">Сдали порог (≥60%)</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                 <Award className="h-4 w-4" />
               </div>
@@ -469,7 +469,7 @@ export default function ExamReportPage() {
           {/* 3. Сдали работы */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Сдали работы</span>
+              <span className="text-xs font-semibold text-slate-500">Сдали работы</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                 <Users className="h-4 w-4" />
               </div>
@@ -488,7 +488,7 @@ export default function ExamReportPage() {
           {/* 4. Распределение результатов */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Распределение</span>
+              <span className="text-xs font-semibold text-slate-500">Распределение</span>
               <span className="text-xs font-bold text-slate-600">Оценки</span>
             </div>
             <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -573,7 +573,7 @@ export default function ExamReportPage() {
             {/* Основополагающий блок: Общий уровень и динамика класса */}
             <div className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-slate-50/80 via-white to-white p-6 sm:p-8 shadow-sm">
               <div className="text-center mb-3.5 space-y-1">
-                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200/80 px-3 py-0.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-600">
+                <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 border border-slate-200/80 px-3 py-0.5 text-xs font-semibold text-slate-600">
                   Аналитическое резюме
                 </div>
                 <h3 className="text-base sm:text-lg font-extrabold text-slate-900 tracking-tight">
@@ -733,7 +733,7 @@ export default function ExamReportPage() {
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
                       {(task.statement_unavailable || task.question_latex || task.question_text) && (
                         <div className="min-w-0 rounded-xl border border-slate-200/80 bg-slate-50/70 p-4 sm:col-span-2">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                             <FileText className="h-3.5 w-3.5 text-slate-400" />
                             Условие задания
                           </div>
@@ -749,7 +749,7 @@ export default function ExamReportPage() {
 
                       {task.correct_answer && (
                         <div className="min-w-0 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:col-span-1">
-                          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-emerald-700">
                             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
                             Правильный ответ
                           </div>
@@ -839,7 +839,7 @@ export default function ExamReportPage() {
 
                   {structured.lesson_plan.warmup.key_rules && structured.lesson_plan.warmup.key_rules.length > 0 && (
                     <div className="mt-4">
-                      <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2.5">Формулы и правила для напоминания классу:</p>
+                      <p className="text-xs font-semibold text-slate-500 mb-2.5">Формулы и правила для напоминания классу:</p>
                       <div className="grid gap-2.5 sm:grid-cols-2">
                         {structured.lesson_plan.warmup.key_rules.map((rule, rIdx) => (
                           <div key={rIdx} className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-xs font-medium text-slate-800">

@@ -1329,7 +1329,7 @@ export default function ExamHubPage() {
                     <FileText className="w-7 h-7" />
                   </div>
                   <div>
-                    <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-violet-700">Печатный комплект</p>
+                    <p className="text-xs font-semibold text-violet-700">Печатный комплект</p>
                     <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-950">
                       {exam.status === "print_ready"
                         ? "Бланки и ключ готовы к занятию"
@@ -1396,12 +1396,12 @@ export default function ExamHubPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Формат</p>
+                <p className="text-xs font-semibold text-slate-500">Формат</p>
                 <p className="mt-2 text-base font-bold text-slate-900">Бумажный экзамен</p>
                 <p className="mt-1 text-xs leading-relaxed text-slate-500">Без ссылок, лобби и веб-сессий учеников.</p>
               </div>
               <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Привязка</p>
+                <p className="text-xs font-semibold text-slate-500">Привязка</p>
                 <p className="mt-2 text-base font-bold text-slate-900">{exam.group_name || "Группа не выбрана"}</p>
                 {boundLessonLabel ? (
                   <p className="mt-1 text-xs leading-relaxed text-slate-500">
@@ -1412,7 +1412,7 @@ export default function ExamHubPage() {
                 )}
               </div>
               <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-2xs">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Статус</p>
+                <p className="text-xs font-semibold text-slate-500">Статус</p>
                 <p className="mt-2 text-base font-bold text-slate-900">
                   {exam.status === "print_ready" ? "Готов к печати" : exam.status === "active" ? "В проведении" : exam.status === "closed" ? "Завершён" : "Требует подготовки"}
                 </p>
@@ -1477,7 +1477,7 @@ export default function ExamHubPage() {
                   <Clock className="w-5 h-5 animate-pulse" />
                 </div>
                 <div className="text-left">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Осталось времени</p>
+                  <p className="text-xs font-semibold text-amber-600">Осталось времени</p>
                   <p className="text-lg sm:text-xl font-black font-mono text-amber-950 leading-tight">
                     {formatRemainingTimer(timeRemaining)}
                   </p>
@@ -1505,7 +1505,7 @@ export default function ExamHubPage() {
           {/* Student Grid (Kahoot / Live Room Badges) */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              <p className="text-xs font-semibold text-slate-500">
                 Участники ({totalConnected})
               </p>
             </div>
@@ -1648,7 +1648,7 @@ export default function ExamHubPage() {
           {/* Variant Switcher & Answer Toggle Bar */}
           <div className="flex flex-wrap items-center justify-between gap-4 p-4 bg-white rounded-2xl border border-slate-200/90 shadow-2xs">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 mr-1">Варианты:</span>
+              <span className="text-xs font-semibold text-slate-500 mr-1">Варианты:</span>
               {(exam.variants || []).map((v) => (
                 <button
                   key={v.variant_number}
@@ -1712,7 +1712,7 @@ export default function ExamHubPage() {
                   <section key={section.name} className="space-y-3">
                     <div className="flex items-end justify-between gap-4 px-1 pt-2 border-b border-slate-200 pb-3">
                       <div className="min-w-0">
-                        <p className="text-[10px] font-bold tracking-[0.16em] text-primary-600 uppercase">
+                        <p className="text-xs font-semibold text-primary-600">
                           Раздел {String(sectionIndex + 1).padStart(2, "0")}
                         </p>
                         <h3 className="mt-1 text-base font-bold text-slate-900 truncate">{section.name}</h3>
@@ -1885,19 +1885,19 @@ export default function ExamHubPage() {
           {/* Summary KPIs */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <GlassCard variant="panel" className="p-5 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Всего участников</p>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Всего участников</p>
               <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{sessions.length}</p>
             </GlassCard>
 
             <GlassCard variant="panel" className="p-5 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Сдали работы</p>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Сдали работы</p>
               <p className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600">
                 {sessions.filter((s) => s.status === "submitted").length}
               </p>
             </GlassCard>
 
             <GlassCard variant="panel" className="p-5 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Средний балл</p>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Средний балл</p>
               <p className="text-2xl sm:text-3xl font-bold tracking-tight text-primary-600">
                 {sessions.filter((s) => s.status === "submitted").length > 0
                   ? (
@@ -1911,7 +1911,7 @@ export default function ExamHubPage() {
             </GlassCard>
 
             <GlassCard variant="panel" className="p-5 text-center">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Длительность</p>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Длительность</p>
               <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{exam.total_time_minutes} мин</p>
             </GlassCard>
           </div>
@@ -1993,7 +1993,7 @@ export default function ExamHubPage() {
             {reportStep > 0 && (
               <div className="mt-4 rounded-xl border border-violet-100 bg-gradient-to-r from-violet-50/70 via-indigo-50/40 to-white p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-violet-900">Формирование отчёта…</span>
+                  <span className="text-xs font-semibold text-violet-900">Формирование отчёта…</span>
                   <span className="text-xs font-bold text-violet-700">Шаг {reportStep} из 3</span>
                 </div>
 
@@ -2066,7 +2066,7 @@ export default function ExamHubPage() {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase font-semibold tracking-wider border-b border-slate-200/80">
+                  <thead className="bg-slate-50 text-slate-500 text-[13px] font-semibold border-b border-slate-200/80">
                     <tr>
                       <th className="p-4 pl-6">Ученик</th>
                       <th className="p-4">Вариант</th>
@@ -2186,7 +2186,7 @@ export default function ExamHubPage() {
               </button>
 
               <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-widest text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
+                <span className="text-xs font-semibold text-primary-600 bg-primary-50 px-3 py-1 rounded-full">
                   Проекция на экран
                 </span>
                 <h3 className="text-2xl font-black text-slate-900">{exam.title}</h3>
@@ -2202,7 +2202,7 @@ export default function ExamHubPage() {
               </div>
 
               <div className="bg-slate-900 text-white rounded-2xl p-4 flex items-center justify-between px-8">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">PIN код:</span>
+                <span className="text-xs font-semibold text-slate-500">PIN код:</span>
                 <span className="text-3xl font-mono font-black text-amber-400 tracking-wider">
                   {exam.access_code}
                 </span>
@@ -2378,8 +2378,8 @@ export default function ExamHubPage() {
                     {showDeliveryCancellation ? <X className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
                   </div>
                   <div>
-                    <p className="text-xs font-semibold tracking-wide text-white/70">
-                      {showDeliveryCancellation ? "ОТМЕНА ПРОВЕДЕНИЯ" : "ТРЕБУЕТСЯ РЕШЕНИЕ"}
+                    <p className="text-xs font-semibold text-white/70">
+                      {showDeliveryCancellation ? "Отмена проведения" : "Требуется решение"}
                     </p>
                     <h2 id="delivery-decision-title" className="mt-1 truncate text-lg font-bold tracking-tight">
                       {showDeliveryCancellation
@@ -2402,7 +2402,7 @@ export default function ExamHubPage() {
                       </p>
                     </div>
                     <div>
-                      <label className="block text-xs font-extrabold uppercase tracking-[0.12em] text-slate-600" htmlFor="delivery-cancellation-reason">
+                      <label className="block text-[13px] font-semibold text-slate-600" htmlFor="delivery-cancellation-reason">
                         Причина
                       </label>
                       <textarea

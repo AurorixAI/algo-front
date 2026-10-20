@@ -861,7 +861,7 @@ export default function NewExamPage() {
                 <div className="space-y-4 max-w-2xl mx-auto">
                   {/* ── Section: Core Parameters ── */}
                   <GlassCard className="p-6">
-                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-5 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-5 flex items-center gap-2">
                       <Settings className="w-4 h-4 text-primary-500" />
                       Основные параметры
                     </h3>
@@ -903,7 +903,7 @@ export default function NewExamPage() {
 
                   {/* ── Section: Difficulty Distribution ── */}
                   <GlassCard className="p-6">
-                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-5 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-5 flex items-center gap-2">
                       <Target className="w-4 h-4 text-amber-500" />
                       Распределение сложности
                     </h3>
@@ -963,7 +963,7 @@ export default function NewExamPage() {
 
                   {/* ── Section: Additional Options ── */}
                   <GlassCard className="p-6">
-                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wide mb-4 flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
                       <Layers className="w-4 h-4 text-slate-400" />
                       Дополнительно
                     </h3>
@@ -1118,7 +1118,7 @@ export default function NewExamPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Экзамен</span>
+                              <span className="text-xs font-semibold text-slate-500">Экзамен</span>
                               <span className="inline-block w-1 h-1 rounded-full bg-slate-300" />
                               <span className="text-xs font-medium text-slate-500">
                                 {config.type === "control" ? "Контрольная работа" : "Быстрая диагностика"}
@@ -1156,7 +1156,7 @@ export default function NewExamPage() {
                         {/* Time */}
                         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Время</span>
+                            <span className="text-xs font-semibold text-slate-500">Время</span>
                             <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
                               <Clock className="w-3.5 h-3.5" />
                             </div>
@@ -1172,7 +1172,7 @@ export default function NewExamPage() {
                         {/* Variants */}
                         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Вариант</span>
+                            <span className="text-xs font-semibold text-slate-500">Вариант</span>
                             <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
                               <Layers className="w-3.5 h-3.5" />
                             </div>
@@ -1190,7 +1190,7 @@ export default function NewExamPage() {
                         {/* Questions */}
                         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Задания</span>
+                            <span className="text-xs font-semibold text-slate-500">Задания</span>
                             <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                               <ListOrdered className="w-3.5 h-3.5" />
                             </div>
@@ -1206,7 +1206,7 @@ export default function NewExamPage() {
                         {/* Source */}
                         <div className="p-3.5 rounded-2xl bg-white border border-slate-200/70 shadow-xs flex flex-col justify-between hover:border-slate-300 transition-colors">
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Источник</span>
+                            <span className="text-xs font-semibold text-slate-500">Источник</span>
                             <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
                               <BookOpen className="w-3.5 h-3.5" />
                             </div>

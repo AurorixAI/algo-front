@@ -624,17 +624,17 @@ export default function ExamDraftPage() {
             {/* Stats Row */}
             <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto">
               <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Варианты</div>
+                <div className="text-xs font-semibold text-slate-500 mb-0.5">Варианты</div>
                 <p className="text-base font-extrabold text-slate-900 leading-tight">{draft.variants_count}</p>
                 <p className="text-[10px] text-slate-500 leading-none">{formatVariants(draft.variants_count).split(" ")[1]}</p>
               </div>
               <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Задания</div>
+                <div className="text-xs font-semibold text-slate-500 mb-0.5">Задания</div>
                 <p className="text-base font-extrabold text-slate-900 leading-tight">{totalTasks}</p>
                 <p className="text-[10px] text-slate-500 leading-none">в варианте</p>
               </div>
               <div className="p-2 bg-slate-50/80 border border-slate-100 rounded-xl">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Время</div>
+                <div className="text-xs font-semibold text-slate-500 mb-0.5">Время</div>
                 <p className="text-base font-extrabold text-slate-900 leading-tight">{draft.total_time_minutes}</p>
                 <p className="text-[10px] text-slate-500 leading-none">минут</p>
               </div>
@@ -912,7 +912,7 @@ export default function ExamDraftPage() {
                   ) : (
                     <ChevronRight className="w-4 h-4 text-slate-400" />
                   )}
-                  <h3 className="font-semibold text-slate-800 text-sm uppercase tracking-wide">
+                  <h3 className="font-semibold text-slate-800 text-sm">
                     Секция {sIdx + 1}: {section.name}
                   </h3>
                 </div>

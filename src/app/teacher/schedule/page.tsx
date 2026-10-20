@@ -2169,7 +2169,7 @@ export default function TeacherSchedulePage() {
                 >
                   <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 font-bold text-xs uppercase tracking-wider">{day.short}</span>
+                      <span className="shrink-0 font-semibold text-xs">{day.short}</span>
                       <span className={`hidden 2xl:inline text-[11px] whitespace-nowrap ${isToday ? "text-primary-100" : "text-slate-400"}`}>
                         {day.name}
                       </span>
@@ -2213,7 +2213,7 @@ export default function TeacherSchedulePage() {
                           </div>
 
                           {l.isRescheduled && (
-                            <span className="inline-flex rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-800">
+                            <span className="inline-flex rounded-md bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-800">
                               Перенесён
                             </span>
                           )}
@@ -2261,7 +2261,7 @@ export default function TeacherSchedulePage() {
           <div className="bg-gradient-to-r from-primary-600 to-indigo-700 text-white rounded-3xl p-6 sm:p-8 shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-xs uppercase font-bold tracking-widest text-primary-200">
+                <span className="text-xs font-semibold text-primary-200">
                   План на сегодня
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-bold mt-1">
@@ -2459,7 +2459,7 @@ export default function TeacherSchedulePage() {
               >
                 <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 pb-5 pt-6 sm:px-7">
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-violet-600">Расписание</p>
+                    <p className="text-xs font-semibold text-violet-600">Расписание</p>
                     <h2 id="week-plan-title" className="mt-1 text-xl font-bold text-slate-900">План недели</h2>
                     <p className="mt-1 text-sm text-slate-500">{weekRangeText}</p>
                   </div>
@@ -2475,15 +2475,15 @@ export default function TeacherSchedulePage() {
 
                 <div className="grid grid-cols-3 gap-2 border-b border-slate-100 bg-slate-50/70 px-6 py-4 sm:px-7">
                   <div className="rounded-xl bg-white px-3 py-2.5 text-center ring-1 ring-slate-100">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">По плану</p>
+                    <p className="text-xs font-semibold text-slate-500">По плану</p>
                     <p className="mt-1 text-lg font-bold text-slate-900">{weekKpi.planned}</p>
                   </div>
                   <div className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center ring-1 ring-emerald-100">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">Проведено</p>
+                    <p className="text-xs font-semibold text-emerald-700">Проведено</p>
                     <p className="mt-1 text-lg font-bold text-emerald-800">{weekKpi.completed}</p>
                   </div>
                   <div className="rounded-xl bg-slate-100 px-3 py-2.5 text-center ring-1 ring-slate-200">
-                    <p className="text-[10px] font-bold uppercase tracking-wide text-slate-600">Отменено</p>
+                    <p className="text-xs font-semibold text-slate-600">Отменено</p>
                     <p className="mt-1 text-lg font-bold text-slate-700">{weekKpi.cancelled}</p>
                   </div>
                 </div>
@@ -2573,7 +2573,7 @@ export default function TeacherSchedulePage() {
               {/* Modal Header */}
               <div className="flex items-start justify-between gap-3 mb-5">
                 <div>
-                  <span className="text-xs font-bold text-primary-600 uppercase tracking-wider">
+                  <span className="text-xs font-semibold text-primary-600">
                     {activeLesson.occurrenceDate} · {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name} · {activeLesson.startTime} — {activeLesson.endTime}
                   </span>
                   {activeLesson.isRescheduled && activeLesson.originalStartTime && (
@@ -2612,7 +2612,7 @@ export default function TeacherSchedulePage() {
               {/* Topic Section */}
               {activeLesson.topic && (
                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 mb-5">
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  <p className="text-xs font-semibold text-slate-500">
                     Тема урока
                   </p>
                   <p className="text-sm font-medium text-slate-800 mt-1">
@@ -3468,7 +3468,7 @@ export default function TeacherSchedulePage() {
                 >
                   <div className="mb-5 flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-rose-500">Постоянное расписание</p>
+                      <p className="text-xs font-semibold text-rose-500">Постоянное расписание</p>
                       <h3 id="end-recurring-title" className="mt-1 text-lg font-bold text-slate-950">Прекратить занятия</h3>
                       <p className="mt-1 text-xs leading-relaxed text-slate-500">
                         Прошедшие уроки, посещаемость и журнал останутся без изменений. Новые экземпляры этого занятия перестанут появляться с выбранной даты.

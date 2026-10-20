@@ -80,6 +80,22 @@ test("owner and admin areas: no ALL CAPS labels (`uppercase` / wide tracking), o
   assert.doesNotMatch(read("src/components/groups/group-create-modal.tsx"), /ОШИБКА/);
 });
 
+test("teacher area: no ALL CAPS labels either (only avatar initials; the PIN digits keep their spacing), no capital literals", () => {
+  const files = [...sourceFiles("src/app/teacher"), "src/components/attendance/excuse-reason-field.tsx", "src/components/exam/schedule-exam-modal.tsx", "src/components/exam/rename-exam-modal.tsx"];
+  for (const file of files) {
+    for (const [index, line] of read(file).split("\n").entries()) {
+      if (/^\s*(\/\/|\*|\/\*)/.test(line)) continue;
+      if (/\buppercase\b/.test(line)) assert.match(line, /rounded-full/, `${file}:${index + 1} is not an avatar initial`);
+      if (/tracking-(wide|wider|widest)\b/.test(line)) assert.match(line, /font-mono/, `${file}:${index + 1}: only a code (PIN, access code) may be spaced out`);
+      assert.doesNotMatch(line, /["'>`][^"'<`{}]*[А-ЯЁ]{5,}[ А-ЯЁ]*[^"'<`{}]*["'<`]/, `${file}:${index + 1}: a literal in capitals`);
+    }
+  }
+  const schedule = read("src/components/exam/schedule-exam-modal.tsx");
+  assert.ok(schedule.includes('"Подготовка печатного комплекта"') && schedule.includes('"Перенос проведения"') && schedule.includes('"Назначение на занятие"'));
+  assert.ok(read("src/app/teacher/exams/[id]/page.tsx").includes('"Отмена проведения" : "Требуется решение"'));
+  assert.match(read("src/components/attendance/excuse-reason-field.tsx"), /text-xs font-semibold text-slate-500">\s*<span>Причина/);
+});
+
 test("the group roster and the Select label use the style of table-chrome: semibold 13 px slate-500", () => {
   const table = read("src/components/groups/group-student-table.tsx");
   assert.match(table, /px-4 py-3\.5 text-\[13px\] font-semibold text-slate-500 cursor-pointer/);
