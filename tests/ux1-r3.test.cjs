@@ -188,19 +188,19 @@ test("the «Ожидают» tab reads the whole queue; decided tabs keep paging
 
 // ── the payroll gate copy ────────────────────────────────────────────────────────────────────────────
 
-test("payroll gate: «у всех N» when everybody is missing, «у M из N» otherwise; the adjective agrees with the number", () => {
+test("payroll gate: «ни у одного из N» when everybody is missing, «у M из N» otherwise; the adjective agrees with the number", () => {
   const R = lib("payroll.ts");
   const teacher = (id) => ({ teacher_id: id, teacher_name: id, lessons_count: 1, lesson_types: [{ lesson_type: "group", groups: 1, suggested_percent: null }], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
   const many = (n) => Array.from({ length: n }, (_, i) => teacher(`t${i}`));
   const typedFor = (scope, missingCount) => Object.fromEntries(scope.slice(missingCount).map((t) => [R.percentKey(t.teacher_id, "group"), "50"]));
   const gate = (n, missingCount, subject) => R.calculationGate(many(n), typedFor(many(n), missingCount), subject).text;
-  assert.equal(gate(3, 3, "all"), "Не указан процент у всех 3 преподавателей — укажите его, чтобы рассчитать всех");
+  assert.equal(gate(3, 3, "all"), "Не указан процент ни у одного из 3 преподавателей — укажите его, чтобы рассчитать всех");
   assert.equal(gate(3, 1, "all"), "Не указан процент у 1 из 3 преподавателей — укажите его, чтобы рассчитать всех");
   assert.equal(gate(21, 2, "all"), "Не указан процент у 2 из 21 преподавателя — укажите его, чтобы рассчитать всех");
   assert.equal(gate(21, 2, "selected"), "Не указан процент у 2 из 21 выбранного преподавателя — укажите его, чтобы рассчитать выбранных");
   assert.equal(gate(22, 5, "selected"), "Не указан процент у 5 из 22 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
-  assert.equal(gate(11, 11, "selected"), "Не указан процент у всех 11 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
-  assert.equal(gate(4, 4, "selected"), "Не указан процент у всех 4 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+  assert.equal(gate(11, 11, "selected"), "Не указан процент ни у одного из 11 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+  assert.equal(gate(4, 4, "selected"), "Не указан процент ни у одного из 4 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
 });
 
 // ── useDialogKeys reads the LATEST onClose (hook run by a minimal runtime: render, effects with deps, unmount) ──

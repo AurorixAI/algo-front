@@ -110,14 +110,14 @@ test("the gate of «Рассчитать»: off until every teacher of the scope
   const chosen = R.calculationGate(teachers.filter((t) => t.teacher_id === "t2"), {}, "selected");
   assert.deepEqual([chosen.ready, chosen.text], [true, null]);
   assert.equal(R.calculationGate(teachers.filter((t) => t.teacher_id !== "t2"), {}, "selected").text,
-    "Не указан процент у всех 2 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+    "Не указан процент ни у одного из 2 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
   // one teacher, nobody
   assert.equal(R.calculationGate([teachers[0]], {}, "all").text, "Не указан процент у преподавателя — укажите его, чтобы рассчитать");
   assert.equal(R.calculationGate([teachers[0]], {}, "selected").text, "Не указан процент у выбранного преподавателя — укажите его, чтобы рассчитать");
   assert.deepEqual(R.calculationGate([], {}, "all"), { ready: false, missing: 0, total: 0, text: null });
   // the number of teachers declines
   const many = Array.from({ length: 21 }, (_, i) => teacher(`m${i}`, [["group", null]]));
-  assert.equal(R.calculationGate(many, {}, "all").text, "Не указан процент у всех 21 преподавателя — укажите его, чтобы рассчитать всех");
+  assert.equal(R.calculationGate(many, {}, "all").text, "Не указан процент ни у одного из 21 преподавателя — укажите его, чтобы рассчитать всех");
 });
 
 test("the row of a teacher: the calm hint is not red; after an attempt the field shows the error next to it", () => {

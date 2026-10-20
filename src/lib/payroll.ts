@@ -1077,8 +1077,8 @@ export function calculationGate(scope: PayrollMonthTeacher[], typed: Record<stri
     // «из 21 выбранного преподавателя».
     const people = pluralRu(total, ["преподавателя", "преподавателей", "преподавателей"]);
     const chosen = subject === "all" ? "" : `${pluralRu(total, ["выбранного", "выбранных", "выбранных"])} `;
-    // Everybody is missing: «у всех 3 преподавателей», not the odd «у 3 из 3».
-    const who = missing === total ? `у всех ${total} ${chosen}${people}` : `у ${missing} из ${total} ${chosen}${people}`;
+    // Everybody is missing: «ни у одного из 3 преподавателей», not the odd «у 3 из 3» or «у всех 3».
+    const who = missing === total ? `ни у одного из ${total} ${chosen}${people}` : `у ${missing} из ${total} ${chosen}${people}`;
     text = `Не указан процент ${who} — укажите его, чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}`;
   }
   return { ready, missing, total, text };
