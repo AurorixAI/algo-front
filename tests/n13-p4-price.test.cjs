@@ -285,7 +285,7 @@ test("history rows: amount, start, state, note, author and the audit lines", () 
 
 test("the audit shapes are typed in api.ts and rendered by the screens, with nothing defensive left", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /export type \{ GroupPriceChange, GroupPriceRow, PriceOverrideChange, PriceOverrideRow \} from "\.\/group-price";/);
+  assert.match(api, /export type \{ GroupPriceCancelled, GroupPriceChange, GroupPriceRow, PriceOverrideCancelled, PriceOverrideChange, PriceOverrideRow \} from "\.\/group-price";/);
   const lib = read("src/lib/group-price.ts");
   assert.doesNotMatch(lib, /describeChange|\bPriceChange\b|FIELD_WORDS/);
   for (const field of ["at: string | null;", "actor_name: string | null;", "old_amount: number | null;", "new_amount: number;", "note: string | null;", "old_source: PriceSource | null;", "new_amount: number | null;", "reason: string | null;"]) {
@@ -744,7 +744,7 @@ test("a price from 2000-01-01 has always been so: «с самого начала
   }
 });
 
-test("«Вернуть цену группы»: the day is not before the individual price in force; a scheduled price is cancelled", () => {
+test("«Вернуть цену группы»: the day is not before the individual price in force; a scheduled price has its own action", () => {
   const today = "2026-10-17";
   const price = { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "Сестра" };
   // (b) an earlier day changes nothing: refused with a clear message, the day itself and later are fine
@@ -784,25 +784,12 @@ test("«Вернуть цену группы»: the day is not before the indivi
     ["cancel", "Отменить запланированную индивидуальную цену (с 20.12.2026)"],
   ]);
 
-  // the cancel request: a write for the SAME day (a correction) - «цена группы» when nothing individual stood before it ...
-  const only = row({ id: "only" });
-  assert.deepEqual(G.cancelScheduledRequest([only], only), { amount: null, valid_from: "2026-11-20" });
-  const returned = row({ id: "ret", valid_from: "2026-10-30", amount: null, is_future: false });
-  assert.deepEqual(G.cancelScheduledRequest([only, returned], only), { amount: null, valid_from: "2026-11-20" });
-  // ... and the individual price in force before it, so the student is not switched to the group price by a cancellation
-  const active = row({ id: "act", valid_from: "2026-10-05", amount: 400000, reason: "Сестра", is_current: true, is_future: false });
-  assert.deepEqual(G.cancelScheduledRequest([only, active], only), { amount: 400000, valid_from: "2026-11-20", reason: "Сестра" });
-  const noReason = { ...active, reason: null };
-  assert.deepEqual(G.cancelScheduledRequest([only, noReason], only), { amount: 400000, valid_from: "2026-11-20", reason: "Прежняя индивидуальная цена" });
-  // a scheduled price between two others looks at the one right before it
-  const second = row({ id: "second", valid_from: "2026-12-20", amount: 300000, reason: "Позже" });
-  assert.deepEqual(G.cancelScheduledRequest([second, only, active], second), { amount: 350000, valid_from: "2026-12-20", reason: "Договорённость" });
   // the screens wire it: the section, the history read at once, the confirmation with the exact words
   const section = read("src/components/payments/membership-price.tsx");
   assert.match(section, /overrideActions\(price, history\?\.history\)/);
   assert.match(section, /if \(!historyOpen && !editable\) return undefined;/);
   assert.match(section, /checkReturnForm\(validFrom, today, notBefore\)/);
-  assert.match(section, /orgApi\.setMembershipPrice\(row\.membership_id, cancelScheduledRequest\(history, target\)\)/);
+  assert.match(section, /orgApi\.cancelMembershipPrice\(row\.membership_id, target\.id\)/);
   assert.match(section, /min=\{earliest\}/);
 });
 
@@ -928,4 +915,49 @@ test("the payroll table speaks the centre's mode, names its headers, has one too
   assert.equal(R.payrollFormulaText(8, "Стоимость пакета"), "Стоимость пакета × % ÷ 8 × засчитанные уроки");
   // no stale words of the old name
   assert.doesNotMatch(read("src/lib/payroll.ts"), /включить|включён/i);
+});
+
+test("a scheduled price is taken back with a DELETE: typed in api.ts, confirmed, refusals refresh", () => {
+  const api = read("src/lib/api.ts");
+  assert.match(api, /cancelGroupPrice: \(groupId: string, rowId: string\) =>\s*api<GroupPrices>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/prices\/\$\{encodePathId\(rowId\)\}`, \{ method: "DELETE" \}\)/);
+  assert.match(api, /cancelMembershipPrice: \(membershipId: string, rowId: string\) =>\s*api<MembershipPriceChanged>\(`\/auth\/org\/memberships\/\$\{encodePathId\(membershipId\)\}\/price-override\/\$\{encodePathId\(rowId\)\}`, \{ method: "DELETE" \}\)/);
+  assert.match(api, /export type \{ GroupPriceCancelled, GroupPriceChange, GroupPriceRow, PriceOverrideCancelled, PriceOverrideChange, PriceOverrideRow \} from "\.\/group-price";/);
+  // the workaround of the same-day correction is gone
+  assert.doesNotMatch(read("src/lib/group-price.ts"), /cancelScheduledRequest/);
+  assert.doesNotMatch(read("src/components/payments/membership-price.tsx"), /cancelScheduledRequest/);
+  // the group block: «Отменить» on a future row only, a confirmation, the answer replaces the block
+  const block = read("src/components/groups/group-price-block.tsx");
+  assert.match(block, /item\.status === "future" && \(\s*<button type="button" onClick=\{\(\) => setCancelTarget\(item\)\}/);
+  assert.match(block, /onRefused=\{\(\) => void load\(true\)\}/);
+  assert.match(block, /onNotify\("Запланированная цена отменена"\)/);
+  const dialog = read("src/components/groups/group-price-cancel-dialog.tsx");
+  assert.match(dialog, /orgApi\.cancelGroupPrice\(groupId, target\.id\)/);
+  assert.match(dialog, /if \(isCancelRefused\(cause\)\) \{\s*setRefused\(true\);[\s\S]*?onRefused\(\);/);
+  assert.match(read("src/components/payments/membership-price.tsx"), /if \(isCancelRefused\(cause\)\) \{\s*setRefused\(true\);[\s\S]*?onConflict\(\);/);
+  // 409 «уже действует» and 404 «не найдена» are refusals, anything else is not
+  assert.equal(G.isCancelRefused({ status: 409, message: "Нельзя отменить цену, которая уже действует — задайте новую с нужной даты" }), true);
+  assert.equal(G.isCancelRefused({ status: 404 }), true);
+  assert.equal(G.isCancelRefused({ status: 403 }), false);
+  assert.equal(G.isCancelRefused({ status: 500 }), false);
+  assert.equal(G.isCancelRefused(null), false);
+  assert.equal(G.isCancelRefused(new Error("x")), false);
+});
+
+test("the cancelled scheduled prices are rendered in words, in both histories", () => {
+  const group = (over) => ({ at: "2026-10-20T06:05:00", actor_name: "Ахмедов", amount: 500000, valid_from: "2026-11-01", note: null, ...over });
+  // 06:05 UTC is 11:05 in Tashkent
+  assert.equal(plain(G.groupCancelledLine(group({}))), "20.10.2026 11:05 · Ахмедов отменил запланированную цену 500 000 с 01.11.2026");
+  assert.equal(plain(G.groupCancelledLine(group({ note: "Новый год" }))), "20.10.2026 11:05 · Ахмедов отменил запланированную цену 500 000 с 01.11.2026 · Новый год");
+  assert.equal(plain(G.groupCancelledLine(group({ amount: 0 }))), "20.10.2026 11:05 · Ахмедов отменил запланированную цену бесплатно с 01.11.2026");
+  assert.equal(plain(G.groupCancelledLine(group({ actor_name: null }))), "20.10.2026 11:05 · Запланированная цена 500 000 с 01.11.2026 отменена");
+  assert.equal(plain(G.groupCancelledLine(group({ at: null, valid_from: null }))), "Ахмедов отменил запланированную цену 500 000");
+  const own = (over) => ({ at: "2026-10-20T06:05:00", actor_name: "Ахмедов", amount: 400000, valid_from: "2026-11-20", reason: "Сестра ученика", ...over });
+  assert.equal(plain(G.overrideCancelledLine(own({}))), "20.10.2026 11:05 · Ахмедов отменил запланированную индивидуальную цену 400 000 с 20.11.2026 · Сестра ученика");
+  // a scheduled «цена группы» (no sum) was a scheduled return
+  assert.equal(plain(G.overrideCancelledLine(own({ amount: null, reason: null }))), "20.10.2026 11:05 · Ахмедов отменил запланированный возврат цены группы с 20.11.2026");
+  assert.equal(plain(G.overrideCancelledLine(own({ amount: null, reason: null, actor_name: null }))), "20.10.2026 11:05 · Запланированный возврат цены группы с 20.11.2026 отменён");
+  for (const text of [G.groupCancelledLine(group({})), G.overrideCancelledLine(own({ amount: null }))]) assert.doesNotMatch(text, /null|undefined/);
+  // the histories show them
+  assert.match(read("src/components/groups/group-price-block.tsx"), /groupCancelledLine\(item\)/);
+  assert.match(read("src/components/payments/membership-price.tsx"), /overrideCancelledLine\(item\)/);
 });

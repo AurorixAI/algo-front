@@ -7,14 +7,15 @@ import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
   activeOverrideFrom,
-  cancelScheduledRequest,
   checkOverrideForm,
   checkReturnForm,
   formatPrice,
   groupPriceHref,
+  isCancelRefused,
   isPriceConflict,
   membershipPriceView,
   overrideActions,
+  overrideCancelledLine,
   overrideChangeLine,
   overrideRowText,
   pastDateWarning,
@@ -166,6 +167,14 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
                 ))}
               </ul>
             )}
+            {history && (history.cancelled ?? []).length > 0 && (
+              <div className="mt-1.5">
+                <p className="text-[11px] font-semibold text-slate-400">Отменённые</p>
+                <ul className="space-y-0.5">
+                  {history.cancelled.map((item, index) => <li key={index} className="text-[11px] text-slate-400">{overrideCancelledLine(item)}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -195,7 +204,6 @@ export function MembershipPriceSection({ row, studentName, periodMode, groupsBas
       />
       <CancelScheduledDialog
         target={typeof dialog === "object" && dialog !== null ? dialog.cancel : null}
-        history={history?.history ?? []}
         row={row}
         studentName={studentName}
         label={label}
@@ -408,15 +416,13 @@ function ReturnPriceDialog({
 }
 
 /**
- * «Отменить запланированную индивидуальную цену»: a write for the day of the scheduled price replaces it (a correction),
- * with «цена группы» - or with the individual price in force just before, so the cancellation does not switch the student
- * to the group price (`cancelScheduledRequest`).
+ * «Отменить запланированную индивидуальную цену»: the row of a day after today is taken back (DELETE); the server refuses a
+ * price that is in force already (409) and one that is gone (404) - the section then reads the price again.
  */
 function CancelScheduledDialog({
-  target, history, row, studentName, label, onClose, onConflict, onSaved,
+  target, row, studentName, label, onClose, onConflict, onSaved,
 }: {
   target: PriceOverrideRow | null;
-  history: PriceOverrideRow[];
   row: MembershipPaymentRow;
   studentName: string;
   label: string;
@@ -426,23 +432,31 @@ function CancelScheduledDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The server said it cannot be cancelled: nothing to confirm any more. */
+  const [refused, setRefused] = useState(false);
 
   useEffect(() => {
     setBusy(false);
     setError(null);
+    setRefused(false);
   }, [target?.id]);
 
   const submit = async () => {
-    if (!target || busy) return;
+    if (!target || busy || refused) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.setMembershipPrice(row.membership_id, cancelScheduledRequest(history, target));
+      const result = await orgApi.cancelMembershipPrice(row.membership_id, target.id);
       onSaved(result.row);
       onClose();
     } catch (cause) {
-      if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
-      else setError(cause instanceof Error ? cause.message : "Не удалось отменить цену");
+      if (isCancelRefused(cause)) {
+        setRefused(true);
+        setError(cause instanceof Error ? cause.message : "Цену нельзя отменить");
+        onConflict();
+      } else {
+        setError(cause instanceof Error ? cause.message : "Не удалось отменить цену");
+      }
     } finally {
       setBusy(false);
     }
@@ -457,22 +471,24 @@ function CancelScheduledDialog({
       busy={busy}
       footer={(
         <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Не отменять</button>
-          <button
-            type="button"
-            onClick={() => void submit()}
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Отменить цену
-          </button>
+          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">{refused ? "Закрыть" : "Не отменять"}</button>
+          {!refused && (
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={busy}
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              Отменить цену
+            </button>
+          )}
         </>
       )}
     >
       <div className="space-y-3 pb-2">
         {target && <p className="text-sm font-medium text-slate-800">{overrideRowText(target, label)}</p>}
-        <p className="text-sm text-slate-600">Ученик продолжит платить так же, как сейчас. Запись останется в истории.</p>
+        <p className="text-sm text-slate-600">Ученик продолжит платить так же, как сейчас. Отмена останется в истории.</p>
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </div>
     </Modal>

@@ -7,6 +7,7 @@ import { formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
 import {
   formatPrice,
   GROUP_PRICE_ANCHOR,
+  groupCancelledLine,
   historyViews,
   priceLabelOf,
   sinceText,
@@ -16,6 +17,7 @@ import {
   type HistoryItemView,
 } from "@/lib/group-price";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { GroupPriceCancelDialog } from "./group-price-cancel-dialog";
 import { GroupPriceDialog } from "./group-price-dialog";
 
 interface GroupPriceBlockProps {
@@ -44,6 +46,8 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged }: Gro
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  /** The scheduled row the owner is about to take back. */
+  const [cancelTarget, setCancelTarget] = useState<HistoryItemView | null>(null);
   const requests = useRef(createRequestSequence());
 
   const load = useCallback(async (silent = false) => {
@@ -97,6 +101,7 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged }: Gro
         price_label: result.price_label ?? previous.price_label,
         current: result.current,
         history: result.history ?? previous.history,
+        cancelled: result.cancelled ?? previous.cancelled,
       } : previous));
       onChanged?.({ amount: result.current.amount, valid_from: result.current.valid_from });
     } else {
@@ -159,7 +164,7 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged }: Gro
         )}
       </div>
 
-      {data && history.length > 0 && (
+      {data && (history.length > 0 || (data.cancelled ?? []).length > 0) && (
         <div className="mt-3 border-t border-slate-100 pt-3">
           <button
             type="button"
@@ -184,13 +189,39 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged }: Gro
                     {item.note && <p className="break-words text-slate-600">{item.note}</p>}
                     {item.changes.map((line) => <p key={line} className="text-slate-500">{line}</p>)}
                     {item.author && <p className="text-[11px] text-slate-400">{item.author}</p>}
+                    {item.status === "future" && (
+                      <button type="button" onClick={() => setCancelTarget(item)} className="mt-1 text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">
+                        Отменить
+                      </button>
+                    )}
                   </li>
                 );
               })}
             </ol>
           )}
+          {historyOpen && (data.cancelled ?? []).length > 0 && (
+            <div className="mt-2 border-t border-slate-100 pt-2">
+              <p className="text-[11px] font-semibold text-slate-400">Отменённые</p>
+              <ul aria-label="Отменённые цены" className="mt-1 space-y-0.5">
+                {data.cancelled.map((item, index) => <li key={index} className="text-xs text-slate-500">{groupCancelledLine(item)}</li>)}
+              </ul>
+            </div>
+          )}
         </div>
       )}
+
+      <GroupPriceCancelDialog
+        groupId={groupId}
+        groupName={groupName}
+        target={cancelTarget}
+        onClose={() => setCancelTarget(null)}
+        onRefused={() => void load(true)}
+        onDone={(prices) => {
+          setData(prices);
+          onChanged?.(prices.current ? { amount: prices.current.amount, valid_from: prices.current.valid_from } : null);
+          onNotify("Запланированная цена отменена");
+        }}
+      />
 
       <GroupPriceDialog
         open={dialogOpen}

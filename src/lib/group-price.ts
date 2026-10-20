@@ -72,6 +72,24 @@ export interface PriceOverrideChange {
   reason: string | null;
 }
 
+/** A scheduled group price that was taken back (`cancelled` of the prices; the row is gone): who, when, what it was. */
+export interface GroupPriceCancelled {
+  at: string | null;
+  actor_name: string | null;
+  amount: number | null;
+  valid_from: string | null;
+  note: string | null;
+}
+
+/** A scheduled individual price that was taken back; `amount` null: it was a scheduled «цена группы». */
+export interface PriceOverrideCancelled {
+  at: string | null;
+  actor_name: string | null;
+  amount: number | null;
+  valid_from: string | null;
+  reason: string | null;
+}
+
 export interface GroupPriceRow {
   id: string;
   amount: number;
@@ -95,6 +113,8 @@ export interface GroupPrices {
   price_label: string;
   current: GroupPriceCurrent | null;
   history: GroupPriceRow[];
+  /** The last 20 scheduled prices taken back, newest first. */
+  cancelled: GroupPriceCancelled[];
 }
 
 export interface PriceImpactSheet {
@@ -124,6 +144,8 @@ export interface GroupPriceResult {
   price_label?: string | null;
   current: GroupPriceCurrent | null;
   history: GroupPriceRow[] | null;
+  /** null with `dry_run`. */
+  cancelled?: GroupPriceCancelled[] | null;
 }
 
 export interface GroupPriceRequest {
@@ -154,6 +176,8 @@ export interface MembershipPrice {
   price_label: string;
   price: PriceInfo;
   history: PriceOverrideRow[];
+  /** The last 20 scheduled individual prices taken back, newest first. */
+  cancelled: PriceOverrideCancelled[];
 }
 
 export interface MembershipPriceChanged extends MembershipPrice {
@@ -361,6 +385,15 @@ export function isNoopPriceChange(history: ReadonlyArray<GroupPriceRow> | null |
 /** 409 PRICE_CONFLICT: somebody else wrote the price of this day while the dialog was open. */
 export const PRICE_CONFLICT_TEXT = "Цену только что изменил другой пользователь. Данные обновлены — проверьте и сохраните ещё раз.";
 
+/**
+ * A scheduled price cannot be cancelled any more: 409 (it came into force, «Нельзя отменить цену, которая уже действует …») or
+ * 404 («Цена не найдена»: somebody cancelled it first).  The screen shows the server's words and reads the price again.
+ */
+export function isCancelRefused(cause: unknown): boolean {
+  const status = (cause as { status?: number } | null)?.status;
+  return status === 409 || status === 404;
+}
+
 /** The error of a price write is the server's PRICE_CONFLICT (the text above replaces the server's own, which says «Обновите страницу»). */
 export function isPriceConflict(cause: unknown): boolean {
   return (cause as { code?: string } | null)?.code === "PRICE_CONFLICT";
@@ -433,22 +466,6 @@ export function overrideActions(price: PriceInfo | null | undefined, history: Re
     out.push({ kind: "cancel", row, label: scheduled.length > 1 ? `${CANCEL_SCHEDULED_LABEL} (${sinceText(row.valid_from)})` : CANCEL_SCHEDULED_LABEL });
   }
   return out;
-}
-
-/**
- * The request that cancels a scheduled individual price.  A write for the same day is a correction, so the row of that day
- * is replaced: with «цена группы» (`amount` null) when the student pays the group price just before that day, and - so the
- * cancellation does not switch him to the group price - with the individual price in force just before it when there is one.
- */
-export function cancelScheduledRequest(history: ReadonlyArray<PriceOverrideRow>, target: PriceOverrideRow): PriceOverrideRequest {
-  const before = history
-    .filter((row) => row.valid_from < target.valid_from)
-    .sort((a, b) => b.valid_from.localeCompare(a.valid_from))[0];
-  if (before && before.amount !== null) {
-    const reason = (before.reason ?? "").trim();
-    return { amount: before.amount, valid_from: target.valid_from, reason: reasonProblem(reason) === null ? reason : "Прежняя индивидуальная цена" };
-  }
-  return { amount: null, valid_from: target.valid_from };
 }
 
 export interface EnrolOverrideValues {
@@ -583,6 +600,37 @@ export function overrideChangeLine(
   const line = withTail(`${overrideSide(change.old_amount, change.old_source)} → ${after}`, change.reason);
   const lead = whoAndWhen(change.at, change.actor_name, formatAt);
   return lead ? `${lead}: ${line}` : line;
+}
+
+/**
+ * «20.10.2026 11:05 · Ахмедов отменил запланированную цену 500 000 с 01.11.2026» (a note / reason after a dot); an unknown
+ * writer: «… · Запланированная цена 500 000 с 01.11.2026 отменена».
+ */
+function cancelledLine(
+  what: { accusative: string; nominative: string; done: string },
+  c: { at: string | null; actor_name: string | null; amount: number | null; valid_from: string | null },
+  tail: string | null,
+  formatAt: (value: string | null | undefined) => string,
+): string {
+  const when = c.at ? formatAt(c.at) : "";
+  const actor = (c.actor_name ?? "").trim();
+  const sum = c.amount === null ? "" : ` ${c.amount === 0 ? FREE_WORD : formatMoneyInput(c.amount)}`;
+  const since = c.valid_from ? ` ${sinceText(c.valid_from)}` : "";
+  const text = actor ? `${actor} отменил ${what.accusative}${sum}${since}` : `${what.nominative}${sum}${since} ${what.done}`;
+  return withTail(when ? `${when} · ${text}` : text, tail);
+}
+
+/** A cancelled scheduled group price in words. */
+export function groupCancelledLine(c: GroupPriceCancelled, formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime): string {
+  return cancelledLine({ accusative: "запланированную цену", nominative: "Запланированная цена", done: "отменена" }, c, c.note, formatAt);
+}
+
+/** A cancelled scheduled individual price in words; a scheduled «цена группы» (no sum) was a scheduled return. */
+export function overrideCancelledLine(c: PriceOverrideCancelled, formatAt: (value: string | null | undefined) => string = formatUtcNaiveAsBusinessDateTime): string {
+  const what = c.amount === null
+    ? { accusative: "запланированный возврат цены группы", nominative: "Запланированный возврат цены группы", done: "отменён" }
+    : { accusative: "запланированную индивидуальную цену", nominative: "Запланированная индивидуальная цена", done: "отменена" };
+  return cancelledLine(what, c, c.reason, formatAt);
 }
 
 export interface HistoryItemView {

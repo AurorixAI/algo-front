@@ -46,7 +46,7 @@ import {
  * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
  * `GET /org/memberships/{id}/price-override` (PriceOverrideChange); the shapes are declared next to their renderers.
  */
-export type { GroupPriceChange, GroupPriceRow, PriceOverrideChange, PriceOverrideRow } from "./group-price";
+export type { GroupPriceCancelled, GroupPriceChange, GroupPriceRow, PriceOverrideCancelled, PriceOverrideChange, PriceOverrideRow } from "./group-price";
 
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
@@ -1488,6 +1488,12 @@ export const orgApi = {
     api<GroupPriceResult>(`/auth/org/groups/${encodePathId(groupId)}/price${options?.dryRun ? "?dry_run=1" : ""}`, {
       method: "PUT", body,
     }),
+  /** Takes back a SCHEDULED group price (a row with a day after today): 409 once it is in force, 404 when it is gone. Answers like the GET. */
+  cancelGroupPrice: (groupId: string, rowId: string) =>
+    api<GroupPrices>(`/auth/org/groups/${encodePathId(groupId)}/prices/${encodePathId(rowId)}`, { method: "DELETE" }),
+  /** Takes back a SCHEDULED individual price; answers like the GET plus the updated `row`. */
+  cancelMembershipPrice: (membershipId: string, rowId: string) =>
+    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override/${encodePathId(rowId)}`, { method: "DELETE" }),
   /** The price of a membership today and the history of its individual prices. */
   getMembershipPrice: (membershipId: string) =>
     api<MembershipPrice>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`),
