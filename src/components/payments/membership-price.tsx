@@ -15,6 +15,7 @@ import {
   isPriceConflict,
   membershipPriceLine,
   overrideCancelledLine,
+  ASSIGN_OVERRIDE_LABEL,
   overrideChangeLine,
   overrideRowText,
   pastDateWarning,
@@ -181,7 +182,7 @@ export function useMembershipPriceControls({
         onSaved={(next, since) => {
           onRowChange(next);
           setReloads((value) => value + 1);
-          onNotify(since ? `Индивидуальная цена сохранена, действует ${since}` : "Индивидуальная цена сохранена");
+          onNotify(since ? `Индивидуальная цена назначена, действует ${since}` : "Индивидуальная цена назначена");
         }}
       />
       <ReturnPriceDialog
@@ -266,7 +267,7 @@ function AssignOverrideDialog({
   return (
     <Modal
       open={open}
-      title="Индивидуальная цена"
+      title={ASSIGN_OVERRIDE_LABEL}
       description={`${studentName} · ${row.group_name}`}
       onClose={onClose}
       busy={busy}

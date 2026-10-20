@@ -19,6 +19,7 @@ import {
   PARTIAL_PERIOD_TAG,
   PAYMENT_FILE_ACCEPT,
   PAYMENT_FILE_MAX_COUNT,
+  PAYMENT_SAVED_TEXT,
   receiptHref,
   receiptNumberLabel,
   statusDetail,
@@ -120,7 +121,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
 
   const onSaved = (result: PaymentSaveResult) => {
     changed(result.row);
-    onNotify(form?.kind === "replace" ? "Оплата исправлена" : "Оплата внесена");
+    onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"]);
   };
 
   historyNow.current = history;

@@ -526,6 +526,13 @@ export function overrideActions(price: PriceInfo | null | undefined, history: Re
 
 export const ASSIGN_OVERRIDE_LABEL = "Назначить индивидуальную цену";
 
+/**
+ * The dialog of the group price repeats the verb of the button that opened it («Задать цену» / «Изменить цену») and the
+ * toast says the result («Цена группы задана» / «Цена группы изменена»).
+ */
+export const SET_GROUP_PRICE_LABEL = "Задать цену группы";
+export const CHANGE_GROUP_PRICE_LABEL = "Изменить цену группы";
+
 export type PriceMenuAction = { kind: "assign"; label: string } | OverrideAction;
 
 /**

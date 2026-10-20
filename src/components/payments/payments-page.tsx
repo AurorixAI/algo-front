@@ -33,6 +33,7 @@ import {
   quoteQueryKey,
   reformatMoneyTyping,
   formatMoneyInput,
+  PAYMENT_SAVED_TEXT,
   statusDetail,
   statusLabel,
   statusTone,
@@ -427,7 +428,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }, [load, refreshSummary]);
 
   const onSaved = (_result: PaymentSaveResult) => {
-    showToast(form?.kind === "replace" ? "Оплата исправлена" : "Оплата внесена");
+    showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"]);
     afterChange();
   };
 

@@ -42,7 +42,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await block.getByRole("button", { name: "Задать цену" }).click();
 
   // --- the dialog: the consequences are on screen before «Сохранить»
-  const dialog = page.getByRole("dialog", { name: "Изменить цену" });
+  const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
   await dialog.getByLabel("Оплата в месяц").fill("500000");
   await expect(dialog).toContainText("Цену получат 2 ученика");
   await expect(dialog).toContainText("Уже внесённые оплаты не меняются никогда.");
@@ -56,7 +56,7 @@ test("price of the group -> consequences before saving -> student card shows it 
 
   await dialog.getByLabel("Примечание").fill("Новый учебный год");
   await dialog.getByRole("button", { name: "Сохранить" }).click();
-  await expect(toast(page, "Цена группы сохранена")).toBeVisible();
+  await expect(toast(page, "Цена группы задана")).toBeVisible();
   await expect(block).toContainText(priceText(500000));
   await expect(block).toContainText(`с ${dmy(today)}`);
   await block.getByRole("button", { name: "История цены" }).click();
@@ -69,12 +69,12 @@ test("price of the group -> consequences before saving -> student card shows it 
 
   // --- a SCHEDULED group price shows only from its day and can be taken back (the row is gone, the cancellation stays in the history)
   await block.getByRole("button", { name: "Изменить цену" }).click();
-  const plan = page.getByRole("dialog", { name: "Изменить цену" });
+  const plan = page.getByRole("dialog", { name: "Изменить цену группы" });
   await plan.getByLabel("Оплата в месяц").fill("550000");
   await plan.getByLabel("Действует с").fill(addDays(today, 30));
   await expect(plan).toContainText("Новая цена начнёт действовать с");
   await plan.getByRole("button", { name: "Сохранить" }).click();
-  await expect(toast(page, "Цена группы сохранена")).toBeVisible();
+  await expect(toast(page, "Цена группы изменена")).toBeVisible();
   await expect(block).toContainText(priceText(500000)); // today it is still the old price
   const plannedDay = addDays(today, 30);
   const plannedShort = plannedDay.slice(0, 4) === today.slice(0, 4) ? dmy(plannedDay).slice(0, 5) : dmy(plannedDay); // the year only when it is not this one
@@ -101,14 +101,14 @@ test("price of the group -> consequences before saving -> student card shows it 
 
   // --- an individual price: a reason is required
   await cardMenuItem(page, "Назначить индивидуальную цену");
-  const own = page.getByRole("dialog", { name: "Индивидуальная цена" });
+  const own = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
   await own.getByLabel(/Оплата в месяц ученика/).fill("400000");
   await own.getByLabel("Причина").fill("ab");
   await own.getByRole("button", { name: "Сохранить" }).click();
   await expect(own.getByRole("alert")).toContainText("Укажите причину");
   await own.getByLabel("Причина").fill("Сестра ученика");
   await own.getByRole("button", { name: "Сохранить" }).click();
-  await expect(toast(page, "Индивидуальная цена сохранена")).toBeVisible();
+  await expect(toast(page, "Индивидуальная цена назначена")).toBeVisible();
   await expect(page.getByTestId("membership-price")).toContainText("Индивидуальная цена");
   await expect(page.getByTestId("membership-price")).toContainText(priceText(400000));
   await expect(page.getByTestId("membership-price")).toContainText("· Сестра ученика"); // the reason follows the price
@@ -126,7 +126,7 @@ test("price of the group -> consequences before saving -> student card shows it 
 
   // --- a SCHEDULED individual price shows only from its day and can be taken back
   await cardMenuItem(page, "Назначить индивидуальную цену");
-  const planned = page.getByRole("dialog", { name: "Индивидуальная цена" });
+  const planned = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
   await planned.getByLabel(/Оплата в месяц ученика/).fill("350000");
   await planned.getByLabel("Действует с").fill(addDays(today, 30));
   await planned.getByLabel("Причина").fill("С нового месяца");
@@ -164,7 +164,7 @@ test("@mobile the price block and its dialog fit a phone", async ({ signIn }) =>
   await expect(block).toContainText("Цена не задана");
   await expectNoHorizontalScroll(page);
   await block.getByRole("button", { name: "Задать цену" }).click();
-  const dialog = page.getByRole("dialog", { name: "Изменить цену" });
+  const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
   await dialog.getByLabel("Оплата в месяц").fill("350000");
   await expect(dialog).toContainText("Цену получит 1 ученик");
   await expectWithinViewportWidth(page, dialog);

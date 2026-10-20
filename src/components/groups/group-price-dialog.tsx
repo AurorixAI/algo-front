@@ -11,11 +11,13 @@ import {
   groupPriceKey,
   impactStudentsText,
   isNoopPriceChange,
+  CHANGE_GROUP_PRICE_LABEL,
   isPriceConflict,
   PAID_NEVER_CHANGE_TEXT,
   pastDateWarning,
   PRICE_CONFLICT_TEXT,
   priceDateRange,
+  SET_GROUP_PRICE_LABEL,
   staleSheetsText,
   type GroupPriceCurrent,
   type GroupPriceResult,
@@ -154,7 +156,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
   return (
     <Modal
       open={open}
-      title="Изменить цену"
+      title={current ? CHANGE_GROUP_PRICE_LABEL : SET_GROUP_PRICE_LABEL}
       description={`${groupName} · ${label}`}
       onClose={onClose}
       busy={saving}

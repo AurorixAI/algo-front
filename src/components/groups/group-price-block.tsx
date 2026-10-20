@@ -111,7 +111,7 @@ export function GroupPriceBlock({ groupId, groupName, onNotify, onChanged, class
     } else {
       void load(true);
     }
-    onNotify("Цена группы сохранена");
+    onNotify(current ? "Цена группы изменена" : "Цена группы задана");
   };
 
   return (

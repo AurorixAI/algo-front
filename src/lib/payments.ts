@@ -519,6 +519,16 @@ export const PAY_ACTION_LABEL: Record<PayAction, string> = {
   extend: "Продлить",
 };
 
+/**
+ * The toast after a payment is saved: the same verb as the button and the title of the dialog.
+ * «Внести оплату» -> «Оплата внесена»; «Продлить» («Продлить оплату») -> «Оплата продлена»; «Исправить оплату» -> «Оплата исправлена».
+ */
+export const PAYMENT_SAVED_TEXT: Record<PayAction | "replace", string> = {
+  create: "Оплата внесена",
+  extend: "Оплата продлена",
+  replace: "Оплата исправлена",
+};
+
 export function payActionOf(row: Pick<MembershipPaymentRow, "status" | "last_payment">): PayAction {
   if (!row.last_payment) return "create";
   return row.status === "expired" || row.status === "none" ? "create" : "extend";
