@@ -324,12 +324,12 @@ test("payments notice: some overdue -> «5 учеников ждут оплат�
   assert.equal(mixed.text, "5 учеников ждут оплаты");
   assert.equal(mixed.chip, "из них просрочено: 2");
   assert.deepEqual([mixed.subject, mixed.predicate], ["5 учеников", "ждут оплаты"]);
-  // the phone: one sentence, the chip folded in
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`, "5 ждут оплаты, 2\u00A0просрочено");
-  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/\u00A0/g, " "), "5 ждут оплаты, 2 просрочено");
+  // the phone: one sentence with the noun («5» alone says nothing), the chip folded in
+  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`, "5 учеников ждут оплаты, 2\u00A0просрочено");
+  assert.equal(`${mixed.compactSubject} ${mixed.compactPredicate}`.replace(/\u00A0/g, " "), "5 учеников ждут оплаты, 2 просрочено");
   assert.equal(bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 }).text, "21 ученик ждёт оплаты");
   const phone = bannerCopy({ due: 22, expired: 1, studentsDue: 21, studentsExpired: 1 });
-  assert.equal(`${phone.compactSubject} ${phone.compactPredicate}`.replace(/\u00A0/g, " "), "21 ждёт оплаты, 1 просрочено");
+  assert.equal(`${phone.compactSubject} ${phone.compactPredicate}`.replace(/\u00A0/g, " "), "21 ученик ждёт оплаты, 1 просрочено");
   assert.equal(bannerCopy({ due: 4, expired: 1, studentsDue: 4, studentsExpired: 1 }).text, "4 ученика ждут оплаты");
 });
 
@@ -373,15 +373,14 @@ test("payments summary: the student counts reach the store; a missing or bad cou
   assert.equal(summaryToState({ due: 7, students_due: 0, students_expired: 0 }).studentsDue, 0, "zero is an answer");
 });
 
-test("payments notice: one compact row on a phone, the full text for assistive technology, desktop row as before", () => {
+test("payments notice: one compact row on a phone, 14 px wrapping sentence without an ellipsis, desktop row as before", () => {
   const banner = read("src/components/payments/payments-alert-banner.tsx");
   // one row at every width: no stacked flex-col layout any more
   assert.doesNotMatch(banner, /flex-col/);
-  assert.match(banner, /mb-3 flex items-center gap-2\.5 rounded-2xl border border-slate-200 bg-white py-1\.5/);
-  assert.match(banner, /line-clamp-2 min-w-0 flex-1 text-\[13px\] leading-\[1\.3\] text-slate-600 sm:hidden/);
-  assert.match(banner, /<span aria-hidden="true">/);
-  assert.match(banner, /<span className="sr-only">/);
-  assert.match(banner, /title=\{copy\.chip \? `\$\{copy\.text\}, \$\{copy\.chip\}` : copy\.text\}/);
+  assert.match(banner, /mb-3 flex items-center gap-2\.5 rounded-2xl border border-slate-200 bg-white py-2 /);
+  // 14 px, wraps, never an ellipsis: the sentence is the whole message (UX-1 polish #6)
+  assert.match(banner, /min-w-0 flex-1 text-sm leading-5 text-slate-600 sm:hidden/);
+  assert.doesNotMatch(banner, /line-clamp|truncate|text-ellipsis|aria-hidden="true">\s*<span className="font-semibold/);
   assert.match(banner, /<span className="sm:hidden">Открыть<\/span>/);
   assert.match(banner, /<span className="hidden sm:inline">Открыть список<\/span>/);
   assert.match(banner, /aria-label="Открыть список"/);

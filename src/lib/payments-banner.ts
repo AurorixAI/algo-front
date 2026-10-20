@@ -20,13 +20,25 @@ export interface BannerCopy {
   chip: string | null;
   /** The whole sentence: for the tooltip and assistive technology. */
   text: string;
-  /** The phone's single row: the same, with the overdue count folded into the sentence instead of the chip. */
+  /**
+   * The phone's compact row: the same sentence with the overdue count folded in instead of the chip, «5 учеников» +
+   * «ждут оплаты, 2 просрочено».  It is allowed to wrap (to two lines at 390 px) and is never cut with an ellipsis.
+   */
   compactSubject: string;
   compactPredicate: string;
 }
 
 const count = (value: unknown) => Math.max(0, Math.trunc(Number(value) || 0));
 const isCount = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+/**
+ * How many PEOPLE wait for a payment: distinct students when the server sends both student counts, otherwise the older
+ * membership count (as a pair, never one by one).  The banner and the badge of the menu item «Оплаты» both read this, so
+ * the same number stands in both places; the tabs of the payments page count rows (memberships) and stay as they are.
+ */
+export function waitingPeopleCount(input: BannerCounts): number {
+  return isCount(input.studentsDue) && isCount(input.studentsExpired) ? count(input.studentsDue) : count(input.due);
+}
 
 /**
  * The words of the payments notice.
@@ -39,7 +51,7 @@ const isCount = (value: unknown): value is number => typeof value === "number" &
  */
 export function bannerCopy(input: BannerCounts): BannerCopy {
   const byStudents = isCount(input.studentsDue) && isCount(input.studentsExpired);
-  const total = byStudents ? count(input.studentsDue) : count(input.due);
+  const total = waitingPeopleCount(input);
   const expired = Math.min(byStudents ? count(input.studentsExpired) : count(input.expired), total);
   const noun = pluralRu(total, "ученик", "ученика", "учеников");
   const subject = `${total} ${noun}`;
@@ -57,9 +69,9 @@ export function bannerCopy(input: BannerCounts): BannerCopy {
     predicate: waiting,
     chip,
     text: `${subject} ${waiting}`,
-    // «5 ждут оплаты, 2 просрочено»: short enough for a compact phone row; the full sentence stays in the tooltip.
-    // A non-breaking space keeps «2 просрочено» together when the row wraps after the comma.
-    compactSubject: chip ? String(total) : subject,
+    // «5 учеников ждут оплаты, 2 просрочено»: the noun stays (a bare «5» says nothing), and the row wraps instead of
+    // cutting the sentence.  A non-breaking space keeps «2 просрочено» together when it wraps after the comma.
+    compactSubject: subject,
     compactPredicate: chip ? `${waiting}, ${expired}\u00A0просрочено` : waiting,
   };
 }

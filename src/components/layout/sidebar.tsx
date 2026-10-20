@@ -30,6 +30,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
+import { waitingPeopleCount } from "@/lib/payments-banner";
 import { BOTTOM_NAV_PRIORITY, splitBottomNav } from "@/lib/bottom-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 
@@ -110,7 +111,10 @@ export function Sidebar() {
   // administrator once the owner enabled it). The summary itself is kept fresh by the banner
   // in the layout; a teacher never reads it.
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
-  const paymentsDue = usePaymentsSummary((state) => state.due);
+  // The badge counts the same people as the banner («5 учеников ждут оплаты»), not memberships (waitingPeopleCount).
+  const paymentsDue = usePaymentsSummary((state) =>
+    waitingPeopleCount({ due: state.due, expired: state.expired, studentsDue: state.studentsDue, studentsExpired: state.studentsExpired }),
+  );
   // The owner always has access, so the item is there from the first paint (no jump when the
   // summary arrives); an administrator sees it once the server confirms the access.
   const showPayments = !DEMO_MODE && (rawRole === "owner" || (role === "admin" && paymentsAvailable));
@@ -124,7 +128,7 @@ export function Sidebar() {
       ? [{ href: "/admin/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
-      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
+      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
       : []),
   ];
 
@@ -136,7 +140,7 @@ export function Sidebar() {
       ? [{ href: "/owner/attendance", label: "Посещаемость", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
     ...(showPayments
-      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Требуют оплаты" }]
+      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
       : []),
     // Payroll is the owner's alone (N13 P3): no item for an administrator or a teacher, and none in the demo.
     ...(!DEMO_MODE && rawRole === "owner"

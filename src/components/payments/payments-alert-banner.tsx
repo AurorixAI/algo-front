@@ -37,9 +37,9 @@ function writeDismissedAt(count: number): void {
  * user see payments and somebody is due.  Rose appears only in the small chip for payments that have already
  * ended.  The cross hides it for this browser session; it comes back when more people wait than at that moment.
  *
- * One row everywhere: on a phone (under 640 px) it is a compact strip of ~48 px - the icon, the sentence (up to two short
- * lines, then an ellipsis; the whole text is in the tooltip and for screen readers), a small «Открыть» link and the
- * cross - so it does not push the page down on every screen.  The overdue chip folds into the sentence there.
+ * One row everywhere: on a phone (under 640 px) it is a compact strip - the icon, the sentence at 14 px (it wraps to a
+ * second line, and is never cut with an ellipsis: «5 учеников ждут оплаты, 2 просрочено» is the whole message), a small
+ * «Открыть» link and the cross.  The overdue chip folds into the sentence there.
  */
 export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: string }) {
   const pathname = usePathname();
@@ -73,18 +73,15 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
           <div
             role="status"
             data-testid="payments-alert-banner"
-            className="mb-3 flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-1.5 pl-3 pr-1.5 sm:mb-4 sm:gap-4 sm:px-4 sm:py-3 md:mb-5"
+            className="mb-3 flex items-center gap-2.5 rounded-2xl border border-slate-200 bg-white py-2 pl-3 pr-1.5 sm:mb-4 sm:gap-4 sm:px-4 sm:py-3 md:mb-5"
           >
             <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-50 text-amber-600 sm:h-9 sm:w-9">
                 <Wallet className="h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden />
               </span>
-              {/* Phone: one truncated line.  The visible short text is hidden from assistive technology; the full sentence is read instead. */}
-              <p title={copy.chip ? `${copy.text}, ${copy.chip}` : copy.text} className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-[1.3] text-slate-600 sm:hidden">
-                <span aria-hidden="true">
-                  <span className="font-semibold text-slate-900">{copy.compactSubject}</span> {copy.compactPredicate}
-                </span>
-                <span className="sr-only">{copy.chip ? `${copy.text}, ${copy.chip}` : copy.text}</span>
+              {/* Phone: the whole sentence, wrapping to a second line when it must - never cut. */}
+              <p className="min-w-0 flex-1 text-sm leading-5 text-slate-600 sm:hidden">
+                <span className="font-semibold text-slate-900">{copy.compactSubject}</span> {copy.compactPredicate}
               </p>
               <div className="hidden min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 sm:flex">
                 <p className="whitespace-nowrap text-sm text-slate-600">
