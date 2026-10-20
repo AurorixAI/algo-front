@@ -348,13 +348,13 @@ export default function AdminGroupDetailPage() {
           ) : (
             /* ── View mode ── */
             <div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
                     <GraduationCap className="w-7 h-7 text-primary-600" />
                   </div>
-                  <div>
-                    <h1 className="text-xl font-bold text-slate-900">{group.name}</h1>
+                  <div className="min-w-0">
+                    <h1 className="break-words text-xl font-bold text-slate-900">{group.name}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">
                       {group.class_level ? `${group.class_level} класс · ` : ""}
                       {`${lessonTypeLabel(group.lesson_type)} · `}
@@ -367,7 +367,7 @@ export default function AdminGroupDetailPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   {group.status === "archived" ? (
                     <button
                       onClick={handleUnarchive}
@@ -388,7 +388,8 @@ export default function AdminGroupDetailPage() {
                       </button>
                       <button
                         onClick={handleArchive}
-                        className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-slate-200 hover:border-red-200"
+                        className="shrink-0 p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-slate-200 hover:border-red-200"
+                        aria-label="Архивировать группу"
                         title="Архивировать группу"
                       >
                         <Archive className="w-4 h-4" />
