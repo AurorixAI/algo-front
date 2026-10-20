@@ -20,6 +20,7 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface Student {
   id: string;
@@ -75,6 +76,7 @@ export function AddStudentDrawer({
   const [adding, setAdding] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [mounted, setMounted] = useState(false);
+  useScrollLock(open);
   const [groupNames, setGroupNames] = useState<Record<string, string>>({});
   const [addError, setAddError] = useState<string | null>(null);
   // Students already in another group: move them here or keep both groups.
@@ -241,7 +243,7 @@ export function AddStudentDrawer({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50"
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-50 touch-none"
             onClick={onClose}
           />
           <motion.div
@@ -293,7 +295,7 @@ export function AddStudentDrawer({
             </div>
 
             {/* Student list */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto overscroll-contain">
               {tooShort && <p className="px-4 pt-3 text-xs text-slate-400">Введите минимум 2 символа</p>}
               {loading ? (
                 <div className="flex items-center justify-center h-32">

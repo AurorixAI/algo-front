@@ -127,8 +127,10 @@ test("tones: overdue is red, soon is amber, paid is green", () => {
 test("plural forms of «урок» and the banner", () => {
   assert.deepEqual([1, 2, 4, 5, 11, 12, 21, 22, 25].map(rules.lessonsWord),
     ["урок", "урока", "урока", "уроков", "уроков", "уроков", "урок", "урока", "уроков"]);
-  assert.equal(rules.bannerText(1), "Требуют оплаты: 1");
-  assert.equal(rules.bannerText(21), "Требуют оплаты: 21");
+  assert.equal(rules.bannerText(1), "1 ученик ждёт оплаты");
+  assert.equal(rules.bannerText(2), "2 ученика ждут оплаты");
+  assert.equal(rules.bannerText(5), "5 учеников ждут оплаты");
+  assert.equal(rules.bannerText(21), "21 ученик ждёт оплаты");
 });
 
 test("form defaults, calendar mode", () => {

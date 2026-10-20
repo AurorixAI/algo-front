@@ -366,7 +366,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
   const openDialog = (item: AttendanceExcuseItem, decision: ExcuseDecision, noteMode: ExcuseNoteMode) => {
     setDialogError(null);
-    setDialog({ items: [subjectOfItem(item)], decision, noteMode });
+    setDialog({ items: [subjectOfItem(item, businessToday)], decision, noteMode });
   };
   const closeDialog = () => { setDialog(null); setDialogError(null); };
   const submitDialog = async (note: string) => {

@@ -1,12 +1,28 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
+import { lockScroll } from "@/lib/scroll-lock";
 
 /** A click on the backdrop right after the dialog opened is the tail of the double click that opened it: not a dismissal. */
 export const BACKDROP_GRACE_MS = 300;
+
+// useLayoutEffect warns during server rendering; the lock only matters in the browser.
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+/**
+ * Lock the page scroll while `open` (dialogs, drawers, lightboxes).  The lock is on <html>, compensates the scrollbar
+ * width so nothing jumps, is counted for stacked layers and gives back the exact previous inline styles on close or unmount.
+ * Use it in every full-screen layer, so the page behind neither scrolls nor stays outside the dim.
+ */
+export function useScrollLock(open: boolean): void {
+  useIsomorphicLayoutEffect(() => {
+    if (!open) return undefined;
+    return lockScroll();
+  }, [open]);
+}
 
 const FOCUSABLE = 'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
 
@@ -37,6 +53,7 @@ export function Modal({
   const openedAtRef = useRef(0);
   useEffect(() => setMounted(true), []);
   useEffect(() => { if (open) openedAtRef.current = Date.now(); }, [open]);
+  useScrollLock(open);
 
   // Remember the control the user used last outside the dialog.  An autoFocus
   // field inside the dialog takes focus before any effect runs, and Safari does
@@ -119,7 +136,7 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] touch-none"
             onClick={() => { if (!busy && Date.now() - openedAtRef.current >= BACKDROP_GRACE_MS) onClose(); }}
           />
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 pointer-events-none">
@@ -151,7 +168,7 @@ export function Modal({
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="px-5 sm:px-6 py-2 overflow-y-auto min-h-0">{children}</div>
+              <div className="px-5 sm:px-6 py-2 overflow-y-auto overscroll-contain min-h-0">{children}</div>
               {footer && (
                 <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 p-5 sm:p-6 pt-4 shrink-0 border-t border-slate-100 mt-3">
                   {footer}

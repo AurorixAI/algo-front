@@ -11,6 +11,8 @@
  * the centre's setting.  The text depends on the CURRENT status: changing a decision says so.  Pure.
  */
 
+import { formatIsoDateLabel } from "./business-time";
+import { excuseDeadlinePassed, type ExcuseDeadlinePassed, type ServerExcuseDeadline } from "./excuse-deadline";
 import { reasonMeta, reasonMetaOf } from "./excuse-row";
 
 export type ExcuseDecision = "confirmed" | "rejected";
@@ -45,6 +47,11 @@ export interface ExcuseDecisionSubject {
   reason: string;
   /** «Дилноза Каримова · 09.10.2026 16:35» or "". */
   reasonMeta: string;
+  /**
+   * The confirmation deadline has passed (the list says «срок прошёл»): the day it was due by, or `{ date: null }` for a lessons
+   * package.  null: still in time, or not known (the journal cell has no deadline) - then the dialog says nothing about it.
+   */
+  deadlinePassed: ExcuseDeadlinePassed | null;
 }
 
 /** Subject of a row of the «Пропуски» list. */
@@ -58,7 +65,8 @@ export function subjectOfItem(item: {
   reason: string;
   reason_by?: { name: string } | null;
   reason_at?: string | null;
-}): ExcuseDecisionSubject {
+  deadline?: ServerExcuseDeadline | null;
+}, today?: string): ExcuseDecisionSubject {
   return {
     id: item.id,
     status: item.status,
@@ -68,6 +76,8 @@ export function subjectOfItem(item: {
     groupName: item.group.name,
     reason: item.reason,
     reasonMeta: reasonMeta(item),
+    // `today` is the business date; without it nothing is claimed about the deadline.
+    deadlinePassed: today ? excuseDeadlinePassed({ lesson_date: item.lesson_date, status: item.status, deadline: item.deadline }, today) : null,
   };
 }
 
@@ -90,6 +100,8 @@ export function subjectOfJournalCell(args: {
     groupName: args.groupName ?? "",
     reason: args.excuse.reason,
     reasonMeta: reasonMetaOf(args.excuse.reason_by_name, args.excuse.reason_at),
+    // The journal payload carries no deadline (it is worked out per payment for the list only): never guessed here.
+    deadlinePassed: null,
   };
 }
 
@@ -142,6 +154,33 @@ export function excuseConsequenceLinesFor(
     for (const line of excuseConsequenceLines(decision, status, billingMode ?? null)) if (!lines.includes(line)) lines.push(line);
   }
   return lines;
+}
+
+/**
+ * The amber note of the dialog when the confirmation deadline has passed.  A decision after the deadline is allowed
+ * (the owner's rule), but the server does NOT flag it as late: it stores who decided, when (`reviewed_by`, `reviewed_at`)
+ * and the note, and the list and the journal show exactly that.  So the text promises only that.
+ * null when no excuse of the dialog is late (or the screen does not know the deadline).
+ */
+export function lateDecisionNote(items: ReadonlyArray<Pick<ExcuseDecisionSubject, "deadlinePassed">>): string | null {
+  const late = items.filter((item) => item.deadlinePassed);
+  if (late.length === 0) return null;
+  const many = items.length > 1;
+  let lead: string;
+  if (!many) {
+    const date = late[0].deadlinePassed?.date;
+    lead = date
+      ? `Срок подтверждения прошёл (до ${formatIsoDateLabel(date, { day: "2-digit", month: "2-digit" })}).`
+      : "Срок подтверждения прошёл (по пакету ученика).";
+  } else {
+    lead = late.length === items.length
+      ? `Срок подтверждения прошёл у всех пропусков (${items.length}).`
+      : `Срок подтверждения прошёл у ${late.length} из ${items.length} пропусков.`;
+  }
+  const rest = many
+    ? "Решения можно принять: в списке и в журнале останется, кто принял их и когда."
+    : "Решение можно принять: в списке и в журнале останется, кто принял его и когда.";
+  return `${lead} ${rest}`;
 }
 
 /** 1 пропуск, 2 пропуска, 5 пропусков. */

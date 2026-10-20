@@ -68,6 +68,7 @@ import {
   CalendarDays,
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
+import { useScrollLock } from "@/components/ui/modal";
 
 // ─── Interfaces ─────────────────────────────────────────────────────────────
 
@@ -412,22 +413,10 @@ export default function ExamHubPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // ─── Background Scroll Lock When Any Modal Is Open ────────────────────────
-  useEffect(() => {
-    const isAnyModalOpen = Boolean(
-      replaceTarget || showQrModal || showAssignModal || showScheduleModal || showDeliveryDecisionModal,
-    );
-    if (isAnyModalOpen) {
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-      };
-    }
-  }, [replaceTarget, showQrModal, showAssignModal, showScheduleModal, showDeliveryDecisionModal]);
+  // ─── Background scroll lock while any dialog is open (shared hook) ───
+  useScrollLock(Boolean(
+    replaceTarget || showQrModal || showAssignModal || showScheduleModal || showDeliveryDecisionModal,
+  ));
 
   // ─── Load Analytics on Tab Switch ─────────────────────────────────────────
   // A printed exam has no web answer sessions. It therefore must not request

@@ -38,6 +38,7 @@ import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { useScrollLock } from "@/components/ui/modal";
 
 // ─── Status Config ───────────────────────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; gradient: string; text: string; dot: string }> = {
@@ -111,6 +112,7 @@ interface SuccessModalProps {
 
 function SuccessAssignModal({ result, returnHref, onClose }: SuccessModalProps) {
   const [copied, setCopied] = useState(false);
+  useScrollLock(true); // mounted only while the dialog is open
   const fullUrl = typeof window !== "undefined" && result.access_code
     ? `${window.location.origin}/e/${result.access_code}`
     : result.url || "";

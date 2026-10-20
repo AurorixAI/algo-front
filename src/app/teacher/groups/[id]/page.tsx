@@ -21,6 +21,7 @@ import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { useScrollLock } from "@/components/ui/modal";
 
 type Tab = "students" | "exams" | "attendance";
 type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
@@ -254,26 +255,8 @@ export default function TeacherGroupDetailPage() {
     if (groupId) void load(true);
   }, [groupId, load]);
 
-  // ─── Background Scroll Lock When Any Modal Is Open (Prevent Layout Shift) ───
-  useEffect(() => {
-    if (modalState !== "none") {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      const originalPaddingRight = document.body.style.paddingRight;
-
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-      return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-        document.body.style.paddingRight = originalPaddingRight;
-      };
-    }
-  }, [modalState]);
+  // ─── Background scroll lock while any dialog is open (shared hook: no layout shift) ───
+  useScrollLock(modalState !== "none");
 
   const handleRemoveStudent = async (studentId: string) => {
     if (!group) return;

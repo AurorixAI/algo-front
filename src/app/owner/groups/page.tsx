@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Plus, GraduationCap, Users, Target, TrendingUp,
   Filter, Search, Archive, ChevronDown
@@ -14,6 +14,7 @@ import { GroupCreateModal } from "@/components/groups/group-create-modal";
 import { GroupPriceFilter } from "@/components/groups/group-price-filter";
 import { countGroupsWithoutPrice, lacksGroupPrice, parsePriceFilter } from "@/lib/group-price";
 import { ImportButton } from "@/components/import/import-button";
+import { useToast } from "@/components/ui/toast";
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
 
@@ -41,12 +42,7 @@ function OwnerGroupsPageContent() {
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("active");
   const [search, setSearch] = useState("");
   const [archivingId, setArchivingId] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-
-  const showToast = (msg: string, type: "success" | "error" = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500);
-  };
+  const { showToast, toastNode } = useToast();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -245,23 +241,7 @@ function OwnerGroupsPageContent() {
         }}
       />
 
-      {/* Toast */}
-      <AnimatePresence>
-        {toast && (
-          <motion.div
-            initial={{ opacity: 0, y: 16, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 8, scale: 0.96 }}
-            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-2xl shadow-lg text-sm font-medium ${
-              toast.type === "success"
-                ? "bg-slate-900 text-white"
-                : "bg-red-600 text-white"
-            }`}
-          >
-            {toast.msg}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {toastNode}
     </div>
   );
 }

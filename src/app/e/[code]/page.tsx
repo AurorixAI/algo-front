@@ -56,6 +56,7 @@ import {
   type ConfirmedStudent,
 } from "@/lib/exam-entry";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
+import { useScrollLock } from "@/components/ui/modal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -139,6 +140,7 @@ export default function ExamPage() {
 
   // Lobby
   const [examInfo, setExamInfo] = useState<ExamInfo | null>(null);
+  useScrollLock(showStartConfirm && !!examInfo);
   const [studentName, setStudentName] = useState("");
   const [studentId, setStudentId] = useState("");
   const [confirmedStudent, setConfirmedStudent] = useState<ConfirmedStudent | null>(null);

@@ -42,6 +42,7 @@ import {
   Radio,
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
+import { useScrollLock } from "@/components/ui/modal";
 
 const COLOR_CLASSES = {
   blue: {
@@ -473,27 +474,8 @@ export default function TeacherSchedulePage() {
     setIsRecurringActionsOpen(false);
   }, [activeLesson]);
 
-  // ─── Background Scroll Lock When Any Modal Is Open ───
-  useEffect(() => {
-    const isAnyModalOpen = isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || isWeekPlanOpen || !!activeLesson;
-    if (isAnyModalOpen) {
-      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      const originalPaddingRight = document.body.style.paddingRight;
-
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      if (scrollbarWidth > 0) {
-        document.body.style.paddingRight = `${scrollbarWidth}px`;
-      }
-      return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-        document.body.style.paddingRight = originalPaddingRight;
-      };
-    }
-  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson]);
+  // ─── Background scroll lock while any dialog is open (shared hook: counts stacked layers, keeps the page width) ───
+  useScrollLock(isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || isWeekPlanOpen || !!activeLesson);
 
   // ─── Close Modal on Escape Key ───
   useEffect(() => {

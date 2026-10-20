@@ -155,6 +155,7 @@ const diffColors: Record<string, string> = {
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickAnswerDisplayText, pickTaskDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { pluralRu } from "@/lib/payments";
+import { useScrollLock } from "@/components/ui/modal";
 
 // ============================================================================
 // MAIN COMPONENT
@@ -245,19 +246,8 @@ export default function ExamDraftPage() {
     orgApi.listGroups().then((res) => setGroups(Array.isArray(res) ? res : [])).catch(() => {});
   }, [examId, hydrateDraft]);
 
-  // ─── Background Scroll Lock When Modal Is Open ────────────────────────────
-  useEffect(() => {
-    if (showAssignModal || showScheduleModal) {
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-      };
-    }
-  }, [showAssignModal, showScheduleModal]);
+  // ─── Background scroll lock while a dialog is open (shared hook) ───
+  useScrollLock(showAssignModal || showScheduleModal);
 
   useEffect(() => {
     if (publishResult) {

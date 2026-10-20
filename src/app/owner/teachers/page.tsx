@@ -7,6 +7,7 @@ import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { staffDisplayName } from "@/lib/staff-name";
 import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface Member {
   id: string; // user id
@@ -69,19 +70,7 @@ export default function OwnerTeachersPage() {
 
   useEffect(() => { loadData(); setMounted(true); }, []);
 
-  useEffect(() => {
-    if (showInvite) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
-    };
-  }, [showInvite]);
+  useScrollLock(showInvite);
 
   const handleInvite = async () => {
     setSaving(true);

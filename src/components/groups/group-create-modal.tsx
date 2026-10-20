@@ -7,6 +7,7 @@ import { orgApi, GroupInfo } from "@/lib/api";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DEFAULT_LESSON_TYPE, LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { createPortal } from "react-dom";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface GroupCreateModalProps {
   open: boolean;
@@ -46,18 +47,9 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
         lesson_type: DEFAULT_LESSON_TYPE,
       });
       setError(null);
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
     }
-    
-    return () => {
-      document.body.style.overflow = "unset";
-      document.documentElement.style.overflow = "unset";
-    };
   }, [open]);
+  useScrollLock(open);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) return;
@@ -96,7 +88,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] touch-none"
             onClick={handleClose}
           />
           {/* Modal */}
@@ -131,7 +123,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
               </div>
 
               {/* Body */}
-              <div className="px-6 py-2 space-y-5 overflow-y-auto max-h-[60vh]">
+              <div className="px-6 py-2 space-y-5 overflow-y-auto overscroll-contain max-h-[60vh]">
                 {/* Name */}
                 <div className="space-y-1">
                   <label htmlFor="group-create-nazvanie-gruppy" className="text-sm font-medium text-slate-700">Название группы</label>

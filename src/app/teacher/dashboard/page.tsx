@@ -57,6 +57,7 @@ import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 import { staffDisplayName } from "@/lib/staff-name";
+import { useScrollLock } from "@/components/ui/modal";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -334,42 +335,8 @@ export default function TeacherDashboardPage() {
     return () => window.clearInterval(countdownTimer);
   }, [liveExams]);
 
-  // The lesson dialog is portalled to <body>. Lock both scrolling roots and
-  // preserve the current position, otherwise Safari/Chrome can still scroll
-  // the background behind an inner, scrollable modal.
-  useEffect(() => {
-    if (!activeLesson && !isActionCenterOpen && !missedLessonAction && !isExamQueueOpen) return;
-
-    const html = document.documentElement;
-    const body = document.body;
-    const scrollY = window.scrollY;
-    const scrollbarWidth = window.innerWidth - html.clientWidth;
-    const originalHtmlOverflow = html.style.overflow;
-    const originalBodyOverflow = body.style.overflow;
-    const originalBodyPosition = body.style.position;
-    const originalBodyTop = body.style.top;
-    const originalBodyWidth = body.style.width;
-    const originalBodyPaddingRight = body.style.paddingRight;
-
-    html.style.overflow = "hidden";
-    body.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${scrollY}px`;
-    body.style.width = "100%";
-    if (scrollbarWidth > 0) {
-      body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-
-    return () => {
-      html.style.overflow = originalHtmlOverflow;
-      body.style.overflow = originalBodyOverflow;
-      body.style.position = originalBodyPosition;
-      body.style.top = originalBodyTop;
-      body.style.width = originalBodyWidth;
-      body.style.paddingRight = originalBodyPaddingRight;
-      window.scrollTo(0, scrollY);
-    };
-  }, [activeLesson, isActionCenterOpen, isExamQueueOpen, missedLessonAction]);
+  // The dialogs are portalled to <body>: lock the page scroll while any of them is open (shared hook).
+  useScrollLock(Boolean(activeLesson || isActionCenterOpen || missedLessonAction || isExamQueueOpen));
 
   // Escape key handler
   useEffect(() => {

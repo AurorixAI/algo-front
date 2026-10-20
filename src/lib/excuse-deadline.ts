@@ -140,6 +140,35 @@ export function excuseDeadlineView(
   return fallback ? { text: fallback.text, warn: fallback.overdue } : null;
 }
 
+/** The confirmation deadline of a pending excuse has passed: the day it was due by, or null when it is a lessons package (no date). */
+export interface ExcuseDeadlinePassed {
+  date: string | null;
+}
+
+/**
+ * Has the deadline passed - exactly when `excuseDeadlineView` says «срок прошёл» (same checks, same fallback to the month end)?
+ * null for a decided excuse, for one whose deadline is not known, and while there is still time (including the last day and,
+ * for a package, the last lesson to confirm in).  Confirming after the deadline stays allowed - this only informs the dialog.
+ */
+export function excuseDeadlinePassed(
+  item: { lesson_date: string | null | undefined; status: string; deadline?: ServerExcuseDeadline | null },
+  today: string,
+): ExcuseDeadlinePassed | null {
+  if (item.status !== "pending") return null;
+  const server = item.deadline as unknown as Record<string, unknown> | null | undefined;
+  if (server && server.kind === "date" && isoDay(server.date)) {
+    const left = typeof server.days_left === "number" && Number.isFinite(server.days_left)
+      ? server.days_left
+      : utcDay(server.date) - utcDay(today);
+    return server.overdue === true || left < 0 ? { date: server.date } : null;
+  }
+  if (server && server.kind === "lessons" && typeof server.lessons_left === "number" && Number.isFinite(server.lessons_left)) {
+    return lessonsPhase(server, Math.max(0, server.lessons_left)) === "overdue" ? { date: null } : null;
+  }
+  const fallback = excuseDeadlineHint(item.lesson_date, item.status, today);
+  return fallback?.overdue ? { date: excuseDeadline(item.lesson_date) } : null;
+}
+
 // ── Compact chip of the «Срок» column (N13 P1.6) ─────────────────────────────
 
 export interface ExcuseDeadlineChip {

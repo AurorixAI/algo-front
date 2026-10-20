@@ -11,6 +11,7 @@ import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
 } from "@/lib/api";
 import { pluralRu } from "@/lib/payments";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface ImportModalProps {
   open: boolean;
@@ -37,12 +38,9 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
     if (open) {
       setStep("upload"); setFile(null); setBusy(false); setError(null);
       setPreview(null); setResult(null); setDragging(false);
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
     }
-    return () => { document.body.style.overflow = "unset"; };
   }, [open]);
+  useScrollLock(open);
 
   const handleDownloadTemplate = async () => {
     try {
@@ -114,7 +112,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] touch-none"
             onClick={busy ? undefined : onClose}
           />
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 pointer-events-none">
@@ -157,7 +155,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
               </div>
 
               {/* Body */}
-              <div className="px-6 py-3 overflow-y-auto">
+              <div className="px-6 py-3 overflow-y-auto overscroll-contain">
                 {step === "upload" && (
                   <UploadStep
                     file={file}

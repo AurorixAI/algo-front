@@ -33,6 +33,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
+import { useScrollLock } from "@/components/ui/modal";
 
 export interface GroupInfo {
   id: string;
@@ -120,23 +121,8 @@ export function AssignGroupModal({
     setMounted(true);
   }, []);
 
-  // This modal is rendered through a portal. Lock both scrolling roots so the
-  // background cannot move and the backdrop also covers the browser scrollbar
-  // gutter (locking only `body` leaves `html` scrollable in some browsers).
-  useEffect(() => {
-    if (!open) return;
-
-    const originalBodyOverflow = document.body.style.overflow;
-    const originalHtmlOverflow = document.documentElement.style.overflow;
-
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = originalBodyOverflow;
-      document.documentElement.style.overflow = originalHtmlOverflow;
-    };
-  }, [open]);
+  // Rendered through a portal: lock the page scroll so the background cannot move and the backdrop covers the scrollbar gutter.
+  useScrollLock(open);
 
   // Load groups & teachers when opened
   useEffect(() => {

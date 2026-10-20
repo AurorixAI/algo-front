@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { extractFigureUrls } from "@/lib/figures";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface TaskFigureDrawerProps {
   /** Single URL, comma-separated URLs, or array of URLs */
@@ -25,6 +26,7 @@ export function TaskFigureDrawer({
 }: TaskFigureDrawerProps) {
   const urls = extractFigureUrls(imageUrl);
   const [isOpen, setIsOpen] = useState(false);
+  useScrollLock(isOpen);
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -100,11 +102,9 @@ export function TaskFigureDrawer({
 
     if (isOpen) {
       window.addEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "hidden"; // Prevent background scrolling
     }
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = "";
     };
   }, [isOpen, urls.length, resetTransform, updateZoomAndPan]);
 

@@ -29,6 +29,7 @@ import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
+import { navBadgeText } from "@/lib/nav-badge";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -253,27 +254,31 @@ export function Sidebar({ compactOnMobile = false }: { compactOnMobile?: boolean
                 {isActive && (
                   <span className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary-600" />
                 )}
-                <Icon
-                  className={cn(
-                    "w-5 h-5 shrink-0 transition-colors",
-                    isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
-                  )}
-                />
-                {item.badge !== undefined ? (
-                  // The slot exists from the first paint and only fades in: a counter that arrives
-                  // late neither pops in nor moves anything (it is positioned over the icon).
-                  <span
-                    aria-hidden={item.badge ? undefined : true}
-                    aria-label={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
-                    title={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
+                {/* The counter hangs on the icon's top-right corner, inside the link's clip edge: it cannot be cut off
+                    whatever the number of digits (the link clips its label, not the counter). */}
+                <span className="relative flex shrink-0">
+                  <Icon
                     className={cn(
-                      "pointer-events-none absolute left-[27px] top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white transition-opacity duration-300",
-                      item.badge ? "opacity-100" : "opacity-0",
+                      "w-5 h-5 shrink-0 transition-colors",
+                      isActive ? "text-primary-600" : "text-slate-400 group-hover:text-slate-600"
                     )}
-                  >
-                    {item.badge ? (item.badge > 99 ? "99+" : item.badge) : ""}
-                  </span>
-                ) : null}
+                  />
+                  {item.badge !== undefined ? (
+                    // The slot exists from the first paint and only fades in: a counter that arrives
+                    // late neither pops in nor moves anything (it sits over the icon).
+                    <span
+                      aria-hidden={item.badge ? undefined : true}
+                      aria-label={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
+                      title={item.badge ? `${item.badgeLabel ?? "Требуют действий"}: ${item.badge}` : undefined}
+                      className={cn(
+                        "pointer-events-none absolute -right-1.5 -top-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold leading-4 text-center ring-2 ring-white transition-opacity duration-300",
+                        item.badge ? "opacity-100" : "opacity-0",
+                      )}
+                    >
+                      {navBadgeText(item.badge)}
+                    </span>
+                  ) : null}
+                </span>
                 <span
                   className={cn(
                     "whitespace-nowrap overflow-hidden transition-all duration-300 ml-3",

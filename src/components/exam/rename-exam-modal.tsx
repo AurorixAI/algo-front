@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState, type FormEvent } from "react";
 import { Loader2, Pencil, X } from "lucide-react";
+import { useScrollLock } from "@/components/ui/modal";
 
 interface RenameExamModalProps {
   open: boolean;
@@ -29,32 +30,7 @@ export function RenameExamModal({ open, currentTitle, onClose, onSave }: RenameE
     setError(null);
   }, [currentTitle, open]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const scrollY = window.scrollY;
-    const previous = {
-      bodyOverflow: document.body.style.overflow,
-      bodyPosition: document.body.style.position,
-      bodyTop: document.body.style.top,
-      bodyWidth: document.body.style.width,
-      htmlOverflow: document.documentElement.style.overflow,
-    };
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-
-    return () => {
-      document.documentElement.style.overflow = previous.htmlOverflow;
-      document.body.style.overflow = previous.bodyOverflow;
-      document.body.style.position = previous.bodyPosition;
-      document.body.style.top = previous.bodyTop;
-      document.body.style.width = previous.bodyWidth;
-      window.scrollTo(0, scrollY);
-    };
-  }, [open]);
+  useScrollLock(open);
 
   if (!open) return null;
 

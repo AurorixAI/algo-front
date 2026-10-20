@@ -420,7 +420,8 @@ test("the owner's «Оплаты» does not wait for the summary; the badge slot
   assert.match(sidebar, /showPayments = !DEMO_MODE && \(rawRole === "owner" \|\| \(role === "admin" && paymentsAvailable\)\)/);
   assert.match(sidebar, /transition-opacity duration-300/);
   assert.match(sidebar, /item\.badge \? "opacity-100" : "opacity-0"/);
-  assert.match(sidebar, /pointer-events-none absolute left-\[27px\]/); // over the icon: it moves nothing
+  // on the icon's top-right corner (inside a wrapper around the icon, so the link's overflow cannot clip it): it moves nothing
+  assert.match(sidebar, /pointer-events-none absolute -right-1\.5 -top-1\.5/);
   assert.match(sidebar, /item\.badge !== undefined/);
 });
 

@@ -1029,10 +1029,35 @@ export function diffPaymentSettings(
 // ── Banner ─────────────────────────────────────────────────────────────────
 
 /**
- * «Требуют оплаты: N». Counts memberships due today or overdue: a student in
- * two groups can appear twice, and «ends today» is still paid, so the banner
- * must not claim «оплата закончилась».
+ * «13 учеников ждут оплаты» in two parts, so the screen can emphasise the first: `subject` = «13 учеников»,
+ * `predicate` = «ждут оплаты».  1 ученик ждёт / 2 ученика ждут / 5 учеников ждут / 11 учеников ждут / 21 ученик ждёт.
+ *
+ * `due` counts memberships due today or overdue (a student in two groups can appear twice), and «ends today» is still paid,
+ * so the text says «ждут оплаты», never «оплата закончилась».
  */
+export function bannerParts(due: number): { subject: string; predicate: string } {
+  const n = Math.max(0, Math.trunc(Number(due) || 0));
+  const noun = pluralRu(n, ["ученик", "ученика", "учеников"]);
+  const verb = noun === "ученик" ? "ждёт" : "ждут";
+  return { subject: `${n} ${noun}`, predicate: `${verb} оплаты` };
+}
+
+/** «13 учеников ждут оплаты» (see `bannerParts`). */
 export function bannerText(due: number): string {
-  return `Требуют оплаты: ${due}`;
+  const { subject, predicate } = bannerParts(due);
+  return `${subject} ${predicate}`;
+}
+
+/** Chip of the banner for the memberships whose payment has already ended: «Просрочено: 5»; null when none. */
+export function bannerOverdueChip(expired: number): string | null {
+  const n = Math.max(0, Math.trunc(Number(expired) || 0));
+  return n > 0 ? `Просрочено: ${n}` : null;
+}
+
+/**
+ * The banner is hidden for this session after the user dismissed it, until MORE people wait than at that moment
+ * (`dismissedAt` = the count at dismissal, null = never dismissed).
+ */
+export function bannerDismissed(dismissedAt: number | null, due: number): boolean {
+  return dismissedAt !== null && due <= dismissedAt;
 }

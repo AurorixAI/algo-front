@@ -14,6 +14,8 @@ interface PaymentsSummaryState {
   loaded: boolean;
   /** Memberships whose payment has ended (expired + ends today): the banner and the menu badge. */
   due: number;
+  /** Of `due`, those whose payment has already ended (the rest end today): the overdue chip of the banner. */
+  expired: number;
   expiring: number;
   none: number;
   active: number;
@@ -38,6 +40,7 @@ const EMPTY = {
   available: false,
   loaded: false,
   due: 0,
+  expired: 0,
   expiring: 0,
   none: 0,
   active: 0,
@@ -64,6 +67,7 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     available: true,
     loaded: true,
     due: count(summary?.due),
+    expired: Math.min(count(summary?.expired), count(summary?.due)),
     expiring: count(summary?.expiring),
     none: count(summary?.none),
     // `active` is already the whole «Оплачено» tab (paid + free); `free` is a sub-count of it.

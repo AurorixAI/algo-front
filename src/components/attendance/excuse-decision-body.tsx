@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Info } from "lucide-react";
-import { excuseDecisionCopy, previewTargets, type ExcuseDecision, type ExcuseDecisionSubject } from "../../lib/excuse-decision";
+import { Clock, Info } from "lucide-react";
+import { excuseDecisionCopy, lateDecisionNote, previewTargets, type ExcuseDecision, type ExcuseDecisionSubject } from "../../lib/excuse-decision";
 import { lessonShortLabel } from "../../lib/excuse-row";
 
 /** «Чт, 15.10 · Математика 9А» */
@@ -26,6 +26,7 @@ export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionS
   const copy = excuseDecisionCopy(decision, items.length, { excuses: items });
   const single = items.length === 1 ? items[0] : null;
   const { shown, more } = previewTargets(items, 5);
+  const lateNote = lateDecisionNote(items);
   return (
     <div className="space-y-3">
       {single ? (
@@ -52,6 +53,15 @@ export function ExcuseDecisionBody({ items, decision }: { items: ExcuseDecisionS
             ))}
             {more > 0 && <li className="text-xs text-slate-500">и ещё {more}</li>}
           </ul>
+        </div>
+      )}
+      {lateNote && (
+        <div
+          data-testid="excuse-decision-late"
+          className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5"
+        >
+          <Clock aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          <p className="min-w-0 text-sm text-amber-900">{lateNote}</p>
         </div>
       )}
       <div

@@ -8,6 +8,7 @@ import { businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/l
 import { bindableLessons, occurrenceKey, selectionLost } from "@/lib/exam-lessons";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useNow } from "@/lib/use-now";
+import { useScrollLock } from "@/components/ui/modal";
 
 type ScheduledExamSelection = {
   group: Group;
@@ -155,37 +156,18 @@ export function ScheduleExamModal({
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
-  // This dialog may be opened from a layout that has its own scrolling or a
-  // transformed ancestor. Rendering through ``body`` guarantees that the
-  // backdrop covers the complete viewport rather than only the page column.
-  // Fixing the body at its current offset is more reliable than only hiding
-  // overflow: Safari otherwise allows the background to keep scrolling.
+  // This dialog may be opened from a layout that has its own scrolling or a transformed ancestor.  Rendering through
+  // ``body`` guarantees that the backdrop covers the complete viewport rather than only the page column; the page
+  // scroll is locked by the shared hook (it is mounted only while the dialog is open).
+  useScrollLock(true);
+
   useEffect(() => {
-    const scrollY = window.scrollY;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyPosition = document.body.style.position;
-    const previousBodyTop = document.body.style.top;
-    const previousBodyWidth = document.body.style.width;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !submitting) onClose();
     };
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.position = previousBodyPosition;
-      document.body.style.top = previousBodyTop;
-      document.body.style.width = previousBodyWidth;
-      window.scrollTo(0, scrollY);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose, submitting]);
