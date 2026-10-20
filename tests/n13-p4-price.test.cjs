@@ -589,7 +589,7 @@ test("the payroll sheet: legend above the table, tooltips, «начислить�
 
 test("the month list: a status chip with its explanation, warnings with links and meanings, the formula", () => {
   const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
-  const { PayrollHowItWorks } = require(path.join(root, "src/components/payroll/how-it-works.tsx"));
+  const { PayrollHowItWorksBody } = require(path.join(root, "src/components/payroll/how-it-works.tsx"));
   const teacher = {
     teacher_id: "t1", teacher_name: "Иванов Пётр", lessons_count: 12,
     lesson_types: [{ lesson_type: "group", groups: 2, suggested_percent: "50" }],
@@ -614,12 +614,13 @@ test("the month list: a status chip with its explanation, warnings with links an
   })));
   assert.ok(fresh.includes("не рассчитано"));
   assert.ok(fresh.includes(H.statusHint(null)));
-  // the formula, collapsed by default (a native <details>) with the example
-  const how = renderToStaticMarkup(React.createElement(PayrollHowItWorks, { divisor: 12 }));
-  assert.match(how, /<details/);
-  assert.doesNotMatch(how, /<details[^>]* open/);
-  assert.ok(textOf(how).includes("Как считается зарплата"));
+  // the formula with the example: the body of the dialog «Как считается зарплата» (UX-1 C: no accordion over the table any more)
+  const how = renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 12 }));
+  assert.doesNotMatch(how, /<details/);
+  assert.ok(textOf(how).includes("Оплата в месяц × % ÷ 12 × засчитанные уроки"));
   assert.ok(textOf(how).includes("600 000 сум × 50 % ÷ 12 × 3 урока = 75 000 сум"));
+  assert.match(read("src/components/payroll/how-it-works.tsx"), /title=\{HOW_TITLE\}/);
+  assert.equal(H.HOW_TITLE, "Как считается зарплата");
 });
 
 // ── source contracts ────────────────────────────────────────────────────────────────────────────────────────
@@ -687,8 +688,9 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<StatusChip status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} \/>/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollHowItWorks divisor=\{overview\.divisor\} \/>/);
-  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollHowItWorks divisor=\{sheet\.divisor_default\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthStatus month=\{month\} open=\{monthOpen\} divisor=\{overview\.divisor\} \/>/);
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollMonthStatus\s+month=\{sheet\.month\}[\s\S]*?divisor=\{sheet\.divisor_default\}/);
+  assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
   assert.match(controls, /<Hint text=\{view\.hint\}/);
   // the saved-revision banner is one line
   const month = read("src/components/payroll/payroll-month-page.tsx");

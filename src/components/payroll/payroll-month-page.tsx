@@ -8,9 +8,7 @@ import {
 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { priceLabelOf } from "@/lib/group-price";
 import { pluralRu } from "@/lib/payments";
-import { usePaymentsSummary } from "@/lib/payments-summary";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
@@ -19,7 +17,7 @@ import {
   buildCalculateBody,
   buildPercentsPayload,
   buildSaveBody,
-  calculateButtonLabel,
+  calculationGate,
   calculationScope,
   canGoToNextMonth,
   editsDirty,
@@ -34,10 +32,11 @@ import {
   monthPercentText,
   monthTitle,
   parseMonthParam,
-  parsePercent,
   orderedTypes,
   payrollErrorText,
-  payrollFormulaText,
+  PERCENT_HINT_TEXT,
+  percentFieldState,
+  percentInputId,
   percentKey,
   percentProblems,
   revisionLabel,
@@ -61,7 +60,7 @@ import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
-import { PayrollHowItWorks } from "./how-it-works";
+import { PayrollMonthStatus } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
 import { ConflictBanner, PayrollForbidden, PercentEditor, SaveBar, StatusChip, WarningLinks } from "./sheet-controls";
 
@@ -104,8 +103,6 @@ function PayrollMonthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const today = useMemo(() => formatBusinessDate(), []);
-  // what the price is called in the centre: the formula speaks the same words
-  const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   const month = parseMonthParam(searchParams?.get("month"), today);
   const user = useAuthStore((state) => state.user);
   const denied = Boolean(user) && effectiveRole(user) !== "owner";
@@ -117,7 +114,8 @@ function PayrollMonthContent() {
   /** The percent fields the owner has typed in (key: teacher|type); the others show the suggestion. */
   const [typed, setTyped] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [showErrors, setShowErrors] = useState(false);
+  /** Teachers the owner has tried to calculate (or whose save the server refused for a percent): only their fields may turn red. */
+  const [attempted, setAttempted] = useState<ReadonlySet<string>>(new Set());
   const [calculating, setCalculating] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
@@ -154,7 +152,7 @@ function PayrollMonthContent() {
   useEffect(() => {
     setTyped({});
     setSelected(new Set());
-    setShowErrors(false);
+    setAttempted(new Set());
     setPreviews({});
     setActiveId(null);
     setCalculating(false);
@@ -177,6 +175,10 @@ function PayrollMonthContent() {
   const allSelected = teachers.length > 0 && teachers.every((teacher) => selected.has(teacher.teacher_id));
   // The server says so; a month that is the current one or later is open whatever it says.
   const monthOpen = overview ? overview.month_open || isOpenMonth(month, today) : false;
+  // «Рассчитать всех» waits for the percents (and says what is left); a chosen few can go on their own
+  const allGate = calculationGate(teachers, typed, "all");
+  const chosenTeachers = teachers.filter((teacher) => selected.has(teacher.teacher_id));
+  const selectedGate = calculationGate(chosenTeachers, typed, "selected");
 
   const goToMonth = (next: string) => {
     if (!confirmLeave(dirty, UNSAVED_TEXT)) return;
@@ -185,6 +187,10 @@ function PayrollMonthContent() {
 
   const setType = (teacherId: string, lessonType: string, text: string) => {
     setTyped((previous) => ({ ...previous, [percentKey(teacherId, lessonType)]: sanitizePercentTyping(text) }));
+  };
+
+  const markAttempted = (ids: Iterable<string>) => {
+    setAttempted((previous) => new Set([...previous, ...ids]));
   };
 
   const toggle = (teacherId: string) => {
@@ -199,20 +205,22 @@ function PayrollMonthContent() {
   const withNames = (sheets: PayrollSheet[]): PayrollSheet[] =>
     sheets.map((sheet) => ({ ...sheet, teacher_name: teacherLabel(sheet.teacher_name) }));
 
-  /** `only`: one teacher (a row's menu); else the selected ones, else everybody. */
-  const calculate = async (only?: string) => {
+  /**
+   * `chosen`: one teacher (a row's menu), the selected ones (the bar over the list), or nobody - then everybody («Рассчитать
+   * всех»).  The two buttons wait for the percents, so this refuses only a row's «Рассчитать»: the field of that row turns
+   * red and takes the focus - an error next to the field, after the owner's action, and no toast.
+   */
+  const calculate = async (chosen: ReadonlySet<string>) => {
     if (!overview || calculating) return;
-    const chosen = only ? new Set([only]) : selected;
+    const scope = calculationScope(teachers, chosen);
     const body = buildCalculateBody(teachers, typed, chosen);
     if (!body) {
-      setShowErrors(true);
-      const missing = percentProblems(calculationScope(teachers, chosen), typed).length;
-      showToast(
-        missing > 0
-          ? "Укажите процент для каждого типа занятий — без него расчёт не запускается"
-          : "Нет преподавателей для расчёта",
-        "error",
-      );
+      const problems = percentProblems(scope, typed);
+      markAttempted(problems.map((problem) => problem.teacherId));
+      if (problems.length > 0) {
+        const first = problems[0];
+        window.setTimeout(() => document.getElementById(percentInputId(percentKey(first.teacherId, first.lessonType)))?.focus(), 80);
+      }
       return;
     }
     if (dirty && !window.confirm("Новый расчёт заменит предпросмотр, в котором есть несохранённые правки. Продолжить?")) return;
@@ -236,7 +244,7 @@ function PayrollMonthContent() {
       window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (cause) {
       if (!calcs.current.isCurrent(token) || monthRef.current !== requestedMonth) return;
-      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
+      if (isPercentRequired(cause as PayrollErrorLike)) markAttempted(scope.map((teacher) => teacher.teacher_id));
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     } finally {
       if (calcs.current.isCurrent(token)) setCalculating(false);
@@ -284,7 +292,7 @@ function PayrollMonthContent() {
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
       const error = cause as PayrollErrorLike;
-      if (isPercentRequired(error)) setShowErrors(true);
+      if (isPercentRequired(error)) markAttempted([teacherId]);
       if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
       else if (isDataChanged(error)) patchPreview(teacherId, { saving: false, dataChanged: payrollErrorText(error) });
       else patchPreview(teacherId, { saving: false, error: payrollErrorText(error) });
@@ -318,7 +326,7 @@ function PayrollMonthContent() {
       }
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
-      if (isPercentRequired(cause as PayrollErrorLike)) setShowErrors(true);
+      if (isPercentRequired(cause as PayrollErrorLike)) markAttempted([teacherId]);
       patchPreview(teacherId, { saving: false });
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     }
@@ -390,51 +398,46 @@ function PayrollMonthContent() {
           </button>
         </nav>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void downloadMonth()}
-            disabled={savedCount === 0 || exporting}
-            title={savedCount === 0 ? "Сначала сохраните хотя бы одну ведомость" : undefined}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            Скачать Excel за месяц
-          </button>
-          <button
-            type="button"
-            onClick={() => void calculate()}
-            disabled={!overview || teachers.length === 0 || calculating}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-            {calculateButtonLabel(teachers, selected)}
-          </button>
+        <div className="flex min-w-0 flex-col gap-1.5 sm:items-end">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void downloadMonth()}
+              disabled={savedCount === 0 || exporting}
+              title={savedCount === 0 ? "Сначала сохраните хотя бы одну ведомость" : undefined}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Скачать Excel за месяц
+            </button>
+            <button
+              type="button"
+              onClick={() => void calculate(new Set())}
+              disabled={!overview || teachers.length === 0 || calculating || !allGate.ready}
+              aria-describedby={allGate.text ? "payroll-calculate-hint" : undefined}
+              className={`inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                selected.size > 0
+                  ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  : "bg-primary-600 text-white shadow-sm hover:bg-primary-700"
+              }`}
+            >
+              {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+              Рассчитать всех
+            </button>
+          </div>
+          {overview && allGate.text && (
+            <p id="payroll-calculate-hint" className="max-w-md text-xs text-slate-500 sm:text-right">{allGate.text}</p>
+          )}
         </div>
       </div>
 
-      {monthOpen && (
-        <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span><span className="font-semibold">Месяц ещё не закончился.</span> Расчёт предварительный: уроки до конца месяца ещё могут появиться или измениться.</span>
-        </p>
-      )}
+      {overview && <PayrollMonthStatus month={month} open={monthOpen} divisor={overview.divisor} />}
 
       {overview && lessonsWithoutTeacherText(overview.lessons_without_teacher) && (
         <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{lessonsWithoutTeacherText(overview.lessons_without_teacher)}</span>
         </p>
-      )}
-
-      {overview && teachers.length > 0 && (
-        <div className="space-y-2 print:hidden">
-          <p className="text-xs text-slate-500">
-            {payrollFormulaText(overview.divisor, priceLabel)}.{" "}
-            <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">Делитель — в настройках</Link>
-          </p>
-          <PayrollHowItWorks divisor={overview.divisor} />
-        </div>
       )}
 
       <section aria-label="Преподаватели месяца" className="print:hidden">
@@ -456,8 +459,32 @@ function PayrollMonthContent() {
             В этом месяце нет завершённых уроков — считать зарплату не за что.
           </p>
         ) : (
+          <div className="space-y-3">
+          {selected.size > 0 && (
+            <div
+              role="region"
+              aria-label="Действия над выбранными"
+              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm"
+            >
+              <span className="font-medium text-primary-900" aria-live="polite">Выбрано: {selected.size} из {teachers.length}</span>
+              <button
+                type="button"
+                onClick={() => void calculate(selected)}
+                disabled={calculating || !selectedGate.ready}
+                aria-describedby={selectedGate.text ? "payroll-selected-hint" : undefined}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+                Рассчитать выбранных
+              </button>
+              <button type="button" onClick={() => setSelected(new Set())} className="font-medium text-primary-700 hover:underline">
+                Снять выбор
+              </button>
+              {selectedGate.text && <span id="payroll-selected-hint" className="basis-full text-xs text-slate-600">{selectedGate.text}</span>}
+            </div>
+          )}
           <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-slate-500 ${GRID}`}>
+            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold text-slate-500 ${GRID}`}>
               <span>
                 <input
                   type="checkbox"
@@ -479,17 +506,18 @@ function PayrollMonthContent() {
                   key={teacher.teacher_id}
                   teacher={teacher}
                   typed={typed}
-                  showErrors={showErrors}
+                  showErrors={attempted.has(teacher.teacher_id)}
                   selected={selected.has(teacher.teacher_id)}
                   calculating={calculating}
                   onToggle={() => toggle(teacher.teacher_id)}
                   onType={(lessonType, text) => setType(teacher.teacher_id, lessonType, text)}
-                  onCalculate={() => void calculate(teacher.teacher_id)}
+                  onCalculate={() => void calculate(new Set([teacher.teacher_id]))}
                   onOpen={() => openSheet(teacher)}
                   onExport={() => void downloadSheet(teacher)}
                 />
               ))}
             </ul>
+          </div>
           </div>
         )}
       </section>
@@ -617,6 +645,11 @@ export function TeacherRow({
   onExport: () => void;
 }) {
   const status = sheetStatus(teacher.sheet);
+  // One calm hint per row while a percent is not set: it is asked for once, and nothing is red until the owner tries to calculate.
+  const hintId = `${percentInputId(percentKey(teacher.teacher_id, "row"))}-hint`;
+  const anyPending = orderedTypes(teacher).some(
+    (type) => percentFieldState(monthPercentText(typed, teacher, type.lesson_type), showErrors).kind === "pending",
+  );
   const items: RowMenuItem[] = [
     { key: "calculate", label: "Рассчитать", icon: Calculator, onSelect: onCalculate, disabled: calculating },
     ...(teacher.sheet
@@ -654,40 +687,49 @@ export function TeacherRow({
         {teacher.lesson_types.length === 0 ? (
           <span className="text-xs text-slate-400">нет типов занятий</span>
         ) : (
-          orderedTypes(teacher).map((type) => {
-            const key = percentKey(teacher.teacher_id, type.lesson_type);
-            const text = monthPercentText(typed, teacher, type.lesson_type);
-            const error = showErrors || key in typed ? parsePercent(text).error : null;
-            const id = `payroll-percent-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
-            return (
-              <div key={type.lesson_type} className="min-w-0">
-                <label htmlFor={id} className="mb-1 block text-[11px] font-medium text-slate-500">
-                  {lessonTypeLabel(type.lesson_type)}
-                  <span className="font-normal text-slate-400"> · {type.groups} {pluralRu(type.groups, ["группа", "группы", "групп"])}</span>
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    id={id}
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    required
-                    value={text}
-                    placeholder="0"
-                    aria-label={`Процент для ${teacher.teacher_name}, ${lessonTypeLabel(type.lesson_type)}`}
-                    aria-invalid={Boolean(error)}
-                    aria-describedby={error ? `${id}-error` : undefined}
-                    onChange={(event) => onType(type.lesson_type, event.target.value)}
-                    className={`w-[4.5rem] rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
-                      error ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
-                    }`}
-                  />
-                  <span className="text-sm text-slate-500">%</span>
+          <>
+            {orderedTypes(teacher).map((type) => {
+              const key = percentKey(teacher.teacher_id, type.lesson_type);
+              const text = monthPercentText(typed, teacher, type.lesson_type);
+              const state = percentFieldState(text, showErrors);
+              const error = state.kind === "error" ? state.message : null;
+              const pending = state.kind === "pending";
+              const id = percentInputId(key);
+              return (
+                <div key={type.lesson_type} className="min-w-0">
+                  <label htmlFor={id} className="mb-1 block text-[11px] font-medium text-slate-500">
+                    {lessonTypeLabel(type.lesson_type)}
+                    <span className="font-normal text-slate-400"> · {type.groups} {pluralRu(type.groups, ["группа", "группы", "групп"])}</span>
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      id={id}
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      required
+                      value={text}
+                      placeholder="—"
+                      aria-label={`Процент для ${teacher.teacher_name}, ${lessonTypeLabel(type.lesson_type)}`}
+                      aria-invalid={Boolean(error)}
+                      aria-describedby={error ? `${id}-error` : pending ? hintId : undefined}
+                      onChange={(event) => onType(type.lesson_type, event.target.value)}
+                      className={`w-[4.5rem] rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
+                        error
+                          ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10"
+                          : pending
+                            ? "border-dashed border-slate-300 focus:border-primary-500 focus:ring-primary-500/10"
+                            : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
+                      }`}
+                    />
+                    <span className="text-sm text-slate-500">%</span>
+                  </div>
+                  {error && <p id={`${id}-error`} className="mt-1 max-w-[11rem] text-[11px] font-medium text-rose-700">{error}</p>}
                 </div>
-                {error && <p id={`${id}-error`} className="mt-1 max-w-[11rem] text-[11px] font-medium text-rose-700">{error}</p>}
-              </div>
-            );
-          })
+              );
+            })}
+            {anyPending && <p id={hintId} className="self-end pb-2 text-xs text-slate-500">{PERCENT_HINT_TEXT}</p>}
+          </>
         )}
       </div>
 

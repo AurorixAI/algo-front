@@ -8,7 +8,7 @@
  * divisor, summed, rounded once half up to a whole sum.
  */
 import { formatMoney, pluralRu } from "./payments";
-import { capitalizeFirst, monthYearLabelRu, shiftBusinessMonth } from "./business-time";
+import { capitalizeFirst, formatIsoDateLabel, monthYearLabelRu, shiftBusinessMonth } from "./business-time";
 import { groupsWithoutPriceHref, type PriceSource } from "./group-price";
 
 // ── Lesson types ────────────────────────────────────────────────────────────
@@ -188,6 +188,16 @@ export function parseMonthParam(value: string | null | undefined, today: string)
 /** «Сентябрь 2026 г.» */
 export function monthTitle(month: string): string {
   return isMonthParam(month) ? capitalizeFirst(monthYearLabelRu(month)) : month;
+}
+
+/** «Октябрь»: the name of the month alone, in the nominative (the start of a sentence). */
+export function monthNameRu(month: string): string {
+  return isMonthParam(month) ? capitalizeFirst(formatIsoDateLabel(`${month}-01`, { month: "long" })) : month;
+}
+
+/** The one calm line over the table of an open month: «Октябрь ещё идёт — расчёт предварительный»; null for a closed one. */
+export function monthStatusText(month: string, open: boolean): string | null {
+  return open ? `${monthNameRu(month)} ещё идёт — расчёт предварительный` : null;
 }
 
 /** The month has not ended yet (it is the current one or later): the sheet is a preview. */
@@ -856,7 +866,7 @@ export function buildBlocks(sheet: PayrollSheet, views: LineView[]): SheetBlock[
     .filter((block) => block.lines.length > 0);
 }
 
-/** The sheet's «ИТОГО»: the server's number while nothing is edited, else the sum of the lines. */
+/** The sheet's «Итого»: the server's number while nothing is edited, else the sum of the lines. */
 export function sheetTotal(sheet: PayrollSheet, views: LineView[], edits: SheetEdits): number {
   return editsDirty(sheet, edits) ? views.reduce((sum, view) => sum + view.amount, 0) : sheet.total_amount;
 }
@@ -1003,9 +1013,61 @@ export function buildCalculateBody(
   return body;
 }
 
-export function calculateButtonLabel(teachers: PayrollMonthTeacher[], selected: ReadonlySet<string>): string {
-  const chosen = teachers.filter((teacher) => selected.has(teacher.teacher_id)).length;
-  return chosen > 0 && chosen < teachers.length ? `Рассчитать выбранных (${chosen})` : "Рассчитать всех";
+// ── Guided setup: a percent is asked for calmly, an error comes after an action ─────────────────────
+
+/** The calm hint of a row whose percent is not set yet (no red: nothing has gone wrong). */
+export const PERCENT_HINT_TEXT = "Укажите процент — это делается один раз";
+
+export type PercentFieldState = { kind: "ok" } | { kind: "pending" } | { kind: "error"; message: string };
+
+/**
+ * What a percent field of the month page shows.  Nothing typed yet is `pending` (the calm hint) until the owner tries to
+ * calculate (`attempted`); a typed value that is not a percent is an error at once (it only appears after typing).
+ */
+export function percentFieldState(text: string, attempted: boolean): PercentFieldState {
+  const { error } = parsePercent(text);
+  if (!error) return { kind: "ok" };
+  if (error === PERCENT_REQUIRED_TEXT && !attempted) return { kind: "pending" };
+  return { kind: "error", message: error };
+}
+
+/** The id of a percent field of the month page (the key is «teacher|type»): a link target for the focus. */
+export function percentInputId(key: string): string {
+  return `payroll-percent-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+}
+
+/** The teachers of the scope that still need a percent (a kind of lessons with none, or a wrong one). */
+export function teachersNeedingPercent(scope: PayrollMonthTeacher[], typed: Record<string, string>): PayrollMonthTeacher[] {
+  const ids = new Set(percentProblems(scope, typed).map((problem) => problem.teacherId));
+  return scope.filter((teacher) => ids.has(teacher.teacher_id));
+}
+
+export interface CalculationGate {
+  /** «Рассчитать» may run: there is somebody to calculate and every one of them has a percent. */
+  ready: boolean;
+  /** Teachers of the scope that still need a percent. */
+  missing: number;
+  total: number;
+  /** Why the button is off («Чтобы рассчитать всех, укажите процент: осталось 2 из 5 преподавателей»); null when it is on. */
+  text: string | null;
+}
+
+/**
+ * «Рассчитать всех» / «Рассчитать выбранных» wait until every teacher of their scope has a percent, and say how many are left.
+ * The button is never pressed into a refusal: nothing red is shown for a state the screen already prevents.
+ */
+export function calculationGate(scope: PayrollMonthTeacher[], typed: Record<string, string>, subject: "all" | "selected"): CalculationGate {
+  const missing = teachersNeedingPercent(scope, typed).length;
+  const total = scope.length;
+  const ready = total > 0 && missing === 0;
+  let text: string | null = null;
+  if (missing > 0 && total === 1) {
+    text = `Чтобы рассчитать${subject === "all" ? "" : " выбранного"}, укажите процент преподавателя`;
+  } else if (missing > 0) {
+    const people = pluralRu(total, ["преподавателя", "преподавателей", "преподавателей"]);
+    text = `Чтобы рассчитать ${subject === "all" ? "всех" : "выбранных"}, укажите процент: осталось ${missing} из ${total} ${people}`;
+  }
+  return { ready, missing, total, text };
 }
 
 export type StatusChipTone = "none" | "saved" | "changed";

@@ -37,8 +37,8 @@ test("#102: the word «предварительн…» stays only where it means
   assert.deepEqual(hits, [
     "src/app/admin/students/new/page.tsx",        // «Предварительная оценка уровня (со слов)» in the student questionnaire
     "src/app/teacher/exams/[id]/report/page.tsx", // fallback summary of an EXAM report, not a diagnostic
-    "src/components/payroll/payroll-month-page.tsx", // «расчёт предварительный» of an unfinished month
-    "src/components/payroll/payroll-sheet-page.tsx",
+    "src/components/payroll/month-status.tsx",    // «расчёт предварительный» of an unfinished month (the line over the payroll)
+    "src/lib/payroll.ts",                         // the text of that line (`monthStatusText`)
   ]);
   for (const f of sources) {
     const text = fs.readFileSync(f, "utf8");

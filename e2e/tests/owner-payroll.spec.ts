@@ -3,8 +3,8 @@ import { Org, runLesson } from "../support/api";
 import { businessNow, payrollLine } from "../support/time";
 import { groupedDigits, moneyPattern, toast } from "../support/ui";
 
-/** «ИТОГО» and the sum are two elements: no space between them in the text content. */
-const total = (amount: number) => new RegExp(`ИТОГО\\s*${moneyPattern(amount)}\\s*сум`);
+/** «Итого» and the sum are two elements: no space between them in the text content. */
+const total = (amount: number) => new RegExp(`Итого\\s*${moneyPattern(amount)}\\s*сум`);
 
 /**
  * Owner: «Зарплата». Percent per teacher and kind of lessons -> «Рассчитать всех» -> the sheet total equals the
@@ -61,9 +61,25 @@ test("percent -> «Рассчитать всех» -> total by the formula -> sa
   await expect(teachers).toContainText("Групповой");
   await expect(teachers).toContainText("Индивидуальный");
 
+  // --- UX-1 C: one calm line over the table (the month is still going), the explanation in a dialog
+  await expect(page.getByRole("status").filter({ hasText: "ещё идёт — расчёт предварительный" })).toBeVisible();
+  await page.getByRole("button", { name: "Как считается" }).click();
+  const how = page.getByRole("dialog", { name: "Как считается зарплата" });
+  await expect(how).toContainText("Оплата в месяц × % ÷ 12 × засчитанные уроки");
+  await how.getByRole("button", { name: "Понятно" }).click();
+  await expect(how).toHaveCount(0);
+
+  // --- guided setup: no percent yet -> a calm hint (no red error), «Рассчитать всех» waits and says how many are left
+  await expect(teachers).toContainText("Укажите процент — это делается один раз");
+  await expect(teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ })).toHaveAttribute("aria-invalid", "false");
+  await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeDisabled();
+  await expect(page.getByText("Чтобы рассчитать всех, укажите процент: осталось 2 из 2 преподавателей")).toBeVisible();
+
   // --- percents and the calculation of everybody
   await teachers.getByRole("textbox", { name: /Процент для .*Групповой, Группа/ }).fill("62.5");
+  await expect(page.getByText("осталось 1 из 2 преподавателей")).toBeVisible();
   await teachers.getByRole("textbox", { name: /Процент для .*Индивидуальный, Индивидуально/ }).fill("40");
+  await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeEnabled();
   await page.getByRole("button", { name: "Рассчитать всех" }).click();
   const preview = page.getByRole("region", { name: "Предпросмотр расчёта" });
   await expect(preview).toBeVisible();

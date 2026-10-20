@@ -40,7 +40,7 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { PayrollHowItWorks } from "./how-it-works";
+import { PayrollMonthStatus } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
 import { BackLink, ConflictBanner, DiffBanner, MissingPercentBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
 
@@ -362,11 +362,11 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
             </div>
           ) : (
             <div role="tabpanel" className="min-w-0 space-y-4">
-              {(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) && (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
-                  Месяц ещё не закончился: расчёт предварительный, уроки до конца месяца ещё могут появиться.
-                </p>
-              )}
+              <PayrollMonthStatus
+                month={sheet.month}
+                open={sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())}
+                divisor={sheet.divisor_default}
+              />
               {conflict && (
                 <ConflictBanner
                   message={REVISION_CONFLICT_TEXT}
@@ -419,7 +419,6 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
-              <PayrollHowItWorks divisor={sheet.divisor_default} />
               <PercentEditor sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
               <PayrollSheetTable sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
               <SaveBar
