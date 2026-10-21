@@ -99,7 +99,7 @@ test("teacher area: no ALL CAPS labels either (only avatar initials; the PIN dig
 test("the group roster and the Select label use the style of table-chrome: semibold 13 px slate-500", () => {
   const table = read("src/components/groups/group-student-table.tsx");
   assert.match(table, /px-4 py-3\.5 text-\[13px\] font-semibold text-slate-500 cursor-pointer/);
-  for (const label of ["Ученик", "ID Ученика", "Класс", "Телефон", "Дата зачисления"]) assert.ok(table.includes(`label="${label}"`), label);
+  for (const label of ["Ученик", "ID ученика", "Класс", "Телефон", "Дата зачисления"]) assert.ok(table.includes(`label="${label}"`), label);
   assert.match(read("src/components/ui/select.tsx"), /block text-\[13px\] font-semibold text-slate-500 mb-1\.5/);
   assert.match(read("src/components/students/students-list-view.tsx"), /border-b border-slate-100 bg-slate-50\/80 text-\[13px\] font-semibold text-slate-500/);
 });

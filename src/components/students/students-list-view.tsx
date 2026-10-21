@@ -427,7 +427,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/80 text-[13px] font-semibold text-slate-500">
                   <th className="whitespace-nowrap px-4 py-3.5 pl-6 align-middle font-semibold">Ученик</th>
-                  <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">ID Ученика</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">ID ученика</th>
                   <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">Класс</th>
                   <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
                   <th className="whitespace-nowrap px-4 py-3.5 pr-6 text-center align-middle font-semibold">Телефон</th>
