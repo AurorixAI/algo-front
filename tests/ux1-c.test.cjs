@@ -32,9 +32,12 @@ const G = require(path.join(root, "src/lib/group-price.ts"));
 const plain = (text) => text.replace(/[  ]/g, " ");
 const textOf = (html) => plain(html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
 
+/** `types`: [lesson type, the rate in force or null]; a type with no rate is in `missing_rates`. */
 const teacher = (id, types, name = id) => ({
   teacher_id: id, teacher_name: name, lessons_count: 5,
-  lesson_types: types.map(([lesson_type, suggested_percent]) => ({ lesson_type, groups: 1, suggested_percent })),
+  lesson_types: types.map(([lesson_type]) => ({ lesson_type, groups: 1 })),
+  rates: Object.fromEntries(types.filter(([, percent]) => percent !== null).map(([type, percent]) => [type, percent])),
+  missing_rates: types.filter(([, percent]) => percent === null).map(([type]) => type),
   sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 },
 });
 
@@ -49,21 +52,25 @@ test("the month status: the name of the month in the nominative, only for an ope
   assert.equal(R.monthStatusText("2026-09", false), null);
 });
 
-test("PayrollMonthStatus: one line - status, «Как считается», «Делитель — в настройках»; no amber card, no accordion", () => {
-  const { PayrollMonthStatus } = require(path.join(root, "src/components/payroll/month-status.tsx"));
-  const open = renderToStaticMarkup(React.createElement(PayrollMonthStatus, { month: "2026-10", open: true, divisor: 12 }));
+test("PayrollMonthSummary: one line - «К выплате за …: N сум · сохранено X из Y»; «Как считается» and «Делитель» sit in the «⋯» menu, not next to the text", () => {
+  const { PayrollMonthSummary } = require(path.join(root, "src/components/payroll/month-status.tsx"));
+  const teachers = [{ sheet: { total_amount: 900000 } }, { sheet: { total_amount: 510415 } }, { sheet: null }];
+  const summary = R.monthSummary("2026-10", teachers);
+  const open = renderToStaticMarkup(React.createElement(PayrollMonthSummary, { summary, month: "2026-10", open: true }));
   const text = textOf(open);
+  assert.ok(text.includes("К выплате за октябрь: 1 410 415 сум · сохранено 2 из 3"));
   assert.ok(text.includes("Октябрь ещё идёт — расчёт предварительный"));
-  assert.ok(text.includes("Как считается"));
-  assert.ok(text.includes("Делитель — в настройках"));
-  assert.match(open, /href="\/owner\/settings\?section=payroll"/);
+  assert.doesNotMatch(text, /Как считается|Делитель/); // no floating links
   assert.doesNotMatch(open, /<details|bg-amber-50\b|border-amber/); // no card, no accordion
-  assert.doesNotMatch(text, /Месяц ещё не закончился|Оплата в месяц × %/);
-  // the explanation is a dialog, closed until asked for
-  assert.doesNotMatch(text, /Пример\./);
-  const closed = textOf(renderToStaticMarkup(React.createElement(PayrollMonthStatus, { month: "2026-09", open: false, divisor: 12 })));
+  const closed = textOf(renderToStaticMarkup(React.createElement(PayrollMonthSummary, { summary: R.monthSummary("2026-09", [{ sheet: null }]), month: "2026-09", open: false })));
   assert.doesNotMatch(closed, /ещё идёт/);
-  assert.ok(closed.includes("Как считается") && closed.includes("Делитель — в настройках"));
+  assert.ok(closed.includes("К выплате за сентябрь: — · сохранено 0 из 1"));
+  // the menu: the explanation in a dialog (closed until asked for) and the divisor in the settings
+  const menu = read("src/components/payroll/month-status.tsx");
+  assert.match(menu, /label: "Как считается"/);
+  assert.match(menu, /label: "Делитель в настройках"[\s\S]*?\/owner\/settings\?section=payroll/);
+  assert.match(menu, /<PayrollHowItWorksDialog open=\{helpOpen\}/);
+  for (const page of ["payroll-month-page.tsx", "payroll-sheet-page.tsx"]) assert.match(read(`src/components/payroll/${page}`), /<PayrollPageMenu divisor=/, page);
 });
 
 test("«Как считается»: the formula (with the centre's name of the price), the rules and the example in one dialog body", () => {
@@ -80,115 +87,70 @@ test("«Как считается»: the formula (with the centre's name of the 
 
 // ---- 2. guided setup of the percents --------------------------------------------------------------------------------
 
-test("a percent that is not set is a calm hint until the owner tries to calculate; a wrong value is an error at once", () => {
-  assert.deepEqual(R.percentFieldState("", false), { kind: "pending" });
-  assert.deepEqual(R.percentFieldState("  ", false), { kind: "pending" });
-  assert.deepEqual(R.percentFieldState("", true), { kind: "error", message: R.PERCENT_REQUIRED_TEXT });
-  assert.deepEqual(R.percentFieldState("45", false), { kind: "ok" });
-  assert.deepEqual(R.percentFieldState("33,5", true), { kind: "ok" });
-  assert.deepEqual(R.percentFieldState("101", false), { kind: "error", message: R.PERCENT_MAX_TEXT });
-  assert.deepEqual(R.percentFieldState(".", false), { kind: "error", message: R.PERCENT_FORMAT_TEXT });
-  assert.equal(R.PERCENT_HINT_TEXT, "Укажите процент — это делается один раз");
-  assert.equal(R.percentInputId(R.percentKey("t1", "group")), "payroll-percent-t1_group");
-});
-
-test("the gate of «Рассчитать»: off until every teacher of the scope has a percent, with the count of those left", () => {
+test("the gate of «Рассчитать всех»: off until every teacher has a rate, one short hint with the count of those left", () => {
   const teachers = [teacher("t1", [["group", "45"], ["pair", null]]), teacher("t2", [["individual", "60"]]), teacher("t3", [["group", null]])];
-  assert.deepEqual(R.teachersNeedingPercent(teachers, {}).map((t) => t.teacher_id), ["t1", "t3"]);
-  const all = R.calculationGate(teachers, {}, "all");
+  const all = R.calculationGate(teachers);
   assert.equal(all.ready, false);
   assert.deepEqual([all.missing, all.total], [2, 3]);
-  assert.equal(all.text, "Не указан процент у 2 из 3 преподавателей — укажите его, чтобы рассчитать всех");
-  // typing the percents opens the gate, and the text goes
-  const typed = { [R.percentKey("t1", "pair")]: "40", [R.percentKey("t3", "group")]: "50" };
-  const ready = R.calculationGate(teachers, typed, "all");
+  assert.equal(all.text, "Не задана ставка у 2 преподавателей");
+  // the rates are set in «Сотрудники»: the gate opens when none is missing, and the text goes
+  const ready = R.calculationGate([teachers[1]]);
   assert.deepEqual([ready.ready, ready.missing, ready.text], [true, 0, null]);
-  assert.equal(R.buildCalculateBody(teachers, typed, new Set()) !== null, true); // the body the gate lets through exists
-  // a wrong percent keeps it shut
-  assert.equal(R.calculationGate(teachers, { ...typed, [R.percentKey("t3", "group")]: "101" }, "all").ready, false);
-  // the selected only: the others' missing percents do not matter
-  const chosen = R.calculationGate(teachers.filter((t) => t.teacher_id === "t2"), {}, "selected");
-  assert.deepEqual([chosen.ready, chosen.text], [true, null]);
-  assert.equal(R.calculationGate(teachers.filter((t) => t.teacher_id !== "t2"), {}, "selected").text,
-    "Не указан процент ни у одного из 2 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
-  // one teacher, nobody
-  assert.equal(R.calculationGate([teachers[0]], {}, "all").text, "Не указан процент у преподавателя — укажите его, чтобы рассчитать");
-  assert.equal(R.calculationGate([teachers[0]], {}, "selected").text, "Не указан процент у выбранного преподавателя — укажите его, чтобы рассчитать");
-  assert.deepEqual(R.calculationGate([], {}, "all"), { ready: false, missing: 0, total: 0, text: null });
+  assert.equal(R.calculationGate([teachers[0]]).text, "Не задана ставка у 1 преподавателя");
+  assert.deepEqual(R.calculationGate([]), { ready: false, missing: 0, total: 0, text: null });
   // the number of teachers declines
   const many = Array.from({ length: 21 }, (_, i) => teacher(`m${i}`, [["group", null]]));
-  assert.equal(R.calculationGate(many, {}, "all").text, "Не указан процент ни у одного из 21 преподавателя — укажите его, чтобы рассчитать всех");
+  assert.equal(R.calculationGate(many).text, "Не задана ставка у 21 преподавателя");
+  // the rate cell of a row says the same: «Не задана · Указать» (the link is the row's), a partial one names the type
+  assert.deepEqual(R.monthRateSummary(teachers[2]), { text: "Не задана", missing: true });
+  assert.deepEqual(R.monthRateSummary(teachers[0]), { text: "Группа 45% · Парный не задана", missing: true });
+  assert.deepEqual(R.monthRateSummary(teachers[1]), { text: "Индивидуально 60%", missing: false });
+  assert.deepEqual(R.monthRateSummary(teacher("t4", [["individual", "40"], ["group", "33.5"]])), { text: "Группа 33,5% · Индивидуально 40%", missing: false });
+  assert.deepEqual(R.monthRateSummary({ rates: {}, missing_rates: [], lesson_types: [] }), { text: "—", missing: false });
 });
 
-test("the row of a teacher: the calm hint is not red; after an attempt the field shows the error next to it", () => {
-  const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
-  const t = teacher("t1", [["group", null]], "Иванов Пётр");
-  const render = (props) => renderToStaticMarkup(React.createElement(TeacherRow, {
-    teacher: t, typed: {}, showErrors: false, selected: false, calculating: false,
-    onToggle: () => {}, onType: () => {}, onCalculate: () => {}, onOpen: () => {}, onExport: () => {}, ...props,
-  }));
-  const calm = render({});
-  assert.ok(textOf(calm).includes("Укажите процент — это делается один раз"));
-  assert.doesNotMatch(calm, /rose-/); // nothing is red
-  assert.match(calm, /aria-invalid="false"/);
-  const tried = render({ showErrors: true });
-  assert.doesNotMatch(textOf(tried), /это делается один раз/);
-  assert.match(tried, /<p id="payroll-percent-t1_group-error"[^>]*text-rose-700[^>]*>Укажите процент<\/p>/);
-  assert.match(tried, /aria-invalid="true"/);
-  // typed: no hint
-  const typed = render({ typed: { [R.percentKey("t1", "group")]: "50" } });
-  assert.doesNotMatch(textOf(typed), /это делается один раз|Укажите процент/);
-  // two kinds, one of them set: one hint for the row, not one per field
-  const two = render({ teacher: teacher("t1", [["group", "45"], ["pair", null]], "Иванов Пётр") });
-  assert.equal((textOf(two).match(/это делается один раз/g) ?? []).length, 1);
-});
-
-test("the month page wires the gate: no toast for a state the screen prevents, errors only after an action", () => {
+test("the month page wires the gate: no toast for a state the screen prevents, the rate is set in «Сотрудниках»", () => {
   const page = read("src/components/payroll/payroll-month-page.tsx");
-  assert.match(page, /calculationGate\(teachers, typed, "all"\)/);
-  assert.match(page, /disabled=\{!overview \|\| teachers\.length === 0 \|\| calculating \|\| !allGate\.ready\}/);
+  assert.match(page, /calculationGate\(teachers\)/);
+  assert.match(page, /disabled=\{!overview \|\| teachers\.length === 0 \|\| busy \|\| !gate\.ready\}/);
   assert.match(page, /id="payroll-calculate-hint"/);
-  assert.match(page, /aria-describedby=\{allGate\.text \? "payroll-calculate-hint" : undefined\}/);
-  // the old red toast and the global flag are gone
-  assert.doesNotMatch(page, /Укажите процент для каждого типа занятий — без него расчёт не запускается/);
-  assert.doesNotMatch(page, /setShowErrors|calculateButtonLabel/);
-  // a refused row's «Рассчитать» marks its teacher and focuses the field
-  assert.match(page, /markAttempted\(problems\.map\(\(problem\) => problem\.teacherId\)\)/);
-  assert.match(page, /document\.getElementById\(percentInputId\(/);
-  assert.match(page, /showErrors=\{attempted\.has\(teacher\.teacher_id\)\}/);
-  // a server's PERCENT_REQUIRED after an action is still shown (a real answer to a real action)
-  assert.match(page, /isPercentRequired\(cause as PayrollErrorLike\)\) markAttempted\(scope\.map/);
+  assert.match(page, /aria-describedby=\{gate\.text \? "payroll-calculate-hint" : undefined\}/);
+  assert.match(page, /Указать в «Сотрудниках»/);
+  // no percent is typed, kept or sent from this page any more
+  assert.doesNotMatch(page, /percentKey|monthPercentText|percentProblems|buildCalculateBody|markAttempted|PercentEditor|sanitizePercentTyping/);
+  // a server's refusal for want of a rate (a real answer to a real action) refreshes the table, whose rates are what the buttons wait for
+  assert.match(page, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
+  assert.match(page, /\? \{ teacher_ids: ids \} : \{\}/); // only the teachers are sent
 });
 
 // ---- 3. the bar over the selected -----------------------------------------------------------------------------------
 
-test("the selection checkboxes have a real bulk action: a bar with the count, «Рассчитать выбранных», «Снять выбор»", () => {
+test("no checkboxes without an action: a row has one button by its status; «Рассчитать всех» is the one main button of the page", () => {
   const page = read("src/components/payroll/payroll-month-page.tsx");
-  assert.match(page, /selected\.size > 0 && \(\s*<div\s+role="region"\s+aria-label="Действия над выбранными"/);
-  assert.match(page, /Выбрано: \{selected\.size\} из \{teachers\.length\}/);
-  assert.match(page, /onClick=\{\(\) => void calculate\(selected\)\}/);
-  assert.match(page, /disabled=\{calculating \|\| !selectedGate\.ready\}/);
-  assert.match(page, /\}\s*Рассчитать выбранных\s*<\/button>/);
-  assert.match(page, />\s*Снять выбор\s*</);
-  // the top button always means everybody (one main button: it steps back while a bar is on screen)
-  assert.match(page, /onClick=\{\(\) => void calculate\(new Set\(\)\)\}/);
+  assert.doesNotMatch(page, /type="checkbox"|Рассчитать выбранных|Снять выбор|Действия над выбранными|selectedGate/);
+  assert.match(page, /onClick=\{\(\) => void calculate\(\[\]\)\}/);
+  assert.match(page, /rowAction\(teacher\.sheet\)/);
+  assert.match(page, /const run = action\.kind === "open" \? onOpen : onCalculate;/);
   // the API has no Excel of several chosen sheets (one sheet or the whole month): no such button
   assert.doesNotMatch(page, /Скачать Excel выбранных/);
-  // what the old label did is kept: the selected calculate with teacher_ids
-  const teachers = [teacher("t1", [["group", "45"]]), teacher("t2", [["individual", "60"]])];
-  assert.deepEqual(R.buildCalculateBody(teachers, {}, new Set(["t2"])),
-    { percents: [{ teacher_id: "t2", lesson_type: "individual", percent: "60" }], teacher_ids: ["t2"] });
+  // the table has the shared header: identity left, rate and status centred, the money right, the action column without a title
+  assert.match(page, /labels=\{\["Преподаватель", "Ставка", "К выплате", "Статус", ""\]\}/);
+  assert.match(page, /aligns=\{\["left", "center", "right", "center", "right"\]\}/);
+  // what the old label did is kept: the teachers to calculate travel as teacher_ids
+  assert.deepEqual(R.rowAction(null), { kind: "calculate", label: "Рассчитать" });
+  assert.deepEqual(R.rowAction({ stale: false }), { kind: "open", label: "Открыть" });
+  assert.deepEqual(R.rowAction({ stale: true }), { kind: "recalculate", label: "Пересчитать" });
 });
 
 // ---- 4. sentence-case headers ---------------------------------------------------------------------------------------
 
 test("the payroll pages have no ALL CAPS headers: no `uppercase`, «Итого» instead of «ИТОГО»", () => {
-  for (const file of ["payroll-month-page.tsx", "payroll-sheet-page.tsx", "sheet-table.tsx", "sheet-controls.tsx", "month-status.tsx", "how-it-works.tsx"]) {
+  for (const file of ["payroll-month-page.tsx", "payroll-sheet-page.tsx", "sheet-table.tsx", "sheet-controls.tsx", "month-status.tsx", "how-it-works.tsx", "sheet-summary.tsx", "rate-dialog.tsx"]) {
     const text = read(`src/components/payroll/${file}`);
     assert.doesNotMatch(text, /\buppercase\b|tracking-wide|tracking-wider/, file);
     assert.doesNotMatch(text, /ИТОГО/, file);
   }
-  assert.match(read("src/components/payroll/sheet-table.tsx"), /<span className="text-sm font-semibold">Итого<\/span>/);
+  assert.match(read("src/components/payroll/sheet-table.tsx"), /Итого по группе/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 /);
 });
 

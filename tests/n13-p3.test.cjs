@@ -324,29 +324,33 @@ function month() {
     month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, divisor: 12, lessons_without_teacher: 0,
     teachers: [
       { teacher_id: "t1", teacher_name: "Абдуллаев", lessons_count: 14,
-        lesson_types: [{ lesson_type: "pair", groups: 1, suggested_percent: null }, { lesson_type: "group", groups: 2, suggested_percent: "45" }], sheet: null,
+        lesson_types: [{ lesson_type: "pair", groups: 1 }, { lesson_type: "group", groups: 2 }], rates: { group: "45" }, missing_rates: ["pair"], sheet: null,
         warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } },
       { teacher_id: "t2", teacher_name: "Зайцев", lessons_count: 9,
-        lesson_types: [{ lesson_type: "individual", groups: 3, suggested_percent: "60" }],
+        lesson_types: [{ lesson_type: "individual", groups: 3 }], rates: { individual: "60" }, missing_rates: [],
         sheet: { id: "s", revision: 2, total_amount: 900000, stale: false, updated_at: "2026-10-02T08:00:00" },
         warnings: { open_lessons: 2, pending_excused: 3, no_fee: 1, unpaid: 5 } },
     ],
   };
 }
 
-test("warnings are counts: the texts and the links are the screen's, a zero shows nothing", () => {
-  const views = (counts) => R.warningViews(counts);
+test("warnings are counts: one unit each (lessons, visits, students), the links lead where it is fixed, a zero shows nothing", () => {
+  const views = (counts, options) => R.warningViews(counts, options);
   assert.deepEqual(views({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }), []);
   assert.deepEqual(views({ open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }), []);
   const all = views({ open_lessons: 1, pending_excused: 2, no_fee: 4, unpaid: 5 });
   assert.deepEqual(all.map((v) => [v.key, v.text, v.href, v.tone]), [
     ["open_lessons", "1 незакрытый урок", "/owner/attendance?tab=open", "warning"],
     ["pending_excused", "2 уважительные ждут решения", "/owner/attendance?tab=excuses", "warning"],
-    ["no_fee", "не задана цена: 4", "/owner/groups?price=none", "warning"],
-    ["unpaid", "5 уроков не оплачено", "/owner/payments?bucket=due", "info"],
+    ["no_fee", "у 4 учеников нет цены", "/owner/payments/prices", "warning"],
+    ["unpaid", "5 посещений без оплаты", "/owner/payments?bucket=due", "info"],
   ]);
-  assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 0, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|2 урока не оплачено");
-  assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 0, unpaid: 1 }).map((v) => v.text).join("|"), "7 незакрытых уроков|5 уважительных ждут решения|1 урок не оплачен");
+  assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 1, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|у 1 ученика нет цены|2 посещения без оплаты");
+  assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 21, unpaid: 1 }).map((v) => v.text).join("|"), "7 незакрытых уроков|5 уважительных ждут решения|у 21 ученика нет цены|1 посещение без оплаты");
+  // «140 посещений без оплаты», not «140 уроков не оплачено»: a lesson is held once, a visit is a student at it
+  assert.equal(views({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 140 })[0].text, "140 посещений без оплаты");
+  // a sheet that knows the one group it lacks a price in leads to that group's row
+  assert.equal(views({ open_lessons: 0, pending_excused: 0, no_fee: 1, unpaid: 0 }, { noFeeHref: "/owner/payments/prices?group=g1" })[0].href, "/owner/payments/prices?group=g1");
   // the same words on a sheet (its counters are the same four)
   assert.equal(views(makeSheet().warnings).length, 3);
 });
@@ -359,54 +363,6 @@ test("lessons without a teacher: a month-level warning, nothing at 0", () => {
   assert.equal(R.lessonsWithoutTeacherText(21), "21 урок без преподавателя — не войдёт в расчёт");
 });
 
-test("status of a teacher: not calculated / saved · revision · sum / data changed (stale)", () => {
-  assert.deepEqual(R.sheetStatus(null), { tone: "none", label: "Не рассчитано", detail: "" });
-  const saved = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: false });
-  assert.equal(saved.tone, "saved");
-  assert.equal(plain(saved.label), "Сохранено · редакция 3 · 1 250 000 сум");
-  const changed = R.sheetStatus({ revision: 3, total_amount: 1250000, stale: true });
-  assert.equal(changed.tone, "changed");
-  assert.equal(changed.label, "Данные изменились");
-  assert.equal(plain(changed.detail), "редакция 3 · 1 250 000 сум");
-});
-
-test("calculate: every type needs a percent (the suggestion or what is typed), comma becomes a dot", () => {
-  const { teachers } = month();
-  const all = new Set();
-  // «Парный» of Абдуллаев has no suggestion (null): no calculation
-  assert.equal(R.buildCalculateBody(teachers, {}, all), null);
-  assert.deepEqual(R.percentProblems(teachers, {}).map((p) => [p.teacherId, p.lessonType]), [["t1", "pair"]]);
-  const typed = { [R.percentKey("t1", "pair")]: "40,5" };
-  const body = R.buildCalculateBody(teachers, typed, all);
-  // types in the order of the forms; calculate needs teacher_id on every item
-  assert.deepEqual(body, {
-    percents: [
-      { teacher_id: "t1", lesson_type: "group", percent: "45" },
-      { teacher_id: "t1", lesson_type: "pair", percent: "40.5" },
-      { teacher_id: "t2", lesson_type: "individual", percent: "60" },
-    ],
-  });
-  assert.equal("teacher_ids" in body, false); // everybody: no list
-  assert.equal(R.monthPercentText({ [R.percentKey("t1", "group")]: "50" }, teachers[0], "group"), "50");
-  assert.equal(R.monthPercentText({}, teachers[0], "group"), "45");
-  assert.equal(R.monthPercentText({}, teachers[0], "pair"), "");
-  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "101" }, all), null);
-  assert.equal(R.buildCalculateBody(teachers, { ...typed, [R.percentKey("t2", "individual")]: "" }, all), null);
-  assert.equal(R.buildCalculateBody([], {}, all), null);
-  assert.deepEqual(R.orderedTypes(teachers[0]).map((t) => t.lesson_type), ["group", "pair"]);
-});
-
-test("calculate for the selected only: their percents and teacher_ids; others' missing percents do not block", () => {
-  const { teachers } = month();
-  const body = R.buildCalculateBody(teachers, {}, new Set(["t2"]));
-  assert.deepEqual(body, { percents: [{ teacher_id: "t2", lesson_type: "individual", percent: "60" }], teacher_ids: ["t2"] });
-  assert.equal(R.buildCalculateBody(teachers, {}, new Set(["t1"])), null); // t1 is incomplete
-  assert.deepEqual(R.calculationScope(teachers, new Set(["t2"])).map((t) => t.teacher_id), ["t2"]);
-  assert.deepEqual(R.calculationScope(teachers, new Set()).map((t) => t.teacher_id), ["t1", "t2"]);
-  assert.equal(R.teacherLabel(null), "Преподаватель");
-  assert.equal(R.teacherLabel("  Иванов "), "Иванов");
-});
-
 // ---- 8. editing an open sheet -----------------------------------------------------------------------------------
 
 test("an untouched line shows the server's amount, an edited one the formula's preview", () => {
@@ -414,106 +370,30 @@ test("an untouched line shows the server's amount, an edited one the formula's p
   const clean = R.buildLineViews(sheet, R.EMPTY_EDITS);
   assert.deepEqual(clean.map((v) => v.amount), [37500, 0, 120000, 133333]);
   assert.deepEqual(clean.map((v) => v.edited), [false, false, false, false]);
-
-  // fee 450 000 -> 600 000 for the first student: 600000 x 50 % / 12 x 2 = 50 000
-  let edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000);
-  let views = R.buildLineViews(sheet, edits);
-  assert.equal(views[0].amount, 50000);
-  assert.equal(views[0].fee, 600000);
-  assert.equal(views[0].feeOverridden, true);
-  assert.equal(views[2].amount, 120000);
-  // include unpaid: 3 lessons now
-  edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
-  views = R.buildLineViews(sheet, edits);
+  // include unpaid: 3 lessons now (450 000 x 50 % / 12 x 3)
+  const edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
+  const views = R.buildLineViews(sheet, edits);
   assert.equal(views[0].amount, 56250);
   assert.equal(views[0].include, true);
-  // a fee for the student who had none: 3 counted lessons -> 400000 x 50 % / 12 x 3 = 50 000
-  edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000);
-  assert.equal(R.buildLineViews(sheet, edits)[1].amount, 50000);
-  // a package line keeps its own divisors when the fee changes: 1 600 000 x 50 % x (2/8 + 1/12) = 266 666.67
-  edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m4", 1600000);
-  assert.equal(R.buildLineViews(sheet, edits)[3].amount, 266667);
-});
-
-test("the fee field: a number sets, an empty field returns to the membership's fee, a no-change is no edit", () => {
-  const overridden = line({ fee_overridden: true, monthly_fee: 500000, source_fee: 450000, amount: 41667 });
-  const sheet = sheetOf({ lines: [overridden, line({ membership_id: "m2", student_name: "Б", monthly_fee: null, source_fee: null, fee_overridden: false, amount: 0, counted: 3 })] });
-  // typing the sheet's own fee back: nothing changes
-  assert.equal(R.editsDirty(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000)), false);
-  // emptying an overridden line = back to the membership's fee: an edit, with null and the source fee in force
-  const reset = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", null);
-  assert.deepEqual(reset.fees, { m1: null });
-  const view = R.buildLineViews(sheet, reset)[0];
-  assert.equal(view.fee, 450000);
-  assert.equal(view.feeOverridden, false);
-  assert.equal(view.amount, 37500);
-  // typing the membership's own fee is the same reset
-  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 450000).fees, { m1: null });
-  // a reset of a line that is not overridden changes nothing
-  const plain1 = sheetOf();
-  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", null)), false);
-  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 450000)), false);
-  assert.equal(R.editsDirty(plain1, R.setFeeEdit(R.EMPTY_EDITS, plain1, "m2", null)), false); // no fee at all: nothing to return to
-  // a free student (0) is a fee, not an empty field
-  const free = R.setFeeEdit(R.EMPTY_EDITS, plain1, "m1", 0);
-  assert.deepEqual(free.fees, { m1: 0 });
-  assert.equal(R.buildLineViews(plain1, free)[0].amount, 0);
-  assert.deepEqual(R.buildLineOverrides(plain1, free), [{ membership_id: "m1", monthly_fee: 0 }]);
-});
-
-test("lines without a fee or a percent say so on the screen", () => {
-  const sheet = sheetOf({ lines: [line({ membership_id: "m2", monthly_fee: null, source_fee: null, counted: 3, amount: 0 }), line({ membership_id: "m3", percent: null, amount: 0 })] });
-  const [noFee, noPercent] = R.buildLineViews(sheet, R.EMPTY_EDITS);
-  assert.deepEqual(R.lineNotes(noFee), ["Не задана цена группы"]);
-  assert.deepEqual(R.lineNotes(noPercent), ["Не указан процент преподавателя"]);
-  // typing the fee makes the note go away at once
-  assert.deepEqual(R.lineNotes(R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m2", 400000))[0]), []);
-  // a line with no lessons needs no fee
-  const idle = R.buildLineViews(sheetOf({ lines: [line({ monthly_fee: null, source_fee: null, counted: 0, unpaid: 0, marks: [absent("2026-09-01")], amount: 0 })] }), R.EMPTY_EDITS)[0];
-  assert.deepEqual(R.lineNotes(idle), []);
-});
-
-test("a percent edit changes only the lines of its lesson type", () => {
-  const sheet = sheetOf();
-  const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "individual", "30");
-  const views = R.buildLineViews(sheet, edits);
-  assert.equal(views[0].amount, 37500);        // «Группа» untouched
-  assert.equal(views[2].amount, 60000);        // 600000 x 30 % / 12 x 4
-  assert.equal(views[2].percent, "30");
-  assert.equal(R.percentFieldText(sheet, edits, "individual"), "30");
-  assert.equal(R.percentFieldText(sheet, edits, "group"), "50");
-  // typing the old value back is no edit
-  assert.equal(R.editsDirty(sheet, R.setPercentEdit(edits, sheet, "individual", "60")), false);
-  assert.equal(R.editsDirty(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "50,00")), false);
-  // a comma is fine
-  assert.equal(R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "33,5"))[0].percent, "33.5");
-  // a line that had no percent gets one from the field
-  const bare = sheetOf({ lines: [line({ percent: null, amount: 0 })], percents: {} });
-  assert.equal(R.buildLineViews(bare, R.setPercentEdit(R.EMPTY_EDITS, bare, "group", "50"))[0].amount, 37500);
-});
-
-test("a percent that is not a percent blocks saving and keeps the preview on the last good value", () => {
-  const sheet = sheetOf();
-  const emptied = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "");
-  assert.equal(R.editsDirty(sheet, emptied), true);
-  assert.match(R.editsProblem(sheet, emptied), /^Группа: укажите процент/);
-  assert.equal(R.buildLineViews(sheet, emptied)[0].amount, 37500);
-  assert.match(R.editsProblem(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "150")), /не может быть больше 100/);
-  assert.match(R.editsProblem(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "individual", "5,555")), /^Индивидуально:/);
-  assert.equal(R.editsProblem(sheet, R.EMPTY_EDITS), null);
-  assert.equal(R.editsProblem(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "40")), null);
+  assert.equal(views[0].edited, true);
+  assert.equal(views[2].amount, 120000);
+  // the rate is the line's (the server's): a package line keeps its own divisors
+  assert.equal(R.buildLineViews(sheet, R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m4", true))[3].amount, 133333); // nothing unpaid there: no change
+  // a sheet saved before UX-2 may carry a hand-set price: it still replaces the price of every lesson
+  const manual = sheetOf({ lines: [line({ fee_overridden: true, monthly_fee: 600000, source_fee: 450000, amount: 50000 })] });
+  assert.equal(R.buildLineViews(manual, R.setIncludeEdit(R.EMPTY_EDITS, manual, "m1", true))[0].amount, 75000); // 600 000 x 50 % / 12 x 3
+  assert.equal(R.accruedUnpaid(R.buildLineViews(sheet, edits)), 1);
+  assert.equal(R.accruedUnpaid(clean), 0);
 });
 
 test("edits drop themselves when they return to the saved value; a stranger's id is ignored", () => {
   const sheet = sheetOf();
-  let edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000);
-  assert.equal(R.editsDirty(sheet, edits), true);
-  edits = R.setFeeEdit(edits, sheet, "m1", 450000);
-  assert.equal(R.editsDirty(sheet, edits), false);
-  edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
-  assert.equal(R.editsDirty(sheet, R.setIncludeEdit(edits, sheet, "m1", false)), false);
-  assert.equal(R.setFeeEdit(R.EMPTY_EDITS, sheet, "nope", 1), R.EMPTY_EDITS);
+  let edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
+  assert.equal(R.editsDirty(edits), true);
+  edits = R.setIncludeEdit(edits, sheet, "m1", false);
+  assert.equal(R.editsDirty(edits), false);
   assert.equal(R.setIncludeEdit(R.EMPTY_EDITS, sheet, "nope", true), R.EMPTY_EDITS);
+  assert.deepEqual(Object.keys(R.EMPTY_EDITS), ["include"]); // UX-2: nothing else is edited on a sheet
 });
 
 test("blocks come from the server's groups (their date columns), students by name, sums follow the edits", () => {
@@ -536,9 +416,9 @@ test("blocks come from the server's groups (their date columns), students by nam
   assert.equal(R.markFor(first.lines[0].line, first.columns[0]).state, "not_in_group");
   // the total: the server's while clean, the sum of the lines once edited
   assert.equal(R.sheetTotal(sheet, views, R.EMPTY_EDITS), 290833);
-  const edits = R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000);
-  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, edits), edits), 303333);
-  assert.equal(R.buildBlocks(sheet, R.buildLineViews(sheet, edits))[0].amount, 50000);
+  const edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
+  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, edits), edits), 309583);
+  assert.equal(R.buildBlocks(sheet, R.buildLineViews(sheet, edits))[0].amount, 56250);
   // two lessons of a group in one day are two columns
   const twice = line({ marks: [counted("2026-09-01", 12), { ...counted("2026-09-01", 12), lesson_id: "other" }] });
   const doubled = sheetOf({ lines: [twice] });
@@ -547,58 +427,42 @@ test("blocks come from the server's groups (their date columns), students by nam
 
 // ---- 9. what goes to the server -----------------------------------------------------------------------------------
 
-test("save body: percents of every type of the sheet as {teacher_id, lesson_type, percent}, only the changed lines", () => {
+test("save body: only the lines whose «начислить» changed, a note, the revision and the fingerprint; no percent and no price", () => {
   const sheet = sheetOf();
-  assert.deepEqual(R.buildPercentsPayload(sheet, R.EMPTY_EDITS), [
-    { teacher_id: "t1", lesson_type: "group", percent: "50" },
-    { teacher_id: "t1", lesson_type: "pair", percent: "50" },
-    { teacher_id: "t1", lesson_type: "individual", percent: "60" },
-  ]);
-  let edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "33,5");
-  edits = R.setFeeEdit(edits, sheet, "m1", 500000);
-  edits = R.setIncludeEdit(edits, sheet, "m2", true);
+  const edits = R.setIncludeEdit(R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true), sheet, "m2", true);
   assert.deepEqual(R.buildLineOverrides(sheet, edits), [
-    { membership_id: "m1", monthly_fee: 500000 },
+    { membership_id: "m1", include_unpaid: true },
     { membership_id: "m2", include_unpaid: true },
   ]);
   const body = R.buildSaveBody(sheet, edits, "  после справки  ", null);
   assert.deepEqual(body, {
     month: "2026-09", teacher_id: "t1",
-    percents: [{ teacher_id: "t1", lesson_type: "group", percent: "33.5" }, { teacher_id: "t1", lesson_type: "pair", percent: "50" }, { teacher_id: "t1", lesson_type: "individual", percent: "60" }],
-    line_overrides: [{ membership_id: "m1", monthly_fee: 500000 }, { membership_id: "m2", include_unpaid: true }],
+    line_overrides: [{ membership_id: "m1", include_unpaid: true }, { membership_id: "m2", include_unpaid: true }],
     note: "после справки",
     expected_fingerprint: "abc", // the preview the owner is looking at
   });
+  assert.equal("percents" in body, false); // the rate is the server's (set in «Сотрудники»)
+  assert.equal(JSON.stringify(body).includes("monthly_fee"), false); // the price is not sent: the server rejects it
   // nothing edited, no note, no sheet yet: only the required fields, and no `revision` (the server answers 409 to one without a sheet)
-  assert.deepEqual(Object.keys(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", null)), ["month", "teacher_id", "percents", "expected_fingerprint"]);
+  assert.deepEqual(Object.keys(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", null)), ["month", "teacher_id", "expected_fingerprint"]);
   assert.equal("expected_fingerprint" in R.buildSaveBody({ ...sheet, source_fingerprint: "" }, R.EMPTY_EDITS, "", null), false);
   // a sheet that already exists travels with the revision the owner saw (required then)
   assert.equal(R.buildSaveBody(sheet, R.EMPTY_EDITS, "", 3).revision, 3);
-  // an emptied fee of an overridden line is sent as null: «back to the membership's fee», not left out
-  const overridden = sheetOf({ lines: [line({ fee_overridden: true, monthly_fee: 500000 })] });
-  assert.deepEqual(R.buildLineOverrides(overridden, R.setFeeEdit(R.EMPTY_EDITS, overridden, "m1", null)), [{ membership_id: "m1", monthly_fee: null }]);
   // the note is cut to 300 characters; blank is none
   assert.equal(R.cleanNote("x".repeat(400)).length, 300);
   assert.equal(R.cleanNote("   "), undefined);
 });
 
-test("patch body: the revision the owner saw, percents only when edited, «Пересчитать» is recalculate: true", () => {
+test("patch body: the revision the owner saw, «начислить» only when edited, «Пересчитать» is recalculate: true, no percents", () => {
   const sheet = sheetOf();
   assert.deepEqual(R.buildPatchBody(sheet, R.EMPTY_EDITS, ""), { revision: 3 });
   assert.deepEqual(R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true }), { revision: 3, recalculate: true });
-  const edits = R.setPercentEdit(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000), sheet, "individual", "70");
-  const body = R.buildPatchBody(sheet, edits, "правка");
+  const body = R.buildPatchBody(sheet, R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true), "правка");
   assert.equal(body.revision, 3);
   assert.equal(body.note, "правка");
-  assert.deepEqual(body.line_overrides, [{ membership_id: "m1", monthly_fee: 500000 }]);
-  assert.deepEqual(body.percents.map((p) => [p.lesson_type, p.percent]), [["group", "50"], ["pair", "50"], ["individual", "70"]]);
+  assert.deepEqual(body.line_overrides, [{ membership_id: "m1", include_unpaid: true }]);
+  assert.equal("percents" in body, false);
   assert.equal("recalculate" in body, false);
-});
-
-test("a percent that is not valid yet is not sent (the save is blocked before that)", () => {
-  const sheet = sheetOf();
-  const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "");
-  assert.deepEqual(R.buildPercentsPayload(sheet, edits).map((p) => p.lesson_type), ["pair", "individual"]);
 });
 
 // ---- 10. errors and files -------------------------------------------------------------------------------------------
@@ -610,10 +474,11 @@ test("errors: detail {code, message}: 403 is «Недостаточно прав
   assert.equal(R.isRevisionConflict({ status: 409 }), false); // branches on detail.code
   assert.equal(R.isRevisionConflict({ status: 500 }), false);
   assert.equal(R.isRevisionConflict(null), false);
-  assert.equal(R.isPercentRequired({ status: 422, code: "PERCENT_REQUIRED" }), true);
-  assert.equal(R.isPercentRequired({ status: 422, code: "MONTH_INVALID" }), false);
-  const percent = "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается";
-  assert.equal(R.payrollErrorText({ status: 422, code: "PERCENT_REQUIRED", message: percent }), percent);
+  assert.equal(R.isRateRequired({ status: 422, code: "RATE_REQUIRED" }), true);
+  assert.equal(R.isRateRequired({ status: 422, code: "PERCENT_REQUIRED" }), true);
+  assert.equal(R.isRateRequired({ status: 422, code: "MONTH_INVALID" }), false);
+  const rate = "Не задана ставка преподавателя: укажите её в «Сотрудниках»";
+  assert.equal(R.payrollErrorText({ status: 422, code: "RATE_REQUIRED", message: rate }), rate);
   assert.equal(R.payrollErrorText({ status: 422, code: "MONTH_INVALID", message: "Месяц указывается в формате ГГГГ-ММ" }), "Месяц указывается в формате ГГГГ-ММ");
   assert.equal(R.payrollErrorText({ status: 422, code: "NOTHING_TO_CHANGE", message: "Нечего менять" }), "Нечего менять");
   assert.match(R.payrollErrorText({ status: 404 }), /не найдена/);
@@ -643,79 +508,92 @@ test("file name: Content-Disposition (UTF-8 and quoted), else the fallback; no p
 
 // ---- 11. the sheet on the screen -------------------------------------------------------------------------------------
 
-test("the sheet table: the partner's layout, accessible names, sticky name column, print rules", () => {
+test("the sheet table: a block per group with its total, the price as text, the dates behind «По датам», nothing to type but «начислить»", () => {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
   const sheet = sheetOf();
-  const html = (edits = R.EMPTY_EDITS, editable = true) =>
-    renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits, editable, onEdits: () => {} }));
+  const html = (props = {}) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, ...props }));
+  const textOf = (markup) => plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
   const markup = html();
-  const text = plain(markup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Оплата в месяц", "Засчитано", "Не оплачено", "Начислено",
-    "01.09", "03.09", "08.09", "10.09", "Ждёт", "ожидает: 1", "Не задана цена группы", "Итого по группе", "Итого", "290 833 сум", "37 500 сум", "120 000 сум", "133 333 сум", "начислить"]) {
+  const text = textOf(markup);
+  for (const part of ["Алгебра 8А", "Группа", "Пн, Ср 17:00", "Индивидуально Сидоров", "Вт 18:00", "Пара: Али и Вали", "Парный", "Ученик", "Цена в месяц", "Засчитано", "Без оплаты", "Начислено",
+    "ожидает: 1", "нет цены", "задать", "Итого по группе", "37 500 сум", "120 000 сум", "133 333 сум", "450 000 сум", "начислить", "По датам"]) {
     assert.ok(text.includes(part), `the sheet shows «${part}»`);
   }
-  assert.match(markup, />Итого<\/span>/); // the sheet's total is not in capitals
-  assert.doesNotMatch(markup, /ИТОГО|uppercase/);
-  // accessible names of the editable cells
-  assert.match(markup, /aria-label="Оплата в месяц: Каримова Дилноза, Алгебра 8А"/);
+  // no percent column, no «Итого» bar at the bottom (the card on top has the total), no capitals
+  assert.doesNotMatch(markup, /<th[^>]*>\s*%\s*<\/th>/);
+  assert.doesNotMatch(markup, /ИТОГО|uppercase|payroll-total/);
+  // the dates are folded: no date columns, no legend, no marks
+  for (const part of ["01.09", "03.09", "Ждёт"]) assert.ok(!text.includes(part), `«${part}» is behind «По датам»`);
+  assert.doesNotMatch(markup, /aria-label="Обозначения"/);
+  assert.doesNotMatch(markup, /sticky left-0/);
+  // the only inputs are the «начислить» checkboxes; the price is not typed any more
+  const inputs = markup.match(/<input[^>]*>/g) || [];
+  assert.ok(inputs.length > 0 && inputs.every((tag) => /type="checkbox"/.test(tag)), "only checkboxes");
+  assert.doesNotMatch(markup, /placeholder=|изменена|aria-label="Оплата в месяц/);
   assert.match(markup, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
-  // the first column keeps its place on a phone; the table scrolls sideways inside its block, not the page
-  assert.match(markup, /sticky left-0/);
-  assert.match(markup, /overflow-x-auto/);
-  assert.match(markup, /print:overflow-visible/);
-  assert.match(markup, /print:static/);
-  // inputs do not print: a plain text stands in for them
-  assert.match(markup, /print:hidden/);
-  assert.match(markup, /hidden print:inline/);
-  // the red zero and the yellow marker
-  assert.match(markup, /text-rose-600/);
-  assert.match(markup, /bg-amber-100/);
-  // an edit shows in the line, the subtotal and the total at once
-  const edited = plain(html(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000)).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  assert.ok(edited.includes("50 000 сум"));
-  assert.ok(edited.includes("303 333 сум"));
-  assert.ok(edited.includes("изменена · было 450 000 сум"));
-  // the fee that is not set shows the placeholder, the membership's own fee shows as the placeholder of an overridden line
-  assert.match(markup, /placeholder="не задана"/);
-  assert.match(plain(markup), /placeholder="450 000"/);
+  // «нет цены» leads to the price page of that group
+  assert.match(markup, /href="\/owner\/payments\/prices\?group=g1"/);
+  // the individual price is a tag, the group's is not
+  const priced = html({ sheet: sheetOf({ lines: [line({ price_source: "override" }), line({ membership_id: "m5", student_name: "Яковлев", price_source: "group" })] }) });
+  assert.equal((priced.match(/>индивидуальная</g) || []).length, 1);
+  // the toggle opens the grid: dates, marks and the legend appear, the first column sticks, the table scrolls inside its block
+  const open = html({ forceDates: true });
+  const openText = textOf(open);
+  for (const part of ["01.09", "03.09", "08.09", "10.09", "Ждёт", "засчитан", "не оплачен"]) assert.ok(openText.includes(part), `the grid shows «${part}»`);
+  assert.match(open, /aria-label="Обозначения"/);
+  assert.match(open, /sticky left-0/);
+  assert.match(open, /overflow-x-auto/);
+  assert.match(open, /print:overflow-visible/);
+  assert.match(open, /text-rose-600/);
+  assert.match(open, /bg-amber-100/);
+  // «начислить» shows in the line and the group at once
+  const edited = textOf(html({ edits: R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true) }));
+  assert.ok(edited.includes("56 250 сум"));
   // read-only: no inputs
-  assert.doesNotMatch(html(R.EMPTY_EDITS, false), /<input/);
+  assert.doesNotMatch(html({ editable: false }), /<input/);
   // a sheet with no lines says so
   const empty = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet: { ...sheet, lines: [], groups: [] }, edits: R.EMPTY_EDITS, onEdits: () => {} }));
   assert.match(empty, /нет учеников с засчитанными уроками/);
 });
 
-test("the warnings and the diff banner render the real shapes", () => {
+test("the warnings, the diff details and the history render the real shapes", () => {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
-  const { DiffBanner, WarningLinks, RevisionList } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  const { DiffDetails, WarningLinks, RevisionList } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
   const text = (node) => plain(renderToStaticMarkup(node).replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  const links = renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: 2, pending_excused: 0, no_fee: 1, unpaid: 0 }, label: "Предупреждения" }));
+  const links = renderToStaticMarkup(React.createElement(WarningLinks, { views: R.warningViews({ open_lessons: 2, pending_excused: 0, no_fee: 1, unpaid: 0 }), label: "Предупреждения" }));
   assert.match(links, /href="\/owner\/attendance\?tab=open"/);
-  assert.match(links, /href="\/owner\/groups\?price=none"/);
+  assert.match(links, /href="\/owner\/payments\/prices"/);
   assert.doesNotMatch(links, /tab=excuses/);
-  assert.equal(renderToStaticMarkup(React.createElement(WarningLinks, { counts: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }, label: "x" })), "");
+  assert.equal((links.match(/<ul/g) || []).length, 1); // one line, one list
+  assert.match(links, /aria-label="Что это значит"/); // one «?» for all of them
+  assert.equal(renderToStaticMarkup(React.createElement(WarningLinks, { views: R.warningViews({ open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 }), label: "x" })), "");
 
   const brief = (over) => ({ monthly_fee: 450000, percent: "50", counted: 3, unpaid: 1, pending_excused: 0, amount: 50000, ...over });
   const diff = {
     sheet_id: "s", revision: 3, stale: true, saved_total: 100000, fresh_total: 120000, delta_amount: 20000,
+    reasons: ["ставка 50% → 45%", "цена из «Цен групп» вместо ручной 450 000"],
     lines: [
       { membership_id: "m1", student_name: "Абдуллаев", group_name: "Алгебра 8А", status: "changed", changes: ["засчитано", "начислено"], saved: brief({}), fresh: brief({ counted: 4, unpaid: 0, amount: 62500 }), delta_amount: 12500 },
       { membership_id: "m2", student_name: "Новый", group_name: "Алгебра 8А", status: "added", changes: [], saved: null, fresh: brief({ amount: 100 }), delta_amount: 100 },
       { membership_id: "m3", student_name: "Ушёл", group_name: "Алгебра 8А", status: "removed", changes: [], saved: brief({}), fresh: null, delta_amount: -50000 },
     ],
   };
-  const banner = text(React.createElement(DiffBanner, { diff, busy: false, onRecalculate: () => {} }));
-  for (const part of ["Данные изменились после сохранения — пересчитать?", "Пересчитать", "100 000 сум → 120 000 сум", "+20 000 сум", "изменилось: засчитано, начислено", "3 → 4", "1 → 0", "50 000 сум → 62 500 сум", "новая строка", "строки больше нет", "−50 000 сум"]) {
-    assert.ok(banner.includes(part), `the banner shows «${part}»`);
+  const details = text(React.createElement(DiffDetails, { diff }));
+  for (const part of ["Что изменилось", "ставка 50% → 45%", "цена из «Цен групп» вместо ручной 450 000", "Абдуллаев", "изменилось: засчитано, начислено", "новая строка", "строки больше нет", "+12 500 сум", "−50 000 сум", "Без оплаты"]) {
+    assert.ok(details.includes(part), `the details show «${part}»`);
   }
+  assert.match(renderToStaticMarkup(React.createElement(DiffDetails, { diff })), /<details/); // closed until asked
+  assert.equal(renderToStaticMarkup(React.createElement(DiffDetails, { diff: { ...diff, reasons: [], lines: [] } })), "");
   const revisions = text(React.createElement(RevisionList, { currentRevision: 3, revisions: [
     { revision: 3, total_amount: 150, percents: { group: "50" }, line_count: 4, changed_by: "u", changed_by_name: "Владелец", changed_at: "2026-10-15T08:55:00", change_note: "после справки" },
     { revision: 2, total_amount: 100, percents: {}, line_count: 4, changed_by: "u", changed_by_name: null, changed_at: null, change_note: null },
   ] }));
-  for (const part of ["Редакция 3", "текущая", "15.10.2026 13:55", "Владелец", "строк: 4", "после справки", "Проценты: Группа 50 %", "Редакция 2"]) assert.ok(revisions.includes(part), `the history shows «${part}»`);
+  for (const part of ["Версия 3", "текущая", "15.10.2026 13:55", "Владелец", "строк: 4", "после справки", "Ставка: Группа 50%", "Версия 2"]) assert.ok(revisions.includes(part), `the history shows «${part}»`);
+  assert.ok(!revisions.includes("Редакция") && !revisions.includes("редакция"), "«редакция» is not a word of the owner");
+  assert.ok(text(React.createElement(RevisionList, { currentRevision: 1, revisions: [] })).includes("Сохранений пока нет"));
 });
 
 // ---- 13. owner only, the menu, the settings, the groups -------------------------------------------------------------
@@ -756,18 +634,19 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /parseMonthParam\(searchParams\?\.get\("month"\), today\)/);
   assert.match(month, /Скачать Excel за месяц/);
   assert.match(month, /disabled=\{savedCount === 0 \|\| exporting\}/);
-  assert.match(month, /<PayrollMonthStatus month=\{month\} open=\{monthOpen\} divisor=\{overview\.divisor\} \/>/);
-  assert.match(month, /aria-label=\{`Выбрать: \$\{teacher\.teacher_name\}`\}/);
-  assert.match(month, /aria-label=\{`Процент для \$\{teacher\.teacher_name\}, \$\{lessonTypeLabel\(type\.lesson_type\)\}`\}/);
+  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} \/>/);
+  assert.match(month, /<PayrollPageMenu divisor=\{overview\.divisor\} \/>/);
+  assert.match(month, /aria-label=\{`\$\{action\.label\}: \$\{teacher\.teacher_name\}`\}/);
+  assert.doesNotMatch(month, /type="checkbox"|Процент для|sanitizePercentTyping/); // no selection, no percent field
   assert.match(month, /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /useUnsavedGuard\(dirty, UNSAVED_TEXT\)/);
-  assert.match(sheetPage, /История редакций/);
-  assert.match(sheetPage, /window\.print\(\)/);
+  assert.match(sheetPage, /История сохранений/);
+  assert.match(sheetPage, /usePrintWithDates\(\)/);
   assert.match(sheetPage, /isRevisionConflict/);
   assert.match(sheetPage, /size: A4 landscape/);
-  assert.match(read("src/components/payroll/sheet-controls.tsx"), /Данные изменились после сохранения — пересчитать\?/);
-  assert.match(read("src/components/payroll/sheet-controls.tsx"), /Пересчитать/);
+  assert.match(read("src/components/payroll/sheet-summary.tsx"), /Пересчитать/);
+  assert.match(read("src/components/payroll/sheet-controls.tsx"), /window\.print\(\)/);
   // a window.print() page hides the chrome
   assert.match(read("src/app/owner/layout.tsx"), /print:ml-0 print:p-0/);
   assert.match(read("src/components/layout/sidebar.tsx"), /print:hidden/);
@@ -850,15 +729,16 @@ test("the API helper: detail {code, message, ...} gives ApiError.message and .co
   let next = null;
   global.fetch = async (url, init) => { calls.push({ url: String(url), method: init && init.method, body: init && init.body }); return next(); };
   try {
-    // 422 PERCENT_REQUIRED with missing[]
-    next = () => answer(422, { detail: { code: "PERCENT_REQUIRED", message: "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается", missing: [{ teacher_id: "t1", lesson_type: "group", lesson_type_label: "Группа" }] } });
-    const percent = await orgApi.calculatePayroll("2026-09", { percents: [] }).then(() => null, (e) => e);
-    assert.ok(percent instanceof ApiError);
-    assert.equal(percent.status, 422);
-    assert.equal(percent.code, "PERCENT_REQUIRED");
-    assert.match(percent.message, /^Укажите процент преподавателя/);
-    assert.equal(R.isPercentRequired(percent), true);
-    assert.equal(R.payrollErrorText(percent), percent.message);
+    // 422 RATE_REQUIRED (the rate is set in «Сотрудники»)
+    next = () => answer(422, { detail: { code: "RATE_REQUIRED", message: "Не задана ставка преподавателя: укажите её в «Сотрудниках»", missing: [{ teacher_id: "t1", lesson_type: "group", lesson_type_label: "Группа" }] } });
+    const rate = await orgApi.calculatePayroll("2026-09", {}).then(() => null, (e) => e);
+    assert.ok(rate instanceof ApiError);
+    assert.equal(rate.status, 422);
+    assert.equal(rate.code, "RATE_REQUIRED");
+    assert.match(rate.message, /^Не задана ставка преподавателя/);
+    assert.equal(R.isRateRequired(rate), true);
+    assert.equal(R.payrollErrorText(rate), rate.message);
+    assert.deepEqual(JSON.parse(calls.at(-1).body), {}); // no percents travel: the server takes the stored rates
     // 409 SHEET_REVISION_CONFLICT with current_revision
     next = () => answer(409, { detail: { code: "SHEET_REVISION_CONFLICT", message: "Ведомость уже изменили. Обновите страницу и повторите правку.", current_revision: 4 } });
     const conflict = await orgApi.patchPayrollSheet("s1", { revision: 3, recalculate: true }).then(() => null, (e) => e);
@@ -874,7 +754,7 @@ test("the API helper: detail {code, message, ...} gives ApiError.message and .co
     assert.match(R.payrollErrorText(forbidden), /^Недостаточно прав/);
     // calculate -> {month, month_open, sheets[]}: the sheets come out
     next = () => answer(200, { month: "2026-09", month_open: false, sheets: [makeSheet({ id: null, saved: false, revision: null })] });
-    const sheets = await orgApi.calculatePayroll("2026-09", { percents: [{ teacher_id: "t1", lesson_type: "group", percent: "50" }] });
+    const sheets = await orgApi.calculatePayroll("2026-09", { teacher_ids: ["t1"] });
     assert.equal(sheets.length, 1);
     assert.equal(sheets[0].id, null);
     assert.equal(calls.at(-1).url.endsWith("/auth/org/payroll/months/2026-09/calculate"), true);
@@ -911,11 +791,11 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
   const month = read("src/components/payroll/payroll-month-page.tsx");
   assert.match(month, /lessonsWithoutTeacherText\(overview\.lessons_without_teacher\)/);
   assert.match(read("src/components/payroll/how-it-works.tsx"), /payrollFormulaText\(divisor, priceLabel\)/);
-  assert.match(month, /<WarningLinks counts=\{teacher\.warnings\}/);
-  assert.match(month, /isPercentRequired\(cause as PayrollErrorLike\)\) markAttempted\(/);
+  assert.match(month, /<WarningLinks views=\{warnings\}/);
+  assert.match(month, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /diff\?\.stale/);
-  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents, expectedFingerprint:/);
+  assert.match(sheetPage, /patchPayrollSheet\(sheet\.id, buildPatchBody\(sheet, edits, note, \{ recalculate, expectedFingerprint:/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /buildBlocks\(sheet, views\)/);
   // the types are the server's field names
   for (const field of ["lessons_without_teacher", "lessons_count", "period_start", "stale: boolean", "source_fee", "groups: PayrollGroupBlock[]", "dates: PayrollBlockDate[]",
@@ -925,104 +805,6 @@ test("the screens read the real shapes: stale, warnings as counts, lessons_witho
 });
 
 // ---- 15. PERCENT_REQUIRED on the sheet page: ask for the missing percents in the banner, retry with them ----------------
-
-test("a refused recalculation names the missing types; the owner's percents ride the retry (stubbed fetch)", async () => {
-  const { orgApi } = require(path.join(root, "src/lib/api.ts"));
-  const original = global.fetch;
-  const bodies = [];
-  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
-  const message = "Укажите процент преподавателя для каждого типа занятий — расчёт без него не запускается";
-  const sheet = makeSheet({ percents: { group: "50", individual: "60" }, lines: [line(), line({ membership_id: "m3", group_id: "g2", group_name: "Индив", lesson_type: "individual", percent: "60" })] });
-  let step = 0;
-  global.fetch = async (url, init) => {
-    bodies.push(JSON.parse(init.body));
-    step += 1;
-    if (step === 1) {
-      return answer(422, { detail: { code: "PERCENT_REQUIRED", message, missing: [
-        { teacher_id: "t1", lesson_type: "pair", lesson_type_label: "Парный" },
-        { teacher_id: "t1", lesson_type: "mini_group", lesson_type_label: "Мини-группа" },
-        { teacher_id: "someone-else", lesson_type: "group", lesson_type_label: "Группа" },
-        { teacher_id: "t1", lesson_type: "pair", lesson_type_label: "Парный" },
-        { teacher_id: "t1", lesson_type: "nonsense" },
-      ] } });
-    }
-    return answer(200, makeSheet({ revision: 4 }));
-  };
-  try {
-    const first = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true })).then(() => null, (e) => e);
-    assert.deepEqual(bodies[0], { revision: 3, recalculate: true });
-    assert.equal(R.isPercentRequired(first), true);
-    assert.equal(R.payrollErrorText(first), message);
-    // the kinds of THIS teacher, once each, in the order of the forms; junk and strangers are left out
-    assert.deepEqual(R.missingTypesOf(first, "t1"), ["mini_group", "pair"]);
-    assert.deepEqual(R.missingTypesOf(first, "someone-else"), ["group"]);
-    assert.deepEqual(R.missingTypesOf(first, "nobody"), []);
-    assert.equal(R.missingPercents(first).length, 4);
-    // the fields: empty or wrong is refused with the reason, a comma is fine
-    const types = R.missingTypesOf(first, "t1");
-    const refused = R.checkMissingPercents("t1", types, { mini_group: "40,5", pair: "" });
-    assert.deepEqual(Object.keys(refused.errors), ["pair"]);
-    assert.equal(refused.errors.pair, R.PERCENT_REQUIRED_TEXT);
-    assert.equal(R.checkMissingPercents("t1", types, { mini_group: "101", pair: "30" }).errors.mini_group, R.PERCENT_MAX_TEXT);
-    assert.equal(R.checkMissingPercents("t1", types, {}).errors.mini_group, R.PERCENT_REQUIRED_TEXT);
-    const given = R.checkMissingPercents("t1", types, { mini_group: "40,5", pair: "30" });
-    assert.deepEqual(given.errors, {});
-    assert.deepEqual(given.percents, [
-      { teacher_id: "t1", lesson_type: "mini_group", percent: "40.5" },
-      { teacher_id: "t1", lesson_type: "pair", percent: "30" },
-    ]);
-    // the retry: the same request with the percents added
-    const retried = await orgApi.patchPayrollSheet("sheet-1", R.buildPatchBody(sheet, R.EMPTY_EDITS, "", { recalculate: true, extraPercents: given.percents }));
-    assert.equal(retried.revision, 4);
-    assert.deepEqual(bodies[1], { revision: 3, recalculate: true, percents: given.percents });
-    // with percents edited on the sheet as well, both go, and a given one replaces the edited one of its kind
-    const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "55");
-    const merged = R.buildPatchBody(sheet, edits, "n", { recalculate: true, extraPercents: [{ teacher_id: "t1", lesson_type: "individual", percent: "70" }] });
-    assert.deepEqual(merged.percents.map((p) => [p.lesson_type, p.percent]), [["group", "55"], ["individual", "70"]]);
-    assert.equal(merged.note, "n");
-    // another error is not a missing percent
-    assert.deepEqual(R.missingPercents({ status: 409, code: "SHEET_REVISION_CONFLICT", detail: { missing: [{ teacher_id: "t1", lesson_type: "pair" }] } }), []);
-    assert.deepEqual(R.missingPercents(null), []);
-    assert.deepEqual(R.missingPercents({ status: 422, code: "PERCENT_REQUIRED" }), []);
-  } finally {
-    global.fetch = original;
-  }
-});
-
-test("the banner asks for a percent per missing type, with the same validation, and the page retries with them", () => {
-  const React = require("react");
-  const { renderToStaticMarkup } = require("react-dom/server");
-  const { MissingPercentBanner } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
-  const render = (props) => renderToStaticMarkup(React.createElement(MissingPercentBanner, {
-    teacherName: "Иванов Пётр", message: "Укажите процент преподавателя для каждого типа занятий", types: ["mini_group", "pair"], texts: {}, attempted: false, busy: false,
-    error: null, retryLabel: "Пересчитать с этими процентами", onText: () => {}, onRetry: () => {}, onCancel: () => {}, ...props,
-  }));
-  const fresh = render({});
-  assert.match(fresh, /role="alert"/);
-  assert.match(fresh, />Процент для Мини-группа</);
-  assert.match(fresh, />Процент для Парный</);
-  assert.match(fresh, /aria-label="Процент для Иванов Пётр, Мини-группа"/);
-  assert.match(fresh, /aria-label="Процент для Иванов Пётр, Парный"/);
-  assert.equal((fresh.match(/value=""/g) || []).length, 2);          // prefilled empty
-  assert.doesNotMatch(fresh, /aria-invalid="true"/);                  // nothing is shouted at before a try
-  assert.match(fresh, /Пересчитать с этими процентами/);
-  assert.match(fresh, /print:hidden/);
-  // after a refused retry the empty ones say why; what is typed is checked at once
-  const refused = render({ attempted: true, texts: { mini_group: "101" } });
-  assert.equal((refused.match(/aria-invalid="true"/g) || []).length, 2);
-  assert.ok(refused.includes(R.PERCENT_REQUIRED_TEXT));
-  assert.ok(refused.includes(R.PERCENT_MAX_TEXT));
-  assert.doesNotMatch(render({ texts: { mini_group: "40,5", pair: "30" } }), /aria-invalid="true"/);
-  assert.match(render({ error: "Нечего менять" }), /Нечего менять/);
-  // the page: a PERCENT_REQUIRED of this teacher opens the banner, the retry sends the checked percents with the same action
-  const page = read("src/components/payroll/payroll-sheet-page.tsx");
-  assert.match(page, /missingTypesOf\(error, sheet\.teacher_id\)/);
-  assert.match(page, /<MissingPercentBanner/);
-  assert.match(page, /checkMissingPercents\(sheet\.teacher_id, missing\.types, missingTexts\)/);
-  assert.match(page, /void apply\(missing\.recalculate, checked\.percents\)/);
-  assert.match(page, /buildPatchBody\(sheet, edits, note, \{ recalculate, extraPercents, expectedFingerprint:/);
-  assert.match(read("src/lib/api.ts"), /new ApiError\(response\.status, message, code, undefined, error\?\.detail\)/);
-});
 
 // ---- 16. R3 fixes ----------------------------------------------------------------------------------------------------
 
@@ -1050,49 +832,6 @@ test("the revision-conflict banners carry the owner's text, with or without a co
   assert.ok(banner({ message: "Данные изменились после расчёта — пересчитайте и проверьте суммы", actionLabel: "Пересчитать" }).includes("Пересчитать"));
   // a 409 with no code is not claimed to be a conflict by the helper: the banners never ask it
   assert.equal(R.isRevisionConflict({ status: 409 }), false);
-});
-
-test("typing a percent keeps the text as typed: «50,» on its way to «50,5» is not thrown back to «50»", () => {
-  const sheet = sheetOf();
-  let edits = R.EMPTY_EDITS;
-  const type = (text) => { edits = R.setPercentEdit(edits, sheet, "group", R.sanitizePercentTyping(text)); return edits; };
-  const field = () => R.percentFieldText(sheet, edits, "group");
-  const percentOfFirstLine = () => R.buildLineViews(sheet, edits)[0].percent;
-  // select all and type 50,5 from the base «50»: every keystroke is shown as typed
-  type("5");
-  assert.equal(field(), "5");
-  assert.equal(R.editsDirty(sheet, edits), true);
-  type("50");
-  assert.equal(field(), "50");
-  assert.equal(R.editsDirty(sheet, edits), false);              // equal to the sheet: nothing to save...
-  assert.equal("percents" in R.buildPatchBody(sheet, edits, ""), false);
-  type("50,");
-  assert.equal(field(), "50,");                                 // ...but the comma stays
-  assert.equal(R.editsDirty(sheet, edits), false);
-  assert.equal(R.editsProblem(sheet, edits), null);
-  type("50,5");
-  assert.equal(field(), "50,5");
-  assert.equal(R.editsDirty(sheet, edits), true);
-  assert.equal(percentOfFirstLine(), "50.5");
-  assert.deepEqual(R.buildPatchBody(sheet, edits, "").percents.find((p) => p.lesson_type === "group"), { teacher_id: "t1", lesson_type: "group", percent: "50.5" });
-  // backspace all the way: «50,» (clean again), «50», «5», empty (blocks saving), then 4, 40
-  for (const [text, dirty] of [["50,", false], ["50", false], ["5", true], ["", true], ["4", true], ["40", true]]) {
-    type(text);
-    assert.equal(field(), text, `shows «${text}»`);
-    assert.equal(R.editsDirty(sheet, edits), dirty, `dirty at «${text}»`);
-  }
-  type("");
-  assert.match(R.editsProblem(sheet, edits), /укажите процент/);
-  // a dot works the same, and the original value typed with a trailing zero is no change either
-  type("50.0");
-  assert.equal(field(), "50.0");
-  assert.equal(R.editsDirty(sheet, edits), false);
-  // the amounts follow the typed value only while it differs
-  type("5");
-  assert.equal(R.buildLineViews(sheet, edits)[0].edited, true);
-  type("50,00");
-  assert.equal(R.buildLineViews(sheet, edits)[0].edited, false);
-  assert.equal(R.buildLineViews(sheet, edits)[0].amount, 37500);
 });
 
 /** A browser's history for the guard: a stack, an asynchronous back(), popstate, listeners. */
@@ -1325,14 +1064,15 @@ test("the data moved after the preview / the diff: the fingerprint is sent, a 40
   assert.match(page, /await loadDiff\(\)/);
 });
 
-test("a sheet with no lines cannot be saved: the button is off and says why", () => {
+test("a sheet with no lines cannot be saved: the button is off and says why; the bar exists only while there is something to save", () => {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const { SaveBar } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
   const render = (props) => renderToStaticMarkup(React.createElement(SaveBar, {
-    dirty: false, problem: null, saveLabel: "Сохранить ведомость", canSaveClean: true, saving: false, note: "", onNote: () => {}, onSave: () => {}, onDiscard: () => {}, ...props,
+    dirty: true, problem: null, saving: false, note: "", onNote: () => {}, onSave: () => {}, onDiscard: () => {}, ...props,
   }));
-  const button = (markup) => /<button[^>]*>(?:(?!<\/button>).)*Сохранить ведомость/.exec(markup.replace(/\n/g, " "))[0];
+  const button = (markup) => /<button[^>]*>(?:(?!<\/button>).)*Сохранить/.exec(markup.replace(/\n/g, " "))[0];
+  assert.equal(render({ dirty: false }), ""); // nothing edited: no bar
   const blocked = render({ blockedReason: R.EMPTY_SHEET_REASON });
   assert.equal(R.EMPTY_SHEET_REASON, "Нет уроков для расчёта");
   assert.match(button(blocked), /disabled=""/);
@@ -1340,8 +1080,7 @@ test("a sheet with no lines cannot be saved: the button is off and says why", ()
   const ready = render({});
   assert.doesNotMatch(button(ready), /disabled=""/);
   assert.doesNotMatch(button(ready), /title=/);
-  // dirty does not lift the block
-  assert.match(button(render({ dirty: true, blockedReason: R.EMPTY_SHEET_REASON })), /disabled=""/);
+  assert.match(ready, /Примечание к версии/);
   for (const file of ["payroll-month-page.tsx", "payroll-sheet-page.tsx"]) {
     assert.match(read(`src/components/payroll/${file}`), /blockedReason=\{[a-z.]*sheet\.lines\.length === 0 \? EMPTY_SHEET_REASON : null\}/, file);
   }

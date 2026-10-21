@@ -363,18 +363,15 @@ test("a mark of a sheet saved BEFORE #105 is not priced: the wire shape {price: 
     total_amount: 104167, counted_total: 5, unpaid_total: 0, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 },
     source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null,
   };
-  // 50 -> 60 %: 5 lessons at source_fee 500 000 / 12 x 0.6 = 125 000 (the server's recompute_line) - NOT 0
-  const edited = R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60"))[0];
-  assert.equal(edited.amount, 125000);
-  assert.equal(R.sheetTotal(sheet, R.buildLineViews(sheet, R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60")), R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60")), 125000);
-  // the same line after a reset of an overwrite, and with an overwrite of the price
-  assert.equal(R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000))[0].amount, Math.round(5 * 600000 * 0.5 / 12));
-  const overwritten = { ...sheet, lines: [{ ...line, fee_overridden: true, monthly_fee: 600000 }] };
-  assert.equal(R.buildLineViews(overwritten, R.setFeeEdit(R.EMPTY_EDITS, overwritten, "m1", null))[0].amount, 104167);
+  // nothing edited: the server's amount, untouched
+  assert.equal(R.buildLineViews(sheet, R.EMPTY_EDITS)[0].amount, 104167);
   // «начислить» on a line of an old sheet: the unpaid lesson is worth source_fee too
   const withUnpaid = { ...sheet, lines: [{ ...line, marks: [...line.marks, { ...wire("2026-09-17"), state: "unpaid" }], unpaid: 1 }] };
   const included = R.buildLineViews(withUnpaid, R.setIncludeEdit(R.EMPTY_EDITS, withUnpaid, "m1", true))[0];
   assert.equal(included.amount, Math.round(6 * 500000 * 0.5 / 12));
+  // a price the owner set by hand on a sheet saved before UX-2 still replaces the price of every lesson
+  const manual = { ...withUnpaid, lines: [{ ...withUnpaid.lines[0], fee_overridden: true, monthly_fee: 600000 }] };
+  assert.equal(R.buildLineViews(manual, R.setIncludeEdit(R.EMPTY_EDITS, manual, "m1", true))[0].amount, Math.round(6 * 600000 * 0.5 / 12));
 });
 
 test("an edited line of a sheet with a price step is previewed per lesson", () => {
@@ -384,8 +381,8 @@ test("an edited line of a sheet with a price step is previewed per lesson", () =
     monthly_fee: 500000, source_fee: 500000, fee_overridden: false, price_source: "group", price_changed: true,
     price_steps: [{ date: "2026-10-01", amount: 400000 }, { date: "2026-10-15", amount: 500000 }], no_price_lessons: 0, unpaid_due: 0,
     percent: "50", divisor: 12,
-    marks: [mark("2026-10-01", 400000), mark("2026-10-08", 400000), mark("2026-10-15", 500000), mark("2026-10-22", 500000), mark("2026-10-29", 500000)],
-    counted: 5, unpaid: 0, pending_excused: 0, include_unpaid: false, amount: 95833, warnings: [],
+    marks: [mark("2026-10-01", 400000), mark("2026-10-08", 400000), mark("2026-10-15", 500000), mark("2026-10-22", 500000), mark("2026-10-29", 500000), mark("2026-10-30", 500000, "unpaid")],
+    counted: 5, unpaid: 1, pending_excused: 0, include_unpaid: false, amount: 95833, warnings: [],
   };
   const sheet = {
     id: "s", saved: true, month: "2026-10", period_start: "2026-10-01", period_end: "2026-10-31", month_open: false, teacher_id: "t1", teacher_name: "Иванов",
@@ -394,20 +391,18 @@ test("an edited line of a sheet with a price step is previewed per lesson", () =
     total_amount: 95833, counted_total: 5, unpaid_total: 0, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 0 },
     source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null,
   };
-  // the percent goes from 50 to 60: 2 x 400 000 + 3 x 500 000 at 60 % / 12 = 115 000 (not 5 x 500 000)
-  const edits = R.setPercentEdit(R.EMPTY_EDITS, sheet, "group", "60");
-  assert.equal(R.buildLineViews(sheet, edits)[0].amount, 115000);
-  // an overwrite of the price on the sheet is one sum for every lesson
-  const overwritten = R.buildLineViews(sheet, R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000))[0];
-  assert.equal(overwritten.amount, Math.round(5 * 600000 * 0.5 / 12));
-  // and a reset goes back to the prices of the lessons
-  const reset = { ...sheet, lines: [{ ...line, fee_overridden: true, monthly_fee: 600000 }] };
-  assert.equal(R.buildLineViews(reset, R.setFeeEdit(R.EMPTY_EDITS, reset, "m1", null))[0].amount, 95833);
+  // «начислить» for the unpaid lesson of the 30th: 2 x 400 000 + 4 x 500 000 at 50 % / 12 = 116 667 (each lesson at its own price)
+  const edits = R.setIncludeEdit(R.EMPTY_EDITS, sheet, "m1", true);
+  assert.equal(R.buildLineViews(sheet, edits)[0].amount, 116667);
   // a missing price on part of the lessons is said, with the number
-  const partial = R.buildLineViews({ ...sheet, lines: [{ ...line, no_price_lessons: 2 }] }, R.EMPTY_EDITS)[0];
-  assert.deepEqual(R.lineNotes(partial), ["Цена не задана на 2 урока месяца"]);
-  const none = R.buildLineViews({ ...sheet, lines: [{ ...line, monthly_fee: null, source_fee: null }] }, R.EMPTY_EDITS)[0];
-  assert.deepEqual(R.lineNotes(none), ["Не задана цена группы"]);
+  const partial = R.priceCellView({ ...line, no_price_lessons: 2 });
+  assert.equal(partial.note, "цена не задана на 2 урока месяца");
+  assert.equal(partial.missing, false);
+  // no price at all: the cell says so and asks for it (a «задать» link on the screen)
+  const none = R.priceCellView({ ...line, monthly_fee: null });
+  assert.deepEqual([none.text, none.missing], ["нет цены", true]);
+  // a line with no lessons needs no price
+  assert.deepEqual(R.priceCellView({ ...line, monthly_fee: null, counted: 0, unpaid: 0 }), { text: "—", missing: false, tag: null, note: null, steps: null });
 });
 
 // ── payroll-help.ts ─────────────────────────────────────────────────────────────────────────────────────────
@@ -416,16 +411,18 @@ test("each status of a teacher's month has a short explanation", () => {
   const none = H.statusHint(null);
   assert.match(none, /ещё не сохранена/);
   assert.match(none, /«Рассчитать»/);
+  assert.match(none, /«Сотрудниках»/); // the rate is set there
   const saved = H.statusHint({ revision: 2, stale: false });
-  assert.match(saved, /редакция 2/);
+  assert.match(saved, /версия 2/);
   assert.match(saved, /данные не менялись/);
   const stale = H.statusHint({ revision: 3, stale: true });
-  assert.match(stale, /редакция 3/);
-  assert.match(stale, /изменились посещаемость, оплаты, подтверждения пропусков или цены/);
+  assert.match(stale, /версия 3/);
+  assert.match(stale, /изменились посещаемость, оплаты, подтверждения пропусков, цены или ставка/);
   assert.match(stale, /«Пересчитать»/);
   assert.equal(new Set([none, saved, stale]).size, 3);
-  assert.deepEqual(H.savedRevisionLine(2).text, "Уже сохранена: редакция 2. Новое сохранение создаст редакцию 3.");
-  assert.match(H.savedRevisionLine(2).hint, /Прежняя редакция останется в истории/);
+  assert.deepEqual(H.savedRevisionLine(2).text, "Уже сохранена: версия 2. Новое сохранение создаст версию 3.");
+  assert.match(H.savedRevisionLine(2).hint, /Прежняя версия останется в истории/);
+  for (const text of [none, saved, stale, H.savedRevisionLine(2).text]) assert.doesNotMatch(text, /редакци/i);
 });
 
 test("every warning of the month is a link with a meaning and an action", () => {
@@ -433,39 +430,49 @@ test("every warning of the month is a link with a meaning and an action", () => 
   const byKey = Object.fromEntries(views.map((v) => [v.key, v]));
   assert.equal(byKey.open_lessons.href, "/owner/attendance?tab=open");
   assert.equal(byKey.open_lessons.target, "Посещаемость → Незакрытые уроки");
-  assert.equal(byKey.no_fee.text, "не задана цена: 4");
-  assert.equal(byKey.no_fee.href, "/owner/groups?price=none");
-  assert.equal(byKey.unpaid.text, "140 уроков не оплачено");
+  assert.equal(byKey.no_fee.text, "у 4 учеников нет цены");
+  assert.equal(byKey.no_fee.href, "/owner/payments/prices");
+  assert.equal(byKey.no_fee.target, "Оплаты → Цены групп");
+  assert.equal(byKey.unpaid.text, "140 посещений без оплаты");
   assert.equal(byKey.unpaid.hint, "Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости.");
   assert.match(byKey.open_lessons.hint, /не попадёт в расчёт/);
   assert.match(byKey.pending_excused.hint, /пока ждёт решения, урок засчитывается/);
   for (const view of views) assert.ok(view.hint.length > 20 && view.target, view.key);
 });
 
-test("the sheet's own words: the dashed «1», «начислить», «Не оплачено»", () => {
+test("the sheet's own words: the dashed «1», «начислить», «Без оплаты»", () => {
   assert.equal(R.UNPAID_MARK_HINT, "Был на уроке, урок не оплачен — не входит в сумму");
   assert.equal(R.markCell(1, "unpaid", {}).title, R.UNPAID_MARK_HINT);
   assert.equal(R.markCell(1, "unpaid", { includeUnpaid: true }).title, R.UNPAID_INCLUDED_MARK_HINT);
   assert.equal(H.INCLUDE_LABEL, "начислить");
   assert.equal(H.INCLUDE_HINT, "Начислить преподавателю и за неоплаченные уроки этого ученика");
   assert.match(H.UNPAID_HEADER_HINT, /не оплачен|не покрыты оплатой/);
+  // the compact legend of the date grid: four marks (a student who is not in the group yet is an empty cell, nothing to explain)
   const legend = Object.fromEntries(H.SHEET_LEGEND.map((item) => [item.key, item.text]));
-  assert.equal(legend.unpaid, "был на уроке, урок не оплачен — не входит в сумму");
-  assert.deepEqual(H.SHEET_LEGEND.map((item) => item.key), ["counted", "zero", "pending", "unpaid", "empty"]);
+  assert.equal(legend.unpaid, "был на уроке, не оплачен — не входит в сумму");
+  assert.deepEqual(H.SHEET_LEGEND.map((item) => item.key), ["counted", "zero", "pending", "unpaid"]);
+  assert.equal(H.priceColumnLabel("Оплата в месяц"), "Цена в месяц");
+  assert.equal(H.priceColumnLabel("Стоимость пакета"), "Стоимость пакета");
 });
 
-test("the price of a line: who sets it and where it changed", () => {
-  assert.equal(H.priceSourceNote({ price_source: "override", fee_overridden: false }), "индивидуальная");
-  assert.equal(H.priceSourceNote({ price_source: "group", fee_overridden: false }), null);
-  assert.equal(H.priceSourceNote({ price_source: "override", fee_overridden: true }), null); // the owner's overwrite has its own note
-  assert.equal(H.priceSourceNote({}), null);
-  assert.equal(plain(H.priceStepText({ date: "2026-10-15", amount: 500000 })), "с 15.10 — 500 000");
-  assert.equal(H.priceStepText({ date: "2026-10-01", amount: null }), "с 01.10 — цена не задана");
+test("the price of a line is text: whose it is, where it changed, where to set it", () => {
+  const base = { monthly_fee: 450000, counted: 2, unpaid: 0, price_source: "group", fee_overridden: false, price_changed: false, price_steps: [], no_price_lessons: 0 };
+  const group = R.priceCellView(base);
+  assert.deepEqual([plain(group.text), group.tag, group.note, group.missing], ["450 000 сум", null, null, false]);
+  assert.equal(R.priceCellView({ ...base, price_source: "override" }).tag, "индивидуальная");
+  assert.equal(R.priceCellView({ ...base, price_source: "override", fee_overridden: true }).tag, "вручную"); // a sheet saved before UX-2
+  assert.equal(R.priceCellView({ ...base, price_source: undefined }).tag, null);
   const steps = [{ date: "2026-10-01", amount: 400000 }, { date: "2026-10-15", amount: 500000 }];
-  assert.deepEqual(H.priceStepsLines({ price_changed: true, price_steps: steps, fee_overridden: false }).map(plain), ["с 01.10 — 400 000", "с 15.10 — 500 000"]);
-  assert.deepEqual(H.priceStepsLines({ price_changed: false, price_steps: [], fee_overridden: false }), []);
-  assert.deepEqual(H.priceStepsLines({ price_changed: true, price_steps: steps, fee_overridden: true }), []);
-  assert.deepEqual(H.priceStepsLines({}), []);
+  const changed = R.priceCellView({ ...base, price_changed: true, price_steps: steps });
+  assert.equal(changed.note, "цена менялась");
+  assert.deepEqual(changed.steps.split("\n").map(plain), ["Цена менялась в течение месяца: каждый урок посчитан по цене своего дня.", "с 01.10 — 400 000 сум", "с 15.10 — 500 000 сум"]);
+  assert.equal(R.priceCellView({ ...base, price_changed: true, price_steps: steps, fee_overridden: true }).note, null); // the hand-set price has no steps
+  assert.equal(R.priceCellView({ ...base, price_changed: true, price_steps: [{ date: "2026-10-01", amount: null }] }).steps.includes("с 01.10 — цена не задана"), true);
+  // «нет цены» + the link to the group's price (the page of prices, `?group=`) - only for a line that has lessons
+  assert.deepEqual(R.priceCellView({ ...base, monthly_fee: null }).missing, true);
+  assert.equal(R.priceCellView({ ...base, monthly_fee: null, counted: 0 }).missing, false);
+  assert.equal(R.sheetNoFeeHref({ lines: [{ ...base, monthly_fee: null, group_id: "g7" }, { ...base, group_id: "g8" }] }), "/owner/payments/prices?group=g7");
+  assert.equal(R.sheetNoFeeHref({ lines: [{ ...base, monthly_fee: null, group_id: "g7" }, { ...base, monthly_fee: null, group_id: "g8" }] }), "/owner/payments/prices");
 });
 
 test("«Как считается зарплата»: the formula in words and one example whose arithmetic is the sheet's", () => {
@@ -566,7 +573,7 @@ test("a group card shows its price to a money role and nothing to anybody else",
   assert.doesNotMatch(teacher, /group-card-price/);
 });
 
-test("the payroll sheet: legend above the table, tooltips, «начислить», the price and its steps", () => {
+test("the payroll sheet: legend with the dates, tooltips, «начислить», the price and its steps", () => {
   const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
   const mark = (date, state, price, source = "group") => ({ date, lesson_id: `l-${date}`, mark: state === "excused_confirmed" ? 0 : 1, state, divisor: 12, price, price_source: source });
   const marks = [mark("2026-10-01", "counted", 400000), mark("2026-10-15", "counted", 500000), mark("2026-10-22", "unpaid", 500000)];
@@ -585,16 +592,18 @@ test("the payroll sheet: legend above the table, tooltips, «начислить�
   };
   const html = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {} }));
   const text = textOf(html);
-  // the legend is ABOVE the first table, and says what the dashed «1» is
-  assert.ok(html.indexOf('aria-label="Обозначения"') >= 0 && html.indexOf('aria-label="Обозначения"') < html.indexOf("<table"));
-  assert.match(text, /был на уроке, урок не оплачен — не входит в сумму/);
+  // the legend belongs to the date grid: it comes with «По датам», right under the table, and says what the dashed «1» is
+  assert.doesNotMatch(html, /aria-label="Обозначения"/);
+  const open = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, forceDates: true }));
+  assert.ok(open.indexOf('aria-label="Обозначения"') > open.indexOf("<table"));
+  assert.match(textOf(open), /был на уроке, не оплачен — не входит в сумму/);
   assert.match(text, /Неоплаченные уроки входят в сумму строки, только если отметить «начислить»/);
   assert.doesNotMatch(text, /включить|включены/);
   // «начислить» with its tooltip, the unpaid header and cell with theirs (read by a screen reader too)
   assert.match(text, /начислить/);
   assert.ok(text.includes("Начислить преподавателю и за неоплаченные уроки этого ученика"));
   assert.ok(text.includes("Уроки, на которых ученик был, но которые не покрыты оплатой"));
-  assert.ok(text.includes(R.UNPAID_MARK_HINT));
+  assert.ok(textOf(open).includes(R.UNPAID_MARK_HINT));
   assert.match(html, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
   // the price: whose it is and where it changed
   assert.match(html, />индивидуальная<\/span>/);
@@ -613,33 +622,53 @@ test("the payroll sheet: legend above the table, tooltips, «начислить�
   assert.doesNotMatch(printed, /<input/);
 });
 
-test("the month list: a status chip with its explanation, warnings with links and meanings, the formula", () => {
+test("the month list: a status chip with its explanation, warnings in one line with links, the rate, ONE action by the status, the formula", () => {
   const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
   const { PayrollHowItWorksBody } = require(path.join(root, "src/components/payroll/how-it-works.tsx"));
   const teacher = {
     teacher_id: "t1", teacher_name: "Иванов Пётр", lessons_count: 12,
-    lesson_types: [{ lesson_type: "group", groups: 2, suggested_percent: "50" }],
+    lesson_types: [{ lesson_type: "group", groups: 2 }, { lesson_type: "individual", groups: 1 }],
+    rates: { group: "50", individual: "40" }, missing_rates: [],
     sheet: { id: "s1", revision: 2, total_amount: 900000, stale: true, updated_at: "2026-10-02T08:00:00" },
     warnings: { open_lessons: 1, pending_excused: 0, no_fee: 2, unpaid: 140 },
   };
-  const html = renderToStaticMarkup(React.createElement(TeacherRow, {
-    teacher, typed: {}, showErrors: false, selected: false, calculating: false,
-    onToggle: () => {}, onType: () => {}, onCalculate: () => {}, onOpen: () => {}, onExport: () => {},
-  }));
+  const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
+  const html = render();
   const text = textOf(html);
-  assert.ok(text.includes("Данные изменились"));
+  assert.ok(text.includes("Есть изменения"));
   assert.ok(text.includes(H.statusHint(teacher.sheet))); // the explanation is read by a screen reader and shown on hover / tap
+  assert.ok(text.includes("12 уроков за месяц"));
+  assert.ok(text.includes("Группа 50% · Индивидуально 40%"));
+  assert.ok(text.includes("900 000 сум"));
+  // the warnings: one line under the name, each one a link to where it is fixed, in the right units
   assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
-  assert.match(html, /href="\/owner\/groups\?price=none"[^>]*>не задана цена: 2</);
-  assert.match(html, /href="\/owner\/payments\?bucket=due"[^>]*>140 уроков не оплачено</);
+  assert.match(html, /href="\/owner\/payments\/prices"[^>]*>у 2 учеников нет цены</);
+  assert.match(html, /href="\/owner\/payments\?bucket=due"[^>]*>140 посещений без оплаты</);
+  assert.equal((html.match(/<ul/g) || []).length, 1);
   assert.ok(text.includes("Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости."));
+  // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»
+  assert.doesNotMatch(html, /type="checkbox"|<input/);
+  // ONE action by the status: data changed -> «Пересчитать»
+  assert.match(html, /aria-label="Пересчитать: Иванов Пётр"/);
+  assert.doesNotMatch(html, /aria-label="(Рассчитать|Открыть): /);
+  // saved and unchanged: «Сохранено 02.10» and «Открыть»
+  const saved = render({ sheet: { ...teacher.sheet, stale: false }, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
+  assert.ok(textOf(saved).includes("Сохранено 02.10"));
+  assert.match(saved, /aria-label="Открыть: Иванов Пётр"/);
+  assert.doesNotMatch(saved, /<ul/); // no warnings, no line
   // a sheet that was never calculated
-  const fresh = textOf(renderToStaticMarkup(React.createElement(TeacherRow, {
-    teacher: { ...teacher, sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } }, typed: {}, showErrors: false, selected: false, calculating: false,
-    onToggle: () => {}, onType: () => {}, onCalculate: () => {}, onOpen: () => {}, onExport: () => {},
-  })));
+  const fresh = textOf(render({ sheet: null }));
   assert.ok(fresh.includes("Не рассчитано"));
   assert.ok(fresh.includes(H.statusHint(null)));
+  assert.match(render({ sheet: null }), /aria-label="Рассчитать: Иванов Пётр"/);
+  // a rate is missing: «Не задана · Указать» leads to the teacher, the button waits and says why
+  const missing = render({ sheet: null, rates: {}, missing_rates: ["group", "individual"] });
+  assert.ok(textOf(missing).includes("Не задана · Указать"));
+  assert.match(missing, /href="\/owner\/teachers\?teacher=t1"[^>]*>Указать</);
+  assert.match(missing, /<button[^>]*disabled=""[^>]*aria-label="Рассчитать: Иванов Пётр"|<button[^>]*aria-label="Рассчитать: Иванов Пётр"[^>]*disabled=""/);
+  assert.match(missing, /title="Сначала задайте ставку в «Сотрудниках»"/);
+  // an action that is running disables the buttons of the others
+  assert.match(render({}, true), /disabled=""/);
   // the formula with the example: the body of the dialog «Как считается зарплата» (UX-1 C: no accordion over the table any more)
   const how = renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 12 }));
   assert.doesNotMatch(how, /<details/);
@@ -718,10 +747,10 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<StatusChip status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} \/>/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthStatus month=\{month\} open=\{monthOpen\} divisor=\{overview\.divisor\} \/>/);
-  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollMonthStatus\s+month=\{sheet\.month\}[\s\S]*?divisor=\{sheet\.divisor_default\}/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} \/>/);
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
-  assert.match(controls, /<Hint text=\{view\.hint\}/);
+  assert.match(controls, /<Hint text=\{views\.map\(\(view\) => `\$\{view\.text\}\\n\$\{view\.hint\}`\)/);
   // the saved-revision banner is one line
   const month = read("src/components/payroll/payroll-month-page.tsx");
   const banner = month.slice(month.indexOf("{activeExisting && ("), month.indexOf("{active.conflict && ("));
@@ -914,37 +943,26 @@ test("the payroll table speaks the centre's mode, names its headers, has one too
     total_amount: 37500, counted_total: 2, unpaid_total: 1, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 1 },
     source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null,
   };
-  const render = (editable = true, priceLabel = undefined) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable, onEdits: () => {}, priceLabel }));
-  {
-    // a calendar centre (the default of the store)
-    const calendar = render();
-    assert.match(calendar, /<th scope="col" aria-label="Оплата в месяц"/);
-    assert.match(calendar, /aria-label="Оплата в месяц: Каримова Дилноза, Алгебра 8А"/);
-    // a package centre: the page hands the label of the centre's mode (the table reads the same store by default)
-    const pack = render(true, "Стоимость пакета");
-    assert.match(read("src/components/payroll/sheet-table.tsx"), /priceLabelOf\(usePaymentsSummary\(\(state\) => state\.periodMode\)\)/);
-    assert.match(pack, /<th scope="col" aria-label="Стоимость пакета"/);
-    assert.match(pack, /aria-label="Стоимость пакета: Каримова Дилноза, Алгебра 8А"/);
-    assert.doesNotMatch(pack, /Оплата в месяц/);
-    // the column headers are named by themselves, the tooltip text is not part of their names
-    for (const name of ["Засчитано", "Не оплачено"]) assert.match(pack, new RegExp(`<th scope="col" aria-label="${name}"`));
-    // one tooltip per unpaid cell: the Hint, not a title next to it
-    assert.doesNotMatch(pack, /title="Каримова Дилноза, 22\.10: Был на уроке/);
-    assert.match(pack, /title="Каримова Дилноза, 01\.10: Засчитан"/); // a counted cell keeps its own title
-    assert.ok(textOf(pack).includes(R.UNPAID_MARK_HINT));
-    // the changed price explains itself (editable and read-only)
-    assert.ok(textOf(pack).includes("Если ввести сумму, она заменит цену во всех уроках строки; ввод показанной цены вернёт цены по дням уроков."));
-    assert.ok(textOf(render(false)).includes("Цена менялась в течение месяца: каждый урок посчитан по цене своего дня."));
-    assert.ok(!textOf(render(false)).includes("ввод показанной цены"));
-  }
-  // the pure words
-  assert.equal(H.priceFieldHint({ price_changed: false, fee_overridden: false }, true), null);
-  assert.equal(H.priceFieldHint({ price_changed: true, fee_overridden: true }, true), null);
-  assert.match(H.priceFieldHint({ price_changed: true, fee_overridden: false }, true), /ввод показанной цены вернёт цены по дням уроков/);
-  assert.doesNotMatch(H.priceFieldHint({ price_changed: true, fee_overridden: false }, false), /ввод/);
-  // typing the shown (last) price of such a line is no overwrite: it brings the prices of the days back
-  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 500000), R.EMPTY_EDITS);
-  assert.deepEqual(R.setFeeEdit(R.EMPTY_EDITS, sheet, "m1", 600000).fees, { m1: 600000 });
+  const render = (props = {}) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, forceDates: true, ...props }));
+  // a calendar centre (the default of the store): «Цена в месяц»
+  const calendar = render();
+  assert.match(calendar, /<th scope="col" aria-label="Цена в месяц"/);
+  // a package centre: the page hands the label of the centre's mode (the table reads the same store by default)
+  const pack = render({ priceLabel: "Стоимость пакета" });
+  assert.match(read("src/components/payroll/sheet-table.tsx"), /priceLabelOf\(usePaymentsSummary\(\(state\) => state\.periodMode\)\)/);
+  assert.match(pack, /<th scope="col" aria-label="Стоимость пакета"/);
+  assert.doesNotMatch(pack, /Цена в месяц/);
+  // the column headers are named by themselves, the tooltip text is not part of their names
+  for (const name of ["Засчитано", "Без оплаты"]) assert.match(pack, new RegExp(`<th scope="col" aria-label="${name}"`));
+  // one tooltip per unpaid cell: the Hint, not a title next to it
+  assert.doesNotMatch(pack, /title="Каримова Дилноза, 22\.10: Был на уроке/);
+  assert.match(pack, /title="Каримова Дилноза, 01\.10: Засчитан"/); // a counted cell keeps its own title
+  assert.ok(textOf(pack).includes(R.UNPAID_MARK_HINT));
+  // the price is not typed here: the header says where it is set, the changed price explains itself
+  assert.ok(textOf(pack).includes("Здесь она не меняется — её задают в «Оплаты → Цены групп» и в карточке ученика."));
+  assert.ok(textOf(pack).includes("Цена менялась в течение месяца: каждый урок посчитан по цене своего дня."));
+  assert.ok(!textOf(pack).includes("Если ввести сумму"));
+  assert.doesNotMatch(pack, /<input[^>]*type="text"/);
   // the formula of the month speaks the same words
   assert.equal(R.payrollFormulaText(12), "Оплата в месяц × % ÷ 12 × засчитанные уроки");
   assert.equal(R.payrollFormulaText(8, "Стоимость пакета"), "Стоимость пакета × % ÷ 8 × засчитанные уроки");

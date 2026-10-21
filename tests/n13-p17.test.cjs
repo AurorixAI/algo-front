@@ -281,14 +281,15 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/groups/group-student-table.tsx"), /label=\{`Действия: \$\{s\.full_name/);
   assert.match(read("components/attendance/open-lessons-view.tsx"), /label=\{`Действия: \$\{item\.groupName\}, /);
   assert.match(read("components/payroll/payroll-month-page.tsx"), /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
+  assert.match(read("components/payroll/month-status.tsx"), /label="Ещё: как считается, делитель"/); // the menu of the payroll pages
   assert.match(read("components/students/student-profile-view.tsx"), /label=\{`Действия: \$\{student\.full_name\}`\}/);
   assert.match(read("components/payments/group-prices-page.tsx"), /<RowMenu items=\{menu\} label=\{`Действия: \$\{item\.name\}`\} \/>/);
-  // all eight files that use <RowMenu> are listed above
+  // all nine files that use <RowMenu> are listed above
   const users = fs.readdirSync(src("components"), { recursive: true }).filter((f) => /\.tsx$/.test(f) && !/row-menu\.tsx$/.test(f))
     .filter((f) => read(`components/${f}`).includes("<RowMenu")).map((f) => f.replace(/\\/g, "/")).sort();
   assert.deepEqual(users, [
     "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-student-table.tsx",
-    "payments/group-prices-page.tsx", "payments/membership-payments.tsx", "payments/payments-page.tsx", "payroll/payroll-month-page.tsx",
+    "payments/group-prices-page.tsx", "payments/membership-payments.tsx", "payments/payments-page.tsx", "payroll/month-status.tsx", "payroll/payroll-month-page.tsx",
     "students/student-profile-view.tsx",
   ]);
 });

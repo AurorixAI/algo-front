@@ -188,19 +188,16 @@ test("the «Ожидают» tab reads the whole queue; decided tabs keep paging
 
 // ── the payroll gate copy ────────────────────────────────────────────────────────────────────────────
 
-test("payroll gate: «ни у одного из N» when everybody is missing, «у M из N» otherwise; the adjective agrees with the number", () => {
+test("payroll gate: «Не задана ставка у N преподавателей»; the number declines (1, 2, 5, 21)", () => {
   const R = lib("payroll.ts");
-  const teacher = (id) => ({ teacher_id: id, teacher_name: id, lessons_count: 1, lesson_types: [{ lesson_type: "group", groups: 1, suggested_percent: null }], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
-  const many = (n) => Array.from({ length: n }, (_, i) => teacher(`t${i}`));
-  const typedFor = (scope, missingCount) => Object.fromEntries(scope.slice(missingCount).map((t) => [R.percentKey(t.teacher_id, "group"), "50"]));
-  const gate = (n, missingCount, subject) => R.calculationGate(many(n), typedFor(many(n), missingCount), subject).text;
-  assert.equal(gate(3, 3, "all"), "Не указан процент ни у одного из 3 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(gate(3, 1, "all"), "Не указан процент у 1 из 3 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(gate(21, 2, "all"), "Не указан процент у 2 из 21 преподавателя — укажите его, чтобы рассчитать всех");
-  assert.equal(gate(21, 2, "selected"), "Не указан процент у 2 из 21 выбранного преподавателя — укажите его, чтобы рассчитать выбранных");
-  assert.equal(gate(22, 5, "selected"), "Не указан процент у 5 из 22 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
-  assert.equal(gate(11, 11, "selected"), "Не указан процент ни у одного из 11 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
-  assert.equal(gate(4, 4, "selected"), "Не указан процент ни у одного из 4 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+  const teacher = (id, missing) => ({ teacher_id: id, missing_rates: missing ? ["group"] : [] });
+  const gate = (total, missingCount) => R.calculationGate(Array.from({ length: total }, (_, i) => teacher(`t${i}`, i < missingCount))).text;
+  assert.equal(gate(3, 3), "Не задана ставка у 3 преподавателей");
+  assert.equal(gate(3, 1), "Не задана ставка у 1 преподавателя");
+  assert.equal(gate(21, 2), "Не задана ставка у 2 преподавателей");
+  assert.equal(gate(22, 21), "Не задана ставка у 21 преподавателя");
+  assert.equal(gate(22, 5), "Не задана ставка у 5 преподавателей");
+  assert.equal(gate(4, 0), null);
 });
 
 // ── useDialogKeys reads the LATEST onClose (hook run by a minimal runtime: render, effects with deps, unmount) ──
@@ -390,7 +387,7 @@ test("the payroll save bar really sticks: overflow-x is clip (not hidden) on the
   const css = read("src/app/globals.css");
   assert.match(css, /html,\s*body \{[^}]*overflow-x: hidden;[^}]*overflow-x: clip;/);
   const bar = read("src/components/payroll/sheet-controls.tsx");
-  assert.match(bar, /sticky bottom-2 z-30 border-primary-200 shadow-lg max-md:bottom-\[calc\(4\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
+  assert.match(bar, /sticky bottom-2 z-30 rounded-2xl border border-primary-200 bg-white px-4 py-3 shadow-lg max-md:bottom-\[calc\(4\.5rem\+env\(safe-area-inset-bottom\)\)\]/);
 });
 
 test("nits: «Осталось: N» does not wrap, the student toast says «Отправляем ответы…», no pin stripe, tabs stay whole below 2xl", () => {
@@ -576,7 +573,8 @@ test("the payroll save bar: a direct child of the SHEET page (it can stick above
   assert.match(sheet, /\{tab !== "history" && \(\s*<SaveBar/);
   // the month page: the bar floats only while THIS preview is on screen, so it stays inside the preview section
   const section = month.slice(month.indexOf('aria-label="Предпросмотр расчёта"'), month.indexOf("{toastNode}"));
-  assert.match(section, /<SaveBar[\s\S]*<\/section>/);
+  assert.match(section, /<PreviewBody[\s\S]*<\/section>/);
+  assert.match(month.slice(month.indexOf("function PreviewBody")), /<SaveBar\s+hideUntilFits/);
   // …and not inside the tab panel / the preview section any more
   assert.doesNotMatch(sheet.slice(sheet.indexOf('role="tabpanel" className="min-w-0 space-y-4"'), sheet.indexOf("A direct child of the page")), /<SaveBar/);
 });
@@ -841,7 +839,7 @@ test("the month page's save bar is shown only where it can float entirely above 
   assert.equal(barFitsAbovePin({ barBottom: Number.NaN, viewportHeight: 700, pinOffset: 72 }), true, "if it cannot be measured a button is never hidden");
   const bar = read("src/components/payroll/sheet-controls.tsx");
   assert.match(bar, /hideUntilFits = false/);
-  assert.match(bar, /\$\{fits \? "" : "invisible "\}rounded-2xl border/, "it keeps its place in the layout: nothing jumps");
+  assert.match(bar, /\$\{fits \? "" : "invisible "\}sticky bottom-2/, "it keeps its place in the layout: nothing jumps");
   assert.match(bar, /pinOffset: parseFloat\(getComputedStyle\(bar\)\.bottom\) \|\| 0/);
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<SaveBar\s+hideUntilFits/);
   assert.doesNotMatch(read("src/components/payroll/payroll-sheet-page.tsx"), /hideUntilFits/, "the sheet page's bar is the whole page's: always shown");

@@ -37,24 +37,22 @@ function sourceFiles(dir) {
 
 // ── 1. payroll copy ─────────────────────────────────────────────────────────────────────────────────
 
-test("payroll: «Не указан процент у N из M преподавателей — укажите его, чтобы рассчитать всех», plurals by the count", () => {
+test("payroll: «Не задана ставка у N преподавателей», plurals by the count", () => {
   const R = lib("payroll.ts");
-  const teacher = (id) => ({ teacher_id: id, teacher_name: id, lessons_count: 1, lesson_types: [{ lesson_type: "group", groups: 1, suggested_percent: null }], sheet: null, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
-  const many = (n) => Array.from({ length: n }, (_, i) => teacher(`t${i}`));
-  const text = (n, subject = "all") => R.calculationGate(many(n), {}, subject).text;
-  assert.equal(text(2), "Не указан процент ни у одного из 2 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(text(5), "Не указан процент ни у одного из 5 преподавателей — укажите его, чтобы рассчитать всех");
-  assert.equal(text(21), "Не указан процент ни у одного из 21 преподавателя — укажите его, чтобы рассчитать всех");
-  assert.equal(text(1), "Не указан процент у преподавателя — укажите его, чтобы рассчитать");
-  assert.equal(text(3, "selected"), "Не указан процент ни у одного из 3 выбранных преподавателей — укажите его, чтобы рассчитать выбранных");
+  const many = (n) => Array.from({ length: n }, (_, i) => ({ teacher_id: `t${i}`, missing_rates: ["group"] }));
+  const text = (n) => R.calculationGate(many(n)).text;
+  assert.equal(text(1), "Не задана ставка у 1 преподавателя");
+  assert.equal(text(2), "Не задана ставка у 2 преподавателей");
+  assert.equal(text(5), "Не задана ставка у 5 преподавателей");
+  assert.equal(text(21), "Не задана ставка у 21 преподавателя");
   assert.doesNotMatch(read("src/lib/payroll.ts"), /осталось \$\{missing\}/);
 });
 
 test("payroll: status chips start with a capital letter", () => {
   const R = lib("payroll.ts");
   assert.equal(R.sheetStatus(null).label, "Не рассчитано");
-  assert.equal(R.sheetStatus({ revision: 3, total_amount: 1250000, stale: true }).label, "Данные изменились");
-  assert.equal(R.sheetStatus({ revision: 3, total_amount: 1250000, stale: false }).label.replace(/[\u00a0\u202f]/g, " "), "Сохранено · редакция 3 · 1 250 000 сум");
+  assert.equal(R.sheetStatus({ stale: true, updated_at: "2026-10-02T08:00:00" }).label, "Есть изменения");
+  assert.equal(R.sheetStatus({ stale: false, updated_at: "2026-10-02T08:00:00" }).label, "Сохранено 02.10");
 });
 
 // ── 2. sentence-case headers ────────────────────────────────────────────────────────────────────────

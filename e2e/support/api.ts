@@ -278,6 +278,15 @@ export class Org {
   }
 
   /**
+   * UX-2: the payroll rate of a teacher (`PUT /org/payroll/rates/{id}`, owner): percents by type from the month `validFrom`
+   * (YYYY-MM, the current month by default).  The specs set it through the page «Сотрудники» once, and through here when the
+   * rate is only the set-up of another check.
+   */
+  async setPayrollRate(teacherId: string, percents: Record<string, string>, validFrom: string = businessNow().date.slice(0, 7)) {
+    return this.owner.api.put(`/auth/org/payroll/rates/${teacherId}`, { valid_from: validFrom, percents });
+  }
+
+  /**
    * #105: the individual price of one student in a group (`PUT /org/memberships/{id}/price-override`): a sum with a
    * reason (3..200 characters), or `amount: null` - back to the price of the group.
    */
