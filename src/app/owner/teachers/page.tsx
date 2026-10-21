@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { staffDisplayName } from "@/lib/staff-name";
+import { formatBusinessDate } from "@/lib/business-time";
+import { rateItemLine, type PayrollRateItem } from "@/lib/payroll";
 import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { useToast } from "@/components/ui/toast";
+import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 
 interface Member {
   id: string; // user id
@@ -38,10 +43,27 @@ const roleConfig: Record<string, { label: string; pluralLabel: string; color: st
 };
 
 export default function OwnerTeachersPage() {
+  // The page reads `?teacher=` (the link «Указать ставку» of «Зарплата»), so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={null}>
+      <OwnerTeachersContent />
+    </Suspense>
+  );
+}
+
+function OwnerTeachersContent() {
   const { org } = useAuthStore();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { showToast, toastNode } = useToast();
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Payroll rates by teacher id (UX-2: the rate is set here, «Зарплата» only reads it). */
+  const [rates, setRates] = useState<Record<string, PayrollRateItem>>({});
+  const [rateTeacherId, setRateTeacherId] = useState<string | null>(null);
+  const today = useMemo(() => formatBusinessDate(), []);
+  const teacherParam = searchParams?.get("teacher") ?? null;
   
   // UI State
   const [activeTab, setActiveTab] = useState<"members" | "invites">("members");
@@ -53,12 +75,14 @@ export default function OwnerTeachersPage() {
 
   const loadData = async () => {
     try {
-      const [m, inv] = await Promise.all([
+      const [m, inv, rateList] = await Promise.all([
         orgApi.listMembers().catch(() => []),
         orgApi.listInvitations().catch(() => []),
+        orgApi.getPayrollRates(today.slice(0, 7)).catch(() => null),
       ]);
       setMembers(Array.isArray(m) ? m : (m as any)?.items || []);
       setInvites(Array.isArray(inv) ? inv : (inv as any)?.items || []);
+      setRates(Object.fromEntries((rateList?.items ?? []).map((item) => [item.teacher_id, item])));
     } catch (e) {
       console.error(e);
     } finally {
@@ -67,6 +91,22 @@ export default function OwnerTeachersPage() {
   };
 
   useEffect(() => { loadData(); }, []);
+
+  // `?teacher=<id>` opens the rate dialog of that teacher (once the rates are in).
+  const openedFromLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!teacherParam) { openedFromLink.current = null; return; }
+    // once per link: closing (or saving) must not bring the dialog back while the address is still being cleaned
+    if (rates[teacherParam] && openedFromLink.current !== teacherParam) {
+      openedFromLink.current = teacherParam;
+      setRateTeacherId(teacherParam);
+    }
+  }, [teacherParam, rates]);
+
+  const closeRateDialog = () => {
+    setRateTeacherId(null);
+    if (teacherParam) router.replace("/owner/teachers", { scroll: false });
+  };
 
 
   const handleInvite = async () => {
@@ -223,9 +263,23 @@ export default function OwnerTeachersPage() {
                                 <Mail className="w-3.5 h-3.5 text-slate-400" />
                                 <p className="text-sm font-medium text-slate-500">{m.email}</p>
                               </div>
+                              {rates[m.user_id || m.id] && (() => {
+                                const line = rateItemLine(rates[m.user_id || m.id]);
+                                return <p className={`mt-1 text-sm font-medium ${line.missing ? "text-amber-700" : "text-slate-600"}`}>{line.text}</p>;
+                              })()}
                             </div>
                           </div>
                           <div className="flex items-center gap-4 sm:ml-auto">
+                            {rates[m.user_id || m.id] && (
+                              <button
+                                type="button"
+                                onClick={() => setRateTeacherId(m.user_id || m.id)}
+                                aria-label={`Изменить ставку: ${staffDisplayName(m, "Без имени")}`}
+                                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-primary-200 hover:text-primary-700"
+                              >
+                                Изменить ставку
+                              </button>
+                            )}
                             {m.org_role !== "owner" ? (
                               <button
                                 onClick={() => handleRemoveMember(m.member_id)}
@@ -315,6 +369,18 @@ export default function OwnerTeachersPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <TeacherRateDialog
+        item={rateTeacherId ? rates[rateTeacherId] ?? null : null}
+        today={today}
+        onClose={closeRateDialog}
+        onSaved={(saved) => {
+          setRates((previous) => ({ ...previous, [saved.teacher_id]: saved }));
+          closeRateDialog();
+          showToast("Ставка сохранена");
+        }}
+      />
+      {toastNode}
 
       {/* Invite dialog: the shared Modal (Escape, focus trap, scroll lock, the stack of dialogs) */}
       <Modal

@@ -2,33 +2,32 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ArrowLeft, Download, Loader2, Printer } from "lucide-react";
+import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatBusinessDate, formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
-import { formatMoney } from "@/lib/payments";
+import { formatBusinessDate } from "@/lib/business-time";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
   REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
+  accruedUnpaid,
+  buildLineViews,
   buildPatchBody,
-  checkMissingPercents,
   editsDirty,
-  editsProblem,
   freshFingerprintOf,
   isDataChanged,
   isOpenMonth,
-  isPercentRequired,
+  isRateRequired,
   isRevisionConflict,
-  missingTypesOf,
+  monthStatusText,
   monthTitle,
   payrollErrorText,
-  revisionLabel,
+  sheetCardStatus,
   sheetFileName,
+  sheetTotal,
   teacherLabel,
-  type LessonType,
+  versionLabel,
   type PayrollDiff,
-  type PayrollPercentInput,
   type PayrollRevision,
   type PayrollErrorLike,
   type PayrollSheet,
@@ -40,15 +39,16 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { PayrollMonthStatus } from "./month-status";
+import { PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
-import { BackLink, ConflictBanner, DiffBanner, MissingPercentBanner, PayrollForbidden, PercentEditor, RevisionList, SaveBar, WarningLinks } from "./sheet-controls";
+import { SheetSummaryCard } from "./sheet-summary";
+import { BackLink, ConflictBanner, PayrollForbidden, RateRequiredNotice, RevisionList, SaveBar, usePrintWithDates } from "./sheet-controls";
 
 type Tab = "sheet" | "history";
 
 const TABS: Array<{ key: Tab; label: string }> = [
   { key: "sheet", label: "Ведомость" },
-  { key: "history", label: "История редакций" },
+  { key: "history", label: "История сохранений" },
 ];
 
 interface Failure {
@@ -94,11 +94,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const [revisionsFailed, setRevisionsFailed] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  /** A recalculation or save was refused for want of percents: the kinds, the server's words, what to retry. */
-  const [missing, setMissing] = useState<{ types: LessonType[]; message: string; recalculate: boolean } | null>(null);
-  const [missingTexts, setMissingTexts] = useState<Record<string, string>>({});
-  const [missingAttempted, setMissingAttempted] = useState(false);
-  const [missingError, setMissingError] = useState<string | null>(null);
+  /** A recalculation was refused for want of a rate: the server's words; the notice leads to «Сотрудники». */
+  const [rateMissing, setRateMissing] = useState<string | null>(null);
   /** The recalculation was refused because the data moved after the diff the owner looked at (409 SHEET_DATA_CHANGED). */
   const [dataChanged, setDataChanged] = useState<{ message: string; fingerprint: string | null; acknowledged: boolean } | null>(null);
 
@@ -108,7 +105,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const sheetIdRef = useRef(sheetId);
   sheetIdRef.current = sheetId;
 
-  const dirty = sheet ? editsDirty(sheet, edits) : false;
+  const { printing, print } = usePrintWithDates();
+  const dirty = editsDirty(edits);
   useUnsavedGuard(dirty, UNSAVED_TEXT);
 
   const loadDiff = useCallback(async () => {
@@ -192,24 +190,19 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     router.replace(next === "history" ? "?tab=history" : "?", { scroll: false });
   };
 
-  const apply = async (recalculate: boolean, extraPercents: PayrollPercentInput[] = []) => {
+  const apply = async (recalculate: boolean) => {
     if (!sheet || !sheet.id || saving) return;
-    const problem = editsProblem(sheet, edits);
-    if (problem) { setSaveError(problem); return; }
     const requestedFor = sheetId;
     setSaving(true);
     setSaveError(null);
+    setRateMissing(null);
     try {
-      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, extraPercents, expectedFingerprint: diff?.source_fingerprint ?? dataChanged?.fingerprint ?? null }));
+      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: diff?.source_fingerprint ?? dataChanged?.fingerprint ?? null }));
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
-        `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? revisionLabel(updated.revision) : "новая редакция"}`,
+        `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
       );
       loads.current.next();
-      setMissing(null);
-      setMissingTexts({});
-      setMissingAttempted(false);
-      setMissingError(null);
       setDataChanged(null);
       setSheet(named(updated));
       setEdits(EMPTY_EDITS);
@@ -221,26 +214,13 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
       const error = cause as PayrollErrorLike;
-      const types = isPercentRequired(error) ? missingTypesOf(error, sheet.teacher_id) : [];
       if (isRevisionConflict(error)) setConflict(true);
       else if (isDataChanged(error)) setDataChanged({ message: payrollErrorText(error), fingerprint: freshFingerprintOf(error), acknowledged: false });
-      else if (types.length > 0) {
-        // Ask for the missing percents right here and retry with them.
-        setMissing({ types, message: payrollErrorText(error), recalculate });
-        setMissingError(null);
-      } else if (missing) setMissingError(payrollErrorText(error));
+      else if (isRateRequired(error)) setRateMissing(payrollErrorText(error));
       else setSaveError(payrollErrorText(error));
     } finally {
       setSaving(false);
     }
-  };
-
-  const retryWithMissing = () => {
-    if (!sheet || !missing) return;
-    const checked = checkMissingPercents(sheet.teacher_id, missing.types, missingTexts);
-    if (Object.keys(checked.errors).length > 0) { setMissingAttempted(true); return; }
-    setMissingError(null);
-    void apply(missing.recalculate, checked.percents);
   };
 
   const download = async () => {
@@ -249,7 +229,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     try {
       const file = await orgApi.downloadPayrollSheet(sheet.id, sheetFileName(sheet.teacher_name, sheet.month));
       saveBlobAs(file.blob, file.filename);
-      if (dirty) showToast("В файле сохранённая редакция: несохранённые правки в него не вошли", "warning");
+      if (dirty) showToast("В файле сохранённая версия: несохранённые правки в него не вошли", "warning");
     } catch (cause) {
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     } finally {
@@ -260,6 +240,18 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   if (denied || failure?.forbidden) return <PayrollForbidden />;
 
   const backHref = sheet?.month ? `/owner/payroll?month=${sheet.month}` : "/owner/payroll";
+  const views = sheet ? buildLineViews(sheet, edits) : [];
+  const total = sheet ? sheetTotal(sheet, views, edits) : 0;
+  const status = sheet
+    ? sheetCardStatus({
+      saved: true,
+      stale: diff ? diff.stale : sheet.stale,
+      dirty,
+      updatedAt: sheet.updated_at,
+      delta: diff?.stale ? diff.delta_amount : null,
+    })
+    : null;
+  const monthNote = sheet ? monthStatusText(sheet.month, sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 print:max-w-none print:space-y-3">
@@ -270,28 +262,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
           <ArrowLeft className="h-4 w-4" />
           Зарплата{sheet?.month ? ` · ${monthTitle(sheet.month)}` : ""}
         </BackLink>
-        {sheet && (
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void download()}
-              disabled={exporting}
-              title={dirty ? "В файл попадёт сохранённая редакция" : undefined}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-            >
-              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              Скачать Excel
-            </button>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700"
-            >
-              <Printer className="h-4 w-4" />
-              Печать
-            </button>
-          </div>
-        )}
+        {sheet && <PayrollPageMenu divisor={sheet.divisor_default} />}
       </div>
 
       {loading ? (
@@ -307,26 +278,14 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
             <button type="button" onClick={() => void load()} className="mt-1 rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           )}
         </div>
-      ) : sheet ? (
+      ) : sheet && status ? (
         <>
           <header className="min-w-0">
             <h1 className="break-words text-xl font-bold text-slate-900 md:text-2xl">{sheet.teacher_name}</h1>
             <p className="mt-0.5 text-sm text-slate-500">
               Ведомость за {monthTitle(sheet.month).toLowerCase()}
-              {sheet.revision ? ` · ${revisionLabel(sheet.revision)}` : ""}
-              {" · "}<span className="font-semibold text-slate-700">{formatMoney(sheet.total_amount)}</span>
+              {monthNote ? ` · ${monthNote.charAt(0).toLowerCase()}${monthNote.slice(1)}` : ""}
             </p>
-            {(sheet.updated_by_name || sheet.updated_at) && (
-              <p className="mt-0.5 text-xs text-slate-400 print:hidden">
-                Сохранил{sheet.updated_by_name ? `: ${sheet.updated_by_name}` : ""}
-                {sheet.updated_at ? ` · ${formatUtcNaiveAsBusinessDateTime(sheet.updated_at)}` : ""}
-                {sheet.created_by_name && sheet.created_by_name !== sheet.updated_by_name ? ` · создал: ${sheet.created_by_name}` : ""}
-              </p>
-            )}
-            {sheet.note && <p className="mt-1 break-words text-sm text-slate-600">{sheet.note}</p>}
-            <div className="mt-2">
-              <WarningLinks counts={sheet.warnings} label="Предупреждения ведомости" />
-            </div>
             <p className="mt-1 hidden text-xs text-slate-500 print:block">Сформировано {formatBusinessDate().split("-").reverse().join(".")}</p>
           </header>
 
@@ -351,7 +310,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
             <div role="tabpanel" className="space-y-3 print:hidden">
               {revisionsFailed ? (
                 <div role="alert" className="flex flex-col items-center gap-2 py-10 text-center">
-                  <p className="text-sm font-medium text-slate-700">Не удалось загрузить историю редакций</p>
+                  <p className="text-sm font-medium text-slate-700">Не удалось загрузить историю сохранений</p>
                   <button type="button" onClick={() => void loadRevisions()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
                 </div>
               ) : revisions === null ? (
@@ -362,11 +321,6 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
             </div>
           ) : (
             <div role="tabpanel" className="min-w-0 space-y-4">
-              <PayrollMonthStatus
-                month={sheet.month}
-                open={sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())}
-                divisor={sheet.divisor_default}
-              />
               {conflict && (
                 <ConflictBanner
                   message={REVISION_CONFLICT_TEXT}
@@ -388,39 +342,28 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   }}
                 />
               )}
-              {missing && (
-                <MissingPercentBanner
-                  teacherName={sheet.teacher_name ?? "Преподаватель"}
-                  message={missing.message}
-                  types={missing.types}
-                  texts={missingTexts}
-                  attempted={missingAttempted}
-                  busy={saving}
-                  error={missingError}
-                  retryLabel={missing.recalculate ? "Пересчитать с этими процентами" : "Сохранить с этими процентами"}
-                  onText={(type, text) => { setMissingError(null); setMissingTexts((previous) => ({ ...previous, [type]: text })); }}
-                  onRetry={retryWithMissing}
-                  onCancel={() => { setMissing(null); setMissingTexts({}); setMissingAttempted(false); setMissingError(null); }}
-                />
-              )}
-              {diff?.stale && (
-                <DiffBanner
-                  diff={diff}
-                  busy={saving}
-                  onRecalculate={() => {
-                    if (dirty && !window.confirm("Правки, которых вы ещё не сохранили, войдут в новую редакцию вместе с пересчётом. Продолжить?")) return;
-                    void apply(true);
-                  }}
-                />
-              )}
+              {saveError && !dirty && <p role="alert" className="text-sm font-medium text-rose-700 print:hidden">{saveError}</p>}
+              {rateMissing && <RateRequiredNotice teacherId={sheet.teacher_id} message={rateMissing} />}
+              <SheetSummaryCard
+                sheet={sheet}
+                total={total}
+                accrued={accruedUnpaid(views)}
+                status={status}
+                savedBy={sheet.updated_by_name}
+                busy={saving}
+                diff={diff}
+                onPrimary={() => void apply(true)}
+                onExcel={() => void download()}
+                exporting={exporting}
+                onPrint={print}
+              />
               {diffFailed && (
                 <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500 print:hidden">
                   Не удалось проверить, изменились ли данные после сохранения.
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
-              <PercentEditor sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
-              <PayrollSheetTable sheet={sheet} edits={edits} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
+              <PayrollSheetTable sheet={sheet} edits={edits} forceDates={printing} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
             </div>
           )}
           {/* A direct child of the page, not of the tab panel: a sticky bar can only move inside its parent, and the
@@ -428,9 +371,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
           {tab !== "history" && (
             <SaveBar
               dirty={dirty}
-              problem={editsProblem(sheet, edits) ?? saveError}
-              saveLabel={`Сохранить как редакцию ${(sheet.revision ?? 1) + 1}`}
-              canSaveClean={false}
+              problem={saveError}
               blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
               saving={saving}
               note={note}

@@ -35,6 +35,10 @@ import {
   type PayrollCalculateResponse,
   type PayrollDiff,
   type PayrollMonthOverview,
+  type PayrollRateHistoryItem,
+  type PayrollRateItem,
+  type PayrollRatesPutBody,
+  type PayrollRatesResponse,
   type PayrollPatchBody,
   type PayrollRevision,
   type PayrollSaveBody,
@@ -1559,9 +1563,18 @@ export const orgApi = {
   getPayrollSettings: () => api<PayrollSettings>("/auth/org/payroll/settings"),
   updatePayrollSettings: (data: { divisor: number }) =>
     api<PayrollSettings>("/auth/org/payroll/settings", { method: "PUT", body: data }),
-  /** Teachers with completed lessons in the month (`month` = YYYY-MM): types, suggested percents, saved sheet, warnings. */
+  /** Rates of the teachers (UX-2): by type, in force in `month` (YYYY-MM), and the ones scheduled for later. */
+  getPayrollRates: (month: string) =>
+    api<PayrollRatesResponse>(`/auth/org/payroll/rates?month=${encodeURIComponent(month)}`),
+  /** Sets the rates of one teacher from the month `valid_from` (YYYY-MM); saved sheets do not change. Answers with his item. */
+  putPayrollRates: (teacherId: string, body: PayrollRatesPutBody) =>
+    api<PayrollRateItem>(`/auth/org/payroll/rates/${encodePathId(teacherId)}`, { method: "PUT", body }),
+  /** Every rate ever set for the teacher, newest first. */
+  getPayrollRateHistory: (teacherId: string) =>
+    api<PayrollRateHistoryItem[]>(`/auth/org/payroll/rates/${encodePathId(teacherId)}/history`),
+  /** Teachers with completed lessons in the month (`month` = YYYY-MM): types, the rate of the month, saved sheet, warnings. */
   getPayrollMonth: (month: string) => api<PayrollMonthOverview>(`/auth/org/payroll/months/${encodePathId(month)}`),
-  /** Preview only: nothing is written. */
+  /** Preview only: nothing is written.  The rates are the stored ones (set in «Сотрудники»), `body` only narrows the teachers. */
   calculatePayroll: async (month: string, body: PayrollCalculateBody): Promise<PayrollSheet[]> =>
     (await api<PayrollCalculateResponse>(`/auth/org/payroll/months/${encodePathId(month)}/calculate`, { method: "POST", body })).sheets,
   /** Saves a sheet; when the teacher already has one for the month `revision` (the one the owner saw) is required. */
@@ -1569,7 +1582,7 @@ export const orgApi = {
   listPayrollSheets: (month: string) =>
     api<PayrollSheetBrief[]>(`/auth/org/payroll/sheets?month=${encodeURIComponent(month)}`),
   getPayrollSheet: (sheetId: string) => api<PayrollSheet>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`),
-  /** A new revision; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. `recalculate: true` is «Пересчитать». */
+  /** A new version; 409 `SHEET_REVISION_CONFLICT` when somebody else saved first. `recalculate: true` is «Пересчитать». */
   patchPayrollSheet: (sheetId: string, body: PayrollPatchBody) =>
     api<PayrollSheet>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}`, { method: "PATCH", body }),
   getPayrollRevisions: (sheetId: string) =>

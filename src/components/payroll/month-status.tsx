@@ -1,38 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { monthStatusText } from "@/lib/payroll";
+import { useRouter } from "next/navigation";
+import { HelpCircle, Settings2 } from "lucide-react";
+import { formatMoney } from "@/lib/payments";
+import { monthStatusText, type MonthSummary } from "@/lib/payroll";
+import { RowMenu } from "@/components/ui/row-menu";
 import { PayrollHowItWorksDialog } from "./how-it-works";
 
 /**
- * The one calm line over the payroll of a month (it replaces an amber card, a formula line and an accordion):
- * «Октябрь ещё идёт — расчёт предварительный» (an open month only), «Как считается» (opens the explanation in a dialog)
- * and «Делитель — в настройках».  Nothing here is an error, so nothing is red.
+ * The one line under the buttons of the month page: «К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3» and, for a month
+ * that is not over, the calm «Октябрь ещё идёт — расчёт предварительный».  Nothing here is an error, so nothing is red.
  */
-export function PayrollMonthStatus({ month, open, divisor }: { month: string; open: boolean; divisor: number }) {
-  const [helpOpen, setHelpOpen] = useState(false);
+export function PayrollMonthSummary({ summary, month, open }: { summary: MonthSummary; month: string; open: boolean }) {
   const status = monthStatusText(month, open);
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm print:hidden">
-      {status && (
-        <p role="status" className="flex items-center gap-2 text-slate-700">
-          <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-          {status}
-        </p>
-      )}
-      <button
-        type="button"
-        onClick={() => setHelpOpen(true)}
-        aria-haspopup="dialog"
-        className="font-medium text-primary-700 hover:underline"
-      >
-        Как считается
-      </button>
-      <Link href="/owner/settings?section=payroll" className="font-medium text-primary-700 hover:underline">
-        Делитель — в настройках
-      </Link>
-      <PayrollHowItWorksDialog open={helpOpen} divisor={divisor} onClose={() => setHelpOpen(false)} />
+    <div className="space-y-0.5 print:hidden">
+      <p data-testid="payroll-month-summary" className="text-sm text-slate-600">
+        {summary.label}{" "}
+        <span className="font-semibold tabular-nums text-slate-900">{summary.amount === null ? "—" : formatMoney(summary.amount)}</span>
+        {" · "}
+        {summary.saved}
+      </p>
+      {status && <p role="status" className="text-xs text-slate-500">{status}</p>}
     </div>
+  );
+}
+
+/**
+ * «⋯» of the payroll pages: «Как считается» (the explanation in a dialog) and «Делитель в настройках».  The two links used to
+ * float next to the text; one quiet menu keeps them in reach and out of the way.
+ */
+export function PayrollPageMenu({ divisor }: { divisor: number }) {
+  const router = useRouter();
+  const [helpOpen, setHelpOpen] = useState(false);
+  return (
+    <>
+      <RowMenu
+        label="Ещё: как считается, делитель"
+        items={[
+          { key: "how", label: "Как считается", icon: HelpCircle, onSelect: () => setHelpOpen(true) },
+          { key: "divisor", label: "Делитель в настройках", icon: Settings2, onSelect: () => router.push("/owner/settings?section=payroll") },
+        ]}
+      />
+      <PayrollHowItWorksDialog open={helpOpen} divisor={divisor} onClose={() => setHelpOpen(false)} />
+    </>
   );
 }

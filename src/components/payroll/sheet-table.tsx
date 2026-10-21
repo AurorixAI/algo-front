@@ -1,20 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { HelpCircle } from "lucide-react";
-import { MAX_MONEY, formatMoney, formatMoneyInput, parseMoneyInput, reformatMoneyTyping } from "@/lib/payments";
+import Link from "next/link";
+import { CalendarDays, HelpCircle } from "lucide-react";
+import { formatMoney } from "@/lib/payments";
 import {
   buildBlocks,
   buildLineViews,
   formatDayMonth,
   lessonTypeLabel,
-  lineNotes,
   markCell,
   markFor,
-  percentLabel,
-  setFeeEdit,
+  priceCellView,
   setIncludeEdit,
-  sheetTotal,
   UNPAID_INCLUDED_MARK_HINT,
   UNPAID_MARK_HINT,
   type LineView,
@@ -27,16 +25,14 @@ import {
   INCLUDE_HINT,
   INCLUDE_LABEL,
   INCLUDE_NOT_DONE_LABEL,
-  priceFieldHint,
-  priceSourceNote,
-  priceStepsLines,
   PRICE_HEADER_HINT,
+  priceColumnLabel,
   SHEET_INCLUDE_NOTE,
   SHEET_LEGEND,
   UNPAID_HEADER_HINT,
 } from "@/lib/payroll-help";
 import { Hint } from "@/components/ui/hint";
-import { priceLabelOf } from "@/lib/group-price";
+import { groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
@@ -48,67 +44,27 @@ const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 whitespac
 /** The first column keeps its place while the dates scroll; on paper there is nothing to scroll. */
 const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
 
-function FeeCell({
-  view, editable, priceLabel, onChange,
-}: {
-  view: LineView;
-  editable: boolean;
-  /** What the price is called in the centre («Оплата в месяц» / «Стоимость пакета»). */
-  priceLabel: string;
-  onChange: (fee: number | null) => void;
-}) {
+/** The price of a line is text: the group's or the student's own price; nothing to type (it is set in «Цены групп»). */
+function PriceCell({ view }: { view: LineView }) {
   const { line } = view;
-  // While the field has focus it shows what is typed: an emptied field means «the membership's own fee» and must not
-  // be refilled under the owner's fingers; on leaving it shows the fee in force.
-  const [draft, setDraft] = useState<string | null>(null);
-  const label = `${priceLabel}: ${line.student_name}, ${line.group_name}`;
-  const source = line.source_fee;
-  // #105: whose price this is, and the steps when it changed inside the month
-  const sourceNote = priceSourceNote(line);
-  const steps = priceStepsLines(line);
-  const stepsHint = priceFieldHint(line, editable);
+  const price = priceCellView(line);
   return (
     <div className="flex flex-col items-end gap-0.5">
-      {editable ? (
-        <input
-          type="text"
-          inputMode="numeric"
-          autoComplete="off"
-          aria-label={label}
-          placeholder={source !== null ? formatMoneyInput(source) : "не задана"}
-          value={draft ?? formatMoneyInput(view.fee)}
-          onChange={(event) => {
-            const text = reformatMoneyTyping(event.target.value);
-            setDraft(text);
-            const parsed = parseMoneyInput(text);
-            onChange(parsed === null ? null : Math.min(parsed, MAX_MONEY));
-          }}
-          onBlur={() => setDraft(null)}
-          className="w-28 rounded-lg border border-slate-200 bg-white px-2 py-1 text-right text-sm tabular-nums text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 print:hidden"
-        />
-      ) : null}
-      <span className={`${editable ? "hidden print:inline" : ""} whitespace-nowrap tabular-nums`}>
-        {view.fee !== null ? formatMoney(view.fee) : "не задана"}
-      </span>
-      {view.feeOverridden && (
-        <span className="text-[10px] font-medium text-primary-700 print:text-black">
-          изменена{source !== null ? ` · было ${formatMoney(source)}` : ""}
+      {price.missing ? (
+        <span className="whitespace-nowrap text-amber-700 print:text-black">
+          нет цены{" "}
+          <Link href={groupPriceHref("/owner/groups", line.group_id)} className="font-medium text-primary-700 underline-offset-2 hover:underline print:hidden">
+            задать
+          </Link>
         </span>
+      ) : (
+        <span className="whitespace-nowrap tabular-nums">{price.text}</span>
       )}
-      {sourceNote && (
-        <span className="text-[10px] font-medium text-primary-700 print:text-black" title="Индивидуальная цена ученика (исключение из цены группы)">
-          {sourceNote}
-        </span>
-      )}
-      {steps.length > 0 && (
-        <span className="flex flex-col items-end text-[10px] leading-tight text-slate-500 print:text-black" aria-label="Цена менялась в течение месяца">
-          {stepsHint ? (
-            <Hint text={stepsHint} className="font-medium text-amber-700 print:text-black">цена менялась</Hint>
-          ) : (
-            <span className="font-medium text-amber-700 print:text-black">цена менялась</span>
-          )}
-          {steps.map((step) => <span key={step} className="whitespace-nowrap tabular-nums">{step}</span>)}
-        </span>
+      {price.tag && <span className="text-[10px] font-medium text-primary-700 print:text-black">{price.tag}</span>}
+      {price.note && (
+        price.steps
+          ? <Hint text={price.steps} className="text-[10px] font-medium text-amber-700 print:text-black">{price.note}</Hint>
+          : <span className="text-[10px] font-medium text-amber-700 print:text-black">{price.note}</span>
       )}
     </div>
   );
@@ -147,54 +103,52 @@ function IncludeCell({
   );
 }
 
-/** The legend over the table: what the marks mean (the dashed «1» is the one the owner asks about most). */
-function SheetLegend({ showIncludeNote }: { showIncludeNote: boolean }) {
+/** The legend of the date grid: what the marks mean (the dashed «1» is the one the owner asks about most). */
+function SheetLegend() {
   const looks: Record<string, string> = {
     counted: "font-semibold text-slate-800",
     zero: "font-bold text-rose-600 print:text-black",
     pending: "rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
     unpaid: "rounded border border-dashed border-slate-300 px-1 text-slate-500",
-    empty: "text-slate-400",
   };
   return (
-    <div className="space-y-1">
-      <ul aria-label="Обозначения" className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-slate-600">
-        {SHEET_LEGEND.map((item) => (
-          <li key={item.key}>
-            <span className={looks[item.key]}>{item.mark}</span> — {item.text}
-          </li>
-        ))}
-      </ul>
-      {showIncludeNote && <p className="text-xs text-slate-500 print:hidden">{SHEET_INCLUDE_NOTE}</p>}
-    </div>
+    <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
+      {SHEET_LEGEND.map((item) => (
+        <li key={item.key}>
+          <span className={looks[item.key]}>{item.mark}</span> — {item.text}
+        </li>
+      ))}
+    </ul>
   );
 }
 
 /**
- * The sheet as the partner keeps it: a block per group - the students in rows, the lessons of the month in
- * columns (1 counted, 0 red, «Ждёт» yellow, empty not in the group, grey not paid) - then the fee, the
- * percent, the counted and unpaid lessons and the pay of each line, a subtotal per group and the sheet's «Итого».
+ * The sheet as blocks, one per group: the total of the group in its header, the students in rows
+ * (Ученик | Цена в месяц | Засчитано | Без оплаты [начислить] | Начислено).  The dates of the month are behind «По датам» of
+ * a group (and on paper, when the page prints with them): a date grid is the proof of a sum, not the thing the owner reads first.
  *
- * The amounts are the server's; a line the owner has edited is previewed with the same formula until saved.
- * On a phone every block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
+ * The amounts are the server's; a line whose «начислить» the owner has changed is previewed with the same formula until saved.
+ * With the dates open, a block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
  */
 export function PayrollSheetTable({
-  sheet, edits, editable = true, onEdits, priceLabel: priceLabelProp,
+  sheet, edits, editable = true, onEdits, forceDates = false, priceLabel: priceLabelProp,
 }: {
   sheet: PayrollSheet;
   edits: SheetEdits;
   editable?: boolean;
   onEdits?: (update: (previous: SheetEdits) => SheetEdits) => void;
-  /** What the price is called («Оплата в месяц» / «Стоимость пакета»); by default the centre's mode, as everywhere. */
+  /** Every group shows its dates (the print of a sheet). */
+  forceDates?: boolean;
+  /** What the price is called in the centre («Оплата в месяц» / «Стоимость пакета»); by default the centre's mode, as everywhere. */
   priceLabel?: string;
 }) {
   const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
   const blocks = useMemo(() => buildBlocks(sheet, views), [sheet, views]);
-  const total = sheetTotal(sheet, views, edits);
   const canEdit = editable && Boolean(onEdits);
-  // The price is called by the centre's mode, like everywhere else
+  const [openDates, setOpenDates] = useState<ReadonlySet<string>>(new Set());
+  // the price is called by the centre's mode, like everywhere else
   const centreLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
-  const priceLabel = priceLabelProp ?? centreLabel;
+  const priceColumn = priceColumnLabel(priceLabelProp ?? centreLabel);
 
   if (sheet.lines.length === 0) {
     return (
@@ -204,38 +158,65 @@ export function PayrollSheetTable({
     );
   }
 
+  const toggleDates = (key: string) => {
+    setOpenDates((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   return (
-    <div className="min-w-0 space-y-5 print:space-y-4">
-      <SheetLegend showIncludeNote={blocks.some((block) => block.unpaid > 0)} />
+    <div className="min-w-0 space-y-4 print:space-y-4">
       {blocks.map((block) => {
-        const span = 3 + block.columns.length;
+        const key = block.groupId || block.groupName;
+        const showDates = forceDates || openDates.has(key);
+        const gridId = `payroll-dates-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
         return (
           <section
-            key={block.groupId || block.groupName}
+            key={key}
             aria-label={`Группа ${block.groupName}`}
             className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200 bg-white print:overflow-visible print:break-inside-avoid-page print:rounded-none print:border-slate-400"
           >
-            <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-slate-100 bg-slate-50/70 px-4 py-3 print:bg-transparent">
+            <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 bg-slate-50/70 px-4 py-3 print:bg-transparent">
               <h3 className="min-w-0 break-words text-base font-bold text-slate-900">{block.groupName}</h3>
               <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{lessonTypeLabel(block.lessonType)}</span>
               {block.lessonTime && <span className="text-sm text-slate-500">{block.lessonTime}</span>}
+              <span className="ml-auto flex items-center gap-3">
+                {block.columns.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleDates(key)}
+                    aria-expanded={showDates}
+                    aria-controls={gridId}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50 print:hidden"
+                  >
+                    <CalendarDays className="h-3.5 w-3.5" />
+                    {showDates ? "Скрыть даты" : "По датам"}
+                  </button>
+                )}
+                <span className="whitespace-nowrap text-sm text-slate-600">
+                  Итого по группе <span className="font-bold tabular-nums text-slate-900">{formatMoney(block.amount)}</span>
+                </span>
+              </span>
             </header>
 
             <div
+              id={gridId}
               role="region"
               tabIndex={0}
-              aria-label={`Таблица группы ${block.groupName}: прокручивается вбок`}
+              aria-label={`Таблица группы ${block.groupName}${showDates ? ": прокручивается вбок" : ""}`}
               className="relative max-w-full overflow-x-auto overscroll-x-contain print:overflow-visible"
             >
               <table className="w-full border-collapse text-sm print:text-[11px]">
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th scope="col" className={`${HEAD} ${STICKY} bg-slate-50`}>Ученик</th>
-                    <th scope="col" aria-label={priceLabel} className={`${HEAD} text-right`}>
-                      <Hint text={PRICE_HEADER_HINT}>{priceLabel}</Hint>
+                    <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem]"} bg-slate-50`}>Ученик</th>
+                    <th scope="col" aria-label={priceColumn} className={`${HEAD} text-right`}>
+                      <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
                     </th>
-                    <th scope="col" className={`${HEAD} text-center`}>%</th>
-                    {block.columns.map((column) => (
+                    {showDates && block.columns.map((column) => (
                       <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
                         {formatDayMonth(column.date)}
                       </th>
@@ -243,8 +224,8 @@ export function PayrollSheetTable({
                     <th scope="col" aria-label="Засчитано" className={`${HEAD} text-center`}>
                       <Hint text={COUNTED_HEADER_HINT}>Засчитано</Hint>
                     </th>
-                    <th scope="col" aria-label="Не оплачено" className={`${HEAD} text-center`}>
-                      <Hint text={UNPAID_HEADER_HINT}>Не оплачено</Hint>
+                    <th scope="col" aria-label="Без оплаты" className={`${HEAD} text-center`}>
+                      <Hint text={UNPAID_HEADER_HINT}>Без оплаты</Hint>
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
                   </tr>
@@ -255,26 +236,17 @@ export function PayrollSheetTable({
                     const id = line.membership_id;
                     return (
                       <tr key={id} className="border-b border-slate-100 last:border-b-0 print:break-inside-avoid">
-                        <th scope="row" className={`${CELL} ${STICKY} bg-white text-left font-medium text-slate-900 shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none`}>
+                        <th scope="row" className={`${CELL} ${showDates ? `${STICKY} bg-white shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none` : ""} text-left font-medium text-slate-900`}>
                           <span className="block break-words leading-tight">{line.student_name}</span>
                           {line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-400">{line.display_id}</span>}
                           {line.pending_excused > 0 && (
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
                           )}
-                          {lineNotes(view).map((note) => (
-                            <span key={note} className="block text-[11px] font-normal leading-tight text-amber-700">{note}</span>
-                          ))}
                         </th>
                         <td className={`${CELL} text-right`}>
-                          <FeeCell
-                            view={view}
-                            editable={canEdit}
-                            priceLabel={priceLabel}
-                            onChange={(fee) => onEdits?.((previous) => setFeeEdit(previous, sheet, id, fee))}
-                          />
+                          <PriceCell view={view} />
                         </td>
-                        <td className={`${CELL} whitespace-nowrap text-center tabular-nums text-slate-600`}>{percentLabel(view.percent)}</td>
-                        {block.columns.map((column) => {
+                        {showDates && block.columns.map((column) => {
                           const mark = markFor(line, column);
                           const cell = markCell(mark ? mark.mark : null, mark ? mark.state : "not_in_group", { includeUnpaid: view.include });
                           return (
@@ -315,25 +287,13 @@ export function PayrollSheetTable({
                     );
                   })}
                 </tbody>
-                <tfoot>
-                  <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800 print:bg-transparent">
-                    <th scope="row" className={`${CELL} ${STICKY} bg-slate-50 text-left print:bg-transparent`}>Итого по группе</th>
-                    <td colSpan={span - 1} />
-                    <td className={`${CELL} text-center tabular-nums`}>{block.counted}</td>
-                    <td className={`${CELL} text-center tabular-nums`}>{block.unpaid}</td>
-                    <td className={`${CELL} whitespace-nowrap text-right tabular-nums`}>{formatMoney(block.amount)}</td>
-                  </tr>
-                </tfoot>
               </table>
             </div>
+            {showDates && <SheetLegend />}
           </section>
         );
       })}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-900 bg-slate-900 px-5 py-4 text-white print:rounded-none print:border-black print:bg-transparent print:text-black">
-        <span className="text-sm font-semibold">Итого</span>
-        <span className="text-xl font-bold tabular-nums" data-testid="payroll-total">{formatMoney(total)}</span>
-      </div>
+      {blocks.some((block) => block.unpaid > 0) && <p className="text-xs text-slate-500 print:hidden">{SHEET_INCLUDE_NOTE}</p>}
     </div>
   );
 }

@@ -3,48 +3,42 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, Printer, X,
-} from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { pluralRu } from "@/lib/payments";
+import { formatMoney } from "@/lib/payments";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
   REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
-  buildCalculateBody,
-  buildPercentsPayload,
+  accruedUnpaid,
+  buildLineViews,
   buildSaveBody,
   calculationGate,
-  calculationScope,
   canGoToNextMonth,
   editsDirty,
-  editsProblem,
-  isOpenMonth,
   isDataChanged,
-  isPercentRequired,
+  isOpenMonth,
+  isRateRequired,
   isRevisionConflict,
+  lessonsOfMonthText,
   lessonsWithoutTeacherText,
-  lessonTypeLabel,
   monthFileName,
-  monthPercentText,
+  monthRateSummary,
+  monthSummary,
   monthTitle,
   parseMonthParam,
-  orderedTypes,
   payrollErrorText,
-  PERCENT_HINT_TEXT,
-  percentFieldState,
-  percentInputId,
-  percentKey,
-  percentProblems,
-  revisionLabel,
-  sanitizePercentTyping,
-  shiftMonth,
+  rowAction,
+  sheetCardStatus,
   sheetFileName,
   sheetStatus,
+  sheetTotal,
+  shiftMonth,
   teacherLabel,
+  teacherRateHref,
+  versionLabel,
   warningViews,
   type PayrollErrorLike,
   type PayrollMonthOverview,
@@ -58,13 +52,16 @@ import { saveBlobAs } from "@/lib/download";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
+import { TableHeader } from "@/components/attendance/table-chrome";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
-import { PayrollMonthStatus } from "./month-status";
+import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
-import { ConflictBanner, PayrollForbidden, PercentEditor, SaveBar, StatusChip, WarningLinks } from "./sheet-controls";
+import { SheetSummaryCard } from "./sheet-summary";
+import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, WarningLinks, usePrintWithDates } from "./sheet-controls";
 
-const GRID = "xl:grid xl:grid-cols-[28px_minmax(0,1.1fr)_minmax(0,1.7fr)_minmax(0,1.2fr)_minmax(0,1.3fr)_40px] xl:items-start xl:gap-x-4";
+/** Преподаватель | Ставка | К выплате | Статус | action.  Identity left, rate and status centred, the money of the ledger right. */
+const GRID = "xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-x-3";
 
 interface Preview {
   sheet: PayrollSheet;
@@ -72,10 +69,16 @@ interface Preview {
   note: string;
   saving: boolean;
   error: string | null;
+  /** The server refused for want of a rate (the words are the server's); the notice leads to «Сотрудники». */
+  rateMissing: string | null;
   /** Somebody else saved this teacher's sheet first (409 SHEET_REVISION_CONFLICT). */
   conflict: boolean;
   /** The data changed after this preview was calculated (409 SHEET_DATA_CHANGED): the server's words; nothing was saved. */
   dataChanged: string | null;
+}
+
+function freshPreview(sheet: PayrollSheet, note = ""): Preview {
+  return { sheet, edits: EMPTY_EDITS, note, saving: false, error: null, rateMissing: null, conflict: false, dataChanged: null };
 }
 
 interface Failure {
@@ -111,12 +114,8 @@ function PayrollMonthContent() {
   const [overview, setOverview] = useState<PayrollMonthOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<Failure | null>(null);
-  /** The percent fields the owner has typed in (key: teacher|type); the others show the suggestion. */
-  const [typed, setTyped] = useState<Record<string, string>>({});
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  /** Teachers the owner has tried to calculate (or whose save the server refused for a percent): only their fields may turn red. */
-  const [attempted, setAttempted] = useState<ReadonlySet<string>>(new Set());
-  const [calculating, setCalculating] = useState(false);
+  /** The teachers being calculated (a row's button or «Рассчитать всех»): their buttons wait. */
+  const [calculating, setCalculating] = useState<ReadonlySet<string> | "all" | null>(null);
   const [exporting, setExporting] = useState(false);
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -126,11 +125,12 @@ function PayrollMonthContent() {
   const monthRef = useRef(month);
   monthRef.current = month;
   const previewRef = useRef<HTMLElement | null>(null);
+  const { printing, print } = usePrintWithDates();
 
-  const dirty = Object.values(previews).some((preview) => editsDirty(preview.sheet, preview.edits));
+  const dirty = Object.values(previews).some((preview) => editsDirty(preview.edits));
   useUnsavedGuard(dirty, UNSAVED_TEXT);
 
-  /** `silent`: refresh the table in place (after a save) without the spinner and without losing what was typed. */
+  /** `silent`: refresh the table in place (after a save) without the spinner. */
   const load = useCallback(async (silent = false) => {
     const token = loads.current.next();
     if (!silent) { setLoading(true); setOverview(null); }
@@ -148,14 +148,11 @@ function PayrollMonthContent() {
     }
   }, [month, showToast]);
 
-  // A new month: nothing of the old one stays (fields, selection, previews), and only the newest answer counts.
+  // A new month: nothing of the old one stays (previews), and only the newest answer counts.
   useEffect(() => {
-    setTyped({});
-    setSelected(new Set());
-    setAttempted(new Set());
     setPreviews({});
     setActiveId(null);
-    setCalculating(false);
+    setCalculating(null);
     if (denied) { setLoading(false); return; }
     void load();
     const sequences = [loads.current, calcs.current];
@@ -172,63 +169,32 @@ function PayrollMonthContent() {
     [overview],
   );
   const savedCount = teachers.filter((teacher) => teacher.sheet).length;
-  const allSelected = teachers.length > 0 && teachers.every((teacher) => selected.has(teacher.teacher_id));
   // The server says so; a month that is the current one or later is open whatever it says.
   const monthOpen = overview ? overview.month_open || isOpenMonth(month, today) : false;
-  // «Рассчитать всех» waits for the percents (and says what is left); a chosen few can go on their own
-  const allGate = calculationGate(teachers, typed, "all");
-  const chosenTeachers = teachers.filter((teacher) => selected.has(teacher.teacher_id));
-  const selectedGate = calculationGate(chosenTeachers, typed, "selected");
+  // «Рассчитать всех» waits until every teacher has a rate (the rate is set once, in «Сотрудники»)
+  const gate = calculationGate(teachers);
+  const busy = calculating !== null;
 
   const goToMonth = (next: string) => {
     if (!confirmLeave(dirty, UNSAVED_TEXT)) return;
     router.replace(`?month=${next}`, { scroll: false });
   };
 
-  const setType = (teacherId: string, lessonType: string, text: string) => {
-    setTyped((previous) => ({ ...previous, [percentKey(teacherId, lessonType)]: sanitizePercentTyping(text) }));
-  };
-
-  const markAttempted = (ids: Iterable<string>) => {
-    setAttempted((previous) => new Set([...previous, ...ids]));
-  };
-
-  const toggle = (teacherId: string) => {
-    setSelected((previous) => {
-      const next = new Set(previous);
-      if (next.has(teacherId)) next.delete(teacherId);
-      else next.add(teacherId);
-      return next;
-    });
-  };
-
   const withNames = (sheets: PayrollSheet[]): PayrollSheet[] =>
     sheets.map((sheet) => ({ ...sheet, teacher_name: teacherLabel(sheet.teacher_name) }));
 
   /**
-   * `chosen`: one teacher (a row's menu), the selected ones (the bar over the list), or nobody - then everybody («Рассчитать
-   * всех»).  The two buttons wait for the percents, so this refuses only a row's «Рассчитать»: the field of that row turns
-   * red and takes the focus - an error next to the field, after the owner's action, and no toast.
+   * `ids`: one teacher (a row's «Рассчитать» / «Пересчитать») or nobody - then everybody («Рассчитать всех»).  The calculation
+   * is a preview: nothing is written until the owner saves.  The rates are the stored ones, so nothing but the teachers is sent.
    */
-  const calculate = async (chosen: ReadonlySet<string>) => {
-    if (!overview || calculating) return;
-    const scope = calculationScope(teachers, chosen);
-    const body = buildCalculateBody(teachers, typed, chosen);
-    if (!body) {
-      const problems = percentProblems(scope, typed);
-      markAttempted(problems.map((problem) => problem.teacherId));
-      if (problems.length > 0) {
-        const first = problems[0];
-        window.setTimeout(() => document.getElementById(percentInputId(percentKey(first.teacherId, first.lessonType)))?.focus(), 80);
-      }
-      return;
-    }
+  const calculate = async (ids: string[]) => {
+    if (!overview || busy) return;
     if (dirty && !window.confirm("Новый расчёт заменит предпросмотр, в котором есть несохранённые правки. Продолжить?")) return;
     const requestedMonth = month;
     const token = calcs.current.next();
-    setCalculating(true);
+    setCalculating(ids.length > 0 ? new Set(ids) : "all");
     try {
-      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, body));
+      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, ids.length > 0 ? { teacher_ids: ids } : {}));
       // A newer calculation or another month started meanwhile: this answer is stale.
       if (!calcs.current.isCurrent(token) || monthRef.current !== requestedMonth) return;
       if (sheets.length === 0) {
@@ -236,18 +202,17 @@ function PayrollMonthContent() {
         return;
       }
       const next: Record<string, Preview> = {};
-      for (const sheet of sheets) {
-        next[sheet.teacher_id] = { sheet, edits: EMPTY_EDITS, note: "", saving: false, error: null, conflict: false, dataChanged: null };
-      }
+      for (const sheet of sheets) next[sheet.teacher_id] = freshPreview(sheet);
       setPreviews(next);
       setActiveId(sheets[0].teacher_id);
       window.setTimeout(() => previewRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (cause) {
       if (!calcs.current.isCurrent(token) || monthRef.current !== requestedMonth) return;
-      if (isPercentRequired(cause as PayrollErrorLike)) markAttempted(scope.map((teacher) => teacher.teacher_id));
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
+      // the table said the rate was there and the server says it is not: read the month again
+      if (isRateRequired(cause as PayrollErrorLike)) void load(true);
     } finally {
-      if (calcs.current.isCurrent(token)) setCalculating(false);
+      if (calcs.current.isCurrent(token)) setCalculating(null);
     }
   };
 
@@ -272,15 +237,13 @@ function PayrollMonthContent() {
   const savePreview = async (teacherId: string) => {
     const preview = previews[teacherId];
     if (!preview || preview.saving) return;
-    const problem = editsProblem(preview.sheet, preview.edits);
-    if (problem) { patchPreview(teacherId, { error: problem }); return; }
     const existing = teachers.find((teacher) => teacher.teacher_id === teacherId)?.sheet ?? null;
     const requestedMonth = month;
-    patchPreview(teacherId, { saving: true, error: null });
+    patchPreview(teacherId, { saving: true, error: null, rateMissing: null });
     try {
       const saved = await orgApi.savePayrollSheet(buildSaveBody(preview.sheet, preview.edits, preview.note, existing ? existing.revision : null));
       if (monthRef.current !== requestedMonth) return;
-      showToast(`Ведомость сохранена${saved.revision ? ` · ${revisionLabel(saved.revision)}` : ""}`);
+      showToast(`Ведомость сохранена${saved.revision ? ` · ${versionLabel(saved.revision)}` : ""}`);
       const remaining = Object.keys(previews).filter((id) => id !== teacherId);
       setPreviews((previous) => {
         const rest = { ...previous };
@@ -292,41 +255,31 @@ function PayrollMonthContent() {
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
       const error = cause as PayrollErrorLike;
-      if (isPercentRequired(error)) markAttempted([teacherId]);
       if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
       else if (isDataChanged(error)) patchPreview(teacherId, { saving: false, dataChanged: payrollErrorText(error) });
+      else if (isRateRequired(error)) patchPreview(teacherId, { saving: false, rateMissing: payrollErrorText(error) });
       else patchPreview(teacherId, { saving: false, error: payrollErrorText(error) });
     }
   };
 
-  /**
-   * After a conflict or a change of the data: the table is reloaded and the teacher is calculated afresh, with the percents
-   * the owner has in this preview (and the month page's fields for the kinds the preview does not have).
-   */
+  /** After a conflict or a change of the data: the table is reloaded and the teacher is calculated afresh. */
   const rerunPreview = async (teacherId: string) => {
     const preview = previews[teacherId];
     if (!preview) return;
     const requestedMonth = month;
     patchPreview(teacherId, { saving: true });
     await load(true);
-    const fromSheet = buildPercentsPayload(preview.sheet, preview.edits);
-    const monthBody = buildCalculateBody(teachers, typed, new Set([teacherId]));
-    const percents = [...(monthBody?.percents ?? []).filter((item) => !fromSheet.some((own) => own.lesson_type === item.lesson_type)), ...fromSheet];
-    if (percents.length === 0) { patchPreview(teacherId, { saving: false, conflict: false, dataChanged: null }); return; }
     try {
-      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, { percents, teacher_ids: [teacherId] }));
+      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, { teacher_ids: [teacherId] }));
       const fresh = sheets.find((sheet) => sheet.teacher_id === teacherId);
       if (monthRef.current !== requestedMonth) return;
       if (fresh) {
-        setPreviews((previous) => (previous[teacherId]
-          ? { ...previous, [teacherId]: { sheet: fresh, edits: EMPTY_EDITS, note: preview.note, saving: false, error: null, conflict: false, dataChanged: null } }
-          : previous));
+        setPreviews((previous) => (previous[teacherId] ? { ...previous, [teacherId]: freshPreview(fresh, preview.note) } : previous));
       } else {
         patchPreview(teacherId, { saving: false });
       }
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
-      if (isPercentRequired(cause as PayrollErrorLike)) markAttempted([teacherId]);
       patchPreview(teacherId, { saving: false });
       showToast(payrollErrorText(cause as PayrollErrorLike), "error");
     }
@@ -366,6 +319,7 @@ function PayrollMonthContent() {
   const active = activeId ? previews[activeId] : undefined;
   const activeExisting = activeId ? teachers.find((teacher) => teacher.teacher_id === activeId)?.sheet ?? null : null;
   const nextDisabled = !canGoToNextMonth(month, today);
+  const summary = monthSummary(month, teachers);
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 print:max-w-none print:space-y-3">
@@ -373,32 +327,32 @@ function PayrollMonthContent() {
 
       <div className="min-w-0 print:hidden">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Зарплата</h1>
-        <p className="text-sm text-slate-500">Ведомости преподавателей: проценты по типам занятий и расчёт за месяц</p>
+        <p className="text-sm text-slate-500">Ведомости преподавателей за месяц</p>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between print:hidden">
-        <nav aria-label="Месяц" className="flex items-center gap-1 self-start rounded-xl border border-slate-200 bg-white p-1">
-          <button
-            type="button"
-            aria-label="Предыдущий месяц"
-            onClick={() => goToMonth(shiftMonth(month, -1))}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="min-w-[10.5rem] px-2 text-center text-sm font-semibold text-slate-900" aria-live="polite">{monthTitle(month)}</span>
-          <button
-            type="button"
-            aria-label="Следующий месяц"
-            onClick={() => goToMonth(shiftMonth(month, 1))}
-            disabled={nextDisabled}
-            className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </nav>
+      <div className="space-y-2 print:hidden">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <nav aria-label="Месяц" className="flex items-center gap-1 self-start rounded-xl border border-slate-200 bg-white p-1">
+            <button
+              type="button"
+              aria-label="Предыдущий месяц"
+              onClick={() => goToMonth(shiftMonth(month, -1))}
+              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <span className="min-w-[10.5rem] px-2 text-center text-sm font-semibold text-slate-900" aria-live="polite">{monthTitle(month)}</span>
+            <button
+              type="button"
+              aria-label="Следующий месяц"
+              onClick={() => goToMonth(shiftMonth(month, 1))}
+              disabled={nextDisabled}
+              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </nav>
 
-        <div className="flex min-w-0 flex-col gap-1.5 sm:items-end">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -412,26 +366,28 @@ function PayrollMonthContent() {
             </button>
             <button
               type="button"
-              onClick={() => void calculate(new Set())}
-              disabled={!overview || teachers.length === 0 || calculating || !allGate.ready}
-              aria-describedby={allGate.text ? "payroll-calculate-hint" : undefined}
-              className={`inline-flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
-                selected.size > 0
-                  ? "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                  : "bg-primary-600 text-white shadow-sm hover:bg-primary-700"
-              }`}
+              onClick={() => void calculate([])}
+              disabled={!overview || teachers.length === 0 || busy || !gate.ready}
+              aria-describedby={gate.text ? "payroll-calculate-hint" : undefined}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
+              {calculating === "all" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
               Рассчитать всех
             </button>
+            {overview && <PayrollPageMenu divisor={overview.divisor} />}
           </div>
-          {overview && allGate.text && (
-            <p id="payroll-calculate-hint" className="max-w-md text-xs text-slate-500 sm:text-right">{allGate.text}</p>
+        </div>
+
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} />}
+          {overview && gate.text && (
+            <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
+              {gate.text}.{" "}
+              <Link href="/owner/teachers" className="font-medium text-primary-700 hover:underline">Указать в «Сотрудниках»</Link>
+            </p>
           )}
         </div>
       </div>
-
-      {overview && <PayrollMonthStatus month={month} open={monthOpen} divisor={overview.divisor} />}
 
       {overview && lessonsWithoutTeacherText(overview.lessons_without_teacher) && (
         <p role="status" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900 print:hidden">
@@ -459,65 +415,25 @@ function PayrollMonthContent() {
             В этом месяце нет завершённых уроков — считать зарплату не за что.
           </p>
         ) : (
-          <div className="space-y-3">
-          {selected.size > 0 && (
-            <div
-              role="region"
-              aria-label="Действия над выбранными"
-              className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-2.5 text-sm"
-            >
-              <span className="font-medium text-primary-900" aria-live="polite">Выбрано: {selected.size} из {teachers.length}</span>
-              <button
-                type="button"
-                onClick={() => void calculate(selected)}
-                disabled={calculating || !selectedGate.ready}
-                aria-describedby={selectedGate.text ? "payroll-selected-hint" : undefined}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {calculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Calculator className="h-4 w-4" />}
-                Рассчитать выбранных
-              </button>
-              <button type="button" onClick={() => setSelected(new Set())} className="font-medium text-primary-700 hover:underline">
-                Снять выбор
-              </button>
-              {selectedGate.text && <span id="payroll-selected-hint" className="basis-full text-xs text-slate-600">{selectedGate.text}</span>}
-            </div>
-          )}
           <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-xs font-semibold text-slate-500 ${GRID}`}>
-              <span>
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  onChange={() => setSelected(allSelected ? new Set() : new Set(teachers.map((teacher) => teacher.teacher_id)))}
-                  aria-label="Выбрать всех преподавателей"
-                  className="h-4 w-4 accent-primary-600"
-                />
-              </span>
-              <span>Преподаватель</span>
-              <span className="text-center">Процент по типам занятий</span>
-              <span className="text-center">Статус</span>
-              <span className="text-center">Предупреждения</span>
-              <span className="text-right"><span className="sr-only">Действия</span></span>
-            </div>
+            <TableHeader
+              show="xl"
+              gridClass="xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
+              labels={["Преподаватель", "Ставка", "К выплате", "Статус", ""]}
+              aligns={["left", "center", "right", "center", "right"]}
+            />
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {teachers.map((teacher) => (
                 <TeacherRow
                   key={teacher.teacher_id}
                   teacher={teacher}
-                  typed={typed}
-                  showErrors={attempted.has(teacher.teacher_id)}
-                  selected={selected.has(teacher.teacher_id)}
-                  calculating={calculating}
-                  onToggle={() => toggle(teacher.teacher_id)}
-                  onType={(lessonType, text) => setType(teacher.teacher_id, lessonType, text)}
-                  onCalculate={() => void calculate(new Set([teacher.teacher_id]))}
+                  busy={busy}
+                  onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
                   onExport={() => void downloadSheet(teacher)}
                 />
               ))}
             </ul>
-          </div>
           </div>
         )}
       </section>
@@ -529,24 +445,14 @@ function PayrollMonthContent() {
               <h2 className="text-lg font-bold text-slate-900">Предпросмотр расчёта</h2>
               <p className="text-sm text-slate-500">Ведомость ещё не сохранена. Проверьте и сохраните.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => window.print()}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                <Printer className="h-4 w-4" />
-                Печать
-              </button>
-              <button
-                type="button"
-                onClick={closePreviews}
-                className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                <X className="h-4 w-4" />
-                Закрыть предпросмотр
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={closePreviews}
+              className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              <X className="h-4 w-4" />
+              Закрыть предпросмотр
+            </button>
           </div>
 
           {previewList.length > 1 && (
@@ -563,7 +469,7 @@ function PayrollMonthContent() {
                   }`}
                 >
                   {preview.sheet.teacher_name}
-                  {editsDirty(preview.sheet, preview.edits) && <span aria-label="есть несохранённые правки" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />}
+                  {editsDirty(preview.edits) && <span aria-label="есть несохранённые правки" className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500 align-middle" />}
                 </button>
               ))}
             </div>
@@ -572,9 +478,6 @@ function PayrollMonthContent() {
           <header className="min-w-0">
             <h3 className="break-words text-lg font-bold text-slate-900">{active.sheet.teacher_name}</h3>
             <p className="text-sm text-slate-500">Ведомость за {monthTitle(active.sheet.month || month).toLowerCase()} · предпросмотр</p>
-            <div className="mt-2">
-              <WarningLinks counts={active.sheet.warnings} label="Предупреждения расчёта" />
-            </div>
           </header>
 
           {activeExisting && (
@@ -600,28 +503,13 @@ function PayrollMonthContent() {
               onReload={() => void rerunPreview(active.sheet.teacher_id)}
             />
           )}
+          {active.rateMissing && <RateRequiredNotice teacherId={active.sheet.teacher_id} message={active.rateMissing} />}
 
-          <PercentEditor
-            sheet={active.sheet}
-            edits={active.edits}
+          <PreviewBody
+            preview={active}
+            printing={printing}
+            onPrint={print}
             onEdits={(update) => updateEdits(active.sheet.teacher_id, update)}
-          />
-          <PayrollSheetTable
-            sheet={active.sheet}
-            edits={active.edits}
-            onEdits={(update) => updateEdits(active.sheet.teacher_id, update)}
-          />
-          {/* Inside the preview section: a sticky bar moves only inside its parent, so it floats while THIS preview is on screen
-              and goes away with it (on the sheet page, where the bar is the whole page's, it is a direct child of the page). */}
-          <SaveBar
-            hideUntilFits
-            dirty={editsDirty(active.sheet, active.edits)}
-            problem={editsProblem(active.sheet, active.edits) ?? active.error}
-            saveLabel={activeExisting ? `Сохранить как редакцию ${activeExisting.revision + 1}` : "Сохранить ведомость"}
-            canSaveClean
-            blockedReason={active.sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
-            saving={active.saving}
-            note={active.note}
             onNote={(text) => patchPreview(active.sheet.teacher_id, { note: text })}
             onSave={() => void savePreview(active.sheet.teacher_id)}
             onDiscard={() => patchPreview(active.sheet.teacher_id, { edits: EMPTY_EDITS, error: null })}
@@ -633,131 +521,125 @@ function PayrollMonthContent() {
   );
 }
 
+/** One calculation not saved yet: the card on top, the groups under it, the floating bar for unsaved «начислить». */
+function PreviewBody({
+  preview, printing, onPrint, onEdits, onNote, onSave, onDiscard,
+}: {
+  preview: Preview;
+  printing: boolean;
+  onPrint: () => void;
+  onEdits: (update: (previous: SheetEdits) => SheetEdits) => void;
+  onNote: (text: string) => void;
+  onSave: () => void;
+  onDiscard: () => void;
+}) {
+  const { sheet, edits } = preview;
+  const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
+  const dirty = editsDirty(edits);
+  const status = sheetCardStatus({ saved: false, stale: null, dirty, updatedAt: null, delta: null });
+  return (
+    <>
+      <SheetSummaryCard
+        sheet={sheet}
+        total={sheetTotal(sheet, views, edits)}
+        accrued={accruedUnpaid(views)}
+        status={status}
+        busy={preview.saving}
+        blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
+        onPrimary={onSave}
+        onPrint={onPrint}
+        note={preview.note}
+        onNote={onNote}
+      />
+      {/* with unsaved «начислить» the floating bar shows the problem; otherwise it is said here */}
+      {preview.error && !dirty && <p role="alert" className="text-sm font-medium text-rose-700 print:hidden">{preview.error}</p>}
+      <PayrollSheetTable sheet={sheet} edits={edits} onEdits={onEdits} forceDates={printing} />
+      {/* Inside the preview section: a sticky bar moves only inside its parent, so it floats while THIS preview is on screen
+          and goes away with it (on the sheet page, where the bar is the whole page's, it is a direct child of the page). */}
+      <SaveBar
+        hideUntilFits
+        dirty={dirty}
+        problem={preview.error}
+        blockedReason={sheet.lines.length === 0 ? EMPTY_SHEET_REASON : null}
+        saving={preview.saving}
+        note={preview.note}
+        onNote={onNote}
+        onSave={onSave}
+        onDiscard={onDiscard}
+      />
+    </>
+  );
+}
+
+/**
+ * One teacher of the month.  The wide table: name (with the warnings under it, one line), rate, the sum of the saved sheet,
+ * ONE status chip and ONE button by the status.  A phone gets the same as a card.
+ */
 export function TeacherRow({
-  teacher, typed, showErrors, selected, calculating, onToggle, onType, onCalculate, onOpen, onExport,
+  teacher, busy, onCalculate, onOpen, onExport,
 }: {
   teacher: PayrollMonthTeacher;
-  typed: Record<string, string>;
-  showErrors: boolean;
-  selected: boolean;
-  calculating: boolean;
-  onToggle: () => void;
-  onType: (lessonType: string, text: string) => void;
+  busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
   onExport: () => void;
 }) {
   const status = sheetStatus(teacher.sheet);
-  // One calm hint per row while a percent is not set: it is asked for once, and nothing is red until the owner tries to calculate.
-  const hintId = `${percentInputId(percentKey(teacher.teacher_id, "row"))}-hint`;
-  const anyPending = orderedTypes(teacher).some(
-    (type) => percentFieldState(monthPercentText(typed, teacher, type.lesson_type), showErrors).kind === "pending",
-  );
+  const action = rowAction(teacher.sheet);
+  const rate = monthRateSummary(teacher);
+  const warnings = warningViews(teacher.warnings);
+  const rateMissing = (teacher.missing_rates ?? []).length > 0;
+  const blocked = action.kind !== "open" && rateMissing;
   const items: RowMenuItem[] = [
-    { key: "calculate", label: "Рассчитать", icon: Calculator, onSelect: onCalculate, disabled: calculating },
-    ...(teacher.sheet
-      ? [
-          { key: "open", label: "Открыть ведомость", icon: FileText, onSelect: onOpen },
-          { key: "export", label: "Скачать Excel", icon: Download, onSelect: onExport },
-        ]
-      : []),
+    ...(teacher.sheet && action.kind !== "open" ? [{ key: "open", label: "Открыть ведомость", icon: FileText, onSelect: onOpen }] : []),
+    ...(teacher.sheet ? [{ key: "export", label: "Скачать Excel", icon: Download, onSelect: onExport }] : []),
   ];
+  const run = action.kind === "open" ? onOpen : onCalculate;
 
   return (
-    <li className={`rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-5 xl:py-4 ${GRID}`}>
-      <div className="flex items-start justify-between gap-3 xl:contents">
-        <label className="flex min-w-0 items-start gap-3 xl:contents">
-          <input
-            type="checkbox"
-            checked={selected}
-            onChange={onToggle}
-            aria-label={`Выбрать: ${teacher.teacher_name}`}
-            className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
-          />
-          <span className="min-w-0 break-words text-sm font-semibold text-slate-900 xl:mt-0.5">
-            {teacher.teacher_name}
-            <span className="block text-xs font-normal text-slate-500">
-              {teacher.lessons_count} {pluralRu(teacher.lessons_count, ["урок", "урока", "уроков"])} за месяц
-            </span>
-          </span>
-        </label>
-        <span className="xl:hidden">
-          <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
-        </span>
+    <li className={`rounded-2xl border border-slate-200 bg-white p-4 xl:rounded-none xl:border-0 xl:px-4 xl:py-4 ${GRID}`}>
+      <div className="min-w-0">
+        <p className="min-w-0 break-words text-sm font-semibold text-slate-900">{teacher.teacher_name}</p>
+        <p className="text-xs text-slate-500">{lessonsOfMonthText(teacher.lessons_count)}</p>
+        {warnings.length > 0 && (
+          <div className="mt-1">
+            <WarningLinks views={warnings} label={`Предупреждения: ${teacher.teacher_name}`} />
+          </div>
+        )}
       </div>
 
-      <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-2 xl:mt-0 xl:justify-center">
-        {teacher.lesson_types.length === 0 ? (
-          <span className="text-xs text-slate-400">нет типов занятий</span>
-        ) : (
+      <div className="mt-3 text-sm text-slate-700 xl:mt-0 xl:text-center">
+        <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Ставка</span>
+        <span className={rateMissing && rate.text === "Не задана" ? "text-amber-800" : undefined}>{rate.text}</span>
+        {rate.missing && (
           <>
-            {orderedTypes(teacher).map((type) => {
-              const key = percentKey(teacher.teacher_id, type.lesson_type);
-              const text = monthPercentText(typed, teacher, type.lesson_type);
-              const state = percentFieldState(text, showErrors);
-              const error = state.kind === "error" ? state.message : null;
-              const pending = state.kind === "pending";
-              const id = percentInputId(key);
-              return (
-                <div key={type.lesson_type} className="min-w-0">
-                  <label htmlFor={id} className="mb-1 block text-[11px] font-medium text-slate-500">
-                    {lessonTypeLabel(type.lesson_type)}
-                    <span className="font-normal text-slate-400"> · {type.groups} {pluralRu(type.groups, ["группа", "группы", "групп"])}</span>
-                  </label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id={id}
-                      type="text"
-                      inputMode="decimal"
-                      autoComplete="off"
-                      required
-                      value={text}
-                      placeholder="—"
-                      aria-label={`Процент для ${teacher.teacher_name}, ${lessonTypeLabel(type.lesson_type)}`}
-                      aria-invalid={Boolean(error)}
-                      aria-describedby={error ? `${id}-error` : pending ? hintId : undefined}
-                      onChange={(event) => onType(type.lesson_type, event.target.value)}
-                      className={`w-[4.5rem] rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
-                        error
-                          ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10"
-                          : pending
-                            ? "border-dashed border-slate-300 focus:border-primary-500 focus:ring-primary-500/10"
-                            : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
-                      }`}
-                    />
-                    <span className="text-sm text-slate-500">%</span>
-                  </div>
-                  {error && <p id={`${id}-error`} className="mt-1 max-w-[11rem] text-[11px] font-medium text-rose-700">{error}</p>}
-                </div>
-              );
-            })}
-            {anyPending && <p id={hintId} className="self-end pb-2 text-xs text-slate-500">{PERCENT_HINT_TEXT}</p>}
+            {" · "}
+            <Link href={teacherRateHref(teacher.teacher_id)} className="font-medium text-primary-700 hover:underline">Указать</Link>
           </>
         )}
       </div>
 
-      <div className="mt-3 min-w-0 space-y-1.5 xl:mt-0 xl:text-center">
+      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-right">
+        <span className="mr-1.5 text-xs font-normal text-slate-400 xl:hidden">К выплате</span>
+        {teacher.sheet ? formatMoney(teacher.sheet.total_amount) : <span className="font-normal text-slate-400">—</span>}
+      </div>
+
+      <div className="mt-2 min-w-0 xl:mt-0 xl:text-center">
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
-        {status.detail && <p className="text-xs text-slate-500">{status.detail}</p>}
-        {teacher.sheet && (
-          <p>
-            <Link href={`/owner/payroll/${encodeURIComponent(teacher.sheet.id)}`} className="inline-flex items-center gap-1 text-xs font-medium text-primary-700 hover:underline">
-              Открыть ведомость <ExternalLink className="h-3 w-3" />
-            </Link>
-          </p>
-        )}
       </div>
 
-      <div className="mt-3 xl:mt-0 xl:text-center">
-        {warningViews(teacher.warnings).length === 0 ? (
-          <span className="text-xs text-slate-400">нет</span>
-        ) : (
-          <WarningLinks counts={teacher.warnings} label={`Предупреждения: ${teacher.teacher_name}`} stacked centered />
-        )}
-      </div>
-
-      <div className="hidden xl:flex xl:justify-end">
-        <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
+      <div className="mt-3 flex items-center gap-2 xl:mt-0 xl:justify-end">
+        <button
+          type="button"
+          onClick={run}
+          disabled={busy || blocked}
+          title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
+          aria-label={`${action.label}: ${teacher.teacher_name}`}
+          className="inline-flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 xl:flex-none"
+        >
+          {action.label}
+        </button>
+        {items.length > 0 && <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />}
       </div>
     </li>
   );

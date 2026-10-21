@@ -20,7 +20,7 @@ export function PayrollHowItWorksBody({ divisor, priceLabel }: { divisor: number
         {howItWorksLines(divisor).map((line) => <li key={line}>{line}</li>)}
       </ul>
       <p className="rounded-lg bg-slate-50 px-3 py-2 text-slate-700">
-        <span className="font-semibold">Пример.</span> Цена {formatMoney(example.price)}, процент {example.percent} %,
+        <span className="font-semibold">Пример.</span> Цена {formatMoney(example.price)}, ставка {example.percent} %,
         делитель {example.divisor}, засчитано {example.lessons} урока:{" "}
         <span className="whitespace-nowrap font-semibold tabular-nums">{example.text}</span>.
       </p>

@@ -11,30 +11,40 @@ import {
   FORBIDDEN_TEXT,
   NOTE_MAX_LENGTH,
   STATUS_CHIP_CLASS,
+  formatSignedMoney,
   lessonTypeLabel,
-  parsePercent,
-  percentFieldText,
-  percentLabel,
-  revisionLabel,
-  sanitizePercentTyping,
-  setPercentEdit,
-  sheetLessonTypes,
-  teacherLabel,
-  warningViews,
-  type LessonType,
+  percentShort,
+  teacherRateHref,
+  versionLabel,
   type PayrollDiff,
   type PayrollDiffLine,
-  type PayrollMonthWarnings,
   type PayrollRevision,
-  type PayrollSheet,
-  type PayrollSheetWarnings,
-  type SheetEdits,
   type SheetStatusView,
+  type WarningView,
 } from "@/lib/payroll";
 
 /**
- * «Не рассчитано» / «Сохранено · редакция 3 · 1 250 000 сум» / «Данные изменились».  With `hint` (see `statusHint`) the
- * chip is a label of a short explanation: it opens on hover, focus and a tap.
+ * «Печать» with the dates: the date grids are folded on screen («По датам»), but a printed sheet is the proof of its sums, so
+ * every group opens for the print and folds back when the print dialog is gone.
+ */
+export function usePrintWithDates(): { printing: boolean; print: () => void } {
+  const [printing, setPrinting] = useState(false);
+  useEffect(() => {
+    if (!printing) return undefined;
+    const done = () => setPrinting(false);
+    window.addEventListener("afterprint", done);
+    const timer = window.setTimeout(() => window.print(), 80);
+    return () => {
+      window.removeEventListener("afterprint", done);
+      window.clearTimeout(timer);
+    };
+  }, [printing]);
+  return { printing, print: () => { if (printing) window.print(); else setPrinting(true); } };
+}
+
+/**
+ * One chip: «Не рассчитано» / «Сохранено 16.10» / «Есть изменения».  With `hint` (see `statusHint`) the chip is a
+ * label of a short explanation: it opens on hover, focus and a tap.
  */
 export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: string }) {
   const chip = (
@@ -46,64 +56,12 @@ export function StatusChip({ status, hint }: { status: SheetStatusView; hint?: s
   return hint ? <Hint text={hint} className="inline-block max-w-full">{chip}</Hint> : chip;
 }
 
-/** One percent field per lesson type of the sheet.  On paper they become a line of text. */
-export function PercentEditor({
-  sheet, edits, onEdits,
-}: {
-  sheet: PayrollSheet;
-  edits: SheetEdits;
-  onEdits: (update: (previous: SheetEdits) => SheetEdits) => void;
-}) {
-  const types = sheetLessonTypes(sheet);
-  if (types.length === 0) return null;
-  return (
-    <>
-      <fieldset className="rounded-2xl border border-slate-200 bg-white px-4 py-3 print:hidden">
-        <legend className="px-1 text-xs font-semibold text-slate-500">Проценты преподавателя</legend>
-        <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
-          {types.map((type) => {
-            const text = percentFieldText(sheet, edits, type);
-            const error = parsePercent(text).error;
-            const id = `payroll-sheet-percent-${sheet.teacher_id || "t"}-${type}`;
-            return (
-              <div key={type} className="min-w-0">
-                <label htmlFor={id} className="mb-1 block text-xs font-medium text-slate-600">{lessonTypeLabel(type)}</label>
-                <div className="flex items-center gap-1.5">
-                  <input
-                    id={id}
-                    type="text"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={text}
-                    aria-label={`Процент для ${teacherLabel(sheet.teacher_name)}, ${lessonTypeLabel(type)}`}
-                    aria-invalid={Boolean(error)}
-                    aria-describedby={error ? `${id}-error` : undefined}
-                    onChange={(event) => onEdits((previous) => setPercentEdit(previous, sheet, type, sanitizePercentTyping(event.target.value)))}
-                    className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
-                      error ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
-                    }`}
-                  />
-                  <span className="text-sm text-slate-500">%</span>
-                </div>
-                {error && <p id={`${id}-error`} role="alert" className="mt-1 max-w-[14rem] text-xs font-medium text-rose-700">{error}</p>}
-              </div>
-            );
-          })}
-        </div>
-      </fieldset>
-      <p className="hidden text-sm text-slate-700 print:block">
-        Проценты: {types.map((type) => `${lessonTypeLabel(type)} — ${percentLabel(parsePercent(percentFieldText(sheet, edits, type)).value ?? sheet.percents[type])}`).join("; ")}
-      </p>
-    </>
-  );
-}
-
 /**
- * Save controls of an open sheet: the note of the revision, «Отменить правки» and the save button.  The bar
- * sticks to the bottom of the screen while there is something to save, so a long sheet needs no scrolling back.
+ * The floating bar of unsaved «начислить» edits: the note of the version, «Отменить правки» and the save button.  It exists
+ * only while there is something to save and sticks to the bottom of the screen, so a long sheet needs no scrolling back.
  */
 export function SaveBar({
-  dirty, problem, saveLabel, canSaveClean, blockedReason = null, saving, note, onNote, onSave, onDiscard, hideUntilFits = false,
+  dirty, problem, blockedReason = null, saving, note, onNote, onSave, onDiscard, hideUntilFits = false,
 }: {
   /**
    * The bar lives in a section that can be far below the fold (the month page's preview): while it cannot float entirely
@@ -112,9 +70,6 @@ export function SaveBar({
   hideUntilFits?: boolean;
   dirty: boolean;
   problem: string | null;
-  saveLabel: string;
-  /** A calculation that is not saved yet can be saved as it is; a saved sheet only when edited. */
-  canSaveClean: boolean;
   /** A reason the sheet cannot be saved at all (it has no lines): the button is off and says why. */
   blockedReason?: string | null;
   saving: boolean;
@@ -123,7 +78,7 @@ export function SaveBar({
   onSave: () => void;
   onDiscard: () => void;
 }) {
-  const disabled = saving || Boolean(problem) || Boolean(blockedReason) || (!dirty && !canSaveClean);
+  const disabled = saving || Boolean(problem) || Boolean(blockedReason) || !dirty;
   const barRef = useRef<HTMLDivElement | null>(null);
   const [fits, setFits] = useState(true);
   useEffect(() => {
@@ -151,43 +106,40 @@ export function SaveBar({
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [hideUntilFits, dirty, problem]);
+  if (!dirty) return null;
   return (
     <div
       ref={barRef}
-      className={`${fits ? "" : "invisible "}rounded-2xl border bg-white px-4 py-3 shadow-sm print:hidden ${dirty ? "sticky bottom-2 z-30 border-primary-200 shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))]" : "border-slate-200"}`}
+      className={`${fits ? "" : "invisible "}sticky bottom-2 z-30 rounded-2xl border border-primary-200 bg-white px-4 py-3 shadow-lg max-md:bottom-[calc(4.5rem+env(safe-area-inset-bottom))] print:hidden`}
     >
-      {dirty && (
-        <p className="mb-2 text-xs text-slate-600">
-          <span className="font-semibold text-slate-800">Есть несохранённые правки.</span>{" "}
-          Суммы изменённых строк пересчитаны здесь по той же формуле и станут окончательными после сохранения.
-        </p>
-      )}
+      <p className="mb-2 text-xs text-slate-600">
+        <span className="font-semibold text-slate-800">Есть несохранённые правки.</span>{" "}
+        Суммы изменённых строк пересчитаны здесь по той же формуле и станут окончательными после сохранения.
+      </p>
       {problem && <p role="alert" className="mb-2 text-xs font-medium text-rose-700">{problem}</p>}
       <div className="flex flex-col gap-2 lg:flex-row lg:items-end">
         <div className="min-w-0 flex-1 lg:min-w-[16rem]">
-          <label htmlFor="payroll-note" className="mb-1 block text-xs font-medium text-slate-600">Примечание к редакции (необязательно)</label>
+          <label htmlFor="payroll-note" className="mb-1 block text-xs font-medium text-slate-600">Примечание к версии (необязательно)</label>
           <input
             id="payroll-note"
             type="text"
             value={note}
             maxLength={NOTE_MAX_LENGTH}
             onChange={(event) => onNote(event.target.value)}
-            placeholder="Например: поправили оплату после справки"
+            placeholder="Например: начислили за пропущенную оплату"
             className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {dirty && (
-            <button
-              type="button"
-              onClick={onDiscard}
-              disabled={saving}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <Undo2 className="h-4 w-4" />
-              Отменить правки
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={onDiscard}
+            disabled={saving}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Undo2 className="h-4 w-4" />
+            Отменить правки
+          </button>
           <button
             type="button"
             onClick={onSave}
@@ -196,7 +148,7 @@ export function SaveBar({
             className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Сохранение…" : saveLabel}
+            {saving ? "Сохранение…" : "Сохранить"}
           </button>
         </div>
       </div>
@@ -233,78 +185,20 @@ export function ConflictBanner({
 }
 
 /**
- * A recalculation found lessons of a kind the sheet has no percent for (422 PERCENT_REQUIRED, `missing[]`): one field
- * per such kind, here in the banner, and a retry that sends them with the same request.
+ * The server refused a calculation or a save: the teacher has no rate for a kind of lessons.  The rate is set in «Сотрудники»
+ * (one place), so the notice says so in the server's words and leads there.
  */
-export function MissingPercentBanner({
-  teacherName, message, types, texts, attempted, busy, error, retryLabel, onText, onRetry, onCancel,
-}: {
-  teacherName: string;
-  message: string;
-  types: LessonType[];
-  texts: Record<string, string>;
-  /** Show the errors of fields that were not touched yet (after a retry that was refused). */
-  attempted: boolean;
-  busy: boolean;
-  /** The answer to the last retry, when it failed for another reason. */
-  error: string | null;
-  retryLabel: string;
-  onText: (type: LessonType, text: string) => void;
-  onRetry: () => void;
-  onCancel: () => void;
-}) {
+export function RateRequiredNotice({ teacherId, message }: { teacherId: string; message: string }) {
   return (
-    <section role="alert" aria-label="Нужен процент" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 print:hidden">
-      <p className="flex items-start gap-2 text-sm font-semibold">
+    <div role="alert" className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between print:hidden">
+      <p className="flex min-w-0 items-start gap-2 text-sm font-medium">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-        <span className="min-w-0">{message}</span>
+        <span>{message}</span>
       </p>
-      <div className="mt-3 flex flex-wrap items-start gap-x-5 gap-y-3">
-        {types.map((type) => {
-          const text = texts[type] ?? "";
-          const problem = (attempted || text !== "") ? parsePercent(text).error : null;
-          const id = `payroll-missing-percent-${type}`;
-          return (
-            <div key={type} className="min-w-0">
-              <label htmlFor={id} className="mb-1 block text-xs font-medium text-amber-950">Процент для {lessonTypeLabel(type)}</label>
-              <div className="flex items-center gap-1.5">
-                <input
-                  id={id}
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  required
-                  value={text}
-                  placeholder="0"
-                  aria-label={`Процент для ${teacherName}, ${lessonTypeLabel(type)}`}
-                  aria-invalid={Boolean(problem)}
-                  aria-describedby={problem ? `${id}-error` : undefined}
-                  onChange={(event) => onText(type, sanitizePercentTyping(event.target.value))}
-                  className={`w-20 rounded-lg border bg-white px-2.5 py-1.5 text-right text-sm tabular-nums outline-none focus:ring-2 ${
-                    problem ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-amber-300 focus:border-primary-500 focus:ring-primary-500/10"
-                  }`}
-                />
-                <span className="text-sm">%</span>
-              </div>
-              {problem && <p id={`${id}-error`} className="mt-1 max-w-[14rem] text-xs font-medium text-rose-700">{problem}</p>}
-            </div>
-          );
-        })}
-      </div>
-      {error && <p className="mt-2 text-xs font-medium text-rose-700">{error}</p>}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={onRetry}
-          disabled={busy}
-          className="inline-flex items-center gap-2 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-60"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {retryLabel}
-        </button>
-        <button type="button" onClick={onCancel} disabled={busy} className="rounded-xl px-3.5 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60">Отмена</button>
-      </div>
-    </section>
+      <Link href={teacherRateHref(teacherId)} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100">
+        Указать ставку
+      </Link>
+    </div>
   );
 }
 
@@ -322,137 +216,98 @@ const STATUS_LABEL: Record<PayrollDiffLine["status"], string> = {
   removed: "строки больше нет",
 };
 
-function signedMoney(delta: number): string {
-  return `${delta > 0 ? "+" : "−"}${formatMoney(Math.abs(delta))}`;
-}
-
-/** «Данные изменились — пересчитать?» with the difference line by line. */
-export function DiffBanner({
-  diff, busy, onRecalculate,
-}: {
-  diff: PayrollDiff;
-  busy: boolean;
-  onRecalculate: () => void;
-}) {
+/**
+ * «Что изменилось» of a sheet whose data moved: the reasons in words (the rate, a price taken from «Цены групп»), then the
+ * lines.  Closed by default - the card above already says how much the total moves.
+ */
+export function DiffDetails({ diff }: { diff: PayrollDiff }) {
+  const reasons = diff.reasons ?? [];
+  if (reasons.length === 0 && diff.lines.length === 0) return null;
   return (
-    <section aria-label="Данные изменились" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 print:hidden">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-sm font-semibold">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            Данные изменились после сохранения — пересчитать?
-          </p>
-          <p className="mt-1 text-sm text-amber-900/90">
-            Изменились посещаемость, оплаты или подтверждения пропусков. Сохранённая ведомость сама не меняется:
-            пересчёт создаст новую редакцию, прежняя останется в истории.
-          </p>
-          {diff.saved_total !== diff.fresh_total && (
-            <p className="mt-1 text-sm font-semibold tabular-nums">
-              Итого: {formatMoney(diff.saved_total)} → {formatMoney(diff.fresh_total)}
-              {diff.delta_amount !== 0 && <span className="ml-2 font-medium">({signedMoney(diff.delta_amount)})</span>}
-            </p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={onRecalculate}
-          disabled={busy}
-          className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-amber-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 disabled:opacity-60"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          Пересчитать
-        </button>
-      </div>
-
-      {diff.lines.length > 0 && (
-        <details className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm">
-          <summary className="cursor-pointer select-none font-medium">Что изменится по строкам ({diff.lines.length})</summary>
-          <div className="mt-2 max-w-full overflow-x-auto">
-            <table className="w-full min-w-[30rem] border-collapse text-xs">
-              <thead>
-                <tr className="border-b border-amber-200 text-left text-xs text-amber-900/70">
-                  <th scope="col" className="py-1.5 pr-3 font-semibold">Ученик</th>
-                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">Засчитано</th>
-                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">Не оплачено</th>
-                  <th scope="col" className="py-1.5 text-right font-semibold">Начислено</th>
-                </tr>
-              </thead>
-              <tbody>
-                {diff.lines.slice(0, 100).map((line) => (
-                  <tr key={`${line.membership_id}-${line.status}`} className="border-b border-amber-100 last:border-b-0">
-                    <th scope="row" className="py-1.5 pr-3 text-left font-medium">
-                      {line.student_name ?? "Ученик"}
-                      {line.group_name && <span className="block font-normal text-amber-900/70">{line.group_name}</span>}
-                      {STATUS_LABEL[line.status] && <span className="block font-normal text-amber-900/70">{STATUS_LABEL[line.status]}</span>}
-                      {line.changes.length > 0 && <span className="block font-normal text-amber-900/70">изменилось: {line.changes.join(", ")}</span>}
-                    </th>
-                    <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.counted, line.fresh?.counted)}</td>
-                    <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.unpaid, line.fresh?.unpaid)}</td>
-                    <td className="whitespace-nowrap py-1.5 text-right tabular-nums">
-                      {change(line.saved?.amount, line.fresh?.amount, formatMoney)}
-                      {line.delta_amount !== 0 && <span className="block text-amber-900/70">{signedMoney(line.delta_amount)}</span>}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {diff.lines.length > 100 && <p className="mt-2 text-xs text-amber-900/70">…и ещё {diff.lines.length - 100}</p>}
-          </div>
-        </details>
+    <details className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-950 print:hidden">
+      <summary className="cursor-pointer select-none font-medium">Что изменилось</summary>
+      {reasons.length > 0 && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-5 text-sm">
+          {reasons.map((reason) => <li key={reason}>{reason}</li>)}
+        </ul>
       )}
-    </section>
+      {diff.lines.length > 0 && (
+        <div className="mt-2 max-w-full overflow-x-auto">
+          <table className="w-full min-w-[30rem] border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-amber-200 text-xs text-amber-900/70">
+                <th scope="col" className="py-1.5 pr-3 text-left font-semibold">Ученик</th>
+                <th scope="col" className="px-3 py-1.5 text-center font-semibold">Засчитано</th>
+                <th scope="col" className="px-3 py-1.5 text-center font-semibold">Без оплаты</th>
+                <th scope="col" className="py-1.5 text-right font-semibold">Начислено</th>
+              </tr>
+            </thead>
+            <tbody>
+              {diff.lines.slice(0, 100).map((line) => (
+                <tr key={`${line.membership_id}-${line.status}`} className="border-b border-amber-100 last:border-b-0">
+                  <th scope="row" className="py-1.5 pr-3 text-left font-medium">
+                    {line.student_name ?? "Ученик"}
+                    {line.group_name && <span className="block font-normal text-amber-900/70">{line.group_name}</span>}
+                    {STATUS_LABEL[line.status] && <span className="block font-normal text-amber-900/70">{STATUS_LABEL[line.status]}</span>}
+                    {line.changes.length > 0 && <span className="block font-normal text-amber-900/70">изменилось: {line.changes.join(", ")}</span>}
+                  </th>
+                  <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.counted, line.fresh?.counted)}</td>
+                  <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.unpaid, line.fresh?.unpaid)}</td>
+                  <td className="whitespace-nowrap py-1.5 text-right tabular-nums">
+                    {change(line.saved?.amount, line.fresh?.amount, formatMoney)}
+                    {line.delta_amount !== 0 && <span className="block text-amber-900/70">{formatSignedMoney(line.delta_amount)}</span>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {diff.lines.length > 100 && <p className="mt-2 text-xs text-amber-900/70">…и ещё {diff.lines.length - 100}</p>}
+        </div>
+      )}
+    </details>
   );
 }
 
 /**
- * The warnings of a teacher's month or a sheet: only what is above 0, each one a link to where it is fixed (the title
- * says where) and a «?» with what it means and what to do.
+ * The warnings of a teacher's month or a sheet, in ONE line: only what is above 0, each one a link to where it is fixed (the
+ * title says where), and one «?» at the end that says what they mean and what to do.
  */
-export function WarningLinks({
-  counts, label, stacked = false, centered = false,
-}: {
-  counts: PayrollSheetWarnings | PayrollMonthWarnings;
-  label: string;
-  /** One under another (a table cell) instead of in a row. */
-  stacked?: boolean;
-  /** A table cell under a centred header: each line is centred on the wide table (cards keep it left). */
-  centered?: boolean;
-}) {
-  const views = warningViews(counts);
+export function WarningLinks({ views, label }: { views: WarningView[]; label: string }) {
   if (views.length === 0) return null;
   return (
-    <ul aria-label={label} className={`${stacked ? "space-y-1" : "flex flex-wrap gap-x-4 gap-y-1"} print:hidden`}>
+    <ul aria-label={label} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 print:hidden">
       {views.map((view) => (
-        <li key={view.key} className={`flex items-start gap-1.5 text-xs ${centered ? "xl:justify-center" : ""} ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
-          <Hint text={view.hint} className="mt-px inline-flex">
-            <HelpCircle className="h-3.5 w-3.5 opacity-60" aria-label={`Что это: ${view.text}`} />
-          </Hint>
+        <li key={view.key} className={`text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
+          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
         </li>
       ))}
+      <li className="text-xs text-slate-400">
+        <Hint text={views.map((view) => `${view.text}\n${view.hint}`).join("\n\n")} className="inline-flex">
+          <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
+        </Hint>
+      </li>
     </ul>
   );
 }
 
-/** «История редакций»: who saved which revision and when, newest first. */
+/** «История сохранений»: who saved which version and when, newest first. */
 export function RevisionList({ revisions, currentRevision }: { revisions: PayrollRevision[]; currentRevision: number | null }) {
   if (revisions.length === 0) {
-    return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">Редакций пока нет.</p>;
+    return <p className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center text-sm text-slate-500">Сохранений пока нет.</p>;
   }
   return (
-    <ol aria-label="История редакций" className="space-y-2.5">
+    <ol aria-label="История сохранений" className="space-y-2.5">
       {revisions.map((revision, index) => {
         const previous = revisions[index + 1];
         const delta = previous ? revision.total_amount - previous.total_amount : null;
         const when = formatUtcNaiveAsBusinessDateTime(revision.changed_at);
-        const percents = Object.entries(revision.percents);
+        const percents = Object.entries(revision.percents ?? {});
         return (
           <li key={revision.revision} className="rounded-2xl border border-slate-200 bg-white px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
                 <History className="h-4 w-4 text-slate-400" />
-                {revisionLabel(revision.revision).replace(/^./, (c) => c.toUpperCase())}
+                {versionLabel(revision.revision).replace(/^./, (c) => c.toUpperCase())}
                 {revision.revision === currentRevision && (
                   <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">текущая</span>
                 )}
@@ -461,7 +316,7 @@ export function RevisionList({ revisions, currentRevision }: { revisions: Payrol
                 {formatMoney(revision.total_amount)}
                 {delta !== null && delta !== 0 && (
                   <span className={`ml-2 text-xs font-medium ${delta > 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                    {delta > 0 ? "+" : "−"}{formatMoney(Math.abs(delta))}
+                    {formatSignedMoney(delta)}
                   </span>
                 )}
               </p>
@@ -471,7 +326,7 @@ export function RevisionList({ revisions, currentRevision }: { revisions: Payrol
             </p>
             {percents.length > 0 && (
               <p className="mt-1 text-xs text-slate-600">
-                Проценты: {percents.map(([type, value]) => `${lessonTypeLabel(type)} ${percentLabel(value)}`).join("; ")}
+                Ставка: {percents.map(([type, value]) => `${lessonTypeLabel(type)} ${percentShort(value)}`).join(" · ")}
               </p>
             )}
             {revision.change_note && <p className="mt-1.5 break-words text-sm text-slate-700">{revision.change_note}</p>}
