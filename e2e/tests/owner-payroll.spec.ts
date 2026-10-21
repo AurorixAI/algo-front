@@ -141,7 +141,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await expect(page.getByTestId("payroll-month-summary")).toContainText("сохранено 1 из 2");
 
   // --- the saved sheet: the card, then «начислить» for the student who never paid -> version 2
-  await row.getByRole("button", { name: /Открыть: Групповой/ }).click();
+  await row.getByRole("button", { name: /Открыть: .*Групповой/ }).click();
   await expect(page).toHaveURL(/\/owner\/payroll\/[0-9a-f-]{36}$/);
   await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toContainText("Групповой");
   const card = page.getByRole("region", { name: "Итог ведомости" });
