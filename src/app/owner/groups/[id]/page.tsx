@@ -165,6 +165,16 @@ export default function OwnerGroupDetailPage() {
     }
   };
 
+  // LOGIC-A F9: the dialog of GroupStudentTable has already taken the student out (and settled the money): the page only forgets him.
+  const handleStudentLeft = (studentId: string, settled: string[]) => {
+    setGroup((prev) => prev ? {
+      ...prev,
+      students: prev.students.filter((s) => s.id !== studentId),
+      student_count: prev.student_count - 1,
+    } : null);
+    showToast("Ученик убран из группы", "success", settled);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -446,6 +456,8 @@ export default function OwnerGroupDetailPage() {
               students={group.students}
               studentBasePath="/owner/students"
               onRemove={group.status === "active" ? handleRemoveStudent : undefined}
+              groupId={groupId}
+              onLeft={handleStudentLeft}
               canRemove={group.status === "active"}
             />
           </motion.div>

@@ -10,6 +10,7 @@ import { StudentInGroup } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu } from "@/components/ui/row-menu";
+import { LeaveStudentDialog } from "./leave-student-dialog";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 
@@ -20,9 +21,15 @@ interface GroupStudentTableProps {
   onRemove?: (studentId: string) => void | Promise<void>;
   onViewProfile?: (studentId: string) => void;
   canRemove?: boolean;
+  /**
+   * LOGIC-A F9: with the group the removal shows what is left on the account and settles it (keep / forgive / refund); `onLeft` is
+   * called after the server took the student out.  Without it (a teacher) the old confirmation stays.
+   */
+  groupId?: string;
+  onLeft?: (studentId: string, settledLines: string[]) => void;
 }
 
-export function GroupStudentTable({ students, studentBasePath, onRemove, canRemove }: GroupStudentTableProps) {
+export function GroupStudentTable({ students, studentBasePath, onRemove, canRemove, groupId, onLeft }: GroupStudentTableProps) {
   const removable = Boolean(canRemove && onRemove);
   const [removeTarget, setRemoveTarget] = useState<StudentInGroup | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -236,8 +243,19 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
           })}
         </tbody>
       </table>
+      {groupId && onLeft && !isTeacher && (
+        <LeaveStudentDialog
+          open={removeTarget !== null}
+          groupId={groupId}
+          studentId={removeTarget?.id ?? ""}
+          studentName={removeTarget ? (removeTarget.full_name || `${removeTarget.last_name} ${removeTarget.first_name}`) : ""}
+          onClose={() => setRemoveTarget(null)}
+          onLeft={(lines) => { if (removeTarget) onLeft(removeTarget.id, lines); }}
+          onLegacy={removeTarget && onRemove ? () => onRemove(removeTarget.id) : undefined}
+        />
+      )}
       <Modal
-        open={removeTarget !== null}
+        open={removeTarget !== null && !(groupId && onLeft && !isTeacher)}
         title="Убрать ученика из группы?"
         description={removeTarget ? (removeTarget.full_name || `${removeTarget.last_name} ${removeTarget.first_name}`) : undefined}
         onClose={() => setRemoveTarget(null)}

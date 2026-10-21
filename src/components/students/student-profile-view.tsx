@@ -1,5 +1,6 @@
 "use client";
 
+import { settledLines } from "@/lib/payments-logica";
 import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -305,7 +306,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   // The server's own numbers (invites it cancelled, tests it left running) go under the toast when there are any.
   const handleArchived = (result: StudentArchiveResult) => {
     setArchiveOpen(false);
-    showToast(ARCHIVED_TOAST, "success", archiveResultDetails(result));
+    // LOGIC-A F9: what was settled with the archive («Возвращено 135 000 сум») goes under the toast too.
+    showToast(ARCHIVED_TOAST, "success", [...archiveResultDetails(result), ...settledLines((result as { settled?: Parameters<typeof settledLines>[0] }).settled)]);
     reloadCard();
   };
   // Called once, the moment the server has taken him back.  Nothing to read: close, toast, the spinner hides the
