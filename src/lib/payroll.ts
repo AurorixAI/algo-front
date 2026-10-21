@@ -975,16 +975,30 @@ export interface CalculationGate {
   text: string | null;
 }
 
-/** «Рассчитать всех» waits until every teacher of the month has a rate, and says how many are left (nothing red). */
-export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "missing_rates">>): CalculationGate {
-  const total = teachers.length;
-  const missing = teachers.filter((teacher) => (teacher.missing_rates ?? []).length > 0).length;
+export const ALL_SAVED_TEXT = "Все ведомости месяца сохранены";
+
+/**
+ * The teachers «Рассчитать всех» computes: those WITHOUT a saved sheet for the month.  A bulk action never gives a saved sheet
+ * a new version (a clean one needs none; a changed one is recalculated from its own card).
+ */
+export function calculationScope<T extends Pick<PayrollMonthTeacher, "sheet">>(teachers: ReadonlyArray<T>): T[] {
+  return teachers.filter((teacher) => !teacher.sheet);
+}
+
+/**
+ * «Рассчитать всех» works on the teachers with no saved sheet and waits until each of them has a rate (the count of those left
+ * is said, nothing red).  When every teacher already has a saved sheet it is off and says so.
+ */
+export function calculationGate(teachers: ReadonlyArray<Pick<PayrollMonthTeacher, "missing_rates" | "sheet">>): CalculationGate {
+  const scope = calculationScope(teachers);
+  const total = scope.length;
+  const missing = scope.filter((teacher) => (teacher.missing_rates ?? []).length > 0).length;
   const people = pluralRu(missing, ["преподавателя", "преподавателей", "преподавателей"]);
   return {
     ready: total > 0 && missing === 0,
     missing,
     total,
-    text: missing > 0 ? `Не задана ставка у ${missing} ${people}` : null,
+    text: missing > 0 ? `Не задана ставка у ${missing} ${people}` : teachers.length > 0 && total === 0 ? ALL_SAVED_TEXT : null,
   };
 }
 

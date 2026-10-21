@@ -16,6 +16,7 @@ import {
   buildLineViews,
   buildSaveBody,
   calculationGate,
+  calculationScope,
   canGoToNextMonth,
   editsDirty,
   isDataChanged,
@@ -184,17 +185,17 @@ function PayrollMonthContent() {
     sheets.map((sheet) => ({ ...sheet, teacher_name: teacherLabel(sheet.teacher_name) }));
 
   /**
-   * `ids`: one teacher (a row's «Рассчитать» / «Пересчитать») or nobody - then everybody («Рассчитать всех»).  The calculation
+   * `ids`: one teacher (a row's «Рассчитать») or the teachers with no saved sheet («Рассчитать всех», `all`).  The calculation
    * is a preview: nothing is written until the owner saves.  The rates are the stored ones, so nothing but the teachers is sent.
    */
-  const calculate = async (ids: string[]) => {
-    if (!overview || busy) return;
+  const calculate = async (ids: string[], all = false) => {
+    if (!overview || busy || ids.length === 0) return;
     if (dirty && !window.confirm("Новый расчёт заменит предпросмотр, в котором есть несохранённые правки. Продолжить?")) return;
     const requestedMonth = month;
     const token = calcs.current.next();
-    setCalculating(ids.length > 0 ? new Set(ids) : "all");
+    setCalculating(all ? "all" : new Set(ids));
     try {
-      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, ids.length > 0 ? { teacher_ids: ids } : {}));
+      const sheets = withNames(await orgApi.calculatePayroll(requestedMonth, { teacher_ids: ids }));
       // A newer calculation or another month started meanwhile: this answer is stale.
       if (!calcs.current.isCurrent(token) || monthRef.current !== requestedMonth) return;
       if (sheets.length === 0) {
@@ -366,7 +367,7 @@ function PayrollMonthContent() {
             </button>
             <button
               type="button"
-              onClick={() => void calculate([])}
+              onClick={() => void calculate(calculationScope(teachers).map((teacher) => teacher.teacher_id), true)}
               disabled={!overview || teachers.length === 0 || busy || !gate.ready}
               aria-describedby={gate.text ? "payroll-calculate-hint" : undefined}
               className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -382,8 +383,13 @@ function PayrollMonthContent() {
           {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} />}
           {overview && gate.text && (
             <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
-              {gate.text}.{" "}
-              <Link href="/owner/teachers" className="font-medium text-primary-700 hover:underline">Указать в «Сотрудниках»</Link>
+              {gate.text}
+              {gate.missing > 0 && (
+                <>
+                  .{" "}
+                  <Link href="/owner/teachers" className="font-medium text-primary-700 hover:underline">Указать в «Сотрудниках»</Link>
+                </>
+              )}
             </p>
           )}
         </div>

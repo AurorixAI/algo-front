@@ -120,7 +120,7 @@ test("the month page wires the gate: no toast for a state the screen prevents, t
   assert.doesNotMatch(page, /percentKey|monthPercentText|percentProblems|buildCalculateBody|markAttempted|PercentEditor|sanitizePercentTyping/);
   // a server's refusal for want of a rate (a real answer to a real action) refreshes the table, whose rates are what the buttons wait for
   assert.match(page, /isRateRequired\(cause as PayrollErrorLike\)\) void load\(true\)/);
-  assert.match(page, /\? \{ teacher_ids: ids \} : \{\}/); // only the teachers are sent
+  assert.match(page, /\{ teacher_ids: ids \}/); // only the teachers are sent (never an empty body: that would mean everybody)
 });
 
 // ---- 3. the bar over the selected -----------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ test("the month page wires the gate: no toast for a state the screen prevents, t
 test("no checkboxes without an action: a row has one button by its status; «Рассчитать всех» is the one main button of the page", () => {
   const page = read("src/components/payroll/payroll-month-page.tsx");
   assert.doesNotMatch(page, /type="checkbox"|Рассчитать выбранных|Снять выбор|Действия над выбранными|selectedGate/);
-  assert.match(page, /onClick=\{\(\) => void calculate\(\[\]\)\}/);
+  assert.match(page, /onClick=\{\(\) => void calculate\(calculationScope\(teachers\)\.map\(\(teacher\) => teacher\.teacher_id\), true\)\}/);
   assert.match(page, /rowAction\(teacher\.sheet\)/);
   assert.match(page, /const run = action\.kind === "open" \? onOpen : onCalculate;/);
   // the API has no Excel of several chosen sheets (one sheet or the whole month): no such button

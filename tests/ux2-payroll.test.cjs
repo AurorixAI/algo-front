@@ -69,6 +69,24 @@ test("status: one chip («Не рассчитано» / «Сохранено 16.
 
 // ── the summary line of the month ────────────────────────────────────────────────────────────
 
+test("«Рассчитать всех» computes only the teachers WITHOUT a saved sheet; the rate gate applies to them alone", () => {
+  const t = (id, sheet, missing = []) => ({ teacher_id: id, missing_rates: missing, sheet: sheet ? { stale: sheet === "stale" } : null });
+  const teachers = [t("a", "clean"), t("b", "stale"), t("c", null), t("d", null, ["group"])];
+  assert.deepEqual(R.calculationScope(teachers).map((x) => x.teacher_id), ["c", "d"]);
+  // a saved teacher with a missing rate does not block; an unsaved one does
+  const gate = R.calculationGate(teachers);
+  assert.deepEqual([gate.ready, gate.missing, gate.total, gate.text], [false, 1, 2, "Не задана ставка у 1 преподавателя"]);
+  assert.equal(R.calculationGate([t("a", "clean", ["group"]), t("c", null)]).ready, true);
+  // everybody has a saved sheet (clean or changed): off, with the one line
+  const saved = R.calculationGate([t("a", "clean"), t("b", "stale")]);
+  assert.deepEqual([saved.ready, saved.total, saved.text], [false, 0, "Все ведомости месяца сохранены"]);
+  assert.equal(R.ALL_SAVED_TEXT, "Все ведомости месяца сохранены");
+  // nobody at all: off, no hint
+  assert.deepEqual(R.calculationGate([]), { ready: false, missing: 0, total: 0, text: null });
+  // the page sends exactly this scope
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /calculate\(calculationScope\(teachers\)\.map\(\(teacher\) => teacher\.teacher_id\), true\)/);
+});
+
 test("the summary line: «К выплате за сентябрь: N сум · сохранено X из Y» (the sum of the SAVED sheets)", () => {
   const sheet = (total, stale = false) => ({ sheet: { total_amount: total, stale } });
   const teachers = [sheet(900000), sheet(510415, true), { sheet: null }];
