@@ -330,6 +330,16 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
                 <Figure value={row.amount} label={`${row.label}: оплаты`} onOpen={() => open(dayList({}, row.column))} className="shrink-0 text-slate-900" />
               </li>
             ))}
+            {returned && (
+              <li className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="flex min-w-0 items-center gap-2 text-slate-500">
+                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-slate-300" aria-hidden />
+                  {returned.label}
+                  <span className="text-xs text-slate-400">{sharePercent(returned.amount, report.totals.received)}%</span>
+                </span>
+                <span className="shrink-0 tabular-nums text-slate-600">{formatMoney(returned.amount)}</span>
+              </li>
+            )}
           </ul>
         </div>
 
