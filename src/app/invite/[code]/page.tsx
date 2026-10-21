@@ -13,6 +13,8 @@ import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 import { authApi } from "@/lib/api";
+import type { InviteInfo } from "@/lib/ops-b-types";
+import { INVITE_NOT_FOUND_TEXT, inviteAcceptErrorText, returningIntroText } from "@/lib/staff-lifecycle";
 
 export default function InviteAcceptPage() {
   const router = useRouter();
@@ -20,7 +22,7 @@ export default function InviteAcceptPage() {
   const code = params.code as string;
   const { acceptInvite, isLoading, error, clearError } = useAuthStore();
 
-  const [inviteInfo, setInviteInfo] = useState<any>(null);
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [loadingInfo, setLoadingInfo] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -38,7 +40,7 @@ export default function InviteAcceptPage() {
         setInviteInfo(info);
         if (info.email) setEmail(info.email);
       } catch {
-        setLoadError("Приглашение не найдено или истекло");
+        setLoadError(INVITE_NOT_FOUND_TEXT);
       } finally {
         setLoadingInfo(false);
       }
@@ -75,8 +77,9 @@ export default function InviteAcceptPage() {
         else if (role === "admin") window.location.href = "/admin/diagnostics";
         else window.location.href = "/teacher/dashboard";
       }
-    } catch {
-      // Error in store
+    } catch (failure) {
+      // The store keeps the server text; the refusals of the pack (another e-mail, another centre) are said in the words of the spec
+      setLocalError(inviteAcceptErrorText(failure));
     }
   };
 
@@ -132,6 +135,11 @@ export default function InviteAcceptPage() {
                 </p>
               </div>
             </div>
+            {inviteInfo.is_returning && (
+              <p role="status" className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                {returningIntroText(inviteInfo.org_name)}
+              </p>
+            )}
           </motion.div>
         )}
 
@@ -144,7 +152,7 @@ export default function InviteAcceptPage() {
               </div>
             )}
 
-            <h3 className="text-lg font-semibold text-slate-900 mb-4">Создайте аккаунт</h3>
+            <h3 className="text-lg font-semibold text-slate-900 mb-4">{inviteInfo?.is_returning ? "Новый пароль" : "Создайте аккаунт"}</h3>
 
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -171,7 +179,14 @@ export default function InviteAcceptPage() {
                 icon={<Mail className="w-4 h-4" />}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                // the invitation is for this address: it is shown and not edited (the server refuses another one)
+                readOnly={Boolean(inviteInfo?.email)}
+                aria-readonly={Boolean(inviteInfo?.email)}
+                className={inviteInfo?.email ? "bg-slate-100 text-slate-600 cursor-not-allowed" : undefined}
               />
+              {inviteInfo?.email && (
+                <p className="-mt-2 text-xs font-medium text-slate-500">Приглашение выдано на этот email — изменить его нельзя.</p>
+              )}
 
               <Input
                 label="Пароль"

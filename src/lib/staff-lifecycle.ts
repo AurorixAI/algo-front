@@ -229,3 +229,23 @@ export function membersTabCount(active: number): string {
 export function groupsCountText(count: number): string {
   return `${count} ${pluralRu(count, ["группа", "группы", "групп"])}`;
 }
+
+// ── the page of an invitation (F8) ──────────────────────────────────────────────────────────────
+
+export const INVITE_NOT_FOUND_TEXT = "Приглашение не найдено, использовано или истекло.";
+export const INVITE_EMAIL_MISMATCH_TEXT = "Это приглашение выдано для другого email";
+export const EMAIL_IN_OTHER_ORG_TEXT = "Этот email уже зарегистрирован в другом центре. Пока один email работает только в одном центре.";
+
+/** «Вы возвращаетесь в «Алго Тест». Задайте новый пароль для входа.» for a member who was removed and invited again. */
+export function returningIntroText(orgName: string): string {
+  return `Вы возвращаетесь в «${orgName}». Задайте новый пароль для входа.`;
+}
+
+/** The refusals of «Принять приглашение» in the words of the spec; the server text for the others. */
+export function inviteAcceptErrorText(error: unknown): string {
+  switch (opsErrorCode(error)) {
+    case "INVITE_EMAIL_MISMATCH": return INVITE_EMAIL_MISMATCH_TEXT;
+    case "EMAIL_IN_OTHER_ORG": return EMAIL_IN_OTHER_ORG_TEXT;
+    default: return (error instanceof Error && error.message.trim()) || "Ошибка принятия приглашения";
+  }
+}
