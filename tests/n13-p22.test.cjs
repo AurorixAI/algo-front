@@ -594,10 +594,12 @@ test("a part of a center period, and the fallback «с» of a fixed-day payment"
   assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-09", 10), false);
   assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-10", 10), true);
   assert.equal(P.isPartialPeriod("", "2026-11-09", 10), false);
-  // previous payment ran to 31.10, paid 17.11: from 01.11 (no gap), not from the payment date
+  // previous payment ran to 31.10, paid 17.11: from 01.11 (an overdue student first closes the debt), not from the payment date
   assert.equal(P.fixedDayFallbackFrom("2026-11-17", "2026-10-31", 1), "2026-11-01");
   // paid ahead: the continuation
   assert.equal(P.fixedDayFallbackFrom("2026-10-20", "2026-11-30", 1), "2026-12-01");
+  // long overdue: the day after the old «оплачено до», no clamp to the center period of today
+  assert.equal(P.fixedDayFallbackFrom("2026-11-17", "2026-08-20", 1), "2026-08-21");
   // a first payment counts from the payment date
   assert.equal(P.fixedDayFallbackFrom("2026-10-17", null, 1), "2026-10-17");
   assert.equal(P.fixedDayFallbackFrom("2026-10-17", "", 10), "2026-10-17");

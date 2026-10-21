@@ -635,12 +635,12 @@ export interface PaymentFormValues {
   reason: string;
 }
 
-/** «С» of a new calendar payment: the day after the previous «оплачено до» unless that is before the payment date. */
+/**
+ * «С» of a new calendar payment: always the day after the previous «оплачено до» - an overdue student first closes the
+ * debt (owner 21.10); a first payment counts from the payment date.
+ */
 export function defaultValidFrom(paidOn: string, previousPaidUntil: string | null | undefined): string {
-  if (previousPaidUntil && isIsoDate(previousPaidUntil)) {
-    const next = addDays(previousPaidUntil, 1);
-    if (next >= paidOn) return next;
-  }
+  if (previousPaidUntil && isIsoDate(previousPaidUntil)) return addDays(previousPaidUntil, 1);
   return paidOn;
 }
 
@@ -848,16 +848,12 @@ export function isPartialPeriod(validFrom: string, validTo: string, billingDay: 
 }
 
 /**
- * «С» of a fixed-day payment when the server cannot be asked: the day after the previous «оплачено до» if that
- * is later than the start of the center period of the payment date, otherwise that start; a first payment
- * counts from the payment date (the server uses the enrolment date, which the form does not know).
+ * «С» of a fixed-day payment when the server cannot be asked: the day after the previous «оплачено до» (an overdue
+ * student first closes the debt); a first payment counts from the payment date (the server uses the enrolment date,
+ * which the form does not know). `billingDay` is kept for the callers: the center's day no longer moves «с».
  */
-export function fixedDayFallbackFrom(paidOn: string, previousPaidUntil: string | null | undefined, billingDay: number): string {
-  if (previousPaidUntil && isIsoDate(previousPaidUntil)) {
-    const anchor = billingPeriodStart(paidOn, billingDay);
-    const next = addDays(previousPaidUntil, 1);
-    return next > anchor ? next : anchor;
-  }
+export function fixedDayFallbackFrom(paidOn: string, previousPaidUntil: string | null | undefined, _billingDay: number): string {
+  if (previousPaidUntil && isIsoDate(previousPaidUntil)) return addDays(previousPaidUntil, 1);
   return paidOn;
 }
 

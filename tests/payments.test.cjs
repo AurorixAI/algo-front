@@ -154,11 +154,11 @@ test("form defaults, calendar mode", () => {
   const early = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-30", monthlyFee: 450000, paidUntil: "2026-11-04", lessonsDefault: null });
   assert.equal(early.validFrom, "2026-11-05");
   assert.equal(early.validTo, "2026-12-04");
-  // the previous period ended before the payment date: start at the payment date
+  // the previous period ended before the payment date: still the day after it (an overdue student first closes the debt, owner 21.10)
   const late = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-14", monthlyFee: 450000, paidUntil: "2026-10-01", lessonsDefault: null });
-  assert.equal(late.validFrom, "2026-10-14");
-  assert.equal(late.validTo, "2026-11-13");
-  // the previous period ends today: tomorrow is not "before the payment date"
+  assert.equal(late.validFrom, "2026-10-02");
+  assert.equal(late.validTo, "2026-11-01");
+  // the previous period ends today: tomorrow
   const edge = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-14", monthlyFee: 450000, paidUntil: "2026-10-14", lessonsDefault: null });
   assert.equal(edge.validFrom, "2026-10-15");
   // no fee yet: the amount is empty; a zero fee is not a default amount either
