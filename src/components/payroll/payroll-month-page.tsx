@@ -495,10 +495,10 @@ function PayrollMonthContent() {
                 />
               </span>
               <span>Преподаватель</span>
-              <span>Процент по типам занятий</span>
-              <span>Статус</span>
-              <span>Предупреждения</span>
-              <span />
+              <span className="text-center">Процент по типам занятий</span>
+              <span className="text-center">Статус</span>
+              <span className="text-center">Предупреждения</span>
+              <span className="text-right"><span className="sr-only">Действия</span></span>
             </div>
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {teachers.map((teacher) => (
@@ -686,7 +686,7 @@ export function TeacherRow({
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-2 xl:mt-0">
+      <div className="mt-3 flex flex-wrap items-start gap-x-4 gap-y-2 xl:mt-0 xl:justify-center">
         {teacher.lesson_types.length === 0 ? (
           <span className="text-xs text-slate-400">нет типов занятий</span>
         ) : (
@@ -736,7 +736,7 @@ export function TeacherRow({
         )}
       </div>
 
-      <div className="mt-3 min-w-0 space-y-1.5 xl:mt-0">
+      <div className="mt-3 min-w-0 space-y-1.5 xl:mt-0 xl:text-center">
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
         {status.detail && <p className="text-xs text-slate-500">{status.detail}</p>}
         {teacher.sheet && (
@@ -748,15 +748,15 @@ export function TeacherRow({
         )}
       </div>
 
-      <div className="mt-3 xl:mt-0">
+      <div className="mt-3 xl:mt-0 xl:text-center">
         {warningViews(teacher.warnings).length === 0 ? (
           <span className="text-xs text-slate-400">нет</span>
         ) : (
-          <WarningLinks counts={teacher.warnings} label={`Предупреждения: ${teacher.teacher_name}`} stacked />
+          <WarningLinks counts={teacher.warnings} label={`Предупреждения: ${teacher.teacher_name}`} stacked centered />
         )}
       </div>
 
-      <div className="hidden xl:block">
+      <div className="hidden xl:flex xl:justify-end">
         <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
       </div>
     </li>

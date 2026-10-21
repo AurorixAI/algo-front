@@ -419,10 +419,10 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
               <thead>
                 <tr className="bg-slate-50/80 text-left text-[13px] font-semibold text-slate-500">
                   <th className="px-6 py-3 font-semibold">Ученик</th>
-                  <th className="px-6 py-3 font-semibold">ID</th>
-                  <th className="px-6 py-3 font-semibold">Класс</th>
-                  <th className="px-6 py-3 font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
-                  <th className="px-6 py-3 font-semibold">Телефон</th>
+                  <th className="px-6 py-3 text-center font-semibold">ID</th>
+                  <th className="px-6 py-3 text-center font-semibold">Класс</th>
+                  <th className="px-6 py-3 text-center font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
+                  <th className="px-6 py-3 text-center font-semibold">Телефон</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -453,7 +453,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                             </span>
                           </Link>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 text-center">
                           {s.display_id ? (
                             <button
                               type="button"
@@ -478,14 +478,14 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                             <span className="text-xs text-slate-300 font-mono">—</span>
                           )}
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 text-center">
                           <span className="text-sm text-slate-600">{s.class_level} класс</span>
                         </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 text-center">
                           {isArchivedStatus(s.status) ? (
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">В архиве</span>
                           ) : group ? (
-                            <div className="flex flex-wrap items-baseline gap-x-1.5">
+                            <div className="flex flex-wrap items-baseline justify-center gap-x-1.5">
                               <Link
                                 href={`${base}/groups/${group.id}`}
                                 className="text-sm text-slate-700 hover:text-primary-600 font-medium transition-colors"
@@ -502,7 +502,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                             <span className="text-xs text-slate-400 italic">Без группы</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-500">{s.student_phone || "—"}</td>
+                        <td className="px-6 py-4 text-center text-sm text-slate-500">{s.student_phone || "—"}</td>
                       </motion.tr>
                     );
                   })}

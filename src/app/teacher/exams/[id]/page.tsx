@@ -2069,11 +2069,11 @@ export default function ExamHubPage() {
                   <thead className="bg-slate-50 text-slate-500 text-[13px] font-semibold border-b border-slate-200/80">
                     <tr>
                       <th className="p-4 pl-6">Ученик</th>
-                      <th className="p-4">Вариант</th>
-                      <th className="p-4">Баллы</th>
-                      <th className="p-4">Результат</th>
-                      <th className="p-4">Статус</th>
-                      <th className="p-4 pr-6 text-right">Действия</th>
+                      <th className="p-4 text-center">Вариант</th>
+                      <th className="p-4 text-center">Баллы</th>
+                      <th className="p-4 text-center">Результат</th>
+                      <th className="p-4 text-center">Статус</th>
+                      <th className="p-4 pr-6 text-right"><span className="sr-only">Действия</span></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -2085,11 +2085,11 @@ export default function ExamHubPage() {
                       return (
                         <tr key={rowKey} className="hover:bg-slate-50/80 transition-colors">
                           <td className="p-4 pl-6 font-semibold text-slate-900">{s.student_name}</td>
-                          <td className="p-4 font-medium text-slate-600">Вар. #{s.variant_number}</td>
-                          <td className="p-4 font-mono font-semibold text-slate-900">
+                          <td className="p-4 text-center font-medium text-slate-600">Вар. #{s.variant_number}</td>
+                          <td className="p-4 text-center font-mono font-semibold text-slate-900">
                             {submitted ? `${s.score} / ${s.max_score}` : "—"}
                           </td>
-                          <td className="p-4">
+                          <td className="p-4 text-center">
                             {submitted ? (
                               <span
                                 className={cn(
@@ -2109,11 +2109,11 @@ export default function ExamHubPage() {
                           </td>
                           <td className="p-4">
                             {submitted ? (
-                              <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
+                              <span className="text-xs font-semibold text-emerald-700 flex items-center justify-center gap-1">
                                 <CheckCircle2 className="w-4 h-4" /> Сдано
                               </span>
                             ) : (
-                              <span className="text-xs font-semibold text-amber-700 flex items-center gap-1">
+                              <span className="text-xs font-semibold text-amber-700 flex items-center justify-center gap-1">
                                 <Clock className="w-4 h-4" /> {isFinalized ? "Не завершил" : "В процессе"}
                               </span>
                             )}

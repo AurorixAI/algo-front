@@ -527,11 +527,11 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           {bucket !== "none" && (
             <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
               <span>Ученик</span>
-              <span>Группа</span>
-              <span>{priceLabelOf(periodMode)}</span>
-              <span>Статус</span>
-              <span>Последняя оплата</span>
-              <span />
+              <span className="text-center">Группа</span>
+              <span className="text-center">{priceLabelOf(periodMode)}</span>
+              <span className="text-center">Статус</span>
+              <span className="text-center">Последняя оплата</span>
+              <span className="text-right"><span className="sr-only">Действия</span></span>
             </div>
           )}
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
@@ -638,7 +638,7 @@ function PaymentRow({
     </div>
   );
   const group = (
-    <div className="min-w-0">
+    <div className="min-w-0 xl:text-center">
       <p className="break-words text-sm text-slate-800 xl:truncate" title={row.group_name}>{row.group_name}</p>
       <p className="truncate text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
@@ -655,32 +655,32 @@ function PaymentRow({
         </div>
       ) : (
         <>
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
             <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
             {price.amount === null || price.amount === undefined ? (
               <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
                 цена группы не задана
               </Link>
             ) : (
-              <span className="text-right xl:text-left">
+              <span className="text-right xl:text-center">
                 <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
                 {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
           </div>
 
-          <div className="flex items-baseline justify-between gap-3 text-xs text-slate-500 xl:block">
-            <span className="shrink-0 text-slate-400 xl:hidden">Последняя оплата</span>
+          {/* Последняя оплата: the amount reads like «Оплата в месяц», the date is the quiet line under it (like «оплачено до») */}
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
+            <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
             {last ? (
-              <span className="text-right tabular-nums xl:text-left" title={lastPaymentLabel(last)}>
-                <span className="xl:block">{formatDateRu(last.paid_on)}</span>
-                <span className="xl:hidden"> · </span>
-                <span className="xl:block xl:text-slate-400">{paymentAmountLabel(last)}</span>
+              <span className="text-right tabular-nums xl:text-center" title={lastPaymentLabel(last)}>
+                <span className="font-medium text-slate-800 xl:block">{paymentAmountLabel(last)}</span>
+                <span className="text-xs text-slate-500 xl:block"><span className="xl:hidden"> · </span>{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
               </span>
             ) : (
               <span className="text-slate-400">—</span>

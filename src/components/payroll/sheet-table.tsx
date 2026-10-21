@@ -41,6 +41,10 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+/**
+ * Alignment (owner 21.10): the student is left; money (the price, «Начислено») is a ledger - right-aligned, and its header is
+ * right-aligned over the same digits (same padding); dates, percent and counts are centred under centred headers.
+ */
 /** The first column keeps its place while the dates scroll; on paper there is nothing to scroll. */
 const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
 
@@ -230,16 +234,16 @@ export function PayrollSheetTable({
                     <th scope="col" aria-label={priceLabel} className={`${HEAD} text-right`}>
                       <Hint text={PRICE_HEADER_HINT}>{priceLabel}</Hint>
                     </th>
-                    <th scope="col" className={`${HEAD} text-right`}>%</th>
+                    <th scope="col" className={`${HEAD} text-center`}>%</th>
                     {block.columns.map((column) => (
                       <th key={column.key} scope="col" className="min-w-[2.75rem] px-1 py-2 text-center text-xs font-semibold text-slate-500 print:min-w-0 print:px-0.5 print:py-1 print:text-[9px]">
                         {formatDayMonth(column.date)}
                       </th>
                     ))}
-                    <th scope="col" aria-label="Засчитано" className={`${HEAD} text-right`}>
+                    <th scope="col" aria-label="Засчитано" className={`${HEAD} text-center`}>
                       <Hint text={COUNTED_HEADER_HINT}>Засчитано</Hint>
                     </th>
-                    <th scope="col" aria-label="Не оплачено" className={HEAD}>
+                    <th scope="col" aria-label="Не оплачено" className={`${HEAD} text-center`}>
                       <Hint text={UNPAID_HEADER_HINT}>Не оплачено</Hint>
                     </th>
                     <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
@@ -269,7 +273,7 @@ export function PayrollSheetTable({
                             onChange={(fee) => onEdits?.((previous) => setFeeEdit(previous, sheet, id, fee))}
                           />
                         </td>
-                        <td className={`${CELL} whitespace-nowrap text-right tabular-nums text-slate-600`}>{percentLabel(view.percent)}</td>
+                        <td className={`${CELL} whitespace-nowrap text-center tabular-nums text-slate-600`}>{percentLabel(view.percent)}</td>
                         {block.columns.map((column) => {
                           const mark = markFor(line, column);
                           const cell = markCell(mark ? mark.mark : null, mark ? mark.state : "not_in_group", { includeUnpaid: view.include });
@@ -296,8 +300,8 @@ export function PayrollSheetTable({
                             </td>
                           );
                         })}
-                        <td className={`${CELL} text-right font-semibold tabular-nums text-slate-900`}>{line.counted}</td>
-                        <td className={CELL}>
+                        <td className={`${CELL} text-center font-semibold tabular-nums text-slate-900`}>{line.counted}</td>
+                        <td className={`${CELL} text-center`}>
                           <IncludeCell
                             view={view}
                             editable={canEdit}
@@ -315,8 +319,8 @@ export function PayrollSheetTable({
                   <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800 print:bg-transparent">
                     <th scope="row" className={`${CELL} ${STICKY} bg-slate-50 text-left print:bg-transparent`}>Итого по группе</th>
                     <td colSpan={span - 1} />
-                    <td className={`${CELL} text-right tabular-nums`}>{block.counted}</td>
-                    <td className={`${CELL} tabular-nums`}>{block.unpaid}</td>
+                    <td className={`${CELL} text-center tabular-nums`}>{block.counted}</td>
+                    <td className={`${CELL} text-center tabular-nums`}>{block.unpaid}</td>
                     <td className={`${CELL} whitespace-nowrap text-right tabular-nums`}>{formatMoney(block.amount)}</td>
                   </tr>
                 </tfoot>

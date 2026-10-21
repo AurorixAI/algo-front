@@ -372,8 +372,8 @@ export function DiffBanner({
               <thead>
                 <tr className="border-b border-amber-200 text-left text-xs text-amber-900/70">
                   <th scope="col" className="py-1.5 pr-3 font-semibold">Ученик</th>
-                  <th scope="col" className="py-1.5 pr-3 font-semibold">Засчитано</th>
-                  <th scope="col" className="py-1.5 pr-3 font-semibold">Не оплачено</th>
+                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">Засчитано</th>
+                  <th scope="col" className="px-3 py-1.5 text-center font-semibold">Не оплачено</th>
                   <th scope="col" className="py-1.5 text-right font-semibold">Начислено</th>
                 </tr>
               </thead>
@@ -386,8 +386,8 @@ export function DiffBanner({
                       {STATUS_LABEL[line.status] && <span className="block font-normal text-amber-900/70">{STATUS_LABEL[line.status]}</span>}
                       {line.changes.length > 0 && <span className="block font-normal text-amber-900/70">изменилось: {line.changes.join(", ")}</span>}
                     </th>
-                    <td className="py-1.5 pr-3 tabular-nums">{change(line.saved?.counted, line.fresh?.counted)}</td>
-                    <td className="py-1.5 pr-3 tabular-nums">{change(line.saved?.unpaid, line.fresh?.unpaid)}</td>
+                    <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.counted, line.fresh?.counted)}</td>
+                    <td className="px-3 py-1.5 text-center tabular-nums">{change(line.saved?.unpaid, line.fresh?.unpaid)}</td>
                     <td className="whitespace-nowrap py-1.5 text-right tabular-nums">
                       {change(line.saved?.amount, line.fresh?.amount, formatMoney)}
                       {line.delta_amount !== 0 && <span className="block text-amber-900/70">{signedMoney(line.delta_amount)}</span>}
@@ -409,19 +409,21 @@ export function DiffBanner({
  * says where) and a «?» with what it means and what to do.
  */
 export function WarningLinks({
-  counts, label, stacked = false,
+  counts, label, stacked = false, centered = false,
 }: {
   counts: PayrollSheetWarnings | PayrollMonthWarnings;
   label: string;
   /** One under another (a table cell) instead of in a row. */
   stacked?: boolean;
+  /** A table cell under a centred header: each line is centred on the wide table (cards keep it left). */
+  centered?: boolean;
 }) {
   const views = warningViews(counts);
   if (views.length === 0) return null;
   return (
     <ul aria-label={label} className={`${stacked ? "space-y-1" : "flex flex-wrap gap-x-4 gap-y-1"} print:hidden`}>
       {views.map((view) => (
-        <li key={view.key} className={`flex items-start gap-1.5 text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
+        <li key={view.key} className={`flex items-start gap-1.5 text-xs ${centered ? "xl:justify-center" : ""} ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline-offset-2 hover:underline">{view.text}</Link>
           <Hint text={view.hint} className="mt-px inline-flex">

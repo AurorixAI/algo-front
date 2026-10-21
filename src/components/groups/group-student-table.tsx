@@ -137,11 +137,11 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-100">
             <Th col="name" label="Ученик" className="pl-6" />
-            <Th col="display_id" label="ID Ученика" />
-            <Th col="class_level" label="Класс" />
+            <Th col="display_id" label="ID Ученика" align="text-center" />
+            <Th col="class_level" label="Класс" align="text-center" />
             <Th col="phone" label="Телефон" align="text-center" />
             <Th col="joined_at" label="Дата зачисления" align="text-center" className={removable ? "" : "pr-6"} />
-            {removable && <th className="px-4 py-3.5 pr-6"><span className="sr-only">Действия</span></th>}
+            {removable && <th className="px-4 py-3.5 pr-6 text-right"><span className="sr-only">Действия</span></th>}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
@@ -171,7 +171,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
                 </td>
 
                 {/* Display ID — публичный ID ученика (AL-001) */}
-                <td className="px-4 py-4 align-middle whitespace-nowrap">
+                <td className="px-4 py-4 align-middle whitespace-nowrap text-center">
                   {s.display_id ? (
                     <button
                       type="button"
@@ -199,7 +199,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
                 </td>
 
                 {/* Class */}
-                <td className="px-4 py-4 text-sm font-medium text-slate-700 align-middle whitespace-nowrap">
+                <td className="px-4 py-4 text-sm font-medium text-slate-700 align-middle whitespace-nowrap text-center">
                   {s.class_level} класс
                 </td>
 
