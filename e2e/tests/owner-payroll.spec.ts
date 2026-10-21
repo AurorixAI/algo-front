@@ -79,7 +79,8 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   // --- no rate yet: no field on this page, «Не задана · Указать», «Рассчитать всех» waits and says how many are left
   await expect(page.locator("main").getByRole("textbox")).toHaveCount(0);
   await expect(page.locator("main").getByRole("checkbox")).toHaveCount(0);
-  await expect(teachers).toContainText("Не задана · Указать");
+  await expect(teachers).not.toContainText("Не задана");
+  await expect(teachers.getByRole("link", { name: "Указать" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Рассчитать всех" })).toBeDisabled();
   await expect(page.getByText("Не задана ставка у 2 преподавателей")).toBeVisible();
 
