@@ -1,12 +1,13 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { billingPeriod, businessNow, countWeeklyLessons, lessonsWord, round1000, addDays } from "../support/time";
+import { billingPeriod, businessNow, countWeeklyLessons, round1000 } from "../support/time";
 import { dmy, groupedDigits, money, toast } from "../support/ui";
 
 /**
- * Owner: settings «Оплаты» -> «Единый день оплаты». A student who joined today then pays for an INCOMPLETE
- * month: the quick-pay row suggests today..end of the centre's period, the caption says «Неполный месяц»,
- * and the amount is the price of the group prorated by its lessons:  round_1000( price * lessons_in_part / lessons_in_period ).
+ * Owner: settings «Оплаты» -> «Единый день оплаты». A student who joined today owes an INCOMPLETE month (PAY-2: the
+ * server charges the part of the period since he joined): the quick-pay row says «Всего к оплате» with the price of the group
+ * prorated by its lessons - round_1000( price * lessons_in_part / lessons_in_period ) - and the amount starts as that sum.
+ * Paying it closes the period (no debt); the statement shows one charge of the same sum.
  * The expected numbers are computed here from the seeded weekly schedule and the calendar, not read from the API.
  */
 let org: Org;
@@ -14,7 +15,7 @@ test.beforeAll(async () => {
   org = await Org.create("День");
 });
 
-test("fixed payment day: a student who joined today pays a prorated, «Неполный месяц» amount", async ({ signIn }) => {
+test("fixed payment day: a student who joined today owes a prorated amount, and paying it closes the period", async ({ signIn }) => {
   const now = businessNow();
   const fee = 900000;
   const billingDay = now.day === 1 ? 2 : 1; // never the day the student joins: the month is then really incomplete
@@ -50,38 +51,32 @@ test("fixed payment day: a student who joined today pays a prorated, «Непо�
   expect(inPart, "seeded schedule has lessons in the covered part").toBeGreaterThan(0);
   const expectedAmount = round1000(fee * inPart, inPeriod);
 
-  // --- the quick-pay row
+  // --- the quick-pay row: the server says what is due, the amount starts as that
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Без оплат/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`Цена группы: ${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум/мес`));
   await expect(row.getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
-
-  await expect(row).toContainText(
-    new RegExp(`Неполный месяц: ${inPart} ${lessonsWord(inPart)} из ${inPeriod} по расписанию — ${String(expectedAmount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")} сум из ${String(fee).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")}`),
-  );
-  await expect(row.getByText("Неполный месяц", { exact: true })).toBeVisible(); // the tag
-  await expect(row.getByRole("textbox", { name: "Оплачено до" })).toHaveValue(period.end);
+  await expect(row.getByRole("textbox", { name: "Оплачено до" })).toHaveCount(0); // PAY-2: no period to pick
+  await expect(row.getByTestId("quick-due")).toContainText(new RegExp(`Всего к оплате\\s*${String(expectedAmount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")}\\s*сум`));
   await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
 
-  // "+ следующий месяц" adds one complete period: its fee in full
-  const nextEnd = billingPeriod(addDays(period.end, 1), billingDay).end;
-  await row.getByRole("button", { name: /следующий месяц/ }).click();
-  await expect(row.getByRole("textbox", { name: "Оплачено до" })).toHaveValue(nextEnd);
-  await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount + fee).replace(/ /g, "\\s")}$`));
-  await row.getByRole("button", { name: /До конца месяца/ }).click(); // back to the incomplete month only
-
-  // --- save: the payment is what the hint said
+  // --- save: the payment is what was due, the period is closed
+  await row.getByRole("combobox", { name: "Способ оплаты" }).selectOption("card");
   await row.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Оплата внесена")).toBeVisible();
   const membership = await org.membershipId(student.id);
   const [payment] = await org.owner.api.get(`/auth/org/memberships/${membership}/payments`);
-  expect(payment).toMatchObject({ amount: expectedAmount, valid_from: now.date, valid_to: period.end, partial_period: true });
+  expect(payment).toMatchObject({ amount: expectedAmount, method: "card" });
+  expect(payment.allocation.items.reduce((total: number, item: { amount: number }) => total + item.amount, 0)).toBe(expectedAmount);
+  const statement = await org.owner.api.get(`/auth/org/memberships/${membership}/statement`);
+  expect(statement.summary).toMatchObject({ charged: expectedAmount, paid: expectedAmount, debt: 0, reconciles: true });
 
-  // --- the receipt carries the same incomplete-month mark
+  // --- the receipt shows where the money went, not a period
   await page.goto(`/owner/payments/receipt/${payment.id}`);
   const receipt = page.getByRole("article", { name: /Квитанция №/ });
-  await expect(receipt).toContainText("неполный месяц");
+  await expect(receipt).toContainText("Куда пошли деньги");
   await expect(receipt).toContainText(money(expectedAmount));
   await expect(receipt).toContainText(`${dmy(now.date)}`);
+  expect(period.end >= now.date).toBe(true);
 });
