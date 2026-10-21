@@ -74,6 +74,16 @@ test("the card prints every stay on the business calendar: «01.09.2026 — 30.0
   assert.equal(P.formatMembershipPeriods([{ joined_at: "2026-09-30T19:00:00", left_at: null }]), "с 01.10.2026");
   assert.equal(P.formatMembershipPeriods([]), "");
   assert.equal(P.formatMembershipPeriods(null), "");
+  // A leave and a return on the same business day is no break: touching stays read as one.
+  assert.equal(P.formatMembershipPeriods([
+    { joined_at: "2026-10-15T05:00:00", left_at: "2026-10-16T06:00:00" },
+    { joined_at: "2026-10-16T06:00:00", left_at: "2026-10-17T07:00:00" },
+    { joined_at: "2026-10-17T07:30:00", left_at: null },
+  ]), "с 15.10.2026");
+  assert.equal(P.formatMembershipPeriods([
+    { joined_at: "2026-10-15T05:00:00", left_at: "2026-10-16T06:00:00" },
+    { joined_at: "2026-10-20T06:00:00", left_at: null },
+  ]), "15.10.2026 — 16.10.2026, с 20.10.2026");
 });
 
 test("wiring: the journal asks the helper, the card lists the stays, the API types carry periods", () => {

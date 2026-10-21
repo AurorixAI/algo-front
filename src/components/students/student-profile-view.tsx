@@ -797,7 +797,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                         )}
                         {/* Every stay of a student who came back; the current group lists them only when there are several. */}
                         {gh.periods && gh.periods.length > (gh.is_active ? 1 : 0) ? (
-                          <p className={gh.is_active ? "mt-1" : ""}>{formatMembershipPeriods(gh.periods)}</p>
+                          <p className={gh.is_active ? "mt-1" : ""}>в группе {formatMembershipPeriods(gh.periods)}</p>
                         ) : !gh.is_active && (
                           <span>
                             {gh.joined_at ? formatUtcNaiveAsBusinessDate(gh.joined_at) : "—"} — {gh.left_at ? formatUtcNaiveAsBusinessDate(gh.left_at) : "переведён"}

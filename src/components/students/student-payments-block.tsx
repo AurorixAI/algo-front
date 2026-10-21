@@ -80,9 +80,8 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
           <div className="min-w-0 space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`break-words font-bold ${muted ? "text-sm text-slate-700" : "text-base text-slate-900"}`}>{row.group_name}</span>
-              {!muted && row.class_level ? (
-                <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600">{row.class_level} класс</span>
-              ) : null}
+              {/* No class chip here: `class_level` of the row is the STUDENT's class (it is in the card header), next to a group
+                  name it read as the group's class («Геометрия 9 · 8 класс»). */}
               {!muted && row.is_primary && active.length > 1 && (
                 <span className="rounded-md bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">основная</span>
               )}

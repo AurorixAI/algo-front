@@ -208,7 +208,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
     <div className="space-y-2.5">
       {/* Row 1: the group, the status, the one main button, «⋯».  A phone: the group and «⋯», under them the status, then the button. */}
       <div
-        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 ${
+        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 sm:items-start ${
           editable
             ? "sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'heading_menu'_'status_status'_'button_button'] sm:[grid-template-areas:'heading_status_button_menu']"
             : "[grid-template-areas:'heading_menu']"
@@ -216,7 +216,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
       >
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:flex-col sm:flex-nowrap sm:items-center sm:gap-y-1 sm:text-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:flex-col sm:flex-nowrap sm:items-center sm:gap-y-1 sm:pt-1 sm:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
           </div>
@@ -234,7 +234,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
             {PAY_ACTION_LABEL}
           </button>
         )}
-        <div className="justify-self-end [grid-area:menu]">
+        <div className="justify-self-end [grid-area:menu] sm:pt-px">
           <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
         </div>
       </div>
@@ -399,13 +399,15 @@ function HistoryItem({
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className={`min-w-0 text-xs ${voided ? "text-slate-400" : "text-slate-700"}`}>
-        <p className={voided ? "line-through" : ""}>
+        <p>
           {receipt && (<><span className="font-semibold tabular-nums text-slate-500">{receipt}</span><span className="mx-1.5 text-slate-300">·</span></>)}
           <span className={`font-semibold ${carried ? "" : "tabular-nums"}`}>{paymentAmountLabel(payment)}</span>
           <span className="mx-1.5 text-slate-300">·</span>
           {carried ? "оплата от" : "оплачено"} {formatDateRu(payment.paid_on)}
+          {/* A cancelled payment says so in words: a strike-through alone reads as «something is wrong with it». */}
+          {voided && <span className="ml-2 inline-flex rounded-md border border-slate-200 bg-slate-100 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600">Отменена · не учитывается</span>}
         </p>
-        <p className={voided ? "line-through" : "text-slate-500"}>
+        <p className={voided ? "" : "text-slate-500"}>
           {paymentPeriodLabel(payment)}
           {payment.partial_period && !carried && (
             <span className={`ml-2 inline-flex rounded-md border px-1.5 py-px align-middle text-[10px] font-semibold ${voided ? "border-slate-200 text-slate-400" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{PARTIAL_PERIOD_TAG}</span>
@@ -415,11 +417,11 @@ function HistoryItem({
         {/* The note of a carry-over only repeats «перенос из …». */}
         {payment.note && !carried && <p className="break-words text-slate-500">{payment.note}</p>}
         <p className="text-[11px] text-slate-400">
-          {[payment.created_by_name, payment.replaces_payment_id ? "исправление" : ""].filter(Boolean).join(" · ")}
+          {[payment.created_by_name ? `Кто внёс: ${payment.created_by_name}` : "", payment.replaces_payment_id ? "исправление" : ""].filter(Boolean).join(" · ")}
         </p>
         {voided && (
           <p className="text-[11px] text-slate-500">
-            Отменена: {payment.void_reason || "без причины"}
+            Причина отмены: {payment.void_reason || "не указана"}
             {payment.voided_by_name ? ` · ${payment.voided_by_name}` : ""}
           </p>
         )}

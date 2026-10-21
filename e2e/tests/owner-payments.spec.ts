@@ -89,7 +89,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await dialog.getByLabel("Причина").fill("Ошибочно внесена сумма");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
   await expect(toast(page, "Оплата отменена")).toBeVisible();
-  await expect(page.getByText(`Отменена: Ошибочно внесена сумма · ${org.ownerName}`)).toBeVisible();
+  await expect(page.getByText(`Причина отмены: Ошибочно внесена сумма · ${org.ownerName}`)).toBeVisible();
 
   // the record is kept (grey) and the receipt of a cancelled payment is stamped
   const afterVoid = await org.owner.api.get(`/auth/org/memberships/${membership}/payments`);

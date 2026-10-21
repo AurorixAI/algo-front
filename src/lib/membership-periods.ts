@@ -74,9 +74,28 @@ export function wasMemberOn(source: MembershipSource | null | undefined, lessonD
   });
 }
 
-/** «01.09.2026 — 30.09.2026, с 01.11.2026» (a spaced em dash, as every date range of the app): every stay on the business calendar, an open one as «с …». "" when there is none. */
+/**
+ * The stays as a reader sees them: a leave and a return on the same business day (a transfer back, an archive undone)
+ * is no break, so touching stays are shown as one.  Display only - `wasMemberAt` keeps the exact instants.
+ */
+function mergedForDisplay(periods: ReadonlyArray<MembershipPeriod>): MembershipPeriod[] {
+  const merged: MembershipPeriod[] = [];
+  for (const period of periods) {
+    const last = merged[merged.length - 1];
+    const leftDay = last ? businessDay(last.left_at) : "";
+    const joinedDay = businessDay(period.joined_at);
+    if (last && leftDay && joinedDay && joinedDay <= leftDay) {
+      merged[merged.length - 1] = { joined_at: last.joined_at, left_at: period.left_at ?? null };
+    } else {
+      merged.push({ joined_at: period.joined_at ?? null, left_at: period.left_at ?? null });
+    }
+  }
+  return merged;
+}
+
+/** «01.09.2026 — 30.09.2026, с 01.11.2026» (a spaced em dash, as every date range of the app): every stay on the business calendar, an open one as «с …»; stays that touch are one. "" when there is none. */
 export function formatMembershipPeriods(periods: ReadonlyArray<MembershipPeriod> | null | undefined): string {
-  return (periods ?? [])
+  return mergedForDisplay(periods ?? [])
     .map((period) => {
       const from = formatUtcNaiveAsBusinessDate(period.joined_at);
       const to = formatUtcNaiveAsBusinessDate(period.left_at);
