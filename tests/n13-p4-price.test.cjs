@@ -446,7 +446,7 @@ test("the sheet's own words: the dashed «1», «начислить», «Без 
   assert.equal(R.markCell(1, "unpaid", { includeUnpaid: true }).title, R.UNPAID_INCLUDED_MARK_HINT);
   assert.equal(H.INCLUDE_LABEL, "начислить");
   assert.equal(H.INCLUDE_HINT, "Начислить преподавателю и за неоплаченные уроки этого ученика");
-  assert.match(H.UNPAID_HEADER_HINT, /не оплачен|не покрыты оплатой/);
+  assert.match(H.UNPAID_HEADER_HINT, /не оплачен|не покрыт[ыо]е? оплатой/);
   // the compact legend of the date grid: four marks (a student who is not in the group yet is an empty cell, nothing to explain)
   const legend = Object.fromEntries(H.SHEET_LEGEND.map((item) => [item.key, item.text]));
   assert.equal(legend.unpaid, "был на уроке, не оплачен — не входит в сумму");
@@ -602,7 +602,7 @@ test("the payroll sheet: legend with the dates, tooltips, «начислить»
   // «начислить» with its tooltip, the unpaid header and cell with theirs (read by a screen reader too)
   assert.match(text, /начислить/);
   assert.ok(text.includes("Начислить преподавателю и за неоплаченные уроки этого ученика"));
-  assert.ok(text.includes("Уроки, на которых ученик был, но которые не покрыты оплатой"));
+  assert.ok(text.includes("Посещения ученика (уроки, на которых он был), не покрытые оплатой"));
   assert.ok(textOf(open).includes(R.UNPAID_MARK_HINT));
   assert.match(html, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
   // the price: whose it is and where it changed
