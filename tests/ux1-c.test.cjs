@@ -133,9 +133,9 @@ test("no checkboxes without an action: a row has one button by its status; «Р�
   assert.match(page, /const run = action\.kind === "open" \? onOpen : onCalculate;/);
   // the API has no Excel of several chosen sheets (one sheet or the whole month): no such button
   assert.doesNotMatch(page, /Скачать Excel выбранных/);
-  // the table has the shared header: identity left, rate and status centred, the money right, the action column without a title
+  // the table has the shared header: identity left, rate and status centred, a list: everything but the name is centred, the action column has no title
   assert.match(page, /labels=\{\["Преподаватель", "Ставка", "К выплате", "Статус", ""\]\}/);
-  assert.match(page, /aligns=\{\["left", "center", "right", "center", "right"\]\}/);
+  assert.match(page, /aligns=\{\["left", "center", "center", "center", "center"\]\}/);
   // what the old label did is kept: the teachers to calculate travel as teacher_ids
   assert.deepEqual(R.rowAction(null), { kind: "calculate", label: "Рассчитать" });
   assert.deepEqual(R.rowAction({ stale: false }), { kind: "open", label: "Открыть" });

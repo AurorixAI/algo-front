@@ -257,6 +257,86 @@ test("the page «Сотрудники» is called «Сотрудники», like
   assert.doesNotMatch(page, /Команда/);
 });
 
+test("unpaid says WHO: «9 учеников не оплатили часть уроков · 140 посещений»; without the number of students the old words", () => {
+  assert.equal(R.unpaidWarningText(140, 9), "9 учеников не оплатили часть уроков · 140 посещений");
+  assert.equal(R.unpaidWarningText(1, 1), "1 ученик не оплатил часть уроков · 1 посещение");
+  assert.equal(R.unpaidWarningText(7, 3), "3 ученика не оплатили часть уроков · 7 посещений");
+  assert.equal(R.unpaidWarningText(30, 21), "21 ученик не оплатил часть уроков · 30 посещений");
+  assert.equal(R.unpaidWarningText(140), "140 посещений без оплаты");
+  assert.equal(R.unpaidWarningText(140, 0), "140 посещений без оплаты");
+  assert.equal(R.warningViews({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 140, unpaid_students: 9 })[0].text, "9 учеников не оплатили часть уроков · 140 посещений");
+  assert.equal(R.warningViews({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 140 })[0].text, "140 посещений без оплаты");
+  const sheet = { lines: [{ lesson_type: "group" }], percents: { group: "50" }, counted_total: 38, unpaid_total: 140, warnings: { unpaid_students: 9 } };
+  assert.deepEqual(R.sheetFactsParts(sheet, 7).slice(1), ["засчитано 38 посещений", "без оплаты 140 посещений у 9 учеников (начислено 7)"]);
+  assert.equal(R.sheetFactsParts({ ...sheet, warnings: { unpaid_students: 1 } }, 0)[2], "без оплаты 140 посещений у 1 ученика");
+  assert.equal(R.sheetFactsParts({ ...sheet, warnings: {} }, 0)[2], "без оплаты 140 посещений");
+});
+
+test("a line saved with no price shows the price the recalculation will use (from the diff); the card's warnings are the fresh ones", () => {
+  const brief = (fee) => ({ monthly_fee: fee, percent: "50", counted: 1, unpaid: 0, pending_excused: 0, amount: 0 });
+  const diff = { lines: [
+    { membership_id: "m1", status: "changed", changes: ["оплата"], saved: brief(null), fresh: brief(500000), delta_amount: 20833 },
+    { membership_id: "m2", status: "changed", changes: ["оплата"], saved: brief(450000), fresh: brief(480000), delta_amount: 1 },
+    { membership_id: "m3", status: "added", changes: [], saved: null, fresh: brief(400000), delta_amount: 1 },
+    { membership_id: "m4", status: "changed", changes: [], saved: brief(null), fresh: brief(null), delta_amount: 0 },
+  ] };
+  assert.deepEqual(R.freshPricesOf(diff), { m1: 500000 });
+  assert.deepEqual(R.freshPricesOf(null), {});
+  const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
+  const { SheetSummaryCard } = require(path.join(root, "src/components/payroll/sheet-summary.tsx"));
+  const mark = { date: "2026-09-01", lesson_id: "l1", mark: 1, state: "counted", divisor: 12 };
+  const line = { membership_id: "m1", student_id: "s1", student_name: "Алиева", display_id: null, group_id: "g1", group_name: "Алгебра 7А", lesson_type: "group", lesson_time: null,
+    monthly_fee: null, source_fee: null, percent: "50", divisor: 12, marks: [mark], counted: 1, unpaid: 0, pending_excused: 0, include_unpaid: false, amount: 0, warnings: [] };
+  const sheet = { id: "s", saved: true, month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, teacher_id: "t1", teacher_name: "К", revision: 1,
+    percents: { group: "50" }, divisor_default: 12, lines: [line], groups: [{ group_id: "g1", group_name: "Алгебра 7А", lesson_type: "group", lesson_time: null, percent: "50", dates: [{ date: mark.date, lesson_id: "l1" }], line_count: 1, counted: 1, unpaid: 0, total_amount: 0 }],
+    total_amount: 0, counted_total: 1, unpaid_total: 0, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 2, unpaid: 0 },
+    source_fingerprint: "f", stale: true, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: "2026-10-01T05:00:00" };
+  const plainTable = textOf(renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {} })));
+  assert.ok(plainTable.includes("нет цены") && plainTable.includes("задать"));
+  const fresh = textOf(renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, freshPrices: { m1: 500000 } })));
+  assert.ok(fresh.includes("после пересчёта: 500 000 сум"));
+  assert.ok(!fresh.includes("задать"), "the price exists today: nothing to set");
+  const status = R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: 1 });
+  const card = (warnings) => textOf(renderToStaticMarkup(React.createElement(SheetSummaryCard, { sheet, total: 0, accrued: 0, status, busy: false, onPrimary: () => {}, onPrint: () => {}, warnings })));
+  assert.ok(card(undefined).includes("у 2 учеников нет цены"), "a calculation not saved: the sheet's own counters");
+  assert.ok(!card({ open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 }).includes("нет цены"), "today both have a price: no warning");
+  assert.ok(!card(null).includes("нет цены"), "not known yet: nothing is said");
+  assert.ok(card({ open_lessons: 0, pending_excused: 0, no_fee: 1, unpaid: 0 }).includes("у 1 ученика нет цены"));
+  const page = read("src/components/payroll/payroll-sheet-page.tsx");
+  assert.match(page, /orgApi\.getPayrollMonth\(sheet\.month\)/);
+  assert.match(page, /warnings=\{warningsFailed \? undefined : freshWarnings\}/);
+  assert.match(page, /freshPrices=\{diff\?\.stale \? freshPricesOf\(diff\) : undefined\}/);
+});
+
+test("the group block: the total of the group is the last row of its table, not the header; the «?» of the warnings stays with the last one", () => {
+  const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
+  const { WarningLinks } = require(path.join(root, "src/components/payroll/sheet-controls.tsx"));
+  const mark = (date) => ({ date, lesson_id: `l${date}`, mark: 1, state: "counted", divisor: 12 });
+  const line = (id, name, counted, unpaid, amount) => ({ membership_id: id, student_id: id, student_name: name, display_id: null, group_id: "g1", group_name: "Алгебра", lesson_type: "group", lesson_time: null,
+    monthly_fee: 500000, source_fee: 500000, percent: "50", divisor: 12, marks: [mark("2026-09-01")], counted, unpaid, pending_excused: 0, include_unpaid: false, amount, warnings: [] });
+  const lines = [line("a", "Алиева", 2, 0, 1000), line("b", "Назаров", 1, 3, 500)];
+  const sheet = { id: "s", saved: true, month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, teacher_id: "t1", teacher_name: "К", revision: 1,
+    percents: { group: "50" }, divisor_default: 12, lines, groups: [{ group_id: "g1", group_name: "Алгебра", lesson_type: "group", lesson_time: "17:00", percent: "50", dates: [{ date: "2026-09-01", lesson_id: "l2026-09-01" }], line_count: 2, counted: 3, unpaid: 3, total_amount: 1500 }],
+    total_amount: 1500, counted_total: 3, unpaid_total: 3, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 0, unpaid: 3 },
+    source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null };
+  for (const forceDates of [false, true]) {
+    const html = renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, forceDates }));
+    const header = html.slice(html.indexOf("<header"), html.indexOf("</header>"));
+    assert.doesNotMatch(header, /Итого по группе/, "the header keeps the name, the tag, the time and «По датам»");
+    assert.ok(textOf(header).includes("Алгебра") && textOf(header).includes("17:00"));
+    const foot = html.slice(html.indexOf("<tfoot"), html.indexOf("</tfoot>"));
+    assert.ok(textOf(foot).includes("Итого по группе"));
+    assert.ok(textOf(foot).includes("1 500 сум"), "the sum under «Начислено»");
+    assert.match(foot, /text-right[^>]*>1\s500/);
+    assert.match(foot, /text-center[^>]*>3</); // counted
+  }
+  const links = renderToStaticMarkup(React.createElement(WarningLinks, { views: R.warningViews({ open_lessons: 1, pending_excused: 2, no_fee: 0, unpaid: 0 }), label: "x" }));
+  const lastItem = links.slice(links.lastIndexOf("<li"));
+  assert.match(lastItem, /whitespace-nowrap/);
+  assert.ok(lastItem.includes("уважительные ждут решения") && lastItem.includes('aria-label="Что это значит"'), "the «?» is inside the last warning's item");
+  assert.equal((links.match(/<li/g) || []).length, 2);
+});
+
 test("the card renders: the total big, one line of facts, the status and ONE main button; Excel and print are quiet", () => {
   const { SheetSummaryCard } = require(path.join(root, "src/components/payroll/sheet-summary.tsx"));
   const mark = (date, state) => ({ date, lesson_id: `l-${date}`, mark: 1, state, divisor: 12 });

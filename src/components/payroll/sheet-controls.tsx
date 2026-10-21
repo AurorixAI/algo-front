@@ -280,16 +280,21 @@ export function WarningLinks({ views, label }: { views: WarningView[]; label: st
   if (views.length === 0) return null;
   return (
     <ul aria-label={label} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 print:hidden">
-      {views.map((view) => (
+      {views.map((view, index) => (
         <li key={view.key} className={`text-xs ${view.tone === "warning" ? "text-amber-800" : "text-slate-600"}`}>
-          <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+          {index === views.length - 1 ? (
+            // the «?» never wraps alone onto a new line: it stays with the last warning
+            <span className="inline-flex items-center gap-1 whitespace-nowrap">
+              <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+              <Hint text={views.map((item) => `${item.text}\n${item.hint}`).join("\n\n")} className="inline-flex text-slate-400">
+                <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
+              </Hint>
+            </span>
+          ) : (
+            <Link href={view.href} title={`Перейти: ${view.target}`} className="font-medium underline decoration-dotted underline-offset-2 hover:underline">{view.text}</Link>
+          )}
         </li>
       ))}
-      <li className="text-xs text-slate-400">
-        <Hint text={views.map((view) => `${view.text}\n${view.hint}`).join("\n\n")} className="inline-flex">
-          <HelpCircle className="h-3.5 w-3.5" aria-label="Что это значит" />
-        </Hint>
-      </li>
     </ul>
   );
 }

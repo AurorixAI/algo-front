@@ -326,6 +326,8 @@ export interface PayrollSheetWarnings {
   pending_excused: number;
   no_fee: number;
   unpaid: number;
+  /** Students with lessons nobody paid for (absent on an older answer: the visits are then said alone). */
+  unpaid_students?: number;
 }
 
 export interface PayrollSheet {
@@ -399,6 +401,7 @@ export interface PayrollMonthWarnings {
   pending_excused: number;
   no_fee: number;
   unpaid: number;
+  unpaid_students?: number;
 }
 
 export interface PayrollMonthTeacher {
@@ -1107,13 +1110,15 @@ export function visitsText(count: number, forms: PluralForms = ["посещен�
 }
 
 /** The one line under the total: rate · counted · unpaid (accrued).  Parts with nothing to say are left out. */
-export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total">, accrued: number, now?: RatesNow | null): string[] {
+export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total"> & { warnings?: Pick<PayrollSheetWarnings, "unpaid_students"> }, accrued: number, now?: RatesNow | null): string[] {
   const parts: string[] = [];
   const rate = sheetRateLine(sheet, now);
   if (rate) parts.push(rate);
   parts.push(`засчитано ${visitsText(sheet.counted_total)}`);
   if (sheet.unpaid_total > 0) {
-    parts.push(`без оплаты ${visitsText(sheet.unpaid_total)}${accrued > 0 ? ` (начислено ${accrued})` : ""}`);
+    const students = sheet.warnings?.unpaid_students;
+    const who = students ? ` у ${students} ${pluralRu(students, ["ученика", "учеников", "учеников"])}` : "";
+    parts.push(`без оплаты ${visitsText(sheet.unpaid_total)}${who}${accrued > 0 ? ` (начислено ${accrued})` : ""}`);
   }
   return parts;
 }
@@ -1156,8 +1161,10 @@ export function sheetCardStatus(input: {
 
 // ── Warnings ────────────────────────────────────────────────────────────────
 
+export type WarningKey = Exclude<keyof PayrollSheetWarnings, "unpaid_students">;
+
 export interface WarningView {
-  key: keyof PayrollSheetWarnings;
+  key: WarningKey;
   text: string;
   href: string;
   tone: "warning" | "info";
@@ -1198,7 +1205,7 @@ export const WARNING_HINTS = {
  */
 export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings, options: { noFeeHref?: string } = {}): WarningView[] {
   const out: WarningView[] = [];
-  const add = (key: keyof PayrollSheetWarnings, text: string, tone: WarningView["tone"], href: string = WARNING_LINKS[key]) =>
+  const add = (key: WarningKey, text: string, tone: WarningView["tone"], href: string = WARNING_LINKS[key]) =>
     out.push({ key, text, href, tone, hint: WARNING_HINTS[key], target: WARNING_TARGETS[key] });
   const open = counts.open_lessons;
   if (open) add("open_lessons", `${open} ${pluralRu(open, ["незакрытый урок", "незакрытых урока", "незакрытых уроков"])}`, "warning");
@@ -1209,7 +1216,27 @@ export function warningViews(counts: PayrollSheetWarnings | PayrollMonthWarnings
   const noFee = counts.no_fee;
   if (noFee) add("no_fee", `у ${noFee} ${pluralRu(noFee, ["ученика", "учеников", "учеников"])} нет цены`, "warning", options.noFeeHref ?? WARNING_LINKS.no_fee);
   const unpaid = counts.unpaid;
-  if (unpaid) add("unpaid", `${unpaid} ${pluralRu(unpaid, ["посещение без оплаты", "посещения без оплаты", "посещений без оплаты"])}`, "info");
+  if (unpaid) add("unpaid", unpaidWarningText(unpaid, counts.unpaid_students), "info");
+  return out;
+}
+
+/**
+ * «9 учеников не оплатили часть уроков · 140 посещений»: says WHO, then how much.  Without the number of students (an older
+ * answer) the visits are said alone: «140 посещений без оплаты».
+ */
+export function unpaidWarningText(visits: number, students?: number | null): string {
+  if (!students) return `${visits} ${pluralRu(visits, ["посещение без оплаты", "посещения без оплаты", "посещений без оплаты"])}`;
+  return `${students} ${pluralRu(students, ["ученик не оплатил", "ученика не оплатили", "учеников не оплатили"])} часть уроков · ${visitsText(visits)}`;
+}
+
+/** What a saved line shows when its price was empty at saving and the recalculation (the diff) has one: membership id -> the fresh price. */
+export function freshPricesOf(diff: Pick<PayrollDiff, "lines"> | null | undefined): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const line of diff?.lines ?? []) {
+    const fresh = line.fresh?.monthly_fee;
+    const saved = line.saved?.monthly_fee;
+    if (line.status === "changed" && (saved === null || saved === undefined) && typeof fresh === "number") out[line.membership_id] = fresh;
+  }
   return out;
 }
 

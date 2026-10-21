@@ -33,7 +33,6 @@ import {
   payrollErrorText,
   rowAction,
   sheetCardStatus,
-  sheetFileName,
   sheetStatus,
   sheetTotal,
   shiftMonth,
@@ -54,7 +53,6 @@ import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { TableHeader } from "@/components/attendance/table-chrome";
-import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { PayrollMonthSummary, PayrollPageMenu } from "./month-status";
 import { PayrollSheetTable } from "./sheet-table";
@@ -299,16 +297,6 @@ function PayrollMonthContent() {
     }
   };
 
-  const downloadSheet = async (teacher: PayrollMonthTeacher) => {
-    if (!teacher.sheet) return;
-    try {
-      const file = await orgApi.downloadPayrollSheet(teacher.sheet.id, sheetFileName(teacher.teacher_name, month));
-      saveBlobAs(file.blob, file.filename);
-    } catch (cause) {
-      showToast(payrollErrorText(cause as PayrollErrorLike), "error");
-    }
-  };
-
   const openSheet = (teacher: PayrollMonthTeacher) => {
     if (!teacher.sheet || !confirmLeave(dirty, UNSAVED_TEXT)) return;
     router.push(`/owner/payroll/${encodeURIComponent(teacher.sheet.id)}`);
@@ -426,7 +414,7 @@ function PayrollMonthContent() {
               show="xl"
               gridClass="xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
               labels={["Преподаватель", "Ставка", "К выплате", "Статус", ""]}
-              aligns={["left", "center", "right", "center", "right"]}
+              aligns={["left", "center", "center", "center", "center"]}
             />
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {teachers.map((teacher) => (
@@ -437,7 +425,6 @@ function PayrollMonthContent() {
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
-                  onExport={() => void downloadSheet(teacher)}
                 />
               ))}
             </ul>
@@ -583,7 +570,7 @@ function PreviewBody({
  * ONE status chip and ONE button by the status.  A phone gets the same as a card.
  */
 export function TeacherRow({
-  teacher, month, busy, onCalculate, onOpen, onExport,
+  teacher, month, busy, onCalculate, onOpen,
 }: {
   teacher: PayrollMonthTeacher;
   /** The month of the page: «Указать» opens the rate dialog with it. */
@@ -591,7 +578,6 @@ export function TeacherRow({
   busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
-  onExport: () => void;
 }) {
   const status = sheetStatus(teacher.sheet);
   const action = rowAction(teacher.sheet);
@@ -599,7 +585,6 @@ export function TeacherRow({
   const warnings = warningViews(teacher.warnings);
   const rateMissing = (teacher.missing_rates ?? []).length > 0;
   const blocked = action.kind !== "open" && rateMissing;
-  const items: RowMenuItem[] = teacher.sheet ? [{ key: "export", label: "Скачать Excel", icon: Download, onSelect: onExport }] : [];
   const run = action.kind === "open" ? onOpen : onCalculate;
 
   return (
@@ -616,16 +601,17 @@ export function TeacherRow({
 
       <div className="mt-3 text-sm text-slate-700 xl:mt-0 xl:text-center">
         <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Ставка</span>
-        <span className={rateMissing && rate.text === "Не задана" ? "text-amber-800" : undefined}>{rate.text}</span>
+        {/* no rate at all: just the link that sets it; some kinds only: what is set, then the link */}
+        {rate.text !== "Не задана" && <span>{rate.text}</span>}
         {rate.missing && (
           <>
-            {" · "}
-            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-primary-700 hover:underline">Указать</Link>
+            {rate.text !== "Не задана" && " · "}
+            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-amber-800 underline decoration-amber-400 underline-offset-2 hover:text-amber-900">Указать</Link>
           </>
         )}
       </div>
 
-      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-right">
+      <div className="mt-1 text-sm font-semibold tabular-nums text-slate-900 xl:mt-0 xl:text-center">
         <span className="mr-1.5 text-xs font-normal text-slate-400 xl:hidden">К выплате</span>
         {teacher.sheet ? formatMoney(teacher.sheet.total_amount) : <span className="font-normal text-slate-400">—</span>}
       </div>
@@ -634,20 +620,17 @@ export function TeacherRow({
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
       </div>
 
-      <div className="mt-3 flex items-center gap-2 xl:mt-0 xl:justify-end">
+      <div className="mt-3 flex items-center xl:mt-0 xl:justify-center">
         <button
           type="button"
           onClick={run}
           disabled={busy || blocked}
           title={blocked ? "Сначала задайте ставку в «Сотрудниках»" : undefined}
           aria-label={`${action.label}: ${teacher.teacher_name}`}
-          className="inline-flex flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 xl:flex-none"
+          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 xl:w-32"
         >
           {action.label}
         </button>
-        {items.length > 0
-          ? <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
-          : <span aria-hidden="true" className="hidden w-9 shrink-0 xl:block" />}
       </div>
     </li>
   );

@@ -9,7 +9,9 @@ import {
   sheetNoFeeHref,
   warningViews,
   type PayrollDiff,
+  type PayrollMonthWarnings,
   type PayrollSheet,
+  type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
@@ -27,7 +29,7 @@ const DOT: Record<SheetCardStatus["tone"], string> = {
  * Excel and print are the quiet buttons of the corner.  The total here follows the unsaved edits, like the table.
  */
 export function SheetSummaryCard({
-  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow,
+  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow, warnings,
   onPrimary, onExcel, exporting, onPrint, note, onNote,
 }: {
   sheet: PayrollSheet;
@@ -45,6 +47,11 @@ export function SheetSummaryCard({
   diff?: PayrollDiff | null;
   /** The rate in force in the month of a saved sheet: the facts line says when it is not the sheet's. */
   ratesNow?: RatesNow | null;
+  /**
+   * The warnings under the total.  A saved sheet passes the FRESH ones (the month overview of this teacher: a price set after the
+   * saving is not «нет цены» any more); `null` = not known yet (nothing is said); absent = the sheet's own (a calculation not saved).
+   */
+  warnings?: PayrollSheetWarnings | PayrollMonthWarnings | null;
   onPrimary: () => void;
   /** Absent for a calculation not saved yet: there is no file of it. */
   onExcel?: () => void;
@@ -56,7 +63,10 @@ export function SheetSummaryCard({
 }) {
   const facts = sheetFactsParts(sheet, accrued, ratesNow);
   // «без оплаты» is already in the line of facts under the total: the card does not say it twice
-  const warnings = warningViews(sheet.warnings, { noFeeHref: sheetNoFeeHref(sheet) }).filter((view) => view.key !== "unpaid");
+  const counts = warnings === undefined ? sheet.warnings : warnings;
+  const warningList = counts
+    ? warningViews(counts, counts === sheet.warnings ? { noFeeHref: sheetNoFeeHref(sheet) } : {}).filter((view) => view.key !== "unpaid")
+    : [];
   const changed = status.tone === "changed";
   const primaryLabel = status.action === "recalculate" ? "Пересчитать" : "Сохранить";
   return (
@@ -69,9 +79,9 @@ export function SheetSummaryCard({
           <p className="text-sm text-slate-500">К выплате</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(total)}</p>
           <p className="mt-2 text-sm text-slate-600">{facts.join(" · ")}</p>
-          {warnings.length > 0 && (
+          {warningList.length > 0 && (
             <div className="mt-1.5">
-              <WarningLinks views={warnings} label="Предупреждения ведомости" />
+              <WarningLinks views={warningList} label="Предупреждения ведомости" />
             </div>
           )}
           {sheet.note && <p className="mt-1.5 break-words text-sm text-slate-600">Примечание: {sheet.note}</p>}

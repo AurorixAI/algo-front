@@ -15,6 +15,7 @@ import {
   buildPatchBody,
   editsDirty,
   freshFingerprintOf,
+  freshPricesOf,
   isDataChanged,
   isOpenMonth,
   isRateRequired,
@@ -28,6 +29,7 @@ import {
   teacherLabel,
   versionLabel,
   type PayrollDiff,
+  type PayrollMonthWarnings,
   type PayrollRevision,
   type PayrollErrorLike,
   type PayrollSheet,
@@ -102,6 +104,12 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
 
   /** The rate in force in the month of the sheet (what «Сотрудники» says now): the card names a difference from the saved one. */
   const [ratesNow, setRatesNow] = useState<RatesNow | null>(null);
+  /**
+   * The warnings of this teacher in this month by TODAY's data (the month overview, as on the month row): the saved lines may
+   * lack a price the group has since got.  null while unknown; `failed` falls back to the sheet's own counters.
+   */
+  const [freshWarnings, setFreshWarnings] = useState<PayrollMonthWarnings | null>(null);
+  const [warningsFailed, setWarningsFailed] = useState(false);
 
   const loads = useRef(createRequestSequence());
   const diffs = useRef(createRequestSequence());
@@ -185,8 +193,16 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   // The rate in force in the month of this sheet, read again after every save / recalculation (a quiet failure: the card just says nothing)
   const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
   useEffect(() => {
-    if (!sheet || denied) { setRatesNow(null); return undefined; }
+    if (!sheet || denied) { setRatesNow(null); setFreshWarnings(null); return undefined; }
     let cancelled = false;
+    orgApi.getPayrollMonth(sheet.month)
+      .then((overview) => {
+        if (cancelled) return;
+        const row = overview.teachers.find((candidate) => candidate.teacher_id === sheet.teacher_id);
+        setFreshWarnings(row ? row.warnings : null);
+        setWarningsFailed(!row);
+      })
+      .catch(() => { if (!cancelled) { setFreshWarnings(null); setWarningsFailed(true); } });
     orgApi.getPayrollRates(sheet.month)
       .then((answer) => {
         if (cancelled) return;
@@ -374,6 +390,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 busy={saving}
                 diff={diff}
                 ratesNow={ratesNow}
+                warnings={warningsFailed ? undefined : freshWarnings}
                 onPrimary={() => void apply(true)}
                 onExcel={() => void download()}
                 exporting={exporting}
@@ -385,7 +402,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                   <button type="button" onClick={() => void loadDiff()} className="font-medium text-primary-700 underline-offset-2 hover:underline">Проверить снова</button>
                 </p>
               )}
-              <PayrollSheetTable sheet={sheet} edits={edits} forceDates={printing} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
+              <PayrollSheetTable sheet={sheet} edits={edits} forceDates={printing} freshPrices={diff?.stale ? freshPricesOf(diff) : undefined} onEdits={(update) => { setSaveError(null); setEdits(update); }} />
             </div>
           )}
           {/* A direct child of the page, not of the tab panel: a sticky bar can only move inside its parent, and the

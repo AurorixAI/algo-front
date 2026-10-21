@@ -45,21 +45,26 @@ const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px
 const STICKY = "sticky left-0 z-10 w-[9rem] min-w-[9rem] max-w-[9rem] sm:w-[13rem] sm:min-w-[13rem] sm:max-w-[13rem] print:static print:w-[8rem] print:min-w-[8rem] print:max-w-[8rem]";
 
 /** The price of a line is text: the group's or the student's own price; nothing to type (it is set in «Цены групп»). */
-function PriceCell({ view, compact = false }: { view: LineView; compact?: boolean }) {
+function PriceCell({ view, compact = false, freshPrice }: { view: LineView; compact?: boolean; freshPrice?: number }) {
   const { line } = view;
   const price = priceCellView(line);
+  // saved with no price, but the group has one today (the diff says so): the row says what the recalculation will use
+  const after = price.missing && freshPrice !== undefined;
   return (
     <div className={`flex flex-col gap-0.5 ${compact ? "items-start text-xs text-slate-500" : "items-end"}`}>
       {price.missing ? (
         <span className="whitespace-nowrap text-amber-700 print:text-black">
           нет цены{" "}
-          <Link href={groupPriceHref("/owner/groups", line.group_id)} className="font-medium text-primary-700 underline-offset-2 hover:underline print:hidden">
-            задать
-          </Link>
+          {!after && (
+            <Link href={groupPriceHref("/owner/groups", line.group_id)} className="font-medium text-primary-700 underline-offset-2 hover:underline print:hidden">
+              задать
+            </Link>
+          )}
         </span>
       ) : (
         <span className="whitespace-nowrap tabular-nums">{price.text}</span>
       )}
+      {after && <span className="whitespace-nowrap text-[11px] font-medium tabular-nums text-slate-600 print:text-black">после пересчёта: {formatMoney(freshPrice)}</span>}
       {price.tag && <span className="text-[10px] font-medium text-primary-700 print:text-black">{price.tag}</span>}
       {price.note && (
         price.steps
@@ -131,7 +136,7 @@ function SheetLegend() {
  * With the dates open, a block scrolls sideways under its own sticky column of names; on paper nothing scrolls.
  */
 export function PayrollSheetTable({
-  sheet, edits, editable = true, onEdits, forceDates = false, priceLabel: priceLabelProp,
+  sheet, edits, editable = true, onEdits, forceDates = false, priceLabel: priceLabelProp, freshPrices,
 }: {
   sheet: PayrollSheet;
   edits: SheetEdits;
@@ -141,6 +146,8 @@ export function PayrollSheetTable({
   forceDates?: boolean;
   /** What the price is called in the centre («Оплата в месяц» / «Стоимость пакета»); by default the centre's mode, as everywhere. */
   priceLabel?: string;
+  /** Membership id -> the price the recalculation would use, for a line saved with none (from the diff of the saved sheet). */
+  freshPrices?: Record<string, number>;
 }) {
   const views = useMemo(() => buildLineViews(sheet, edits), [sheet, edits]);
   const blocks = useMemo(() => buildBlocks(sheet, views), [sheet, views]);
@@ -196,9 +203,6 @@ export function PayrollSheetTable({
                     {showDates ? "Скрыть даты" : "По датам"}
                   </button>
                 )}
-                <span className="whitespace-nowrap text-sm text-slate-600">
-                  Итого по группе <span className="font-bold tabular-nums text-slate-900">{formatMoney(block.amount)}</span>
-                </span>
               </span>
             </header>
 
@@ -243,10 +247,10 @@ export function PayrollSheetTable({
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
                           )}
                           {/* a phone has no room for the price column: the price is the second line of the name */}
-                          <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact /></span>
+                          <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>
                         </th>
                         <td className={`${CELL} text-right max-sm:hidden`}>
-                          <PriceCell view={view} />
+                          <PriceCell view={view} freshPrice={freshPrices?.[id]} />
                         </td>
                         {showDates && block.columns.map((column) => {
                           const mark = markFor(line, column);
@@ -289,6 +293,16 @@ export function PayrollSheetTable({
                     );
                   })}
                 </tbody>
+                <tfoot>
+                  <tr className="border-t border-slate-200 bg-slate-50 font-semibold text-slate-800 print:bg-transparent">
+                    <th scope="row" className={`${CELL} ${showDates ? `${STICKY} bg-slate-50 print:bg-transparent` : ""} text-left`}>Итого по группе</th>
+                    <td className={`${CELL} max-sm:hidden`} />
+                    {showDates && <td colSpan={block.columns.length} />}
+                    <td className={`${CELL} text-center tabular-nums`}>{block.counted}</td>
+                    <td className={`${CELL} text-center tabular-nums`}>{block.unpaid > 0 ? block.unpaid : <span className="font-normal text-slate-300">—</span>}</td>
+                    <td className={`${CELL} whitespace-nowrap text-right tabular-nums text-slate-900`}>{formatMoney(block.amount)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
             {showDates && <SheetLegend />}

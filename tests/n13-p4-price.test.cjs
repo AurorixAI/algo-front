@@ -663,10 +663,17 @@ test("the month list: a status chip with its explanation, warnings in one line w
   assert.match(render({ sheet: null }), /aria-label="Рассчитать: Иванов Пётр"/);
   // a rate is missing: «Не задана · Указать» leads to the teacher, the button waits and says why
   const missing = render({ sheet: null, rates: {}, missing_rates: ["group", "individual"] });
-  assert.ok(textOf(missing).includes("Не задана · Указать"));
+  assert.ok(textOf(missing).includes("Указать"));
+  assert.ok(!textOf(missing).includes("Не задана"), "no rate at all: only the link that sets it");
   assert.match(missing, /href="\/owner\/teachers\?teacher=t1&amp;month=2026-10"[^>]*>Указать</);
   assert.match(missing, /<button[^>]*disabled=""[^>]*aria-label="Рассчитать: Иванов Пётр"|<button[^>]*aria-label="Рассчитать: Иванов Пётр"[^>]*disabled=""/);
   assert.match(missing, /title="Сначала задайте ставку в «Сотрудниках»"/);
+  // some kinds have a rate, one has not: what is set, then the link
+  assert.ok(textOf(render({ sheet: null, rates: { group: "50" }, missing_rates: ["individual"] })).includes("Группа 50% · Индивидуально не задана · Указать"));
+  // centred money, one fixed-width button, no «⋯» of the row (Excel of a sheet is in the sheet)
+  assert.match(html, /xl:text-center">\s*<span[^>]*xl:hidden">К выплате/);
+  assert.match(html, /xl:w-32/);
+  assert.doesNotMatch(html, /Действия: Иванов|aria-haspopup/);
   // an action that is running disables the buttons of the others
   assert.match(render({}, true), /disabled=""/);
   // the formula with the example: the body of the dialog «Как считается зарплата» (UX-1 C: no accordion over the table any more)
@@ -750,7 +757,7 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} \/>/);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
-  assert.match(controls, /<Hint text=\{views\.map\(\(view\) => `\$\{view\.text\}\\n\$\{view\.hint\}`\)/);
+  assert.match(controls, /<Hint text=\{views\.map\(\(item\) => `\$\{item\.text\}\\n\$\{item\.hint\}`\)/);
   // the saved-revision banner is one line
   const month = read("src/components/payroll/payroll-month-page.tsx");
   const banner = month.slice(month.indexOf("{activeExisting && ("), month.indexOf("{active.conflict && ("));

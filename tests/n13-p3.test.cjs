@@ -638,7 +638,7 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /<PayrollPageMenu divisor=\{overview\.divisor\} \/>/);
   assert.match(month, /aria-label=\{`\$\{action\.label\}: \$\{teacher\.teacher_name\}`\}/);
   assert.doesNotMatch(month, /type="checkbox"|Процент для|sanitizePercentTyping/); // no selection, no percent field
-  assert.match(month, /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/);
+  assert.doesNotMatch(month, /RowMenu/); // one button per row; Excel of a sheet is inside the sheet
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /useUnsavedGuard\(dirty, UNSAVED_TEXT\)/);
   assert.match(sheetPage, /История сохранений/);
