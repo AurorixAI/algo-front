@@ -800,3 +800,19 @@ export function regimeChanges(changes: Record<string, unknown>): Record<string, 
 
 /** The decision 3 sentence of «Настройки оплат» and of the payroll help. */
 export const CANCELLED_LESSON_TEXT = "Отменённый центром урок не уменьшает оплату месяца; в пакетах он не списывается. Зарплата считается только за проведённые уроки; списанные центром дни оплачены для зарплаты.";
+
+// ── Import: the opening balances of the template (columns F-H of the sheet «Ученики») ──────────
+
+export const IMPORT_OPENING_COLUMNS_HINT = "На вкладке «Ученики» — необязательные колонки «Оплачено до (дата)», «Долг, сум», «Долг на дату»: остаток на начало учёта.";
+
+/** «Остатки на начало: 12 учеников» in the review; "" when the file has none. */
+export function importOpeningsReview(count: number | null | undefined): string {
+  const n = Math.floor(Number(count) || 0);
+  return n > 0 ? `Остатки на начало: ${n} ${pluralRu(n, "ученик", "ученика", "учеников")}` : "";
+}
+
+/** «Остатки применены: 12» after the import. */
+export function importOpeningsDone(count: number | null | undefined): string {
+  const n = Math.floor(Number(count) || 0);
+  return n > 0 ? `Остатки применены: ${n}` : "";
+}

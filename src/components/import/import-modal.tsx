@@ -1,5 +1,6 @@
 "use client";
 
+import { IMPORT_OPENING_COLUMNS_HINT, importOpeningsDone, importOpeningsReview } from "@/lib/payments-logica";
 import { useState, useEffect, useRef } from "react";
 import {
   Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
@@ -220,6 +221,7 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, onDownloa
           <div>
             <p className="text-sm font-semibold text-slate-800">Шаг 1 — скачайте шаблон</p>
             <p className="text-xs text-slate-500 mt-0.5">Две вкладки: Группы и Ученики. Заполните и загрузите обратно.</p>
+            <p className="text-xs text-slate-500 mt-0.5">{IMPORT_OPENING_COLUMNS_HINT}</p>
           </div>
         </div>
         <button onClick={onDownloadTemplate} className="shrink-0 px-4 py-2 bg-white border border-primary-200 text-primary-700 rounded-xl text-sm font-semibold hover:bg-primary-50 transition-colors">
@@ -289,6 +291,10 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
         <CountPill icon={<GraduationCap className="w-3.5 h-3.5" />} label="Группы" created={c.groups_new} existing={c.groups_existing} />
       </div>
 
+      {importOpeningsReview(c.openings) && (
+        <p className="text-sm text-slate-700" data-testid="import-openings">{importOpeningsReview(c.openings)}</p>
+      )}
+
       {preview.ok ? (
         <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4" /> Ошибок нет — можно импортировать.
@@ -332,6 +338,7 @@ function DoneStep({ result }: { result: ImportCommitResult }) {
           <p className="text-sm font-bold text-emerald-800">Импорт выполнен</p>
           <p className="text-xs text-emerald-700 mt-0.5">
             Добавлено: {c.students_new} {pluralRu(c.students_new, ["ученик", "ученика", "учеников"])}, {c.groups_new} {pluralRu(c.groups_new, ["группа", "группы", "групп"])}.
+            {importOpeningsDone(c.openings) && <> {importOpeningsDone(c.openings)}.</>}
           </p>
         </div>
       </div>

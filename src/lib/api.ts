@@ -1804,6 +1804,8 @@ export interface ImportCounts {
   groups_existing: number;
   students_new: number;
   students_existing: number;
+  /** LOGIC-A decision 1: students whose row carries an opening balance («оплачено до» / «долг на дату»). */
+  openings?: number;
 }
 
 export interface ImportPreviewResult {
