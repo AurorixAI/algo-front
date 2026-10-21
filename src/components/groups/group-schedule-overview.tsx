@@ -23,6 +23,9 @@ import {
 } from "@/lib/api";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { Hint } from "@/components/ui/hint";
+import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
+import { useToast } from "@/components/ui/toast";
+import { ASSIGN_TEACHER_ACTION, NO_LESSON_TEACHER_TEXT, REPLACE_TEACHER_ACTION, canReplaceTeacher, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 
 type ScheduleStatus = {
   label: string;
@@ -120,8 +123,16 @@ function periodLabel(start: string, end: string): string {
  * recurring slots, one-off transfers, cancellations and factual states are
  * therefore represented once and never reconstructed in the frontend.
  */
-export function GroupScheduleOverview({ groupId }: { groupId: string }) {
+export function GroupScheduleOverview({ groupId, viewerRole = null, archived = false }: {
+  groupId: string;
+  /** `owner` / `admin` may replace the teacher of one lesson (O5); nobody else sees the button. */
+  viewerRole?: string | null;
+  /** The group is in the archive: nothing changes there. */
+  archived?: boolean;
+}) {
   const today = formatBusinessDate();
+  const { showToast, toastNode } = useToast();
+  const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   const [anchorDate, setAnchorDate] = useState(today);
   const [attendance, setAttendance] = useState<GroupAttendance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -308,6 +319,9 @@ export function GroupScheduleOverview({ groupId }: { groupId: string }) {
                         const StateIcon = state.icon;
                         const startTime = lesson.startTime || lesson.start_time || "—";
                         const cancellationReason = attendance?.cancellationReasons?.[key];
+                        const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
+                        const lessonState = attendance?.statuses?.[key] || lesson.status || "scheduled";
+                        const canReplace = !archived && Boolean(teacherInfo) && canReplaceTeacher(viewerRole, lessonState);
                         return (
                           <article key={key} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs">
                             <div className="flex items-start justify-between gap-2">
@@ -321,6 +335,29 @@ export function GroupScheduleOverview({ groupId }: { groupId: string }) {
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
                             {cancellationReason && <p className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
+                            {teacherInfo && (
+                              <div className="mt-2 border-t border-slate-200/70 pt-2 text-[11px] leading-snug">
+                                {lacksTeacher(teacherInfo) ? (
+                                  <p className="font-semibold text-amber-800">{NO_LESSON_TEACHER_TEXT}</p>
+                                ) : (
+                                  <p className="text-slate-600">
+                                    <span className="font-medium text-slate-800">{teacherInfo.teacherName}</span>
+                                    {substituteLabel(teacherInfo) && (
+                                      <span className="ml-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">{substituteLabel(teacherInfo)}</span>
+                                    )}
+                                  </p>
+                                )}
+                                {canReplace && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setTeacherTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, startTime, endTime: lesson.endTime || "", info: teacherInfo })}
+                                    className="mt-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-primary-200 hover:text-primary-700"
+                                  >
+                                    {lacksTeacher(teacherInfo) ? ASSIGN_TEACHER_ACTION : REPLACE_TEACHER_ACTION}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </article>
                         );
                       })}
@@ -332,6 +369,17 @@ export function GroupScheduleOverview({ groupId }: { groupId: string }) {
           </div>
         )}
       </section>
+
+      <LessonTeacherDialog
+        target={teacherTarget}
+        onClose={() => setTeacherTarget(null)}
+        onChanged={(result) => {
+          setTeacherTarget(null);
+          showToast(result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : "Преподаватель урока возвращён");
+          void loadSchedule();
+        }}
+      />
+      {toastNode}
     </div>
   );
 }

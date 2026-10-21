@@ -88,12 +88,17 @@ export function conflictDetailOf(error: unknown): AttendanceConflictDetail | nul
   return { ...detail, records: detail.records ?? {} };
 }
 
+/** A sentence ends with one full stop: a short name («Петров П.») already has it. */
+export function endSentence(text: string): string {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
 /** «Отметки уже изменил(а) Петров П. в 10:42.» - the time on the Tashkent clock (the server sends UTC). */
 export function conflictHeadline(detail: AttendanceConflictDetail): string {
   const name = (detail.updatedBy?.name ?? "").trim();
   const time = formatUtcNaiveAsBusinessTime(detail.updatedAt);
   if (name && time) return `Отметки уже изменил(а) ${name} в ${time}.`;
-  if (name) return `Отметки уже изменил(а) ${name}.`;
+  if (name) return endSentence(`Отметки уже изменил(а) ${name}`);
   return "Отметки уже изменил другой сотрудник.";
 }
 

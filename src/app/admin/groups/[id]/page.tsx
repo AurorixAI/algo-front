@@ -459,7 +459,7 @@ export default function AdminGroupDetailPage() {
 
         {tab === "schedule" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            <GroupScheduleOverview groupId={groupId} />
+            <GroupScheduleOverview groupId={groupId} viewerRole="admin" archived={group.status === "archived"} />
           </motion.div>
         )}
 

@@ -193,7 +193,8 @@ test("new screens exist and follow the contract (routes, menu, demo guard)", () 
   // the admin journal is editable and in admin mode on both group cards
   for (const role of ["admin", "owner"]) {
     const page = read(`src/app/${role}/groups/[id]/page.tsx`);
-    assert.match(page, /canEdit\s+adminMode/, role);
+    // LOGIC-B (O4): the journal of an archived group is read-only, so `canEdit` is no longer a bare flag
+    assert.match(page, /canEdit(=\{group\.status !== "archived"\})?\s+adminMode/, role);
     assert.match(page, /AddStudentDrawer/, role);
   }
 });

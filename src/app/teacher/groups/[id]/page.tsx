@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
+import { GroupArchivedBanner } from "@/components/groups/group-archive-dialog";
+import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
@@ -305,7 +307,15 @@ export default function TeacherGroupDetailPage() {
         </Link>
         <span>/</span>
         <span className="text-slate-900 font-medium">{group.name}</span>
+        {group.status === "archived" && (
+          <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">Архив</span>
+        )}
+        {group.substitution && (
+          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-50 text-violet-700 border border-violet-200">{SUBSTITUTE_BADGE}</span>
+        )}
       </div>
+
+      {group.status === "archived" && <GroupArchivedBanner archivedAt={group.archivedAt} />}
 
       {loadError && (
         <DataLoadError
@@ -869,12 +879,14 @@ export default function TeacherGroupDetailPage() {
           <GroupAttendanceJournal
             groupId={groupId}
             students={group.students || []}
-            canEdit={Boolean(
+            canEdit={group.status !== "archived" && Boolean(
               group.teacher_id === user?.id ||
+              group.substitution ||
               user?.org_role === "admin" ||
               user?.org_role === "owner" ||
               user?.role === "owner"
             )}
+            viewerId={user?.id ?? null}
             studentProfileBasePath="/teacher/students"
             initialMonth={searchParams?.get("month")}
             highlightLessonId={searchParams?.get("lesson")}

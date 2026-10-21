@@ -57,6 +57,11 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
             </div>
           )}
           
+          {group.substitution && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border bg-violet-50 text-violet-700 border-violet-200" title="Вы ведёте в этой группе отдельные уроки вместо её преподавателя">
+              Замена
+            </div>
+          )}
           <div className="flex items-center gap-1">
             {/* Visual arrow (actual link covers whole card, but arrow animates on hover) */}
             <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors pointer-events-none">

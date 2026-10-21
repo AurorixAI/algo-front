@@ -503,7 +503,7 @@ test("journal: a locked excused cell opens a READ-ONLY menu with the reason; no 
   assert.ok(menu.indexOf("{reviewable && excuse && (") < menu.indexOf('askReview(excuse, key, student, lesson, "confirmed")'));
   // `reviewable` itself needs admin mode and no correction in progress, and `locked` still covers completed / cancelled / future / view-only
   assert.match(src, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
-  assert.match(src, /const locked = !wasInLesson \|\| !canEdit \|\| columnBusyKey === key \|\| isFutureLesson \|\| lessonStatus === "scheduled" \|\| \(lessonStatus === "completed" && !inCorrection\) \|\| lessonStatus === "cancelled";/);
+  assert.match(src, /const locked = !wasInLesson \|\| !canEdit \|\| lessonIsOthers\(key\) \|\| columnBusyKey === key \|\| isFutureLesson \|\| lessonStatus === "scheduled" \|\| \(lessonStatus === "completed" && !inCorrection\) \|\| lessonStatus === "cancelled";/);
   // the click handler of the cell only toggles the menu: it marks nothing
   assert.match(src, /onClick=\{\(event\) => toggleAttendanceMenu\(event, student\.id, key, isOpen\)\}/);
 });

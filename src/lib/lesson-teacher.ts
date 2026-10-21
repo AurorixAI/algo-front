@@ -107,5 +107,19 @@ export function lessonBelongsToOther(info: LessonTeacherInfo | null | undefined,
 
 export function notYourLessonText(info: LessonTeacherInfo | null | undefined): string {
   const name = (info?.teacherName ?? "").trim();
-  return name ? `Этот урок ведёт ${name}.` : "Этот урок ведёт другой преподаватель.";
+  // a short name («Рахимов Т.») already ends with the full stop
+  return name ? `Этот урок ведёт ${name}${name.endsWith(".") ? "" : "."}` : "Этот урок ведёт другой преподаватель.";
+}
+
+/**
+ * The chip of a lesson card by the viewer: «Замена: Рахимов Т.» for a manager and for the group's own teacher whose lesson is taken
+ * («Заменяет Рахимов Т.» in his schedule), «Замена» for the substitute himself; null for an ordinary lesson.
+ */
+export function occurrenceTeacherChip(
+  info: LessonTeacherInfo | null | undefined,
+  viewerId: string | null | undefined,
+): string | null {
+  if (!info?.isSubstitution) return null;
+  if (viewerId && info.teacherId === viewerId) return SUBSTITUTE_BADGE;
+  return replacedByLabel(info, viewerId) ?? substituteLabel(info);
 }

@@ -69,6 +69,8 @@ interface ModalProps {
   footerClassName?: string;
   /** `center` (default): a card in the middle; `right`: a side sheet from the right edge, full height. */
   placement?: "center" | "right";
+  /** Over a panel that has its own full-screen layer above the usual dialogs (the lesson panels of the teacher's cabinet, z 99999). */
+  aboveLessonPanel?: boolean;
 }
 
 /**
@@ -79,7 +81,7 @@ interface ModalProps {
  */
 export function Modal({
   open, title, description, onClose, children, footer, maxWidthClassName, busy = false,
-  icon, bodyClassName, footerClassName, placement = "center",
+  icon, bodyClassName, footerClassName, placement = "center", aboveLessonPanel = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -178,11 +180,11 @@ export function Modal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] touch-none"
+            className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm touch-none ${aboveLessonPanel ? "z-[100000]" : "z-[100]"}`}
             onClick={() => { if (!busy && Date.now() - openedAtRef.current >= BACKDROP_GRACE_MS) onClose(); }}
           />
           {side ? (
-            <div className="fixed inset-0 z-[110] flex justify-end pointer-events-none">
+            <div className={aboveLessonPanel ? "fixed inset-0 z-[100010] flex justify-end pointer-events-none" : "fixed inset-0 z-[110] flex justify-end pointer-events-none"}>
               <motion.div
                 ref={dialogRef}
                 tabIndex={-1}
@@ -201,7 +203,7 @@ export function Modal({
               </motion.div>
             </div>
           ) : (
-            <div className="pad-safe fixed inset-0 z-[110] flex items-center justify-center pointer-events-none">
+            <div className={aboveLessonPanel ? "pad-safe fixed inset-0 z-[100010] flex items-center justify-center pointer-events-none" : "pad-safe fixed inset-0 z-[110] flex items-center justify-center pointer-events-none"}>
               <motion.div
                 ref={dialogRef}
                 tabIndex={-1}
