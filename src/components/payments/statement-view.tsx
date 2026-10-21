@@ -259,7 +259,7 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="min-w-[9rem] text-center text-sm font-semibold text-slate-900" aria-live="polite">{month ? monthTitle(month) : "Все месяцы"}</span>
+              <span className={`min-w-[9rem] text-center text-sm ${month ? "font-semibold text-slate-900" : "text-slate-400"}`} aria-live="polite">{month ? monthTitle(month) : "Выберите месяц"}</span>
               <button
                 type="button"
                 onClick={() => setMonth((current) => shiftMonthKey(current ?? months[0], 1))}
@@ -420,7 +420,7 @@ export function StatementTimeline({
                     <span className="tabular-nums">{formatDateRu(view.date)}</span>
                     <span className="mx-1.5 text-slate-300">·</span>
                     <span className="line-through">{view.title}</span>
-                    <span className="ml-2 tabular-nums">{view.effect}</span>
+                    <span className="ml-2 tabular-nums">{view.effect.replace(/^[+\u2212]/, "")}</span>
                   </p>
                   {view.cancelNote && <p className="text-slate-500">{view.cancelNote}</p>}
                 </li>
@@ -481,12 +481,12 @@ function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMen
         )}
       </div>
 
-      <div className="mt-2 flex items-baseline justify-between gap-3 md:mt-0 md:block md:text-center">
+      <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block md:text-center ${chargedText ? "flex" : "hidden md:block"}`}>
         <span className="text-xs text-slate-400 md:hidden">Начислено</span>
         <span className="text-sm tabular-nums text-slate-900">{chargedText}</span>
       </div>
 
-      <div className="flex items-baseline justify-between gap-3 md:block md:text-center">
+      <div className={`items-baseline justify-between gap-3 md:block md:text-center ${paidText ? "flex" : "hidden md:block"}`}>
         <span className="text-xs text-slate-400 md:hidden">Оплачено</span>
         <span className="text-sm tabular-nums">
           <span className={entry.paid !== null && entry.paid < 0 ? "text-slate-800" : PAID_TONE}>{paidText}</span>
