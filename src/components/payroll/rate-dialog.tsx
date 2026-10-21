@@ -11,7 +11,7 @@ import {
   payrollErrorText,
   percentInputText,
   rateHistoryView,
-  rateItemTypes,
+  rateDialogTypes,
   rateMonthOptions,
   ratePutBody,
   sanitizePercentTyping,
@@ -38,7 +38,7 @@ export function TeacherRateDialog({
   /** The server's answer (the teacher's item with his new rates). */
   onSaved: (item: PayrollRateItem) => void;
 }) {
-  const types = useMemo(() => (item ? rateItemTypes(item) : []), [item]);
+  const types = useMemo(() => (item ? rateDialogTypes(item) : []), [item]);
   const current = useMemo(
     () => Object.fromEntries(types.map((type) => [type, item?.rates?.[type]?.percent ?? null])),
     [item, types],
@@ -113,8 +113,8 @@ export function TeacherRateDialog({
           <button
             type="submit"
             form={FORM_ID}
-            disabled={saving || types.length === 0 || checked.changed === 0}
-            title={checked.changed === 0 && types.length > 0 ? "Измените ставку, чтобы сохранить" : undefined}
+            disabled={saving || checked.changed === 0}
+            title={checked.changed === 0 ? "Измените ставку, чтобы сохранить" : undefined}
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -123,60 +123,54 @@ export function TeacherRateDialog({
         </>
       )}
     >
-      {types.length === 0 ? (
-        <p className="text-sm text-slate-600">
-          Преподаватель пока не ведёт занятий. Добавьте его в группу — тогда здесь появятся виды занятий, для которых задаётся ставка.
-        </p>
-      ) : (
-        <form id={FORM_ID} onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-5" noValidate>
-          <p className="text-sm text-slate-600">Какую часть оплаты ученика за урок получает преподаватель.</p>
-          <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
-            {types.map((type) => {
-              const id = `payroll-rate-${type}`;
-              const problem = checked.errors[type];
-              const shown = problem && (attempted || (texts[type] ?? "") !== "") ? problem : null;
-              return (
-                <div key={type} className="min-w-0">
-                  <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">{lessonTypeLabel(type)}</label>
-                  <div className="flex items-center gap-1.5">
-                    <input
-                      id={id}
-                      type="text"
-                      inputMode="decimal"
-                      autoComplete="off"
-                      value={texts[type] ?? ""}
-                      placeholder="—"
-                      aria-invalid={Boolean(shown)}
-                      aria-describedby={shown ? `${id}-error` : undefined}
-                      onChange={(event) => { setError(null); setTexts((previous) => ({ ...previous, [type]: sanitizePercentTyping(event.target.value) })); }}
-                      className={`w-24 rounded-lg border bg-white px-3 py-2 text-right text-sm tabular-nums outline-none focus:ring-2 ${
-                        shown ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
-                      }`}
-                    />
-                    <span className="text-sm text-slate-500">%</span>
-                  </div>
-                  {shown && <p id={`${id}-error`} className="mt-1 max-w-[12rem] text-xs font-medium text-rose-700">{shown}</p>}
+      <form id={FORM_ID} onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-5" noValidate>
+        <p className="text-sm text-slate-600">Какую часть оплаты ученика за урок получает преподаватель.</p>
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-4">
+          {types.map((type) => {
+            const id = `payroll-rate-${type}`;
+            const problem = checked.errors[type];
+            const shown = problem && (attempted || (texts[type] ?? "") !== "") ? problem : null;
+            return (
+              <div key={type} className="min-w-0">
+                <label htmlFor={id} className="mb-1 block text-sm font-medium text-slate-700">{lessonTypeLabel(type)}</label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id={id}
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="off"
+                    value={texts[type] ?? ""}
+                    placeholder="—"
+                    aria-invalid={Boolean(shown)}
+                    aria-describedby={shown ? `${id}-error` : undefined}
+                    onChange={(event) => { setError(null); setTexts((previous) => ({ ...previous, [type]: sanitizePercentTyping(event.target.value) })); }}
+                    className={`w-24 rounded-lg border bg-white px-3 py-2 text-right text-sm tabular-nums outline-none focus:ring-2 ${
+                      shown ? "border-rose-300 focus:border-rose-500 focus:ring-rose-500/10" : "border-slate-200 focus:border-primary-500 focus:ring-primary-500/10"
+                    }`}
+                  />
+                  <span className="text-sm text-slate-500">%</span>
                 </div>
-              );
-            })}
-          </div>
+                {shown && <p id={`${id}-error`} className="mt-1 max-w-[12rem] text-xs font-medium text-rose-700">{shown}</p>}
+              </div>
+            );
+          })}
+        </div>
 
-          <div>
-            <label htmlFor="payroll-rate-from" className="mb-1 block text-sm font-medium text-slate-700">Действует с</label>
-            <select
-              id="payroll-rate-from"
-              value={validFrom}
-              onChange={(event) => setValidFrom(event.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64"
-            >
-              {months.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            {validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_PAST_NOTE}</p>}
-          </div>
+        <div>
+          <label htmlFor="payroll-rate-from" className="mb-1 block text-sm font-medium text-slate-700">Действует с</label>
+          <select
+            id="payroll-rate-from"
+            value={validFrom}
+            onChange={(event) => setValidFrom(event.target.value)}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64"
+          >
+            {months.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          {validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_PAST_NOTE}</p>}
+        </div>
 
-          {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
-        </form>
-      )}
+        {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
+      </form>
 
       <div className="mt-5 border-t border-slate-100 pt-3">
         <button

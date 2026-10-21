@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, Loader2, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
@@ -590,10 +590,7 @@ export function TeacherRow({
   const warnings = warningViews(teacher.warnings);
   const rateMissing = (teacher.missing_rates ?? []).length > 0;
   const blocked = action.kind !== "open" && rateMissing;
-  const items: RowMenuItem[] = [
-    ...(teacher.sheet && action.kind !== "open" ? [{ key: "open", label: "Открыть ведомость", icon: FileText, onSelect: onOpen }] : []),
-    ...(teacher.sheet ? [{ key: "export", label: "Скачать Excel", icon: Download, onSelect: onExport }] : []),
-  ];
+  const items: RowMenuItem[] = teacher.sheet ? [{ key: "export", label: "Скачать Excel", icon: Download, onSelect: onExport }] : [];
   const run = action.kind === "open" ? onOpen : onCalculate;
 
   return (

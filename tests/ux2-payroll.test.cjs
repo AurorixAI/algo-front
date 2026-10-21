@@ -62,8 +62,8 @@ test("status: one chip («Не рассчитано» / «Сохранено 16.
   const changed = R.sheetStatus({ stale: true, updated_at: "2026-10-16T03:56:00" });
   assert.deepEqual([changed.tone, changed.label], ["changed", "Есть изменения"]);
   for (const status of [none, saved, changed]) assert.ok(!("detail" in status), "no second line under the chip");
-  assert.deepEqual([R.rowAction(null).kind, R.rowAction({ stale: false }).kind, R.rowAction({ stale: true }).kind], ["calculate", "open", "recalculate"]);
-  assert.deepEqual([R.rowAction(null).label, R.rowAction({ stale: false }).label, R.rowAction({ stale: true }).label], ["Рассчитать", "Открыть", "Пересчитать"]);
+  assert.deepEqual([R.rowAction(null).kind, R.rowAction({ stale: false }).kind, R.rowAction({ stale: true }).kind], ["calculate", "open", "open"]);
+  assert.deepEqual([R.rowAction(null).label, R.rowAction({ stale: false }).label, R.rowAction({ stale: true }).label], ["Рассчитать", "Открыть", "Открыть"]);
   assert.equal(R.versionLabel(3), "версия 3");
 });
 
@@ -127,6 +127,14 @@ test("the rate form: only the typed types, a comma is a dot, a rate cannot be em
   assert.equal(R.RATE_REQUIRED_TEXT, "Укажите ставку");
   assert.equal(R.checkRateForm(types, { group: "101" }, current).errors.group, R.PERCENT_MAX_TEXT);
   assert.equal(R.checkRateForm(types, { group: "1,234" }, current).errors.group, R.PERCENT_FORMAT_TEXT);
+});
+
+test("the rate dialog offers all four kinds to a teacher with no groups; the diff names the rate change once", () => {
+  assert.deepEqual(R.rateDialogTypes({ lesson_types: [], rates: {} }), ["group", "mini_group", "pair", "individual"]);
+  assert.deepEqual(R.rateDialogTypes({ lesson_types: ["individual"], rates: { group: { percent: "50", valid_from: "2026-09-01" } } }), ["group", "individual"]);
+  const diff = { reasons: ["ставка 50% → 45%"], rate_changes: [{ lesson_type: "group", saved_percent: "50", fresh_percent: "45", message: "ставка 50% → 45%" }, { lesson_type: "pair", saved_percent: "40", fresh_percent: null, message: "ставка Парный 40% больше не действует" }] };
+  assert.deepEqual(R.diffReasons(diff), ["ставка 50% → 45%", "ставка Парный 40% больше не действует"]);
+  assert.deepEqual(R.diffReasons({}), []);
 });
 
 test("the history of a rate: «Группа 50%» and «с 01.09.2026 · who · when · note»", () => {
@@ -268,7 +276,7 @@ test("«Сотрудники»: the rate line, «Изменить ставку»
   assert.match(dialog, /useState\(currentMonth\)/);
   assert.match(dialog, /orgApi\.putPayrollRates\(item\.teacher_id, ratePutBody\(validFrom, checked, current\)\)/);
   assert.match(dialog, /orgApi\.getPayrollRateHistory\(item\.teacher_id\)/);
-  assert.match(dialog, /disabled=\{saving \|\| types\.length === 0 \|\| checked\.changed === 0\}/);
+  assert.match(dialog, /disabled=\{saving \|\| checked\.changed === 0\}/);
 });
 
 test("the sheet page and the month page have no price field, no percent field, no «редакция»", () => {

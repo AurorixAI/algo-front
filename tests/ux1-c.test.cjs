@@ -139,7 +139,8 @@ test("no checkboxes without an action: a row has one button by its status; «Р�
   // what the old label did is kept: the teachers to calculate travel as teacher_ids
   assert.deepEqual(R.rowAction(null), { kind: "calculate", label: "Рассчитать" });
   assert.deepEqual(R.rowAction({ stale: false }), { kind: "open", label: "Открыть" });
-  assert.deepEqual(R.rowAction({ stale: true }), { kind: "recalculate", label: "Пересчитать" });
+  // data changed: the row opens the sheet, whose card has the one «Пересчитать» (a single path to a new version)
+  assert.deepEqual(R.rowAction({ stale: true }), { kind: "open", label: "Открыть" });
 });
 
 // ---- 4. sentence-case headers ---------------------------------------------------------------------------------------

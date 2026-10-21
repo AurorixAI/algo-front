@@ -11,6 +11,7 @@ import {
   FORBIDDEN_TEXT,
   NOTE_MAX_LENGTH,
   STATUS_CHIP_CLASS,
+  diffReasons,
   formatSignedMoney,
   lessonTypeLabel,
   percentShort,
@@ -221,7 +222,7 @@ const STATUS_LABEL: Record<PayrollDiffLine["status"], string> = {
  * lines.  Closed by default - the card above already says how much the total moves.
  */
 export function DiffDetails({ diff }: { diff: PayrollDiff }) {
-  const reasons = diff.reasons ?? [];
+  const reasons = diffReasons(diff);
   if (reasons.length === 0 && diff.lines.length === 0) return null;
   return (
     <details className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-950 print:hidden">

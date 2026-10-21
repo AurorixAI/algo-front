@@ -463,7 +463,18 @@ export interface PayrollDiff {
   delta_amount: number;
   /** In words, what moved besides the lines: «ставка 50% → 45%», «цена из «Цен групп» вместо ручной 450 000». */
   reasons?: string[];
+  /** A rate of the month that moved: `fresh_percent` null = the rate is gone. */
+  rate_changes?: Array<{ lesson_type: LessonType; saved_percent: string | null; fresh_percent: string | null; message: string }>;
   lines: PayrollDiffLine[];
+}
+
+/** What moved besides the lines, in words, once each: the server's `reasons`, then the messages of the rate changes. */
+export function diffReasons(diff: Pick<PayrollDiff, "reasons" | "rate_changes">): string[] {
+  const out: string[] = [];
+  for (const text of [...(diff.reasons ?? []), ...(diff.rate_changes ?? []).map((change) => change.message)]) {
+    if (text && !out.includes(text)) out.push(text);
+  }
+  return out;
 }
 
 /** `include_unpaid`: «начислить».  The price is not sent any more: the server rejects `monthly_fee` (UX-2). */
@@ -996,12 +1007,14 @@ export function monthSummaryText(month: string, teachers: ReadonlyArray<Pick<Pay
   return `${summary.label} ${summary.amount === null ? "—" : formatMoney(summary.amount)} · ${summary.saved}`;
 }
 
-export type RowActionKind = "calculate" | "open" | "recalculate";
+export type RowActionKind = "calculate" | "open";
 
-/** One action per row, by the status: nothing saved -> «Рассчитать», saved -> «Открыть», data changed -> «Пересчитать». */
+/**
+ * One action per row, by the status: nothing saved -> «Рассчитать», saved -> «Открыть».  A sheet whose data changed is opened
+ * too: its card shows the difference and the one «Пересчитать» (a single path to a new version), the chip stays «Есть изменения».
+ */
 export function rowAction(sheet: Pick<PayrollMonthSheetRef, "stale"> | null | undefined): { kind: RowActionKind; label: string } {
   if (!sheet) return { kind: "calculate", label: "Рассчитать" };
-  if (sheet.stale) return { kind: "recalculate", label: "Пересчитать" };
   return { kind: "open", label: "Открыть" };
 }
 
@@ -1235,6 +1248,15 @@ export function rateItemTypes(item: Pick<PayrollRateItem, "lesson_types" | "rate
   const found = new Set<LessonType>((item.lesson_types ?? []).map(normalizeLessonType));
   for (const key of Object.keys(item.rates ?? {})) if (item.rates[key]) found.add(normalizeLessonType(key));
   return [...found].sort(typeOrderCompare);
+}
+
+/**
+ * The kinds the rate dialog offers: what the teacher teaches, plus any kind that already has a rate; a teacher with no groups
+ * yet gets all four (the rate can be set before he is put in a group).
+ */
+export function rateDialogTypes(item: Pick<PayrollRateItem, "lesson_types" | "rates">): LessonType[] {
+  const taught = rateItemTypes(item);
+  return taught.length > 0 ? taught : LESSON_TYPES.map((type) => type.key);
 }
 
 /** «01.11.2026» -> «ноября» (the month a rate starts in, in the genitive: «с ноября 45%»). */

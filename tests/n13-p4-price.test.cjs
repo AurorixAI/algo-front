@@ -648,9 +648,9 @@ test("the month list: a status chip with its explanation, warnings in one line w
   assert.ok(text.includes("Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости."));
   // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»
   assert.doesNotMatch(html, /type="checkbox"|<input/);
-  // ONE action by the status: data changed -> «Пересчитать»
-  assert.match(html, /aria-label="Пересчитать: Иванов Пётр"/);
-  assert.doesNotMatch(html, /aria-label="(Рассчитать|Открыть): /);
+  // ONE action by the status: data changed -> the sheet is opened (its card has the one «Пересчитать»)
+  assert.match(html, /aria-label="Открыть: Иванов Пётр"/);
+  assert.doesNotMatch(html, /aria-label="(Рассчитать|Пересчитать): /);
   // saved and unchanged: «Сохранено 02.10» and «Открыть»
   const saved = render({ sheet: { ...teacher.sheet, stale: false }, warnings: { open_lessons: 0, pending_excused: 0, no_fee: 0, unpaid: 0 } });
   assert.ok(textOf(saved).includes("Сохранено 02.10"));
