@@ -194,39 +194,57 @@ test("the payroll pages have no ALL CAPS headers: no `uppercase`, «Итого»
 
 // ---- 5. the price of the group --------------------------------------------------------------------------------------
 
-test("a scheduled price in one small line: «с 01.11 — 480 000», the year only when it is not this one, 0 is «бесплатно»", () => {
+test("the page «Цены групп»: the cells say the price, the scheduled price, the individual prices; a save or a cancel patches the row", () => {
+  assert.equal(plain(G.priceCellText({ amount: 500000, valid_from: "2026-10-21" })), "500 000 сум");
+  assert.equal(G.priceCellText({ amount: 0, valid_from: "2026-10-21" }), "бесплатно");
+  assert.equal(G.priceCellText(null), null);
+  assert.equal(plain(G.scheduledCellText({ row_id: "r", amount: 520000, valid_from: "2026-12-01" })), "520 000 сум с 01.12.2026");
+  assert.equal(G.scheduledCellText(null), null);
+  assert.equal(G.individualPricesText(0), null);
+  assert.equal(G.individualPricesText(1), "1 ученик");
+  assert.equal(G.individualPricesText(2), "2 ученика");
+  assert.equal(G.individualPricesText(5), "5 учеников");
+  assert.equal(G.individualPricesText(11), "11 учеников");
+  assert.equal(G.individualPricesText(21), "21 ученик");
+  assert.equal(G.priceColumnLabel("Оплата в месяц"), "Цена в месяц");
+  assert.equal(G.priceColumnLabel("Стоимость пакета"), "Стоимость пакета");
+  const item = (name) => ({ group_id: name, name, teacher_id: null, teacher_name: null, kind: "group", current: null, scheduled: null, scheduled_count: 0, students_with_override: 0 });
+  assert.deepEqual(G.filterGroupPrices([item("Алгебра 8А"), item("Геометрия")], "  АЛГЕ ").map((i) => i.name), ["Алгебра 8А"]);
+  assert.equal(G.filterGroupPrices([item("a"), item("b")], "").length, 2);
   const row = (amount, valid_from, over = {}) => ({ id: valid_from, amount, valid_from, note: null, created_by_name: null, created_at: null, is_current: false, is_future: true, changes: [], ...over });
-  assert.equal(plain(G.scheduledPriceText(row(480000, "2026-11-01"), "2026-10-20")), "с 01.11 — 480 000");
-  assert.equal(plain(G.scheduledPriceText(row(480000, "2027-01-15"), "2026-10-20")), "с 15.01.2027 — 480 000");
-  assert.equal(plain(G.scheduledPriceText(row(0, "2026-11-01"), "2026-10-20")), "с 01.11 — бесплатно");
-  assert.equal(plain(G.scheduledPriceText(row(480000, "2026-11-01"), null)), "с 01.11.2026 — 480 000");
   const history = [
     row(520000, "2026-12-01"), row(480000, "2026-11-01"),
     row(500000, "2026-10-01", { is_future: false, is_current: true }), row(450000, "2000-01-01", { is_future: false }),
   ];
-  assert.deepEqual(G.scheduledPriceLines(history, "2026-10-20").map(plain), ["с 01.11 — 480 000", "с 01.12 — 520 000"]); // the soonest first
-  assert.deepEqual(G.scheduledPriceLines([], "2026-10-20"), []);
-  assert.deepEqual(G.scheduledPriceLines(null, "2026-10-20"), []);
+  const patched = G.rowWithPrices({ ...item("g"), students_with_override: 3 }, { current: { amount: 500000, valid_from: "2026-10-01", note: null }, history });
+  assert.deepEqual(patched.current, { amount: 500000, valid_from: "2026-10-01" });
+  assert.deepEqual(patched.scheduled, { row_id: "2026-11-01", amount: 480000, valid_from: "2026-11-01" }); // the soonest
+  assert.equal(patched.scheduled_count, 2);
+  assert.equal(patched.students_with_override, 3);
+  assert.equal(G.rowWithPrices(item("g"), { current: null, history: [] }).current, null);
+  assert.equal(G.rowWithPrices(item("g"), { current: null, history: null }).scheduled, null);
+  assert.equal(G.GROUP_PRICES_SEARCH_FROM, 9); // a search box above 8 groups
 });
 
-test("the group price block is one line under the title, with the history behind «История цены»", () => {
-  const block = read("src/components/groups/group-price-block.tsx");
-  assert.doesNotMatch(block, /text-2xl|rounded-2xl|shadow-sm|uppercase|Wallet/); // no big card, no big number, no caps heading
-  assert.match(block, /История цены\s*<ChevronDown/);
-  assert.match(block, /aria-expanded=\{historyOpen\}/);
-  assert.match(block, /Запланировано: \{upcoming\.join\("; "\)\}/);
-  assert.match(block, /\{current \? "Изменить цену" : "Задать цену"\}/);
-  assert.match(block, /Цена не задана/);
-  assert.match(block, /aria-label="Цена группы"/); // the region keeps its name
-  // the dialogs are the same ones
-  assert.match(block, /<GroupPriceDialog/);
-  assert.match(block, /<GroupPriceCancelDialog/);
+test("the page «Цены групп» is the one place of the group price: a table with the shared header, actions, empty state; the group header has no price line", () => {
+  const page = read("src/components/payments/group-prices-page.tsx");
+  assert.match(page, /<TableHeader[\s\S]*labels=\{\["Группа", priceColumnLabel\(label\), "Запланировано", "Индивидуальные цены", ""\]\}[\s\S]*aligns=\{\["left", "center", "center", "center", "right"\]\}/);
+  assert.match(page, /\{item\.current \? "Изменить цену" : "Задать цену"\}/);
+  assert.match(page, /label: "История цены"/);
+  assert.match(page, /Не задана/);
+  assert.match(page, /Групп пока нет/);
+  assert.match(page, /showToast\(item\.current \? "Цена группы изменена" : "Цена группы задана"\)/);
+  assert.match(page, /<GroupPriceDialog/);
+  assert.match(page, /<GroupPriceCancelDialog/);
+  assert.match(page, /<GroupPriceHistoryModal/);
+  assert.match(page, /const searchable = items\.length >= GROUP_PRICES_SEARCH_FROM;/);
+  // «Оплаты» leads here (a secondary button on the right of the header), the page leads back
+  assert.match(read("src/components/payments/payments-page.tsx"), /href=\{pricesBaseOf\(groupsBasePath\)\}[\s\S]*?Цены групп/);
+  assert.match(page, /<Link href=\{paymentsHref\}[\s\S]*?Оплаты\s*<\/Link>/);
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
-    // inside the header card, hidden while the group is edited (it stays mounted: no new read on leaving the form)
-    const card = page.slice(page.indexOf("Group header card"), page.indexOf("{/* Tabs */}"));
-    assert.match(card, /<GroupPriceBlock[\s\S]*className=\{editing \? "hidden" : "mt-3 sm:pl-\[4\.5rem\]"\}/, role);
-    assert.doesNotMatch(page, /bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400/, role);
+    const group = read(`src/app/${role}/groups/[id]/page.tsx`);
+    assert.doesNotMatch(group, /<GroupPriceBlock|GroupPriceDialog/, role);
+    assert.doesNotMatch(group, /bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400/, role);
   }
 });
 

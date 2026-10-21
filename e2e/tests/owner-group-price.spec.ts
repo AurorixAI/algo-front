@@ -6,10 +6,10 @@ import { cardMenuItem, cardMenuLabels, dmy, expectNoHorizontalScroll, expectWith
 /**
  * #105 «цена группы»: the price is set on the GROUP (owner), the students of the group take it from there; the student
  * card only shows it, and an individual price is an explicit exception with a reason.
- *   groups list «Цена не задана» -> «Без цены» -> the group page: «Задать цену» -> the consequences are shown before saving
+ *   groups list «Цена не задана» -> «Без цены» -> «задать» -> the page «Оплаты -> Цены групп»: «Задать цену» -> the consequences are shown before saving
  *   -> a past day warns -> the student card: «Цена … · цена группы» (no field to type a fee) -> «⋯» -> «Назначить
  *   индивидуальную цену» (reason required) -> «Вернуть цену группы».
- * A teacher gets no price anywhere (the API sends no `price_current`, the page has no price block).
+ * The group page has no price line any more. A teacher gets no price anywhere (the API sends no `price_current`).
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -35,10 +35,10 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(page.getByRole("link", { name: /Открыть группу Группа Ц1/ })).toBeVisible();
   await page.getByRole("link", { name: "задать" }).first().click();
 
-  // --- the group page: the price block, no price yet
-  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}`));
-  const block = page.getByRole("region", { name: "Цена группы" });
-  await expect(block).toContainText("Цена не задана");
+  // --- the page «Цены групп»: the row of the group, no price yet
+  await expect(page).toHaveURL(new RegExp(`/owner/payments/prices\\?group=${group.id}`));
+  const block = page.locator(`[data-group-id="${group.id}"]`);
+  await expect(block).toContainText("Не задана");
   await block.getByRole("button", { name: "Задать цену" }).click();
 
   // --- the dialog: the consequences are on screen before «Сохранить»
@@ -57,10 +57,14 @@ test("price of the group -> consequences before saving -> student card shows it 
   await dialog.getByLabel("Примечание").fill("Новый учебный год");
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы задана")).toBeVisible();
-  await expect(block).toContainText(priceText(500000));
+  await expect(block).toContainText(new RegExp(moneyPattern(500000)));
   await expect(block).toContainText(`с ${dmy(today)}`);
-  await block.getByRole("button", { name: "История цены" }).click();
-  await expect(block.getByRole("list", { name: "История цены" })).toContainText("Новый учебный год");
+  await block.getByRole("button", { name: /^Действия: / }).click();
+  await page.getByRole("menuitem", { name: "История цены", exact: true }).click();
+  const history = page.getByRole("dialog", { name: "История цены" });
+  await expect(history.getByRole("list", { name: "История цены" })).toContainText("Новый учебный год");
+  await page.keyboard.press("Escape");
+  await expect(history).toHaveCount(0);
 
   const prices = await org.owner.api.get(`/auth/org/groups/${group.id}/prices`);
   expect(prices.current).toMatchObject({ amount: 500000, valid_from: today });
@@ -75,15 +79,17 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(plan).toContainText("Новая цена начнёт действовать с");
   await plan.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы изменена")).toBeVisible();
-  await expect(block).toContainText(priceText(500000)); // today it is still the old price
+  await expect(block.getByTestId("group-price-current")).toContainText(new RegExp(moneyPattern(500000))); // today it is still the old price
   const plannedDay = addDays(today, 30);
-  const plannedShort = plannedDay.slice(0, 4) === today.slice(0, 4) ? dmy(plannedDay).slice(0, 5) : dmy(plannedDay); // the year only when it is not this one
-  await expect(block).toContainText(new RegExp(`Запланировано: с ${plannedShort.replace(/\./g, "\\.")} — ${moneyPattern(550000)}`));
+  await expect(block.getByTestId("group-price-scheduled")).toContainText(new RegExp(`${moneyPattern(550000)}\\s*сум\\s*с ${dmy(plannedDay).replace(/\./g, "\\.")}`));
   await block.getByRole("button", { name: "Отменить", exact: true }).click();
   await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
   await expect(toast(page, "Запланированная цена отменена")).toBeVisible();
-  await expect(block).not.toContainText("Запланировано:");
-  await expect(block.getByRole("list", { name: "Отменённые цены" })).toContainText("отменил запланированную цену");
+  await expect(block.getByTestId("group-price-scheduled")).toHaveCount(0);
+  await block.getByRole("button", { name: /^Действия: / }).click();
+  await page.getByRole("menuitem", { name: "История цены", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "История цены" }).getByRole("list", { name: "Отменённые цены" })).toContainText("отменил запланированную цену");
+  await page.keyboard.press("Escape");
   const afterGroupCancel = await org.owner.api.get(`/auth/org/groups/${group.id}/prices`);
   expect(afterGroupCancel.current).toMatchObject({ amount: 500000 });
   expect(afterGroupCancel.history.some((r: any) => r.valid_from === addDays(today, 30))).toBe(false);
@@ -150,18 +156,24 @@ test("price of the group -> consequences before saving -> student card shows it 
   const teacherPage = await signIn(teacher);
   await teacherPage.goto(`/teacher/groups/${group.id}`);
   await expect(teacherPage.getByText(group.name).first()).toBeVisible();
-  await expect(teacherPage.getByRole("region", { name: "Цена группы" })).toHaveCount(0);
+  await expect(teacherPage.getByText("Цена группы")).toHaveCount(0);
   await expect(teacherPage.getByText(/\d\s*сум/)).toHaveCount(0);
 });
 
-test("@mobile the price block and its dialog fit a phone", async ({ signIn }) => {
+test("@mobile the page «Цены групп» and its dialog fit a phone; the group page has no price line", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Мобильников");
   const group = await org.createGroup({ name: "Группа Ц2", teacherId: teacher.userId });
   await org.addStudent(group, "Булат", "Телефонный");
   const page = await signIn(org.owner);
   await page.goto(`/owner/groups/${group.id}`);
-  const block = page.getByRole("region", { name: "Цена группы" });
-  await expect(block).toContainText("Цена не задана");
+  await expect(page.getByRole("heading", { name: group.name }).first()).toBeVisible();
+  await expect(page.getByTestId("group-price-current")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Цена группы" })).toHaveCount(0);
+  await page.goto("/owner/payments");
+  await page.getByRole("link", { name: "Цены групп" }).click();
+  await expect(page).toHaveURL(/\/owner\/payments\/prices$/);
+  const block = page.locator(`[data-group-id="${group.id}"]`);
+  await expect(block).toContainText("Не задана");
   await expectNoHorizontalScroll(page);
   await block.getByRole("button", { name: "Задать цену" }).click();
   const dialog = page.getByRole("dialog", { name: "Задать цену группы" });

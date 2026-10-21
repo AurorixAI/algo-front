@@ -6,6 +6,7 @@ import type {
   GroupPriceBrief,
   GroupPriceRequest,
   GroupPriceResult,
+  GroupPriceList,
   GroupPrices,
   MembershipPrice,
   MembershipPriceChanged,
@@ -1493,6 +1494,8 @@ export const orgApi = {
   getStudentMemberships: (studentId: string) =>
     api<MembershipPaymentRow[]>(`/auth/org/students/${encodePathId(studentId)}/memberships`),
   // ── Price of a group and the exception of one student (#105; money roles only) ──
+  /** «Оплаты -> Цены групп»: every group that is not archived with its price today, the next scheduled price and the count of individual prices. */
+  listGroupPrices: () => api<GroupPriceList>("/auth/org/group-prices"),
   /** The price today and the history of the group, newest first. */
   getGroupPrices: (groupId: string) => api<GroupPrices>(`/auth/org/groups/${encodePathId(groupId)}/prices`),
   /** Sets the price from a day; `dryRun` writes nothing and answers only `impact` (what the change touches). */

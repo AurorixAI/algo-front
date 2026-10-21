@@ -90,9 +90,10 @@ test("an older server has no `price`: the row is read from monthly_fee", () => {
   assert.equal(G.priceSourceTag(undefined), null);
 });
 
-test("links: the price block of a group, the groups without a price, the base of the group pages", () => {
-  assert.equal(G.groupPriceHref("/owner/groups", "g1"), "/owner/groups/g1#price");
-  assert.equal(G.groupPriceHref("/admin/groups/", "a b"), "/admin/groups/a%20b#price");
+test("links: the price of a group (the page «Цены групп»), the groups without a price, the base of the group pages", () => {
+  assert.equal(G.groupPriceHref("/owner/groups", "g1"), "/owner/payments/prices?group=g1");
+  assert.equal(G.groupPriceHref("/admin/groups/", "a b"), "/admin/payments/prices?group=a%20b");
+  assert.equal(G.pricesBaseOf("/owner/groups"), "/owner/payments/prices");
   assert.equal(G.groupsWithoutPriceHref("/owner/groups"), "/owner/groups?price=none");
   assert.equal(G.groupsBaseOf("/owner/payments"), "/owner/groups");
   assert.equal(G.parsePriceFilter("none"), "none");
@@ -294,7 +295,7 @@ test("the audit shapes are typed in api.ts and rendered by the screens, with not
   assert.match(lib, /groupChangeLine\(change, formatAt\)/);
   assert.match(lib, /formatAt: \(value: string \| null \| undefined\) => string = formatUtcNaiveAsBusinessDateTime/);
   assert.match(read("src/components/payments/membership-price.tsx"), /overrideChangeLine\(change\)/);
-  assert.match(read("src/components/groups/group-price-block.tsx"), /historyViews\(data\.history, label, formatUtcNaiveAsBusinessDateTime\)/);
+  assert.match(read("src/components/groups/group-price-history-modal.tsx"), /historyViews\(prices\.history, prices\.price_label, formatUtcNaiveAsBusinessDateTime\)/);
 });
 
 // ── group-price.ts: enrolment and transfer ──────────────────────────────────────────────────────────────────
@@ -525,7 +526,7 @@ test("the student card shows the price in one line with no field to type it; the
 
   const none = html(priceRow({ price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, monthly_fee: null }));
   assert.match(textOf(none), /Цена группы не задана/);
-  assert.match(none, /href="\/owner\/groups\/g1#price"/);
+  assert.match(none, /href="\/owner\/payments\/prices\?group=g1"/);
   assert.match(textOf(none), /Задать цену группы/);
 
   // an archived student / a closed membership: the price is shown, nothing can be changed (no status, no main button)
@@ -558,7 +559,7 @@ test("a group card shows its price to a money role and nothing to anybody else",
   assert.match(textOf(priced), /500 000 сум\/мес/);
   const unset = html({ ...base, price_current: null });
   assert.match(textOf(unset), /Цена не задана/);
-  assert.match(unset, /href="\/owner\/groups\/g1#price"/);
+  assert.match(unset, /href="\/owner\/payments\/prices\?group=g1"/);
   // a teacher's list has no `price_current`: not a word about money
   const teacher = html(base);
   assert.doesNotMatch(textOf(teacher), /сум|Цена/);
@@ -673,15 +674,19 @@ test("the per-student fee is gone: no input, no call of the retired endpoint, no
   assert.match(read("src/components/groups/assign-group-modal.tsx"), /moneyAvailable[\s\S]*?checkEnrolOverride/);
 });
 
-test("the group page shows the price block only when the group carries `price_current` (money roles)", () => {
+test("the group page has no price line (owner 21.10): the price is set on the page «Оплаты -> Цены групп» of both roles", () => {
   for (const role of ["owner", "admin"]) {
     const page = read(`src/app/${role}/groups/[id]/page.tsx`);
-    assert.match(page, /\{"price_current" in group && \(\s*<GroupPriceBlock/, role);
-    assert.match(page, /groupPrice=\{group\.price_current\}/, role);
+    assert.doesNotMatch(page, /GroupPriceBlock|group-price-block|GroupPriceDialog/, role);
+    assert.match(page, /groupPrice=\{group\.price_current\}/, role); // the drawer still tells the price the new students take
+    assert.match(page, new RegExp(`groupsBasePath="/${role}/groups"`), role);
     const list = read(`src/app/${role}/groups/page.tsx`);
     assert.match(list, /GroupPriceFilter/, role);
     assert.match(list, /parsePriceFilter\(searchParams\?\.get\("price"\)\)/, role);
+    const prices = read(`src/app/${role}/payments/prices/page.tsx`);
+    assert.match(prices, new RegExp(`<GroupPricesPage paymentsHref="/${role}/payments" groupsBasePath="/${role}/groups" />`), role);
   }
+  assert.equal(fs.existsSync(path.join(root, "src/components/groups/group-price-block.tsx")), false);
   assert.match(read("src/components/groups/group-card.tsx"), /const showPrice = "price_current" in group && !\(group\.status === "archived" && group\.price_current === null\);/);
 });
 
@@ -749,7 +754,7 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   for (const helper of ["impactStudentsText(shownImpact)", "staleSheetsText(shownImpact)", "pastDateWarning(", "futureDateNote("]) assert.ok(dialog.includes(helper), helper);
   // PRICE_CONFLICT: the block reads the price again, the old answer is dropped, the message stays
   assert.match(dialog, /if \(isPriceConflict\(cause\)\) \{\s*onConflict\(\);\s*setImpact\(null\);\s*setNonce/);
-  assert.match(read("src/components/groups/group-price-block.tsx"), /onConflict=\{\(\) => void load\(true\)\}/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /onConflict=\{\(\) => \{\s*void load\(true\);\s*void orgApi\.getGroupPrices\(target\.item\.group_id\)\.then\(setPrices\)/);
   // the individual price: 422 REASON_REQUIRED and 409 «в архиве» come with the server's Russian text
   assert.match(read("src/components/payments/membership-price.tsx"), /setError\(cause instanceof Error \? cause\.message : "Не удалось сохранить цену"\)/);
 });
@@ -766,7 +771,7 @@ test("a price from 2000-01-01 has always been so: «с самого начала
   assert.equal(plain(G.overrideRowText(row, "Оплата в месяц")), "с самого начала — 450 000 сум/мес · Цена до введения цены группы");
   assert.equal(G.historyViews([{ id: "1", amount: 1, valid_from: "2000-01-01", note: null, created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] }], "Оплата в месяц")[0].since, "с самого начала");
   // nothing in the screens writes the epoch by hand
-  for (const file of ["src/components/groups/group-price-block.tsx", "src/components/payments/membership-price.tsx", "src/components/groups/group-price-dialog.tsx"]) {
+  for (const file of ["src/components/payments/group-prices-page.tsx", "src/components/groups/group-price-history-modal.tsx", "src/components/payments/membership-price.tsx", "src/components/groups/group-price-dialog.tsx"]) {
     assert.doesNotMatch(read(file), /01\.01\.2000|2000-01-01/, file);
   }
 });
@@ -843,8 +848,11 @@ test("a price of 0 is «бесплатно»: never «0 сум/мес», never �
   assert.equal(G.overrideRowText({ id: "a", amount: 0, valid_from: "2026-10-15", reason: "Стипендия", created_by_name: null, created_at: null, is_current: true, is_future: false, changes: [] }, "Оплата в месяц"), "с 15.10.2026 — бесплатно · Стипендия");
   // the override audit line
   assert.equal(plain(G.overrideChangeLine({ at: null, actor_name: null, old_amount: 0, old_source: "group", new_amount: 0, reason: null })), "цена группы — бесплатно → индивидуальная — бесплатно");
-  const block = read("src/components/groups/group-price-block.tsx");
-  assert.match(block, /formatPrice\(current\.amount, label\)/); // the big number is formatPrice's: «бесплатно» for 0
+  // the page «Цены групп»: the price cell and the scheduled cell go through the helpers, «бесплатно» for 0
+  assert.equal(G.priceCellText({ amount: 0, valid_from: "2026-10-01" }), "бесплатно");
+  assert.equal(G.scheduledCellText({ row_id: "r", amount: 0, valid_from: "2026-12-01" }), "бесплатно с 01.12.2026");
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /const price = priceCellText\(item\.current\);/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /const scheduled = scheduledCellText\(item\.scheduled\);/);
   assert.match(read("src/components/groups/group-price-dialog.tsx"), /current\.amount === 0 \? "Сейчас: бесплатно\. "/);
 });
 
@@ -886,7 +894,7 @@ test("the conflict text does not contradict itself; «Сохранить» is of
   assert.match(dialog, /const noop = isNoopPriceChange\(history, check\.request\);/);
   assert.match(dialog, /const canSave = ready && !noop;/);
   assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
-  assert.match(read("src/components/groups/group-price-block.tsx"), /history=\{data\?\.history \?\? \[\]\}/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /history=\{prices\?\.history \?\? \[\]\}/);
 });
 
 test("the payroll table speaks the centre's mode, names its headers, has one tooltip per cell, explains a changed price", () => {
@@ -952,11 +960,15 @@ test("a scheduled price is taken back with a DELETE: typed in api.ts, confirmed,
   // the workaround of the same-day correction is gone
   assert.doesNotMatch(read("src/lib/group-price.ts"), /cancelScheduledRequest/);
   assert.doesNotMatch(read("src/components/payments/membership-price.tsx"), /cancelScheduledRequest/);
-  // the group block: «Отменить» on a future row only, a confirmation, the answer replaces the block
-  const block = read("src/components/groups/group-price-block.tsx");
-  assert.match(block, /item\.status === "future" && \(\s*<button type="button" onClick=\{\(\) => setCancelTarget\(item\)\}/);
-  assert.match(block, /onRefused=\{\(\) => void load\(true\)\}/);
-  assert.match(block, /onNotify\("Запланированная цена отменена"\)/);
+  // the page «Цены групп»: «Отменить» on the scheduled price of the row and on a future row of the history, always after a confirmation
+  const history = read("src/components/groups/group-price-history-modal.tsx");
+  assert.match(history, /item\.status === "future" && \(\s*<button type="button" onClick=\{\(\) => setCancelTarget\(item\)\}/);
+  assert.match(history, /onRefused=\{onRefused\}/);
+  assert.match(history, /onNotify\("Запланированная цена отменена"\)/);
+  const prices = read("src/components/payments/group-prices-page.tsx");
+  assert.match(prices, /<button type="button" onClick=\{onCancel\}[^>]*>Отменить<\/button>/);
+  assert.match(prices, /onRefused=\{\(\) => void load\(true\)\}/);
+  assert.match(prices, /showToast\("Запланированная цена отменена"\)/);
   const dialog = read("src/components/groups/group-price-cancel-dialog.tsx");
   assert.match(dialog, /orgApi\.cancelGroupPrice\(groupId, target\.id\)/);
   assert.match(dialog, /if \(isCancelRefused\(cause\)\) \{\s*setRefused\(true\);[\s\S]*?onRefused\(\);/);
@@ -985,6 +997,6 @@ test("the cancelled scheduled prices are rendered in words, in both histories", 
   assert.equal(plain(G.overrideCancelledLine(own({ amount: null, reason: null, actor_name: null }))), "20.10.2026 11:05 · Запланированный возврат цены группы с 20.11.2026 отменён");
   for (const text of [G.groupCancelledLine(group({})), G.overrideCancelledLine(own({ amount: null }))]) assert.doesNotMatch(text, /null|undefined/);
   // the histories show them
-  assert.match(read("src/components/groups/group-price-block.tsx"), /groupCancelledLine\(item\)/);
+  assert.match(read("src/components/groups/group-price-history-modal.tsx"), /groupCancelledLine\(item\)/);
   assert.match(read("src/components/payments/membership-price.tsx"), /overrideCancelledLine\(item\)/);
 });

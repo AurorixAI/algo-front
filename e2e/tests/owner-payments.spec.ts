@@ -27,7 +27,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await page.getByRole("tab", { name: /Без оплат/ }).click();
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText("Цена группы не задана");
-  await expect(row().getByRole("link", { name: "задать цену группы" })).toHaveAttribute("href", new RegExp(`/owner/groups/${group.id}#price$`));
+  await expect(row().getByRole("link", { name: "задать цену группы" })).toHaveAttribute("href", new RegExp(`/owner/payments/prices\\?group=${group.id}$`));
   await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
   await expect(row().getByRole("textbox", { name: "Сумма оплаты, сум" })).toBeVisible(); // the sum is typed by hand
 

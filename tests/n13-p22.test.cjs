@@ -46,7 +46,7 @@ test("screens take the price wording from the helper, not from literals", () => 
   for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-price.tsx"]) {
     assert.match(read(`src/${file}`), /priceLabelOf\(/, file);
   }
-  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx", "components/payments/membership-price.tsx", "components/groups/group-price-block.tsx"]) {
+  for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx", "components/payments/membership-price.tsx", "components/payments/group-prices-page.tsx"]) {
     assert.doesNotMatch(read(`src/${file}`), /["'>]Оплата в месяц[<"',]/, file);
   }
   assert.match(read("src/components/groups/add-student-drawer.tsx"), /priceLabelOf\(usePaymentsSummary/);

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { GroupInfo } from "@/lib/api";
 import { LEVEL_CATEGORY_META, LEVEL_TONES } from "@/lib/diagnostic-level";
 import { lessonTypeLabel } from "@/lib/payroll";
-import { formatPrice, GROUP_PRICE_ANCHOR, priceLabelOf } from "@/lib/group-price";
+import { formatPrice, groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
 interface GroupCardProps {
@@ -102,7 +102,7 @@ export function GroupCard({ group, href, index = 0 }: GroupCardProps) {
             <>
               <span className="font-medium text-amber-800">Цена не задана</span>
               {href && (
-                <Link href={`${href}#${GROUP_PRICE_ANCHOR}`} className="text-xs font-semibold text-primary-700 hover:underline">
+                <Link href={groupPriceHref(href.replace(/\/[^/]+\/?$/, ""), group.id)} className="text-xs font-semibold text-primary-700 hover:underline">
                   задать
                 </Link>
               )}

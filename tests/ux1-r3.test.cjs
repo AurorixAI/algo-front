@@ -343,8 +343,8 @@ test("actions: the button, the dialog title and the toast say the same verb", ()
   assert.match(membership, /title="Вернуть цену группы"/);
   assert.match(membership, /"Ученик снова платит по цене группы"/);
   assert.match(read("src/components/groups/group-price-dialog.tsx"), /title=\{current \? CHANGE_GROUP_PRICE_LABEL : SET_GROUP_PRICE_LABEL\}/);
-  assert.match(read("src/components/groups/group-price-block.tsx"), /onNotify\(current \? "Цена группы изменена" : "Цена группы задана"\)/);
-  assert.match(read("src/components/groups/group-price-block.tsx"), /\{current \? "Изменить цену" : "Задать цену"\}/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /showToast\(item\.current \? "Цена группы изменена" : "Цена группы задана"\)/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /\{item\.current \? "Изменить цену" : "Задать цену"\}/);
 });
 
 // ── the bottom bar, viewport, safe areas ─────────────────────────────────────────────────────────────

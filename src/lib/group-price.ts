@@ -229,25 +229,6 @@ export function sinceText(validFrom: string | null | undefined): string {
   return text ? `с ${text}` : "";
 }
 
-/**
- * A scheduled price in the compact line of the group page: «с 01.11 — 480 000» (the year only when it is not the current one);
- * 0 is «бесплатно».  `asOf`: the day the server counted «today» on.
- */
-export function scheduledPriceText(row: Pick<GroupPriceRow, "amount" | "valid_from">, asOf?: string | null): string {
-  const date = formatDateRu(row.valid_from);
-  const sameYear = Boolean(asOf) && row.valid_from.slice(0, 4) === (asOf as string).slice(0, 4);
-  const when = sameYear ? date.slice(0, 5) : date;
-  return `с ${when} — ${row.amount === 0 ? FREE_WORD : formatMoneyInput(row.amount)}`;
-}
-
-/** The prices that start later, soonest first, one text each: [] when none is scheduled. */
-export function scheduledPriceLines(history: ReadonlyArray<GroupPriceRow> | null | undefined, asOf?: string | null): string[] {
-  return (history ?? [])
-    .filter((row) => row.is_future)
-    .sort((a, b) => a.valid_from.localeCompare(b.valid_from))
-    .map((row) => scheduledPriceText(row, asOf));
-}
-
 /** Group price on a list card / row: «500 000 сум», «бесплатно» for 0, or null when there is none. */
 export function priceBriefText(price: GroupPriceBrief | null | undefined): string | null {
   if (!price) return null;
@@ -339,11 +320,17 @@ export function priceSourceTag(price: PriceInfo | null | undefined): string | nu
 
 // ── Where the group is set ──────────────────────────────────────────────────
 
-/** The price block of the group page: the anchor and the link target of «задать цену». */
-export const GROUP_PRICE_ANCHOR = "price";
-
+/**
+ * Where the price of a group is set: the page «Оплаты -> Цены групп» next to the group pages
+ * («/owner/groups» -> «/owner/payments/prices»); `?group=` makes the page scroll to and mark the row of that group.
+ */
 export function groupPriceHref(groupsBasePath: string, groupId: string): string {
-  return `${groupsBasePath.replace(/\/+$/, "")}/${encodeURIComponent(groupId)}#${GROUP_PRICE_ANCHOR}`;
+  return `${pricesBaseOf(groupsBasePath)}?group=${encodeURIComponent(groupId)}`;
+}
+
+/** «/owner/groups» (or «/owner/groups/») -> «/owner/payments/prices». */
+export function pricesBaseOf(groupsBasePath: string): string {
+  return `${groupsBasePath.replace(/\/+$/, "").replace(/\/groups$/, "")}/payments/prices`;
 }
 
 /** The groups without a price (the payroll warning «не задана цена» leads here). */
@@ -777,4 +764,97 @@ export function targetGroupPriceHint(price: GroupPriceBrief | null | undefined, 
   if (price === undefined) return null;
   if (price === null) return "Пока цена не задана, сумма оплаты не подсказывается, а зарплата по ученикам группы не считается";
   return students === 1 ? "Эту цену получит ученик" : "Эту цену получат все добавляемые ученики";
+}
+
+// ── The page «Цены групп» (GET /org/group-prices) ───────────────────────────
+
+/** The next scheduled price of a group; `row_id` is what `DELETE /org/groups/{id}/prices/{row_id}` takes. */
+export interface GroupPriceScheduled {
+  row_id: string;
+  amount: number;
+  valid_from: string;
+}
+
+/** One row of the table: a group that is not archived. */
+export interface GroupPriceListItem {
+  group_id: string;
+  name: string;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  /** `lesson_type` of the group: group | mini_group | pair | individual. */
+  kind: string;
+  current: GroupPriceBrief | null;
+  scheduled: GroupPriceScheduled | null;
+  /** How many scheduled prices the group has (the next one is shown). */
+  scheduled_count: number;
+  /** Active students with an individual price in force today. */
+  students_with_override: number;
+}
+
+export interface GroupPriceList {
+  as_of: string;
+  period_mode: PeriodMode;
+  /** «Оплата в месяц» | «Стоимость пакета». */
+  price_label: string;
+  items: GroupPriceListItem[];
+}
+
+/** The search box appears from this many groups (more than 8). */
+export const GROUP_PRICES_SEARCH_FROM = 9;
+
+/** Header of the price column: «Цена в месяц» for calendar periods, «Стоимость пакета» for lesson packages. */
+export function priceColumnLabel(label: string): string {
+  return label === PRICE_LABEL_LESSONS ? PRICE_LABEL_LESSONS : "Цена в месяц";
+}
+
+/** «500 000 сум» | «бесплатно»; null when the price is not set. */
+export function priceCellText(price: GroupPriceBrief | null | undefined): string | null {
+  return priceBriefText(price);
+}
+
+/** «520 000 сум с 01.12.2026»: the scheduled price in one line; null when none is scheduled. */
+export function scheduledCellText(scheduled: GroupPriceScheduled | null | undefined): string | null {
+  if (!scheduled) return null;
+  const amount = scheduled.amount === 0 ? FREE_WORD : formatMoney(scheduled.amount);
+  return `${amount} ${sinceText(scheduled.valid_from)}`;
+}
+
+/** «2 ученика»; null (the table shows «—») when nobody has an individual price. */
+export function individualPricesText(count: number): string | null {
+  return count > 0 ? `${count} ${pluralRu(count, "ученик", "ученика", "учеников")}` : null;
+}
+
+/** The scheduled row as the confirmation of «Отменить» wants it. */
+export function scheduledAsHistoryItem(scheduled: GroupPriceScheduled, label: string): HistoryItemView {
+  return {
+    id: scheduled.row_id,
+    amount: formatPrice(scheduled.amount, label),
+    since: sinceText(scheduled.valid_from),
+    status: "future",
+    note: "",
+    author: "",
+    changes: [],
+  };
+}
+
+/** The row after a save or a cancel: the price today and the next scheduled one come from the answer (the history). */
+export function rowWithPrices(
+  item: GroupPriceListItem,
+  prices: { current: GroupPriceBrief | null; history: ReadonlyArray<GroupPriceRow> | null | undefined },
+): GroupPriceListItem {
+  const future = (prices.history ?? [])
+    .filter((row) => row.is_future)
+    .sort((a, b) => a.valid_from.localeCompare(b.valid_from));
+  return {
+    ...item,
+    current: prices.current ? { amount: prices.current.amount, valid_from: prices.current.valid_from } : null,
+    scheduled: future[0] ? { row_id: future[0].id, amount: future[0].amount, valid_from: future[0].valid_from } : null,
+    scheduled_count: future.length,
+  };
+}
+
+/** Search by the name of the group (case and surrounding spaces do not matter). */
+export function filterGroupPrices(items: ReadonlyArray<GroupPriceListItem>, query: string): GroupPriceListItem[] {
+  const needle = query.trim().toLocaleLowerCase("ru");
+  return needle ? items.filter((item) => item.name.toLocaleLowerCase("ru").includes(needle)) : [...items];
 }

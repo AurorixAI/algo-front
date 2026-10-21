@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Pencil, Search, UserRound, Wallet, XCircle } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Pencil, Search, Tags, UserRound, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
@@ -47,7 +47,7 @@ import {
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
-import { FREE_WORD, groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag } from "@/lib/group-price";
+import { FREE_WORD, groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -458,9 +458,18 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
-      <div className="min-w-0">
-        <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
-        <p className="text-sm text-slate-500">Кто из учеников оплатил занятия и когда оплата заканчивается</p>
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
+          <p className="text-sm text-slate-500">Кто из учеников оплатил занятия и когда оплата заканчивается</p>
+        </div>
+        <Link
+          href={pricesBaseOf(groupsBasePath)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+        >
+          <Tags className="h-4 w-4 text-slate-400" aria-hidden="true" />
+          Цены групп
+        </Link>
       </div>
 
       {/* One row from 2xl (1536 px): tabs on the left, search and filter on the right.  Below it the toolbar sits under the

@@ -6,7 +6,7 @@ import { orgApi, type GroupJoinMode } from "@/lib/api";
 import {
   checkEnrolOverride,
   enrolPriceHint,
-  GROUP_PRICE_ANCHOR,
+  groupPriceHref,
   priceLabelOf,
   targetGroupPriceHint,
   targetGroupPriceText,
@@ -56,13 +56,15 @@ interface AddStudentDrawerProps {
    * see money (the key is absent).  The students added here take it.
    */
   groupPrice?: GroupPriceBrief | null;
+  /** Where the groups live («/owner/groups»): «Задать цену группы» leads to the page «Оплаты -> Цены групп» next to it. */
+  groupsBasePath?: string;
   existingStudentIds: Set<string>;
   onClose: () => void;
   onAdded: (result: AddStudentsResult) => void;
 }
 
 export function AddStudentDrawer({
-  open, groupId, groupClassLevel, groupPrice, existingStudentIds, onClose, onAdded,
+  open, groupId, groupClassLevel, groupPrice, groupsBasePath, existingStudentIds, onClose, onAdded,
 }: AddStudentDrawerProps) {
   const [search, setSearch] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
@@ -278,7 +280,7 @@ export function AddStudentDrawer({
                 <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={`font-semibold ${groupPrice ? "text-slate-800" : "text-amber-800"}`}>{priceLine}</span>
                   {groupPrice === null && (
-                    <a href={`#${GROUP_PRICE_ANCHOR}`} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
+                    <a href={groupPriceHref(groupsBasePath ?? "", groupId)} onClick={onClose} className="font-semibold text-primary-700 hover:underline">Задать цену группы</a>
                   )}
                 </p>
                 {priceNote && <p className="mt-0.5 text-slate-500">{priceNote}</p>}

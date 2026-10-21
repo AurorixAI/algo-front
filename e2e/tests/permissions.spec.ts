@@ -38,7 +38,8 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   // #105: no price of the group either - the block is not on the page and the server sends no `price_current`
   await adminPage.goto(`/admin/groups/${group.id}`);
   await expect(adminPage.getByRole("heading", { name: group.name }).first()).toBeVisible();
-  await expect(adminPage.getByRole("region", { name: "Цена группы" })).toHaveCount(0);
+  await expect(adminPage.getByTestId("group-price-current")).toHaveCount(0);
+  await expect(admin.api.get("/auth/org/group-prices")).rejects.toMatchObject({ status: 403 });
   await expect(admin.api.get(`/auth/org/groups/${group.id}/prices`)).rejects.toMatchObject({ status: 403 });
   expect(await admin.api.get(`/auth/org/groups/${group.id}`)).not.toHaveProperty("price_current");
 
@@ -60,8 +61,9 @@ test("admin without the payments right sees no «Оплаты» (menu, tab, page
   await expect(adminPage.getByRole("tab", { name: "Оплаты" })).toBeVisible();
   await adminPage.goto("/admin/payments");
   await expect(adminPage.getByRole("heading", { name: "Оплаты", level: 1 })).toBeVisible();
-  await adminPage.goto(`/admin/groups/${group.id}`);
-  await expect(adminPage.getByRole("region", { name: "Цена группы" })).toContainText("100 000"); // the price of the group (set by the owner above)
+  await adminPage.goto("/admin/payments/prices");
+  await expect(adminPage.locator(`[data-group-id="${group.id}"]`)).toContainText("100 000"); // the price of the group (set by the owner above)
+  await expect(adminPage.getByRole("link", { name: /^Оплаты$/ }).first()).toBeVisible();
   await adminPage.goto("/admin/payments");
   await expect(adminPage.getByRole("navigation").first().getByRole("link", { name: "Зарплата" })).toHaveCount(0);
   await expect(admin.api.get("/auth/org/payroll/settings")).rejects.toMatchObject({ status: 403 }); // payroll: owner only
