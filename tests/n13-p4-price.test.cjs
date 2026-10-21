@@ -632,7 +632,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
     sheet: { id: "s1", revision: 2, total_amount: 900000, stale: true, updated_at: "2026-10-02T08:00:00" },
     warnings: { open_lessons: 1, pending_excused: 0, no_fee: 2, unpaid: 140 },
   };
-  const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
+  const render = (over = {}, busy = false) => renderToStaticMarkup(React.createElement(TeacherRow, { teacher: { ...teacher, ...over }, month: "2026-10", busy, onCalculate: () => {}, onOpen: () => {}, onExport: () => {} }));
   const html = render();
   const text = textOf(html);
   assert.ok(text.includes("Есть изменения"));
@@ -664,7 +664,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // a rate is missing: «Не задана · Указать» leads to the teacher, the button waits and says why
   const missing = render({ sheet: null, rates: {}, missing_rates: ["group", "individual"] });
   assert.ok(textOf(missing).includes("Не задана · Указать"));
-  assert.match(missing, /href="\/owner\/teachers\?teacher=t1"[^>]*>Указать</);
+  assert.match(missing, /href="\/owner\/teachers\?teacher=t1&amp;month=2026-10"[^>]*>Указать</);
   assert.match(missing, /<button[^>]*disabled=""[^>]*aria-label="Рассчитать: Иванов Пётр"|<button[^>]*aria-label="Рассчитать: Иванов Пётр"[^>]*disabled=""/);
   assert.match(missing, /title="Сначала задайте ставку в «Сотрудниках»"/);
   // an action that is running disables the buttons of the others

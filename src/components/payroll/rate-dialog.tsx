@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
+  RATE_FIRST_NOTE,
   RATE_PAST_NOTE,
   checkRateForm,
+  defaultRateFrom,
   defaultRateMonth,
+  hasAnyRate,
   lessonTypeLabel,
   payrollErrorText,
   percentInputText,
@@ -29,11 +32,13 @@ const FORM_ID = "payroll-rate-form";
  * default) and the history of the rates.  This is the ONE place a rate is set: «Зарплата» only reads it.
  */
 export function TeacherRateDialog({
-  item, today, onClose, onSaved,
+  item, today, month, onClose, onSaved,
 }: {
   /** The teacher whose rate is edited; null closes the dialog. */
   item: PayrollRateItem | null;
   today: string;
+  /** The payroll month the owner came from (`?month=`): the rate starts in it when the teacher already has a rate of another kind. */
+  month?: string | null;
   onClose: () => void;
   /** The server's answer (the teacher's item with his new rates). */
   onSaved: (item: PayrollRateItem) => void;
@@ -43,11 +48,11 @@ export function TeacherRateDialog({
     () => Object.fromEntries(types.map((type) => [type, item?.rates?.[type]?.percent ?? null])),
     [item, types],
   );
-  const months = useMemo(() => rateMonthOptions(today), [today]);
+  const months = useMemo(() => rateMonthOptions(today, month), [today, month]);
   const currentMonth = defaultRateMonth(today);
 
   const [texts, setTexts] = useState<Record<string, string>>({});
-  const [validFrom, setValidFrom] = useState(currentMonth);
+  const [validFrom, setValidFrom] = useState(defaultRateFrom({ hasAnyRate: item ? hasAnyRate(item) : false, today, month }));
   const [attempted, setAttempted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +63,7 @@ export function TeacherRateDialog({
   useEffect(() => {
     if (!item) return;
     setTexts(Object.fromEntries(types.map((type) => [type, percentInputText(current[type])])));
-    setValidFrom(currentMonth);
+    setValidFrom(defaultRateFrom({ hasAnyRate: hasAnyRate(item), today, month }));
     setAttempted(false);
     setSaving(false);
     setError(null);
@@ -80,6 +85,7 @@ export function TeacherRateDialog({
   if (!item) return <Modal open={false} title="Изменить ставку" onClose={onClose}>{null}</Modal>;
 
   const checked = checkRateForm(types, texts, current);
+  const firstRate = !hasAnyRate(item);
   const name = teacherLabel(item.teacher_name);
 
   const submit = async () => {
@@ -166,7 +172,8 @@ export function TeacherRateDialog({
           >
             {months.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-          {validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_PAST_NOTE}</p>}
+          {!firstRate && validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_PAST_NOTE}</p>}
+          {firstRate && validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_FIRST_NOTE}</p>}
         </div>
 
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}

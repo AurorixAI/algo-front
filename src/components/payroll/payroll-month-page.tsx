@@ -433,6 +433,7 @@ function PayrollMonthContent() {
                 <TeacherRow
                   key={teacher.teacher_id}
                   teacher={teacher}
+                  month={month}
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
@@ -509,7 +510,7 @@ function PayrollMonthContent() {
               onReload={() => void rerunPreview(active.sheet.teacher_id)}
             />
           )}
-          {active.rateMissing && <RateRequiredNotice teacherId={active.sheet.teacher_id} message={active.rateMissing} />}
+          {active.rateMissing && <RateRequiredNotice teacherId={active.sheet.teacher_id} message={active.rateMissing} month={month} />}
 
           <PreviewBody
             preview={active}
@@ -582,9 +583,11 @@ function PreviewBody({
  * ONE status chip and ONE button by the status.  A phone gets the same as a card.
  */
 export function TeacherRow({
-  teacher, busy, onCalculate, onOpen, onExport,
+  teacher, month, busy, onCalculate, onOpen, onExport,
 }: {
   teacher: PayrollMonthTeacher;
+  /** The month of the page: «Указать» opens the rate dialog with it. */
+  month: string;
   busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
@@ -617,7 +620,7 @@ export function TeacherRow({
         {rate.missing && (
           <>
             {" · "}
-            <Link href={teacherRateHref(teacher.teacher_id)} className="font-medium text-primary-700 hover:underline">Указать</Link>
+            <Link href={teacherRateHref(teacher.teacher_id, month)} className="font-medium text-primary-700 hover:underline">Указать</Link>
           </>
         )}
       </div>

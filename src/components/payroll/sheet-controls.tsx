@@ -189,14 +189,14 @@ export function ConflictBanner({
  * The server refused a calculation or a save: the teacher has no rate for a kind of lessons.  The rate is set in «Сотрудники»
  * (one place), so the notice says so in the server's words and leads there.
  */
-export function RateRequiredNotice({ teacherId, message }: { teacherId: string; message: string }) {
+export function RateRequiredNotice({ teacherId, message, month }: { teacherId: string; message: string; month?: string | null }) {
   return (
     <div role="alert" className="flex flex-col gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950 sm:flex-row sm:items-center sm:justify-between print:hidden">
       <p className="flex min-w-0 items-start gap-2 text-sm font-medium">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
         <span>{message}</span>
       </p>
-      <Link href={teacherRateHref(teacherId)} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100">
+      <Link href={teacherRateHref(teacherId, month)} className="inline-flex shrink-0 items-center justify-center rounded-xl bg-white px-4 py-2 text-sm font-semibold text-amber-900 ring-1 ring-amber-300 hover:bg-amber-100">
         Указать ставку
       </Link>
     </div>

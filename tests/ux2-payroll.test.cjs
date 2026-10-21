@@ -118,15 +118,59 @@ test("the rate line of «Сотрудники»: «Ставка: Группа 50
   assert.equal(R.teacherRateHref("t 1"), "/owner/teachers?teacher=t%201");
 });
 
-test("the month select of the rate dialog: the current month by default, half a year back, three ahead", () => {
+test("the month select of the rate dialog: «С самого начала» on top, then half a year back, the current month, three ahead", () => {
   assert.equal(R.defaultRateMonth("2026-10-21"), "2026-10");
   const options = R.rateMonthOptions("2026-10-21");
-  assert.equal(options.length, 10);
-  assert.deepEqual([options[0].value, options[6].value, options[9].value], ["2026-04", "2026-10", "2027-01"]);
-  assert.equal(options[6].label, "Октябрь 2026 г.");
+  assert.equal(options.length, 11);
+  assert.deepEqual(options[0], { value: "2020-01", label: "С самого начала" });
+  assert.deepEqual([options[1].value, options[7].value, options[10].value], ["2026-04", "2026-10", "2027-01"]);
+  assert.equal(options[7].label, "Октябрь 2026 г.");
   assert.ok(options.some((option) => option.value === R.defaultRateMonth("2026-10-21")), "the default is one of the options");
   assert.deepEqual(options.map((o) => o.value), [...options.map((o) => o.value)].sort());
   assert.match(R.RATE_PAST_NOTE, /Сохранённые ведомости не изменятся/);
+  assert.equal(R.RATE_FIRST_NOTE, "Первая ставка действует и для прошлых месяцев");
+  // the month the owner came from joins the list when it is older than half a year
+  const old = R.rateMonthOptions("2026-10-21", "2025-12");
+  assert.deepEqual(old.slice(0, 2).map((o) => o.value), ["2020-01", "2025-12"]);
+  assert.equal(R.rateMonthOptions("2026-10-21", "2026-09").length, 11); // already there
+  assert.equal(R.rateMonthOptions("2026-10-21", "junk").length, 11);
+});
+
+test("the default of «Действует с»: the first rate reaches the past; otherwise the current month, or the payroll month the owner came from", () => {
+  const today = "2026-10-21";
+  // no rate of ANY kind yet: from the very beginning, whatever month the link carries
+  assert.equal(R.defaultRateFrom({ hasAnyRate: false, today }), "2020-01");
+  assert.equal(R.defaultRateFrom({ hasAnyRate: false, today, month: "2026-09" }), "2020-01");
+  // a rate of another kind exists: the current month, or the month of the page that sent the owner
+  assert.equal(R.defaultRateFrom({ hasAnyRate: true, today }), "2026-10");
+  assert.equal(R.defaultRateFrom({ hasAnyRate: true, today, month: "2026-09" }), "2026-09");
+  assert.equal(R.defaultRateFrom({ hasAnyRate: true, today, month: "junk" }), "2026-10");
+  // what counts as «has a rate»: in force or scheduled, any type
+  const set = { percent: "50", valid_from: "2026-09-01" };
+  assert.equal(R.hasAnyRate({ rates: { group: null, individual: null }, next: {} }), false);
+  assert.equal(R.hasAnyRate({ rates: {}, next: null }), false);
+  assert.equal(R.hasAnyRate({ rates: { group: set } }), true);
+  assert.equal(R.hasAnyRate({ rates: { group: null }, next: { group: { percent: "45", valid_from: "2026-11-01" } } }), true);
+  // the payroll links carry the month
+  assert.equal(R.teacherRateHref("t1", "2026-09"), "/owner/teachers?teacher=t1&month=2026-09");
+  assert.equal(R.teacherRateHref("t1"), "/owner/teachers?teacher=t1");
+  assert.equal(R.teacherRateHref("t1", "junk"), "/owner/teachers?teacher=t1");
+});
+
+test("a rate that starts in 2020-01 reads «с самого начала» everywhere (the line, the scheduled one, the history, the sheet card)", () => {
+  assert.equal(R.isRateFromStart("2020-01-01"), true);
+  assert.equal(R.isRateFromStart("2020-01"), true);
+  assert.equal(R.isRateFromStart("2020-02-01"), false);
+  assert.equal(R.isRateFromStart(null), false);
+  assert.equal(R.rateSinceText("2020-01-01"), "с самого начала");
+  assert.equal(R.rateSinceText("2026-11-01"), "с ноября");
+  assert.deepEqual(R.rateHistoryView({ lesson_type: "group", percent: "50", valid_from: "2020-01-01", set_by_name: "Владелец", set_at: "2026-10-02T05:00:00" }),
+    { title: "Группа 50%", detail: "с самого начала · Владелец · 02.10.2026" });
+  assert.doesNotMatch(R.rateHistoryView({ lesson_type: "group", percent: "50", valid_from: "2020-01-01" }).detail, /2020|января/);
+  const item = { teacher_id: "t1", teacher_name: "И", lesson_types: ["group"], rates: { group: null }, next: { group: { percent: "45", valid_from: "2020-01-01" } } };
+  assert.equal(R.rateItemLine(item).text, "Ставка: Группа не задана (с самого начала 45%)");
+  const sheet = { lines: [{ lesson_type: "group" }], percents: { group: "50" }, counted_total: 1, unpaid_total: 0 };
+  assert.equal(R.sheetRateLine(sheet, { group: { percent: "45", valid_from: "2020-01-01" } }), "Ставка: Группа 50% (в «Сотрудниках» с самого начала 45% — пересчитайте)");
 });
 
 test("the rate form: only the typed types, a comma is a dot, a rate cannot be emptied, nothing changed sends nothing", () => {
@@ -313,8 +357,11 @@ test("«Сотрудники»: the rate line, «Изменить ставку»
   assert.match(dialog, /import \{ Modal \} from "@\/components\/ui\/modal"/);
   assert.match(dialog, /Действует с/);
   assert.match(dialog, /История ставки/);
-  assert.match(dialog, /rateMonthOptions\(today\)/);
-  assert.match(dialog, /useState\(currentMonth\)/);
+  assert.match(dialog, /rateMonthOptions\(today, month\)/);
+  assert.match(dialog, /defaultRateFrom\(\{ hasAnyRate: hasAnyRate\(item\), today, month \}\)/);
+  assert.match(dialog, /RATE_FIRST_NOTE/);
+  assert.match(page, /searchParams\?\.get\("month"\)/);
+  assert.match(page, /month=\{monthParam\}/);
   assert.match(dialog, /orgApi\.putPayrollRates\(item\.teacher_id, ratePutBody\(validFrom, checked, current\)\)/);
   assert.match(dialog, /orgApi\.getPayrollRateHistory\(item\.teacher_id\)/);
   assert.match(dialog, /disabled=\{saving \|\| checked\.changed === 0\}/);

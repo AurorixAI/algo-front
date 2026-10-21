@@ -929,8 +929,10 @@ export function percentShort(value: string | number | null | undefined): string 
   return text ? `${text}%` : "—";
 }
 
-export function teacherRateHref(teacherId: string): string {
-  return `/owner/teachers?teacher=${encodeURIComponent(teacherId)}`;
+/** The dialog of a teacher's rate; `month` (the payroll month the owner came from) is what the dialog starts the rate in. */
+export function teacherRateHref(teacherId: string, month?: string | null): string {
+  const base = `/owner/teachers?teacher=${encodeURIComponent(teacherId)}`;
+  return month && isMonthParam(month) ? `${base}&month=${month}` : base;
 }
 
 function typeOrderCompare(a: LessonType, b: LessonType): number {
@@ -1094,7 +1096,7 @@ export function sheetRateLine(sheet: Pick<PayrollSheet, "lines" | "percents">, n
   const parts = rateParts(types.map((type) => ({ type, percent: percents[type] }))).map((text, index) => {
     const current = now?.[types[index]];
     if (!current || serverPercentHundredths(current.percent) === serverPercentHundredths(percents[types[index]])) return text;
-    return `${text} (в «Сотрудниках» с ${monthGenitive(current.valid_from)} ${percentShort(current.percent)} — пересчитайте)`;
+    return `${text} (в «Сотрудниках» ${rateSinceText(current.valid_from)} ${percentShort(current.percent)} — пересчитайте)`;
   });
   return `Ставка: ${parts.join(" · ")}`;
 }
@@ -1289,9 +1291,23 @@ export function rateDialogTypes(item: Pick<PayrollRateItem, "lesson_types" | "ra
   return taught.length > 0 ? taught : LESSON_TYPES.map((type) => type.key);
 }
 
+/** The first month the server knows (its minimum): a rate that starts there has always been in force. */
+export const RATE_FROM_START = "2020-01";
+export const RATE_FROM_START_LABEL = "С самого начала";
+
+/** A rate (or its history row) that starts in the first month the server knows is «с самого начала», not «с января 2020». */
+export function isRateFromStart(validFrom: string | null | undefined): boolean {
+  return Boolean(validFrom) && String(validFrom).slice(0, 7) <= RATE_FROM_START;
+}
+
 /** «01.11.2026» -> «ноября» (the month a rate starts in, in the genitive: «с ноября 45%»). */
 function monthGenitive(validFrom: string): string {
   return formatIsoDateLabel(`${validFrom.slice(0, 7)}-01`, { day: "numeric", month: "long" }).replace(/^\d+\s+/, "");
+}
+
+/** «с ноября» / «с самого начала»: where a rate starts, in a line of text. */
+export function rateSinceText(validFrom: string): string {
+  return isRateFromStart(validFrom) ? "с самого начала" : `с ${monthGenitive(validFrom)}`;
 }
 
 /**
@@ -1306,7 +1322,7 @@ export function rateItemLine(item: PayrollRateItem): { text: string; missing: bo
   const parts = entries.map((entry) => {
     const label = lessonTypeLabel(entry.type);
     const base = entry.rate ? `${label} ${percentShort(entry.rate.percent)}` : `${label} не задана`;
-    return entry.next ? `${base} (с ${monthGenitive(entry.next.valid_from)} ${percentShort(entry.next.percent)})` : base;
+    return entry.next ? `${base} (${rateSinceText(entry.next.valid_from)} ${percentShort(entry.next.percent)})` : base;
   });
   return { text: `Ставка: ${parts.join(" · ")}`, missing: entries.some((entry) => !entry.rate && !entry.next) };
 }
@@ -1316,16 +1332,39 @@ export function defaultRateMonth(today: string): string {
   return monthOfDate(today);
 }
 
-/** The months «Действует с» offers: half a year back (a rate can be set backwards), the current one, three months ahead. */
-export function rateMonthOptions(today: string): Array<{ value: string; label: string }> {
+/** The teacher has a rate row of ANY kind (in force or scheduled): his first rate is the one that must reach the past. */
+export function hasAnyRate(item: Pick<PayrollRateItem, "rates" | "next">): boolean {
+  return Object.values(item.rates ?? {}).some(Boolean) || Object.values(item.next ?? {}).some(Boolean);
+}
+
+/**
+ * The months «Действует с» offers: «С самого начала» on top, half a year back (a rate can be set backwards), the current one,
+ * three months ahead; `extra` (the payroll month the owner came from) joins the list when it is not there yet.
+ */
+export function rateMonthOptions(today: string, extra?: string | null): Array<{ value: string; label: string }> {
   const current = monthOfDate(today);
-  const out: Array<{ value: string; label: string }> = [];
+  const out: Array<{ value: string; label: string }> = [{ value: RATE_FROM_START, label: RATE_FROM_START_LABEL }];
   for (let delta = -6; delta <= 3; delta += 1) {
     const value = shiftMonth(current, delta);
     out.push({ value, label: monthTitle(value) });
   }
+  if (extra && isMonthParam(extra) && !out.some((option) => option.value === extra)) {
+    out.splice(1, 0, { value: extra, label: monthTitle(extra) });
+  }
   return out;
 }
+
+/**
+ * What «Действует с» starts on.  A teacher with no rate at all gets «С самого начала» (the first rate covers the past months, so a
+ * past month can be calculated at once).  Otherwise the current month - or the payroll month the owner came from (`?month=`),
+ * when the teacher lacks a rate for another kind in it.
+ */
+export function defaultRateFrom(input: { hasAnyRate: boolean; today: string; month?: string | null }): string {
+  if (!input.hasAnyRate) return RATE_FROM_START;
+  return input.month && isMonthParam(input.month) ? input.month : defaultRateMonth(input.today);
+}
+
+export const RATE_FIRST_NOTE = "Первая ставка действует и для прошлых месяцев";
 
 export const RATE_PAST_NOTE = "Сохранённые ведомости не изменятся — у затронутых месяцев появится «Есть изменения».";
 
@@ -1372,7 +1411,7 @@ export function ratePutBody(
 
 /** One line of «История ставки»: «Группа 50%» and «с 01.09.2026 · Иванов И. · 16.10.2026». */
 export function rateHistoryView(item: PayrollRateHistoryItem): { title: string; detail: string } {
-  const from = formatUtcNaiveAsBusinessDate(item.valid_from);
+  const from = isRateFromStart(item.valid_from) ? "самого начала" : formatUtcNaiveAsBusinessDate(item.valid_from);
   const when = formatUtcNaiveAsBusinessDate(item.set_at);
   return {
     title: `${lessonTypeLabel(item.lesson_type)} ${percentShort(item.percent)}`,

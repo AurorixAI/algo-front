@@ -364,7 +364,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 />
               )}
               {saveError && !dirty && <p role="alert" className="text-sm font-medium text-rose-700 print:hidden">{saveError}</p>}
-              {rateMissing && <RateRequiredNotice teacherId={sheet.teacher_id} message={rateMissing} />}
+              {rateMissing && <RateRequiredNotice teacherId={sheet.teacher_id} message={rateMissing} month={sheet.month} />}
               <SheetSummaryCard
                 sheet={sheet}
                 total={total}

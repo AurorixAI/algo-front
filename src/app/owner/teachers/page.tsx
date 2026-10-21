@@ -64,6 +64,8 @@ function OwnerTeachersContent() {
   const [rateTeacherId, setRateTeacherId] = useState<string | null>(null);
   const today = useMemo(() => formatBusinessDate(), []);
   const teacherParam = searchParams?.get("teacher") ?? null;
+  /** The payroll month the link came from: the rate dialog starts the rate in it. */
+  const monthParam = searchParams?.get("month") ?? null;
   
   // UI State
   const [activeTab, setActiveTab] = useState<"members" | "invites">("members");
@@ -373,6 +375,7 @@ function OwnerTeachersContent() {
       <TeacherRateDialog
         item={rateTeacherId ? rates[rateTeacherId] ?? null : null}
         today={today}
+        month={monthParam}
         onClose={closeRateDialog}
         onSaved={(saved) => {
           setRates((previous) => ({ ...previous, [saved.teacher_id]: saved }));
