@@ -787,3 +787,16 @@ export function regimeSavedText(impact: RegimeImpact | null | undefined): string
   if (impact?.first_switch) return `Новый режим начнёт действовать с ${formatDateRu(impact.first_switch)}`;
   return "Новый режим начнёт действовать с начала следующего периода";
 }
+
+/** The keys of the payment settings that change the billing MODE (not the warnings or the start of the accounting). */
+export const REGIME_KEYS = ["period_mode", "billing_anchor", "billing_day", "lessons_per_payment"] as const;
+
+/** The part of a settings change that touches the mode; empty when the owner changed something else. */
+export function regimeChanges(changes: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of REGIME_KEYS) if (key in changes) out[key] = changes[key];
+  return out;
+}
+
+/** The decision 3 sentence of «Настройки оплат» and of the payroll help. */
+export const CANCELLED_LESSON_TEXT = "Отменённый центром урок не уменьшает оплату месяца; в пакетах он не списывается. Зарплата считается только за проведённые уроки; списанные центром дни оплачены для зарплаты.";

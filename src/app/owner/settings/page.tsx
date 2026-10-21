@@ -39,6 +39,7 @@ import {
 } from "@/lib/payroll";
 import { ACCOUNTING_START_MIN, accountingStartImpactLines, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
 import { daysWord, lessonsWord } from "@/lib/plural";
 import { effectiveRole } from "@/lib/role-home";
 import {
@@ -293,13 +294,30 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   }, [accountingChanged, form.accounting_start_date]);
   const state = saves.payments;
   const model = paymentModelOf(form);
+  // F12: a new mode starts for each student from the start of his next period; the dry run says whom it touches and when.
+  const regimeDiff = regimeChanges(diffPaymentSettings(loaded, form, paymentsScopeKeys(model)) as Record<string, unknown>);
+  const regimeKey = JSON.stringify(regimeDiff);
+  const regimeChanged = Object.keys(regimeDiff).length > 0;
+  const [regime, setRegime] = useState<{ key: string; lines: string[]; error: string | null } | null>(null);
+  useEffect(() => {
+    if (!regimeChanged) { setRegime(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      orgApi.previewPaymentSettings(regimeDiff)
+        .then((answer) => { if (!cancelled) setRegime({ key: regimeKey, lines: regimeImpactLines(answer.regime_impact), error: null }); })
+        .catch((cause) => { if (!cancelled) setRegime({ key: regimeKey, lines: [], error: cause instanceof Error ? cause.message : "Не удалось проверить последствия" }); });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // `regimeDiff` is a new object on every render; its key stands for the content.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [regimeChanged, regimeKey]);
   const patch = (next: Partial<PaymentSettings>) => draft.patch("payments", next);
   const choose = (key: PaymentModel) => patch(paymentModelPatch(key));
 
   return (
     <SettingsSection
       title="Оплаты"
-      description="Как центр считает оплаченный период, с какого дня ведётся учёт и кто может вносить оплаты. Внесённые оплаты не меняются: сумма долга и аванса пересчитывается по новым настройкам."
+      description={`Как центр считает оплаченный период, с какого дня ведётся учёт и кто может вносить оплаты. Внесённые оплаты не меняются: сумма долга и аванса пересчитывается по новым настройкам. ${CANCELLED_LESSON_TEXT}`}
       icon={Wallet}
       onSave={() => void draft.save("payments")}
       saving={state.saving}
@@ -327,6 +345,15 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
             </label>
           ))}
         </div>
+        <p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">{REGIME_HINT}</p>
+        {regimeChanged && regime && regime.key === regimeKey && regime.error && (
+          <p role="alert" className="mt-1 text-xs font-medium text-rose-700">{regime.error}</p>
+        )}
+        {regimeChanged && regime && regime.key === regimeKey && regime.lines.length > 0 && (
+          <ul role="status" className="mt-1 space-y-0.5 text-xs font-medium text-amber-800" data-testid="regime-impact">
+            {regime.lines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        )}
       </fieldset>
 
       <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
