@@ -41,7 +41,6 @@ function OwnerGroupsPageContent() {
   const [filterClass, setFilterClass] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState<StatusFilter>("active");
   const [search, setSearch] = useState("");
-  const [archivingId, setArchivingId] = useState<string | null>(null);
   const { showToast, toastNode } = useToast();
 
   const loadData = useCallback(async () => {
@@ -61,20 +60,6 @@ function OwnerGroupsPageContent() {
   }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
-
-  const handleArchive = async (id: string) => {
-    if (!confirm("Архивировать группу? Ученики останутся в системе.")) return;
-    setArchivingId(id);
-    try {
-      const updated = await orgApi.archiveGroup(id);
-      setGroups((prev) => prev.map((g) => g.id === id ? updated : g));
-      showToast("Группа архивирована");
-    } catch (e: any) {
-      showToast(e.message || "Ошибка", "error");
-    } finally {
-      setArchivingId(null);
-    }
-  };
 
   // Only teachers can be assigned to a group — not admins/owner
   const teachers = members.filter((m: any) =>
