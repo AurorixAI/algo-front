@@ -37,7 +37,7 @@ import {
   payrollFormulaText,
   type PayrollSettings,
 } from "@/lib/payroll";
-import { formatMoney } from "@/lib/payments";
+import { accountingStartImpactText, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { daysWord, lessonsWord } from "@/lib/plural";
 import { effectiveRole } from "@/lib/role-home";
@@ -183,7 +183,7 @@ function usePaymentSettingsDraft(enabled: boolean) {
     }
   };
 
-  return { status, form, saves, patch, save };
+  return { status, form, loaded, saves, patch, save };
 }
 
 type PaymentSettingsDraft = ReturnType<typeof usePaymentSettingsDraft>;
@@ -275,7 +275,21 @@ function NumberField({
 
 /** «Оплаты»: how the center counts the paid period and whether administrators may enter payments. */
 function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
-  const { form, saves } = draft;
+  const { form, loaded, saves } = draft;
+  const accountingChanged = Boolean(form.accounting_start_date) && form.accounting_start_date !== loaded.accounting_start_date;
+  const [impact, setImpact] = useState<{ date: string; text: string } | null>(null);
+  // What a new start of the accounting changes (the dry run of the server): asked once the owner stops typing the date.
+  useEffect(() => {
+    const date = form.accounting_start_date;
+    if (!accountingChanged || !date || !isIsoDate(date)) { setImpact(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      orgApi.previewPaymentSettings({ accounting_start_date: date })
+        .then((answer) => { if (!cancelled) setImpact({ date, text: accountingStartImpactText(answer.impact) }); })
+        .catch(() => { if (!cancelled) setImpact(null); });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [accountingChanged, form.accounting_start_date]);
   const state = saves.payments;
   const model = paymentModelOf(form);
   const patch = (next: Partial<PaymentSettings>) => draft.patch("payments", next);
@@ -284,7 +298,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   return (
     <SettingsSection
       title="Оплаты"
-      description="Как центр считает оплаченный период и кто может вносить оплаты. Новые настройки влияют на подсказки для новых оплат: внесённые оплаты не меняются."
+      description="Как центр считает оплаченный период, с какого дня ведётся учёт и кто может вносить оплаты. Внесённые оплаты не меняются: сумма долга и аванса пересчитывается по новым настройкам."
       icon={Wallet}
       onSave={() => void draft.save("payments")}
       saving={state.saving}
@@ -313,6 +327,23 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           ))}
         </div>
       </fieldset>
+
+      <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
+        <label htmlFor="payments-accounting-start" className={labelClasses}>Начало учёта оплат</label>
+        <input
+          id="payments-accounting-start"
+          type="date"
+          value={form.accounting_start_date ?? ""}
+          onChange={(e) => patch({ accounting_start_date: e.target.value || loaded.accounting_start_date || null })}
+          className={`${inputClasses} !w-48`}
+        />
+        <p className="text-xs text-slate-500">
+          С этого дня центр считает деньги: до него ученикам ничего не начисляется, задним числом долга не будет. Не позже чем через 31 день от сегодня.
+        </p>
+        {impact && impact.date === form.accounting_start_date && impact.text && (
+          <p role="status" className="text-xs font-medium text-amber-800">{impact.text}</p>
+        )}
+      </div>
 
       {model === "fixed_day" && (
         <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
