@@ -5,6 +5,7 @@ import { formatMoney } from "@/lib/payments";
 import {
   NOTE_MAX_LENGTH,
   sheetFactsParts,
+  type RatesNow,
   sheetNoFeeHref,
   warningViews,
   type PayrollDiff,
@@ -26,7 +27,7 @@ const DOT: Record<SheetCardStatus["tone"], string> = {
  * Excel and print are the quiet buttons of the corner.  The total here follows the unsaved edits, like the table.
  */
 export function SheetSummaryCard({
-  sheet, total, accrued, status, savedBy, busy, blockedReason, diff,
+  sheet, total, accrued, status, savedBy, busy, blockedReason, diff, ratesNow,
   onPrimary, onExcel, exporting, onPrint, note, onNote,
 }: {
   sheet: PayrollSheet;
@@ -42,6 +43,8 @@ export function SheetSummaryCard({
   blockedReason?: string | null;
   /** The difference the recalculation would make (a sheet whose data moved). */
   diff?: PayrollDiff | null;
+  /** The rate in force in the month of a saved sheet: the facts line says when it is not the sheet's. */
+  ratesNow?: RatesNow | null;
   onPrimary: () => void;
   /** Absent for a calculation not saved yet: there is no file of it. */
   onExcel?: () => void;
@@ -51,7 +54,7 @@ export function SheetSummaryCard({
   note?: string;
   onNote?: (text: string) => void;
 }) {
-  const facts = sheetFactsParts(sheet, accrued);
+  const facts = sheetFactsParts(sheet, accrued, ratesNow);
   // «без оплаты» is already in the line of facts under the total: the card does not say it twice
   const warnings = warningViews(sheet.warnings, { noFeeHref: sheetNoFeeHref(sheet) }).filter((view) => view.key !== "unpaid");
   const changed = status.tone === "changed";

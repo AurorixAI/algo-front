@@ -1080,12 +1080,23 @@ export function formatSignedMoney(delta: number): string {
 
 // ── The card on top of a sheet ──────────────────────────────────────────────
 
-/** «Ставка: Группа 50%» / «Ставка: Группа 50% · Индивидуально 40%»; null when the sheet has no rate to name. */
-export function sheetRateLine(sheet: Pick<PayrollSheet, "lines" | "percents">): string | null {
+/** The rate in force in the month of a sheet, by type (from the rates API): what «Сотрудники» says now. */
+export type RatesNow = Record<string, { percent: string; valid_from: string } | null | undefined>;
+
+/**
+ * «Ставка: Группа 50%» / «Ставка: Группа 50% · Индивидуально 40%»; null when the sheet has no rate to name.  With `now` (the rate
+ * in force for the month) a type whose saved rate differs says so: «Группа 50% (в «Сотрудниках» с октября 45% — пересчитайте)».
+ */
+export function sheetRateLine(sheet: Pick<PayrollSheet, "lines" | "percents">, now?: RatesNow | null): string | null {
   const percents = sheet.percents ?? {};
   const types = sheetLessonTypes(sheet).filter((type) => percents[type] !== undefined && percents[type] !== null);
   if (types.length === 0) return null;
-  return `Ставка: ${rateParts(types.map((type) => ({ type, percent: percents[type] }))).join(" · ")}`;
+  const parts = rateParts(types.map((type) => ({ type, percent: percents[type] }))).map((text, index) => {
+    const current = now?.[types[index]];
+    if (!current || serverPercentHundredths(current.percent) === serverPercentHundredths(percents[types[index]])) return text;
+    return `${text} (в «Сотрудниках» с ${monthGenitive(current.valid_from)} ${percentShort(current.percent)} — пересчитайте)`;
+  });
+  return `Ставка: ${parts.join(" · ")}`;
 }
 
 /** «засчитано 38 посещений» / «без оплаты 92 посещения (начислено 7)»: the unit is a visit (a student at a lesson), not a lesson. */
@@ -1094,9 +1105,9 @@ export function visitsText(count: number, forms: PluralForms = ["посещен�
 }
 
 /** The one line under the total: rate · counted · unpaid (accrued).  Parts with nothing to say are left out. */
-export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total">, accrued: number): string[] {
+export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total">, accrued: number, now?: RatesNow | null): string[] {
   const parts: string[] = [];
-  const rate = sheetRateLine(sheet);
+  const rate = sheetRateLine(sheet, now);
   if (rate) parts.push(rate);
   parts.push(`засчитано ${visitsText(sheet.counted_total)}`);
   if (sheet.unpaid_total > 0) {

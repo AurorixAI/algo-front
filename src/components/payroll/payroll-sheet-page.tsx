@@ -31,6 +31,7 @@ import {
   type PayrollRevision,
   type PayrollErrorLike,
   type PayrollSheet,
+  type RatesNow,
   type SheetEdits,
 } from "@/lib/payroll";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -98,6 +99,9 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const [rateMissing, setRateMissing] = useState<string | null>(null);
   /** The recalculation was refused because the data moved after the diff the owner looked at (409 SHEET_DATA_CHANGED). */
   const [dataChanged, setDataChanged] = useState<{ message: string; fingerprint: string | null; acknowledged: boolean } | null>(null);
+
+  /** The rate in force in the month of the sheet (what «Сотрудники» says now): the card names a difference from the saved one. */
+  const [ratesNow, setRatesNow] = useState<RatesNow | null>(null);
 
   const loads = useRef(createRequestSequence());
   const diffs = useRef(createRequestSequence());
@@ -177,6 +181,23 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   useEffect(() => {
     if (tab === "history" && sheet && revisions === null && !revisionsFailed) void loadRevisions();
   }, [tab, sheet, revisions, revisionsFailed, loadRevisions]);
+
+  // The rate in force in the month of this sheet, read again after every save / recalculation (a quiet failure: the card just says nothing)
+  const rateKey = sheet ? `${sheet.id}|${sheet.revision}|${sheet.month}|${sheet.teacher_id}` : "";
+  useEffect(() => {
+    if (!sheet || denied) { setRatesNow(null); return undefined; }
+    let cancelled = false;
+    orgApi.getPayrollRates(sheet.month)
+      .then((answer) => {
+        if (cancelled) return;
+        const item = answer.items.find((candidate) => candidate.teacher_id === sheet.teacher_id);
+        setRatesNow(item ? Object.fromEntries(Object.entries(item.rates ?? {}).map(([type, rate]) => [type, rate ? { percent: rate.percent, valid_from: rate.valid_from } : null])) : null);
+      })
+      .catch(() => { if (!cancelled) setRatesNow(null); });
+    return () => { cancelled = true; };
+    // the key says when the sheet changed; the sheet itself changes on every edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rateKey, denied]);
 
   // The title becomes the default file name when the sheet is saved as PDF from the print dialog.
   useEffect(() => {
@@ -352,6 +373,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 savedBy={sheet.updated_by_name}
                 busy={saving}
                 diff={diff}
+                ratesNow={ratesNow}
                 onPrimary={() => void apply(true)}
                 onExcel={() => void download()}
                 exporting={exporting}

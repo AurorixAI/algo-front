@@ -193,6 +193,26 @@ test("the facts line: rate · counted · unpaid (accrued), in visits", () => {
   assert.equal(plain(R.formatSignedMoney(-16666)), "−16 666 сум");
 });
 
+test("the facts line says when the rate in force for the month is not the saved one", () => {
+  const sheet = { lines: [{ lesson_type: "group" }, { lesson_type: "individual" }], percents: { group: "50", individual: "40" }, counted_total: 3, unpaid_total: 0 };
+  const now = (group, individual) => ({ group: { percent: group, valid_from: "2026-10-01" }, individual: { percent: individual, valid_from: "2026-09-01" } });
+  assert.equal(R.sheetRateLine(sheet, now("50", "40")), "Ставка: Группа 50% · Индивидуально 40%"); // equal: as before
+  assert.equal(R.sheetRateLine(sheet, now("50.00", "40")), "Ставка: Группа 50% · Индивидуально 40%");
+  assert.equal(R.sheetRateLine(sheet, now("45", "40")), "Ставка: Группа 50% (в «Сотрудниках» с октября 45% — пересчитайте) · Индивидуально 40%");
+  assert.equal(R.sheetRateLine(sheet, { group: null }), "Ставка: Группа 50% · Индивидуально 40%"); // no rate in force known: nothing to say
+  assert.equal(R.sheetRateLine(sheet, null), "Ставка: Группа 50% · Индивидуально 40%");
+  assert.deepEqual(R.sheetFactsParts(sheet, 0, now("45", "40"))[0].includes("пересчитайте"), true);
+  const page = read("src/components/payroll/payroll-sheet-page.tsx");
+  assert.match(page, /orgApi\.getPayrollRates\(sheet\.month\)/);
+  assert.match(page, /ratesNow=\{ratesNow\}/);
+});
+
+test("the page «Сотрудники» is called «Сотрудники», like the menu", () => {
+  const page = read("src/app/owner/teachers/page.tsx");
+  assert.match(page, /<h1[^>]*>Сотрудники<\/h1>/);
+  assert.doesNotMatch(page, /Команда/);
+});
+
 test("the card renders: the total big, one line of facts, the status and ONE main button; Excel and print are quiet", () => {
   const { SheetSummaryCard } = require(path.join(root, "src/components/payroll/sheet-summary.tsx"));
   const mark = (date, state) => ({ date, lesson_id: `l-${date}`, mark: 1, state, divisor: 12 });
