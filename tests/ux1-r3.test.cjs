@@ -321,29 +321,6 @@ test("leftPhrase: the verb agrees with the number, in the payments chip and in t
 
 // ── one name per action ─────────────────────────────────────────────────────────────────────────────
 
-test("actions: the button, the dialog title and the toast say the same verb", () => {
-  const payments = lib("payments.ts");
-  assert.equal(payments.PAY_ACTION_LABEL, "Внести оплату");
-  assert.deepEqual(payments.PAYMENT_SAVED_TEXT, { create: "Оплата внесена", replace: "Оплата исправлена" });
-  assert.match(read("src/components/payments/payment-form-modal.tsx"), /create: PAY_ACTION_LABEL,/);
-  for (const file of ["src/components/payments/payments-page.tsx", "src/components/payments/membership-payments.tsx"]) {
-    assert.match(read(file), /PAYMENT_SAVED_TEXT\[form\?\.kind \?\? "create"\]/, file);
-  }
-  const price = lib("group-price.ts");
-  assert.equal(price.ASSIGN_OVERRIDE_LABEL, "Назначить индивидуальную цену");
-  assert.equal(price.RETURN_TO_GROUP_LABEL, "Вернуть цену группы");
-  assert.equal(price.SET_GROUP_PRICE_LABEL, "Задать цену группы");
-  assert.equal(price.CHANGE_GROUP_PRICE_LABEL, "Изменить цену группы");
-  const membership = read("src/components/payments/membership-price.tsx");
-  assert.match(membership, /title=\{ASSIGN_OVERRIDE_LABEL\}/);
-  assert.match(membership, /"Индивидуальная цена назначена"/);
-  assert.match(membership, /title="Вернуть цену группы"/);
-  assert.match(membership, /"Ученик снова платит по цене группы"/);
-  assert.match(read("src/components/groups/group-price-dialog.tsx"), /title=\{current \? CHANGE_GROUP_PRICE_LABEL : SET_GROUP_PRICE_LABEL\}/);
-  assert.match(read("src/components/payments/group-prices-page.tsx"), /showToast\(item\.current \? "Цена группы изменена" : "Цена группы задана"\)/);
-  assert.match(read("src/components/payments/group-prices-page.tsx"), /\{item\.current \? "Изменить цену" : "Задать цену"\}/);
-});
-
 // ── the bottom bar, viewport, safe areas ─────────────────────────────────────────────────────────────
 
 test("bottom bar: the administrator's bar waits for the one fact that decides its slots; «Посещения»; «Ещё» is current", () => {

@@ -13,21 +13,38 @@ import type {
   PriceOverrideRequest,
 } from "./group-price";
 import type {
+  BalancesPage,
+  BalancesQuery,
   MembershipPaymentRow,
   PaymentCreate,
   PaymentFileOut,
   PaymentOut,
-  PaymentQuote,
-  PaymentQuoteQuery,
+  PaymentPreview,
   PaymentSaveResult,
   PaymentSettings,
+  PaymentSettingsChanged,
   PaymentSettingsUpdate,
   PaymentsStatusList,
   PaymentsSummary,
   PaymentBucket,
   PaymentWarning,
+  PreviewQuery,
+  ReceiptItems,
+  ReceiptItemsQuery,
   ReceiptOut,
+  ReceiptsQuery,
+  ReceiptsReport,
+  RefundCreate,
+  RefundCreated,
+  RefundVoided,
+  StatementOut,
+  StatementQuery,
+  WriteoffCreate,
+  WriteoffCreated,
+  WriteoffVoided,
 } from "./payments";
+import { normalizePreview, normalizeRow, normalizeSaveResult, normalizeStatement } from "./payments-ledger";
+import { normalizeBalances, normalizeItems, normalizeReport } from "./payments-income";
 import {
   filenameFromContentDisposition,
   type LessonType,
@@ -82,6 +99,10 @@ interface ApiOptions {
   sessionToken?: string;
   /** Unpredictable diagnostic invite used only by the public student flow. */
   inviteCode?: string;
+  /** Extra request headers (`Idempotency-Key` of a payment). */
+  headers?: Record<string, string>;
+  /** Cancels the request (a stale preview): the call then rejects with an `AbortError`. */
+  signal?: AbortSignal;
 }
 
 class ApiError extends Error {
@@ -121,10 +142,11 @@ function getStoredToken(): string | null {
 }
 
 async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body, token, noAuth = false } = options;
+  const { method = "GET", body, token, noAuth = false, signal } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    ...(options.headers ?? {}),
   };
 
   // Auto-inject token if not provided
@@ -141,8 +163,10 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
       credentials: "include",
       cache: "no-store",
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
-  } catch {
+  } catch (cause) {
+    if (signal?.aborted) throw cause;
     throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
   }
 
@@ -164,8 +188,10 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
           credentials: "include",
           cache: "no-store",
           body: body ? JSON.stringify(body) : undefined,
+          signal,
         });
-      } catch {
+      } catch (cause) {
+        if (signal?.aborted) throw cause;
         throw new ApiError(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.");
       }
     }
@@ -1486,17 +1512,19 @@ export const orgApi = {
 
   // ── Payments (owner; admin only when the owner enabled it) ─────────────
   getPaymentsSummary: () => api<PaymentsSummary>("/auth/org/payments/summary"),
-  getPaymentsStatus: (q: { bucket: PaymentBucket | "all"; groupId?: string; teacherId?: string; search?: string; limit?: number; offset?: number }) => {
+  getPaymentsStatus: (q: { bucket: PaymentBucket | "all" | "debt"; groupId?: string; teacherId?: string; search?: string; limit?: number; offset?: number }) => {
     const params = new URLSearchParams({ bucket: q.bucket });
     if (q.groupId) params.set("group_id", q.groupId);
     if (q.teacherId) params.set("teacher_id", q.teacherId);
     if (q.search) params.set("search", q.search);
     params.set("limit", String(q.limit ?? 50));
     params.set("offset", String(q.offset ?? 0));
-    return api<PaymentsStatusList>(`/auth/org/payments/status?${params.toString()}`);
+    return api<PaymentsStatusList>(`/auth/org/payments/status?${params.toString()}`)
+      .then((page) => ({ ...page, items: (page?.items ?? []).map(normalizeRow) }));
   },
   getStudentMemberships: (studentId: string) =>
-    api<MembershipPaymentRow[]>(`/auth/org/students/${encodePathId(studentId)}/memberships`),
+    api<MembershipPaymentRow[]>(`/auth/org/students/${encodePathId(studentId)}/memberships`)
+      .then((rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : [])),
   // ── Price of a group and the exception of one student (#105; money roles only) ──
   /** «Оплаты -> Цены групп»: every group that is not archived with its price today, the next scheduled price and the count of individual prices. */
   listGroupPrices: () => api<GroupPriceList>("/auth/org/group-prices"),
@@ -1523,22 +1551,88 @@ export const orgApi = {
     }),
   listMembershipPayments: (membershipId: string, includeVoided = true) =>
     api<PaymentOut[]>(`/auth/org/memberships/${encodePathId(membershipId)}/payments?include_voided=${includeVoided}`),
-  createPayment: (membershipId: string, data: PaymentCreate) =>
-    api<PaymentSaveResult>(`/auth/org/memberships/${encodePathId(membershipId)}/payments`, { method: "POST", body: data }),
-  replacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }) =>
-    api<PaymentSaveResult>(`/auth/org/payments/${encodePathId(paymentId)}/replace`, { method: "POST", body: data }),
+  /** `Idempotency-Key`: one per opening of the dialog, so a double click or a retry cannot enter the money twice (409 `DUPLICATE_PAYMENT`). */
+  createPayment: (membershipId: string, data: PaymentCreate, idempotencyKey?: string) =>
+    api<PaymentSaveResult>(`/auth/org/memberships/${encodePathId(membershipId)}/payments`, {
+      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    }).then(normalizeSaveResult),
+  replacePayment: (paymentId: string, data: PaymentCreate & { reason?: string }, idempotencyKey?: string) =>
+    api<PaymentSaveResult>(`/auth/org/payments/${encodePathId(paymentId)}/replace`, {
+      method: "POST", body: data, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    }).then(normalizeSaveResult),
   voidPayment: (paymentId: string, reason: string) =>
     api<{ payment: PaymentOut; row: MembershipPaymentRow }>(`/auth/org/payments/${encodePathId(paymentId)}/void`, {
       method: "POST", body: { reason },
-    }),
-  /** Suggested dates and amount for the next payment of a membership (same rules as creating it). */
-  getPaymentQuote: (membershipId: string, q: PaymentQuoteQuery) => {
-    const params = new URLSearchParams({ paid_on: q.paid_on });
-    if (q.valid_from) params.set("valid_from", q.valid_from);
-    if (q.valid_to) params.set("valid_to", q.valid_to);
-    if (q.lessons_count !== undefined) params.set("lessons_count", String(q.lessons_count));
-    if (q.monthly_fee !== undefined) params.set("monthly_fee", String(q.monthly_fee));
-    return api<PaymentQuote>(`/auth/org/memberships/${encodePathId(membershipId)}/payments/quote?${params.toString()}`);
+    }).then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  /** «Что закроет»: what is due now and, with `amount`, where exactly that money would go.  Pass a `signal` to drop a stale ask. */
+  getPaymentPreview: (membershipId: string, q: PreviewQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams();
+    if (q.amount !== undefined) params.set("amount", String(q.amount));
+    if (q.paid_on) params.set("paid_on", q.paid_on);
+    if (q.replace_payment_id) params.set("replace_payment_id", q.replace_payment_id);
+    const query = params.toString();
+    return api<PaymentPreview>(`/auth/org/memberships/${encodePathId(membershipId)}/payments/preview${query ? `?${query}` : ""}`, { signal })
+      .then(normalizePreview);
+  },
+  /** Writes off a part of the debt (or all of it) with a reason; the owner and the administrator. */
+  createWriteoff: (membershipId: string, data: WriteoffCreate) =>
+    api<WriteoffCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/writeoffs`, { method: "POST", body: data })
+      .then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  voidWriteoff: (writeoffId: string, reason: string) =>
+    api<WriteoffVoided>(`/auth/org/writeoffs/${encodePathId(writeoffId)}/void`, { method: "POST", body: { reason } })
+      .then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  /** Gives an advance back (a record of a refund, the payment stays). */
+  createRefund: (membershipId: string, data: RefundCreate) =>
+    api<RefundCreated>(`/auth/org/memberships/${encodePathId(membershipId)}/refunds`, { method: "POST", body: data })
+      .then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  voidRefund: (refundId: string, reason: string) =>
+    api<RefundVoided>(`/auth/org/refunds/${encodePathId(refundId)}/void`, { method: "POST", body: { reason } })
+      .then((result) => ({ ...result, row: normalizeRow(result.row) })),
+  /** The account of a student in a group: charges, payments, write-offs, refunds with the running balance. */
+  getStatement: (membershipId: string, q: StatementQuery = {}) => {
+    const params = new URLSearchParams();
+    if (q.from) params.set("from", q.from);
+    if (q.to) params.set("to", q.to);
+    if (q.include_voided) params.set("include_voided", "true");
+    const query = params.toString();
+    return api<StatementOut>(`/auth/org/memberships/${encodePathId(membershipId)}/statement${query ? `?${query}` : ""}`).then(normalizeStatement);
+  },
+  /** The same statement as an .xlsx file (the server builds it). */
+  exportStatement: (membershipId: string, q: StatementQuery = {}, fallbackName = "Выписка.xlsx") => {
+    const params = new URLSearchParams({ format: "xlsx" });
+    if (q.from) params.set("from", q.from);
+    if (q.to) params.set("to", q.to);
+    if (q.include_voided) params.set("include_voided", "true");
+    return fetchFile(`/auth/org/memberships/${encodePathId(membershipId)}/statement/export?${params.toString()}`, fallbackName, "Не удалось скачать Excel");
+  },
+  /** «Поступления»: money received in a period, where it went, what is owed today; `reconciliation` says whether it adds up. */
+  getReceiptsReport: (q: ReceiptsQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ from: q.from, to: q.to, group_by: q.group_by });
+    if (q.method) params.set("method", q.method);
+    if (q.group_id) params.set("group_id", q.group_id);
+    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
+    return api<ReceiptsReport>(`/auth/org/payments/receipts?${params.toString()}`, { signal }).then(normalizeReport);
+  },
+  /** The payments (write-offs, refunds) behind one figure of the report. */
+  getReceiptItems: (q: ReceiptItemsQuery) => {
+    const params = new URLSearchParams({ from: q.from, to: q.to, column: q.column });
+    if (q.bucket) params.set("bucket", q.bucket);
+    if (q.method) params.set("method", q.method);
+    if (q.group_id) params.set("group_id", q.group_id);
+    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
+    params.set("limit", String(q.limit ?? 50));
+    params.set("offset", String(q.offset ?? 0));
+    return api<ReceiptItems>(`/auth/org/payments/receipts/items?${params.toString()}`).then(normalizeItems);
+  },
+  /** Students with a debt / an advance today, for the position figures of the report. */
+  getBalances: (q: BalancesQuery) => {
+    const params = new URLSearchParams({ kind: q.kind });
+    if (q.group_id) params.set("group_id", q.group_id);
+    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
+    if (q.search) params.set("search", q.search);
+    params.set("limit", String(q.limit ?? 50));
+    params.set("offset", String(q.offset ?? 0));
+    return api<BalancesPage>(`/auth/org/payments/balances?${params.toString()}`).then(normalizeBalances);
   },
   getPaymentReceipt: (paymentId: string) =>
     api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt`),
@@ -1556,7 +1650,10 @@ export const orgApi = {
     deleteAuthed(`/auth/org/payments/${encodePathId(paymentId)}/files/${encodePathId(fileId)}`, "Не удалось удалить файл"),
   getPaymentSettings: () => api<PaymentSettings>("/auth/org/settings/payments"),
   updatePaymentSettings: (data: PaymentSettingsUpdate) =>
-    api<PaymentSettings>("/auth/org/settings/payments", { method: "PUT", body: data }),
+    api<PaymentSettingsChanged>("/auth/org/settings/payments", { method: "PUT", body: data }),
+  /** What a new start of the accounting would change (`dry_run`: nothing is saved; the answer holds the CURRENT settings and the impact). */
+  previewPaymentSettings: (data: PaymentSettingsUpdate) =>
+    api<PaymentSettingsChanged>("/auth/org/settings/payments?dry_run=true", { method: "PUT", body: data }),
 
   // ── Payroll (owner only; every route answers 403 to anyone else) ───────
   // Errors: `detail: {code, message, ...}` - ApiError.message is `detail.message`, ApiError.code is `detail.code`.

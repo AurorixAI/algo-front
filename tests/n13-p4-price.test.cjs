@@ -765,17 +765,6 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   assert.doesNotMatch(banner, /сохранение создаст новую редакцию, прежние правки/);
 });
 
-test("the payment forms: «Цена группы не задана» with a link, one-off sum only through the quote", () => {
-  const modal = read("src/components/payments/payment-form-modal.tsx");
-  assert.match(modal, /quoteLacksPrice\(fresh\) && groupsBasePath && membership\.group_id/);
-  assert.match(modal, /groupPriceHref\(groupsBasePath, membership\.group_id\)/);
-  const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /цена группы не задана/);
-  assert.doesNotMatch(page, /не задана<\/span>/);
-  assert.match(page, /priceSourceTag\(price\)/);
-  assert.equal(P.PRICE_NOT_SET_TEXT, "Цена группы не задана — введите сумму вручную");
-});
-
 test("«Изменить цену»: «Сохранить» waits for the consequences of exactly this sum and day; a conflict reloads", () => {
   const dialog = read("src/components/groups/group-price-dialog.tsx");
   // the question for the consequences is the dry run, with the sum and the day only

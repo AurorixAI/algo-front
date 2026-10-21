@@ -12,11 +12,15 @@ import {
   type MembershipPaymentRow,
   type PaymentOut,
 } from "@/lib/payments";
+import { payError } from "@/lib/payments-ledger";
 import { Modal } from "@/components/ui/modal";
+
+/** What the dialog needs to know of the payment (the statement knows no more than this). */
+export type VoidablePayment = Pick<PaymentOut, "id" | "paid_on" | "amount"> & Partial<Pick<PaymentOut, "carried_from">>;
 
 interface PaymentVoidModalProps {
   /** The payment to cancel; null keeps the dialog closed. */
-  payment: PaymentOut | null;
+  payment: VoidablePayment | null;
   studentName?: string;
   onClose: () => void;
   onVoided: (result: { payment: PaymentOut; row: MembershipPaymentRow }) => void;
@@ -45,7 +49,8 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
       onVoided(result);
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось отменить оплату");
+      // The server's own text: «Сначала отмените возврат: без этой оплаты вернуть нечего» (409 VOID_BREAKS_REFUND) and the like.
+      setError(payError(cause, "Не удалось отменить оплату").message);
     } finally {
       setBusy(false);
     }
@@ -86,7 +91,7 @@ export function PaymentVoidModal({ payment, studentName, onClose, onVoided }: Pa
         />
         <p className="text-xs text-slate-400">Запись не удаляется: она останется в истории серым с этой причиной.</p>
         {payment && !isCarryOver(payment) && (
-          <p className="text-xs text-slate-400">Если оплата переносилась при переводе в другую группу, перенос тоже отменится.</p>
+          <p className="text-xs text-slate-500">Деньги группы распределятся заново: долг, аванс и «оплачено до» пересчитаются так, будто этой оплаты не было.</p>
         )}
         {payment && isCarryOver(payment) && (
           <p className="text-xs text-slate-400">Исходная оплата в «{payment.carried_from?.group_name}» снова начнёт действовать.</p>

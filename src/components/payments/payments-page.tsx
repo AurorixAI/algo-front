@@ -3,68 +3,72 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2, Pencil, Search, Tags, UserRound, Wallet, XCircle } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, UserRound, Undo2, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
-  addMonthMinusDay,
-  billingPeriodEndOf,
   bucketCount,
   bucketTabLabel,
-  buildPaymentPayload,
-  buildQuoteQuery,
-  fixedDayChips,
   formatDateRu,
   formatMoney,
+  formatMoneyInput,
+  incomeHref,
+  pluralRu,
   isCarryOver,
-  isPartialPeriod,
   lastPaymentLabel,
   paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
+  paymentsBaseOf,
   PAY_ACTION_LABEL,
-  PARTIAL_AMOUNT_PROMPT,
-  PARTIAL_PERIOD_BADGE,
-  QUOTE_FAILED_NOTE,
-  quoteCaption,
-  quoteLacksPrice,
-  quotePrefill,
-  quoteQueryKey,
-  reformatMoneyTyping,
-  formatMoneyInput,
   PAYMENT_SAVED_TEXT,
+  reformatMoneyTyping,
+  statementHref,
   statusDetail,
   statusLabel,
   statusTone,
   STATUS_TONE_CLASS,
-  validatePaymentForm,
   type MembershipPaymentRow,
   type PaymentBucket,
-  type PaymentFormValues,
   type PaymentOut,
-  type PaymentQuote,
   type PaymentSaveResult,
   type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
+import {
+  buildPaymentPayload,
+  canRefund,
+  canWriteOff,
+  dueView,
+  METHODS,
+  newIdempotencyKey,
+  payError,
+  previewAmount,
+  previewView,
+  savedPaymentDetails,
+  validatePaymentForm,
+  type EnterableMethod,
+} from "@/lib/payments-ledger";
 import { FREE_WORD, groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
-import { usePaymentQuote } from "@/lib/use-payment-quote";
+import { markReceiptNavigation } from "@/lib/receipt-nav";
+import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
-import { PaymentFormModal, type PaymentFormKind } from "./payment-form-modal";
+import { BalanceNote } from "./balance-note";
+import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
+import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
+import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 
 const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
 const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_156px] xl:items-center xl:gap-x-4";
 const GRID_NONE = "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,2.6fr)] xl:items-center xl:gap-x-4";
-
-const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   due: "Нет учеников, которым пора платить",
@@ -102,116 +106,70 @@ function useOnceVisible(ref: React.RefObject<Element | null>, callback: () => vo
 }
 
 /**
- * Quick entry of a first payment right in the row of the «Без оплат» tab.  The sum is suggested from the price of the
- * group (or the individual price of the student); the price is never typed here - where there is none, the row says so,
- * links to the group and the amount of the payment is typed by hand.
+ * Quick entry of a first payment right in the row of the «Без оплат» tab: the amount and how it was paid, nothing else.
+ * The server says what is due (the amount starts as that) and, as the amount is typed, where the money goes.  The
+ * price is never typed here - where there is none, the row says so, links to the group and the amount is typed by hand.
  */
 function QuickEntry({
-  row, periodMode, lessonsDefault, groupsBasePath, onDone,
+  row, groupsBasePath, onDone,
 }: {
   row: MembershipPaymentRow;
-  periodMode: PeriodMode;
-  lessonsDefault: number | null;
   groupsBasePath: string;
-  onDone: (row: MembershipPaymentRow, warnings: PaymentWarning[]) => void;
+  onDone: (result: PaymentSaveResult) => void;
 }) {
   const today = useMemo(() => formatBusinessDate(), []);
   const price = priceOfRow(row);
-  const priceView = membershipPriceView(price, priceLabelOf(periodMode));
-  const priceAmount = price.amount ?? null;
-  // The amount of the payment: typed, else the suggestion of the server, else the price.
+  const priceView = membershipPriceView(price, priceLabelOf(row.period_mode ?? "calendar"));
   const [amount, setAmount] = useState("");
-  const [amountTouched, setAmountTouched] = useState(false);
-  const [paidOn, setPaidOn] = useState(today);
-  const [validFrom, setValidFrom] = useState(today);
-  const [validTo, setValidTo] = useState(() => addMonthMinusDay(today));
-  const [toTouched, setToTouched] = useState(false);
-  const [lessons, setLessons] = useState(lessonsDefault ? String(lessonsDefault) : "");
+  const [method, setMethod] = useState<EnterableMethod | "">("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // The server is asked only for rows that have been in view: a long list does not fire a request per row.
   const [seen, setSeen] = useState(false);
   const formRef = useRef<HTMLFormElement | null>(null);
   useOnceVisible(formRef, () => setSeen(true));
+  const touched = useRef(false);
+  const immediate = useRef(false);
+  const idempotencyKey = useRef(newIdempotencyKey());
 
-  const query = useMemo(() => buildQuoteQuery({
-    mode: periodMode, paidOn, validFrom, validTo, lessons, fromTouched: false, toTouched,
-  }), [periodMode, paidOn, validFrom, validTo, lessons, toTouched]);
-  const queryKey = quoteQueryKey(query);
-  const quoteState = usePaymentQuote({
+  const amountNow = previewAmount(amount);
+  const query = useMemo(() => (seen ? (amountNow !== null ? { amount: amountNow } : {}) : null), [seen, amountNow]);
+  const key = previewKey(query);
+  const state = usePaymentPreview({
     enabled: seen,
     membershipId: row.membership_id,
     query,
-    onQuote: (quote: PaymentQuote) => {
-      // The period only: the amount of this row is derived below.
-      const patch = quotePrefill(quote, { from: false, to: toTouched, amount: true }, periodMode);
-      if (patch.validFrom) setValidFrom(patch.validFrom);
-      if (patch.validTo) setValidTo(patch.validTo);
+    immediate,
+    onPreview: (answer) => {
+      if (touched.current || answer.suggested_amount <= 0) return;
+      touched.current = true;
+      immediate.current = true;
+      setAmount((previous) => previous || formatMoneyInput(answer.suggested_amount));
     },
   });
-  const { quote, loading: quoteLoading, failed: quoteFailed } = quoteState;
-  const fresh = quote && quoteState.quoteKey === queryKey ? quote : null;
-  const fixedDay = periodMode === "calendar" && quote?.billing_anchor === "fixed_day" ? quote.billing_day : null;
-
-  // No answer: the period is worked out here, from the payment date; the center's day is used once an answer has told it.
-  useEffect(() => {
-    if (!quoteFailed) return;
-    setValidFrom(paidOn);
-    if (!toTouched) setValidTo(fixedDay !== null ? billingPeriodEndOf(paidOn, fixedDay) : addMonthMinusDay(paidOn));
-  }, [quoteFailed, paidOn]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const suggestion = fresh !== null && fresh.suggested_amount !== null ? fresh.suggested_amount : null;
-  // A period of an odd length has no price: the amount is stated by hand, not taken from the price.
-  const custom = fresh?.basis === "custom";
-  const partial = fresh ? fresh.partial : fixedDay !== null && isPartialPeriod(validFrom, validTo, fixedDay);
-  // Never the full price for a part of a month: without a suggestion the field stays empty.
-  const defaultAmount = custom ? null : suggestion ?? (partial ? null : priceAmount);
-  const showAmount = amountTouched || custom || partial || priceAmount === null || (suggestion !== null && suggestion !== priceAmount);
-  const amountText = amountTouched ? amount : formatMoneyInput(defaultAmount);
-  const waiting = seen && quoteLoading && !(amountTouched && toTouched);
-  const caption = quoteFailed
-    ? QUOTE_FAILED_NOTE
-    : partial && defaultAmount === null && !amountTouched
-      ? PARTIAL_AMOUNT_PROMPT
-      // «Цена группы не задана» is said (with the link) over the form already
-      : fresh && !quoteLacksPrice(fresh) ? quoteCaption(fresh) : "";
-
-  const changePaidOn = (value: string) => {
-    setError(null);
-    setPaidOn(value);
-    // With one center day the server knows the period: the dates wait for its answer.
-    if (fixedDay) return;
-    setValidFrom(value);
-    if (!toTouched && value) setValidTo(addMonthMinusDay(value));
-  };
-
-  const changeValidTo = (value: string) => {
-    setToTouched(true);
-    setError(null);
-    setValidTo(value);
-  };
+  const latest = state.preview;
+  const fresh = latest && state.previewKey === key ? latest : null;
+  const due = dueView(latest);
+  const view = amountNow !== null ? previewView(fresh) : null;
 
   const save = async () => {
-    if (busy || waiting) return;
-    const values: PaymentFormValues = {
-      amount: amountText, paidOn, validFrom, validTo, lessons, note: "", reason: "",
-    };
-    const problem = validatePaymentForm(values, periodMode, today);
+    if (busy) return;
+    const values = { amount, paidOn: today, method: method || null, note: "", reason: "" };
+    const problem = validatePaymentForm(values, today);
     if (problem) { setError(problem); return; }
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.createPayment(row.membership_id, buildPaymentPayload(values, periodMode));
-      onDone(result.row, result.warnings || []);
+      onDone(await orgApi.createPayment(row.membership_id, buildPaymentPayload(values), idempotencyKey.current));
     } catch (cause) {
-      setError((cause instanceof Error ? cause.message : "Не удалось сохранить оплату").replace(/[.\s]+$/, ""));
+      const failure = payError(cause, "Не удалось сохранить оплату");
+      setError(failure.message);
       setBusy(false);
     }
   };
 
   const id = `quick-${row.membership_id}`;
-  const chips = fixedDay !== null ? fixedDayChips(validFrom, validTo, fixedDay) : null;
-  const chipClass = "rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors";
+  const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
   return (
     <form
       ref={formRef}
@@ -231,75 +189,52 @@ function QuickEntry({
           <span className="text-slate-600">{priceView.text}</span>
         )}
       </p>
+      {due && due.total > 0 && <p className="text-xs text-slate-600" data-testid="quick-due">{due.text}</p>}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
         <div>
-          <label htmlFor={`${id}-paid`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Дата оплаты</label>
-          <input id={`${id}-paid`} type="date" value={paidOn} max={today} onChange={(event) => changePaidOn(event.target.value)} className={FIELD} />
-        </div>
-        {periodMode === "calendar" ? (
-          <div>
-            <label htmlFor={`${id}-to`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Оплачено до</label>
-            <input id={`${id}-to`} type="date" value={validTo} onChange={(event) => changeValidTo(event.target.value)} className={FIELD} />
-          </div>
-        ) : (
-          <div>
-            <label htmlFor={`${id}-lessons`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Уроков</label>
-            <input
-              id={`${id}-lessons`}
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={lessons}
-              onChange={(event) => { setError(null); setLessons(event.target.value); }}
-              placeholder="по настройке"
-              className={FIELD}
-            />
-          </div>
-        )}
-        <button
-          type="submit"
-          disabled={busy || waiting}
-          className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-60 sm:col-span-1"
-        >
-          {(busy || waiting) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Сохранить
-        </button>
-      </div>
-
-      {chips && (
-        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Оплачено до: быстрый выбор">
-          <button type="button" aria-pressed={validTo === chips.toEnd} onClick={() => changeValidTo(chips.toEnd)} className={`${chipClass} ${validTo === chips.toEnd ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
-            До конца месяца ({formatDateRu(chips.toEnd).slice(0, 5)})
-          </button>
-          <button type="button" aria-pressed={validTo === chips.plusNext} onClick={() => changeValidTo(chips.plusNext)} className={`${chipClass} ${validTo === chips.plusNext ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}>
-            + следующий месяц ({formatDateRu(chips.plusNext).slice(0, 5)})
-          </button>
-        </div>
-      )}
-
-      {showAmount && (
-        <div className="max-w-[14rem]">
           <label htmlFor={`${id}-amount`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Сумма оплаты, сум</label>
           <input
             id={`${id}-amount`}
-            value={amountText}
-            onChange={(event) => { setError(null); setAmountTouched(true); setAmount(reformatMoneyTyping(event.target.value)); }}
+            value={amount}
+            onChange={(event) => { setError(null); touched.current = true; setAmount(reformatMoneyTyping(event.target.value)); }}
             inputMode="numeric"
             autoComplete="off"
             placeholder="450 000"
             className={FIELD}
           />
         </div>
-      )}
+        <div>
+          <label htmlFor={`${id}-method`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Способ оплаты</label>
+          <select
+            id={`${id}-method`}
+            value={method}
+            onChange={(event) => { setError(null); setMethod(event.target.value as EnterableMethod | ""); }}
+            className={FIELD}
+          >
+            <option value="">Выберите…</option>
+            {METHODS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+          </select>
+        </div>
+        <button
+          type="submit"
+          disabled={busy}
+          className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-60 sm:col-span-1"
+        >
+          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          Сохранить
+        </button>
+      </div>
 
-      <p aria-live="polite" className={`min-h-[1rem] text-[11px] ${quoteFailed && !waiting ? "text-amber-700" : "text-slate-500"}`}>
-        {waiting ? (
-          <span className="inline-flex items-center gap-1 text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем сумму…</span>
-        ) : caption}
-        {!waiting && !quoteFailed && fresh?.partial && (
-          <span className="ml-2 inline-flex rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-amber-800">{PARTIAL_PERIOD_BADGE}</span>
-        )}
-      </p>
+      <div aria-live="polite" className="min-h-[1rem] text-[11px] text-slate-500">
+        {state.error ? (
+          <span className="text-rose-700">{state.error}</span>
+        ) : view ? (
+          <>
+            <span>{view.headline}</span>
+            {view.priceAhead.length > 0 && <span className="mt-0.5 block text-amber-800">{view.priceAhead.join(" ")}</span>}
+          </>
+        ) : null}
+      </div>
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
     </form>
   );
@@ -317,7 +252,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const none = usePaymentsSummary((state) => state.none);
   const activeCount = usePaymentsSummary((state) => state.active);
   const periodMode = usePaymentsSummary((state) => state.periodMode);
-  const lessonsDefault = usePaymentsSummary((state) => state.lessonsPerPayment);
+  const debtTotal = usePaymentsSummary((state) => state.debtTotal);
+  const advanceTotal = usePaymentsSummary((state) => state.advanceTotal);
+  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
 
   const { showToast, toastNode } = useToast();
@@ -337,6 +274,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const [form, setForm] = useState<FormState | null>(null);
   const [voidTarget, setVoidTarget] = useState<{ payment: PaymentOut; studentName: string } | null>(null);
+  const [writeoffRow, setWriteoffRow] = useState<MembershipPaymentRow | null>(null);
+  const [refundRow, setRefundRow] = useState<MembershipPaymentRow | null>(null);
+  const paymentsBase = paymentsBaseOf(groupsBasePath);
 
   const requests = useRef(createRequestSequence());
   const tabsRef = useRef<HTMLDivElement | null>(null);
@@ -426,17 +366,17 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     void refreshSummary(true);
   }, [load, refreshSummary]);
 
-  const onSaved = (_result: PaymentSaveResult) => {
-    showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"]);
+  const onSaved = (result: PaymentSaveResult) => {
+    showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], "success", savedPaymentDetails(result.allocation));
     afterChange();
   };
 
-  const onQuickDone = (row: MembershipPaymentRow, warnings: PaymentWarning[]) => {
+  const onQuickDone = (result: PaymentSaveResult) => {
     // The row has a status now: it leaves the «Без оплат» tab without reloading the page.
-    setItems((previous) => previous.filter((item) => item.membership_id !== row.membership_id));
+    setItems((previous) => previous.filter((item) => item.membership_id !== result.row.membership_id));
     setTotal((value) => Math.max(0, value - 1));
-    if (warnings.length > 0) showToast("Оплата внесена", "warning", warningLines(warnings));
-    else showToast("Оплата внесена");
+    const details = [...savedPaymentDetails(result.allocation), ...warningLines(result.warnings)];
+    showToast(PAYMENT_SAVED_TEXT.create, result.warnings.length > 0 ? "warning" : "success", details);
     void refreshSummary(true);
   };
 
@@ -461,15 +401,40 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
-          <p className="text-sm text-slate-500">Кто из учеников оплатил занятия и когда оплата заканчивается</p>
+          <p className="text-sm text-slate-500">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
+          {summaryLoaded && (debtTotal > 0 || advanceTotal > 0) && (
+            <p className="mt-1 text-sm" data-testid="payments-position">
+              {debtTotal > 0 && (
+                <Link href={`${incomeHref(paymentsBase)}#position`} className="font-semibold text-rose-700 hover:underline">
+                  Долг учеников {formatMoney(debtTotal)}
+                  {studentsWithDebt > 0 && <span className="font-normal text-slate-500"> · {studentsWithDebt} {pluralRu(studentsWithDebt, "ученик", "ученика", "учеников")}</span>}
+                </Link>
+              )}
+              {debtTotal > 0 && advanceTotal > 0 && <span className="text-slate-300"> · </span>}
+              {advanceTotal > 0 && (
+                <Link href={`${incomeHref(paymentsBase)}#position`} className="font-semibold text-emerald-700 hover:underline">
+                  Аванс {formatMoney(advanceTotal)}
+                </Link>
+              )}
+            </p>
+          )}
         </div>
-        <Link
-          href={pricesBaseOf(groupsBasePath)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          <Tags className="h-4 w-4 text-slate-400" aria-hidden="true" />
-          Цены групп
-        </Link>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Link
+            href={incomeHref(paymentsBase)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <TrendingUp className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            Поступления
+          </Link>
+          <Link
+            href={pricesBaseOf(groupsBasePath)}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            <Tags className="h-4 w-4 text-slate-400" aria-hidden="true" />
+            Цены групп
+          </Link>
+        </div>
       </div>
 
       {/* One row from 2xl (1536 px): tabs on the left, search and filter on the right.  Below it the toolbar sits under the
@@ -550,9 +515,11 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                 row={row}
                 bucket={bucket}
                 periodMode={periodMode}
-                lessonsDefault={lessonsDefault}
+                paymentsBase={paymentsBase}
                 studentProfileBasePath={studentProfileBasePath}
                 groupsBasePath={groupsBasePath}
+                onWriteoff={() => setWriteoffRow(row)}
+                onRefund={() => setRefundRow(row)}
                 onPay={() => setForm({ kind: "create", row, payment: null })}
                 onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
                 onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
@@ -574,7 +541,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       )}
 
-      <PaymentFormModal
+      <PaymentDialog
         open={form !== null}
         kind={form?.kind ?? "create"}
         membership={form ? {
@@ -582,21 +549,30 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           group_id: form.row.group_id,
           student_name: form.row.student_name,
           group_name: form.row.group_name,
-          monthly_fee: priceOfRow(form.row).amount,
-          paid_until: form.row.paid_until,
         } : null}
         payment={form?.payment ?? null}
-        periodMode={periodMode}
-        lessonsDefault={lessonsDefault}
         groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
+        onDuplicate={() => { showToast("Эта оплата уже внесена"); afterChange(); }}
       />
       <PaymentVoidModal
         payment={voidTarget?.payment ?? null}
         studentName={voidTarget?.studentName}
         onClose={() => setVoidTarget(null)}
         onVoided={() => { showToast("Оплата отменена"); afterChange(); }}
+      />
+      <WriteoffDialog
+        row={writeoffRow}
+        studentName={writeoffRow?.student_name ?? ""}
+        onClose={() => setWriteoffRow(null)}
+        onDone={(result) => { showToast("Долг списан", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); afterChange(); }}
+      />
+      <RefundDialog
+        row={refundRow}
+        studentName={refundRow?.student_name ?? ""}
+        onClose={() => setRefundRow(null)}
+        onDone={(result) => { showToast("Аванс возвращён", "success", [`Возвращено ${formatMoney(result.refund.amount)}`]); afterChange(); }}
       />
 
       {toastNode}
@@ -605,18 +581,21 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 }
 
 function PaymentRow({
-  row, bucket, periodMode, lessonsDefault, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onQuickDone,
+  row, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund, onQuickDone,
 }: {
   row: MembershipPaymentRow;
   bucket: PaymentBucket;
   periodMode: PeriodMode;
-  lessonsDefault: number | null;
+  /** `/owner/payments` or `/admin/payments`: where the statement of a student lives. */
+  paymentsBase: string;
   studentProfileBasePath: string;
   groupsBasePath: string;
   onPay: () => void;
   onCorrect: (payment: PaymentOut) => void;
   onVoid: (payment: PaymentOut) => void;
-  onQuickDone: (row: MembershipPaymentRow, warnings: PaymentWarning[]) => void;
+  onWriteoff: () => void;
+  onRefund: () => void;
+  onQuickDone: (result: PaymentSaveResult) => void;
 }) {
   const router = useRouter();
   const quick = bucket === "none";
@@ -633,6 +612,9 @@ function PaymentRow({
     menu.push({ key: "void", label: "Отменить последнюю оплату", icon: XCircle, danger: true, onSelect: () => onVoid(last) });
   }
 
+  menu.push({ key: "statement", label: "Выписка", icon: FileText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBase, row.membership_id)); } });
+  if (canWriteOff(row)) menu.push({ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: onWriteoff });
+  if (canRefund(row)) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
   const openProfile = () => router.push(`${studentProfileBasePath}/${row.student_id}`);
   menu.push({ key: "profile", label: "Карточка ученика", icon: UserRound, onSelect: openProfile });
 
@@ -660,7 +642,7 @@ function PaymentRow({
 
       {quick ? (
         <div className="mt-1.5 xl:mt-0">
-          <QuickEntry row={row} periodMode={periodMode} lessonsDefault={lessonsDefault} groupsBasePath={groupsBasePath} onDone={onQuickDone} />
+          <QuickEntry row={row} groupsBasePath={groupsBasePath} onDone={onQuickDone} />
         </div>
       ) : (
         <>
@@ -681,6 +663,7 @@ function PaymentRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
+            <BalanceNote row={row} className="w-full" />
           </div>
 
           {/* Последняя оплата: the amount reads like «Оплата в месяц», the date is the quiet line under it (like «оплачено до») */}

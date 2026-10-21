@@ -1,9 +1,11 @@
 /**
- * Pure rules of the "Оплаты" screens (N13 P2): types of the API contract, money and date
- * formatting, status wording, form defaults and validation.
+ * Pure rules of the "Оплаты" screens: types of the API contract (PAY-2: payments are money, the server
+ * works out the coverage, the debt and the advance), money and date formatting, status wording, limits, settings.
  * No React and no network here, so node:test can load this file directly.
  * Calendar days are computed in UTC from the ISO string, so they never drift with the
  * viewer's timezone; "today" comes from the caller (the Tashkent business date).
+ * The ledger helpers (balance wording, preview, statement) live in `payments-ledger.ts`, the receipts
+ * report in `payments-income.ts`; the Russian sentences of a calculation come from the server.
  */
 export { formatDateRu } from "./attendance-excuses";
 import { formatDateRu } from "./attendance-excuses";
@@ -11,13 +13,18 @@ import { CHIP_TONE_CLASS } from "./chip-tone";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
 
-// ── API contract (spec §3) ─────────────────────────────────────────────────
+// ── API contract (pay2_contract.json) ──────────────────────────────────────
 
 export type PeriodMode = "calendar" | "lessons";
 /** How a calendar period starts: from the payment date, or on one day of the month for the whole center. */
 export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active";
 export type PaymentBucket = "due" | "expiring" | "none" | "active";
+
+/** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
+export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
+/** Where a part of a payment went: a past period (debt), the running one, or a future one (advance). */
+export type AllocationBucket = "past_debt" | "current" | "advance";
 
 export interface PaymentSettings {
   period_mode: PeriodMode;
@@ -33,11 +40,25 @@ export interface PaymentSettings {
   /** ...or when this many lessons are left in a lessons package. */
   excuse_deadline_lessons: number;
   admin_can_manage: boolean;
+  /** The day the center starts to count money (PAY-2): nothing before it is charged.  Always the effective date from the server. */
+  accounting_start_date?: string | null;
   updated_by: string | null;
   updated_at: string | null;
 }
 
 export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" | "updated_at">>;
+
+/** What a change of `accounting_start_date` touches (`PUT /org/settings/payments?dry_run=true`). */
+export interface AccountingStartImpact {
+  memberships_with_new_debt: number;
+  debt_delta: number;
+}
+
+/** `PUT /org/settings/payments`: the settings plus the impact of the requested start date (`dry_run`: nothing was saved). */
+export interface PaymentSettingsChanged extends PaymentSettings {
+  dry_run?: boolean;
+  impact?: AccountingStartImpact | null;
+}
 
 export interface PaymentsSummary {
   as_of: string;
@@ -55,6 +76,12 @@ export interface PaymentsSummary {
   /** Distinct students behind `due` / `expired` (which count memberships); older servers do not send them. */
   students_due?: number | null;
   students_expired?: number | null;
+  /** PAY-2: the money position of the whole center today. */
+  debt_total?: number;
+  advance_total?: number;
+  memberships_with_debt?: number;
+  students_with_debt?: number;
+  accounting_start_date?: string | null;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -70,15 +97,47 @@ export interface CarriedOut {
   group_name: string | null;
 }
 
+/** One line of «куда пошла оплата»: the label is the server's own sentence. */
+export interface Allocation {
+  segment_id: string;
+  period_from: string;
+  period_to: string;
+  amount: number;
+  /** Covered days (0 for an advance in lessons mode). */
+  days: number;
+  bucket: AllocationBucket;
+  /** The payment closed the period completely. */
+  closes: boolean;
+  /** «Закрыла долг 15.09–14.10» / «На текущий период 15.10–14.11» / «Аванс на 15.11–14.12». */
+  label: string;
+  /** The price of that period; null for «аванс на следующие уроки». */
+  price: number | null;
+}
+
+/** The current, factual distribution of a payment (it changes when other money changes). */
+export interface PaymentAllocation {
+  items: Allocation[];
+  /** Part of the payment that was given back. */
+  refunded: number;
+  net: number;
+}
+
 export interface PaymentOut {
   id: string;
   membership_id: string;
   amount: number;
   currency: string;
   paid_on: string;
-  valid_from: string;
-  valid_to: string | null;
-  lessons_count: number | null;
+  /** Only on a pre-PAY-2 record (`legacy_period`); on a new one they are a courtesy copy for the old front: do not read them. */
+  valid_from?: string | null;
+  valid_to?: string | null;
+  lessons_count?: number | null;
+  /** True on a payment made before PAY-2: it still shows its period. */
+  legacy_period?: boolean;
+  method?: PayMethod;
+  kind?: "payment" | "legacy_carry";
+  /** Where the money went now (the server works it out from all the money of the group). */
+  allocation?: PaymentAllocation | null;
   note: string | null;
   replaces_payment_id: string | null;
   /** Set on a carry-over; an older server does not send it. */
@@ -94,7 +153,7 @@ export interface PaymentOut {
   void_reason: string | null;
   /** Receipt number inside the center; null for a carry-over (not money) and on an older server. */
   receipt_no?: number | null;
-  /** The payment was made for a part of a center period (fixed day); a fact of its time, never recalculated. */
+  /** A pre-PAY-2 payment for a part of a center period; a fact of its time, never recalculated. */
   partial_period?: boolean;
   /** Attached receipts / cheques (photo or PDF); the bytes are fetched one by one. */
   files?: PaymentFileOut[];
@@ -110,87 +169,60 @@ export interface PaymentFileOut {
   uploaded_by_name: string | null;
 }
 
-export type QuoteBasis = "full" | "lessons" | "days" | "package" | "custom" | "none";
-
-/** One piece of a quote: a part of a center period (fixed day) or the whole range. */
-export interface PaymentQuotePart {
-  from: string;
-  to: string;
-  period_from: string | null;
-  period_to: string | null;
-  lessons: number | null;
-  period_lessons: number | null;
+/** The slice of a payment the receipt page keeps: what the money covered at the moment of payment. */
+export interface SnapshotPrice {
   amount: number | null;
+  source: "group" | "override" | "none";
 }
 
-/** `GET /auth/org/memberships/{id}/payments/quote`: dates and an amount for the next payment. */
-export interface PaymentQuote {
-  mode: PeriodMode;
-  billing_anchor: BillingAnchor;
-  billing_day: number;
-  paid_on: string;
-  valid_from: string;
-  valid_to: string | null;
-  lessons_count: number | null;
-  partial: boolean;
-  /** The sum the suggestion was made from (the price at the start of the period, or the one-off sum that was sent). */
-  monthly_fee: number | null;
-  /** The effective price at the start of the period (#105); an older server does not send it. */
-  price?: PriceInfo;
-  suggested_amount: number | null;
-  basis: QuoteBasis;
-  parts: PaymentQuotePart[];
-  /** Russian text for the caption under the amount. */
-  explanation: string;
-}
-
-/** Query of the quote: only `paid_on` is required, the server fills the rest the way a payment would. */
-export interface PaymentQuoteQuery {
-  paid_on: string;
-  valid_from?: string;
-  valid_to?: string;
-  lessons_count?: number;
-  /** Whole сум: replaces the price for this calculation only (a one-off sum; nothing is saved). */
-  monthly_fee?: number;
-}
-
-/** `GET /auth/org/payments/{id}/receipt`. */
+/** `GET /auth/org/payments/{id}/receipt`.  A new receipt reads the snapshot; a pre-PAY-2 one still has a period. */
 export interface ReceiptOut {
   receipt_no: number;
   org_name: string;
-  org_city: string | null;
-  org_phone: string | null;
+  org_city?: string | null;
+  org_phone?: string | null;
   student_name: string;
-  display_id: string | null;
+  display_id?: string | null;
   group_name: string;
   amount: number;
   /** «Пятьсот тысяч сум», with a capital letter. */
   amount_words: string;
   currency: string;
   paid_on: string;
-  valid_from: string;
-  valid_to: string | null;
-  lessons_count: number | null;
-  partial_period: boolean;
-  note: string | null;
-  accepted_by_name: string | null;
-  created_at: string | null;
-  voided_at: string | null;
-  void_reason: string | null;
-  replaced_by_receipt_no: number | null;
-  replaces_receipt_no: number | null;
+  method?: PayMethod;
+  /** The distribution at the moment of payment (null on an old receipt). */
+  allocations?: Allocation[] | null;
+  debt_before?: number | null;
+  debt_after?: number | null;
+  advance_after?: number | null;
+  paid_until_before?: string | null;
+  paid_until_after?: string | null;
+  price_snapshot?: SnapshotPrice | null;
+  mode?: PeriodMode | null;
+  /** Only an old (pre-PAY-2) receipt. */
+  valid_from?: string | null;
+  valid_to?: string | null;
+  lessons_count?: number | null;
+  partial_period?: boolean;
+  note?: string | null;
+  accepted_by_name?: string | null;
+  created_at?: string | null;
+  voided_at?: string | null;
+  void_reason?: string | null;
+  replaced_by_receipt_no?: number | null;
+  replaces_receipt_no?: number | null;
 }
 
 export interface MembershipPaymentRow {
   membership_id: string;
   student_id: string;
   student_name: string;
-  display_id: string | null;
-  class_level: number | null;
+  display_id?: string | null;
+  class_level?: number | null;
   group_id: string;
   group_name: string;
-  teacher_id: string | null;
-  teacher_name: string | null;
+  teacher_id?: string | null;
+  teacher_name?: string | null;
   is_primary: boolean;
   is_active: boolean;
   /**
@@ -199,34 +231,57 @@ export interface MembershipPaymentRow {
    */
   price?: PriceInfo;
   /** The same sum as `price.amount`, kept by the server as a synonym; the front reads `price`. */
-  monthly_fee: number | null;
+  monthly_fee?: number | null;
   status: PaymentStatus;
-  period_mode: PeriodMode | null;
-  paid_until: string | null;
-  days_overdue: number | null;
-  days_left: number | null;
-  lessons_total: number | null;
-  lessons_used: number | null;
-  lessons_left: number | null;
-  last_payment: PaymentOut | null;
+  period_mode?: PeriodMode | null;
+  paid_until?: string | null;
+  days_overdue?: number | null;
+  days_left?: number | null;
+  lessons_total?: number | null;
+  lessons_used?: number | null;
+  lessons_left?: number | null;
+  last_payment?: PaymentOut | null;
+  /** PAY-2 balance of the group (whole сум).  An older server does not send them: read through `rowBalance`. */
+  debt?: number;
+  past_debt?: number;
+  current_due?: number;
+  advance?: number;
+  /** Money that covers a part of a day / lesson not bought completely. */
+  partial_credit?: number;
+  price_missing?: boolean;
+  lessons_unpaid?: number;
+  /** How much of the advance may be given back. */
+  refundable?: number;
+  writeoff_allowed?: boolean;
 }
 
+/** A warning of a saved payment or of a preview. */
 export interface PaymentWarning {
-  code: "overlaps_previous" | "gap_before" | "period_over_62_days" | "paid_over_60_days_ago" | "short_period_full_amount" | string;
+  code: "price_missing" | "horizon_capped" | "large_overpay" | "student_archived" | "price_change_ahead" | "paid_over_60_days_ago" | string;
   message: string;
 }
 
+/** Body of a new payment (and of a correction): money only, the server distributes it. */
 export interface PaymentCreate {
   amount: number;
   paid_on: string;
-  valid_from?: string;
-  valid_to?: string;
-  lessons_count?: number;
+  method?: Exclude<PayMethod, "unknown">;
   note?: string;
+}
+
+/** Where the money of a saved payment went (the answer to a create / replace). */
+export interface AllocationSummary {
+  items: Allocation[];
+  debt_before: number;
+  debt_after: number;
+  advance_after: number;
+  paid_until_before: string | null;
+  paid_until_after: string | null;
 }
 
 export interface PaymentSaveResult {
   payment: PaymentOut;
+  allocation?: AllocationSummary | null;
   warnings: PaymentWarning[];
   row: MembershipPaymentRow;
 }
@@ -239,12 +294,436 @@ export interface PaymentsStatusList {
   as_of: string;
 }
 
-// ── Limits (spec §0.10, §3) ────────────────────────────────────────────────
+// ── Preview «что закроет» (GET …/payments/preview) ─────────────────────────
 
+export type SegmentState = "closed" | "future" | "partial" | "open" | "unpriced";
+
+/** One charge: a period of a calendar student or a package of lessons that has held lessons. */
+export interface Segment {
+  id: string;
+  kind: "period" | "package";
+  period_from: string;
+  period_to: string;
+  billable_days: number;
+  /** «с 16.10 (7 уроков из 13)» for an incomplete period, otherwise null. */
+  days_text: string | null;
+  price: Partial<PriceInfo> & { amount?: number | null };
+  charge: number;
+  basis: "full" | "lessons" | "days" | "zero";
+  lessons: { in_part: number; in_period: number } | null;
+  paid: number;
+  written_off: number;
+  unpaid: number;
+  covered_days: number;
+  covered_through: string | null;
+  partial_credit: number;
+  state: SegmentState;
+}
+
+/** What is due now, for the top block of the payment dialog. */
+export interface PreviewDue {
+  debt: number;
+  past_debt: number;
+  current_due: number;
+  advance: number;
+  /** Segments that have begun and are not paid up. */
+  segments: Segment[];
+  paid_until: string | null;
+  days_overdue: number | null;
+}
+
+export interface PriceAhead {
+  period_from: string;
+  period_to: string;
+  amount: number;
+  current_amount: number | null;
+}
+
+export interface PreviewLessons {
+  covered_before: number;
+  covered_after: number;
+  left_after: number;
+  unpaid_after: number;
+}
+
+export interface PreviewResult {
+  allocations: Allocation[];
+  debt_after: number;
+  past_debt_after: number;
+  current_due_after: number;
+  advance_after: number;
+  /** Null in lessons mode. */
+  paid_until_before: string | null;
+  paid_until_after: string | null;
+  status_after: PaymentStatus;
+  days_overdue_after: number | null;
+  partial_credit_after: number;
+  lessons: PreviewLessons | null;
+  price_ahead: PriceAhead[];
+  /** The server's sentence: «Закроет долг 269 000 · на текущий период 31 000 → оплачено до 15.10 · останется 469 000». */
+  summary_text: string;
+}
+
+export interface PaymentPreview {
+  as_of: string;
+  mode: PeriodMode;
+  price: Partial<PriceInfo>;
+  due: PreviewDue;
+  suggested_amount: number;
+  /** The amount the preview was asked for; null without it. */
+  amount: number | null;
+  /** Null when no amount was asked about. */
+  result: PreviewResult | null;
+  warnings: PaymentWarning[];
+}
+
+export interface PreviewQuery {
+  amount?: number;
+  paid_on?: string;
+  /** A payment being corrected: it is left out of the calculation. */
+  replace_payment_id?: string;
+}
+
+// ── Write-offs, refunds ────────────────────────────────────────────────────
+
+export interface WriteoffOut {
+  id: string;
+  membership_id: string;
+  amount: number;
+  reason: string;
+  effective_on: string;
+  created_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  voided_by_name: string | null;
+  void_reason: string | null;
+}
+
+export interface WriteoffCreate {
+  amount?: number;
+  /** Write off the whole debt instead of an amount. */
+  all?: boolean;
+  reason: string;
+  effective_on?: string;
+}
+
+export interface WriteoffCreated {
+  writeoff: WriteoffOut;
+  debt_before: number;
+  debt_after: number;
+  row: MembershipPaymentRow;
+}
+
+export interface WriteoffVoided {
+  writeoff: WriteoffOut;
+  row: MembershipPaymentRow;
+}
+
+export interface RefundOut {
+  id: string;
+  membership_id: string;
+  amount: number;
+  method: PayMethod;
+  reason: string | null;
+  note: string | null;
+  effective_on: string;
+  created_at: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  voided_at: string | null;
+  voided_by: string | null;
+  voided_by_name: string | null;
+  void_reason: string | null;
+}
+
+export interface RefundCreate {
+  amount: number;
+  method: Exclude<PayMethod, "unknown">;
+  reason?: string;
+  note?: string;
+  effective_on?: string;
+}
+
+export interface RefundCreated {
+  refund: RefundOut;
+  advance_before: number;
+  advance_after: number;
+  row: MembershipPaymentRow;
+}
+
+export interface RefundVoided {
+  refund: RefundOut;
+  row: MembershipPaymentRow;
+}
+
+/** `{detail: {code, message, debt?, refundable?, payment_id?}}` of the PAY-2 routes (kept on `ApiError.detail`). */
+export interface PayErrorDetail {
+  code: string | null;
+  message: string;
+  debt: number | null;
+  refundable: number | null;
+  payment_id: string | null;
+}
+
+// ── Statement (GET …/statement) ────────────────────────────────────────────
+
+export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out";
+
+export interface StatementDetails {
+  allocations: Allocation[];
+  created_by_name: string | null;
+  from_group_name: string | null;
+  from_membership_id: string | null;
+  method: PayMethod | null;
+  note: string | null;
+  payment_id: string | null;
+  reason: string | null;
+  receipt_no: number | null;
+  refund_id: string | null;
+  segment: Segment | null;
+  to_group_name: string | null;
+  to_membership_id: string | null;
+  writeoff_id: string | null;
+}
+
+export interface StatementRow {
+  seq: number;
+  date: string;
+  type: StatementRowType;
+  title: string;
+  /** Charge (the student owes more). */
+  debit: number;
+  /** Money in / write-off (the student owes less). */
+  credit: number;
+  /** Money out: a refund or a transfer to another group. */
+  outflow: number;
+  /** Minus = debt, plus = advance.  Null on a cancelled row. */
+  balance_after: number | null;
+  /** «Долг 269 000» / «Аванс 21 000» / «Нет долга» — the server's words. */
+  balance_text: string | null;
+  details: StatementDetails;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  void_reason: string | null;
+}
+
+export interface StatementSummary {
+  charged: number;
+  paid: number;
+  transferred_in: number;
+  written_off: number;
+  refunded: number;
+  transferred_out: number;
+  debt: number;
+  advance: number;
+  paid_until: string | null;
+  status: PaymentStatus;
+  /** charged − paid − written_off + refunded = debt − advance (checked by the server). */
+  reconciles: boolean;
+}
+
+export interface StatementMembership {
+  membership_id: string;
+  student_id: string;
+  student_name: string;
+  display_id: string | null;
+  group_id: string;
+  group_name: string;
+  teacher_name: string | null;
+  is_active: boolean;
+}
+
+export interface StatementOut {
+  membership: StatementMembership;
+  as_of: string;
+  mode: PeriodMode;
+  accounting_start: string;
+  summary: StatementSummary;
+  rows: StatementRow[];
+  voided: StatementRow[];
+  upcoming: Segment[];
+}
+
+export interface StatementQuery {
+  from?: string;
+  to?: string;
+  include_voided?: boolean;
+}
+
+// ── Receipts report «Поступления» ──────────────────────────────────────────
+
+export type ReceiptsGroupBy = "day" | "month";
+export type ReceiptsColumn = "received" | "to_past_debt" | "to_current" | "to_advance" | "written_off" | "refunded";
+
+export interface ReceiptsTotals {
+  received: number;
+  refunded: number;
+  refunded_from_received: number;
+  net_received: number;
+  to_past_debt: number;
+  to_current: number;
+  to_advance: number;
+  written_off: number;
+  payments_count: number;
+}
+
+export interface ReceiptsByMethod {
+  method: PayMethod;
+  amount: number;
+  count: number;
+}
+
+export interface ReceiptsMoneyColumns {
+  received: number;
+  refunded: number;
+  to_past_debt: number;
+  to_current: number;
+  to_advance: number;
+  written_off: number;
+  count: number;
+}
+
+export interface ReceiptsGroupRow extends ReceiptsMoneyColumns {
+  group_id: string;
+  group_name: string;
+  teacher_id: string | null;
+  teacher_name: string | null;
+}
+
+export interface ReceiptsTeacherRow extends ReceiptsMoneyColumns {
+  teacher_id: string | null;
+  teacher_name: string | null;
+}
+
+export interface ReceiptsSeriesPoint extends ReceiptsMoneyColumns {
+  /** `YYYY-MM-DD` (by day) or `YYYY-MM` (by month). */
+  bucket: string;
+  by_method: Partial<Record<PayMethod, number>>;
+}
+
+export interface ReceiptsPosition {
+  debt_total: number;
+  past_debt_total: number;
+  advance_total: number;
+  memberships_with_debt: number;
+  students_with_debt: number;
+  memberships_with_advance: number;
+}
+
+export type ReconciliationCode =
+  | "received_eq_allocated_plus_refunded"
+  | "charged_minus_paid_eq_debt_minus_advance"
+  | "transfers_net_zero";
+
+export interface ReconciliationCheck {
+  code: ReconciliationCode;
+  left: number;
+  right: number;
+  diff: number;
+}
+
+export interface Reconciliation {
+  ok: boolean;
+  checks: ReconciliationCheck[];
+}
+
+export interface ReceiptsReport {
+  as_of: string;
+  from: string;
+  to: string;
+  group_by: ReceiptsGroupBy;
+  totals: ReceiptsTotals;
+  by_method: ReceiptsByMethod[];
+  by_group: ReceiptsGroupRow[];
+  by_teacher: ReceiptsTeacherRow[];
+  /** Only the buckets that have money: the front fills the empty ones. */
+  series: ReceiptsSeriesPoint[];
+  position: ReceiptsPosition;
+  reconciliation: Reconciliation;
+}
+
+export interface ReceiptsQuery {
+  from: string;
+  to: string;
+  group_by: ReceiptsGroupBy;
+  method?: string;
+  group_id?: string;
+  teacher_id?: string;
+}
+
+export interface ReceiptItemsQuery extends Omit<ReceiptsQuery, "group_by"> {
+  column: ReceiptsColumn;
+  bucket?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface ReceiptItem {
+  type: "payment" | "writeoff" | "refund";
+  id: string;
+  date: string;
+  amount: number;
+  /** The part of the record that lies in the clicked column. */
+  column_amount: number;
+  student_id: string;
+  student_name: string;
+  membership_id: string;
+  group_name: string;
+  teacher_name: string | null;
+  method: PayMethod | null;
+  receipt_no: number | null;
+  allocations: Allocation[];
+}
+
+export interface ReceiptItems {
+  items: ReceiptItem[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface BalanceRow {
+  membership_id: string;
+  student_id: string;
+  student_name: string;
+  display_id: string | null;
+  group_id: string;
+  group_name: string;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  debt: number;
+  past_debt: number;
+  current_due: number;
+  advance: number;
+  refundable: number;
+  paid_until: string | null;
+  status: PaymentStatus;
+  is_active: boolean;
+  student_archived: boolean;
+}
+
+export interface BalancesPage {
+  items: BalanceRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface BalancesQuery {
+  kind: "debt" | "advance";
+  group_id?: string;
+  teacher_id?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+// ── Limits ─────────────────────────────────────────────────────────────────
+
+/** Backend rule (10^10 сум, safe for JS integers): the amount of a payment is 1..MAX_MONEY. */
 export const MAX_MONEY = 10_000_000_000;
-/** Backend rule: `valid_to - valid_from` may be at most 400 days (the inclusive length is then at most 401). */
-export const MAX_PERIOD_DAYS = 400;
-export const MAX_LESSONS = 120;
 export const NOTE_MAX = 500;
 export const REASON_MIN = 3;
 export const REASON_MAX = 500;
@@ -333,25 +812,6 @@ export function daysBetween(fromIso: string, toIso_: string): number {
   return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86_400_000);
 }
 
-/** Number of days a period covers, both ends included (05.10 - 04.11 -> 31). */
-export function periodDays(validFrom: string, validTo: string): number {
-  return daysBetween(validFrom, validTo) + 1;
-}
-
-/**
- * «с» + 1 месяц − 1 день: 05.10 -> 04.11, 01.10 -> 31.10.  When the next month is
- * shorter, the period ends on its last day: 31.01 -> 28.02 (29.02 in a leap year).
- */
-export function addMonthMinusDay(iso: string): string {
-  const parts = parseIso(iso);
-  if (!parts) return iso;
-  const [year, month, day] = parts;
-  if (day === 1) return toIso(year, month, daysInMonth(year, month));
-  const nextYear = month === 12 ? year + 1 : year;
-  const nextMonth = month === 12 ? 1 : month + 1;
-  return toIso(nextYear, nextMonth, Math.min(day - 1, daysInMonth(nextYear, nextMonth)));
-}
-
 /** The same calendar day `years` earlier (29.02 -> 28.02). */
 export function subtractYears(iso: string, years: number): string {
   const parts = parseIso(iso);
@@ -360,48 +820,9 @@ export function subtractYears(iso: string, years: number): string {
   return toIso(year, parts[1], Math.min(parts[2], daysInMonth(year, parts[1])));
 }
 
-// ── Center periods of the «единый день оплаты» model (mirrors payment_status.py) ──
+// ── Center periods ─────────────────────────────────────────────────────────
 
 export const BILLING_DAY_RANGE = { min: 1, max: 28 } as const;
-
-/** Start of the center period that contains `iso`: the `billingDay` of this month, or of the previous one. */
-export function billingPeriodStart(iso: string, billingDay: number): string {
-  const parts = parseIso(iso);
-  if (!parts) return iso;
-  const [year, month, day] = parts;
-  if (day >= billingDay) return toIso(year, month, billingDay);
-  const previousYear = month === 1 ? year - 1 : year;
-  const previousMonth = month === 1 ? 12 : month - 1;
-  return toIso(previousYear, previousMonth, billingDay);
-}
-
-/** End of the center period that contains `iso`: the next `billingDay` minus a day (the last day of the month for day 1). */
-export function billingPeriodEndOf(iso: string, billingDay: number): string {
-  return addMonthMinusDay(billingPeriodStart(iso, billingDay));
-}
-
-/** Where a fixed-day payment may end: the end of its center period, and one more period after it. */
-export interface FixedDayChips {
-  /** «До конца месяца»: the end of the period that contains «с». */
-  toEnd: string;
-  /** «+ следующий месяц»: the end of the period after the one the current «до» is in. */
-  plusNext: string;
-}
-
-/**
- * The two shortcuts under «Оплачено до» of the fixed-day model.  `plusNext` is the end of the
- * period that follows the one `validTo` ends in: 31.10 -> 30.11 (day 1), 09.11 -> 09.12 (day 10),
- * and clicking it again keeps adding months.  null while «с» is not a date.
- */
-export function fixedDayChips(validFrom: string, validTo: string, billingDay: number): FixedDayChips | null {
-  if (!isIsoDate(validFrom) || !Number.isInteger(billingDay) || billingDay < BILLING_DAY_RANGE.min || billingDay > BILLING_DAY_RANGE.max) {
-    return null;
-  }
-  const toEnd = billingPeriodEndOf(validFrom, billingDay);
-  const base = isIsoDate(validTo) && validTo >= validFrom ? validTo : toEnd;
-  const plusNext = billingPeriodEndOf(addDays(billingPeriodEndOf(base, billingDay), 1), billingDay);
-  return { toEnd, plusNext };
-}
 
 // The one Russian plural of the project lives in `./plural`; it is re-exported here for the older imports.
 export { pluralRu };
@@ -513,8 +934,8 @@ export function statusTone(status: PaymentStatus): StatusTone {
 
 /**
  * One verb for every payment: «Внести оплату» on the row, in the student's card, in the title of the dialog.
- * (The dialog is the same for a first, an overdue and a running payment - only the proposed period start differs,
- * and the server decides it.)
+ * (The dialog is the same for a first, an overdue and a running payment: the amount is the only thing to decide,
+ * the server distributes the money.)
  */
 export const PAY_ACTION_LABEL = "Внести оплату";
 
@@ -524,8 +945,12 @@ export const PAYMENT_SAVED_TEXT: Record<"create" | "replace", string> = {
   replace: "Оплата исправлена",
 };
 
-/** A first or an overdue payment is due: the button in the student's card is filled; for a running payment it is outlined. */
-export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment">): boolean {
+/**
+ * Money is due when the group has a debt, was never paid, or the paid period has ended: the button in the student's
+ * card is filled; for a running payment it is outlined.
+ */
+export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment"> & { debt?: number | null }): boolean {
+  if ((row.debt ?? 0) > 0) return true;
   if (!row.last_payment) return true;
   return row.status === "expired" || row.status === "none";
 }
@@ -539,13 +964,20 @@ export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
   muted: CHIP_TONE_CLASS.neutral,
 };
 
-/** «05.10.2026 — 04.11.2026» (calendar) or «12 уроков с 05.10.2026» (by lessons). */
+/**
+ * The period of a pre-PAY-2 payment: «05.10.2026 — 04.11.2026» (calendar) or «12 уроков с 05.10.2026» (by lessons).
+ * A new payment has no period (the money is distributed by the server): "".
+ */
 export function paymentPeriodLabel(payment: Pick<PaymentOut, "valid_from" | "valid_to" | "lessons_count">): string {
+  if (!payment.valid_from) return "";
   if (payment.lessons_count) {
     return `${payment.lessons_count} ${lessonsWord(payment.lessons_count)} с ${formatDateRu(payment.valid_from)}`;
   }
-  return `${formatDateRu(payment.valid_from)} — ${formatDateRu(payment.valid_to)}`;
+  return payment.valid_to ? `${formatDateRu(payment.valid_from)} — ${formatDateRu(payment.valid_to)}` : `с ${formatDateRu(payment.valid_from)}`;
 }
+
+/** The mark of a pre-PAY-2 payment for a part of a center period (history and receipt); new payments have no period. */
+export const PARTIAL_PERIOD_TAG = "неполный месяц";
 
 /** A payment made by a transfer (amount 0): the money stays with the original in the old group. */
 export function isCarryOver(payment: Pick<PaymentOut, "carried_from"> | null | undefined): boolean {
@@ -616,258 +1048,12 @@ export function splitTransferNotes(
   return { infos, warnings };
 }
 
-export function periodModeOf(payment: Pick<PaymentOut, "lessons_count"> | null | undefined, fallback: PeriodMode): PeriodMode {
-  if (!payment) return fallback;
-  return payment.lessons_count ? "lessons" : "calendar";
-}
-
-// ── Payment form ───────────────────────────────────────────────────────────
-
-export interface PaymentFormValues {
-  /** Digits with thousands separators, as typed. */
-  amount: string;
-  paidOn: string;
-  validFrom: string;
-  validTo: string;
-  lessons: string;
-  note: string;
-  /** Only for a correction. */
-  reason: string;
-}
-
-/**
- * «С» of a new calendar payment: always the day after the previous «оплачено до» - an overdue student first closes the
- * debt (owner 21.10); a first payment counts from the payment date.
- */
-export function defaultValidFrom(paidOn: string, previousPaidUntil: string | null | undefined): string {
-  return debtStart(paidOn, previousPaidUntil) ?? paidOn;
-}
-
-/** The server never suggests a start more than 3 years before the payment date (it would reject it): same bound here. */
-const MAX_PAID_AGO_YEARS = 3;
-
-function yearsBefore(iso: string, years: number): string {
-  const shifted = `${String(Number(iso.slice(0, 4)) - years).padStart(4, "0")}${iso.slice(4)}`;
-  return shifted.endsWith("-02-29") ? `${shifted.slice(0, -2)}28` : shifted;
-}
-
-/** The day after the previous «оплачено до», or null (first payment, or a debt older than the server accepts). */
-function debtStart(paidOn: string, previousPaidUntil: string | null | undefined): string | null {
-  if (!previousPaidUntil || !isIsoDate(previousPaidUntil)) return null;
-  const next = addDays(previousPaidUntil, 1);
-  return isIsoDate(paidOn) && next < yearsBefore(paidOn, MAX_PAID_AGO_YEARS) ? null : next;
-}
-
-export interface FormDefaultsInput {
-  mode: PeriodMode;
-  /** Business date, YYYY-MM-DD. */
-  today: string;
-  monthlyFee: number | null;
-  paidUntil: string | null;
-  /** Lessons of one payment when known; otherwise the field stays empty and the server applies the center setting. */
-  lessonsDefault: number | null;
-  /** Set when a payment is being corrected: its values are the starting point. */
-  payment?: PaymentOut | null;
-}
-
-export function paymentFormDefaults(input: FormDefaultsInput): PaymentFormValues {
-  const { mode, today, monthlyFee, paidUntil, lessonsDefault, payment } = input;
-  if (payment) {
-    return {
-      amount: formatMoneyInput(payment.amount),
-      paidOn: payment.paid_on,
-      validFrom: payment.valid_from,
-      validTo: payment.valid_to ?? "",
-      lessons: payment.lessons_count ? String(payment.lessons_count) : "",
-      note: payment.note ?? "",
-      reason: "",
-    };
-  }
-  const validFrom = mode === "calendar" ? defaultValidFrom(today, paidUntil) : today;
-  return {
-    amount: formatMoneyInput(monthlyFee && monthlyFee > 0 ? monthlyFee : null),
-    paidOn: today,
-    validFrom,
-    validTo: mode === "calendar" ? addMonthMinusDay(validFrom) : "",
-    lessons: mode === "lessons" && lessonsDefault ? String(lessonsDefault) : "",
-    note: "",
-    reason: "",
-  };
-}
-
-export function validatePaymentForm(values: PaymentFormValues, mode: PeriodMode, today: string): string | null {
-  const amount = parseMoneyInput(values.amount);
-  if (amount === null) return "Укажите сумму";
-  if (amount > MAX_MONEY) return "Сумма слишком большая";
-  if (!isIsoDate(values.paidOn)) return "Укажите дату оплаты";
-  if (values.paidOn > today) return "Дата оплаты не может быть в будущем";
-  if (values.paidOn < subtractYears(today, PAYMENT_MAX_AGE_YEARS)) return "Дата оплаты старше 3 лет";
-  if (!isIsoDate(values.validFrom)) return "Укажите начало периода";
-  if (mode === "calendar") {
-    if (!isIsoDate(values.validTo)) return "Укажите, до какого числа оплачено";
-    if (values.validTo < values.validFrom) return "«Оплачено до» не может быть раньше начала периода";
-    if (daysBetween(values.validFrom, values.validTo) > MAX_PERIOD_DAYS) return `Период не может быть длиннее ${MAX_PERIOD_DAYS} дней`;
-  } else if (values.lessons.trim()) {
-    const lessons = Number(values.lessons);
-    if (!Number.isInteger(lessons) || lessons < 1 || lessons > MAX_LESSONS) return `Уроков должно быть от 1 до ${MAX_LESSONS}`;
-  }
-  if (values.note.trim().length > NOTE_MAX) return `Комментарий не длиннее ${NOTE_MAX} символов`;
-  if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
-  return null;
-}
-
-/** Request body of a payment; call only after `validatePaymentForm` returned null. */
-export function buildPaymentPayload(values: PaymentFormValues, mode: PeriodMode): PaymentCreate {
-  const payload: PaymentCreate = {
-    amount: parseMoneyInput(values.amount) ?? 0,
-    paid_on: values.paidOn,
-    valid_from: values.validFrom,
-  };
-  if (mode === "calendar") payload.valid_to = values.validTo;
-  else if (values.lessons.trim()) payload.lessons_count = Number(values.lessons);
-  const note = values.note.trim();
-  if (note) payload.note = note;
-  return payload;
-}
-
-/** «Период 31 день» under the dates; null while the dates are incomplete or reversed. */
-export function periodHint(values: Pick<PaymentFormValues, "validFrom" | "validTo">, mode: PeriodMode): string | null {
-  if (mode !== "calendar" || !isIsoDate(values.validFrom) || !isIsoDate(values.validTo)) return null;
-  const days = periodDays(values.validFrom, values.validTo);
-  return days >= 1 ? `Период ${daysLabel(days)}` : null;
-}
-
 /** Reason of a cancellation: trimmed 3..500 characters. */
 export function validateVoidReason(value: string | null | undefined): string | null {
   const text = (value ?? "").trim();
   if (text.length < REASON_MIN) return `Укажите причину (не короче ${REASON_MIN} символов)`;
   if (text.length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
   return null;
-}
-
-// ── Quote of the next payment (N13 P2.2) ───────────────────────────────────
-
-export interface QuoteInputs {
-  mode: PeriodMode;
-  paidOn: string;
-  validFrom: string;
-  validTo: string;
-  lessons: string;
-  /** The user typed the field, so it is sent and never overwritten. */
-  fromTouched: boolean;
-  toTouched: boolean;
-  /** A one-off sum for this calculation only (nothing is saved); sent so the suggestion is made for it. Omit when the price counts. */
-  monthlyFee?: number | null;
-}
-
-/**
- * The request for the server's suggestion, or null while the inputs cannot be asked about (no
- * payment date, reversed period, a lessons count that is not a number).  While the user has not touched
- * the dates only `paid_on` is sent and the server picks the period by the same code a payment uses;
- * once a date is touched both dates are sent explicitly, so the answer is about exactly what is on screen.
- */
-export function buildQuoteQuery(input: QuoteInputs): PaymentQuoteQuery | null {
-  if (!isIsoDate(input.paidOn)) return null;
-  const query: PaymentQuoteQuery = { paid_on: input.paidOn };
-  if (typeof input.monthlyFee === "number" && Number.isSafeInteger(input.monthlyFee) && input.monthlyFee > 0 && input.monthlyFee <= MAX_MONEY) {
-    query.monthly_fee = input.monthlyFee;
-  }
-  if (input.mode === "calendar") {
-    if (!input.fromTouched && !input.toTouched) return query;
-    if (!isIsoDate(input.validFrom) || !isIsoDate(input.validTo) || input.validTo < input.validFrom) return null;
-    query.valid_from = input.validFrom;
-    query.valid_to = input.validTo;
-    return query;
-  }
-  if (input.fromTouched) {
-    if (!isIsoDate(input.validFrom)) return null;
-    query.valid_from = input.validFrom;
-  }
-  const lessons = input.lessons.trim();
-  if (lessons) {
-    const count = Number(lessons);
-    if (!Number.isInteger(count) || count < 1 || count > MAX_LESSONS) return null;
-    query.lessons_count = count;
-  }
-  return query;
-}
-
-/** Stable text of a query: two requests with the same text ask the same thing. */
-export function quoteQueryKey(query: PaymentQuoteQuery | null): string {
-  if (!query) return "";
-  return [query.paid_on, query.valid_from ?? "", query.valid_to ?? "", query.lessons_count ?? "", query.monthly_fee ?? ""].join("|");
-}
-
-export interface QuoteTouched {
-  from: boolean;
-  to: boolean;
-  amount: boolean;
-}
-
-/**
- * What an answer may write into the form: only fields the user has not touched.  An answer without a
- * suggested amount leaves the amount alone, except a custom period or a part of a month, where the old amount
- * (the full fee, an earlier suggestion) no longer fits and the field is emptied so the user has to state it.
- */
-export function quotePrefill(quote: PaymentQuote, touched: QuoteTouched, mode: PeriodMode): Partial<PaymentFormValues> {
-  const patch: Partial<PaymentFormValues> = {};
-  if (!touched.from && isIsoDate(quote.valid_from)) patch.validFrom = quote.valid_from;
-  if (mode === "calendar" && !touched.to && quote.valid_to && isIsoDate(quote.valid_to)) patch.validTo = quote.valid_to;
-  if (!touched.amount) {
-    if (quote.suggested_amount !== null && quote.suggested_amount !== undefined) patch.amount = formatMoneyInput(quote.suggested_amount);
-    else if (quote.basis === "custom" || quote.partial) patch.amount = "";
-  }
-  return patch;
-}
-
-/** «Неполный месяц» on the form: the answer says the period is a part of the center's period. */
-export const PARTIAL_PERIOD_BADGE = "Неполный месяц";
-/** The same fact in the history, in lower case. */
-export const PARTIAL_PERIOD_TAG = "неполный месяц";
-
-/** Under the amount while the server could not be asked (offline, 5xx, timeout). */
-export const QUOTE_FAILED_NOTE = "Подсказка суммы недоступна — проверьте даты и сумму";
-/** A part of a center period has no price until the quote (or the user) states one. */
-export const PARTIAL_AMOUNT_PROMPT = "Для неполного месяца введите сумму";
-
-/** Under the amount when the group (and the student) has no price: the amount is typed by hand. */
-export const PRICE_NOT_SET_TEXT = "Цена группы не задана — введите сумму вручную";
-
-/** The answer says there is no price to suggest from (a price of 0 is a price: «Бесплатно»). */
-export function quoteLacksPrice(quote: Pick<PaymentQuote, "basis" | "monthly_fee">): boolean {
-  return quote.monthly_fee !== 0 && quote.basis === "none";
-}
-
-/**
- * Caption under the amount.  Where the answer says there is no price, the wording is the screen's own
- * («Цена группы не задана»), so it is right whatever an older server writes; everything else is the server's own
- * explanation.
- */
-export function quoteCaption(
-  quote: Pick<PaymentQuote, "basis" | "monthly_fee" | "explanation" | "partial" | "suggested_amount">,
-): string {
-  if (quote.monthly_fee === 0) return "Бесплатно — сумма 0";
-  if (quote.basis === "none") return PRICE_NOT_SET_TEXT;
-  if (quote.partial && quote.suggested_amount === null) return PARTIAL_AMOUNT_PROMPT;
-  return quote.explanation || "";
-}
-
-/**
- * True when a fixed-day payment covers only a part of a center period: «с» is not the start of its period
- * or «до» is not the end of its period (mirrors `is_partial_period` of the server).
- */
-export function isPartialPeriod(validFrom: string, validTo: string, billingDay: number): boolean {
-  if (!isIsoDate(validFrom) || !isIsoDate(validTo)) return false;
-  return validFrom !== billingPeriodStart(validFrom, billingDay) || validTo !== billingPeriodEndOf(validTo, billingDay);
-}
-
-/**
- * «С» of a fixed-day payment when the server cannot be asked: the day after the previous «оплачено до» (an overdue
- * student first closes the debt); a first payment counts from the payment date (the server uses the enrolment date,
- * which the form does not know). `billingDay` is kept for the callers: the center's day no longer moves «с».
- */
-export function fixedDayFallbackFrom(paidOn: string, previousPaidUntil: string | null | undefined, _billingDay: number): string {
-  return debtStart(paidOn, previousPaidUntil) ?? paidOn;
 }
 
 // ── Receipts and attached files (N13 P2.2) ─────────────────────────────────
@@ -923,6 +1109,21 @@ export function receiptHref(paymentsBasePath: string, paymentId: string): string
   return `${paymentsBasePath.replace(/\/+$/, "")}/receipt/${encodeURIComponent(paymentId)}`;
 }
 
+/** `/owner/payments` + id -> `/owner/payments/statement/<membership>`: the account of a student in a group. */
+export function statementHref(paymentsBasePath: string, membershipId: string): string {
+  return `${paymentsBasePath.replace(/\/+$/, "")}/statement/${encodeURIComponent(membershipId)}`;
+}
+
+/** `/owner/payments` -> `/owner/payments/income`: «Поступления» of the center. */
+export function incomeHref(paymentsBasePath: string): string {
+  return `${paymentsBasePath.replace(/\/+$/, "")}/income`;
+}
+
+/** `/owner/groups` -> `/owner/payments`: the payments base next to a groups base. */
+export function paymentsBaseOf(groupsBasePath: string): string {
+  return `${groupsBasePath.replace(/\/+$/, "").replace(/\/groups$/, "")}/payments`;
+}
+
 export interface PaymentFileCheck {
   ok: boolean;
   error?: string;
@@ -976,7 +1177,7 @@ function inRange(value: number, range: { min: number; max: number }): boolean {
 export type PaymentSettingsScope = "payments" | "attendance";
 
 export const PAYMENTS_SCOPE_KEYS = [
-  "period_mode", "billing_anchor", "billing_day", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage",
+  "period_mode", "billing_anchor", "billing_day", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage", "accounting_start_date",
 ] as const;
 export const ATTENDANCE_SCOPE_KEYS = ["excuse_deadline_days", "excuse_deadline_lessons"] as const;
 
@@ -988,15 +1189,25 @@ type SettingsKey = (typeof PAYMENTS_SCOPE_KEYS)[number] | (typeof ATTENDANCE_SCO
  * the package size and its warning for a package center.  The others are hidden and are neither validated nor sent.
  */
 export function paymentsScopeKeys(model: PaymentModel): SettingsKey[] {
-  const common: SettingsKey[] = ["period_mode", "billing_anchor", "admin_can_manage"];
+  const common: SettingsKey[] = ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date"];
   if (model === "lessons") return [...common, "lessons_per_payment", "expiring_lessons"];
   if (model === "fixed_day") return [...common, "billing_day", "expiring_days"];
   return [...common, "expiring_days"];
 }
 
+/** «Изменит долг у 12 учеников: +5 400 000 сум» — what a new start of the accounting does (the dry run of the server). */
+export function accountingStartImpactText(impact: AccountingStartImpact | null | undefined): string {
+  if (!impact) return "";
+  const count = Math.max(0, Math.round(impact.memberships_with_new_debt));
+  const delta = Math.round(impact.debt_delta);
+  if (count === 0 && delta === 0) return "Долг ни у кого не изменится";
+  const sign = delta > 0 ? "+" : delta < 0 ? "\u2212" : "";
+  return `Долг изменится у ${count} ${pluralRu(count, "ученика", "учеников", "учеников")}: ${sign}${formatMoney(Math.abs(delta))}`;
+}
+
 export function validatePaymentSettings(
   settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
-    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day" | "period_mode" | "billing_anchor">>,
+    Partial<Pick<PaymentSettings, "excuse_deadline_days" | "excuse_deadline_lessons" | "billing_day" | "period_mode" | "billing_anchor" | "accounting_start_date">>,
   scope?: PaymentSettingsScope,
 ): string | null {
   if (scope !== "attendance") {
@@ -1016,6 +1227,9 @@ export function validatePaymentSettings(
     }
     if (check("billing_day") && settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
       return `Единый день оплаты: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
+    }
+    if (check("accounting_start_date") && settings.accounting_start_date && !isIsoDate(settings.accounting_start_date)) {
+      return "Укажите дату начала учёта оплат";
     }
   }
   if (scope !== "payments") {

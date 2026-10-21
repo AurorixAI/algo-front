@@ -1,0 +1,886 @@
+/**
+ * PAY-2 ledger rules of the front: how a balance (debt / advance) is worded, the form of the payment dialog and its live
+ * preview, write-off and refund forms, the account statement of a student, and the tolerant reading of the server's answers.
+ *
+ * The sentences that describe a calculation (`summary_text`, the label of an allocation, `balance_text`, `days_text`)
+ * are written by the server and shown as they come; this file only arranges them.  Pure: no React, no network.
+ */
+import {
+  formatDateRu,
+  formatMoney,
+  isIsoDate,
+  MAX_MONEY,
+  NOTE_MAX,
+  parseMoneyInput,
+  PAYMENT_MAX_AGE_YEARS,
+  REASON_MAX,
+  REASON_MIN,
+  subtractYears,
+  type Allocation,
+  type AllocationSummary,
+  type MembershipPaymentRow,
+  type PayErrorDetail,
+  type PayMethod,
+  type PaymentCreate,
+  type PaymentPreview,
+  type PaymentSaveResult,
+  type PaymentWarning,
+  type PreviewDue,
+  type PreviewResult,
+  type RefundCreate,
+  type Segment,
+  type StatementOut,
+  type StatementRow,
+  type StatementRowType,
+  type StatementSummary,
+  type WriteoffCreate,
+} from "./payments";
+
+// ── Tolerant numbers and lists ─────────────────────────────────────────────
+
+/** A whole сум: null, undefined, text or NaN from an older server read as 0. */
+export function sum(value: unknown): number {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.round(number) : 0;
+}
+
+const nullableSum = (value: unknown): number | null => (value === null || value === undefined ? null : sum(value));
+const list = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+// ── Methods ────────────────────────────────────────────────────────────────
+
+export type EnterableMethod = Exclude<PayMethod, "unknown">;
+
+export const METHODS: Array<{ key: EnterableMethod; label: string }> = [
+  { key: "cash", label: "Наличные" },
+  { key: "card", label: "Карта" },
+  { key: "bank_transfer", label: "Перевод" },
+  { key: "click", label: "Click" },
+  { key: "payme", label: "Payme" },
+  { key: "other", label: "Другое" },
+];
+
+/** «Наличные»; an old record without a method (or with `unknown`) reads «Способ не указан». */
+export function methodLabel(method: PayMethod | null | undefined): string {
+  return METHODS.find((item) => item.key === method)?.label ?? "Способ не указан";
+}
+
+/** A method the form may send (`unknown` is only an old record). */
+export function enterableMethod(method: PayMethod | null | undefined): EnterableMethod | null {
+  return METHODS.find((item) => item.key === method)?.key ?? null;
+}
+
+// ── Balance of a group: «Долг …» / «Аванс …» ───────────────────────────────
+
+export type BalanceKind = "debt" | "advance" | "none";
+
+export interface BalanceView {
+  kind: BalanceKind;
+  amount: number;
+  /** «Долг 269 000 сум» / «Аванс 21 000 сум»; "" when there is neither. */
+  text: string;
+  /** Tailwind classes of the text: red for a debt, green for an advance. */
+  className: string;
+}
+
+export const BALANCE_TEXT_CLASS: Record<BalanceKind, string> = {
+  debt: "text-rose-700",
+  advance: "text-emerald-700",
+  none: "text-slate-500",
+};
+
+export function debtLabel(amount: number): string {
+  return `Долг ${formatMoney(amount)}`;
+}
+
+export function advanceLabel(amount: number): string {
+  return `Аванс ${formatMoney(amount)}`;
+}
+
+/** Debt and advance of a row (an older server sends neither: both 0).  A debt wins over an advance by construction. */
+export function rowBalance(row: Pick<MembershipPaymentRow, "debt" | "advance"> | null | undefined): { debt: number; advance: number } {
+  return { debt: Math.max(0, sum(row?.debt)), advance: Math.max(0, sum(row?.advance)) };
+}
+
+export function balanceView(row: Pick<MembershipPaymentRow, "debt" | "advance"> | null | undefined): BalanceView {
+  const { debt, advance } = rowBalance(row);
+  if (debt > 0) return { kind: "debt", amount: debt, text: debtLabel(debt), className: BALANCE_TEXT_CLASS.debt };
+  if (advance > 0) return { kind: "advance", amount: advance, text: advanceLabel(advance), className: BALANCE_TEXT_CLASS.advance };
+  return { kind: "none", amount: 0, text: "", className: BALANCE_TEXT_CLASS.none };
+}
+
+/** «Долг 269 000 сум» / «Аванс 21 000 сум» / «Нет долга» from a signed balance (minus = debt, plus = advance). */
+export function signedBalanceText(balance: number | null | undefined): string {
+  if (balance === null || balance === undefined) return "";
+  const value = sum(balance);
+  if (value < 0) return debtLabel(-value);
+  if (value > 0) return advanceLabel(value);
+  return "Нет долга";
+}
+
+/** The write-off button is offered with a debt, to a role the server allowed. */
+export function canWriteOff(row: Pick<MembershipPaymentRow, "debt" | "writeoff_allowed">): boolean {
+  return row.writeoff_allowed !== false && rowBalance(row).debt > 0;
+}
+
+/** The refund button is offered when the server says there is something to give back. */
+export function canRefund(row: Pick<MembershipPaymentRow, "refundable">): boolean {
+  return sum(row.refundable) > 0;
+}
+
+// ── Allocation: where a payment went ───────────────────────────────────────
+
+export type AllocationTone = "debt" | "current" | "advance";
+
+export interface AllocationLine {
+  label: string;
+  amount: number;
+  bucket: Allocation["bucket"];
+  closes: boolean;
+}
+
+export function allocationLines(items: Allocation[] | null | undefined): AllocationLine[] {
+  return list<Allocation>(items)
+    .filter((item) => sum(item.amount) > 0)
+    .map((item) => ({ label: item.label, amount: sum(item.amount), bucket: item.bucket, closes: Boolean(item.closes) }));
+}
+
+/** «Закрыла долг 15.09–14.10 · 269 000 сум» */
+export function allocationText(item: Pick<Allocation, "label" | "amount">): string {
+  return `${item.label} · ${formatMoney(item.amount)}`;
+}
+
+/** Where the money of a saved payment went, for a toast: one line per period and the balance left. */
+export function savedPaymentDetails(allocation: AllocationSummary | null | undefined): string[] {
+  if (!allocation) return [];
+  const lines = allocationLines(allocation.items).map(allocationText);
+  if (sum(allocation.debt_after) > 0) lines.push(`Останется долг ${formatMoney(allocation.debt_after)}`);
+  else if (sum(allocation.advance_after) > 0) lines.push(advanceLabel(allocation.advance_after));
+  return lines;
+}
+
+// ── Payment form ───────────────────────────────────────────────────────────
+
+export interface PaymentFormValues {
+  /** Digits with thousands separators, as typed. */
+  amount: string;
+  paidOn: string;
+  method: EnterableMethod | null;
+  note: string;
+  /** Only for a correction. */
+  reason: string;
+}
+
+/** The amount a new payment starts with: everything that is due (debt + current period), 0 → the field stays empty. */
+export function defaultAmount(preview: Pick<PaymentPreview, "suggested_amount"> | null | undefined): number | null {
+  const amount = sum(preview?.suggested_amount);
+  return amount > 0 ? amount : null;
+}
+
+export function validateAmount(text: string | null | undefined): string | null {
+  const amount = parseMoneyInput(text);
+  if (amount === null) return "Укажите сумму";
+  if (amount < 1) return "Сумма должна быть больше нуля";
+  if (amount > MAX_MONEY) return "Сумма слишком большая";
+  return null;
+}
+
+/** The amount to ask the preview about, or null while the field is empty or out of range. */
+export function previewAmount(text: string | null | undefined): number | null {
+  const amount = parseMoneyInput(text);
+  return amount !== null && amount >= 1 && amount <= MAX_MONEY ? amount : null;
+}
+
+export function validatePaymentForm(values: PaymentFormValues, today: string): string | null {
+  const amountProblem = validateAmount(values.amount);
+  if (amountProblem) return amountProblem;
+  if (!isIsoDate(values.paidOn)) return "Укажите дату оплаты";
+  if (values.paidOn > today) return "Дата оплаты не может быть в будущем";
+  if (values.paidOn < subtractYears(today, PAYMENT_MAX_AGE_YEARS)) return "Дата оплаты старше 3 лет";
+  if (!values.method) return "Выберите способ оплаты";
+  if (values.note.trim().length > NOTE_MAX) return `Комментарий не длиннее ${NOTE_MAX} символов`;
+  if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
+  return null;
+}
+
+/** Request body of a payment: money, date, method, note.  Call only after `validatePaymentForm` returned null. */
+export function buildPaymentPayload(values: PaymentFormValues): PaymentCreate {
+  const payload: PaymentCreate = {
+    amount: parseMoneyInput(values.amount) ?? 0,
+    paid_on: values.paidOn,
+    method: values.method ?? "other",
+  };
+  const note = values.note.trim();
+  if (note) payload.note = note;
+  return payload;
+}
+
+/** A correction starts from the payment being replaced. */
+export function paymentFormFrom(payment: { amount: number; paid_on: string; method?: PayMethod; note: string | null }): PaymentFormValues {
+  return {
+    amount: String(sum(payment.amount)).replace(/\B(?=(\d{3})+(?!\d))/g, " "),
+    paidOn: payment.paid_on,
+    method: enterableMethod(payment.method),
+    note: payment.note ?? "",
+    reason: "",
+  };
+}
+
+/** Reason of a cancellation / write-off: trimmed 3..500 characters. */
+export function validateReason(value: string | null | undefined): string | null {
+  const text = (value ?? "").trim();
+  if (text.length < REASON_MIN) return `Укажите причину (не короче ${REASON_MIN} символов)`;
+  if (text.length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
+  return null;
+}
+
+// ── Preview of a payment: top block and live calculation ──────────────────
+
+export interface DueRow {
+  key: "debt" | "current" | "advance";
+  label: string;
+  /** What the amount is made of: «15.09–14.10, оплачено 231 000 из 500 000». */
+  note: string | null;
+  amount: number;
+}
+
+export interface DueView {
+  /** Debt of past periods + the running period: what the student owes today. */
+  total: number;
+  pastDebt: number;
+  currentDue: number;
+  advance: number;
+  rows: DueRow[];
+  totalLabel: string;
+  /** One line for assistive text / tests: «Долг 269 000 сум (15.09–14.10, оплачено 231 000 из 500 000 сум) · Текущий период 15.10–14.11: 500 000 сум · Всего к оплате 769 000 сум». */
+  text: string;
+}
+
+/** «231 000» - the amount without the unit, for «оплачено 231 000 из 500 000». */
+function digits(value: number): string {
+  return formatMoney(value).replace(/\u00A0сум$/, "");
+}
+
+function dm(iso: string): string {
+  return formatDateRu(iso).slice(0, 5);
+}
+
+function periodText(from: string, to: string): string {
+  return `${dm(from)}–${dm(to)}`;
+}
+
+function segmentName(segment: Segment): string {
+  return segment.kind === "package" ? `пакет ${periodText(segment.period_from, segment.period_to)}` : periodText(segment.period_from, segment.period_to);
+}
+
+/**
+ * Splits the segments of `due` into the periods of the debt and the running one.  The server gives `past_debt` and
+ * `current_due` as sums; the running period is the begun one that holds `as_of` (a package of lessons has none:
+ * a package that has held lessons is always a debt, `current_due` is 0 there).
+ */
+export function splitDueSegments(preview: Pick<PaymentPreview, "as_of" | "due">): { past: Segment[]; running: Segment | null } {
+  const open = list<Segment>(preview.due?.segments).filter((segment) => sum(segment.unpaid) > 0);
+  if (sum(preview.due?.current_due) <= 0) return { past: open, running: null };
+  const running = [...open].reverse().find((segment) => segment.period_from <= preview.as_of && preview.as_of <= segment.period_to) ?? null;
+  return { past: open.filter((segment) => segment !== running), running };
+}
+
+/** The block above the amount: «Долг … · Текущий период … · Всего к оплате …». */
+export function dueView(preview: Pick<PaymentPreview, "as_of" | "due"> | null | undefined): DueView | null {
+  if (!preview?.due) return null;
+  const due = preview.due;
+  const pastDebt = sum(due.past_debt);
+  const currentDue = sum(due.current_due);
+  const advance = sum(due.advance);
+  const { past, running } = splitDueSegments(preview);
+  const rows: DueRow[] = [];
+  if (pastDebt > 0) {
+    let note: string | null = null;
+    if (past.length === 1) {
+      const only = past[0];
+      note = `${segmentName(only)}${sum(only.paid) > 0 ? `, оплачено ${digits(only.paid)} из ${digits(only.charge)}` : ""}`;
+    } else if (past.length > 1) {
+      note = `${segmentName(past[0])} … ${segmentName(past[past.length - 1])}, ${past.length} ${past.length < 5 ? "периода" : "периодов"}`;
+    }
+    rows.push({ key: "debt", label: "Долг", note, amount: pastDebt });
+  }
+  if (currentDue > 0) {
+    rows.push({ key: "current", label: "Текущий период", note: running ? segmentName(running) : null, amount: currentDue });
+  }
+  if (advance > 0 && pastDebt + currentDue === 0) rows.push({ key: "advance", label: "Аванс", note: null, amount: advance });
+  const total = sum(due.debt);
+  const totalLabel = `Всего к оплате ${formatMoney(total)}`;
+  const parts = rows
+    .filter((row) => row.key !== "advance")
+    .map((row) => (row.key === "debt"
+      ? `Долг ${formatMoney(row.amount)}${row.note ? ` (${row.note})` : ""}`
+      : `Текущий период${row.note ? ` ${row.note}` : ""}: ${formatMoney(row.amount)}`));
+  return { total, pastDebt, currentDue, advance, rows, totalLabel, text: [...parts, totalLabel].join(" · ") };
+}
+
+/** Under the amount when the group (and the student) has no price: the amount is typed by hand. */
+export const PRICE_NOT_SET_TEXT = "Цена группы не задана — введите сумму вручную";
+
+/** The server says there is no price to charge from (a price of 0 is a price: «Бесплатно»). */
+export function priceMissing(preview: Pick<PaymentPreview, "price" | "warnings"> | null | undefined): boolean {
+  if (!preview) return false;
+  if (preview.warnings.some((warning) => warning.code === "price_missing")) return true;
+  return preview.price?.amount === null || (preview.price?.amount === undefined && preview.price?.source === "none");
+}
+
+export interface PreviewLine {
+  label: string;
+  amount: number;
+  bucket: Allocation["bucket"];
+}
+
+export interface PreviewView {
+  /** The server's sentence about the whole calculation. */
+  headline: string;
+  lines: PreviewLine[];
+  /** «Оплачено до: 27.09.2026 → 15.10.2026»; null when it does not move (or in lessons mode). */
+  paidUntil: string | null;
+  /** «Уроков оплачено: 0 → 12, осталось 0» in lessons mode. */
+  lessons: string | null;
+  /** What is left: «Останется долг 469 000 сум» / «Аванс 300 000 сум» / «Долг закрыт». */
+  remaining: { kind: BalanceKind; text: string };
+  /** The D8 price-rise sentences. */
+  priceAhead: string[];
+  warnings: string[];
+}
+
+export function previewView(preview: PaymentPreview | null | undefined): PreviewView | null {
+  const result: PreviewResult | null | undefined = preview?.result;
+  if (!preview || !result) return null;
+  const debtAfter = sum(result.debt_after);
+  const advanceAfter = sum(result.advance_after);
+  const before = result.paid_until_before;
+  const after = result.paid_until_after;
+  const lessons = result.lessons;
+  const ahead = preview.warnings.filter((warning) => warning.code === "price_change_ahead").map((warning) => warning.message);
+  return {
+    headline: result.summary_text || "",
+    lines: allocationLines(result.allocations),
+    paidUntil: after && after !== before
+      ? `Оплачено до: ${before ? `${formatDateRu(before)} → ` : ""}${formatDateRu(after)}`
+      : null,
+    lessons: lessons
+      ? `Уроков оплачено: ${sum(lessons.covered_before)} → ${sum(lessons.covered_after)}, осталось ${sum(lessons.left_after)}${sum(lessons.unpaid_after) > 0 ? `, не оплачено ${sum(lessons.unpaid_after)}` : ""}`
+      : null,
+    remaining: debtAfter > 0
+      ? { kind: "debt", text: `Останется долг ${formatMoney(debtAfter)}` }
+      : advanceAfter > 0
+        ? { kind: "advance", text: `Переплата → ${advanceLabel(advanceAfter).toLowerCase()}` }
+        : { kind: "none", text: "Долг закрыт" },
+    priceAhead: ahead,
+    warnings: preview.warnings.filter((warning) => warning.code !== "price_change_ahead").map((warning) => warning.message),
+  };
+}
+
+/** Normal reading of `GET …/payments/preview`: every number a number, every list a list. */
+export function normalizePreview(raw: unknown): PaymentPreview {
+  const data = (raw ?? {}) as Partial<PaymentPreview>;
+  const due = (data.due ?? {}) as Partial<PreviewDue>;
+  const result = data.result as Partial<PreviewResult> | null | undefined;
+  return {
+    as_of: String(data.as_of ?? ""),
+    mode: data.mode === "lessons" ? "lessons" : "calendar",
+    price: data.price ?? {},
+    due: {
+      debt: sum(due.debt),
+      past_debt: sum(due.past_debt),
+      current_due: sum(due.current_due),
+      advance: sum(due.advance),
+      segments: list<Segment>(due.segments),
+      paid_until: due.paid_until ?? null,
+      days_overdue: nullableSum(due.days_overdue),
+    },
+    suggested_amount: sum(data.suggested_amount),
+    amount: nullableSum(data.amount),
+    result: result
+      ? {
+          allocations: list<Allocation>(result.allocations),
+          debt_after: sum(result.debt_after),
+          past_debt_after: sum(result.past_debt_after),
+          current_due_after: sum(result.current_due_after),
+          advance_after: sum(result.advance_after),
+          paid_until_before: result.paid_until_before ?? null,
+          paid_until_after: result.paid_until_after ?? null,
+          status_after: result.status_after ?? "none",
+          days_overdue_after: nullableSum(result.days_overdue_after),
+          partial_credit_after: sum(result.partial_credit_after),
+          lessons: result.lessons ?? null,
+          price_ahead: list(result.price_ahead),
+          summary_text: String(result.summary_text ?? ""),
+        }
+      : null,
+    warnings: list<PaymentWarning>(data.warnings),
+  };
+}
+
+/** A row with the PAY-2 numbers present (an older server sends none of them). */
+export function normalizeRow(row: MembershipPaymentRow): MembershipPaymentRow {
+  if (!row) return row;
+  return {
+    ...row,
+    debt: sum(row.debt),
+    past_debt: sum(row.past_debt),
+    current_due: sum(row.current_due),
+    advance: sum(row.advance),
+    partial_credit: sum(row.partial_credit),
+    refundable: sum(row.refundable),
+    lessons_unpaid: sum(row.lessons_unpaid),
+    price_missing: Boolean(row.price_missing),
+    writeoff_allowed: row.writeoff_allowed !== false,
+  };
+}
+
+export function normalizeSaveResult(raw: PaymentSaveResult): PaymentSaveResult {
+  return { ...raw, warnings: list<PaymentWarning>(raw?.warnings), row: normalizeRow(raw?.row), allocation: raw?.allocation ?? null };
+}
+
+// ── Errors of the PAY-2 routes ─────────────────────────────────────────────
+
+export type PayErrorKind =
+  | "duplicate"
+  | "amount_range"
+  | "paid_on_range"
+  | "method_required"
+  | "writeoff_exceeds"
+  | "refund_exceeds"
+  | "reason_required"
+  | "void_breaks_refund"
+  | "already_voided"
+  | "student_archived"
+  | "other";
+
+export interface PayError {
+  kind: PayErrorKind;
+  /** The server's own Russian text. */
+  message: string;
+  paymentId: string | null;
+  debt: number | null;
+  refundable: number | null;
+}
+
+const ERROR_KIND: Record<string, PayErrorKind> = {
+  DUPLICATE_PAYMENT: "duplicate",
+  AMOUNT_RANGE: "amount_range",
+  PAID_ON_RANGE: "paid_on_range",
+  METHOD_REQUIRED: "method_required",
+  WRITEOFF_EXCEEDS_DEBT: "writeoff_exceeds",
+  REFUND_EXCEEDS_ADVANCE: "refund_exceeds",
+  REASON_REQUIRED: "reason_required",
+  VOID_BREAKS_REFUND: "void_breaks_refund",
+  ALREADY_VOIDED: "already_voided",
+  STUDENT_ARCHIVED: "student_archived",
+};
+
+/** The error of a payments call (an `ApiError` carries `code`, `message` and the whole `detail`) in one shape. */
+export function payError(error: unknown, fallback = "Не удалось выполнить действие"): PayError {
+  const e = (error ?? {}) as { message?: string; code?: string; detail?: Partial<PayErrorDetail> | string | null };
+  const detail = e.detail && typeof e.detail === "object" ? e.detail : null;
+  const code = e.code ?? detail?.code ?? null;
+  const message = (detail?.message || e.message || fallback).replace(/[.\s]+$/, "");
+  return {
+    kind: (code && ERROR_KIND[code]) || "other",
+    message,
+    paymentId: detail?.payment_id ?? null,
+    debt: detail?.debt ?? null,
+    refundable: detail?.refundable ?? null,
+  };
+}
+
+// ── Write-off ──────────────────────────────────────────────────────────────
+
+export interface WriteoffFormValues {
+  /** Digits as typed; ignored while `all` is set. */
+  amount: string;
+  all: boolean;
+  reason: string;
+}
+
+export function writeoffAmount(values: WriteoffFormValues, debt: number): number | null {
+  return values.all ? debt : parseMoneyInput(values.amount);
+}
+
+export function validateWriteoff(values: WriteoffFormValues, debt: number): string | null {
+  if (debt <= 0) return "Долга нет — списывать нечего";
+  if (!values.all) {
+    const amount = parseMoneyInput(values.amount);
+    if (amount === null) return "Укажите сумму или выберите «Весь долг»";
+    if (amount < 1) return "Сумма должна быть больше нуля";
+    if (amount > debt) return `Списать можно не больше долга: ${formatMoney(debt)}`;
+  }
+  return validateReason(values.reason);
+}
+
+export function buildWriteoffPayload(values: WriteoffFormValues, today?: string): WriteoffCreate {
+  const body: WriteoffCreate = { reason: values.reason.trim() };
+  if (values.all) body.all = true;
+  else body.amount = parseMoneyInput(values.amount) ?? 0;
+  if (today) body.effective_on = today;
+  return body;
+}
+
+/** «Долг станет 60 000 сум» / «Долг будет списан полностью» under the amount. */
+export function writeoffPreviewText(values: WriteoffFormValues, debt: number): string {
+  const amount = writeoffAmount(values, debt);
+  if (amount === null || amount < 1 || amount > debt) return "";
+  return amount === debt ? "Долг будет списан полностью" : `Долг станет ${formatMoney(debt - amount)}`;
+}
+
+// ── Refund ─────────────────────────────────────────────────────────────────
+
+export interface RefundFormValues {
+  amount: string;
+  method: EnterableMethod | null;
+  reason: string;
+}
+
+export function validateRefund(values: RefundFormValues, refundable: number): string | null {
+  if (refundable <= 0) return "Возвращать нечего";
+  const amount = parseMoneyInput(values.amount);
+  if (amount === null) return "Укажите сумму";
+  if (amount < 1) return "Сумма должна быть больше нуля";
+  if (amount > refundable) return `Вернуть можно не больше ${formatMoney(refundable)}`;
+  if (!values.method) return "Выберите, как вернули деньги";
+  if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
+  return null;
+}
+
+export function buildRefundPayload(values: RefundFormValues, today?: string): RefundCreate {
+  const body: RefundCreate = { amount: parseMoneyInput(values.amount) ?? 0, method: values.method ?? "other" };
+  const reason = values.reason.trim();
+  if (reason) body.reason = reason;
+  if (today) body.effective_on = today;
+  return body;
+}
+
+/** «Останется аванс 100 000 сум» / «Аванс будет возвращён полностью». */
+export function refundPreviewText(values: RefundFormValues, refundable: number): string {
+  const amount = parseMoneyInput(values.amount);
+  if (amount === null || amount < 1 || amount > refundable) return "";
+  return amount === refundable ? "Аванс будет возвращён полностью" : `Останется аванс ${formatMoney(refundable - amount)}`;
+}
+
+// ── Statement ──────────────────────────────────────────────────────────────
+
+export const STATEMENT_TYPE_LABEL: Record<StatementRowType, string> = {
+  charge: "Начисление",
+  payment: "Оплата",
+  writeoff: "Списание",
+  refund: "Возврат",
+  transfer_in: "Перенос из группы",
+  transfer_out: "Перенос в группу",
+};
+
+const MINUS = "−";
+
+/** «+231 000» / «−500 000» (a true minus sign): how the row moved the balance.  Money in is plus, a charge or money out is minus. */
+export function effectText(row: Pick<StatementRow, "debit" | "credit" | "outflow">): string {
+  const effect = sum(row.credit) - sum(row.debit) - sum(row.outflow);
+  if (effect === 0) return "0";
+  const digits = formatMoney(Math.abs(effect)).replace(/ сум$/, "");
+  return `${effect > 0 ? "+" : MINUS}${digits}`;
+}
+
+export function effectOf(row: Pick<StatementRow, "debit" | "credit" | "outflow">): number {
+  return sum(row.credit) - sum(row.debit) - sum(row.outflow);
+}
+
+export function priceSourceText(source: string | null | undefined): string {
+  if (source === "override") return "индивидуальная цена";
+  if (source === "group") return "цена группы";
+  return "цена не задана";
+}
+
+/** A line under the title of a row: what the charge / payment / write-off / refund is made of. */
+export function statementRowNotes(row: StatementRow): string[] {
+  const d = row.details;
+  const notes: string[] = [];
+  switch (row.type) {
+    case "charge": {
+      const segment = d.segment;
+      if (segment) {
+        const price = sum(segment.price?.amount);
+        const priceText = segment.price?.amount === null || segment.price?.amount === undefined
+          ? "цена не задана"
+          : `${formatMoney(price)} · ${priceSourceText(segment.price?.source)}`;
+        notes.push(priceText);
+        if (segment.days_text) notes.push(segment.days_text);
+        else if (segment.kind === "package" && segment.lessons) notes.push(`${segment.lessons.in_part} из ${segment.lessons.in_period} уроков`);
+      }
+      break;
+    }
+    case "payment":
+      notes.push(methodLabel(d.method));
+      if (d.created_by_name) notes.push(`внёс: ${d.created_by_name}`);
+      if (d.note) notes.push(d.note);
+      break;
+    case "writeoff":
+      if (d.reason) notes.push(`причина: ${d.reason}`);
+      if (d.created_by_name) notes.push(`списал: ${d.created_by_name}`);
+      break;
+    case "refund":
+      notes.push(methodLabel(d.method));
+      if (d.reason) notes.push(`причина: ${d.reason}`);
+      if (d.created_by_name) notes.push(`вернул: ${d.created_by_name}`);
+      break;
+    default:
+      break;
+  }
+  return notes;
+}
+
+export interface StatementTotal {
+  key: "charged" | "paid" | "written_off" | "refunded" | "transferred_in" | "transferred_out" | "balance";
+  label: string;
+  /** Money; for the balance the signed text is `text`. */
+  amount: number;
+  text: string;
+  tone: BalanceKind | "plain";
+}
+
+/** The header of the statement: начислено · оплачено · списано · возвращено · долг / аванс (transfers only when there are some). */
+export function statementTotals(summary: StatementSummary | null | undefined): StatementTotal[] {
+  if (!summary) return [];
+  const out: StatementTotal[] = [
+    { key: "charged", label: "Начислено", amount: sum(summary.charged), text: formatMoney(summary.charged), tone: "plain" },
+    { key: "paid", label: "Оплачено", amount: sum(summary.paid), text: formatMoney(summary.paid), tone: "plain" },
+  ];
+  if (sum(summary.transferred_in) > 0) out.push({ key: "transferred_in", label: "Перенесено из других групп", amount: sum(summary.transferred_in), text: formatMoney(summary.transferred_in), tone: "plain" });
+  out.push({ key: "written_off", label: "Списано", amount: sum(summary.written_off), text: formatMoney(summary.written_off), tone: "plain" });
+  out.push({ key: "refunded", label: "Возвращено", amount: sum(summary.refunded), text: formatMoney(summary.refunded), tone: "plain" });
+  if (sum(summary.transferred_out) > 0) out.push({ key: "transferred_out", label: "Перенесено в другие группы", amount: sum(summary.transferred_out), text: formatMoney(summary.transferred_out), tone: "plain" });
+  const debt = sum(summary.debt);
+  const advance = sum(summary.advance);
+  out.push(debt > 0
+    ? { key: "balance", label: "Долг", amount: debt, text: formatMoney(debt), tone: "debt" }
+    : advance > 0
+      ? { key: "balance", label: "Аванс", amount: advance, text: formatMoney(advance), tone: "advance" }
+      : { key: "balance", label: "Долг", amount: 0, text: formatMoney(0), tone: "none" });
+  return out;
+}
+
+/** The identity of the statement: начислено − оплачено − перенесено − списано + возвращено + перенесено в другие = долг − аванс. */
+export function statementDiff(summary: StatementSummary): number {
+  const left = sum(summary.charged) - sum(summary.paid) - sum(summary.transferred_in) - sum(summary.written_off) + sum(summary.refunded) + sum(summary.transferred_out);
+  return left - (sum(summary.debt) - sum(summary.advance));
+}
+
+/** «сходится» only when the server and this check agree. */
+export function statementReconciles(summary: StatementSummary | null | undefined): boolean {
+  return Boolean(summary) && summary!.reconciles !== false && statementDiff(summary!) === 0;
+}
+
+/** The balance after the last row must be the balance of the header (advance − debt). */
+export function statementEndsAtBalance(statement: Pick<StatementOut, "rows" | "summary">): boolean {
+  const rows = statement.rows.filter((row) => row.balance_after !== null);
+  if (rows.length === 0) return true;
+  return sum(rows[rows.length - 1].balance_after) === sum(statement.summary.advance) - sum(statement.summary.debt);
+}
+
+/** Every `balance_after` equals the previous one plus the effect of the row (rows are in time order). */
+export function statementRunningConsistent(rows: StatementRow[]): boolean {
+  let running: number | null = null;
+  for (const row of rows) {
+    if (row.balance_after === null) continue;
+    if (running !== null && sum(row.balance_after) !== running + effectOf(row)) return false;
+    running = sum(row.balance_after);
+  }
+  return true;
+}
+
+export function normalizeStatement(raw: StatementOut): StatementOut {
+  const summary = (raw?.summary ?? {}) as Partial<StatementSummary>;
+  const row = (item: StatementRow): StatementRow => ({
+    ...item,
+    debit: sum(item.debit),
+    credit: sum(item.credit),
+    outflow: sum(item.outflow),
+    balance_after: nullableSum(item.balance_after),
+    details: {
+      allocations: list<Allocation>(item.details?.allocations),
+      created_by_name: item.details?.created_by_name ?? null,
+      from_group_name: item.details?.from_group_name ?? null,
+      from_membership_id: item.details?.from_membership_id ?? null,
+      method: item.details?.method ?? null,
+      note: item.details?.note ?? null,
+      payment_id: item.details?.payment_id ?? null,
+      reason: item.details?.reason ?? null,
+      receipt_no: item.details?.receipt_no ?? null,
+      refund_id: item.details?.refund_id ?? null,
+      segment: item.details?.segment ?? null,
+      to_group_name: item.details?.to_group_name ?? null,
+      to_membership_id: item.details?.to_membership_id ?? null,
+      writeoff_id: item.details?.writeoff_id ?? null,
+    },
+  });
+  return {
+    ...raw,
+    summary: {
+      charged: sum(summary.charged),
+      paid: sum(summary.paid),
+      transferred_in: sum(summary.transferred_in),
+      written_off: sum(summary.written_off),
+      refunded: sum(summary.refunded),
+      transferred_out: sum(summary.transferred_out),
+      debt: sum(summary.debt),
+      advance: sum(summary.advance),
+      paid_until: summary.paid_until ?? null,
+      status: summary.status ?? "none",
+      reconciles: summary.reconciles !== false,
+    },
+    rows: list<StatementRow>(raw?.rows).map(row),
+    voided: list<StatementRow>(raw?.voided).map(row),
+    upcoming: list<Segment>(raw?.upcoming),
+  };
+}
+
+/** A statement filter is a pair of dates in order (either may be empty). */
+export function validateStatementRange(from: string, to: string): string | null {
+  if (from && !isIsoDate(from)) return "Укажите начало периода";
+  if (to && !isIsoDate(to)) return "Укажите конец периода";
+  if (from && to && to < from) return "Конец периода раньше начала";
+  return null;
+}
+
+/** File name of the downloaded statement when the server sends none. */
+export function statementFileName(statement: Pick<StatementOut, "membership" | "as_of">): string {
+  const who = `${statement.membership.student_name}_${statement.membership.group_name}`.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
+  return `Выписка_${who}_${statement.as_of}.xlsx`;
+}
+
+/** The upcoming (already paid) periods, for the quiet block under the table. */
+export function upcomingLine(segment: Segment): string {
+  const period = segment.kind === "package" ? `Пакет ${periodText(segment.period_from, segment.period_to)}` : periodText(segment.period_from, segment.period_to);
+  const paid = sum(segment.paid) > 0 ? `оплачено ${formatMoney(segment.paid)} из ${formatMoney(segment.charge)}` : `к оплате ${formatMoney(segment.charge)}`;
+  return `${period}: ${paid}`;
+}
+
+// ── Idempotency ────────────────────────────────────────────────────────────
+
+/** One key per opening of a payment form: a repeated send of the same payment is recognised by the server (409 `DUPLICATE_PAYMENT`). */
+export function newIdempotencyKey(): string {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  } catch {
+    // fall through to the weaker key below
+  }
+  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+}
+
+// ── Receipt: what the money covered at the moment of payment ───────────────
+
+export interface ReceiptFacts {
+  /** A receipt of the old model: it shows the period, not the distribution. */
+  legacy: boolean;
+  method: string | null;
+  lines: AllocationLine[];
+  /** «Долг до оплаты: 769 000 сум». */
+  debtBefore: string | null;
+  /** «Остаток долга: 469 000 сум» / «Аванс: 21 000 сум» / «Долг закрыт». */
+  after: string | null;
+  /** «Оплачено до: 15.10.2026 (было 27.09.2026)». */
+  paidUntil: string | null;
+  /** «Цена периода: 500 000 сум». */
+  price: string | null;
+}
+
+/** The facts of a new receipt come from its snapshot; an old receipt (no allocations) is legacy. */
+export function receiptFacts(receipt: {
+  method?: PayMethod;
+  allocations?: Allocation[] | null;
+  debt_before?: number | null;
+  debt_after?: number | null;
+  advance_after?: number | null;
+  paid_until_before?: string | null;
+  paid_until_after?: string | null;
+  price_snapshot?: { amount: number | null; source: string } | null;
+}): ReceiptFacts {
+  const legacy = !Array.isArray(receipt.allocations);
+  if (legacy) return { legacy: true, method: null, lines: [], debtBefore: null, after: null, paidUntil: null, price: null };
+  const debtAfter = nullableSum(receipt.debt_after);
+  const advanceAfter = nullableSum(receipt.advance_after);
+  const before = receipt.paid_until_before ?? null;
+  const after = receipt.paid_until_after ?? null;
+  const debtBefore = nullableSum(receipt.debt_before);
+  const snapshotPrice = receipt.price_snapshot?.amount;
+  return {
+    legacy: false,
+    method: receipt.method ? methodLabel(receipt.method) : null,
+    lines: allocationLines(receipt.allocations),
+    debtBefore: debtBefore !== null && debtBefore > 0 ? `Долг до оплаты: ${formatMoney(debtBefore)}` : null,
+    after: debtAfter !== null && debtAfter > 0
+      ? `Остаток долга: ${formatMoney(debtAfter)}`
+      : advanceAfter !== null && advanceAfter > 0
+        ? `${advanceLabel(advanceAfter)} на следующие периоды`
+        : debtAfter !== null ? "Долг закрыт" : null,
+    paidUntil: after ? `Оплачено до: ${formatDateRu(after)}${before && before !== after ? ` (было ${formatDateRu(before)})` : ""}` : null,
+    price: snapshotPrice !== null && snapshotPrice !== undefined ? `Цена периода: ${formatMoney(snapshotPrice)}` : null,
+  };
+}
+
+// ── Statement row, ready to draw ───────────────────────────────────────────
+
+export interface StatementRowView {
+  seq: number;
+  type: StatementRowType;
+  /** Charge / Оплата / Списание… */
+  typeLabel: string;
+  /** The server's title: «Начисление 15.09–14.10», «Оплата № 17». */
+  title: string;
+  date: string;
+  notes: string[];
+  /** «+231 000» / «−500 000». */
+  effect: string;
+  /** Plus (money in) or minus (a charge, money out): the colour. */
+  effectSign: "plus" | "minus" | "zero";
+  /** «Долг 269 000» (the server's words) — "" on a cancelled row. */
+  balance: string;
+  balanceKind: BalanceKind;
+  allocations: AllocationLine[];
+  paymentId: string | null;
+  writeoffId: string | null;
+  refundId: string | null;
+  receiptNo: number | null;
+  cancelled: boolean;
+  /** «Отменено: причина · кто». */
+  cancelNote: string | null;
+}
+
+export function statementRowView(row: StatementRow): StatementRowView {
+  const effect = effectOf(row);
+  const balance = row.balance_after;
+  const balanceKind: BalanceKind = balance === null ? "none" : balance < 0 ? "debt" : balance > 0 ? "advance" : "none";
+  const cancelled = Boolean(row.voided_at);
+  return {
+    seq: row.seq,
+    type: row.type,
+    typeLabel: STATEMENT_TYPE_LABEL[row.type],
+    title: row.title,
+    date: row.date,
+    notes: statementRowNotes(row),
+    effect: effectText(row),
+    effectSign: effect > 0 ? "plus" : effect < 0 ? "minus" : "zero",
+    balance: balance === null ? "" : row.balance_text || signedBalanceText(balance),
+    balanceKind,
+    allocations: row.type === "payment" ? allocationLines(row.details.allocations) : [],
+    paymentId: row.details.payment_id,
+    writeoffId: row.details.writeoff_id,
+    refundId: row.details.refund_id,
+    receiptNo: row.details.receipt_no,
+    cancelled,
+    cancelNote: cancelled
+      ? `Отменено: ${row.void_reason || "причина не указана"}${row.voided_by_name ? ` · ${row.voided_by_name}` : ""}`
+      : null,
+  };
+}
+
+/** «· ученик в архиве» / «· ушёл из группы» in the list of balances: a debt or an advance of a student who is gone stays visible, marked. */
+export function balanceRowNote(row: { is_active?: boolean; student_archived?: boolean }): string {
+  if (row.student_archived) return " · ученик в архиве";
+  if (row.is_active === false) return " · ушёл из группы";
+  return "";
+}

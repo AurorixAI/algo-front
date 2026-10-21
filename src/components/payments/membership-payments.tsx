@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, Trash2, XCircle } from "lucide-react";
+import { Eraser, ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, ScrollText, Trash2, Undo2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatFileSize } from "@/lib/attendance-excuses";
 import {
@@ -12,6 +13,7 @@ import {
   formatDateRu,
   hasReceipt,
   isCarryOver,
+  formatMoney,
   payIsDue,
   PAY_ACTION_LABEL,
   paymentAmountLabel,
@@ -22,6 +24,7 @@ import {
   PAYMENT_SAVED_TEXT,
   receiptHref,
   receiptNumberLabel,
+  statementHref,
   statusDetail,
   statusLabel,
   statusTone,
@@ -32,15 +35,18 @@ import {
   type PaymentSaveResult,
   type PeriodMode,
 } from "@/lib/payments";
-import { priceOfRow } from "@/lib/group-price";
+import { allocationLines, canRefund, canWriteOff, methodLabel, savedPaymentDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useMembershipPriceControls } from "./membership-price";
-import { PaymentFormModal, type PaymentFormKind } from "./payment-form-modal";
+import { BalanceNote } from "./balance-note";
+import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
+import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
+import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 
 const HISTORY_PREVIEW = 5;
 
@@ -50,7 +56,6 @@ interface MembershipPaymentsProps {
   heading: ReactNode;
   studentName: string;
   periodMode: PeriodMode;
-  lessonsDefault: number | null;
   /** `/owner/payments` or `/admin/payments`: where the receipt pages of this workspace live. */
   paymentsBasePath: string;
   /** `/owner/groups` or `/admin/groups`: «Задать цену группы» leads to the group. */
@@ -73,7 +78,7 @@ interface MembershipPaymentsProps {
  *     (cancelled payments grey) with the actions Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, heading, studentName, periodMode, lessonsDefault, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, heading, studentName, periodMode, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const editable = row.is_active && !archived;
@@ -87,6 +92,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
 
   const [form, setForm] = useState<{ kind: PaymentFormKind; payment: PaymentOut | null } | null>(null);
   const [voidTarget, setVoidTarget] = useState<PaymentOut | null>(null);
+  const [writeoffOpen, setWriteoffOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
 
   // Cheques: one hidden picker for every row of the history.
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -121,7 +128,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
 
   const onSaved = (result: PaymentSaveResult) => {
     changed(result.row);
-    onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"]);
+    onNotify(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], "success", savedPaymentDetails(result.allocation));
   };
 
   historyNow.current = history;
@@ -200,6 +207,9 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
   });
   // Rare actions: the price first, the histories last.
   const menu: RowMenuItem[] = [
+    { key: "statement", label: "Выписка", icon: ScrollText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBasePath, row.membership_id)); } },
+    ...(!archived && canWriteOff(row) ? [{ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: () => setWriteoffOpen(true) }] : []),
+    ...(!archived && canRefund(row) ? [{ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: () => setRefundOpen(true) }] : []),
     ...price.items,
     { key: "payments-history", label: historyOpen ? "Скрыть историю оплат" : "История оплат", onSelect: () => setHistoryOpen((value) => !value) },
   ];
@@ -219,6 +229,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] lg:flex-col lg:flex-nowrap lg:items-center lg:gap-y-1 lg:pt-1 lg:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
+            <BalanceNote row={row} />
+            <Link href={statementHref(paymentsBasePath, row.membership_id)} onClick={() => markReceiptNavigation(row.membership_id)} className="text-[11px] font-medium text-primary-700 hover:underline">Выписка</Link>
           </div>
         )}
         {editable && (
@@ -238,6 +250,14 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
           <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
         </div>
       </div>
+
+      {/* A group the student has left (or an archived student): no status, but the debt or the advance and the statement stay */}
+      {!editable && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+          <BalanceNote row={row} />
+          <Link href={statementHref(paymentsBasePath, row.membership_id)} onClick={() => markReceiptNavigation(row.membership_id)} className="text-xs font-medium text-primary-700 hover:underline">Выписка</Link>
+        </div>
+      )}
 
       {/* Row 2: what the student pays */}
       {price.line}
@@ -294,23 +314,27 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
 
       {price.dialogs}
 
-      <PaymentFormModal
+      <PaymentDialog
         open={form !== null}
         kind={form?.kind ?? "create"}
-        membership={{
-          membership_id: row.membership_id,
-          group_id: row.group_id,
-          student_name: studentName,
-          group_name: row.group_name,
-          monthly_fee: priceOfRow(row).amount,
-          paid_until: row.paid_until,
-        }}
+        membership={{ membership_id: row.membership_id, group_id: row.group_id, student_name: studentName, group_name: row.group_name }}
         payment={form?.payment ?? null}
-        periodMode={periodMode}
-        lessonsDefault={lessonsDefault}
         groupsBasePath={groupsBasePath}
         onClose={() => setForm(null)}
         onSaved={onSaved}
+        onDuplicate={() => { onNotify("Эта оплата уже внесена"); void refreshSummary(true); if (historyOpen) void loadHistory(); }}
+      />
+      <WriteoffDialog
+        row={writeoffOpen ? row : null}
+        studentName={studentName}
+        onClose={() => setWriteoffOpen(false)}
+        onDone={(result) => { changed(result.row); onNotify("Долг списан", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); }}
+      />
+      <RefundDialog
+        row={refundOpen ? row : null}
+        studentName={studentName}
+        onClose={() => setRefundOpen(false)}
+        onDone={(result) => { changed(result.row); onNotify("Аванс возвращён", "success", [`Возвращено ${formatMoney(result.refund.amount)}`]); }}
       />
       <PaymentVoidModal
         payment={voidTarget}
@@ -380,6 +404,8 @@ function HistoryItem({
   const carried = isCarryOver(payment);
   const receipt = receiptNumberLabel(payment);
   const files = payment.files ?? [];
+  const allocation = allocationLines(payment.allocation?.items);
+  const refunded = Math.max(0, Math.round(payment.allocation?.refunded ?? 0));
   const atLimit = files.length >= PAYMENT_FILE_MAX_COUNT;
   const items: RowMenuItem[] = [];
   // A carry-over is not money: no receipt, no cheque.
@@ -398,7 +424,7 @@ function HistoryItem({
   if (!voided && voidable) items.push({ key: "void", label: "Отменить", icon: XCircle, danger: true, onSelect: onVoid });
   return (
     <li className="flex items-start justify-between gap-3 py-2">
-      <div className={`min-w-0 text-xs ${voided ? "text-slate-400" : "text-slate-700"}`}>
+      <div className={`min-w-0 flex-1 text-xs ${voided ? "text-slate-400" : "text-slate-700"}`}>
         <p>
           {receipt && (<><span className="font-semibold tabular-nums text-slate-500">{receipt}</span><span className="mx-1.5 text-slate-300">·</span></>)}
           <span className={`font-semibold ${carried ? "" : "tabular-nums"}`}>{paymentAmountLabel(payment)}</span>
@@ -408,11 +434,25 @@ function HistoryItem({
           {voided && <span className="ml-2 inline-flex rounded-md border border-slate-200 bg-slate-100 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600">Отменена · не учитывается</span>}
         </p>
         <p className={voided ? "" : "text-slate-500"}>
-          {paymentPeriodLabel(payment)}
-          {payment.partial_period && !carried && (
+          {!carried && payment.method ? methodLabel(payment.method) : ""}
+          {/* A payment of the old model still shows the period it was entered for. */}
+          {payment.legacy_period && paymentPeriodLabel(payment) ? `${!carried && payment.method ? " · " : ""}${paymentPeriodLabel(payment)}` : ""}
+          {payment.legacy_period && payment.partial_period && !carried && (
             <span className={`ml-2 inline-flex rounded-md border px-1.5 py-px align-middle text-[10px] font-semibold ${voided ? "border-slate-200 text-slate-400" : "border-amber-200 bg-amber-50 text-amber-800"}`}>{PARTIAL_PERIOD_TAG}</span>
           )}
         </p>
+        {/* Where the money went: the distribution of the whole group as it is now (a cancelled payment has none). */}
+        {!voided && !carried && allocation.length > 0 && (
+          <ul aria-label="Куда пошли деньги" className="mt-0.5 space-y-px text-[11px] text-slate-500">
+            {allocation.map((line, index) => (
+              <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0">{line.label}</span>
+                <span className="shrink-0 tabular-nums">{formatMoney(line.amount)}</span>
+              </li>
+            ))}
+            {refunded > 0 && <li className="text-slate-400">Возвращено из этой оплаты: {formatMoney(refunded)}</li>}
+          </ul>
+        )}
         {!voided && payment.carried_out && <p className="text-[11px] text-slate-500">{carriedOutLabel(payment)}</p>}
         {/* The note of a carry-over only repeats «перенос из …». */}
         {payment.note && !carried && <p className="break-words text-slate-500">{payment.note}</p>}

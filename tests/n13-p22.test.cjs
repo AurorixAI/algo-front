@@ -54,86 +54,9 @@ test("screens take the price wording from the helper, not from literals", () => 
 
 // ---- 2. periods of the «единый день оплаты» -------------------------------------------------------
 
-test("a center period starts on the billing day and ends the day before the next one", () => {
-  // day 1: the calendar month
-  assert.equal(P.billingPeriodStart("2026-10-15", 1), "2026-10-01");
-  assert.equal(P.billingPeriodEndOf("2026-10-15", 1), "2026-10-31");
-  assert.equal(P.billingPeriodEndOf("2026-01-31", 1), "2026-01-31");
-  assert.equal(P.billingPeriodEndOf("2028-02-10", 1), "2028-02-29"); // leap February
-  assert.equal(P.billingPeriodEndOf("2026-02-10", 1), "2026-02-28");
-  // day 10: 10th to the 9th
-  assert.equal(P.billingPeriodStart("2026-10-15", 10), "2026-10-10");
-  assert.equal(P.billingPeriodEndOf("2026-10-15", 10), "2026-11-09");
-  assert.equal(P.billingPeriodStart("2026-10-05", 10), "2026-09-10"); // before the day: the previous period
-  assert.equal(P.billingPeriodEndOf("2026-10-05", 10), "2026-10-09");
-  assert.equal(P.billingPeriodStart("2026-10-10", 10), "2026-10-10"); // the day itself starts a period
-  // December -> January, both ways
-  assert.equal(P.billingPeriodStart("2026-01-05", 10), "2025-12-10");
-  assert.equal(P.billingPeriodEndOf("2026-01-05", 10), "2026-01-09");
-  assert.equal(P.billingPeriodEndOf("2026-12-20", 10), "2027-01-09");
-  // day 28 never meets a short month
-  assert.equal(P.billingPeriodStart("2026-02-27", 28), "2026-01-28");
-  assert.equal(P.billingPeriodEndOf("2026-02-27", 28), "2026-02-27");
-  assert.equal(P.billingPeriodEndOf("2026-02-28", 28), "2026-03-27");
-  assert.equal(P.billingPeriodEndOf("2028-02-28", 28), "2028-03-27");
-});
-
-test("the two shortcuts under «Оплачено до»: end of the period, and one more period", () => {
-  assert.deepEqual(P.fixedDayChips("2026-10-15", "2026-10-31", 1), { toEnd: "2026-10-31", plusNext: "2026-11-30" });
-  assert.deepEqual(P.fixedDayChips("2026-10-01", "2026-11-30", 1), { toEnd: "2026-10-31", plusNext: "2026-12-31" }); // adds again
-  assert.deepEqual(P.fixedDayChips("2026-12-01", "2026-12-31", 1), { toEnd: "2026-12-31", plusNext: "2027-01-31" });
-  assert.equal(P.fixedDayChips("2027-01-01", "2027-01-31", 1).plusNext, "2027-02-28");
-  assert.equal(P.fixedDayChips("2028-01-01", "2028-01-31", 1).plusNext, "2028-02-29");
-  // day 10: (valid_to + 1 day) + 1 month - 1 day
-  assert.deepEqual(P.fixedDayChips("2026-10-10", "2026-11-09", 10), { toEnd: "2026-11-09", plusNext: "2026-12-09" });
-  assert.deepEqual(P.fixedDayChips("2026-10-15", "2026-11-09", 10), { toEnd: "2026-11-09", plusNext: "2026-12-09" });
-  // a typed «до» in the middle of a period: the next period after the one it is in
-  assert.equal(P.fixedDayChips("2026-10-15", "2026-10-20", 1).plusNext, "2026-11-30");
-  // «до» empty or before «с»: counted from the end of the period
-  assert.equal(P.fixedDayChips("2026-10-15", "", 1).plusNext, "2026-11-30");
-  assert.equal(P.fixedDayChips("2026-10-15", "2026-10-01", 1).plusNext, "2026-11-30");
-  // nothing to offer without a start or with a day outside 1..28
-  assert.equal(P.fixedDayChips("", "2026-10-31", 1), null);
-  assert.equal(P.fixedDayChips("2026-10-15", "2026-10-31", 0), null);
-  assert.equal(P.fixedDayChips("2026-10-15", "2026-10-31", 29), null);
-});
-
 // ---- 3. the quote: what is asked, what is written ---------------------------------------------
 
 const calendarInputs = { mode: "calendar", paidOn: "2026-10-15", validFrom: "2026-10-15", validTo: "2026-11-14", lessons: "", fromTouched: false, toTouched: false };
-
-test("untouched dates: only the payment date is sent and the server picks the period", () => {
-  assert.deepEqual(P.buildQuoteQuery(calendarInputs), { paid_on: "2026-10-15" });
-  // the dates on screen are the answer of the server, so they do not change the question
-  assert.equal(P.quoteQueryKey(P.buildQuoteQuery(calendarInputs)), P.quoteQueryKey(P.buildQuoteQuery({ ...calendarInputs, validTo: "2026-10-31" })));
-});
-
-test("a touched date sends both dates, so the answer is about what is on screen", () => {
-  assert.deepEqual(P.buildQuoteQuery({ ...calendarInputs, toTouched: true, validTo: "2026-10-31" }),
-    { paid_on: "2026-10-15", valid_from: "2026-10-15", valid_to: "2026-10-31" });
-  assert.deepEqual(P.buildQuoteQuery({ ...calendarInputs, fromTouched: true, validFrom: "2026-10-20", validTo: "2026-11-19" }),
-    { paid_on: "2026-10-15", valid_from: "2026-10-20", valid_to: "2026-11-19" });
-  // a different touched date is a different question
-  const a = P.quoteQueryKey(P.buildQuoteQuery({ ...calendarInputs, toTouched: true, validTo: "2026-10-31" }));
-  const b = P.quoteQueryKey(P.buildQuoteQuery({ ...calendarInputs, toTouched: true, validTo: "2026-11-30" }));
-  assert.notEqual(a, b);
-});
-
-test("nothing is asked about a form that cannot be asked about", () => {
-  assert.equal(P.buildQuoteQuery({ ...calendarInputs, paidOn: "" }), null);
-  assert.equal(P.buildQuoteQuery({ ...calendarInputs, toTouched: true, validTo: "2026-10-01" }), null); // reversed
-  assert.equal(P.buildQuoteQuery({ ...calendarInputs, toTouched: true, validTo: "" }), null);
-  assert.equal(P.quoteQueryKey(null), "");
-});
-
-test("a package asks with the lessons count it shows, and refuses a count that is not one", () => {
-  const lessons = { ...calendarInputs, mode: "lessons", validTo: "" };
-  assert.deepEqual(P.buildQuoteQuery(lessons), { paid_on: "2026-10-15" });
-  assert.deepEqual(P.buildQuoteQuery({ ...lessons, lessons: "8" }), { paid_on: "2026-10-15", lessons_count: 8 });
-  assert.deepEqual(P.buildQuoteQuery({ ...lessons, lessons: "8", fromTouched: true, validFrom: "2026-10-20" }),
-    { paid_on: "2026-10-15", valid_from: "2026-10-20", lessons_count: 8 });
-  for (const bad of ["0", "-1", "abc", "1.5", "121"]) assert.equal(P.buildQuoteQuery({ ...lessons, lessons: bad }), null, bad);
-});
 
 const answer = (over = {}) => ({
   mode: "calendar", billing_anchor: "fixed_day", billing_day: 1, paid_on: "2026-10-15",
@@ -141,33 +64,6 @@ const answer = (over = {}) => ({
   suggested_amount: 250000, basis: "lessons", parts: [], explanation: "Неполный месяц: 6 уроков из 12 по расписанию", ...over,
 });
 
-test("an answer fills only the fields the user has not touched", () => {
-  const none = { from: false, to: false, amount: false };
-  const filled = P.quotePrefill(answer(), none, "calendar");
-  assert.equal(filled.validFrom, "2026-10-15");
-  assert.equal(filled.validTo, "2026-10-31");
-  assert.equal(plain(filled.amount), "250 000");
-  // every touched field stays as typed
-  assert.deepEqual(P.quotePrefill(answer(), { from: true, to: true, amount: true }, "calendar"), {});
-  const onlyAmount = P.quotePrefill(answer(), { from: true, to: true, amount: false }, "calendar");
-  assert.deepEqual(Object.keys(onlyAmount), ["amount"]);
-  const noAmount = P.quotePrefill(answer(), { from: false, to: false, amount: true }, "calendar");
-  assert.deepEqual(Object.keys(noAmount).sort(), ["validFrom", "validTo"]);
-  // a package has no «до»
-  assert.equal("validTo" in P.quotePrefill(answer({ mode: "lessons", valid_to: null }), none, "lessons"), false);
-});
-
-test("an answer without a suggestion leaves the amount, except for a custom period (state the amount)", () => {
-  const none = { from: false, to: false, amount: false };
-  assert.equal("amount" in P.quotePrefill(answer({ suggested_amount: null, basis: "none", partial: false }), none, "calendar"), false);
-  // a part of a month without a price: the full fee must not stay in the field
-  assert.equal(P.quotePrefill(answer({ suggested_amount: null, basis: "none", partial: true }), none, "calendar").amount, "");
-  assert.equal(P.quotePrefill(answer({ suggested_amount: null, basis: "custom", partial: false }), none, "calendar").amount, "");
-  // typed by the user: still theirs
-  assert.equal("amount" in P.quotePrefill(answer({ suggested_amount: null, basis: "custom" }), { ...none, amount: true }, "calendar"), false);
-});
-
-const quoteHook = require(path.join(root, "src/lib/use-payment-quote.ts"));
 const { createRequestSequence } = require(path.join(root, "src/lib/request-sequence.ts"));
 const nav = require(path.join(root, "src/lib/receipt-nav.ts"));
 const tick = () => new Promise((resolve) => setImmediate(resolve));
@@ -180,103 +76,6 @@ function fakeServer() {
     fetchQuote: (query) => new Promise((resolve, reject) => { calls.push({ query, resolve, reject }); }),
   };
 }
-
-test("a slow answer for old dates never overwrites the newer one", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const server = fakeServer();
-  const sequence = createRequestSequence();
-  let screen = "A";
-  const accepted = [];
-  const run = (key, delayMs) => quoteHook.startQuoteRun({
-    query: { paid_on: key }, key, delayMs, sequence, fetchQuote: server.fetchQuote,
-    currentKey: () => screen, onQuote: (quote, k) => accepted.push([k, quote.tag]), onFailed: () => accepted.push(["failed"]),
-  });
-  const cancelA = run("A", 0);
-  t.mock.timers.tick(0);
-  assert.equal(server.calls.length, 1);
-  // the user changes the date: the effect cleanup cancels A, the new ask waits for the debounce
-  screen = "B";
-  cancelA();
-  const cancelB = run("B", quoteHook.QUOTE_DEBOUNCE_MS);
-  t.mock.timers.tick(quoteHook.QUOTE_DEBOUNCE_MS - 1);
-  assert.equal(server.calls.length, 1); // not yet: 300 ms have not passed
-  t.mock.timers.tick(1);
-  assert.equal(server.calls.length, 2);
-  // B answers first, then the slow A: A is dropped
-  server.calls[1].resolve({ tag: "answer for B" });
-  await tick();
-  server.calls[0].resolve({ tag: "answer for A" });
-  await tick();
-  assert.deepEqual(accepted, [["B", "answer for B"]]);
-  cancelB();
-});
-
-test("an answer is dropped when the form has moved on, even before the cleanup ran", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const server = fakeServer();
-  const accepted = [];
-  let screen = "A";
-  quoteHook.startQuoteRun({
-    query: { paid_on: "A" }, key: "A", delayMs: 0, sequence: createRequestSequence(), fetchQuote: server.fetchQuote,
-    currentKey: () => screen, onQuote: (quote) => accepted.push(quote.tag), onFailed: () => accepted.push("failed"),
-  });
-  t.mock.timers.tick(0);
-  screen = "B"; // rendered, but its effect has not cancelled A yet
-  server.calls[0].resolve({ tag: "A" });
-  await tick();
-  assert.deepEqual(accepted, []);
-});
-
-test("a failed or silent quote reports failure once (the form falls back to its local dates)", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  const events = [];
-  const make = (server) => quoteHook.startQuoteRun({
-    query: { paid_on: "A" }, key: "A", delayMs: 0, sequence: createRequestSequence(), fetchQuote: server.fetchQuote,
-    currentKey: () => "A", onQuote: () => events.push("quote"), onFailed: () => events.push("failed"),
-  });
-  const rejecting = fakeServer();
-  make(rejecting);
-  t.mock.timers.tick(0);
-  rejecting.calls[0].reject(new Error("net"));
-  await tick();
-  assert.deepEqual(events, ["failed"]);
-  // no answer at all: after the timeout it counts as failed and the late answer is ignored
-  const silent = fakeServer();
-  make(silent);
-  t.mock.timers.tick(0);
-  t.mock.timers.tick(quoteHook.QUOTE_TIMEOUT_MS);
-  assert.deepEqual(events, ["failed", "failed"]);
-  silent.calls[0].resolve({ tag: "late" });
-  await tick();
-  assert.deepEqual(events, ["failed", "failed"]);
-});
-
-test("the quote hook: the first ask is immediate, later ones wait 300 ms; a changed query cancels the old one", () => {
-  const hook = read("src/lib/use-payment-quote.ts");
-  assert.equal(quoteHook.QUOTE_DEBOUNCE_MS, 300);
-  assert.match(hook, /first\.current \? 0 : QUOTE_DEBOUNCE_MS/);
-  assert.match(hook, /\}, \[enabled, membershipId, key\]\);/); // the effect re-runs (and cleans up) only when the question changes
-  assert.match(hook, /return startQuoteRun\(/);
-});
-
-test("the payment form never overwrites a touched field and falls back to local dates when the quote fails", () => {
-  const modal = read("src/components/payments/payment-form-modal.tsx");
-  assert.match(modal, /quotePrefill\(quote, \{ from: fromTouched, to: toTouched, amount: amountTouched \}, mode\)/);
-  assert.match(modal, /setAmountTouched\(true\)/);
-  assert.match(modal, /setAmountTouched\(kind === "replace"\)/); // a correction starts from the payment's own values
-  assert.match(modal, /if \(!quoteFailed \|\| !membership \|\| !paidOnNow\) return;/);
-  assert.match(modal, /quoteState\.quoteKey === queryKey/); // a stale answer is not shown
-  // the chips re-ask: they mark «до» as touched, which puts it into the query
-  assert.match(modal, /const changeValidTo = \(validTo: string\) => \{\s*setToTouched\(true\);/);
-  assert.match(modal, /До конца месяца \(/);
-  assert.match(modal, /\+ следующий месяц \(/);
-  assert.match(modal, /PARTIAL_PERIOD_BADGE/);
-  // quick pay in the «Нет данных» tab uses the same helpers, and asks only for rows that were in view
-  const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /usePaymentQuote\(\{\s*enabled: seen,/);
-  assert.match(page, /IntersectionObserver/);
-  assert.match(page, /quotePrefill\(quote, \{ from: false, to: toTouched, amount: true \}, periodMode\)/);
-});
 
 // ---- 4. settings: models, sections ----------------------------------------------------------
 
@@ -500,11 +299,11 @@ test("receipt wording: title, replaced / replaces notes, errors", () => {
 
 test("API helpers follow the contract paths", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /\/auth\/org\/memberships\/\$\{encodePathId\(membershipId\)\}\/payments\/quote\?/);
+  assert.match(api, /\/auth\/org\/memberships\/\$\{encodePathId\(membershipId\)\}\/payments\/preview/);
   assert.match(api, /\/auth\/org\/payments\/\$\{encodePathId\(paymentId\)\}\/receipt/);
   assert.match(api, /\/auth\/org\/payments\/\$\{encodePathId\(paymentId\)\}\/files`/);
   assert.match(api, /\/files\/\$\{encodePathId\(fileId\)\}`/);
-  assert.match(api, /params\.set\("valid_from", q\.valid_from\)/);
+  assert.doesNotMatch(api, /payments\/quote/); // the period quote is gone: the server distributes the money
   // a delete does not need a JSON body in the answer
   assert.match(api, /async function deleteAuthed/);
 });
@@ -537,93 +336,11 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
 
 // ---- R3 follow-ups -----------------------------------------------------------------------------
 
-test("the caption under the amount says «Цена группы не задана», whatever an older server writes", () => {
-  const quote = (over) => ({ basis: "full", monthly_fee: 500000, explanation: "Полный месяц", partial: false, suggested_amount: 500000, ...over });
-  const none = quote({ basis: "none", monthly_fee: null, suggested_amount: null, explanation: "Оплата в месяц не задана" });
-  assert.equal(P.quoteCaption(none), "Цена группы не задана — введите сумму вручную");
-  assert.equal(P.quoteCaption({ ...none, explanation: "Стоимость пакета не задана" }), P.PRICE_NOT_SET_TEXT);
-  assert.equal(P.quoteLacksPrice(none), true);
-  assert.equal(P.quoteLacksPrice(quote({ monthly_fee: 0, basis: "none", suggested_amount: null })), false); // a price of 0 is a price
-  assert.equal(P.quoteLacksPrice(quote()), false);
-  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, suggested_amount: 0 })), "Бесплатно — сумма 0");
-  assert.equal(P.quoteCaption(quote({ monthly_fee: 0, basis: "none", suggested_amount: null })), "Бесплатно — сумма 0");
-  assert.equal(P.quoteCaption(quote({ explanation: "Неполный месяц: 6 уроков из 12" })), "Неполный месяц: 6 уроков из 12");
-  // a part of a month with no price asks for an amount instead of repeating the full price
-  assert.equal(P.quoteCaption(quote({ partial: true, suggested_amount: null, basis: "days" })), "Для неполного месяца введите сумму");
-  assert.equal(P.PARTIAL_AMOUNT_PROMPT, "Для неполного месяца введите сумму");
-  assert.equal(P.QUOTE_FAILED_NOTE, "Подсказка суммы недоступна — проверьте даты и сумму");
-});
-
-test("a one-off sum goes into the quote question (and into its key)", () => {
-  const inputs = { mode: "calendar", paidOn: "2026-10-15", validFrom: "2026-10-15", validTo: "2026-11-14", lessons: "", fromTouched: false, toTouched: false };
-  assert.deepEqual(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 }), { paid_on: "2026-10-15", monthly_fee: 500000 });
-  assert.deepEqual(P.buildQuoteQuery({ ...inputs, toTouched: true, validTo: "2026-10-31", monthlyFee: 400000 }),
-    { paid_on: "2026-10-15", monthly_fee: 400000, valid_from: "2026-10-15", valid_to: "2026-10-31" });
-  assert.deepEqual(P.buildQuoteQuery({ ...inputs, mode: "lessons", lessons: "8", monthlyFee: 600000 }),
-    { paid_on: "2026-10-15", monthly_fee: 600000, lessons_count: 8 });
-  // nothing typed or nonsense: the saved fee counts, so the parameter is left out
-  for (const none of [null, undefined, 0, -5, 1.5, NaN, 10_000_000_001]) {
-    assert.equal("monthly_fee" in P.buildQuoteQuery({ ...inputs, monthlyFee: none }), false, String(none));
-  }
-  // a different fee is a different question (it re-asks after the debounce)
-  assert.notEqual(P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 })), P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 600000 })));
-  assert.notEqual(P.quoteQueryKey(P.buildQuoteQuery({ ...inputs, monthlyFee: 500000 })), P.quoteQueryKey(P.buildQuoteQuery(inputs)));
-  assert.match(read("src/lib/api.ts"), /params\.set\("monthly_fee", String\(q\.monthly_fee\)\)/);
-});
-
-test("quick pay suggests from the price of the group, has no price field, and never prefills the full price for a part of a month", () => {
-  const page = read("src/components/payments/payments-page.tsx");
-  // #105: the price is not typed here any more - the row says what the price is, links to the group, and the sum is by hand
-  assert.doesNotMatch(page, /setMembershipFee|monthlyFee: feeValue|parseMonthlyFee|texts\.field|setSavedFee/);
-  assert.match(page, /const defaultAmount = custom \? null : suggestion \?\? \(partial \? null : priceAmount\);/);
-  assert.match(page, /priceAmount === null/); // no price: the sum field is open
-  assert.match(page, /groupPriceHref\(groupsBasePath, row\.group_id\)/);
-  assert.match(page, /PARTIAL_AMOUNT_PROMPT/);
-  assert.match(page, /QUOTE_FAILED_NOTE/);
-  assert.doesNotMatch(page, /изменена — сумму за неполный месяц/); // the misleading hint is gone
-  assert.doesNotMatch(page, /feeUnchanged/);
-  // when the quote fails the center's day is used for «до» once it is known
-  assert.match(page, /fixedDay !== null \? billingPeriodEndOf\(paidOn, fixedDay\) : addMonthMinusDay\(paidOn\)/);
-});
-
-test("a part of a center period, and the fallback «с» of a fixed-day payment", () => {
-  assert.equal(P.isPartialPeriod("2026-10-15", "2026-10-31", 1), true);
-  assert.equal(P.isPartialPeriod("2026-10-01", "2026-10-20", 1), true);
-  assert.equal(P.isPartialPeriod("2026-10-01", "2026-10-31", 1), false);
-  assert.equal(P.isPartialPeriod("2026-10-01", "2026-11-30", 1), false); // two whole periods
-  assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-09", 10), false);
-  assert.equal(P.isPartialPeriod("2026-10-10", "2026-11-10", 10), true);
-  assert.equal(P.isPartialPeriod("", "2026-11-09", 10), false);
-  // previous payment ran to 31.10, paid 17.11: from 01.11 (an overdue student first closes the debt), not from the payment date
-  assert.equal(P.fixedDayFallbackFrom("2026-11-17", "2026-10-31", 1), "2026-11-01");
-  // paid ahead: the continuation
-  assert.equal(P.fixedDayFallbackFrom("2026-10-20", "2026-11-30", 1), "2026-12-01");
-  // long overdue: the day after the old «оплачено до», no clamp to the center period of today
-  assert.equal(P.fixedDayFallbackFrom("2026-11-17", "2026-08-20", 1), "2026-08-21");
-  // a first payment counts from the payment date
-  assert.equal(P.fixedDayFallbackFrom("2026-10-17", null, 1), "2026-10-17");
-  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "", 10), "2026-10-17");
-  // A debt older than the server accepts (3 years before the payment date) falls back to the payment date; the bound is kept.
-  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "2023-10-15", 1), "2026-10-17");
-  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "2023-10-16", 1), "2023-10-17");
-  assert.equal(P.defaultValidFrom("2026-10-17", "2023-10-15"), "2026-10-17");
-  assert.equal(P.defaultValidFrom("2028-02-29", "2025-02-27"), "2025-02-28");
-});
-
-test("the payment form falls back to the center's day, says the quote is unavailable and drops an old suggestion", () => {
-  const modal = read("src/components/payments/payment-form-modal.tsx");
-  assert.match(modal, /fixedDay \? fixedDayFallbackFrom\(paidOnNow, membership\.paid_until, fixedDay\)/);
-  assert.match(modal, /next\.validTo = defaultTo\(next\.validFrom\)/);
-  assert.match(modal, /if \(!amountTouched && quote\) next\.amount = "";/);
-  assert.match(modal, /QUOTE_FAILED_NOTE/);
-  assert.match(modal, /quoteCaption\(fresh\)/);
-});
-
 test("«Оплаты» validates and sends only the fields its card shows", () => {
   const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
-  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "expiring_days"]);
-  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "billing_day", "expiring_days"]);
-  assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "lessons_per_payment", "expiring_lessons"]);
+  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "expiring_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "billing_day", "expiring_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "lessons_per_payment", "expiring_lessons"]);
   const junk = { lessons_per_payment: NaN, expiring_lessons: 99, expiring_days: NaN, billing_day: 40 };
   // a calendar card: the package fields and the day are hidden, a leftover in them does not block
   assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), null);

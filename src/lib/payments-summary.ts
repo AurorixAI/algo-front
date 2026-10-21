@@ -25,6 +25,10 @@ interface PaymentsSummaryState {
   trackedTotal: number;
   periodMode: PeriodMode;
   lessonsPerPayment: number | null;
+  /** PAY-2: what the students owe the center today, and what they have paid ahead (whole сум; 0 from an older server). */
+  debtTotal: number;
+  advanceTotal: number;
+  studentsWithDebt: number;
   /**
    * Re-read the summary; a failure never throws.  Without `force`, a call within a second
    * of the previous one is skipped (mount and route change fire together); pass `force`
@@ -55,6 +59,9 @@ const EMPTY = {
   trackedTotal: 0,
   periodMode: "calendar" as PeriodMode,
   lessonsPerPayment: null as number | null,
+  debtTotal: 0,
+  advanceTotal: 0,
+  studentsWithDebt: 0,
 };
 
 let inFlight: Promise<void> | null = null;
@@ -85,6 +92,9 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     trackedTotal: count(summary?.tracked_total),
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,
+    debtTotal: count(summary?.debt_total),
+    advanceTotal: count(summary?.advance_total),
+    studentsWithDebt: count(summary?.students_with_debt),
   };
 }
 

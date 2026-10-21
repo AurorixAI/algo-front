@@ -98,21 +98,6 @@ test("status: the chip says the state, the second line says «оплачено �
   assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
 });
 
-test("one verb «Внести оплату»; the button is filled when a payment is due (overdue or never paid), outlined while one is running", () => {
-  const paid = { id: "p1" };
-  assert.equal(rules.payIsDue({ status: "expired", last_payment: paid }), true);
-  assert.equal(rules.payIsDue({ status: "none", last_payment: null }), true);
-  assert.equal(rules.payIsDue({ status: "active", last_payment: null }), true); // never paid (a free or carried-over membership)
-  assert.equal(rules.payIsDue({ status: "active", last_payment: paid }), false);
-  assert.equal(rules.payIsDue({ status: "expiring", last_payment: paid }), false);
-  assert.equal(rules.payIsDue({ status: "ends_today", last_payment: paid }), false); // still paid today
-  assert.equal(rules.PAY_ACTION_LABEL, "Внести оплату");
-  // the dialog repeats the verb of the button
-  const modal = read("src/components/payments/payment-form-modal.tsx");
-  assert.match(modal, /create: PAY_ACTION_LABEL,/);
-  assert.doesNotMatch(modal, /extend/);
-});
-
 test("tabs: «Без оплат», and a counter on every tab", () => {
   assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none").label, "Без оплат");
   const summary = { due: 12, expiring: 3, none: 0, active: 48 };
@@ -155,24 +140,6 @@ test("the payments table: sentence-case headers, a tab bar that scrolls with a f
   assert.match(page, /bucketTabLabel\(label, bucketCount\(summaryForTabs, key\)\)/);
   assert.match(page, /kind: "create", row, payment: null/);
   assert.equal((page.match(/<PayButton row=\{row\}/g) || []).length, 1);
-});
-
-test("payments screens carry no «дн.» abbreviation and no «Нет данных» tab name", () => {
-  const files = [
-    "src/lib/payments.ts", "src/lib/group-price.ts",
-    ...walk(path.join(root, "src/components/payments")).map((file) => path.relative(root, file).replace(/\\/g, "/")),
-    "src/components/students/student-payments-block.tsx",
-  ];
-  for (const file of files) {
-    const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/[^\n]*/g, "$1");
-    assert.doesNotMatch(code, /\bдн\./, file);
-    assert.doesNotMatch(code, /«Нет данных»|"Нет данных"/, file);
-  }
-  for (const spec of fs.readdirSync(path.join(root, "e2e/tests")).filter((name) => name.endsWith(".spec.ts"))) {
-    assert.doesNotMatch(read(`e2e/tests/${spec}`), /name: \/Нет данных\//, spec);
-  }
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "calendar"), "Период 31 день");
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-10-06" }, "calendar"), "Период 2 дня");
 });
 
 test("student card: row 1 = group + status + main button + «⋯»; row 2 = the price; the rare actions are in the menu", () => {

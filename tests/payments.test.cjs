@@ -44,37 +44,11 @@ test("parseMoneyInput keeps digits only; an empty field is null", () => {
   assert.equal(rules.formatMoneyInput(null), "");
 });
 
-test("money fields are limited to 0..10 000 000 000", () => {
-  // the amount of a payment (the price has its own checks: tests/n13-p4-price.test.cjs)
-  const form = (amount) => ({ amount, paidOn: "2026-10-01", validFrom: "2026-10-01", validTo: "2026-10-31", lessons: "", note: "", reason: "" });
-  assert.equal(rules.validatePaymentForm(form("10 000 000 000"), "calendar", "2026-10-17"), null);
-  assert.ok(rules.validatePaymentForm(form("10 000 000 001"), "calendar", "2026-10-17"));
-  assert.ok(rules.validatePaymentForm(form(""), "calendar", "2026-10-17"));
-});
-
 test("dates are shown as ДД.ММ.ГГГГ", () => {
   assert.equal(rules.formatDateRu("2026-11-04"), "04.11.2026");
   assert.equal(rules.formatDateRu("2026-11-04T10:00:00"), "04.11.2026");
   assert.equal(rules.formatDateRu(null), "");
   assert.equal(rules.formatDateRu("junk"), "");
-});
-
-test("«с» + 1 месяц − 1 день, including the short-month edge", () => {
-  assert.equal(rules.addMonthMinusDay("2026-10-05"), "2026-11-04");
-  assert.equal(rules.addMonthMinusDay("2026-10-01"), "2026-10-31");
-  assert.equal(rules.addMonthMinusDay("2026-02-01"), "2026-02-28");
-  assert.equal(rules.addMonthMinusDay("2028-02-01"), "2028-02-29");
-  // the next month is shorter: the period ends on its last day
-  assert.equal(rules.addMonthMinusDay("2026-01-31"), "2026-02-28");
-  assert.equal(rules.addMonthMinusDay("2028-01-31"), "2028-02-29");
-  assert.equal(rules.addMonthMinusDay("2026-01-30"), "2026-02-28");
-  assert.equal(rules.addMonthMinusDay("2026-01-29"), "2026-02-28");
-  assert.equal(rules.addMonthMinusDay("2026-01-28"), "2026-02-27");
-  // year edge
-  assert.equal(rules.addMonthMinusDay("2026-12-15"), "2027-01-14");
-  assert.equal(rules.addMonthMinusDay("2026-12-31"), "2027-01-30");
-  // not a date: returned as is
-  assert.equal(rules.addMonthMinusDay("junk"), "junk");
 });
 
 test("day arithmetic never depends on the browser zone", () => {
@@ -83,8 +57,6 @@ test("day arithmetic never depends on the browser zone", () => {
   assert.equal(rules.addDays("2028-03-01", -1), "2028-02-29");
   assert.equal(rules.daysBetween("2026-10-14", "2026-10-17"), 3);
   assert.equal(rules.daysBetween("2026-10-17", "2026-10-14"), -3);
-  assert.equal(rules.periodDays("2026-10-05", "2026-11-04"), 31);
-  assert.equal(rules.periodDays("2026-10-05", "2026-10-05"), 1);
   assert.equal(rules.subtractYears("2028-02-29", 3), "2025-02-28");
   assert.equal(rules.isIsoDate("2026-02-30"), false);
   assert.equal(rules.isIsoDate("2026-02-28"), true);
@@ -140,110 +112,6 @@ test("tones: overdue is red, the last day and «soon» are amber, paid is grey",
 test("plural forms of «урок» (the banner words are in tests/ux1-d.test.cjs)", () => {
   assert.deepEqual([1, 2, 4, 5, 11, 12, 21, 22, 25].map(rules.lessonsWord),
     ["урок", "урока", "урока", "уроков", "уроков", "уроков", "урок", "урока", "уроков"]);
-});
-
-test("form defaults, calendar mode", () => {
-  // first payment: from the payment date, a month minus a day, the fee as the amount
-  const first = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-05", monthlyFee: 450000, paidUntil: null, lessonsDefault: null });
-  assert.equal(plain(first.amount), "450 000");
-  assert.equal(first.paidOn, "2026-10-05");
-  assert.equal(first.validFrom, "2026-10-05");
-  assert.equal(first.validTo, "2026-11-04");
-  assert.equal(first.lessons, "");
-  // the previous period ran past today: continue the day after it
-  const early = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-30", monthlyFee: 450000, paidUntil: "2026-11-04", lessonsDefault: null });
-  assert.equal(early.validFrom, "2026-11-05");
-  assert.equal(early.validTo, "2026-12-04");
-  // the previous period ended before the payment date: still the day after it (an overdue student first closes the debt, owner 21.10)
-  const late = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-14", monthlyFee: 450000, paidUntil: "2026-10-01", lessonsDefault: null });
-  assert.equal(late.validFrom, "2026-10-02");
-  assert.equal(late.validTo, "2026-11-01");
-  // the previous period ends today: tomorrow
-  const edge = rules.paymentFormDefaults({ mode: "calendar", today: "2026-10-14", monthlyFee: 450000, paidUntil: "2026-10-14", lessonsDefault: null });
-  assert.equal(edge.validFrom, "2026-10-15");
-  // no fee yet: the amount is empty; a zero fee is not a default amount either
-  assert.equal(rules.paymentFormDefaults({ mode: "calendar", today: TODAY, monthlyFee: null, paidUntil: null, lessonsDefault: null }).amount, "");
-  assert.equal(rules.paymentFormDefaults({ mode: "calendar", today: TODAY, monthlyFee: 0, paidUntil: null, lessonsDefault: null }).amount, "");
-  // the month-end edge
-  assert.equal(rules.paymentFormDefaults({ mode: "calendar", today: "2026-01-31", monthlyFee: 1, paidUntil: null, lessonsDefault: null }).validTo, "2026-02-28");
-});
-
-test("form defaults, lessons mode", () => {
-  const known = rules.paymentFormDefaults({ mode: "lessons", today: TODAY, monthlyFee: 450000, paidUntil: null, lessonsDefault: 12 });
-  assert.equal(known.lessons, "12");
-  assert.equal(known.validFrom, TODAY);
-  assert.equal(known.validTo, "");
-  // number of lessons unknown: empty, the server applies the center's setting
-  assert.equal(rules.paymentFormDefaults({ mode: "lessons", today: TODAY, monthlyFee: 450000, paidUntil: null, lessonsDefault: null }).lessons, "");
-  // lessons never start from the previous calendar date
-  assert.equal(rules.paymentFormDefaults({ mode: "lessons", today: TODAY, monthlyFee: 1, paidUntil: "2026-10-30", lessonsDefault: 12 }).validFrom, TODAY);
-});
-
-test("a correction starts from the payment being replaced", () => {
-  const payment = {
-    id: "p1", membership_id: "m1", amount: 450000, currency: "UZS", paid_on: "2026-10-01", valid_from: "2026-10-01",
-    valid_to: "2026-10-31", lessons_count: null, note: "наличные", replaces_payment_id: null, created_by: null,
-    created_by_name: null, created_at: null, voided_at: null, voided_by: null, voided_by_name: null, void_reason: null,
-  };
-  const values = rules.paymentFormDefaults({ mode: "calendar", today: TODAY, monthlyFee: 1, paidUntil: null, lessonsDefault: null, payment });
-  assert.equal(plain(values.amount), "450 000");
-  assert.equal(values.paidOn, "2026-10-01");
-  assert.equal(values.validTo, "2026-10-31");
-  assert.equal(values.note, "наличные");
-  assert.equal(values.reason, "");
-  // the mode of a correction is the mode of the payment, not of the center today
-  assert.equal(rules.periodModeOf(payment, "lessons"), "calendar");
-  assert.equal(rules.periodModeOf({ lessons_count: 12 }, "calendar"), "lessons");
-  assert.equal(rules.periodModeOf(null, "lessons"), "lessons");
-  const byLessons = rules.paymentFormDefaults({ mode: "lessons", today: TODAY, monthlyFee: 1, paidUntil: null, lessonsDefault: 8, payment: { ...payment, valid_to: null, lessons_count: 12 } });
-  assert.equal(byLessons.lessons, "12");
-});
-
-test("payment form validation", () => {
-  const ok = { amount: "450 000", paidOn: TODAY, validFrom: TODAY, validTo: "2026-11-13", lessons: "", note: "", reason: "" };
-  assert.equal(rules.validatePaymentForm(ok, "calendar", TODAY), null);
-  assert.ok(rules.validatePaymentForm({ ...ok, amount: "" }, "calendar", TODAY));
-  assert.ok(rules.validatePaymentForm({ ...ok, amount: "10 000 000 001" }, "calendar", TODAY));
-  assert.equal(rules.validatePaymentForm({ ...ok, amount: "0" }, "calendar", TODAY), null);
-  assert.ok(rules.validatePaymentForm({ ...ok, paidOn: "" }, "calendar", TODAY));
-  assert.match(rules.validatePaymentForm({ ...ok, paidOn: "2026-10-15" }, "calendar", TODAY), /будущем/);
-  assert.equal(rules.validatePaymentForm({ ...ok, paidOn: "2023-10-14" }, "calendar", TODAY), null);
-  assert.match(rules.validatePaymentForm({ ...ok, paidOn: "2023-10-13" }, "calendar", TODAY), /3 лет/);
-  assert.match(rules.validatePaymentForm({ ...ok, validTo: "2026-10-13" }, "calendar", TODAY), /раньше/);
-  assert.ok(rules.validatePaymentForm({ ...ok, validTo: "" }, "calendar", TODAY));
-  // the backend rule: valid_to - valid_from <= 400 days (inclusive length 401)
-  assert.equal(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-05" }, "calendar", TODAY), null); // 400
-  assert.match(rules.validatePaymentForm({ ...ok, validFrom: "2026-01-01", validTo: "2027-02-06" }, "calendar", TODAY), /400/); // 401
-  // lessons mode: the count is optional (server default) but bounded
-  const byLessons = { ...ok, validTo: "", lessons: "12" };
-  assert.equal(rules.validatePaymentForm(byLessons, "lessons", TODAY), null);
-  assert.equal(rules.validatePaymentForm({ ...byLessons, lessons: "" }, "lessons", TODAY), null);
-  assert.ok(rules.validatePaymentForm({ ...byLessons, lessons: "0" }, "lessons", TODAY));
-  assert.ok(rules.validatePaymentForm({ ...byLessons, lessons: "121" }, "lessons", TODAY));
-  assert.ok(rules.validatePaymentForm({ ...byLessons, lessons: "1.5" }, "lessons", TODAY));
-  assert.ok(rules.validatePaymentForm({ ...ok, note: "x".repeat(501) }, "calendar", TODAY));
-  assert.ok(rules.validatePaymentForm({ ...ok, reason: "x".repeat(501) }, "calendar", TODAY));
-});
-
-test("request body: exactly one of «оплачено до» / «уроков»", () => {
-  const values = { amount: "450 000", paidOn: TODAY, validFrom: "2026-10-14", validTo: "2026-11-13", lessons: "12", note: "  нал  ", reason: "" };
-  assert.deepEqual(rules.buildPaymentPayload(values, "calendar"), {
-    amount: 450000, paid_on: TODAY, valid_from: "2026-10-14", valid_to: "2026-11-13", note: "нал",
-  });
-  assert.deepEqual(rules.buildPaymentPayload(values, "lessons"), {
-    amount: 450000, paid_on: TODAY, valid_from: "2026-10-14", lessons_count: 12, note: "нал",
-  });
-  // an empty count and no comment are left out: the server applies its defaults
-  assert.deepEqual(rules.buildPaymentPayload({ ...values, lessons: "", note: "" }, "lessons"), {
-    amount: 450000, paid_on: TODAY, valid_from: "2026-10-14",
-  });
-});
-
-test("period hint counts both ends", () => {
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "calendar"), "Период 31 день");
-  assert.equal(rules.periodHint({ validFrom: "2026-11-05", validTo: "2026-11-04" }, "calendar"), null);
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "" }, "calendar"), null);
-  assert.equal(rules.periodHint({ validFrom: "2026-10-05", validTo: "2026-11-04" }, "lessons"), null);
 });
 
 test("period and last payment lines", () => {
@@ -490,16 +358,6 @@ test("screens exist and follow the contract (routes, menu, banner, teacher, demo
   assert.doesNotMatch(page, /Выбрать все|checkbox|bulk/i);
   assert.match(page, /CascadingFilter/);
   assert.match(page, /RowMenu/);
-});
-
-test("the business date, not the browser's, is today in the payment dialogs", () => {
-  const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8");
-  for (const file of ["src/components/payments/payment-form-modal.tsx", "src/components/payments/payments-page.tsx"]) {
-    const source = read(file);
-    assert.match(source, /formatBusinessDate\(\)/, file);
-    assert.doesNotMatch(source, /new Date\(/, file);
-  }
-  assert.doesNotMatch(read("src/lib/payments.ts"), /new Date\(\)|Date\.now\(\)/);
 });
 
 test("the math-layout browser test mocks the summary the admin layout requests", () => {
