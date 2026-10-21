@@ -655,9 +655,9 @@ test("the statement draws E1 with the running balance after every row and the li
   // the order is the order of time
   const order = ["Период 15.09–14.10", "Оплата № 17", "Период 15.10–14.11", "Оплата № 18"].map((title) => body.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  // the columns: Дата, Начислено, Оплачено, Остаток are centred, «Операция» is left
+  // the columns: «Дата» is centred, «Операция» left, the money (Начислено, Оплачено, Остаток) right over its digits
   const markup = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  assert.match(markup, /text-center text-\[13px\] font-semibold[^"]*"><span>Дата<\/span><span class="text-left">Операция<\/span><span>Начислено<\/span><span>Оплачено<\/span><span>Остаток<\/span>/);
+  assert.match(markup, /text-center text-\[13px\] font-semibold[^"]*"><span>Дата<\/span><span class="text-left">Операция<\/span><span class="text-right">Начислено<\/span><span class="text-right">Оплачено<\/span><span class="text-right">Остаток<\/span>/);
   // one month: the balance carried in comes first
   const one = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" }));
   assert.ok(one.includes("Остаток на начало месяца") && one.includes("Долг 269 000") && !one.includes("Сентябрь 2026") && !one.includes("Оплата № 17"));
@@ -770,8 +770,8 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(statement, /orgApi\.voidRefund\(/);
   assert.match(statement, /Сходится/);
   // a bank statement: Дата | Операция | Начислено | Оплачено | Остаток, all centred but the operation
-  assert.match(statement, /<span>Дата<\/span>\s*<span className="text-left">Операция<\/span>\s*<span>Начислено<\/span>\s*<span>Оплачено<\/span>\s*<span>Остаток<\/span>/);
-  assert.match(statement, /md:text-center/);
+  assert.match(statement, /<span>Дата<\/span>\s*<span className="text-left">Операция<\/span>\s*<span className="text-right">Начислено<\/span>\s*<span className="text-right">Оплачено<\/span>\s*<span className="text-right">Остаток<\/span>/);
+  assert.match(statement, /md:text-right/);
   // the month switcher: ‹ Октябрь 2026 › and «Все месяцы» (the default)
   assert.match(statement, /useState<string \| null>\(null\)/);
   assert.match(statement, />\s*Все месяцы\s*</);

@@ -38,7 +38,7 @@ import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 
-/** Date · operation · charged · paid · balance: a bank statement.  Every column but the operation is centred. */
+/** Date · operation · charged · paid · balance: a bank statement.  The date is centred, the operation left, the money right over its digits. */
 const GRID = "md:grid md:grid-cols-[96px_minmax(0,1fr)_112px_112px_128px_40px] md:items-start md:gap-x-4";
 
 const TOTAL_TONE = {
@@ -387,9 +387,9 @@ export function StatementTimeline({
           <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-center text-[13px] font-semibold text-slate-500 ${GRID} md:items-center`}>
             <span>Дата</span>
             <span className="text-left">Операция</span>
-            <span>Начислено</span>
-            <span>Оплачено</span>
-            <span>Остаток</span>
+            <span className="text-right">Начислено</span>
+            <span className="text-right">Оплачено</span>
+            <span className="text-right">Остаток</span>
             <span className="sr-only">Действия</span>
           </div>
           <ol className="space-y-2.5 md:space-y-0 md:divide-y md:divide-slate-100">
@@ -450,7 +450,7 @@ function StatementItemRow({ item, menuFor }: { item: StatementItem; menuFor: (en
         <span className="text-slate-600">{item.text.replace(/: .*$/, "")}</span>
         <span className="hidden md:block" />
         <span className="hidden md:block" />
-        <span className={`text-sm tabular-nums md:text-center ${BALANCE_TEXT_CLASS[item.balance.kind]}`}>{item.balance.text}</span>
+        <span className={`text-sm tabular-nums md:text-right ${BALANCE_TEXT_CLASS[item.balance.kind]}`}>{item.balance.text}</span>
         <span className="hidden md:block" />
       </li>
     );
@@ -481,20 +481,20 @@ function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMen
         )}
       </div>
 
-      <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block md:text-center ${chargedText ? "flex" : "hidden md:block"}`}>
+      <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block md:text-right ${chargedText ? "flex" : "hidden md:block"}`}>
         <span className="text-xs text-slate-400 md:hidden">Начислено</span>
         <span className="text-sm tabular-nums text-slate-900">{chargedText}</span>
       </div>
 
-      <div className={`items-baseline justify-between gap-3 md:block md:text-center ${paidText ? "flex" : "hidden md:block"}`}>
+      <div className={`items-baseline justify-between gap-3 md:block md:text-right ${paidText ? "flex" : "hidden md:block"}`}>
         <span className="text-xs text-slate-400 md:hidden">Оплачено</span>
         <span className="text-sm tabular-nums">
           <span className={entry.paid !== null && entry.paid < 0 ? "text-slate-800" : PAID_TONE}>{paidText}</span>
-          {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600 md:ml-0 md:mt-0.5 md:block md:w-fit md:mx-auto">{entry.tag}</span>}
+          {entry.tag && <span className="ml-1.5 inline-block rounded-md border border-slate-200 bg-slate-50 px-1.5 py-px align-middle text-[10px] font-semibold text-slate-600 md:ml-0 md:mt-0.5 md:block md:w-fit md:ml-auto">{entry.tag}</span>}
         </span>
       </div>
 
-      <div className="flex items-baseline justify-between gap-3 md:block md:text-center">
+      <div className="flex items-baseline justify-between gap-3 md:block md:text-right">
         <span className="text-xs text-slate-400 md:hidden">Остаток</span>
         <span className={`text-sm tabular-nums ${BALANCE_TEXT_CLASS[entry.balance.kind]}`}>{entry.balance.text}</span>
       </div>
