@@ -32,6 +32,8 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
   await org.setGroupPrice(group.id, fee); // #105: the price lives on the group, valid from today = the day the student joins
   const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
 
+  // PAY-2: money is counted from the start of the accounting (a new centre has none yet, so nothing is due before it is set)
+  await org.setPaymentSettings({ accounting_start_date: now.date });
   const page = await signIn(org.owner);
 
   // --- the setting, through the settings page
