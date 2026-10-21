@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, History, Loader2, Search, Users, Wallet } from "lucide-react";
+import { AlertCircle, ArrowLeft, History, Loader2, Search, Users, Wallet } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { lessonTypeLabel } from "@/lib/payroll";
 import {
@@ -171,7 +171,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <div className="min-w-0">
         <Link href={paymentsHref} className="mb-1.5 inline-flex items-center gap-0.5 text-sm font-medium text-slate-500 hover:text-slate-800">
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Оплаты
         </Link>
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Цены групп</h1>
