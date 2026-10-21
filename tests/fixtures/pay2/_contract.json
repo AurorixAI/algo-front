@@ -92,6 +92,17 @@
           "segment_id": {
             "title": "Segment Id",
             "type": "string"
+          },
+          "segment_remaining_after": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segment Remaining After"
           }
         },
         "required": [
@@ -103,7 +114,8 @@
           "bucket",
           "closes",
           "label",
-          "price"
+          "price",
+          "segment_remaining_after"
         ],
         "title": "Allocation",
         "type": "object"
@@ -245,7 +257,8 @@
               "expired",
               "ends_today",
               "expiring",
-              "active"
+              "active",
+              "paused"
             ],
             "title": "Status",
             "type": "string"
@@ -540,6 +553,16 @@
             ],
             "title": "Monthly Fee"
           },
+          "opening": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpeningBrief"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "paid_until": {
             "anyOf": [
               {
@@ -562,6 +585,16 @@
             "title": "Past Debt",
             "type": "integer"
           },
+          "paused": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PausedRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "period_mode": {
             "anyOf": [
               {
@@ -580,6 +613,11 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "price_ends_on_leave": {
+            "default": false,
+            "title": "Price Ends On Leave",
+            "type": "boolean"
+          },
           "price_missing": {
             "default": false,
             "title": "Price Missing",
@@ -597,7 +635,8 @@
               "expired",
               "ends_today",
               "expiring",
-              "active"
+              "active",
+              "paused"
             ],
             "title": "Status",
             "type": "string"
@@ -649,6 +688,77 @@
           "status"
         ],
         "title": "MembershipPaymentRow",
+        "type": "object"
+      },
+      "OpeningBrief": {
+        "properties": {
+          "debt_amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt Amount"
+          },
+          "debt_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Debt On"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "paid_until": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid Until"
+          }
+        },
+        "required": [
+          "id",
+          "paid_until",
+          "debt_amount",
+          "debt_on"
+        ],
+        "title": "OpeningBrief",
+        "type": "object"
+      },
+      "PausedRange": {
+        "properties": {
+          "from": {
+            "format": "date",
+            "title": "From",
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "title": "PausedRange",
         "type": "object"
       },
       "PayError": {
@@ -1688,6 +1798,16 @@
             "title": "Period Mode",
             "type": "string"
           },
+          "regime_impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegimeImpact"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "updated_at": {
             "anyOf": [
               {
@@ -2013,6 +2133,11 @@
             "title": "None",
             "type": "integer"
           },
+          "paused": {
+            "default": 0,
+            "title": "Paused",
+            "type": "integer"
+          },
           "period_mode": {
             "enum": [
               "calendar",
@@ -2250,7 +2375,8 @@
               "expired",
               "ends_today",
               "expiring",
-              "active"
+              "active",
+              "paused"
             ],
             "title": "Status After",
             "type": "string"
@@ -2820,6 +2946,17 @@
               }
             ],
             "title": "Replaced By Receipt No"
+          },
+          "replaces_amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Amount"
           },
           "replaces_receipt_no": {
             "anyOf": [
@@ -3679,6 +3816,52 @@
         "title": "RefundVoided",
         "type": "object"
       },
+      "RegimeImpact": {
+        "properties": {
+          "defer": {
+            "default": true,
+            "title": "Defer",
+            "type": "boolean"
+          },
+          "first_switch": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Switch"
+          },
+          "latest_switch": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Switch"
+          },
+          "students_affected": {
+            "default": 0,
+            "title": "Students Affected",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "students_affected",
+          "first_switch",
+          "latest_switch",
+          "defer"
+        ],
+        "title": "RegimeImpact",
+        "type": "object"
+      },
       "Segment": {
         "description": "One charge: a period of the student in the group (or a lessons package).",
         "properties": {
@@ -3785,6 +3968,11 @@
           "price": {
             "$ref": "#/components/schemas/PriceOut"
           },
+          "remaining": {
+            "default": 0,
+            "title": "Remaining",
+            "type": "integer"
+          },
           "state": {
             "default": "open",
             "enum": [
@@ -3822,6 +4010,7 @@
           "paid",
           "written_off",
           "unpaid",
+          "remaining",
           "covered_days",
           "covered_through",
           "partial_credit",
@@ -3999,6 +4188,39 @@
             ],
             "title": "Refund Id"
           },
+          "replaced_by_receipt_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaced By Receipt No"
+          },
+          "replaces_amount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Amount"
+          },
+          "replaces_receipt_no": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Receipt No"
+          },
           "segment": {
             "anyOf": [
               {
@@ -4057,7 +4279,10 @@
           "from_group_name",
           "from_membership_id",
           "to_group_name",
-          "to_membership_id"
+          "to_membership_id",
+          "replaces_receipt_no",
+          "replaces_amount",
+          "replaced_by_receipt_no"
         ],
         "title": "StatementDetails",
         "type": "object"
@@ -4360,7 +4585,8 @@
               "expired",
               "ends_today",
               "expiring",
-              "active"
+              "active",
+              "paused"
             ],
             "title": "Status",
             "type": "string"
@@ -5139,7 +5365,7 @@
     },
     "/org/memberships/{membership_id}/statement": {
       "get": {
-        "description": "Выписка ученика в группе: начисления, оплаты (и куда пошли), списания, возвраты, переносы; бегущий итог.",
+        "description": "Выписка ученика в группе: стоимость периодов, оплаты (и куда пошли), прощённые долги, возвраты, переносы; бегущий итог.",
         "parameters": [
           {
             "in": "path",
@@ -5399,7 +5625,7 @@
     },
     "/org/memberships/{membership_id}/writeoffs": {
       "post": {
-        "description": "Списать долг (льгота, болезнь, договорённость): ``amount`` ≤ текущего долга или ``all: true``; причина 3..500.",
+        "description": "Простить долг (льгота, болезнь, договорённость): ``amount`` ≤ текущего долга или ``all: true``; причина 3..500.",
         "parameters": [
           {
             "in": "path",
@@ -5645,7 +5871,7 @@
     },
     "/org/payments/receipts": {
       "get": {
-        "description": "«Поступления центра»: сколько пришло, куда ушло, списано, возвращено; по способам / группам / преподавателям;\nпозиция «долг / аванс» на сегодня; сверка. Диапазон ≤ 366 дней, ``group_by=day`` — ≤ 92.",
+        "description": "«Поступления центра»: сколько пришло, куда ушло, прощено, возвращено; по способам / группам / преподавателям;\nпозиция «долг / аванс» на сегодня; сверка. Диапазон ≤ 366 дней, ``group_by=day`` — ≤ 92.",
         "parameters": [
           {
             "in": "query",
@@ -5798,7 +6024,7 @@
     },
     "/org/payments/receipts/items": {
       "get": {
-        "description": "Раскрытие цифры отчёта до конкретных оплат / списаний / возвратов.",
+        "description": "Раскрытие цифры отчёта до конкретных оплат / прощённых долгов / возвратов.",
         "parameters": [
           {
             "in": "query",
@@ -6577,7 +6803,7 @@
     },
     "/org/writeoffs/{writeoff_id}/void": {
       "post": {
-        "description": "Отменить списание (долг возвращается); причина 3..500.",
+        "description": "Отменить прощение долга (долг возвращается); причина 3..500.",
         "parameters": [
           {
             "in": "path",

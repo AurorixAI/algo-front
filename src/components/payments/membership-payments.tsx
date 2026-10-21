@@ -328,7 +328,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         row={writeoffOpen ? row : null}
         studentName={studentName}
         onClose={() => setWriteoffOpen(false)}
-        onDone={(result) => { changed(result.row); onNotify("Долг списан", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); }}
+        onDone={(result) => { changed(result.row); onNotify("Долг прощён", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); }}
       />
       <RefundDialog
         row={refundOpen ? row : null}

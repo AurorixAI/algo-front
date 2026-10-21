@@ -340,7 +340,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           className={`${inputClasses} !w-48`}
         />
         <p className="text-xs text-slate-500">
-          С этого дня центр считает деньги: до него ученикам ничего не начисляется, задним числом долга не будет. Не позже чем через 31 день от сегодня.
+          С этого дня центр считает деньги: до него стоимость обучения не считается, задним числом долга не будет. Не позже чем через 31 день от сегодня.
         </p>
         {impact && impact.date === form.accounting_start_date && impact.error && (
           <p role="alert" className="text-xs font-medium text-rose-700">{impact.error}</p>

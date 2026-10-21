@@ -18,7 +18,7 @@ import type { PriceInfo } from "./group-price";
 export type PeriodMode = "calendar" | "lessons";
 /** How a calendar period starts: from the payment date, or on one day of the month for the whole center. */
 export type BillingAnchor = "payment_date" | "fixed_day";
-export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active";
+export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
 export type PaymentBucket = "due" | "expiring" | "none" | "active";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
@@ -86,6 +86,8 @@ export interface PaymentsSummary {
   memberships_with_debt?: number;
   students_with_debt?: number;
   accounting_start_date?: string | null;
+  /** LOGIC-A: memberships on a pause today (they are in no tab of the list). */
+  paused?: number;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -116,6 +118,11 @@ export interface Allocation {
   label: string;
   /** The price of that period; null for «аванс на следующие уроки». */
   price: number | null;
+  /**
+   * LOGIC-A addendum: what is still unpaid of THAT period right after this piece of money (after the earlier payments and
+   * forgiven debts).  Null on the «аванс» line and in a receipt made before the addendum.
+   */
+  segment_remaining_after?: number | null;
 }
 
 /** The current, factual distribution of a payment (it changes when other money changes). */
@@ -218,7 +225,7 @@ export interface ReceiptOut {
   void_reason?: string | null;
   replaced_by_receipt_no?: number | null;
   replaces_receipt_no?: number | null;
-  /** The amount of the payment this one replaces (not sent by the server yet; the receipt says it when present). */
+  /** The amount of the payment this one replaces («Исправление оплаты № 17 (было 450 000 сум)»). */
   replaces_amount?: number | null;
 }
 
@@ -262,6 +269,26 @@ export interface MembershipPaymentRow {
   /** How much of the advance may be given back. */
   refundable?: number;
   writeoff_allowed?: boolean;
+  /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
+  paused?: PausedRange | null;
+  /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
+  opening?: OpeningBrief | null;
+  /** LOGIC-A F13: the individual price of this membership ends when the student leaves. */
+  price_ends_on_leave?: boolean;
+}
+
+/** `from` / `to` are business days, both included. */
+export interface PausedRange {
+  from: string;
+  to: string;
+}
+
+/** The live opening balance of a membership as the list shows it: «оплачено до» and / or «долг X на дату T». */
+export interface OpeningBrief {
+  id: string;
+  paid_until: string | null;
+  debt_amount: number | null;
+  debt_on: string | null;
 }
 
 /** A warning of a saved payment or of a preview. */
@@ -329,6 +356,8 @@ export interface Segment {
   state: SegmentState;
   /** Relative to `as_of`: the period has ended / is running / has not begun (a lessons package is `past_debt` once all its lessons are held). */
   bucket?: "past_debt" | "current" | "future";
+  /** LOGIC-A addendum: the unpaid part of THIS charge as of the statement date (= `unpaid`); the month header reads charge / paid / remaining. */
+  remaining?: number;
 }
 
 /** What is due now, for the top block of the payment dialog. */
@@ -480,7 +509,11 @@ export interface PayErrorDetail {
 
 // ── Statement (GET …/statement) ────────────────────────────────────────────
 
-export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out";
+/**
+ * `opening_debt` (the debt «на начало учёта», debit) and `opening_paid_until` / `pause` (information rows, no money) are the LOGIC-A
+ * ledger events; the contract does not freeze how the statement carries them, so the front reads them defensively.
+ */
+export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out" | "opening_debt" | "opening_paid_until" | "pause";
 
 export interface StatementDetails {
   allocations: Allocation[];
@@ -497,9 +530,11 @@ export interface StatementDetails {
   to_group_name: string | null;
   to_membership_id: string | null;
   writeoff_id: string | null;
-  /** A corrected payment: the receipt it replaces and what it was (the server does not send them yet; the statement shows them when present). */
+  /** A corrected payment: the receipt it replaces and what it was («исправлена: было 450 000»). */
   replaces_receipt_no?: number | null;
   replaces_amount?: number | null;
+  /** On the cancelled original: the receipt of its correction. */
+  replaced_by_receipt_no?: number | null;
 }
 
 export interface StatementRow {
@@ -886,7 +921,7 @@ export { lessonsWord };
  * By lessons: «Осталось 3 урока из 12» / «Остался 1 урок из 12» (amber), «Уроки закончились» (red).
  */
 export function statusLabel(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left">,
+  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left"> & Partial<Pick<MembershipPaymentRow, "paused">>,
 ): string {
   const lessons = row.period_mode === "lessons";
   switch (row.status) {
@@ -904,6 +939,9 @@ export function statusLabel(
       return row.days_left ? leftPhrase(row.days_left, "день", "дня", "дней") : "Скоро закончится";
     case "active":
       return "Оплачено";
+    case "paused":
+      // «На паузе до 20.10» (the day is the end of the live pause).
+      return row.paused?.to ? `На паузе до ${formatDateRu(row.paused.to).slice(0, 5)}` : "На паузе";
   }
   return "";
 }
@@ -926,7 +964,7 @@ export function statusDetail(
     return row.status === "active" ? lessonsLeftText(row).toLowerCase() : "";
   }
   if (!row.paid_until) return "";
-  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active") {
+  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active" || row.status === "paused") {
     return `оплачено до ${formatDateRu(row.paid_until)}`;
   }
   return "";

@@ -427,7 +427,12 @@ export function PreviewBlock({ view, loading = false }: { view: PreviewView; loa
           {view.lines.map((line, index) => (
             <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3">
               <span className={`min-w-0 ${LINE_TONE[line.bucket]}`}>{line.label}</span>
-              <span className="shrink-0 tabular-nums text-slate-700">{formatMoney(line.amount)}</span>
+              <span className="shrink-0 text-right tabular-nums text-slate-700">
+                {formatMoney(line.amount)}
+                {!line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
+                  <span className="block text-[11px] text-slate-500">по периоду осталось {formatMoney(line.remainingAfter)}</span>
+                )}
+              </span>
             </li>
           ))}
         </ul>

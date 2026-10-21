@@ -566,7 +566,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         row={writeoffRow}
         studentName={writeoffRow?.student_name ?? ""}
         onClose={() => setWriteoffRow(null)}
-        onDone={(result) => { showToast("Долг списан", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); afterChange(); }}
+        onDone={(result) => { showToast("Долг прощён", "success", [`Долг был ${formatMoney(result.debt_before)}, стал ${formatMoney(result.debt_after)}`]); afterChange(); }}
       />
       <RefundDialog
         row={refundRow}
