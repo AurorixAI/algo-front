@@ -216,9 +216,9 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
       >
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:block">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:flex-col sm:flex-nowrap sm:items-center sm:gap-y-1 sm:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
-            {detail && <p className="text-[11px] text-slate-500 sm:mt-0.5">{detail}</p>}
+            {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
           </div>
         )}
         {editable && (
