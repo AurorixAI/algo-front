@@ -218,6 +218,8 @@ export interface ReceiptOut {
   void_reason?: string | null;
   replaced_by_receipt_no?: number | null;
   replaces_receipt_no?: number | null;
+  /** The amount of the payment this one replaces (not sent by the server yet; the receipt says it when present). */
+  replaces_amount?: number | null;
 }
 
 export interface MembershipPaymentRow {
@@ -495,6 +497,9 @@ export interface StatementDetails {
   to_group_name: string | null;
   to_membership_id: string | null;
   writeoff_id: string | null;
+  /** A corrected payment: the receipt it replaces and what it was (the server does not send them yet; the statement shows them when present). */
+  replaces_receipt_no?: number | null;
+  replaces_amount?: number | null;
 }
 
 export interface StatementRow {
@@ -1103,9 +1108,11 @@ export function receiptReplacedNote(receipt: Pick<ReceiptOut, "replaced_by_recei
   return receipt.replaced_by_receipt_no ? `заменена квитанцией № ${receipt.replaced_by_receipt_no}` : null;
 }
 
-/** «заменяет квитанцию № 120» on the receipt of a correction; null otherwise. */
-export function receiptReplacesNote(receipt: Pick<ReceiptOut, "replaces_receipt_no">): string | null {
-  return receipt.replaces_receipt_no ? `заменяет квитанцию № ${receipt.replaces_receipt_no}` : null;
+/** «Исправление оплаты № 120 (было 450 000 сум)» on the receipt of a correction; null otherwise.  The old sum is said when the server sends it. */
+export function receiptReplacesNote(receipt: Pick<ReceiptOut, "replaces_receipt_no"> & Partial<Pick<ReceiptOut, "replaces_amount">>): string | null {
+  if (!receipt.replaces_receipt_no) return null;
+  const was = receipt.replaces_amount ? ` (было ${formatMoney(receipt.replaces_amount)})` : "";
+  return `Исправление оплаты № ${receipt.replaces_receipt_no}${was}`;
 }
 
 /** What the receipt page says when the server refuses: 403 no right, 404 no such payment, 409 a carry-over (the server's own text). */

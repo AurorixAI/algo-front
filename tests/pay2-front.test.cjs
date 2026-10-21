@@ -340,22 +340,45 @@ test("E1 statement: one timeline with the running balance, the header adds up an
   assert.equal(L.statementEndsAtBalance(statement), true); // the last balance is advance − debt of the header
   assert.equal(L.statementDiff(statement.summary), 0);
   assert.equal(L.statementReconciles(statement.summary), true);
-  const views = statement.rows.map(L.statementRowView);
-  assert.deepEqual(views.map((view) => plain(view.effect)), ["−500 000", "+231 000", "−500 000", "+790 000"]);
-  assert.deepEqual(views.map((view) => view.balance), ["Долг 500 000", "Долг 269 000", "Долг 769 000", "Аванс 21 000"]);
-  assert.deepEqual(views.map((view) => view.balanceKind), ["debt", "debt", "debt", "advance"]);
-  // a charge says the price and where it comes from; a payment says the method and who entered it
-  assert.match(plain(views[0].notes.join(" · ")), /500 000 сум · цена группы/);
-  assert.match(views[1].notes.join(" · "), /внёс: /);
-  // the payment row carries its allocation lines; they add up to the money of the row
-  const last = views[3];
-  assert.equal(last.allocations.reduce((a, line) => a + line.amount, 0), 790000);
-  assert.deepEqual(last.allocations.map((line) => line.bucket), ["past_debt", "current", "advance"]);
-  // header: начислено · оплачено · списано · возвращено · долг/аванс
+  // the bank statement: Дата | Операция | Начислено | Оплачено | Остаток, no signs
+  const items = L.buildStatementItems(statement, null);
+  const rows = items.filter((item) => item.kind === "row");
+  assert.deepEqual(rows.map((row) => [row.charged, row.paid]), [[500000, null], [null, 231000], [500000, null], [null, 790000]]);
+  assert.deepEqual(rows.map((row) => plain(row.balance.text)), ["Долг 500 000", "Долг 269 000", "Долг 769 000", "Аванс 21 000"]);
+  assert.deepEqual(rows.map((row) => row.balance.kind), ["debt", "debt", "debt", "advance"]);
+  // a charge in words with a quiet line for the price; a payment says the method and who entered it
+  assert.equal(rows[0].title, "Период 15.09–14.10");
+  assert.equal(plain(rows[0].sub), "цена 500 000 сум в месяц · цена группы");
+  assert.match(rows[1].title, /^Оплата № 17 · наличные · внёс /);
+  // where each payment went, per period, with the outcome
+  assert.deepEqual(rows[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 269 000)"]);
+  assert.deepEqual(rows[3].allocations.map(plain), ["за 15.09–14.10 — 269 000 (период закрыт)", "за 15.10–14.11 — 500 000 (период закрыт)", "аванс на 15.11–14.12 — 21 000"]);
+  // a light row per month sums it up
+  const months = items.filter((item) => item.kind === "month");
+  assert.deepEqual(months.map((item) => [item.title, plain(item.summary)]), [
+    ["Сентябрь 2026", "начислено 500 000 · оплачено 231 000 · осталось 269 000"],
+    ["Октябрь 2026", "начислено 500 000 · оплачено 790 000 · аванс 21 000"],
+  ].map(([title, summary]) => [title, summary]));
+  // one month: the balance carried in, then its rows
+  const october = L.buildStatementItems(statement, "2026-10");
+  assert.deepEqual(october.map((item) => item.kind), ["month", "carry", "row", "row"]);
+  assert.equal(plain(october[1].text), "Остаток на начало месяца: долг 269 000");
+  assert.equal(L.openingBalance(statement.rows, "2026-10"), -269000);
+  assert.equal(L.openingBalance(statement.rows, "2026-09"), 0);
+  assert.deepEqual(L.statementMonths(statement), ["2026-09", "2026-10"]);
+  // the balance after the rows of a month stays the server's whatever the filter
+  assert.equal(plain(october.at(-1).balance.text), "Аванс 21 000");
+  // header tiles: Начислено · Оплачено · Остаток; Списано / Возвращено only when there is something
   const totals = L.statementTotals(statement.summary);
-  assert.deepEqual(totals.map((total) => total.label), ["Начислено", "Оплачено", "Списано", "Возвращено", "Аванс"]);
-  assert.deepEqual(totals.map((total) => total.amount), [1000000, 1021000, 0, 0, 21000]);
+  assert.deepEqual(totals.map((total) => total.label), ["Начислено", "Оплачено", "Остаток"]);
+  assert.deepEqual(totals.map((total) => total.text).map(plain), ["1 000 000 сум", "1 021 000 сум", "Аванс 21 000"]);
   assert.equal(totals.at(-1).tone, "advance");
+  const withOffs = L.statementTotals({ ...statement.summary, written_off: 40000, refunded: 200000 });
+  assert.deepEqual(withOffs.map((total) => total.label), ["Начислено", "Оплачено", "Списано", "Возвращено", "Остаток"]);
+  assert.match(withOffs[2].hint, /долг, который центр простил \(кнопка «Списать долг»\)/);
+  assert.match(withOffs[3].hint, /аванс, возвращённый ученику \(кнопка «Вернуть аванс»\)/);
+  assert.equal(L.balanceCell(0).text, "0");
+  assert.equal(L.balanceCell(-68000).text.replace(/\u00A0/g, " "), "Долг 68 000");
   // paid ahead: the upcoming period is listed
   assert.equal(statement.upcoming.length, 1);
   assert.match(plain(L.upcomingLine(statement.upcoming[0])), /^15\.11–14\.12: оплачено 21 000 сум из 500 000 сум$/);
@@ -365,9 +388,11 @@ test("E4 statements of a transfer: the money leaves one group and arrives in the
   const a = L.normalizeStatement(fixture("e4_statement_A"));
   const b = L.normalizeStatement(fixture("e4_statement_B"));
   assert.equal(a.rows.at(-1).type, "transfer_out");
-  assert.equal(plain(L.effectText(a.rows.at(-1))), "−323 000");
+  const aItems = L.buildStatementItems(a, null).filter((item) => item.kind === "row");
+  assert.deepEqual([aItems.at(-1).paid, aItems.at(-1).tag], [-323000, "перенос"]); // money out is negative in «Оплачено»
   assert.equal(b.rows[0].type, "transfer_in");
-  assert.equal(plain(L.effectText(b.rows[0])), "+323 000");
+  const bItems = L.buildStatementItems(b, null).filter((item) => item.kind === "row");
+  assert.deepEqual([bItems[0].paid, bItems[0].tag], [323000, "перенос"]);
   for (const statement of [a, b]) {
     assert.equal(L.statementRunningConsistent(statement.rows), true);
     assert.equal(L.statementEndsAtBalance(statement), true);
@@ -620,16 +645,33 @@ test("the statement draws E1 with the running balance after every row and the li
   const { StatementHeader, StatementTimeline } = require(path.join(root, "src/components/payments/statement-view.tsx"));
   const statement = L.normalizeStatement(fixture("e1_statement_790000"));
   const head = text(React.createElement(StatementHeader, { statement }));
-  for (const part of ["Хасанов Азиз", "Математика 7А", "Начислено", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Списано", "Возвращено", "Аванс", "21 000 сум", "Сходится"]) assert.ok(head.includes(part), part);
+  for (const part of ["Хасанов Азиз", "Математика 7А", "Начислено", "1 000 000 сум", "Оплачено", "1 021 000 сум", "Остаток", "Аванс 21 000", "Сходится"]) assert.ok(head.includes(part), part);
+  // nothing forgiven or returned: no tiles for it; «Сходится» has no formula on screen (it is in the hint)
+  assert.ok(!head.includes("Списано") && !head.includes("Возвращено"));
   const body = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  for (const part of ["Начисление 15.09–14.10", "−500 000", "Долг 500 000", "Оплата № 17", "+231 000", "Долг 269 000", "Долг 769 000", "Оплата № 18", "+790 000", "Аванс 21 000", "Закрыла долг 15.09–14.10", "Аванс на 15.11–14.12", "Следующие периоды"]) assert.ok(body.includes(part), part);
+  for (const part of ["Дата", "Операция", "Начислено", "Оплачено", "Остаток", "Сентябрь 2026", "начислено 500 000 · оплачено 231 000 · осталось 269 000", "Период 15.09–14.10", "цена 500 000 сум в месяц · цена группы",
+    "Оплата № 17 · наличные", "231 000", "за 15.09–14.10 — 231 000 (осталось 269 000)", "Долг 269 000", "Октябрь 2026", "Оплата № 18", "аванс на 15.11–14.12 — 21 000", "Аванс 21 000", "Следующие периоды"]) assert.ok(body.includes(part), part);
+  assert.ok(!/[+−]\d/.test(body)); // a bank statement: no signs
   // the order is the order of time
-  const order = ["Начисление 15.09–14.10", "Оплата № 17", "Начисление 15.10–14.11", "Оплата № 18"].map((title) => body.indexOf(title));
+  const order = ["Период 15.09–14.10", "Оплата № 17", "Период 15.10–14.11", "Оплата № 18"].map((title) => body.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  // a ledger: the money columns are headed right-aligned
+  // the columns: Дата, Начислено, Оплачено, Остаток are centred, «Операция» is left
   const markup = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  assert.match(markup, /<span class="text-right">Сумма<\/span>/);
-  assert.match(markup, /<span class="text-right">Долг \/ аванс после<\/span>/);
+  assert.match(markup, /text-center text-\[13px\] font-semibold[^"]*"><span>Дата<\/span><span class="text-left">Операция<\/span><span>Начислено<\/span><span>Оплачено<\/span><span>Остаток<\/span>/);
+  // one month: the balance carried in comes first
+  const one = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" }));
+  assert.ok(one.includes("Остаток на начало месяца") && one.includes("Долг 269 000") && !one.includes("Сентябрь 2026") && !one.includes("Оплата № 17"));
+  // write-off, refund and a corrected payment in the words of the owner
+  const rows = statement.rows;
+  const extra = { ...statement, rows: [
+    rows[0],
+    { ...rows[1], details: { ...rows[1].details, replaces_amount: 450000, replaces_receipt_no: 12 } },
+    { seq: 5, date: "2026-09-25", type: "writeoff", title: "Списание", debit: 0, credit: 40000, outflow: 0, balance_after: -229000, balance_text: null, void_reason: null, voided_at: null, voided_by_name: null, details: { ...rows[1].details, allocations: [], reason: "болезнь", created_by_name: "Рустам", method: null, note: null, receipt_no: null, payment_id: null, writeoff_id: "w1" } },
+    { seq: 6, date: "2026-09-26", type: "refund", title: "Возврат", debit: 0, credit: 0, outflow: 21000, balance_after: -250000, balance_text: null, void_reason: null, voided_at: null, voided_by_name: null, details: { ...rows[1].details, allocations: [], reason: "ушёл", created_by_name: "Рустам", method: "cash", note: null, receipt_no: null, payment_id: null, refund_id: "r1" } },
+  ] };
+  const words = text(React.createElement(StatementTimeline, { statement: extra, menuFor: () => [], withVoided: false }));
+  for (const part of ["исправлена: было 450 000", "Списание долга — причина: болезнь · Рустам", "списано", "Возврат аванса — наличные · Рустам", "возврат", "−21 000"]) assert.ok(words.includes(part), part);
+  assert.ok(extra.rows.length === 4);
   // a statement that does not add up says so on the screen
   const broken = { ...statement, summary: { ...statement.summary, paid: statement.summary.paid - 1000 } };
   assert.match(text(React.createElement(StatementHeader, { statement: broken })), /Не сходится: расхождение 1 000 сум/);
@@ -727,10 +769,14 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(statement, /orgApi\.voidWriteoff\(/);
   assert.match(statement, /orgApi\.voidRefund\(/);
   assert.match(statement, /Сходится/);
-  // a money ledger: the digits are right-aligned over their column
-  assert.match(statement, /<span className="text-right">Сумма<\/span>/);
-  assert.match(statement, /<span className="text-right">Долг \/ аванс после<\/span>/);
-  assert.match(statement, /<span className="text-center">Дата<\/span>/);
+  // a bank statement: Дата | Операция | Начислено | Оплачено | Остаток, all centred but the operation
+  assert.match(statement, /<span>Дата<\/span>\s*<span className="text-left">Операция<\/span>\s*<span>Начислено<\/span>\s*<span>Оплачено<\/span>\s*<span>Остаток<\/span>/);
+  assert.match(statement, /md:text-center/);
+  // the month switcher: ‹ Октябрь 2026 › and «Все месяцы» (the default)
+  assert.match(statement, /useState<string \| null>\(null\)/);
+  assert.match(statement, />\s*Все месяцы\s*</);
+  assert.match(statement, /aria-label="Предыдущий месяц"/);
+  assert.doesNotMatch(statement, /type="date"/); // no date inputs any more
 });
 
 test("the income page: table rules (names left, digits right), period picker, drill-down, reconciliation", () => {

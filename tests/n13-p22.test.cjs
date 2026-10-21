@@ -287,7 +287,8 @@ test("receipt wording: title, replaced / replaces notes, errors", () => {
   assert.equal(P.RECEIPT_VOID_STAMP, "АННУЛИРОВАНА");
   assert.equal(P.receiptReplacedNote({ replaced_by_receipt_no: 124 }), "заменена квитанцией № 124");
   assert.equal(P.receiptReplacedNote({ replaced_by_receipt_no: null }), null);
-  assert.equal(P.receiptReplacesNote({ replaces_receipt_no: 120 }), "заменяет квитанцию № 120");
+  assert.equal(P.receiptReplacesNote({ replaces_receipt_no: 120 }), "Исправление оплаты № 120");
+  assert.equal(plain(P.receiptReplacesNote({ replaces_receipt_no: 120, replaces_amount: 450000 })), "Исправление оплаты № 120 (было 450 000 сум)");
   assert.equal(P.receiptReplacesNote({ replaces_receipt_no: null }), null);
   assert.match(P.receiptErrorText(403, "x"), /Нет доступа/);
   assert.match(P.receiptErrorText(404, "x"), /не найдена/);
@@ -329,7 +330,7 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
   assert.ok(voided.includes("АННУЛИРОВАНА"));
   assert.ok(voided.includes("Ошибка в сумме"));
   assert.ok(voided.includes("Заменена квитанцией № 13"));
-  assert.ok(voided.includes("Заменяет квитанцию № 11"));
+  assert.ok(voided.includes("Исправление оплаты № 11"));
   assert.ok(voided.includes("8 уроков с 15.10.2026"));
   assert.doesNotMatch(voided, /неполный месяц/);
 });

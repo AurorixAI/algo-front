@@ -642,26 +642,33 @@ export interface StatementTotal {
   amount: number;
   text: string;
   tone: BalanceKind | "plain";
+  /** The «?» next to the label: what the figure is. */
+  hint?: string;
 }
 
-/** The header of the statement: начислено · оплачено · списано · возвращено · долг / аванс (transfers only when there are some). */
+export const STATEMENT_HINTS = {
+  written_off: "Списано — долг, который центр простил (кнопка «Списать долг»)",
+  refunded: "Возвращено — аванс, возвращённый ученику (кнопка «Вернуть аванс»)",
+  transferred_in: "Деньги, которые пришли вместе с учеником из другой группы",
+  transferred_out: "Деньги, которые ушли вместе с учеником в другую группу",
+  reconciles: "Счёт сходится: начислено − оплачено − списано + возвращено = долг − аванс",
+} as const;
+
+/**
+ * The tiles above the statement: Начислено · Оплачено · Остаток; «Списано» and «Возвращено» (and the transfers) only
+ * when there is something, each with a hint saying what it is.
+ */
 export function statementTotals(summary: StatementSummary | null | undefined): StatementTotal[] {
   if (!summary) return [];
-  const out: StatementTotal[] = [
-    { key: "charged", label: "Начислено", amount: sum(summary.charged), text: formatMoney(summary.charged), tone: "plain" },
-    { key: "paid", label: "Оплачено", amount: sum(summary.paid), text: formatMoney(summary.paid), tone: "plain" },
-  ];
-  if (sum(summary.transferred_in) > 0) out.push({ key: "transferred_in", label: "Перенесено из других групп", amount: sum(summary.transferred_in), text: formatMoney(summary.transferred_in), tone: "plain" });
-  out.push({ key: "written_off", label: "Списано", amount: sum(summary.written_off), text: formatMoney(summary.written_off), tone: "plain" });
-  out.push({ key: "refunded", label: "Возвращено", amount: sum(summary.refunded), text: formatMoney(summary.refunded), tone: "plain" });
-  if (sum(summary.transferred_out) > 0) out.push({ key: "transferred_out", label: "Перенесено в другие группы", amount: sum(summary.transferred_out), text: formatMoney(summary.transferred_out), tone: "plain" });
-  const debt = sum(summary.debt);
-  const advance = sum(summary.advance);
-  out.push(debt > 0
-    ? { key: "balance", label: "Долг", amount: debt, text: formatMoney(debt), tone: "debt" }
-    : advance > 0
-      ? { key: "balance", label: "Аванс", amount: advance, text: formatMoney(advance), tone: "advance" }
-      : { key: "balance", label: "Долг", amount: 0, text: formatMoney(0), tone: "none" });
+  const money = (key: StatementTotal["key"], label: string, value: number, hint?: string): StatementTotal => ({ key, label, amount: sum(value), text: formatMoney(value), tone: "plain", hint });
+  const out: StatementTotal[] = [money("charged", "Начислено", summary.charged), money("paid", "Оплачено", summary.paid)];
+  if (sum(summary.transferred_in) > 0) out.push(money("transferred_in", "Перенесено из групп", summary.transferred_in, STATEMENT_HINTS.transferred_in));
+  if (sum(summary.written_off) > 0) out.push(money("written_off", "Списано", summary.written_off, STATEMENT_HINTS.written_off));
+  if (sum(summary.refunded) > 0) out.push(money("refunded", "Возвращено", summary.refunded, STATEMENT_HINTS.refunded));
+  if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Перенесено в группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
+  const left = sum(summary.advance) - sum(summary.debt);
+  const cell = balanceCell(left);
+  out.push({ key: "balance", label: "Остаток", amount: Math.abs(left), text: cell.text, tone: cell.kind });
   return out;
 }
 
@@ -885,4 +892,270 @@ export function balanceRowNote(row: { is_active?: boolean; student_archived?: bo
   if (row.student_archived) return " · ученик в архиве";
   if (row.is_active === false) return " · ушёл из группы";
   return "";
+}
+
+// ── Statement as a bank statement: Дата | Операция | Начислено | Оплачено | Остаток ─────────────
+
+const MONTH_NAMES = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+
+/** `YYYY-MM` of a date. */
+export function monthKey(iso: string): string {
+  return iso.slice(0, 7);
+}
+
+/** «Сентябрь 2026» */
+export function monthTitle(key: string): string {
+  const month = Number(key.slice(5, 7));
+  const name = MONTH_NAMES[month - 1] ?? key;
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${key.slice(0, 4)}`;
+}
+
+/** «сентябрь» (a month inside a sentence). */
+export function monthWord(key: string): string {
+  return MONTH_NAMES[Number(key.slice(5, 7)) - 1] ?? key;
+}
+
+function lastDayOf(key: string): string {
+  const day = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0)).getUTCDate();
+  return `${key}-${String(day).padStart(2, "0")}`;
+}
+
+/** The first / last day of a month key, for the filter of the server's export. */
+export function monthRange(key: string): { from: string; to: string } {
+  return { from: `${key}-01`, to: lastDayOf(key) };
+}
+
+export function shiftMonthKey(key: string, delta: number): string {
+  const total = Number(key.slice(0, 4)) * 12 + (Number(key.slice(5, 7)) - 1) + delta;
+  return `${String(Math.floor(total / 12)).padStart(4, "0")}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/** A period inside one calendar month that starts on its 1st or ends on its last day: it is called by the month. */
+export function isCalendarMonthPeriod(from: string, to: string): boolean {
+  return monthKey(from) === monthKey(to) && (from.endsWith("-01") || to === lastDayOf(monthKey(from)));
+}
+
+/** «с 16.10 (7 уроков из 13)» -> «с 16.10, 7 уроков из 13»; «11 дней из 31» stays. */
+function partWords(daysText: string): string {
+  const match = /^(.*?)\s*\((.*)\)$/.exec(daysText.trim());
+  return match ? `${match[1]}, ${match[2]}` : daysText.trim();
+}
+
+function digitsOf(value: number): string {
+  return formatMoney(value).replace(/ сум$/, "");
+}
+
+/** «Август 2026 — неполный месяц (с 28.08, 2 урока из 13)» / «Сентябрь 2026» / «15.09–14.10» / «Пакет уроков 25.09–21.10 (12 уроков из 12)». */
+export function chargeWords(segment: Segment): { title: string; sub: string } {
+  const price = segment.price?.amount;
+  const unit = segment.kind === "package" ? "за пакет" : "в месяц";
+  const sub = price === null || price === undefined
+    ? "цена не задана"
+    : price === 0
+      ? "бесплатно"
+      : `цена ${digitsOf(price)} сум ${unit} · ${priceSourceText(segment.price?.source)}`;
+  const part = segment.days_text
+    ? partWords(segment.days_text)
+    : segment.kind === "package" && segment.lessons ? `${segment.lessons.in_part} из ${segment.lessons.in_period} ${segment.lessons.in_period % 10 === 1 && segment.lessons.in_period % 100 !== 11 ? "урок" : "уроков"}` : "";
+  if (segment.kind === "package") {
+    return { title: `Пакет уроков ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
+  }
+  if (isCalendarMonthPeriod(segment.period_from, segment.period_to)) {
+    const key = monthKey(segment.period_from);
+    const partial = Boolean(segment.days_text) || segment.basis === "lessons" || segment.basis === "days";
+    const words = part || `с ${dm(segment.period_from)}`;
+    return { title: partial ? `${monthTitle(key)} — неполный месяц (${words})` : monthTitle(key), sub };
+  }
+  return { title: `Период ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
+}
+
+/** «август» / «15.09–14.10» / «пакет 25.09–21.10»: how a period is named inside «за …». */
+function periodName(from: string, to: string, kind?: "period" | "package"): string {
+  if (kind === "package") return `пакет ${dm(from)}–${dm(to)}`;
+  return isCalendarMonthPeriod(from, to) ? monthWord(monthKey(from)) : `${dm(from)}–${dm(to)}`;
+}
+
+/** «август закрыт» for a month, «период закрыт» / «пакет закрыт» otherwise. */
+function closedWords(name: string, kind: "period" | "package" | undefined, line: Pick<Allocation, "period_from" | "period_to">): string {
+  if (kind === "package") return "пакет закрыт";
+  return isCalendarMonthPeriod(line.period_from, line.period_to) ? `${name} закрыт` : "период закрыт";
+}
+
+/** The balance cell: «Долг 68 000» / «Аванс 21 000» / «0» (no unit: the header says сум once). */
+export function balanceCell(balance: number | null | undefined): { kind: BalanceKind; text: string } {
+  if (balance === null || balance === undefined) return { kind: "none", text: "" };
+  const value = sum(balance);
+  if (value < 0) return { kind: "debt", text: `Долг ${digitsOf(-value)}` };
+  if (value > 0) return { kind: "advance", text: `Аванс ${digitsOf(value)}` };
+  return { kind: "none", text: "0" };
+}
+
+/** «Остаток на начало месяца: долг 519 000» / «аванс 21 000» / «0». */
+export function carryText(carry: { kind: BalanceKind; text: string }): string {
+  const value = carry.kind === "debt" ? `долг ${carry.text.replace("Долг ", "")}` : carry.kind === "advance" ? `аванс ${carry.text.replace("Аванс ", "")}` : "0";
+  return `Остаток на начало месяца: ${value}`;
+}
+
+export interface StatementEntry {
+  kind: "row";
+  seq: number;
+  type: StatementRowType;
+  date: string;
+  title: string;
+  /** A quiet second line (the price of a charge, a note, a reason). */
+  sub: string | null;
+  /** «списано» / «возврат» / «перенос» next to the amount. */
+  tag: string | null;
+  charged: number | null;
+  /** Money in the «Оплачено» column; negative for a refund or a transfer out. */
+  paid: number | null;
+  balance: { kind: BalanceKind; text: string };
+  /** «за август — 69 000 (август закрыт)» lines of a payment. */
+  allocations: string[];
+  /** «исправлена: было 450 000» / «исправление оплаты № 17». */
+  replaced: string | null;
+  cancelled: boolean;
+  cancelNote: string | null;
+  raw: StatementRow;
+}
+
+export interface StatementMonthItem {
+  kind: "month";
+  key: string;
+  title: string;
+  /** «начислено 450 000 · оплачено 382 000 · осталось 68 000». */
+  summary: string;
+}
+
+export interface StatementCarryItem {
+  kind: "carry";
+  /** «Остаток на начало месяца: долг 519 000». */
+  text: string;
+  balance: { kind: BalanceKind; text: string };
+}
+
+export type StatementItem = StatementMonthItem | StatementCarryItem | StatementEntry;
+
+/** The months that hold rows, from the first to the month of the statement date (the arrows of the switcher stop there). */
+export function statementMonths(statement: Pick<StatementOut, "rows" | "as_of">): string[] {
+  const first = statement.rows.length > 0 ? monthKey(statement.rows[0].date) : monthKey(statement.as_of);
+  const lastRow = statement.rows.length > 0 ? monthKey(statement.rows[statement.rows.length - 1].date) : first;
+  const last = lastRow > monthKey(statement.as_of) ? lastRow : monthKey(statement.as_of);
+  const out: string[] = [];
+  for (let key = first; key <= last && out.length < 240; key = shiftMonthKey(key, 1)) out.push(key);
+  return out;
+}
+
+/** The balance before the first day of `month`: the balance after the last earlier row, 0 before the first row. */
+export function openingBalance(rows: StatementRow[], month: string): number {
+  let balance = 0;
+  for (const row of rows) {
+    if (monthKey(row.date) >= month) break;
+    if (row.balance_after !== null) balance = sum(row.balance_after);
+  }
+  return balance;
+}
+
+function lowerMethod(method: PayMethod | null | undefined): string {
+  return methodLabel(method).toLowerCase();
+}
+
+function monthSummary(rows: StatementEntry[]): string {
+  let charged = 0;
+  let paid = 0;
+  let writtenOff = 0;
+  let refunded = 0;
+  for (const entry of rows) {
+    charged += entry.raw.debit;
+    if (entry.type === "payment" || entry.type === "transfer_in") paid += entry.raw.credit;
+    if (entry.type === "writeoff") writtenOff += entry.raw.credit;
+    if (entry.type === "refund") refunded += entry.raw.outflow;
+  }
+  const last = [...rows].reverse().find((entry) => entry.raw.balance_after !== null)?.raw.balance_after ?? 0;
+  const left = sum(last);
+  const parts = [`начислено ${digitsOf(charged)}`, `оплачено ${digitsOf(paid)}`];
+  if (writtenOff > 0) parts.push(`списано ${digitsOf(writtenOff)}`);
+  if (refunded > 0) parts.push(`возвращено ${digitsOf(refunded)}`);
+  parts.push(left < 0 ? `осталось ${digitsOf(-left)}` : left > 0 ? `аванс ${digitsOf(left)}` : "долгов нет");
+  return parts.join(" · ");
+}
+
+/**
+ * The statement as a list of drawn items: a light row per month with its totals, the rows of the month (charges in words,
+ * payments with where each went, write-offs, refunds, transfers) and, for one month, the balance carried in.
+ * `month` null = every month.  The balance after every row is the server's; nothing is recomputed except the
+ * «осталось» of a period after a payment, from the charges and the earlier allocations of the same statement.
+ */
+export function buildStatementItems(statement: StatementOut, month: string | null): StatementItem[] {
+  const segments = new Map<string, Segment>();
+  for (const row of statement.rows) if (row.details.segment) segments.set(row.details.segment.id, row.details.segment);
+  for (const segment of statement.upcoming) segments.set(segment.id, segment);
+  const allocated = new Map<string, number>();
+  let writeoffSeen = false;
+  const entries: StatementEntry[] = [];
+
+  for (const row of statement.rows) {
+    const d = row.details;
+    const balance = balanceCell(row.balance_after);
+    const base = { kind: "row" as const, seq: row.seq, type: row.type, date: row.date, balance, allocations: [] as string[], replaced: null as string | null, cancelled: Boolean(row.voided_at), cancelNote: null as string | null, raw: row };
+    if (row.type === "charge") {
+      const words = d.segment ? chargeWords(d.segment) : { title: row.title, sub: "" };
+      entries.push({ ...base, title: words.title, sub: words.sub || null, tag: null, charged: sum(row.debit), paid: null });
+    } else if (row.type === "payment") {
+      const head = [`Оплата${d.receipt_no ? ` № ${d.receipt_no}` : ""}`, lowerMethod(d.method), d.created_by_name ? `внёс ${d.created_by_name}` : ""].filter(Boolean).join(" · ");
+      const lines: string[] = [];
+      for (const line of list<Allocation>(d.allocations)) {
+        if (sum(line.amount) <= 0) continue;
+        const segment = segments.get(line.segment_id);
+        if (line.bucket === "advance" || line.segment_id === "advance") {
+          lines.push(line.segment_id === "advance" ? `аванс на следующие уроки — ${digitsOf(line.amount)}` : `аванс на ${periodName(line.period_from, line.period_to, segment?.kind)} — ${digitsOf(line.amount)}`);
+          continue;
+        }
+        const name = periodName(line.period_from, line.period_to, segment?.kind);
+        const total = allocated.get(line.segment_id) ?? 0;
+        allocated.set(line.segment_id, total + sum(line.amount));
+        let outcome = "";
+        if (segment) {
+          const off = writeoffSeen ? sum(segment.written_off) : 0;
+          const remaining = Math.max(0, sum(segment.charge) - total - sum(line.amount) - off);
+          outcome = line.closes || remaining === 0 ? ` (${closedWords(name, segment.kind, line)})` : ` (осталось ${digitsOf(remaining)})`;
+        } else if (line.closes) {
+          outcome = ` (${closedWords(name, undefined, line)})`;
+        }
+        lines.push(`за ${name} — ${digitsOf(line.amount)}${outcome}`);
+      }
+      const replaced = d.replaces_amount ? `исправлена: было ${digitsOf(d.replaces_amount)}` : d.replaces_receipt_no ? `исправление оплаты № ${d.replaces_receipt_no}` : null;
+      entries.push({ ...base, title: head, sub: d.note ? `комментарий: ${d.note}` : null, tag: null, charged: null, paid: sum(row.credit), allocations: lines, replaced });
+    } else if (row.type === "writeoff") {
+      writeoffSeen = true;
+      const title = `Списание долга${d.reason ? ` — причина: ${d.reason}` : ""}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
+      entries.push({ ...base, title, sub: null, tag: "списано", charged: null, paid: sum(row.credit) });
+    } else if (row.type === "refund") {
+      const title = `Возврат аванса — ${lowerMethod(d.method)}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
+      entries.push({ ...base, title, sub: d.reason ? `причина: ${d.reason}` : null, tag: "возврат", charged: null, paid: -sum(row.outflow) });
+    } else if (row.type === "transfer_in") {
+      entries.push({ ...base, title: row.title, sub: null, tag: "перенос", charged: null, paid: sum(row.credit) });
+    } else {
+      entries.push({ ...base, title: row.title, sub: null, tag: "перенос", charged: null, paid: -sum(row.outflow) });
+    }
+  }
+
+  const items: StatementItem[] = [];
+  const keys = month ? [month] : [...new Set(entries.map((entry) => monthKey(entry.date)))];
+  for (const key of keys) {
+    const inMonth = entries.filter((entry) => monthKey(entry.date) === key);
+    if (month && inMonth.length === 0) {
+      const carry = balanceCell(openingBalance(statement.rows, key));
+      items.push({ kind: "month", key, title: monthTitle(key), summary: "записей нет" });
+      items.push({ kind: "carry", text: carryText(carry), balance: carry });
+      continue;
+    }
+    items.push({ kind: "month", key, title: monthTitle(key), summary: monthSummary(inMonth) });
+    if (month) {
+      const carry = balanceCell(openingBalance(statement.rows, key));
+      items.push({ kind: "carry", text: carryText(carry), balance: carry });
+    }
+    items.push(...inMonth);
+  }
+  return items;
 }
