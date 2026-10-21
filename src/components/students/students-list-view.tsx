@@ -415,14 +415,22 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
 
           {/* Wide screens: the table */}
           <div className="hidden overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm xl:block">
-            <table className="w-full">
+            {/* The same table as the roster of a group («Состав группы»): the name left, the short columns centred under centred headers */}
+            <table className="w-full table-fixed border-collapse text-left">
+              <colgroup>
+                <col className="w-[30%]" />
+                <col className="w-[14%]" />
+                <col className="w-[12%]" />
+                <col className="w-[26%]" />
+                <col className="w-[18%]" />
+              </colgroup>
               <thead>
-                <tr className="bg-slate-50/80 text-left text-[13px] font-semibold text-slate-500">
-                  <th className="px-6 py-3 font-semibold">Ученик</th>
-                  <th className="px-6 py-3 text-center font-semibold">ID</th>
-                  <th className="px-6 py-3 text-center font-semibold">Класс</th>
-                  <th className="px-6 py-3 text-center font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
-                  <th className="px-6 py-3 text-center font-semibold">Телефон</th>
+                <tr className="border-b border-slate-100 bg-slate-50/80 text-[13px] font-semibold text-slate-500">
+                  <th className="whitespace-nowrap px-4 py-3.5 pl-6 align-middle font-semibold">Ученик</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">ID Ученика</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">Класс</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 text-center align-middle font-semibold">{activeTab === "archived" ? "Статус" : "Группа"}</th>
+                  <th className="whitespace-nowrap px-4 py-3.5 pr-6 text-center align-middle font-semibold">Телефон</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
@@ -440,20 +448,21 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                         transition={{ delay: i * 0.02 }}
                         className="hover:bg-slate-50/70 transition-colors group/row"
                       >
-                        <td className="px-6 py-4">
+                        <td className="px-4 py-4 pl-6 align-middle">
                           <Link
                             href={`${base}/students/${s.id}`}
-                            className="flex items-center gap-3 group/name"
+                            className="flex items-center gap-3 group/name hover:opacity-80 transition-opacity"
+                            title="Открыть профиль ученика"
                           >
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0">
-                              {(s.first_name?.[0] || "").toUpperCase()}
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center text-xs font-bold text-primary-700 shrink-0 shadow-sm border border-primary-200/50 group-hover/name:scale-105 transition-transform">
+                              {(s.first_name?.[0] || "?").toUpperCase()}
                             </div>
-                            <span className="text-sm text-slate-700 group-hover/name:text-primary-600 font-medium transition-colors">
+                            <span className="min-w-0 truncate text-sm text-slate-700 group-hover/name:text-primary-600 font-medium transition-colors">
                               {s.full_name || `${s.last_name} ${s.first_name}`}
                             </span>
                           </Link>
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-4 text-center align-middle whitespace-nowrap">
                           {s.display_id ? (
                             <button
                               type="button"
@@ -478,10 +487,10 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                             <span className="text-xs text-slate-300 font-mono">—</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-center">
-                          <span className="text-sm text-slate-600">{s.class_level} класс</span>
+                        <td className="px-4 py-4 text-center align-middle whitespace-nowrap text-sm font-medium text-slate-700">
+                          <span>{s.class_level} класс</span>
                         </td>
-                        <td className="px-6 py-4 text-center">
+                        <td className="px-4 py-4 text-center align-middle">
                           {isArchivedStatus(s.status) ? (
                             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">В архиве</span>
                           ) : group ? (
@@ -502,7 +511,9 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                             <span className="text-xs text-slate-400 italic">Без группы</span>
                           )}
                         </td>
-                        <td className="px-6 py-4 text-center text-sm text-slate-500">{s.student_phone || "—"}</td>
+                        <td className="px-4 py-4 pr-6 text-center align-middle whitespace-nowrap text-xs font-medium text-slate-700">
+                          {s.student_phone || <span className="text-slate-300 font-mono">—</span>}
+                        </td>
                       </motion.tr>
                     );
                   })}

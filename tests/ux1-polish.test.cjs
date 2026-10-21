@@ -101,7 +101,7 @@ test("the group roster and the Select label use the style of table-chrome: semib
   assert.match(table, /px-4 py-3\.5 text-\[13px\] font-semibold text-slate-500 cursor-pointer/);
   for (const label of ["Ученик", "ID Ученика", "Класс", "Телефон", "Дата зачисления"]) assert.ok(table.includes(`label="${label}"`), label);
   assert.match(read("src/components/ui/select.tsx"), /block text-\[13px\] font-semibold text-slate-500 mb-1\.5/);
-  assert.match(read("src/components/students/students-list-view.tsx"), /bg-slate-50\/80 text-left text-\[13px\] font-semibold text-slate-500/);
+  assert.match(read("src/components/students/students-list-view.tsx"), /border-b border-slate-100 bg-slate-50\/80 text-\[13px\] font-semibold text-slate-500/);
 });
 
 // ── 3. no decorative gradient strips ────────────────────────────────────────────────────────────────
