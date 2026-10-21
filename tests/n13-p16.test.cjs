@@ -148,10 +148,8 @@ test("«Пропуски»: «Подтвердить» (primary) and «Откл�
   assert.match(body, /label="Причина"/);
   assert.match(body, /single\.reasonMeta/);
   assert.match(page, /<ExcuseDecisionDialog target=\{dialog\}/);
-  // phone: a visible tel: link on its own line on cards, the icon (32px, 8px from the name) on the wide table
-  assert.match(page, /xl:hidden"\s*>\s*<Phone className="h-3 w-3" \/>\s*\{item\.student\.phone\}/);
-  assert.match(page, /flex items-center gap-2">\s*<Link/);
-  assert.match(page, /h-8 w-8 shrink-0[^"]*xl:inline-flex/);
+  // the phone is not in the list (owner 21.10): it lives in the student's card
+  assert.doesNotMatch(page, /<Phone|item\.student\.phone/);
   // the decided tabs show the time and the note inline
   assert.match(page, /excuseDecisionDetail\(item, businessToday\.slice\(0, 4\)\)/);
   assert.doesNotMatch(page, /decisionTitle|cursor-help/);
@@ -174,11 +172,11 @@ test("the groups base path reaches the excuses list for the journal link", () =>
   assert.match(read("src/components/attendance/attendance-section.tsx"), /<ExcusesPage studentProfileBasePath=\{studentProfileBasePath\} groupsBasePath=\{groupsBasePath\} \/>/);
 });
 
-test("«Оплаты»: one «Продлить» / «Внести оплату» + «⋯», unset fee reads «не задана»", () => {
+test("«Оплаты»: one «Внести оплату» + «⋯», unset fee reads «не задана»", () => {
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /не задана/);
   assert.doesNotMatch(page, /monthly_fee !== null \? formatMoney\(row\.monthly_fee\) : "—"/);
-  assert.match(page, /PAY_ACTION_LABEL\[payActionOf\(row\)\]/); // «Внести оплату» when overdue or never paid, «Продлить» when running (UX-1 A)
+  assert.match(page, /\{PAY_ACTION_LABEL\}/); // one verb for a first, an overdue and a running payment
   assert.equal(page.split("<RowMenu items={menu} label={`Действия: ${row.student_name}`} />").length - 1, 1); // a single action cell for cards and the table, named by its student
   assert.equal((page.match(/<PayButton row=\{row\} onPay=\{onPay\} \/>/g) || []).length, 1);
   assert.doesNotMatch(page, /bg-emerald-600|bg-rose-600|bg-red-600/);

@@ -98,19 +98,19 @@ test("status: the chip says the state, the second line says «оплачено �
   assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
 });
 
-test("the main button: «Внести оплату» when overdue or never paid, «Продлить» when running", () => {
+test("one verb «Внести оплату»; the button is filled when a payment is due (overdue or never paid), outlined while one is running", () => {
   const paid = { id: "p1" };
-  assert.equal(rules.payActionOf({ status: "expired", last_payment: paid }), "create");
-  assert.equal(rules.payActionOf({ status: "none", last_payment: null }), "create");
-  assert.equal(rules.payActionOf({ status: "active", last_payment: null }), "create"); // never paid (a free or carried-over membership)
-  assert.equal(rules.payActionOf({ status: "active", last_payment: paid }), "extend");
-  assert.equal(rules.payActionOf({ status: "expiring", last_payment: paid }), "extend");
-  assert.equal(rules.payActionOf({ status: "ends_today", last_payment: paid }), "extend"); // still paid today
-  assert.deepEqual(rules.PAY_ACTION_LABEL, { create: "Внести оплату", extend: "Продлить" });
+  assert.equal(rules.payIsDue({ status: "expired", last_payment: paid }), true);
+  assert.equal(rules.payIsDue({ status: "none", last_payment: null }), true);
+  assert.equal(rules.payIsDue({ status: "active", last_payment: null }), true); // never paid (a free or carried-over membership)
+  assert.equal(rules.payIsDue({ status: "active", last_payment: paid }), false);
+  assert.equal(rules.payIsDue({ status: "expiring", last_payment: paid }), false);
+  assert.equal(rules.payIsDue({ status: "ends_today", last_payment: paid }), false); // still paid today
+  assert.equal(rules.PAY_ACTION_LABEL, "Внести оплату");
   // the dialog repeats the verb of the button
   const modal = read("src/components/payments/payment-form-modal.tsx");
-  assert.match(modal, /create: PAY_ACTION_LABEL\.create,/);
-  assert.match(modal, /extend: `\$\{PAY_ACTION_LABEL\.extend\} оплату`,/);
+  assert.match(modal, /create: PAY_ACTION_LABEL,/);
+  assert.doesNotMatch(modal, /extend/);
 });
 
 test("tabs: «Без оплат», and a counter on every tab", () => {
@@ -153,7 +153,7 @@ test("the payments table: sentence-case headers, a tab bar that scrolls with a f
   assert.match(page, /<ScrollHint focusable=\{false\} className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
   assert.match(page, /shrink-0 whitespace-nowrap/); // a label is never squeezed
   assert.match(page, /bucketTabLabel\(label, bucketCount\(summaryForTabs, key\)\)/);
-  assert.match(page, /kind: payActionOf\(row\)/);
+  assert.match(page, /kind: "create", row, payment: null/);
   assert.equal((page.match(/<PayButton row=\{row\}/g) || []).length, 1);
 });
 

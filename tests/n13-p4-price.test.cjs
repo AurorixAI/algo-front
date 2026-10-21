@@ -531,10 +531,10 @@ test("the student card shows the price in one line with no field to type it; the
   // an archived student / a closed membership: the price is shown, nothing can be changed (no status, no main button)
   const readOnly = textOf(html(priceRow({ price: { amount: 400000, source: "override", valid_from: null, group_amount: 500000, reason: "Сестра" } }), false));
   assert.match(readOnly, /Индивидуальная цена 400 000 сум\/мес · Сестра/);
-  assert.doesNotMatch(readOnly, /Внести оплату|Продлить|Оплачено/);
+  assert.doesNotMatch(readOnly, /Внести оплату|Оплачено/);
   // status chip + one main button by the situation of the row
-  assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено .*оплачено до 31\.10\.2026 .*Продлить/);
-  assert.match(textOf(html(priceRow())), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/); // never paid: «Внести оплату»
+  assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/);
+  assert.match(textOf(html(priceRow())), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/); // never paid or running: the same «Внести оплату»
   const overdue = textOf(html(priceRow({ status: "expired", days_overdue: 31, days_left: null, last_payment: { id: "p" } })));
   assert.match(overdue, /Просрочено на 31 день .*оплачено до 31\.10\.2026 .*Внести оплату/);
   assert.doesNotMatch(overdue, /дн\./);

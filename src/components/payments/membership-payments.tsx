@@ -12,7 +12,7 @@ import {
   formatDateRu,
   hasReceipt,
   isCarryOver,
-  payActionOf,
+  payIsDue,
   PAY_ACTION_LABEL,
   paymentAmountLabel,
   paymentPeriodLabel,
@@ -56,7 +56,7 @@ interface MembershipPaymentsProps {
   /** `/owner/groups` or `/admin/groups`: «Задать цену группы» leads to the group. */
   groupsBasePath: string;
   /**
-   * The student is in the archive: history only - no «Внести / Продлить», no individual price, no «Исправить» (the server
+   * The student is in the archive: history only - no «Внести оплату», no individual price, no «Исправить» (the server
    * answers 409 «Ученик в архиве — сначала верните его»); «Отменить» stays, so a mistaken payment can be cancelled.
    */
   archived?: boolean;
@@ -67,7 +67,7 @@ interface MembershipPaymentsProps {
 
 /**
  * Money of one membership on the «Оплаты» tab of the student card, ordered by importance:
- *  1. the group, its status chip and the one main button («Внести оплату» when overdue or never paid, «Продлить» when running);
+ *  1. the group, its status chip and the one main button («Внести оплату»: filled when overdue or never paid, outlined when running);
  *  2. the price in a line: «Цена 500 000 сум/мес · цена группы» / «Индивидуальная цена … · причина»;
  *  3. in «⋯»: the individual price (assign / return / cancel a scheduled one), the history of the price, the history of payments
  *     (cancelled payments grey) with the actions Исправить / Отменить.
@@ -193,7 +193,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
   const tone = STATUS_TONE_CLASS[statusTone(row.status)];
   const detail = statusDetail(row);
   const visible = history ? (showAll ? history : history.slice(0, HISTORY_PREVIEW)) : [];
-  const action = payActionOf(row);
+  const due = payIsDue(row);
 
   const price = useMembershipPriceControls({
     row, studentName, periodMode, groupsBasePath, editable, onRowChange: changed, onNotify,
@@ -224,14 +224,14 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
         {editable && (
           <button
             type="button"
-            onClick={() => setForm({ kind: action, payment: null })}
+            onClick={() => setForm({ kind: "create", payment: null })}
             className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold [grid-area:button] sm:justify-self-end sm:py-1.5 ${
-              action === "create"
+              due
                 ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
                 : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
             }`}
           >
-            {PAY_ACTION_LABEL[action]}
+            {PAY_ACTION_LABEL}
           </button>
         )}
         <div className="justify-self-end [grid-area:menu]">

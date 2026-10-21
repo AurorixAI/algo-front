@@ -35,7 +35,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const lessonsDefault = usePaymentsSummary((state) => state.lessonsPerPayment);
   const moneyEnabled = !isTeacher && !DEMO_MODE && available;
-  // An archived student keeps his payment history, read-only: no «Внести / Продлить», no individual price, no «Исправить»
+  // An archived student keeps his payment history, read-only: no «Внести оплату», no individual price, no «Исправить»
   // (the server refuses them); «Отменить» stays so that a mistaken payment can be cancelled.
   const access = studentArchiveAccess({ isTeacher, status: profile.student.status });
   const archived = access.showBanner;

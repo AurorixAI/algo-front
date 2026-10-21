@@ -49,7 +49,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await expect(row()).toContainText(money(450000));
   await expect(row()).toContainText("Оплачено"); // the grey chip ...
   await expect(row()).toContainText(`оплачено до ${paidUntil}`); // ... and the date under it
-  await expect(row().getByRole("button", { name: "Продлить" })).toBeVisible(); // a running payment is extended, not entered again
+  await expect(row().getByRole("button", { name: "Внести оплату" })).toBeVisible(); // one verb, also for a running payment
   await expect(page.getByRole("tab", { name: /^Оплачено \(\d+\)$/ })).toBeVisible(); // every tab carries its number
 
   // --- history: «№ N»

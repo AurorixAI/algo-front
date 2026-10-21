@@ -40,7 +40,7 @@ import {
 import { usePaymentQuote } from "@/lib/use-payment-quote";
 import { Modal } from "@/components/ui/modal";
 
-export type PaymentFormKind = "create" | "extend" | "replace";
+export type PaymentFormKind = "create" | "replace";
 
 /** What the form needs to know about the membership it pays for. */
 export interface PaymentFormMembership {
@@ -73,10 +73,9 @@ interface PaymentFormModalProps {
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
-// The title repeats the verb of the button that opened the dialog («Внести оплату» / «Продлить»).
+// The title repeats the verb of the button that opened the dialog.
 const TITLE: Record<PaymentFormKind, string> = {
-  create: PAY_ACTION_LABEL.create,
-  extend: `${PAY_ACTION_LABEL.extend} оплату`,
+  create: PAY_ACTION_LABEL,
   replace: "Исправить оплату",
 };
 

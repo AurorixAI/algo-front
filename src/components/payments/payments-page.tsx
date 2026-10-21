@@ -22,7 +22,6 @@ import {
   paymentAmountLabel,
   PAYMENT_BUCKETS,
   parseBucket,
-  payActionOf,
   PAY_ACTION_LABEL,
   PARTIAL_AMOUNT_PROMPT,
   PARTIAL_PERIOD_BADGE,
@@ -545,7 +544,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                 lessonsDefault={lessonsDefault}
                 studentProfileBasePath={studentProfileBasePath}
                 groupsBasePath={groupsBasePath}
-                onPay={() => setForm({ kind: payActionOf(row), row, payment: null })}
+                onPay={() => setForm({ kind: "create", row, payment: null })}
                 onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
                 onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
                 onQuickDone={onQuickDone}
@@ -705,7 +704,7 @@ function PayButton({ row, onPay }: { row: MembershipPaymentRow; onPay: () => voi
       onClick={onPay}
       className="flex-1 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 xl:flex-none"
     >
-      {PAY_ACTION_LABEL[payActionOf(row)]}
+      {PAY_ACTION_LABEL}
     </button>
   );
 }

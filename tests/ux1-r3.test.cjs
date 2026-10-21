@@ -326,10 +326,9 @@ test("leftPhrase: the verb agrees with the number, in the payments chip and in t
 
 test("actions: the button, the dialog title and the toast say the same verb", () => {
   const payments = lib("payments.ts");
-  assert.equal(payments.PAY_ACTION_LABEL.create, "Внести оплату");
-  assert.equal(payments.PAY_ACTION_LABEL.extend, "Продлить");
-  assert.deepEqual(payments.PAYMENT_SAVED_TEXT, { create: "Оплата внесена", extend: "Оплата продлена", replace: "Оплата исправлена" });
-  assert.match(read("src/components/payments/payment-form-modal.tsx"), /extend: `\$\{PAY_ACTION_LABEL\.extend\} оплату`/);
+  assert.equal(payments.PAY_ACTION_LABEL, "Внести оплату");
+  assert.deepEqual(payments.PAYMENT_SAVED_TEXT, { create: "Оплата внесена", replace: "Оплата исправлена" });
+  assert.match(read("src/components/payments/payment-form-modal.tsx"), /create: PAY_ACTION_LABEL,/);
   for (const file of ["src/components/payments/payments-page.tsx", "src/components/payments/membership-payments.tsx"]) {
     assert.match(read(file), /PAYMENT_SAVED_TEXT\[form\?\.kind \?\? "create"\]/, file);
   }

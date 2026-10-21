@@ -511,27 +511,23 @@ export function statusTone(status: PaymentStatus): StatusTone {
   }
 }
 
-/** The primary action of a membership: a first or an overdue payment is «Внести оплату», a running one is «Продлить». */
-export type PayAction = "create" | "extend";
-
-export const PAY_ACTION_LABEL: Record<PayAction, string> = {
-  create: "Внести оплату",
-  extend: "Продлить",
-};
-
 /**
- * The toast after a payment is saved: the same verb as the button and the title of the dialog.
- * «Внести оплату» -> «Оплата внесена»; «Продлить» («Продлить оплату») -> «Оплата продлена»; «Исправить оплату» -> «Оплата исправлена».
+ * One verb for every payment: «Внести оплату» on the row, in the student's card, in the title of the dialog.
+ * (The dialog is the same for a first, an overdue and a running payment - only the proposed period start differs,
+ * and the server decides it.)
  */
-export const PAYMENT_SAVED_TEXT: Record<PayAction | "replace", string> = {
+export const PAY_ACTION_LABEL = "Внести оплату";
+
+/** The toast after a payment is saved: the same verb as the button and the title of the dialog. */
+export const PAYMENT_SAVED_TEXT: Record<"create" | "replace", string> = {
   create: "Оплата внесена",
-  extend: "Оплата продлена",
   replace: "Оплата исправлена",
 };
 
-export function payActionOf(row: Pick<MembershipPaymentRow, "status" | "last_payment">): PayAction {
-  if (!row.last_payment) return "create";
-  return row.status === "expired" || row.status === "none" ? "create" : "extend";
+/** A first or an overdue payment is due: the button in the student's card is filled; for a running payment it is outlined. */
+export function payIsDue(row: Pick<MembershipPaymentRow, "status" | "last_payment">): boolean {
+  if (!row.last_payment) return true;
+  return row.status === "expired" || row.status === "none";
 }
 
 /** Same grey / amber / red as the deadline chips of «Пропуски»; paid, free and no-data states stay grey. */

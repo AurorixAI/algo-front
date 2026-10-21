@@ -36,7 +36,7 @@ export interface StudentArchiveAccess {
   groupActions: boolean;
   /** «Назначить диагностику»: an archived student gets no new invite (the server answers 409). */
   diagnosticActions: boolean;
-  /** «Внести», «Продлить», fee and payment corrections: the archived card shows the history only. */
+  /** «Внести оплату», fee and payment corrections: the archived card shows the history only. */
   paymentActions: boolean;
 }
 
