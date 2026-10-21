@@ -175,7 +175,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
           Оплаты
         </Link>
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Цены групп</h1>
-        <p className="text-sm text-slate-500">Сколько стоит занятие в каждой группе, что запланировано и у кого цена индивидуальная</p>
+        <p className="text-sm text-slate-500">Сколько стоит обучение в каждой группе, что запланировано и у кого цена индивидуальная</p>
       </div>
 
       {searchable && (
@@ -322,7 +322,7 @@ function PriceRow({
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
         <span className="shrink-0 text-xs text-slate-400 xl:hidden">Индивидуальные цены</span>
-        {individual ? <span className="text-slate-800">{individual}</span> : <span className="text-slate-400">—</span>}
+        {individual ? <span className="whitespace-nowrap text-slate-800">{individual}</span> : <span className="text-slate-400">—</span>}
       </div>
 
       <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
@@ -330,7 +330,7 @@ function PriceRow({
           type="button"
           onClick={onEdit}
           disabled={busy}
-          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-60 xl:flex-none"
+          className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-primary-200 bg-white px-3 py-1.5 text-center text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-60 xl:w-[7.5rem] xl:flex-none"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
           {item.current ? "Изменить цену" : "Задать цену"}
