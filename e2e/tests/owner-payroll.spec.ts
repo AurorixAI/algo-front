@@ -68,7 +68,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   // --- the month: the summary line, one calm line for an open month, «Как считается» and «Делитель» in the «⋯» menu
   await expect(page.getByTestId("payroll-month-summary")).toContainText("сохранено 0 из 2");
   await expect(page.getByRole("status").filter({ hasText: "ещё идёт — расчёт предварительный" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Как считается" })).toHaveCount(0); // not floating next to the text
+  await expect(page.getByRole("button", { name: "Как считается", exact: true })).toHaveCount(0); // not floating next to the text
   await page.getByRole("button", { name: /^Ещё: как считается/ }).click();
   await page.getByRole("menuitem", { name: "Как считается" }).click();
   const how = page.getByRole("dialog", { name: "Как считается зарплата" });
