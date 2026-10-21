@@ -59,7 +59,7 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useExcuseBadge } from "@/lib/excuse-badge";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
-import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
+import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance/table-chrome";
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { Modal } from "@/components/ui/modal";
@@ -75,8 +75,11 @@ const PAGE_SIZE = 50;
  * The header and every row use the same template, the same horizontal padding and the same gap, so a
  * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.9fr)_96px_minmax(0,1.3fr)_192px_224px]";
-const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.7fr)_96px_minmax(0,1.4fr)_minmax(0,1.3fr)_40px]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_216px_224px]";
+const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_minmax(0,1.2fr)_40px]";
+
+/** Ученик and Причина (free text) left, Урок and Срок / Решение centred, the actions right (see table-chrome). */
+const EXCUSE_ALIGNS: CellAlign[] = ["left", "center", "left", "center", "right"];
 
 type Tab = ExcuseReviewStatus;
 
@@ -157,11 +160,14 @@ function ExpandableText({
   meta,
   className = "text-sm text-slate-800",
   metaClassName = "text-xs text-slate-500",
+  center = false,
 }: {
   text: string;
   meta?: string;
   className?: string;
   metaClassName?: string;
+  /** Centred on the wide table (a short data column); cards keep the text left. */
+  center?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [cut, setCut] = useState(false);
@@ -186,7 +192,7 @@ function ExpandableText({
       aria-expanded={interactive ? expanded : undefined}
       title={interactive ? (expanded ? "Свернуть" : "Показать полностью") : undefined}
       onClick={() => setExpanded((value) => !value)}
-      className="block w-full cursor-default rounded text-left enabled:cursor-pointer enabled:hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30"
+      className={`block w-full cursor-default rounded text-left ${center ? "xl:text-center" : ""} enabled:cursor-pointer enabled:hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30`}
     >
       {/* A cut text keeps its whole in the tooltip: nothing is hidden for good (a click opens it in place). */}
       <span ref={textRef} title={cut && !expanded ? text : undefined} className={`block break-words ${className} ${expanded ? "" : "xl:line-clamp-2"}`}>{text}</span>
@@ -680,6 +686,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
               show="xl"
               gridClass={cols}
               labels={["Ученик", "Урок", "Причина", pendingTab ? "Срок" : "Решение", ""]}
+              aligns={EXCUSE_ALIGNS}
             />
             <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {rows.map((item) => {
@@ -709,7 +716,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                     </div>
 
                     {/* Урок */}
-                    <div className="min-w-0 text-xs text-slate-500 xl:text-sm">
+                    <div className="min-w-0 text-xs text-slate-500 xl:text-center xl:text-sm">
                       <p className="xl:truncate xl:leading-5">
                         <span className="font-medium text-slate-800">{lessonShortLabel(item.lesson_date)}</span>
                         <span className="xl:hidden"> · {teacherShort}</span>
@@ -738,12 +745,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                       </p>
                     </div>
 
-                    {/* Срок / Решение: a badge keeps its left edge on the left edge of its header */}
+                    {/* Срок / Решение: centred under its header, the chip too */}
                     {pendingTab ? (
-                      <div className="min-w-0">
+                      <div className="min-w-0 xl:text-center">
                         {deadline && (
                           <>
-                            <div className="flex min-w-0 xl:-my-px">
+                            <div className="flex min-w-0 xl:-my-px xl:justify-center">
                               <span className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[deadline.tone]}`} title={deadline.title}>
                                 {deadline.headline}
                               </span>
@@ -753,12 +760,12 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                         )}
                       </div>
                     ) : (
-                      <div className="min-w-0">
+                      <div className="min-w-0 xl:text-center">
                         <p className="break-words text-xs text-slate-700 xl:text-sm xl:leading-5" title={formatDateTimeRu(item.reviewed_at) || undefined}>
                           {excuseDecisionLabel(item) || "—"}
                         </p>
-                        {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" />}
-                        {lateMark && <div className="mt-1 flex"><AfterDeadlineChip mark={lateMark} /></div>}
+                        {decisionDetail && <ExpandableText text={decisionDetail} className="text-xs text-slate-500" center />}
+                        {lateMark && <div className="mt-1 flex xl:justify-center"><AfterDeadlineChip mark={lateMark} /></div>}
                       </div>
                     )}
 

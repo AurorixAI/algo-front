@@ -194,7 +194,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
         <EmptyState icon={ClipboardCheck} title="Все уроки закрыты" hint="Уроки, по которым не отмечена посещаемость или журнал не завершён, появятся здесь." />
       ) : (
         <section className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-200 lg:bg-white">
-          <TableHeader show="lg" gridClass={COLS} labels={["Урок", "Группа", "Статус", ""]} />
+          <TableHeader show="lg" gridClass={COLS} labels={["Урок", "Группа", "Статус", ""]} aligns={["center", "center", "center", "right"]} />
           {groups.map((group) => (
             <div key={group.key} className="mt-5 first:mt-0 lg:mt-0 lg:border-t lg:border-slate-100 lg:first:border-t-0">
               <p className="mb-2 flex items-baseline gap-1.5 px-1 text-xs font-semibold text-slate-600 lg:mb-0 lg:bg-slate-50/70 lg:px-4 lg:py-2">
@@ -207,14 +207,14 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                     key={openLessonKey(item)}
                     className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-14 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS}`}
                   >
-                    <div className="flex flex-wrap items-baseline gap-x-2 lg:block">
+                    <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:text-center">
                       <p className="text-sm font-semibold leading-5 text-slate-900">{formatLessonDate(item.lessonDate)}</p>
                       <p className="text-xs tabular-nums text-slate-500">{openLessonTime(item)}</p>
                     </div>
 
-                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900">{item.groupName}</p>
+                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900 lg:text-center">{item.groupName}</p>
 
-                    <div className="flex min-w-0 lg:-my-px">
+                    <div className="flex min-w-0 lg:-my-px lg:justify-center">
                       <span
                         title={openLessonStatusHint(item)}
                         className={`${CHIP_BASE_CLASS} ${CHIP_TONE_CLASS[CHIP_TONE[item.actionType]]}`}

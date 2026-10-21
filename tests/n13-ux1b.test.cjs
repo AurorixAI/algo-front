@@ -204,7 +204,7 @@ test("the chip: small, neutral, with the tooltip; the date is in the DOM for a s
 test("the page and the journal show the mark only for decided excuses; the types are optional", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /const lateMark = pendingTab \? null : afterDeadlineMark\(item\);/);
-  assert.match(page, /\{lateMark && <div className="mt-1 flex"><AfterDeadlineChip mark=\{lateMark\} \/><\/div>\}/);
+  assert.match(page, /\{lateMark && <div className="mt-1 flex xl:justify-center"><AfterDeadlineChip mark=\{lateMark\} \/><\/div>\}/);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   assert.match(journal, /afterDeadlineMark\(excuse\) && <div className="mt-1\.5 flex"><AfterDeadlineChip mark=\{afterDeadlineMark\(excuse\)!\} \/><\/div>/);
   assert.match(journal, /const late = withLate \? afterDeadlineMark\(excuse\) : null;\s*if \(late\) lines\.push\(late\.title\);/);

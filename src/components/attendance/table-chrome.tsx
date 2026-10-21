@@ -7,7 +7,17 @@ import type { ComponentType, ReactNode } from "react";
  * template and the very same horizontal padding.  Cells are top-aligned; a control taller than the 20 px
  * line of text (a 32 px button, a 22 px chip) is pulled up by the difference with a negative margin, so
  * the first lines and the controls of a row share one axis.  Where the table does not fit it becomes cards.
+ *
+ * Alignment rule of every table (owner 21.10): a header is aligned exactly like the content of its column.
+ * The identity column (first) and long free text are LEFT; short data (lesson, group as the second column,
+ * status, deadline, dates, counts, percents, marks, chips) are CENTRED, both lines of a two-line cell and the
+ * chip; the action column is RIGHT and has no header text.  Only a money ledger is right-aligned over its digits.
  */
+
+export type CellAlign = "left" | "center" | "right";
+
+/** Text alignment of a header cell (always) and of a body cell (`xl:` / `lg:` variants are written next to the cell). */
+export const ALIGN_CLASS: Record<CellAlign, string> = { left: "text-left", center: "text-center", right: "text-right" };
 
 /** Horizontal padding of a header and of a row of the wide table. */
 export const TABLE_PAD_X = "px-4";
@@ -16,7 +26,7 @@ export const TABLE_PAD_X = "px-4";
 export const TABLE_HEAD_CELL = "min-w-0 text-[13px] font-semibold text-slate-500";
 
 /** Header row of the wide table; `gridClass` is the same template the rows use. */
-export function TableHeader({ gridClass, labels, show }: { gridClass: string; labels: string[]; show: "lg" | "xl" }) {
+export function TableHeader({ gridClass, labels, aligns, show }: { gridClass: string; labels: string[]; aligns?: CellAlign[]; show: "lg" | "xl" }) {
   const visible = show === "lg" ? "lg:grid" : "xl:grid";
   return (
     <div
@@ -24,7 +34,7 @@ export function TableHeader({ gridClass, labels, show }: { gridClass: string; la
       className={`hidden border-b border-slate-100 bg-slate-50 py-2.5 ${TABLE_PAD_X} ${visible} items-center gap-x-3 ${gridClass}`}
     >
       {labels.map((label, index) => (
-        <span key={`${label}-${index}`} className={TABLE_HEAD_CELL}>
+        <span key={`${label}-${index}`} className={`${TABLE_HEAD_CELL} ${ALIGN_CLASS[aligns?.[index] ?? "left"]}`}>
           {label || <span className="sr-only">Действия</span>}
         </span>
       ))}

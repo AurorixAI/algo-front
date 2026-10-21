@@ -290,9 +290,9 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   const excuses = read("src/components/attendance/excuses-page.tsx");
   assert.match(excuses, /<TableHeader\s+show="xl"\s+gridClass=\{cols\}/);
   assert.match(excuses, /xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 \$\{cols\}/);
-  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.9fr\)_96px_minmax\(0,1\.3fr\)_192px_224px\]"/);
+  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.1fr\)_104px_minmax\(0,1\.5fr\)_216px_224px\]"/);
   const open = read("src/components/attendance/open-lessons-view.tsx");
-  assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{\["Урок", "Группа", "Статус", ""\]\}/);
+  assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{\["Урок", "Группа", "Статус", ""\]\} aligns=\{\["center", "center", "center", "right"\]\}/);
   assert.match(open, /lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 \$\{COLS\}/);
   // the same horizontal padding in both (px-4) and the same header look
   assert.match(chromeSrc, /TABLE_PAD_X = "px-4"/);
@@ -302,8 +302,8 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(tone.CHIP_BASE_CLASS, /rounded-md border px-2 py-0\.5 text-left text-xs font-medium leading-4/);
   assert.match(excuses, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[deadline\.tone\]\}/);
   assert.match(open, /\$\{CHIP_BASE_CLASS\} \$\{CHIP_TONE_CLASS\[CHIP_TONE\[item\.actionType\]\]\}/);
-  assert.match(excuses, /<div className="flex min-w-0 xl:-my-px">/);
-  assert.match(open, /<div className="flex min-w-0 lg:-my-px">/);
+  assert.match(excuses, /<div className="flex min-w-0 xl:-my-px xl:justify-center">/);
+  assert.match(open, /<div className="flex min-w-0 lg:-my-px lg:justify-center">/);
   // the controls of a row are pulled onto the first line: 32 px buttons on a 20 px line
   assert.match(excuses, /flex items-center justify-end gap-1\.5 xl:-my-1\.5 /);
   assert.match(open, /absolute right-2 top-2 lg:static lg:-my-1\.5 lg:justify-self-end/);
