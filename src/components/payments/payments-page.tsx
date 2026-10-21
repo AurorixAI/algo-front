@@ -679,8 +679,8 @@ function PaymentRow({
             <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
             {last ? (
               <span className="text-right tabular-nums xl:text-center" title={lastPaymentLabel(last)}>
-                <span className="font-medium text-slate-800 xl:block">{paymentAmountLabel(last)}</span>
-                <span className="text-xs text-slate-500 xl:block"><span className="xl:hidden"> · </span>{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
+                <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
+                <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
               </span>
             ) : (
               <span className="text-slate-400">—</span>
