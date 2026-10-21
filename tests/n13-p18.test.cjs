@@ -13,7 +13,7 @@ require.extensions[".ts"] = (mod, filename) => {
 const root = path.join(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, "src", p), "utf8");
 const tabs = require(path.join(root, "src/lib/students-tabs.ts"));
-const { telHref } = require(path.join(root, "src/lib/phone.ts"));
+const { displayPhone, telHref } = require(path.join(root, "src/lib/phone.ts"));
 
 test("the card's muted line reads «TE-010 · 7 класс», and tolerates a missing ID or class", () => {
   assert.equal(tabs.studentCardMeta("TE-010", 7).line, "TE-010 · 7 класс");
@@ -61,4 +61,14 @@ test("on a phone the toolbar rows never cut text: search on its own row, tabs fu
   const filter = read("components/ui/cascading-filter.tsx");
   assert.match(filter, /relative inline-block max-w-full/);                               // a long group name truncates
   assert.match(filter, /<span className="min-w-0 truncate">\{getActiveFilterLabel\(\)\}<\/span>/);
+});
+
+test("lists show a full Uzbek phone as «+998 90 123 45 67» and anything else as stored", () => {
+  assert.equal(displayPhone("+998905812748"), "+998 90 581 27 48");
+  assert.equal(displayPhone("998 90 581-27-48"), "+998 90 581 27 48");
+  assert.equal(displayPhone("+998 90 581 27 48"), "+998 90 581 27 48");
+  assert.equal(displayPhone("90 123-45-67"), "90 123-45-67");
+  assert.equal(displayPhone("+7 916 000 00 00"), "+7 916 000 00 00");
+  assert.equal(displayPhone(""), "");
+  assert.equal(displayPhone(null), "");
 });

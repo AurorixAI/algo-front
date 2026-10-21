@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { displayPhone } from "@/lib/phone";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, UserRound, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -207,7 +208,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
 
                 {/* Phone */}
                 <td className="px-4 py-4 text-xs font-medium text-slate-700 align-middle whitespace-nowrap text-center">
-                  {s.student_phone || <span className="text-slate-300 font-mono">—</span>}
+                  {displayPhone(s.student_phone) || <span className="text-slate-300 font-mono">—</span>}
                 </td>
 
                 {/* Joined at */}

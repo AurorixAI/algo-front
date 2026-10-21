@@ -14,7 +14,7 @@ import {
   STUDENT_TABS, availableStudentTabs, parseStudentTab, studentTabCounts, studentTabHref, studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta,
   type StudentTab, type StudentTabCounts,
 } from "@/lib/students-tabs";
-import { telHref } from "@/lib/phone";
+import { displayPhone, telHref } from "@/lib/phone";
 import { studentGroupId, studentHasGroup } from "@/lib/student-status";
 import { isArchivedStatus } from "@/lib/student-archive";
 
@@ -361,10 +361,10 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                     </Link>
                     {s.student_phone && (phoneLink ? (
                       <a href={phoneLink} className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500 hover:text-primary-700">
-                        {s.student_phone}
+                        {displayPhone(s.student_phone)}
                       </a>
                     ) : (
-                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500">{s.student_phone}</span>
+                      <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500">{displayPhone(s.student_phone)}</span>
                     ))}
                   </div>
                   {meta.line && (
@@ -512,7 +512,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
                           )}
                         </td>
                         <td className="px-4 py-4 pr-6 text-center align-middle whitespace-nowrap text-xs font-medium text-slate-700">
-                          {s.student_phone || <span className="text-slate-300 font-mono">—</span>}
+                          {displayPhone(s.student_phone) || <span className="text-slate-300 font-mono">—</span>}
                         </td>
                       </motion.tr>
                     );
