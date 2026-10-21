@@ -51,16 +51,17 @@ function PriceCell({ view, compact = false, freshPrice }: { view: LineView; comp
   // saved with no price, but the group has one today (the diff says so): the row says what the recalculation will use
   const after = price.missing && freshPrice !== undefined;
   return (
-    <div className={`flex flex-col gap-0.5 ${compact ? "items-start text-xs text-slate-500" : "items-end"}`}>
+    <div className={`flex flex-col gap-0.5 ${compact ? "items-start text-xs text-slate-500" : "items-center"}`}>
       {price.missing ? (
-        <span className="whitespace-nowrap text-amber-700 print:text-black">
-          нет цены{" "}
-          {!after && (
-            <Link href={groupPriceHref("/owner/groups", line.group_id)} className="font-medium text-primary-700 underline-offset-2 hover:underline print:hidden">
+        // the column says only what to do: the link (a phone's line under the name keeps the words «нет цены»)
+        after ? null : (
+          <span className="whitespace-nowrap text-amber-700 print:text-black">
+            {compact && <>нет цены · </>}
+            <Link href={groupPriceHref("/owner/groups", line.group_id)} className="font-medium text-primary-700 underline-offset-2 hover:underline">
               задать
             </Link>
-          )}
-        </span>
+          </span>
+        )
       ) : (
         <span className="whitespace-nowrap tabular-nums">{price.text}</span>
       )}
@@ -217,7 +218,7 @@ export function PayrollSheetTable({
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem] max-sm:min-w-[6.5rem]"} bg-slate-50`}>Ученик</th>
-                    <th scope="col" aria-label={priceColumn} className={`${HEAD} text-right max-sm:hidden`}>
+                    <th scope="col" aria-label={priceColumn} className={`${HEAD} text-center max-sm:hidden`}>
                       <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
                     </th>
                     {showDates && block.columns.map((column) => (
@@ -249,7 +250,7 @@ export function PayrollSheetTable({
                           {/* a phone has no room for the price column: the price is the second line of the name */}
                           <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>
                         </th>
-                        <td className={`${CELL} text-right max-sm:hidden`}>
+                        <td className={`${CELL} text-center max-sm:hidden`}>
                           <PriceCell view={view} freshPrice={freshPrices?.[id]} />
                         </td>
                         {showDates && block.columns.map((column) => {

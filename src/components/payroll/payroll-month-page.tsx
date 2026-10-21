@@ -10,6 +10,7 @@ import { formatMoney } from "@/lib/payments";
 import {
   EMPTY_EDITS,
   EMPTY_SHEET_REASON,
+  RATE_COLUMN_HINT,
   REVISION_CONFLICT_TEXT,
   UNSAVED_TEXT,
   accruedUnpaid,
@@ -415,6 +416,7 @@ function PayrollMonthContent() {
               gridClass="xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
               labels={["Преподаватель", "Ставка", "К выплате", "Статус", ""]}
               aligns={["left", "center", "center", "center", "center"]}
+              hints={[undefined, RATE_COLUMN_HINT]}
             />
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {teachers.map((teacher) => (

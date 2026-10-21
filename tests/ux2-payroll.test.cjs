@@ -337,6 +337,38 @@ test("the group block: the total of the group is the last row of its table, not 
   assert.equal((links.match(/<li/g) || []).length, 2);
 });
 
+test("«Цена в месяц» is centred (not a summed column) and a line with no price shows only «задать»; «Ставка» of the month has its «?»", () => {
+  const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
+  const { TableHeader } = require(path.join(root, "src/components/attendance/table-chrome.tsx"));
+  const mark = { date: "2026-09-01", lesson_id: "l1", mark: 1, state: "counted", divisor: 12 };
+  const line = { membership_id: "m1", student_id: "s1", student_name: "Алиева", display_id: null, group_id: "g1", group_name: "Алгебра", lesson_type: "group", lesson_time: null,
+    monthly_fee: null, source_fee: null, percent: "50", divisor: 12, marks: [mark], counted: 1, unpaid: 0, pending_excused: 0, include_unpaid: false, amount: 0, warnings: [] };
+  const sheet = { id: "s", saved: true, month: "2026-09", period_start: "2026-09-01", period_end: "2026-09-30", month_open: false, teacher_id: "t1", teacher_name: "К", revision: 1,
+    percents: { group: "50" }, divisor_default: 12, lines: [line, { ...line, membership_id: "m2", student_name: "Назаров", monthly_fee: 500000, source_fee: 500000 }],
+    groups: [{ group_id: "g1", group_name: "Алгебра", lesson_type: "group", lesson_time: null, percent: "50", dates: [{ date: mark.date, lesson_id: "l1" }], line_count: 2, counted: 2, unpaid: 0, total_amount: 0 }],
+    total_amount: 0, counted_total: 2, unpaid_total: 0, pending_excused_total: 0, warnings: { open_lessons: null, pending_excused: 0, no_fee: 1, unpaid: 0 },
+    source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null };
+  const render = (props = {}) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, ...props }));
+  const html = render();
+  assert.match(html, /<th scope="col" aria-label="Цена в месяц" class="[^"]*text-center/);
+  assert.match(html, /<td class="[^"]*text-center max-sm:hidden"><div class="flex flex-col gap-0\.5 items-center">/);
+  assert.match(html, /<th scope="col" class="[^"]*text-right[^"]*">Начислено/); // only the sum stays on the right
+  // the desktop cell has the link alone; the phone line under the name keeps the words
+  const priceCell = (markup) => textOf(/<td class="[^"]*text-center max-sm:hidden">([\s\S]*?)<\/td>/.exec(markup)[1]);
+  assert.equal(priceCell(html), "задать", "the desktop cell has the link alone");
+  assert.ok(textOf(html).includes("нет цены · задать"));
+  // stale: the note stays, centred, without the link
+  const after = render({ freshPrices: { m1: 500000 } });
+  assert.equal(priceCell(after), "после пересчёта: 500 000 сум");
+  // the month table: «?» after «Ставка» with the words of the owner's question
+  assert.equal(R.RATE_COLUMN_HINT, "Ставки по видам занятий, которые были в этом месяце. Все ставки преподавателя — в «Сотрудниках».");
+  const head = renderToStaticMarkup(React.createElement(TableHeader, { show: "xl", gridClass: "xl:grid-cols-2", labels: ["Преподаватель", "Ставка"], hints: [undefined, R.RATE_COLUMN_HINT] }));
+  assert.ok(textOf(head).includes(R.RATE_COLUMN_HINT));
+  assert.match(head, /aria-label="Что в колонке «Ставка»"/);
+  assert.equal((head.match(/aria-label="Что в колонке/g) || []).length, 1);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /hints=\{\[undefined, RATE_COLUMN_HINT\]\}/);
+});
+
 test("the card renders: the total big, one line of facts, the status and ONE main button; Excel and print are quiet", () => {
   const { SheetSummaryCard } = require(path.join(root, "src/components/payroll/sheet-summary.tsx"));
   const mark = (date, state) => ({ date, lesson_id: `l-${date}`, mark: 1, state, divisor: 12 });

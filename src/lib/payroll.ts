@@ -949,6 +949,9 @@ export function rateParts(rates: ReadonlyArray<{ type: LessonType; percent: stri
     .map((entry) => (entry.percent === null ? `${lessonTypeLabel(entry.type)} не задана` : `${lessonTypeLabel(entry.type)} ${percentShort(entry.percent)}`));
 }
 
+/** The «?» of the column «Ставка» of the month: only the kinds of lessons the teacher held in that month are shown. */
+export const RATE_COLUMN_HINT = "Ставки по видам занятий, которые были в этом месяце. Все ставки преподавателя — в «Сотрудниках».";
+
 export interface RateSummary {
   /** «Группа 50% · Индивидуально 40%», «Не задана», «Группа 50% · Индивидуально не задана». */
   text: string;

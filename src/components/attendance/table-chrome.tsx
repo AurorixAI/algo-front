@@ -1,4 +1,6 @@
 import type { ComponentType, ReactNode } from "react";
+import { HelpCircle } from "lucide-react";
+import { Hint } from "@/components/ui/hint";
 
 /**
  * Shared frame of both attendance tabs («Пропуски» and «Незакрытые уроки», #103): one header style, one
@@ -26,7 +28,14 @@ export const TABLE_PAD_X = "px-4";
 export const TABLE_HEAD_CELL = "min-w-0 text-[13px] font-semibold text-slate-500";
 
 /** Header row of the wide table; `gridClass` is the same template the rows use. */
-export function TableHeader({ gridClass, labels, aligns, show }: { gridClass: string; labels: string[]; aligns?: CellAlign[]; show: "lg" | "xl" }) {
+export function TableHeader({ gridClass, labels, aligns, hints, show }: {
+  gridClass: string;
+  labels: string[];
+  aligns?: CellAlign[];
+  /** A small «?» after the label with what the column holds (by the label's index; none for most). */
+  hints?: Array<string | undefined>;
+  show: "lg" | "xl";
+}) {
   const visible = show === "lg" ? "lg:grid" : "xl:grid";
   return (
     <div
@@ -35,7 +44,14 @@ export function TableHeader({ gridClass, labels, aligns, show }: { gridClass: st
     >
       {labels.map((label, index) => (
         <span key={`${label}-${index}`} className={`${TABLE_HEAD_CELL} ${ALIGN_CLASS[aligns?.[index] ?? "left"]}`}>
-          {label || <span className="sr-only">Действия</span>}
+          {label ? (hints?.[index] ? (
+            <span className="inline-flex items-center gap-1">
+              {label}
+              <Hint text={hints[index] as string} className="inline-flex text-slate-400">
+                <HelpCircle className="h-3.5 w-3.5" aria-label={`Что в колонке «${label}»`} />
+              </Hint>
+            </span>
+          ) : label) : <span className="sr-only">Действия</span>}
         </span>
       ))}
     </div>
