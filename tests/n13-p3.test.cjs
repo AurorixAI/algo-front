@@ -537,7 +537,7 @@ test("the sheet table: a block per group with its total, the price as text, the 
   assert.match(markup, /href="\/owner\/payments\/prices\?group=g1"/);
   // the individual price is a tag, the group's is not
   const priced = html({ sheet: sheetOf({ lines: [line({ price_source: "override" }), line({ membership_id: "m5", student_name: "Яковлев", price_source: "group" })] }) });
-  assert.equal((priced.match(/>индивидуальная</g) || []).length, 1);
+  assert.equal((priced.match(/>индивидуальная</g) || []).length, 2); // the price cell and the phone line under the name
   // the toggle opens the grid: dates, marks and the legend appear, the first column sticks, the table scrolls inside its block
   const open = html({ forceDates: true });
   const openText = textOf(open);

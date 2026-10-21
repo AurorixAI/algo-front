@@ -636,7 +636,9 @@ export function TeacherRow({
         >
           {action.label}
         </button>
-        {items.length > 0 && <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />}
+        {items.length > 0
+          ? <RowMenu items={items} label={`Действия: ${teacher.teacher_name}`} busy={false} />
+          : <span aria-hidden="true" className="hidden w-9 shrink-0 xl:block" />}
       </div>
     </li>
   );

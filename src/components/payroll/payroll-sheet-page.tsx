@@ -19,7 +19,7 @@ import {
   isOpenMonth,
   isRateRequired,
   isRevisionConflict,
-  monthStatusText,
+  sheetMonthNote,
   monthTitle,
   payrollErrorText,
   sheetCardStatus,
@@ -251,7 +251,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
       delta: diff?.stale ? diff.delta_amount : null,
     })
     : null;
-  const monthNote = sheet ? monthStatusText(sheet.month, sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
+  const monthNote = sheet ? sheetMonthNote(sheet.month_open || isOpenMonth(sheet.month, formatBusinessDate())) : null;
 
   return (
     <div className="mx-auto w-full min-w-0 max-w-[1400px] space-y-5 print:max-w-none print:space-y-3">
@@ -284,7 +284,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
             <h1 className="break-words text-xl font-bold text-slate-900 md:text-2xl">{sheet.teacher_name}</h1>
             <p className="mt-0.5 text-sm text-slate-500">
               Ведомость за {monthTitle(sheet.month).toLowerCase()}
-              {monthNote ? ` · ${monthNote.charAt(0).toLowerCase()}${monthNote.slice(1)}` : ""}
+              {monthNote ? ` · ${monthNote}` : ""}
             </p>
             <p className="mt-1 hidden text-xs text-slate-500 print:block">Сформировано {formatBusinessDate().split("-").reverse().join(".")}</p>
           </header>

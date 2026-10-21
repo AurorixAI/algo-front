@@ -52,7 +52,8 @@ export function SheetSummaryCard({
   onNote?: (text: string) => void;
 }) {
   const facts = sheetFactsParts(sheet, accrued);
-  const warnings = warningViews(sheet.warnings, { noFeeHref: sheetNoFeeHref(sheet) });
+  // «без оплаты» is already in the line of facts under the total: the card does not say it twice
+  const warnings = warningViews(sheet.warnings, { noFeeHref: sheetNoFeeHref(sheet) }).filter((view) => view.key !== "unpaid");
   const changed = status.tone === "changed";
   const primaryLabel = status.action === "recalculate" ? "Пересчитать" : "Сохранить";
   return (

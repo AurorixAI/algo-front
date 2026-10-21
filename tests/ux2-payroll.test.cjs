@@ -191,10 +191,13 @@ test("the card renders: the total big, one line of facts, the status and ONE mai
   const props = (status, over = {}) => ({ sheet, total: 1410415, accrued: 7, status, busy: false, onPrimary: () => {}, onExcel: () => {}, exporting: false, onPrint: () => {}, ...over });
   const saved = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: false, dirty: false, updatedAt: sheet.updated_at, delta: null }), { savedBy: "Владелец" })));
   const text = textOf(saved);
-  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 в 08:56", "Владелец", "Скачать Excel", "Печать", "1 незакрытый урок", "92 посещения без оплаты"]) {
+  for (const part of ["К выплате", "1 410 415 сум", "Ставка: Группа 50% · засчитано 38 посещений · без оплаты 92 посещения (начислено 7)", "Сохранено 16.10.2026 в 08:56", "Владелец", "Скачать Excel", "Печать", "1 незакрытый урок"]) {
     assert.ok(text.includes(part), `the card shows «${part}»`);
   }
+  assert.equal((text.match(/без оплаты/g) || []).length, 1, "the unpaid count is said once (in the line of facts)");
   assert.match(saved, /data-testid="payroll-total"/);
+  assert.equal(R.sheetMonthNote(true), "месяц ещё идёт, расчёт предварительный");
+  assert.equal(R.sheetMonthNote(false), null);
   assert.ok(!/(Пересчитать|>Сохранить<)/.test(saved), "a saved sheet has no main button");
   const changed = renderToStaticMarkup(React.createElement(SheetSummaryCard, props(R.sheetCardStatus({ saved: true, stale: true, dirty: false, updatedAt: sheet.updated_at, delta: -16666 }), {
     diff: { sheet_id: "s", revision: 2, stale: true, saved_total: 1, fresh_total: 0, delta_amount: -16666, reasons: ["ставка 50% → 45%"], lines: [] },

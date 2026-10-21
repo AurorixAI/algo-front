@@ -223,7 +223,10 @@ const STATUS_LABEL: Record<PayrollDiffLine["status"], string> = {
  */
 export function DiffDetails({ diff }: { diff: PayrollDiff }) {
   const reasons = diffReasons(diff);
-  if (reasons.length === 0 && diff.lines.length === 0) return null;
+  // a line whose only change is the rate with no money moved (a student who has nothing counted) is noise: the reason above says it
+  const moved = diff.lines.filter((line) => line.delta_amount !== 0 || line.status !== "changed");
+  const lines = moved.length > 0 ? moved : diff.lines;
+  if (reasons.length === 0 && lines.length === 0) return null;
   return (
     <details className="mt-3 rounded-xl bg-white/70 px-3 py-2 text-sm text-amber-950 print:hidden">
       <summary className="cursor-pointer select-none font-medium">Что изменилось</summary>
@@ -232,7 +235,7 @@ export function DiffDetails({ diff }: { diff: PayrollDiff }) {
           {reasons.map((reason) => <li key={reason}>{reason}</li>)}
         </ul>
       )}
-      {diff.lines.length > 0 && (
+      {lines.length > 0 && (
         <div className="mt-2 max-w-full overflow-x-auto">
           <table className="w-full min-w-[30rem] border-collapse text-xs">
             <thead>
@@ -244,7 +247,7 @@ export function DiffDetails({ diff }: { diff: PayrollDiff }) {
               </tr>
             </thead>
             <tbody>
-              {diff.lines.slice(0, 100).map((line) => (
+              {lines.slice(0, 100).map((line) => (
                 <tr key={`${line.membership_id}-${line.status}`} className="border-b border-amber-100 last:border-b-0">
                   <th scope="row" className="py-1.5 pr-3 text-left font-medium">
                     {line.student_name ?? "Ученик"}
@@ -262,7 +265,7 @@ export function DiffDetails({ diff }: { diff: PayrollDiff }) {
               ))}
             </tbody>
           </table>
-          {diff.lines.length > 100 && <p className="mt-2 text-xs text-amber-900/70">…и ещё {diff.lines.length - 100}</p>}
+          {lines.length > 100 && <p className="mt-2 text-xs text-amber-900/70">…и ещё {lines.length - 100}</p>}
         </div>
       )}
     </details>

@@ -20,7 +20,7 @@ export function PayrollMonthSummary({ summary, month, open }: { summary: MonthSu
         {summary.label}{" "}
         <span className="font-semibold tabular-nums text-slate-900">{summary.amount === null ? "—" : formatMoney(summary.amount)}</span>
         {" · "}
-        {summary.saved}
+        <span className="whitespace-nowrap">{summary.saved}</span>
       </p>
       {status && <p role="status" className="text-xs text-slate-500">{status}</p>}
     </div>

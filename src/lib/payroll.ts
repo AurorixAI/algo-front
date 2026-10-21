@@ -211,6 +211,11 @@ export function monthStatusText(month: string, open: boolean): string | null {
   return open ? `${monthNameRu(month)} ещё идёт — расчёт предварительный` : null;
 }
 
+/** The tail of the subtitle of a sheet of an unfinished month: «месяц ещё идёт, расчёт предварительный»; null for a closed one. */
+export function sheetMonthNote(open: boolean): string | null {
+  return open ? "месяц ещё идёт, расчёт предварительный" : null;
+}
+
 /** The month has not ended yet (it is the current one or later): the sheet is a preview. */
 export function isOpenMonth(month: string, today: string): boolean {
   return month >= monthOfDate(today);
