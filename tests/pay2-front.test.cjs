@@ -413,10 +413,12 @@ test("the receipts report: totals, where the money went, the days the server lea
   assert.equal(I.distributionAddsUp(totals), true);
   assert.deepEqual(I.distributionRows(totals).map((row) => [row.column, row.amount]), [["to_past_debt", 269000], ["to_current", 926000], ["to_advance", 21000]]);
   assert.equal(I.sharePercent(926000, totals.net_received), 76);
-  // money that went back out (refunds, transfers to another group) is the fourth part of the received money
-  assert.deepEqual(I.returnedRow(totals), { label: "Возвращено и переведено в другие группы", amount: 324000 });
-  assert.equal(I.returnedRow({ ...totals, refunded_from_received: 0 }), null);
-  assert.equal(I.distributionRows(totals).reduce((a, row) => a + row.amount, 0) + I.returnedRow(totals).amount, totals.received);
+  // money that left the group is shown in two parts: real refunds and money moved to another group
+  assert.deepEqual(I.leftRows(totals), [{ key: "refunded", label: "Возвращено", amount: 324000 }]);
+  assert.deepEqual(I.leftRows({ ...totals, refunded_from_received: 100000, transferred_from_received: 224000 }).map((row) => [row.label, row.amount]), [["Возвращено", 100000], ["Переведено в другие группы", 224000]]);
+  assert.deepEqual(I.leftRows({ ...totals, refunded_from_received: 0, transferred_from_received: 0 }), []);
+  assert.equal(I.distributionRows(totals).reduce((a, row) => a + row.amount, 0) + I.leftRows(totals).reduce((a, row) => a + row.amount, 0), totals.received);
+  assert.equal(I.distributionAddsUp({ ...totals, refunded_from_received: 100000, transferred_from_received: 224000 }), true);
   // only the days that have money get a row in the table
   assert.deepEqual(I.activeSeries(I.fillSeries(report)).map((point) => point.bucket), report.series.map((point) => point.bucket));
   assert.equal(I.sharePercent(1, 0), 0);
@@ -648,7 +650,7 @@ test("the income report draws the totals, the distribution, the position, the ta
   const body = text(React.createElement(IncomeReportView, { report, period, open: (target) => opened.push(target) }));
   for (const part of [
     "3 оплаты", "Поступило", "1 540 000 сум", "Возвращено", "324 000 сум", "Списано долгов", "30 000 сум", "Остаётся в центре", "1 216 000 сум",
-    "Куда ушли деньги", "Возвращено и переведено в другие группы", "На долги прошлых периодов", "269 000 сум", "На текущие периоды", "926 000 сум", "В аванс", "21 000 сум",
+    "Куда ушли деньги", "На долги прошлых периодов", "269 000 сум", "На текущие периоды", "926 000 сум", "В аванс", "21 000 сум",
     "Как платили", "Наличные", "Карта", "1 340 000 сум", "200 000 сум",
     "Долг учеников", "70 000 сум", "Аванс — оплачено вперёд",
     "По группам", "Математика 7А", "Иванова Мария", "Алгебра 9Б", "По преподавателям", "Петров Олег", "По дням", "Сходится",
@@ -656,6 +658,10 @@ test("the income report draws the totals, the distribution, the position, the ta
   assert.ok(!body.includes("NaN") && !body.includes("undefined"));
   // a single day has no «По дням» table
   assert.ok(!text(React.createElement(IncomeReportView, { report, period: I.periodOf("day", "2026-10-01"), open: () => {} })).includes("По дням"));
+  // transfers are their own row, apart from refunds
+  const moved = I.normalizeReport({ ...fixture("receipts_report_2026-10"), totals: { ...fixture("receipts_report_2026-10").totals, refunded_from_received: 24000, transferred_from_received: 300000 } });
+  const movedText = text(React.createElement(IncomeReportView, { report: moved, period, open: () => {} }));
+  assert.ok(movedText.includes("Переведено в другие группы") && movedText.includes("300 000 сум") && movedText.includes("Возвращено"));
   // a report that does not add up says it
   const broken = { ...report, reconciliation: { ok: false, checks: report.reconciliation.checks.map((c, i) => (i === 1 ? { ...c, right: c.right - 500, diff: 500 } : c)) } };
   assert.match(text(React.createElement(IncomeReportView, { report: broken, period, open: () => {} })), /Не сходится: расхождение 500 сум/);
@@ -713,6 +719,7 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(card, /label: "Выписка"/);
   assert.match(card, /canWriteOff\(row\)/);
   assert.match(card, /aria-label="Куда пошли деньги"/); // every payment of the history says where it went
+  assert.match(card, /Переведено в другую группу: /); // money of a payment that travelled with the student
   assert.match(card, /payment\.legacy_period/); // and an old one still shows its period
   const statement = read("src/components/payments/statement-view.tsx");
   assert.match(statement, /window\.print\(\)/);
@@ -765,8 +772,16 @@ test("settings: the start of the accounting is an owner's date with the impact o
   assert.deepEqual(P.diffPaymentSettings({ ...P.DEFAULT_PAYMENT_SETTINGS, accounting_start_date: "2026-09-01" }, { ...P.DEFAULT_PAYMENT_SETTINGS, accounting_start_date: "2026-08-01" }, P.paymentsScopeKeys("payment_date")), { accounting_start_date: "2026-08-01" });
   const dry = fixture("settings_dry_run");
   assert.equal(dry.dry_run, true);
-  assert.equal(plain(P.accountingStartImpactText(dry.impact)), `Долг изменится у ${dry.impact.memberships_with_new_debt} ${dry.impact.memberships_with_new_debt === 1 ? "ученика" : "учеников"}: +${plain(P.formatMoney(dry.impact.debt_delta))}`);
-  assert.equal(P.accountingStartImpactText({ memberships_with_new_debt: 0, debt_delta: 0 }), "Долг ни у кого не изменится");
+  assert.deepEqual(P.accountingStartImpactLines(dry.impact).map(plain), [
+    "Долг изменится у 12 учеников: +5 400 000 сум",
+    "Аванс изменится у 3 учеников: \u2212" + "1 200 000 сум",
+    "Можно будет вернуть: \u2212" + "900 000 сум",
+  ]);
+  assert.deepEqual(P.accountingStartImpactLines({ memberships_with_new_debt: 0, debt_delta: 0 }), ["Долг и аванс ни у кого не изменятся"]);
+  assert.equal(P.validatePaymentSettings({ ...P.DEFAULT_PAYMENT_SETTINGS, accounting_start_date: "2019-12-31" }, "payments"), "Начало учёта оплат — не раньше 01.01.2020");
+  // the server's refusal («Есть оплаты до этой даты») is shown under the field
+  assert.match(read("src/app/owner/settings/page.tsx"), /role="alert" className="text-xs font-medium text-rose-700">\{impact\.error\}/);
   assert.equal(P.accountingStartImpactText(null), "");
+  assert.equal(L.balanceView({ debt: 0, advance: 0 }).kind, "none");
   assert.match(read("src/app/owner/settings/page.tsx"), /orgApi\.previewPaymentSettings\(/);
 });

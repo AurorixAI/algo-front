@@ -37,7 +37,7 @@ import {
   payrollFormulaText,
   type PayrollSettings,
 } from "@/lib/payroll";
-import { accountingStartImpactText, formatMoney, isIsoDate } from "@/lib/payments";
+import { ACCOUNTING_START_MIN, accountingStartImpactLines, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { daysWord, lessonsWord } from "@/lib/plural";
 import { effectiveRole } from "@/lib/role-home";
@@ -277,7 +277,7 @@ function NumberField({
 function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   const { form, loaded, saves } = draft;
   const accountingChanged = Boolean(form.accounting_start_date) && form.accounting_start_date !== loaded.accounting_start_date;
-  const [impact, setImpact] = useState<{ date: string; text: string } | null>(null);
+  const [impact, setImpact] = useState<{ date: string; lines: string[]; error: string | null } | null>(null);
   // What a new start of the accounting changes (the dry run of the server): asked once the owner stops typing the date.
   useEffect(() => {
     const date = form.accounting_start_date;
@@ -285,8 +285,9 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
     let cancelled = false;
     const timer = setTimeout(() => {
       orgApi.previewPaymentSettings({ accounting_start_date: date })
-        .then((answer) => { if (!cancelled) setImpact({ date, text: accountingStartImpactText(answer.impact) }); })
-        .catch(() => { if (!cancelled) setImpact(null); });
+        .then((answer) => { if (!cancelled) setImpact({ date, lines: accountingStartImpactLines(answer.impact), error: null }); })
+        // The server refuses a date later than the earliest payment («Есть оплаты до этой даты: …») or before 2020: its sentence goes under the field.
+        .catch((cause) => { if (!cancelled) setImpact({ date, lines: [], error: cause instanceof Error ? cause.message : "Не удалось проверить дату" }); });
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [accountingChanged, form.accounting_start_date]);
@@ -333,6 +334,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         <input
           id="payments-accounting-start"
           type="date"
+          min={ACCOUNTING_START_MIN}
           value={form.accounting_start_date ?? ""}
           onChange={(e) => patch({ accounting_start_date: e.target.value || loaded.accounting_start_date || null })}
           className={`${inputClasses} !w-48`}
@@ -340,8 +342,13 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         <p className="text-xs text-slate-500">
           С этого дня центр считает деньги: до него ученикам ничего не начисляется, задним числом долга не будет. Не позже чем через 31 день от сегодня.
         </p>
-        {impact && impact.date === form.accounting_start_date && impact.text && (
-          <p role="status" className="text-xs font-medium text-amber-800">{impact.text}</p>
+        {impact && impact.date === form.accounting_start_date && impact.error && (
+          <p role="alert" className="text-xs font-medium text-rose-700">{impact.error}</p>
+        )}
+        {impact && impact.date === form.accounting_start_date && impact.lines.length > 0 && (
+          <ul role="status" className="space-y-0.5 text-xs font-medium text-amber-800">
+            {impact.lines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
         )}
       </div>
 

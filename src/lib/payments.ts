@@ -52,6 +52,10 @@ export type PaymentSettingsUpdate = Partial<Omit<PaymentSettings, "updated_by" |
 export interface AccountingStartImpact {
   memberships_with_new_debt: number;
   debt_delta: number;
+  /** Groups whose advance changes, by how much, and how much of it could be given back (older servers do not send them). */
+  memberships_with_changed_advance?: number;
+  advance_delta?: number;
+  refundable_delta?: number;
 }
 
 /** `PUT /org/settings/payments`: the settings plus the impact of the requested start date (`dry_run`: nothing was saved). */
@@ -117,8 +121,11 @@ export interface Allocation {
 /** The current, factual distribution of a payment (it changes when other money changes). */
 export interface PaymentAllocation {
   items: Allocation[];
-  /** Part of the payment that was given back. */
+  /** Part of the payment that was given back (real refunds only). */
   refunded: number;
+  /** Part of the payment that travelled to another group with the student. */
+  transferred?: number;
+  /** amount − refunded − transferred. */
   net: number;
 }
 
@@ -562,7 +569,10 @@ export type ReceiptsColumn = "received" | "to_past_debt" | "to_current" | "to_ad
 export interface ReceiptsTotals {
   received: number;
   refunded: number;
+  /** Real refunds of the received money. */
   refunded_from_received: number;
+  /** Received money that moved to another group with the student. */
+  transferred_from_received?: number;
   net_received: number;
   to_past_debt: number;
   to_current: number;
@@ -1198,14 +1208,28 @@ export function paymentsScopeKeys(model: PaymentModel): SettingsKey[] {
 }
 
 /** «Изменит долг у 12 учеников: +5 400 000 сум» — what a new start of the accounting does (the dry run of the server). */
-export function accountingStartImpactText(impact: AccountingStartImpact | null | undefined): string {
-  if (!impact) return "";
-  const count = Math.max(0, Math.round(impact.memberships_with_new_debt));
-  const delta = Math.round(impact.debt_delta);
-  if (count === 0 && delta === 0) return "Долг ни у кого не изменится";
-  const sign = delta > 0 ? "+" : delta < 0 ? "\u2212" : "";
-  return `Долг изменится у ${count} ${pluralRu(count, "ученика", "учеников", "учеников")}: ${sign}${formatMoney(Math.abs(delta))}`;
+export function accountingStartImpactLines(impact: AccountingStartImpact | null | undefined): string[] {
+  if (!impact) return [];
+  const signed = (value: number) => `${value > 0 ? "+" : value < 0 ? "\u2212" : ""}${formatMoney(Math.abs(value))}`;
+  const lines: string[] = [];
+  const debtCount = Math.max(0, Math.round(impact.memberships_with_new_debt));
+  const debtDelta = Math.round(impact.debt_delta);
+  if (debtCount > 0 || debtDelta !== 0) lines.push(`Долг изменится у ${debtCount} ${pluralRu(debtCount, "ученика", "учеников", "учеников")}: ${signed(debtDelta)}`);
+  const advanceCount = Math.max(0, Math.round(impact.memberships_with_changed_advance ?? 0));
+  const advanceDelta = Math.round(impact.advance_delta ?? 0);
+  if (advanceCount > 0 || advanceDelta !== 0) lines.push(`Аванс изменится у ${advanceCount} ${pluralRu(advanceCount, "ученика", "учеников", "учеников")}: ${signed(advanceDelta)}`);
+  const refundable = Math.round(impact.refundable_delta ?? 0);
+  if (refundable !== 0) lines.push(`Можно будет вернуть: ${signed(refundable)}`);
+  return lines.length > 0 ? lines : ["Долг и аванс ни у кого не изменятся"];
 }
+
+/** The same lines as one text (a sentence for assistive technology and tests). */
+export function accountingStartImpactText(impact: AccountingStartImpact | null | undefined): string {
+  return accountingStartImpactLines(impact).join(" · ");
+}
+
+/** The server accepts a start of the accounting not before this day. */
+export const ACCOUNTING_START_MIN = "2020-01-01";
 
 export function validatePaymentSettings(
   settings: Pick<PaymentSettings, "lessons_per_payment" | "expiring_days" | "expiring_lessons"> &
@@ -1232,6 +1256,9 @@ export function validatePaymentSettings(
     }
     if (check("accounting_start_date") && settings.accounting_start_date && !isIsoDate(settings.accounting_start_date)) {
       return "Укажите дату начала учёта оплат";
+    }
+    if (check("accounting_start_date") && settings.accounting_start_date && isIsoDate(settings.accounting_start_date) && settings.accounting_start_date < ACCOUNTING_START_MIN) {
+      return "Начало учёта оплат — не раньше 01.01.2020";
     }
   }
   if (scope !== "payments") {

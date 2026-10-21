@@ -153,6 +153,7 @@ export function normalizeReport(raw: ReceiptsReport): ReceiptsReport {
       received,
       refunded,
       refunded_from_received: totals.refunded_from_received === undefined ? refunded : sum(totals.refunded_from_received),
+      transferred_from_received: sum(totals.transferred_from_received),
       net_received: totals.net_received === undefined ? received - refunded : sum(totals.net_received),
       to_past_debt: sum(totals.to_past_debt),
       to_current: sum(totals.to_current),
@@ -289,12 +290,15 @@ export function distributionRows(totals: ReceiptsTotals): DistributionRow[] {
 }
 
 /**
- * The part of the received money that went back out: refunds and transfers to another group (`refunded_from_received`).
- * Together with the three rows of `distributionRows` it adds up to what was received; null when nothing went back.
+ * The parts of the received money that did not stay in the group: real refunds, and money that moved to another group
+ * with the student.  Together with the three rows of `distributionRows` they add up to what was received.
  */
-export function returnedRow(totals: ReceiptsTotals): { label: string; amount: number } | null {
-  const amount = sum(totals.refunded_from_received);
-  return amount > 0 ? { label: "Возвращено и переведено в другие группы", amount } : null;
+export function leftRows(totals: ReceiptsTotals): Array<{ key: "refunded" | "transferred"; label: string; amount: number }> {
+  const rows: Array<{ key: "refunded" | "transferred"; label: string; amount: number }> = [
+    { key: "refunded", label: "Возвращено", amount: sum(totals.refunded_from_received) },
+    { key: "transferred", label: "Переведено в другие группы", amount: sum(totals.transferred_from_received) },
+  ];
+  return rows.filter((row) => row.amount > 0);
 }
 
 /** The days (months) of the series that have money moving: the others are not worth a row of a table. */
@@ -302,9 +306,9 @@ export function activeSeries(points: ReceiptsSeriesPoint[]): ReceiptsSeriesPoint
   return points.filter((point) => point.count > 0 || point.received !== 0 || point.refunded !== 0 || point.written_off !== 0 || point.to_past_debt !== 0 || point.to_current !== 0 || point.to_advance !== 0);
 }
 
-/** Received − returned equals what was distributed: the first check of the report, kept on screen. */
+/** Received − refunded − transferred equals what was distributed: the first check of the report, kept on screen. */
 export function distributionAddsUp(totals: ReceiptsTotals): boolean {
-  return sum(totals.received) - sum(totals.refunded_from_received) === sum(totals.to_past_debt) + sum(totals.to_current) + sum(totals.to_advance);
+  return sum(totals.received) - sum(totals.refunded_from_received) - sum(totals.transferred_from_received) === sum(totals.to_past_debt) + sum(totals.to_current) + sum(totals.to_advance);
 }
 
 export const CHECK_LABEL: Record<ReconciliationCheck["code"], string> = {

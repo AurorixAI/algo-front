@@ -29,7 +29,7 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
   for (const dayOfWeek of weekdays) {
     await teacher.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek, startTime: "23:00", endTime: "23:30" });
   }
-  await org.setGroupPrice(group.id, fee, { validFrom: "2026-01-01" }); // #105: the price lives on the group; PAY-2 prices a period at its first day, so it is valid before the period starts
+  await org.setGroupPrice(group.id, fee); // #105: the price lives on the group, valid from today = the day the student joins (PAY-2 prices a period on its first billable day)
   const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
 
   // PAY-2: money is counted from the start of the accounting (a new centre has none yet, so nothing is due before it is set)

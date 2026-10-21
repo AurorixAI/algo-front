@@ -21,7 +21,7 @@ import {
   balancesDrill,
   activeSeries,
   bucketLabel,
-  returnedRow,
+  leftRows,
   COLUMN_LABEL,
   distributionRows,
   drillQuery,
@@ -289,7 +289,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
 export function IncomeReportView({ report, period, open }: { report: ReceiptsReport; period: IncomePeriod; open: (target: DrillTarget) => void }) {
   const check = reconciliationView(report.reconciliation);
   const series = period.kind !== "day" ? activeSeries(fillSeries(report)) : [];
-  const returned = returnedRow(report.totals);
+  const left = leftRows(report.totals);
   const dayList = (extra: Partial<{ bucket: string; method: string; groupId: string; teacherId: string; of: string }>, column: ReceiptsColumn) => itemsDrill(column, extra);
   return (
     <div className="space-y-6">
@@ -330,16 +330,16 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
                 <Figure value={row.amount} label={`${row.label}: оплаты`} onOpen={() => open(dayList({}, row.column))} className="shrink-0 text-slate-900" />
               </li>
             ))}
-            {returned && (
-              <li className="flex items-baseline justify-between gap-3 text-sm">
+            {left.map((row) => (
+              <li key={row.key} className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="flex min-w-0 items-center gap-2 text-slate-500">
-                  <span className="h-2.5 w-2.5 shrink-0 rounded-sm bg-slate-300" aria-hidden />
-                  {returned.label}
-                  <span className="text-xs text-slate-400">{sharePercent(returned.amount, report.totals.received)}%</span>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${LEFT_DOT[row.key]}`} aria-hidden />
+                  {row.label}
+                  <span className="text-xs text-slate-400">{sharePercent(row.amount, report.totals.received)}%</span>
                 </span>
-                <span className="shrink-0 tabular-nums text-slate-600">{formatMoney(returned.amount)}</span>
+                <span className="shrink-0 tabular-nums text-slate-600">{formatMoney(row.amount)}</span>
               </li>
-            )}
+            ))}
           </ul>
         </div>
 
@@ -463,13 +463,14 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
   );
 }
 
+const LEFT_DOT = { refunded: "bg-slate-300", transferred: "bg-slate-400" } as const;
 const DOT: Record<string, string> = { to_past_debt: "bg-slate-700", to_current: "bg-primary-600", to_advance: "bg-emerald-500" };
 
 /** The three parts of the received money on one line; an empty part takes no room. */
 function DistributionBar({ totals }: { totals: ReceiptsReport["totals"] }) {
   const parts = [
     ...distributionRows(totals).map((row) => ({ key: row.column as string, label: row.label, amount: row.amount, className: DOT[row.column] })),
-    ...(returnedRow(totals) ? [{ key: "returned", label: returnedRow(totals)!.label, amount: returnedRow(totals)!.amount, className: "bg-slate-300" }] : []),
+    ...leftRows(totals).map((row) => ({ key: row.key as string, label: row.label, amount: row.amount, className: LEFT_DOT[row.key] })),
   ];
   const whole = parts.reduce((acc, part) => acc + part.amount, 0);
   if (whole <= 0) return null;

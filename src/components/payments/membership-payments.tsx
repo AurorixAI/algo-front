@@ -406,6 +406,7 @@ function HistoryItem({
   const files = payment.files ?? [];
   const allocation = allocationLines(payment.allocation?.items);
   const refunded = Math.max(0, Math.round(payment.allocation?.refunded ?? 0));
+  const transferred = Math.max(0, Math.round(payment.allocation?.transferred ?? 0));
   const atLimit = files.length >= PAYMENT_FILE_MAX_COUNT;
   const items: RowMenuItem[] = [];
   // A carry-over is not money: no receipt, no cheque.
@@ -451,6 +452,7 @@ function HistoryItem({
               </li>
             ))}
             {refunded > 0 && <li className="text-slate-400">Возвращено из этой оплаты: {formatMoney(refunded)}</li>}
+            {transferred > 0 && <li className="text-slate-400">Переведено в другую группу: {formatMoney(transferred)}</li>}
           </ul>
         )}
         {!voided && payment.carried_out && <p className="text-[11px] text-slate-500">{carriedOutLabel(payment)}</p>}
