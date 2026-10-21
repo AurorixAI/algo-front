@@ -65,6 +65,7 @@ export function useLessonMarksOps() {
     const failure = lessonFailure(error, operation, fallback);
     if (failure.kind === "conflict") {
       setConflictError(null);
+      setLiveExams(null);
       setConflict({ detail: failure.detail, base: { ...baseRef.current }, mine: { ...mine } });
     } else if (failure.kind === "live_exam") {
       setLiveExams(failure.exams);
