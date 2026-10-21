@@ -35,8 +35,8 @@ import { Hint } from "@/components/ui/hint";
 import { groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
-const CELL = "px-2 py-2 align-middle print:px-1 print:py-1";
-const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
+const CELL = "px-2 py-2 align-middle max-sm:px-1.5 print:px-1 print:py-1";
+const HEAD = "px-2 py-2 max-sm:px-1.5 text-left text-xs font-semibold text-slate-500 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
 /**
  * Alignment (owner 21.10): the student is left; money (the price, «Начислено») is a ledger - right-aligned, and its header is
  * right-aligned over the same digits (same padding); dates, percent and counts are centred under centred headers.
@@ -212,7 +212,7 @@ export function PayrollSheetTable({
               <table className="w-full border-collapse text-sm print:text-[11px]">
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
-                    <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem]"} bg-slate-50`}>Ученик</th>
+                    <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem] max-sm:min-w-[6.5rem]"} bg-slate-50`}>Ученик</th>
                     <th scope="col" aria-label={priceColumn} className={`${HEAD} text-right max-sm:hidden`}>
                       <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
                     </th>
