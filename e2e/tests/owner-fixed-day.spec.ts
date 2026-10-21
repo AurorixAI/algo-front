@@ -55,7 +55,7 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
 
   // --- the quick-pay row: the server says what is due, the amount starts as that
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Без оплат/ }).click();
+  await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
   await expect(row).toContainText(new RegExp(`Цена группы: ${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум/мес`));
   await expect(row.getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
