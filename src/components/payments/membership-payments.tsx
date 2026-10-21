@@ -206,17 +206,17 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
 
   return (
     <div className="space-y-2.5">
-      {/* Row 1: the group, the status, the one main button, «⋯».  A phone: the group and «⋯», under them the status, then the button. */}
+      {/* Row 1: the group, the status, the one main button, «⋯».  A phone or a narrow column (the card next to the sidebar below 1024 px): the group and «⋯», under them the status, then the button. */}
       <div
-        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 sm:items-start ${
+        className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 lg:items-start ${
           editable
-            ? "sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'heading_menu'_'status_status'_'button_button'] sm:[grid-template-areas:'heading_status_button_menu']"
+            ? "lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'heading_menu'_'status_status'_'button_button'] lg:[grid-template-areas:'heading_status_button_menu']"
             : "[grid-template-areas:'heading_menu']"
         }`}
       >
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] sm:flex-col sm:flex-nowrap sm:items-center sm:gap-y-1 sm:pt-1 sm:text-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] lg:flex-col lg:flex-nowrap lg:items-center lg:gap-y-1 lg:pt-1 lg:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
           </div>
@@ -225,7 +225,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
           <button
             type="button"
             onClick={() => setForm({ kind: "create", payment: null })}
-            className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold [grid-area:button] sm:justify-self-end sm:py-1.5 ${
+            className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold [grid-area:button] lg:justify-self-end lg:py-1.5 ${
               due
                 ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
                 : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
@@ -234,7 +234,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, less
             {PAY_ACTION_LABEL}
           </button>
         )}
-        <div className="justify-self-end [grid-area:menu] sm:pt-px">
+        <div className="justify-self-end [grid-area:menu] lg:pt-px">
           <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
         </div>
       </div>
