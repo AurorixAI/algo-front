@@ -13,7 +13,6 @@ import {
   Loader2,
   MessageSquare,
   Paperclip,
-  Phone,
   Trash2,
   Undo2,
   UserRound,
@@ -43,7 +42,6 @@ import {
   reasonMeta,
   shortPersonName,
 } from "@/lib/excuse-row";
-import { telHref } from "@/lib/phone";
 import {
   checkExcuseFile,
   EXCUSE_FILE_MAX_BYTES,
@@ -687,7 +685,6 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
               {rows.map((item) => {
                 const busy = busyIds.has(item.id);
                 const uploading = uploadingId === item.id;
-                const phoneHref = telHref(item.student.phone);
                 const deadline = pendingTab ? excuseDeadlineCell(item, businessToday) : null;
                 const lateMark = pendingTab ? null : afterDeadlineMark(item);
                 const teacherShort = shortPersonName(item.teacher?.name) || "—";
@@ -699,38 +696,16 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                   >
                     {/* Ученик: the name leads, id and group are secondary */}
                     <div className={`min-w-0 ${pendingTab ? "" : "pr-8 xl:pr-0"}`}>
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`${studentProfileBasePath}/${item.student.id}`}
-                          className="min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:line-clamp-2"
-                          title="Открыть карточку ученика"
-                        >
-                          {item.student.full_name}
-                        </Link>
-                        {phoneHref && (
-                          <a
-                            href={phoneHref}
-                            title={`Позвонить: ${item.student.phone}`}
-                            aria-label={`Позвонить: ${item.student.phone}`}
-                            className="-my-1.5 hidden h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-primary-700 xl:inline-flex"
-                          >
-                            <Phone className="h-3.5 w-3.5" />
-                          </a>
-                        )}
-                      </div>
+                      <Link
+                        href={`${studentProfileBasePath}/${item.student.id}`}
+                        className="block min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:line-clamp-2"
+                        title="Открыть карточку ученика"
+                      >
+                        {item.student.full_name}
+                      </Link>
                       <p className="break-words text-xs text-slate-500 xl:truncate" title={item.group.name}>
                         {[item.student.display_id, item.group.name].filter(Boolean).join(" · ")}
                       </p>
-                      {phoneHref && (
-                        <a
-                          href={phoneHref}
-                          title={`Позвонить: ${item.student.phone}`}
-                          className="mt-0.5 inline-flex items-center gap-1 py-0.5 text-xs tabular-nums text-primary-700 hover:underline xl:hidden"
-                        >
-                          <Phone className="h-3 w-3" />
-                          {item.student.phone}
-                        </a>
-                      )}
                     </div>
 
                     {/* Урок */}

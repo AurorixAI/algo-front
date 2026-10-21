@@ -202,8 +202,6 @@ test("student phone becomes a tel: link only when it is dialable", () => {
   assert.equal(phone.telHref("90 123-45-67"), "tel:901234567");
   assert.equal(phone.telHref("  +998901234567 "), "tel:+998901234567");
   for (const bad of ["", "   ", null, undefined, "12345", "—", "+"]) assert.equal(phone.telHref(bad), null, String(bad));
-  const page = read("src/components/attendance/excuses-page.tsx");
-  assert.match(page, /href=\{phoneHref\}/);
   assert.doesNotMatch(read("src/lib/api.ts").match(/interface AttendanceExcuseItem[\s\S]*?\n\}/)[0], /fee|balance|amount|price/i);
 });
 

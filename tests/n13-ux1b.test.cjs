@@ -319,12 +319,9 @@ test("the waiting list is shown in urgency order and the column says it in words
   assert.match(page, /pendingTab \? "Срок" : "Решение"/);
 });
 
-test("the phone icon is a real call: a tel: link named «Позвонить: +998…» with the same tooltip; no number, no icon", () => {
+test("the «Пропуски» list has no phone link (the phone lives in the student's card); telHref still dials only real numbers", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
-  assert.equal((page.match(/href=\{phoneHref\}/g) || []).length, 2, "the icon on the wide table and the visible number on a card");
-  assert.equal((page.match(/title=\{`Позвонить: \$\{item\.student\.phone\}`\}/g) || []).length, 2);
-  assert.match(page, /aria-label=\{`Позвонить: \$\{item\.student\.phone\}`\}/);
-  assert.match(page, /\{phoneHref && \(/);
+  assert.doesNotMatch(page, /tel:|telHref|Позвонить|phoneHref/);
   const { telHref } = lib("phone");
   assert.equal(telHref("+998 90 123 45 67"), "tel:+998901234567");
   assert.equal(telHref("90 123-45-67"), "tel:901234567");
