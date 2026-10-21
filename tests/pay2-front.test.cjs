@@ -301,8 +301,8 @@ test("a row says «Долг N сум» or «Аванс N сум»; the actions f
   assert.equal(L.balanceView({ debt: 0, advance: 0 }).text, "");
   assert.equal(L.signedBalanceText(-269000), `Долг ${P.formatMoney(269000)}`);
   assert.equal(L.signedBalanceText(0), "0");
-  // the tab semantics are kept: «Без оплат» stays the name of the tab, the debt is shown on its rows
-  assert.equal(P.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none").label, "Без оплат");
+  // owner 21.10: the first tab is «Должники»; the debt is shown on its rows
+  assert.equal(P.PAYMENT_BUCKETS[0].label, "Должники");
   assert.equal(P.payIsDue({ status: "active", last_payment: { id: "p" }, debt: 1000 }), true); // a debt keeps the main button filled
   assert.equal(P.payIsDue({ status: "active", last_payment: { id: "p" }, debt: 0 }), false);
 });

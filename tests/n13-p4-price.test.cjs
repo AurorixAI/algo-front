@@ -643,7 +643,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // the warnings: one line under the name, each one a link to where it is fixed, in the right units
   assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
   assert.match(html, /href="\/owner\/payments\/prices"[^>]*>у 2 учеников нет цены</);
-  assert.match(html, /href="\/owner\/payments\?bucket=due"[^>]*>140 посещений без оплаты</);
+  assert.match(html, /href="\/owner\/payments\?bucket=debt"[^>]*>140 посещений без оплаты</);
   assert.equal((html.match(/<ul/g) || []).length, 1);
   assert.ok(text.includes("Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости."));
   // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»

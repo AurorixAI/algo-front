@@ -96,7 +96,7 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
             </div>
             <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
               <Link
-                href={`${paymentsBasePath}?bucket=due`}
+                href={`${paymentsBasePath}?bucket=debt`}
                 aria-label="Открыть список"
                 className="inline-flex h-8 items-center rounded-lg px-2 text-[13px] font-semibold text-primary-700 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 sm:h-9 sm:rounded-xl sm:border sm:border-slate-200 sm:bg-white sm:px-3.5 sm:text-sm sm:font-medium sm:text-slate-700 sm:hover:border-slate-300 sm:hover:bg-slate-50"
               >

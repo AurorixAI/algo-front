@@ -9,12 +9,13 @@ import { formatBusinessDate } from "@/lib/business-time";
 import {
   bucketCount,
   bucketTabLabel,
+  debtReasonText,
   formatDateRu,
   formatMoney,
   formatMoneyInput,
   incomeHref,
-  pluralRu,
   isCarryOver,
+  isFirstPaymentRow,
   lastPaymentLabel,
   paymentAmountLabel,
   PAYMENT_BUCKETS,
@@ -22,6 +23,8 @@ import {
   paymentsBaseOf,
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
+  positionCards,
+  priceMissingText,
   reformatMoneyTyping,
   statementHref,
   statusDetail,
@@ -71,9 +74,8 @@ const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_
 const GRID_NONE = "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,2.6fr)] xl:items-center xl:gap-x-4";
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
-  due: "Нет учеников, которым пора платить",
-  expiring: "Скоро заканчивающихся оплат нет",
-  none: "Учеников без оплат нет",
+  debt: "Должников нет",
+  expiring: "Скоро платить пока никому",
   active: "Оплаченных учеников пока нет",
 };
 
@@ -247,14 +249,15 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const available = usePaymentsSummary((state) => state.available);
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
-  const due = usePaymentsSummary((state) => state.due);
+  const debtors = usePaymentsSummary((state) => state.debtors);
+  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
+  const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
+  const priceMissing = usePaymentsSummary((state) => state.priceMissing);
   const expiring = usePaymentsSummary((state) => state.expiring);
-  const none = usePaymentsSummary((state) => state.none);
   const activeCount = usePaymentsSummary((state) => state.active);
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   const debtTotal = usePaymentsSummary((state) => state.debtTotal);
   const advanceTotal = usePaymentsSummary((state) => state.advanceTotal);
-  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
 
   const { showToast, toastNode } = useToast();
@@ -394,7 +397,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = summaryLoaded ? { due, expiring, none, active: activeCount } : null;
+  const summaryForTabs = summaryLoaded ? { debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount } : null;
+  const cards = positionCards({ debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
+  const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
@@ -402,22 +407,6 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Оплаты</h1>
           <p className="text-sm text-slate-500">Кто из учеников оплатил занятия, сколько должен и когда оплата заканчивается</p>
-          {summaryLoaded && (debtTotal > 0 || advanceTotal > 0) && (
-            <p className="mt-1 text-sm" data-testid="payments-position">
-              {debtTotal > 0 && (
-                <Link href={`${incomeHref(paymentsBase)}#position`} className="font-semibold text-rose-700 hover:underline">
-                  Долг учеников {formatMoney(debtTotal)}
-                  {studentsWithDebt > 0 && <span className="font-normal text-slate-500"> · {studentsWithDebt} {pluralRu(studentsWithDebt, "ученик", "ученика", "учеников")}</span>}
-                </Link>
-              )}
-              {debtTotal > 0 && advanceTotal > 0 && <span className="text-slate-300"> · </span>}
-              {advanceTotal > 0 && (
-                <Link href={`${incomeHref(paymentsBase)}#position`} className="font-semibold text-emerald-700 hover:underline">
-                  Аванс {formatMoney(advanceTotal)}
-                </Link>
-              )}
-            </p>
-          )}
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Link
@@ -436,6 +425,24 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           </Link>
         </div>
       </div>
+
+      {/* The position of the centre: two cards before the tabs; a click opens «Поступления» with the breakdown (as before). */}
+      {summaryLoaded && (
+        <section aria-label="Долг и аванс учеников" data-testid="payments-position" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {cards.map((card) => (
+            <Link
+              key={card.key}
+              href={`${incomeHref(paymentsBase)}#position`}
+              data-testid={`position-${card.key}`}
+              className="group rounded-2xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50/60"
+            >
+              <p className="text-sm text-slate-500">{card.label}</p>
+              <p className={`mt-1 text-3xl font-bold tabular-nums ${card.tone === "debt" ? "text-rose-700" : card.tone === "advance" ? "text-emerald-700" : "text-slate-400"}`}>{card.amount}</p>
+              {card.sub && <p className="mt-0.5 text-sm text-slate-500 group-hover:text-slate-700">{card.sub}</p>}
+            </Link>
+          ))}
+        </section>
+      )}
 
       {/* One row from 2xl (1536 px): tabs on the left, search and filter on the right.  Below it the toolbar sits under the
           tabs: with the menu open a laptop (1280-1440) has no room for both, and the tabs must stay whole. */}
@@ -482,6 +489,12 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       </div>
 
+      {noPrice && (
+        <p role="status" className="-mt-2 text-sm text-amber-800" data-testid="payments-price-missing">
+          {noPrice} — <Link href={pricesBaseOf(groupsBasePath)} className="font-semibold text-primary-700 hover:underline">Задать</Link>
+        </p>
+      )}
+
       {/* List */}
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
@@ -498,16 +511,14 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         <p className="py-14 text-center text-sm text-slate-400">{filtered ? "Ничего не найдено" : EMPTY_TEXT[bucket]}</p>
       ) : (
         <section className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
-          {bucket !== "none" && (
-            <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
-              <span>Ученик</span>
-              <span className="text-center">Группа</span>
-              <span className="text-center">{priceLabelOf(periodMode)}</span>
-              <span className="text-center">Статус</span>
-              <span className="text-center">Последняя оплата</span>
-              <span className="text-right"><span className="sr-only">Действия</span></span>
-            </div>
-          )}
+          <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
+            <span>Ученик</span>
+            <span className="text-center">Группа</span>
+            <span className="text-center">{priceLabelOf(periodMode)}</span>
+            <span className="text-center">Статус</span>
+            <span className="text-center">Последняя оплата</span>
+            <span className="text-right"><span className="sr-only">Действия</span></span>
+          </div>
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
             {items.map((row) => (
               <PaymentRow
@@ -598,9 +609,11 @@ function PaymentRow({
   onQuickDone: (result: PaymentSaveResult) => void;
 }) {
   const router = useRouter();
-  const quick = bucket === "none";
+  // A debtor who has never paid keeps the quick entry of the first payment (it was the tab «Без оплат»).
+  const quick = bucket === "debt" && isFirstPaymentRow(row);
   const tone = STATUS_TONE_CLASS[statusTone(row.status)];
   const detail = statusDetail(row);
+  const reason = bucket === "debt" ? debtReasonText(row) : "";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
   const tag = priceSourceTag(price);
@@ -662,6 +675,7 @@ function PaymentRow({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{statusLabel(row)}</span>
+            {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />
           </div>

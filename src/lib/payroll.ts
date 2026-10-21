@@ -21,6 +21,7 @@ import {
 } from "./business-time";
 import { groupPriceHref, pricesBaseOf, type PriceSource } from "./group-price";
 import type { PluralForms } from "./plural";
+import type { DivisorRow, PayoutState } from "./payroll-logica";
 
 // ── Lesson types ────────────────────────────────────────────────────────────
 
@@ -249,6 +250,8 @@ export interface PayrollMark {
    */
   price?: number | null;
   price_source?: PriceSource | null;
+  /** LOGIC-A: what covered the lesson: money, a forgiven debt (the teacher is paid as for a paid one), a day before the start of the accounting, nothing. */
+  cover?: "money" | "writeoff" | "before_start" | "unpaid" | null;
 }
 
 export interface PayrollLineWarning {
@@ -263,6 +266,10 @@ export interface PayrollPriceStep {
 }
 
 export interface PayrollLine {
+  /** LOGIC-A F14: `<membership>` for an ordinary line, `<membership>:<type>` when the type of the group changed inside the month. */
+  line_key?: string;
+  /** LOGIC-A: lessons of the line covered by a forgiven debt (already in the amount). */
+  written_off?: number;
   membership_id: string;
   student_id: string;
   student_name: string;
@@ -352,6 +359,10 @@ export interface PayrollSheet {
   unpaid_total: number;
   pending_excused_total: number;
   warnings: PayrollSheetWarnings;
+  /** LOGIC-A: lessons covered by a forgiven debt («из них списано центром»). */
+  written_off_total?: number;
+  /** LOGIC-A decision 6: the payouts of this sheet and what is left to pay; null while the sheet is a preview. */
+  payout?: PayoutState | null;
   source_fingerprint: string;
   /** A saved sheet: the data changed after it was saved. null for a preview. */
   stale: boolean | null;
@@ -415,6 +426,8 @@ export interface PayrollMonthTeacher {
   missing_rates: LessonType[];
   sheet: PayrollMonthSheetRef | null;
   warnings: PayrollMonthWarnings;
+  /** LOGIC-A decision 6: the payout state of the saved sheet; null without a sheet. */
+  payout?: PayoutState | null;
 }
 
 export interface PayrollMonthOverview {
@@ -449,6 +462,7 @@ export interface PayrollDiffBrief {
 }
 
 export interface PayrollDiffLine {
+  line_key?: string;
   membership_id: string;
   student_name: string | null;
   group_name: string | null;
@@ -524,6 +538,9 @@ export function teacherLabel(name: string | null | undefined): string {
 /** The settings of the center: `PUT` takes only `divisor`. */
 export interface PayrollSettings {
   divisor: number;
+  /** LOGIC-A F7: the month (`YYYY-MM`) the current divisor started in, and every divisor ever set (oldest first). */
+  valid_from?: string | null;
+  history?: DivisorRow[];
   updated_by?: string | null;
   updated_at?: string | null;
 }
@@ -1182,7 +1199,7 @@ export const WARNING_LINKS = {
   open_lessons: "/owner/attendance?tab=open",
   pending_excused: "/owner/attendance?tab=excuses",
   no_fee: pricesBaseOf("/owner/groups"),
-  unpaid: "/owner/payments?bucket=due",
+  unpaid: "/owner/payments?bucket=debt",
 } as const;
 
 /** The link of a warning in words (a tooltip, a screen reader). */

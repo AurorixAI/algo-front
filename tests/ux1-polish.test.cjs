@@ -196,6 +196,6 @@ test("the badge of «Оплаты» counts the same people as the banner: studen
   const sidebar = read("src/components/layout/sidebar.tsx");
   assert.match(sidebar, /waitingPeopleCount\(\{ due: state\.due, expired: state\.expired, studentsDue: state\.studentsDue, studentsExpired: state\.studentsExpired \}\)/);
   assert.equal((sidebar.match(/badge: paymentsDue, badgeLabel: "Ждут оплаты"/g) || []).length, 2, "owner and administrator");
-  // the tab row counts of the payments page stay as row counts
-  assert.match(read("src/components/payments/payments-page.tsx"), /usePaymentsSummary\(\(state\) => state\.due\)/);
+  // the «Должники» tab of the payments page and the card «Долг учеников» read the one count (owner 21.10)
+  assert.match(read("src/components/payments/payments-page.tsx"), /usePaymentsSummary\(\(state\) => state\.debtors\)/);
 });

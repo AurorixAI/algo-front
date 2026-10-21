@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eraser, ExternalLink, FileText, Loader2, Paperclip, Pencil, Receipt, ScrollText, Trash2, Undo2, XCircle } from "lucide-react";
+import { Eraser, ExternalLink, FileText, Loader2, Paperclip, Pencil, PauseCircle, PiggyBank, Receipt, ScrollText, Trash2, Undo2, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatFileSize } from "@/lib/attendance-excuses";
 import {
@@ -36,6 +36,7 @@ import {
   type PeriodMode,
 } from "@/lib/payments";
 import { allocationLines, canRefund, canWriteOff, methodLabel, savedPaymentDetails } from "@/lib/payments-ledger";
+import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -44,6 +45,8 @@ import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useMembershipPriceControls } from "./membership-price";
 import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
+import { OpeningBalanceDialog } from "./opening-balance-dialog";
+import { PauseDialog } from "./pause-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
 import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
@@ -65,6 +68,8 @@ interface MembershipPaymentsProps {
    * answers 409 «Ученик в архиве — сначала верните его»); «Отменить» stays, so a mistaken payment can be cancelled.
    */
   archived?: boolean;
+  /** The day the membership started (the card knows it): the opening balance is checked against it. */
+  joinedAt?: string | null;
   /** The server accepted a change: the parent replaces the row it holds. */
   onRowChange: (row: MembershipPaymentRow) => void;
   onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
@@ -78,7 +83,7 @@ interface MembershipPaymentsProps {
  *     (cancelled payments grey) with the actions Исправить / Отменить.
  * Rendered only for roles that may see money, and only while the server says so.
  */
-export function MembershipPayments({ row, heading, studentName, periodMode, paymentsBasePath, groupsBasePath, archived = false, onRowChange, onNotify }: MembershipPaymentsProps) {
+export function MembershipPayments({ row, heading, studentName, periodMode, paymentsBasePath, groupsBasePath, archived = false, joinedAt = null, onRowChange, onNotify }: MembershipPaymentsProps) {
   const router = useRouter();
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
   const editable = row.is_active && !archived;
@@ -94,6 +99,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
   const [voidTarget, setVoidTarget] = useState<PaymentOut | null>(null);
   const [writeoffOpen, setWriteoffOpen] = useState(false);
   const [refundOpen, setRefundOpen] = useState(false);
+  const [openingOpen, setOpeningOpen] = useState(false);
+  const [pauseOpen, setPauseOpen] = useState(false);
 
   // Cheques: one hidden picker for every row of the history.
   const fileInput = useRef<HTMLInputElement | null>(null);
@@ -210,6 +217,9 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
     { key: "statement", label: "Выписка", icon: ScrollText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBasePath, row.membership_id)); } },
     ...(!archived && canWriteOff(row) ? [{ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: () => setWriteoffOpen(true) }] : []),
     ...(!archived && canRefund(row) ? [{ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: () => setRefundOpen(true) }] : []),
+    // LOGIC-A: a pause (the place stays, the days are not charged) and what the student had before ALGO
+    ...(editable ? [{ key: "pause", label: "Пауза…", icon: PauseCircle, onSelect: () => setPauseOpen(true) }] : []),
+    ...(!archived && row.is_active ? [{ key: "opening", label: row.opening ? "Остаток на начало…" : "Внести остаток на начало…", icon: PiggyBank, onSelect: () => setOpeningOpen(true) }] : []),
     ...price.items,
     { key: "payments-history", label: historyOpen ? "Скрыть историю оплат" : "История оплат", onSelect: () => setHistoryOpen((value) => !value) },
   ];
@@ -230,6 +240,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
             {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
             <BalanceNote row={row} />
+            {row.paused && <button type="button" onClick={() => setPauseOpen(true)} className="text-[11px] font-semibold text-primary-700 hover:underline">Закончить паузу</button>}
             <Link href={statementHref(paymentsBasePath, row.membership_id)} onClick={() => markReceiptNavigation(row.membership_id)} className="text-[11px] font-medium text-primary-700 hover:underline">Выписка</Link>
           </div>
         )}
@@ -256,7 +267,22 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
           <BalanceNote row={row} />
           <Link href={statementHref(paymentsBasePath, row.membership_id)} onClick={() => markReceiptNavigation(row.membership_id)} className="text-xs font-medium text-primary-700 hover:underline">Выписка</Link>
+          {/* S-5: the debt of a student who has left can still be paid (at most the debt) */}
+          {canPayLeftDebt(row, archived) && (
+            <button
+              type="button"
+              onClick={() => setForm({ kind: "create", payment: null })}
+              className="rounded-lg border border-primary-600 bg-primary-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-primary-700"
+            >
+              Оплатить долг
+            </button>
+          )}
         </div>
+      )}
+
+      {/* What the student had before ALGO */}
+      {row.opening && openingSummary(row.opening) && (
+        <p className="text-xs text-slate-500" data-testid="opening-summary">{openingSummary(row.opening)}</p>
       )}
 
       {/* Row 2: what the student pays */}
@@ -323,6 +349,27 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         onClose={() => setForm(null)}
         onSaved={onSaved}
         onDuplicate={() => { onNotify("Эта оплата уже внесена"); void refreshSummary(true); if (historyOpen) void loadHistory(); }}
+      />
+      <OpeningBalanceDialog
+        open={openingOpen}
+        membershipId={row.membership_id}
+        studentName={studentName}
+        groupName={row.group_name}
+        opening={row.opening ?? null}
+        enrolDate={joinedAt}
+        onClose={() => setOpeningOpen(false)}
+        onSaved={(next, removed) => {
+          if (next) changed(next);
+          onNotify(removed ? "Остаток на начало убран" : "Остаток на начало сохранён", "success");
+        }}
+      />
+      <PauseDialog
+        open={pauseOpen}
+        membershipId={row.membership_id}
+        studentName={studentName}
+        groupName={row.group_name}
+        onClose={() => setPauseOpen(false)}
+        onChanged={(next, text) => { if (next) changed(next); else void refreshSummary(true); onNotify(text, "success"); }}
       />
       <WriteoffDialog
         row={writeoffOpen ? row : null}

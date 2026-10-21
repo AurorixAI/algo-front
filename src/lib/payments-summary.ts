@@ -29,6 +29,10 @@ interface PaymentsSummaryState {
   debtTotal: number;
   advanceTotal: number;
   studentsWithDebt: number;
+  /** Owner 21.10: the count of the «Должники» tab (= the card «Долг учеников»), students who paid ahead, memberships without a price; null until the server sends them. */
+  debtors: number | null;
+  studentsWithAdvance: number | null;
+  priceMissing: number;
   /**
    * Re-read the summary; a failure never throws.  Without `force`, a call within a second
    * of the previous one is skipped (mount and route change fire together); pass `force`
@@ -62,6 +66,9 @@ const EMPTY = {
   debtTotal: 0,
   advanceTotal: 0,
   studentsWithDebt: 0,
+  debtors: null as number | null,
+  studentsWithAdvance: null as number | null,
+  priceMissing: 0,
 };
 
 let inFlight: Promise<void> | null = null;
@@ -95,6 +102,9 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     debtTotal: count(summary?.debt_total),
     advanceTotal: count(summary?.advance_total),
     studentsWithDebt: count(summary?.students_with_debt),
+    debtors: optionalCount(summary?.debtors) ?? optionalCount(summary?.students_with_debt),
+    studentsWithAdvance: optionalCount(summary?.students_with_advance),
+    priceMissing: count(summary?.price_missing),
   };
 }
 

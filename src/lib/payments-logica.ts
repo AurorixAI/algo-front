@@ -204,8 +204,8 @@ export function openingIsEmpty(values: Pick<OpeningFormValues, "paidUntil" | "de
 }
 
 export interface OpeningContext {
-  /** The day the membership starts (the enrolment): «Оплачено до» is not earlier, «Долг на дату» not later. */
-  enrolDate: string;
+  /** The day the membership starts (the enrolment): «Оплачено до» is not earlier, «Долг на дату» not later.  null: not known here, the server checks. */
+  enrolDate: string | null;
   accountingStart?: string | null;
   today: string;
 }
@@ -221,8 +221,8 @@ export function validateOpening(values: OpeningFormValues, context: OpeningConte
   const debt = parseMoneyInput(values.debt);
   if (values.paidUntil) {
     if (!isIsoDate(values.paidUntil)) return "Укажите дату «Оплачено до»";
-    const floor = context.accountingStart && context.accountingStart > context.enrolDate ? context.accountingStart : context.enrolDate;
-    if (values.paidUntil < floor) return `«Оплачено до» не раньше ${formatDateRu(floor)}: даты зачисления и начала учёта`;
+    const floor = [context.enrolDate, context.accountingStart].filter((day): day is string => Boolean(day)).sort().pop() ?? null;
+    if (floor && values.paidUntil < floor) return `«Оплачено до» не раньше ${formatDateRu(floor)}: даты зачисления и начала учёта`;
     if (values.paidUntil > openingPaidUntilMax(context.today)) return "«Оплачено до» — не дальше чем на год вперёд";
   }
   if (debt !== null || values.debtOn) {
@@ -231,7 +231,7 @@ export function validateOpening(values: OpeningFormValues, context: OpeningConte
     if (debt > MAX_MONEY) return "Сумма долга слишком большая";
     if (!isIsoDate(values.debtOn)) return "Укажите, на какую дату был долг";
     if (values.debtOn < OPENING_MIN_DATE) return "Дата долга не раньше 01.01.2020";
-    if (values.debtOn > context.enrolDate) return `«Долг на дату» — не позже дня зачисления (${formatDateRu(context.enrolDate)})`;
+    if (context.enrolDate && values.debtOn > context.enrolDate) return `«Долг на дату» — не позже дня зачисления (${formatDateRu(context.enrolDate)})`;
   }
   if (values.note.trim().length > OPENING_NOTE_MAX) return `Примечание не длиннее ${OPENING_NOTE_MAX} символов`;
   if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
@@ -268,7 +268,7 @@ export function openingLine(values: OpeningFormValues, context: Pick<OpeningCont
   if (openingIsEmpty(values)) return "";
   const parts: string[] = [];
   const from = values.paidUntil && isIsoDate(values.paidUntil) ? addDays(values.paidUntil, 1) : context.enrolDate;
-  parts.push(`Стоимость считается с ${dm(from)}.`);
+  if (from) parts.push(`Стоимость считается с ${dm(from)}.`);
   if (values.paidUntil && isIsoDate(values.paidUntil)) parts.push(`Оплачено до ${dm(values.paidUntil)}.`);
   const debt = parseMoneyInput(values.debt);
   if (debt !== null && debt > 0) parts.push(`Долг на начало: ${formatMoney(debt)}${values.debtOn && isIsoDate(values.debtOn) ? ` на ${dm(values.debtOn)}` : ""}.`);

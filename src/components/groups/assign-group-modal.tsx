@@ -32,6 +32,9 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
+import { OpeningToggle } from "@/components/payments/opening-balance-fields";
+import { buildOpeningIn, emptyOpeningValues, logicaError, validateOpening, type OpeningFormValues } from "@/lib/payments-logica";
+import { formatBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
 
 export interface GroupInfo {
@@ -112,6 +115,9 @@ export function AssignGroupModal({
   const [exceptionOn, setExceptionOn] = useState(false);
   const [exceptionAmount, setExceptionAmount] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
+  // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership; not with a transfer (the server refuses it).
+  const [openingOn, setOpeningOn] = useState(false);
+  const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -131,6 +137,8 @@ export function AssignGroupModal({
       setExceptionOn(false);
       setExceptionAmount("");
       setExceptionReason("");
+      setOpeningOn(false);
+      setOpening(emptyOpeningValues());
 
       Promise.all([
         orgApi.listGroups(),
@@ -206,10 +214,20 @@ export function AssignGroupModal({
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAssignmentError(exception.error); return; }
+    const todayDate = formatBusinessDate();
+    const withOpening = moneyAvailable && !isTransfer && openingOn;
+    if (withOpening) {
+      const problem = validateOpening(opening, { enrolDate: todayDate, today: todayDate });
+      if (problem) { setAssignmentError(problem); return; }
+    }
     setAssigning(true);
     setAssignmentError(null);
     try {
-      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, { mode, price_override: exception.request });
+      const result = await orgApi.addStudentToGroup(selectedGroupId, studentId, {
+        mode,
+        price_override: exception.request,
+        opening_balance: withOpening ? buildOpeningIn(opening) : null,
+      });
       if (result.status === "unchanged") {
         setSelectedGroupId(null);
         setAssignmentError(isAdd ? "Ученик уже состоит в этой группе." : "Ученик уже состоит в этой группе. Перевод не выполнен.");
@@ -221,7 +239,7 @@ export function AssignGroupModal({
       const targetGroup = groups.find((g) => g.id === selectedGroupId) || null;
       setAssignedSuccessGroup(targetGroup);
     } catch (e: any) {
-      setAssignmentError(e.message || (isAdd ? "Не удалось добавить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
+      setAssignmentError(logicaError(e).message || (isAdd ? "Не удалось добавить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
     } finally {
       setAssigning(false);
     }
@@ -587,6 +605,19 @@ export function AssignGroupModal({
             compact
           />
         </div>
+        {!isTransfer && (
+          <div className="mt-2 border-t border-slate-200 pt-2">
+            <OpeningToggle
+              idPrefix="assign-group-opening"
+              enabled={openingOn}
+              onEnabled={(value) => { setAssignmentError(null); setOpeningOn(value); }}
+              values={opening}
+              onChange={(next) => { setAssignmentError(null); setOpening(next); }}
+              enrolDate={formatBusinessDate()}
+              today={formatBusinessDate()}
+            />
+          </div>
+        )}
       </div>
     )}
 
