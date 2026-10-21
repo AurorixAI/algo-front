@@ -11,6 +11,8 @@ import {
 import type { AttendanceConflictDetail, LiveExamItem } from "./ops-b-types";
 
 export interface MarksConflict {
+  /** what the person was doing when the save was refused: «Оставить мои» repeats exactly this */
+  operation: LessonOperation;
   detail: AttendanceConflictDetail;
   /** the marks as the screen loaded or saved them last */
   base: MarkRecords;
@@ -66,7 +68,7 @@ export function useLessonMarksOps() {
     if (failure.kind === "conflict") {
       setConflictError(null);
       setLiveExams(null);
-      setConflict({ detail: failure.detail, base: { ...baseRef.current }, mine: { ...mine } });
+      setConflict({ operation, detail: failure.detail, base: { ...baseRef.current }, mine: { ...mine } });
     } else if (failure.kind === "live_exam") {
       setLiveExams(failure.exams);
     }
@@ -88,33 +90,27 @@ export function useLessonMarksOps() {
   }, [conflict]);
 
   /**
-   * «Оставить мои»: my edits over the other person's marks, saved again against the version the server named.  `send` does the request;
-   * `apply` hands the merged marks back to the panel when it went through.
+   * «Оставить мои»: my edits over the other person's marks, then the ORIGINAL action of the person (save, finish, cancel) is repeated
+   * against the version the server named - `retry` is the handler of that action, called with the merged marks.  If it is refused again
+   * (another conflict, a running exam) its own refusal opens the dialog again.
    */
-  const keepMine = useCallback(async (
-    send: (merged: MarkRecords, expectedVersion: number) => Promise<{ version?: number | null } | null | undefined>,
-    apply: (merged: MarkRecords) => void,
-  ) => {
+  const keepMine = useCallback(async (retry: (operation: LessonOperation, merged: MarkRecords) => Promise<void>) => {
     const current = conflict;
     if (!current || conflictBusy) return;
     setConflictBusy(true);
     setConflictError(null);
-    const merged = mergeKeepMine(current.base, current.mine, current.detail.records ?? {});
+    const theirs = current.detail.records ?? {};
+    const merged = mergeKeepMine(current.base, current.mine, theirs);
+    // the new base is what the journal holds now; my edits are the difference from it
+    versionRef.current = current.detail.currentVersion;
+    baseRef.current = { ...theirs };
+    setConflict(null);
     try {
-      const result = await send(merged, current.detail.currentVersion);
-      noteSaved(result, merged);
-      if (typeof result?.version !== "number") versionRef.current = current.detail.currentVersion;
-      setConflict(null);
-      apply(merged);
-    } catch (error) {
-      const failure = lessonFailure(error, "save", "Не удалось сохранить отметки. Данные не изменены.");
-      // changed again while the dialog was open: the newest state replaces the old one, my edits stay
-      if (failure.kind === "conflict") setConflict({ ...current, detail: failure.detail });
-      else setConflictError(failure.text);
+      await retry(current.operation, merged);
     } finally {
       setConflictBusy(false);
     }
-  }, [conflict, conflictBusy, noteSaved]);
+  }, [conflict, conflictBusy]);
 
   return {
     conflict, conflictBusy, conflictError, liveExams,

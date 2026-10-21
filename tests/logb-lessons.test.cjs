@@ -182,6 +182,12 @@ test("[O5.R4] the refusals of a replacement in the words of the spec", () => {
   assert.match(Err.lessonTeacherErrorText(refusal(409, fixture("c1_handover_busy").body)), /^Преподаватель занят: /);
 });
 
+test("[O5.R4] the name of the current teacher comes from `teacher_name` when the server sends it (no double dot)", () => {
+  const body = { detail: { code: "LESSON_TEACHER_CHANGED", message: "x", teacher_name: "Рахимов Т." } };
+  assert.equal(Err.lessonTeacherErrorText(refusal(409, body)), "Преподаватель урока уже изменён: Рахимов Т. Обновите страницу");
+  assert.equal(Err.lessonTeacherErrorText(refusal(409, { detail: { ...body.detail, teacher_name: "Рахимов Тимур" } })), "Преподаватель урока уже изменён: Рахимов Тимур. Обновите страницу");
+});
+
 test("[O5.R1] the result of the PUT of chain 1 reads: the substitute, the group's teacher, nothing paid changed", () => {
   const result = fixture("c1_lesson_teacher_L1_D");
   assert.equal(result.isSubstitution, true);
@@ -334,6 +340,15 @@ test("the lesson panels, the journal and the lists are wired for the pack", () =
   }
   const journal = read("src/components/groups/group-attendance-journal.tsx");
   for (const needle of [/expectedVersion/, /AttendanceConflictDialog/, /LiveExamConfirmDialog/, /LessonTeacherDialog/, /REPLACE_TEACHER_ACTION/, /lessonIsOthers/, /mergeKeepMine/]) assert.match(journal, needle, String(needle));
+  // «Оставить мои» repeats the ORIGINAL action (save / finish / cancel), not a plain save
+  for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
+    const page = read(file);
+    assert.match(page, /marksOps\.keepMine\(async \(operation, merged\)/, file);
+    assert.match(page, /operation === "finish"\) await handleFinishLesson\(false, marks\)/, file);
+    assert.match(page, /operation === "cancel"\) await handleCancelLesson\(\)/, file);
+  }
+  assert.match(journal, /kind: "finish"/);
+  assert.match(read("src/lib/use-lesson-marks-ops.ts"), /operation: LessonOperation/);
   assert.match(read("src/lib/api.ts"), /expectedVersion\?: number/);
   assert.match(read("src/lib/api.ts"), /acknowledgeLiveExam\?: boolean/);
   const list = read("src/components/attendance/open-lessons-view.tsx");

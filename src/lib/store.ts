@@ -38,8 +38,8 @@ interface AuthState {
     code: string;
     email: string;
     password: string;
-    first_name: string;
-    last_name: string;
+    first_name?: string;
+    last_name?: string;
   }) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<ProfileRefresh>;

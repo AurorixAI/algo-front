@@ -65,8 +65,8 @@ export default function InviteAcceptPage() {
         code,
         email: email.trim(),
         password,
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
+        // a returning member keeps his name: the form does not ask for it
+        ...(returning ? {} : { first_name: firstName.trim(), last_name: lastName.trim() }),
       });
       const user = useAuthStore.getState().user;
       if (user) {
@@ -84,6 +84,7 @@ export default function InviteAcceptPage() {
   };
 
   const displayError = localError || error;
+  const returning = Boolean(inviteInfo?.is_returning);
 
   if (loadingInfo) {
     return (
@@ -155,6 +156,7 @@ export default function InviteAcceptPage() {
             <h3 className="text-lg font-semibold text-slate-900 mb-4">{inviteInfo?.is_returning ? "Новый пароль" : "Создайте аккаунт"}</h3>
 
             <div className="space-y-4">
+              {!returning && (
               <div className="grid grid-cols-2 gap-3">
                 <Input
                   label="Имя"
@@ -171,6 +173,7 @@ export default function InviteAcceptPage() {
                   onChange={(e) => setLastName(e.target.value)}
                 />
               </div>
+              )}
 
               <Input
                 label="Email"
@@ -209,7 +212,7 @@ export default function InviteAcceptPage() {
               <Button
                 onClick={handleAccept}
                 loading={isLoading}
-                disabled={!firstName || !lastName || !email || !password || !confirmPassword}
+                disabled={(!returning && (!firstName || !lastName)) || !email || !password || !confirmPassword}
                 className="w-full"
                 size="lg"
                 icon={<ArrowRight className="w-4 h-4" />}

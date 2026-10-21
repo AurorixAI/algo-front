@@ -230,7 +230,7 @@ export function RemovalDialogBody({
   impact: RemovalImpact | null;
   loadError: string | null;
   isRole: boolean;
-  targets: Array<{ id: string; name: string }>;
+  targets: Array<{ id: string; name: string; label?: string }>;
   choices: HandoverChoices;
   everyone: string;
   conflicts: Record<string, string>;
@@ -290,7 +290,7 @@ export function RemovalDialogBody({
                     <label htmlFor="handover-everyone" className="mb-1.5 block text-[13px] font-semibold text-slate-500">Передать всем</label>
                     <select id="handover-everyone" value={everyone} onChange={(event) => onEveryone(event.target.value)} disabled={busy} className={SELECT_CLASS}>
                       <option value="">Выберите преподавателя</option>
-                      {targets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+                      {targets.map((target) => <option key={target.id} value={target.id}>{target.label ?? target.name}</option>)}
                       <option value={UNASSIGNED}>{KEEP_UNASSIGNED_LABEL}</option>
                     </select>
                   </div>
@@ -326,7 +326,7 @@ export function RemovalDialogBody({
                           className={`${SELECT_CLASS} mt-2.5 ${conflict ? "!border-rose-300" : ""}`}
                         >
                           <option value="">Выберите преподавателя</option>
-                          {targets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+                          {targets.map((target) => <option key={target.id} value={target.id}>{target.label ?? target.name}</option>)}
                           <option value={UNASSIGNED}>{KEEP_UNASSIGNED_LABEL}</option>
                         </select>
                         {choice.value === UNASSIGNED && (

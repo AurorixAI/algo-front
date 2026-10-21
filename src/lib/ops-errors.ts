@@ -96,7 +96,9 @@ export function lessonTeacherErrorText(error: unknown, fallback = "Не удал
   switch (opsErrorCode(error)) {
     case "TARGET_NOT_TEACHER": return "Выберите преподавателя центра";
     case "LESSON_TEACHER_CHANGED": {
-      // the server names the current teacher in its message («…изменён: Рахимов Т.. Обновите страницу»): tidy the double dot
+      // the server names the current teacher in `teacher_name`; an older answer has only the message (tidy its double dot)
+      const name = String((detail as { teacher_name?: unknown } | null)?.teacher_name ?? "").trim();
+      if (name) return `Преподаватель урока уже изменён: ${name}${name.endsWith(".") ? "" : "."} Обновите страницу`;
       const text = (detail?.message ?? "").replace(/\.\.+/g, ".").trim();
       return text || "Преподаватель урока уже изменён. Обновите страницу";
     }

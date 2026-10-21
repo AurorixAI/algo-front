@@ -377,7 +377,7 @@ export function GroupAttendanceJournal({
   const [conflict, setConflict] = useState<(AttendanceConflictState & {
     lessonKey: string;
     lesson: Lesson;
-    kind: "marks" | "correction";
+    kind: "marks" | "correction" | "finish";
     status: string;
     reasons: Record<string, string>;
   }) | null>(null);
@@ -999,6 +999,23 @@ export function GroupAttendanceJournal({
     setConflictError(null);
     const merged = mergeKeepMine(current.base, current.mine, theirs) as Record<string, AttendanceStatus>;
     try {
+      if (current.kind === "finish") {
+        // the action the person started was «Завершить урок»: the merged marks become the screen's and the finish is repeated
+        recordsRef.current = { ...recordsRef.current, [key]: merged };
+        confirmedRef.current = { ...confirmedRef.current, [key]: theirs };
+        versionsRef.current = { ...versionsRef.current, [key]: detail.currentVersion };
+        setLocalRecords(recordsRef.current);
+        closeConflict();
+        setColumnBusyKey(key);
+        try {
+          await finishLesson(lesson, false);
+        } catch (finishError) {
+          setSaveError(lessonFailure(finishError, "finish", "Не удалось завершить урок").text);
+        } finally {
+          setColumnBusyKey(null);
+        }
+        return;
+      }
       if (current.kind === "correction") {
         const reason = correctionDialog?.reason.trim() ?? "";
         const saved = await orgApi.saveGroupAttendance(groupId, {
@@ -1056,6 +1073,7 @@ export function GroupAttendanceJournal({
     // finish itself waits behind every mark already queued.
     finishingKeyRef.current = key;
     let asked: LiveExamItem[] | null = null;
+    let conflicted: Parameters<typeof setConflict>[0] = null;
     const task = saveQueueRef.current.then(async () => {
       const { rosterCount, markedCount } = markedInLesson(lesson);
       const hint = finishBlockedHint(markedCount, rosterCount);
@@ -1082,12 +1100,33 @@ export function GroupAttendanceJournal({
       } catch (error) {
         const failure = lessonFailure(error, "finish", "Не удалось завершить урок");
         if (failure.kind === "live_exam") { asked = failure.exams; return false; }
+        if (failure.kind === "conflict") {
+          // O7: somebody saved the lesson first - my marks go to the dialog; «Оставить мои» repeats the finish
+          conflicted = {
+            detail: failure.detail,
+            base: { ...(confirmedRef.current[key] || {}) },
+            mine: { ...records },
+            lessonKey: key,
+            lesson,
+            kind: "finish",
+            status: "completed",
+            reasons: {},
+          };
+          return false;
+        }
         throw error;
       }
       return true;
     });
     saveQueueRef.current = task.then(() => undefined, () => undefined);
     const finished = await task.finally(() => { finishingKeyRef.current = null; });
+    if (conflicted) {
+      conflictKeysRef.current.add(key);
+      setConflictError(null);
+      setLiveExam(null);
+      setConflict(conflicted);
+      return "stopped";
+    }
     if (asked) {
       setLiveExam({ exams: asked, lesson });
       return "ask";

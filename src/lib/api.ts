@@ -1188,8 +1188,9 @@ export const authApi = {
     code: string;
     email: string;
     password: string;
-    first_name: string;
-    last_name: string;
+    /** Absent for a returning member (the server keeps his name). */
+    first_name?: string;
+    last_name?: string;
   }) =>
     api<AuthResponse>("/auth/invite/accept", {
       method: "POST",

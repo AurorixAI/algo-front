@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users,
+  ArrowLeft, UserPlus, Users, CalendarDays,
   GraduationCap, Loader2, Edit2, Check, X,
   Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
@@ -13,10 +13,12 @@ import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
+import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
+import { handoverTargets } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
@@ -24,7 +26,7 @@ import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } f
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
-type Tab = "students" | "attendance" | "settings";
+type Tab = "students" | "schedule" | "attendance" | "settings";
 
 interface EditState {
   name: string;
@@ -49,7 +51,7 @@ export default function OwnerGroupDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const requestedTab = searchParams?.get("tab");
-  const tab: Tab = requestedTab === "attendance" || requestedTab === "settings" || requestedTab === "students"
+  const tab: Tab = requestedTab === "attendance" || requestedTab === "settings" || requestedTab === "students" || requestedTab === "schedule"
     ? requestedTab
     : "students";
   const setTab = (newTab: Tab) => {
@@ -102,10 +104,8 @@ export default function OwnerGroupDetailPage() {
     showToast(toast.text, toast.type, toast.details);
   };
 
-  const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
-    id: m.user_id || m.id,
-    name: staffDisplayName(m),
-  }));
+  // everybody who can teach: teachers, the owner and the administrators (the role is named next to the name)
+  const teachers = handoverTargets(members).map((t) => ({ id: t.id, name: t.label }));
 
   const handleSave = async () => {
     if (!editState.name.trim() || !group) return;
@@ -410,6 +410,7 @@ export default function OwnerGroupDetailPage() {
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([
           { key: "students",  label: "Ученики",   Icon: Users    },
+          { key: "schedule", label: "Расписание", Icon: CalendarDays },
           { key: "attendance", label: "Посещаемость", Icon: BookOpen },
         ] as const).map(({ key, label, Icon }) => (
           <button
@@ -453,6 +454,12 @@ export default function OwnerGroupDetailPage() {
               onRemove={group.status === "active" ? handleRemoveStudent : undefined}
               canRemove={group.status === "active"}
             />
+          </motion.div>
+        )}
+
+        {tab === "schedule" && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <GroupScheduleOverview groupId={groupId} viewerRole="owner" archived={group.status === "archived"} />
           </motion.div>
         )}
 

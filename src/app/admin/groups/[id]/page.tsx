@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
+import { handoverTargets } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
@@ -103,10 +104,8 @@ export default function AdminGroupDetailPage() {
     showToast(toast.text, toast.type, toast.details);
   };
 
-  const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
-    id: m.user_id || m.id,
-    name: staffDisplayName(m),
-  }));
+  // everybody who can teach: teachers, the owner and the administrators (the role is named next to the name)
+  const teachers = handoverTargets(members).map((t) => ({ id: t.id, name: t.label }));
 
   const handleSave = async () => {
     if (!editState.name.trim() || !group) return;

@@ -740,22 +740,22 @@ export default function TeacherDashboardPage() {
   };
 
   /** Reasons to send with the save, or an error text when an "Уважительная" mark has no valid reason. */
-  const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
-    const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
+  const prepareExcuseReasons = (marks: Record<string, AttendanceStatus> = attendance): { reasons: Record<string, string> } | { error: string } => {
+    const missing = firstMissingExcuseReason(marks, excuseReasons, savedExcuses);
     if (missing) {
       setExcuseReasonInvalidId(missing.studentId);
       const name = groupStudents.find((st) => st.id === missing.studentId)?.full_name;
       return { error: `${name ? `${name}: ` : ""}${missing.error}` };
     }
     setExcuseReasonInvalidId(null);
-    return { reasons: collectExcuseReasons(attendance, excuseReasons, savedExcuses) };
+    return { reasons: collectExcuseReasons(marks, excuseReasons, savedExcuses) };
   };
 
-  const rememberSavedExcuses = (sent: Record<string, string>) => {
+  const rememberSavedExcuses = (sent: Record<string, string>, marks: Record<string, AttendanceStatus> = attendance) => {
     setSavedExcuses((prev) => {
       const next: Record<string, { reason: string }> = {};
-      Object.keys(attendance).forEach((studentId) => {
-        if (attendance[studentId] !== "excused") return;
+      Object.keys(marks).forEach((studentId) => {
+        if (marks[studentId] !== "excused") return;
         const reason = sent[studentId] ?? prev[studentId]?.reason;
         if (reason) next[studentId] = { reason };
       });
@@ -764,8 +764,11 @@ export default function TeacherDashboardPage() {
     setExcuseReasons({});
   };
 
-  const handleSaveAttendance = async () => {
+  const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    // «Оставить мои» repeats this very action with the merged marks
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
 
     // Attendance is allowed only after the server recorded the real start of
     // this lesson. This is a client-side guard; the API enforces it too.
@@ -777,7 +780,7 @@ export default function TeacherDashboardPage() {
 
     setAttendanceError(null);
 
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       return;
@@ -790,12 +793,12 @@ export default function TeacherDashboardPage() {
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "in_progress",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
         ...marksOps.versionBody(),
       });
-      marksOps.noteSaved(saved, attendance);
-      rememberSavedExcuses(prepared.reasons);
+      marksOps.noteSaved(saved, marks);
+      rememberSavedExcuses(prepared.reasons, marks);
       setIsAttendanceSaved(true);
       setIsAttendanceDirty(false);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
@@ -809,7 +812,7 @@ export default function TeacherDashboardPage() {
       setOpenAttendanceActions((previous) => previous.map((action) => {
         if (action.groupId !== activeLesson.groupId || action.lessonId !== activeLesson.id || action.lessonDate !== activeDate) return action;
         const rosterCount = groupStudents.length || action.rosterCount;
-        const markedCount = Object.keys(attendance).length;
+        const markedCount = Object.keys(marks).length;
         return {
           ...action,
           markedCount,
@@ -820,7 +823,7 @@ export default function TeacherDashboardPage() {
       setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to save attendance:", err);
-      const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", attendance);
+      const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
       if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
@@ -828,8 +831,10 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  const handleFinishLesson = async (acknowledgeLiveExam = false) => {
+  const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
 
     // O6: a lesson of an empty roster cannot be finished - «Урока не было» is the way out (the server says the same: NO_STUDENTS)
     if (groupStudents.length === 0) {
@@ -840,7 +845,7 @@ export default function TeacherDashboardPage() {
     // A frozen empty roster is a valid historical fact. There are no records to
     // save in that case, so it must not prevent closing the lesson.
     const hasSaved = isAttendanceSaved || !!lessonAttendanceMap[activeLesson.id];
-    const unmarked = groupStudents.filter((st) => !attendance[st.id]);
+    const unmarked = groupStudents.filter((st) => !marks[st.id]);
     const hasStudentsToMark = groupStudents.length > 0;
 
     if (hasStudentsToMark && (!hasSaved || unmarked.length > 0)) {
@@ -852,7 +857,7 @@ export default function TeacherDashboardPage() {
     }
 
     setAttendanceError(null);
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       // Reopen the marking panel: the missing reason field is there.
@@ -867,17 +872,17 @@ export default function TeacherDashboardPage() {
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "completed",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
         ...marksOps.versionBody(),
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
       });
-      marksOps.noteSaved(finished, attendance);
+      marksOps.noteSaved(finished, marks);
       marksOps.clearLiveExams();
       // O8: the exam service could not be asked - the lesson is closed anyway; say so
       const syncNotice = examSyncNotice(finished?.examSync);
       if (syncNotice) setDashboardNotice(syncNotice);
-      rememberSavedExcuses(prepared.reasons);
+      rememberSavedExcuses(prepared.reasons, marks);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
@@ -888,7 +893,7 @@ export default function TeacherDashboardPage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", attendance);
+      const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; anything else is the text of the panel
       if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
@@ -2604,7 +2609,7 @@ export default function TeacherDashboardPage() {
                         )}
                         <button
                           type="button"
-                          onClick={handleSaveAttendance}
+                          onClick={() => void handleSaveAttendance()}
                           disabled={savingAttendance}
                           className="px-4 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-xl transition-colors shadow-xs"
                         >
@@ -2729,28 +2734,13 @@ export default function TeacherDashboardPage() {
           setIsAttendanceDirty(false);
           setAttendanceError(null);
         })}
-        onKeepMine={() => {
-          if (!activeLesson) return;
-          void marksOps.keepMine(
-            (merged, expectedVersion) => orgApi.saveGroupAttendance(activeLesson.groupId, {
-              lessonDate: activeLesson.occurrenceDate || businessDate,
-              lessonId: activeLesson.id,
-              topic: activeLesson.topic,
-              status: "in_progress",
-              records: merged as Record<string, AttendanceStatus>,
-              ...(Object.keys(collectExcuseReasons(merged as Record<string, AttendanceStatus>, excuseReasons, savedExcuses)).length
-                ? { excuseReasons: collectExcuseReasons(merged as Record<string, AttendanceStatus>, excuseReasons, savedExcuses) }
-                : {}),
-              expectedVersion,
-            }),
-            (merged) => {
-              setAttendance(merged as Record<string, AttendanceStatus>);
-              setIsAttendanceSaved(true);
-              setIsAttendanceDirty(false);
-              setAttendanceError(null);
-            },
-          );
-        }}
+        // «Оставить мои»: my edits over theirs, then the action the person started (save / finish / cancel) is repeated with the new version
+        onKeepMine={() => void marksOps.keepMine(async (operation, merged) => {
+          const marks = merged as Record<string, AttendanceStatus>;
+          if (operation === "finish") await handleFinishLesson(false, marks);
+          else if (operation === "cancel") await handleCancelLesson();
+          else await handleSaveAttendance(marks);
+        })}
       />
       <LiveExamConfirmDialog
         aboveLessonPanel

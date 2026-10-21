@@ -137,15 +137,34 @@ export function buildHandoverBody(impact: RemovalImpact, choices: HandoverChoice
   return { assignments, confirmUnassigned: assignments.some((assignment) => assignment.teacherId === null) };
 }
 
-/** Who a group may be handed to: active teachers other than the one who leaves, by name. */
-export function handoverTargets(members: OrgMemberRow[], leavingUserId: string | undefined): Array<{ id: string; name: string }> {
+export const ROLE_LABELS: Record<string, string> = { teacher: "Преподаватель", admin: "Администратор", owner: "Владелец" };
+
+export interface StaffTarget {
+  id: string;
+  name: string;
+  role: string;
+  /** «Каримова Дилноза — Администратор»: what the selector shows (the role is named for everybody who is not a teacher) */
+  label: string;
+}
+
+/**
+ * Who a group (or a lesson) may be handed to: every active staff member who can teach - teachers, the owner and the administrators -
+ * except the one who leaves.  The role is named next to the name of owner and administrators.  By name, teachers first.
+ */
+export function handoverTargets(members: OrgMemberRow[], leavingUserId?: string): StaffTarget[] {
+  const rank = (role: string) => (role === "teacher" ? 0 : role === "admin" ? 1 : 2);
   return members
-    .filter((member) => member.org_role === "teacher" && member.is_active !== false && (member.user_id || member.id) !== leavingUserId)
-    .map((member) => ({
-      id: member.user_id || member.id,
-      name: staffDisplayName(member, member.email),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    .filter((member) => ["teacher", "admin", "owner"].includes(member.org_role) && member.is_active !== false && (member.user_id || member.id) !== leavingUserId)
+    .map((member) => {
+      const name = staffDisplayName(member, member.email);
+      return {
+        id: member.user_id || member.id,
+        name,
+        role: member.org_role,
+        label: member.org_role === "teacher" ? name : `${name} — ${ROLE_LABELS[member.org_role]}`,
+      };
+    })
+    .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name, "ru"));
 }
 
 // ── former members ──────────────────────────────────────────────────────────────────────────────

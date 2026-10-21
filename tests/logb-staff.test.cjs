@@ -152,14 +152,16 @@ test("[O2.R2] the handover answers of the contract are read: handed over groups,
   assert.equal(typeof removed.message, "string");
 });
 
-test("the targets of a handover: active teachers, never the one who leaves, by name", () => {
+test("the targets of a handover: every active staff member who can teach (teachers, administrators, the owner), the role named, never the one who leaves", () => {
   const rows = [
     { id: "u1", member_id: "m1", user_id: "u1", email: "a@x", first_name: "Иван", last_name: "Иванов", org_role: "teacher", is_active: true },
     { id: "u2", member_id: "m2", user_id: "u2", email: "b@x", first_name: "Пётр", last_name: "Петров", org_role: "teacher", is_active: true },
     { id: "u3", member_id: "m3", user_id: "u3", email: "c@x", first_name: "Дилноза", last_name: "Каримова", org_role: "admin", is_active: true },
     { id: "u4", member_id: "m4", user_id: "u4", email: "d@x", first_name: "Сидор", last_name: "Сидоров", org_role: "teacher", is_active: false },
+    { id: "u5", member_id: "m5", user_id: "u5", email: "e@x", first_name: "Усман", last_name: "Усманов", org_role: "owner", is_active: true },
   ];
-  assert.deepEqual(S.handoverTargets(rows, "u1"), [{ id: "u2", name: "Пётр Петров" }]);
+  assert.deepEqual(S.handoverTargets(rows, "u1").map((t) => t.label), ["Пётр Петров", "Дилноза Каримова — Администратор", "Усман Усманов — Владелец"]);
+  assert.deepEqual(S.handoverTargets(rows).map((t) => t.id), ["u1", "u2", "u3", "u5"]);
 });
 
 // ── former staff (chain 6) ─────────────────────────────────────────────────────────────────────
