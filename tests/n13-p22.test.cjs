@@ -603,6 +603,11 @@ test("a part of a center period, and the fallback «с» of a fixed-day payment"
   // a first payment counts from the payment date
   assert.equal(P.fixedDayFallbackFrom("2026-10-17", null, 1), "2026-10-17");
   assert.equal(P.fixedDayFallbackFrom("2026-10-17", "", 10), "2026-10-17");
+  // A debt older than the server accepts (3 years before the payment date) falls back to the payment date; the bound is kept.
+  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "2023-10-15", 1), "2026-10-17");
+  assert.equal(P.fixedDayFallbackFrom("2026-10-17", "2023-10-16", 1), "2023-10-17");
+  assert.equal(P.defaultValidFrom("2026-10-17", "2023-10-15"), "2026-10-17");
+  assert.equal(P.defaultValidFrom("2028-02-29", "2025-02-27"), "2025-02-28");
 });
 
 test("the payment form falls back to the center's day, says the quote is unavailable and drops an old suggestion", () => {

@@ -640,8 +640,22 @@ export interface PaymentFormValues {
  * debt (owner 21.10); a first payment counts from the payment date.
  */
 export function defaultValidFrom(paidOn: string, previousPaidUntil: string | null | undefined): string {
-  if (previousPaidUntil && isIsoDate(previousPaidUntil)) return addDays(previousPaidUntil, 1);
-  return paidOn;
+  return debtStart(paidOn, previousPaidUntil) ?? paidOn;
+}
+
+/** The server never suggests a start more than 3 years before the payment date (it would reject it): same bound here. */
+const MAX_PAID_AGO_YEARS = 3;
+
+function yearsBefore(iso: string, years: number): string {
+  const shifted = `${String(Number(iso.slice(0, 4)) - years).padStart(4, "0")}${iso.slice(4)}`;
+  return shifted.endsWith("-02-29") ? `${shifted.slice(0, -2)}28` : shifted;
+}
+
+/** The day after the previous «оплачено до», or null (first payment, or a debt older than the server accepts). */
+function debtStart(paidOn: string, previousPaidUntil: string | null | undefined): string | null {
+  if (!previousPaidUntil || !isIsoDate(previousPaidUntil)) return null;
+  const next = addDays(previousPaidUntil, 1);
+  return isIsoDate(paidOn) && next < yearsBefore(paidOn, MAX_PAID_AGO_YEARS) ? null : next;
 }
 
 export interface FormDefaultsInput {
@@ -853,8 +867,7 @@ export function isPartialPeriod(validFrom: string, validTo: string, billingDay: 
  * which the form does not know). `billingDay` is kept for the callers: the center's day no longer moves «с».
  */
 export function fixedDayFallbackFrom(paidOn: string, previousPaidUntil: string | null | undefined, _billingDay: number): string {
-  if (previousPaidUntil && isIsoDate(previousPaidUntil)) return addDays(previousPaidUntil, 1);
-  return paidOn;
+  return debtStart(paidOn, previousPaidUntil) ?? paidOn;
 }
 
 // ── Receipts and attached files (N13 P2.2) ─────────────────────────────────
