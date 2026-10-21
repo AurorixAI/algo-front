@@ -40,6 +40,9 @@ import {
 import { ACCOUNTING_START_MIN, accountingStartImpactLines, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
+import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
+import { formatBusinessDate } from "@/lib/business-time";
+import { monthOfDate as payrollMonthOf, rateMonthOptions } from "@/lib/payroll";
 import { daysWord, lessonsWord } from "@/lib/plural";
 import { effectiveRole } from "@/lib/role-home";
 import {
@@ -198,6 +201,8 @@ function usePayrollSettingsDraft(enabled: boolean) {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<PayrollSettings>(DEFAULT_PAYROLL_SETTINGS);
   const [text, setText] = useState(String(DEFAULT_DIVISOR));
+  /** F7: the divisor acts from the 1st of a month (`YYYY-MM`; `2020-01` = from the very start); the current month by default. */
+  const [validFrom, setValidFromState] = useState(() => payrollMonthOf(formatBusinessDate()));
   const [save, setSave] = useState<SaveState>(IDLE_SAVE);
   const touched = useRef(false);
 
@@ -224,13 +229,14 @@ function usePayrollSettingsDraft(enabled: boolean) {
     setSave(IDLE_SAVE);
     setText(value.replace(/\D/g, "").slice(0, 2));
   };
+  const setValidFrom = (month: string) => { touched.current = true; setSave(IDLE_SAVE); setValidFromState(month); };
 
   const submit = async () => {
     const parsed = parseDivisor(text);
     if (parsed.value === null) { setSave({ saving: false, saved: false, error: parsed.error }); return; }
     setSave({ saving: true, saved: false, error: null });
     try {
-      const updated = await orgApi.updatePayrollSettings({ divisor: parsed.value });
+      const updated = await orgApi.setPayrollDivisor(buildDivisorBody(parsed.value, validFrom));
       setLoaded(updated);
       setText(String(updated.divisor));
       setSave({ saving: false, saved: true, error: null });
@@ -240,7 +246,7 @@ function usePayrollSettingsDraft(enabled: boolean) {
     }
   };
 
-  return { status, loaded, text, save, change, submit, retry: () => setAttempt((n) => n + 1) };
+  return { status, loaded, text, save, change, submit, validFrom, setValidFrom, retry: () => setAttempt((n) => n + 1) };
 }
 
 type PayrollSettingsDraft = ReturnType<typeof usePayrollSettingsDraft>;
@@ -513,7 +519,12 @@ function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
   const divisor = parsed.value ?? draft.loaded.divisor;
   // The partner's own numbers: 450 000 per month, 50 %, 11 lessons.
   const example = lineAmount({ fee: 450_000, percentHundredths: 5000, divisor, lessons: 11 });
-  const unchanged = parsed.value !== null && parsed.value === draft.loaded.divisor;
+  // nothing to save: the same divisor from the month it already acts from (or from the current month, which is where it is now)
+  const history = draft.loaded.history ?? [];
+  const inForce = divisorFor(history, draft.validFrom, draft.loaded.divisor);
+  const unchanged = parsed.value !== null && parsed.value === inForce;
+  const rows = divisorHistoryRows(history);
+  const months = rateMonthOptions(formatBusinessDate());
 
   return (
     <SettingsSection
@@ -551,6 +562,29 @@ function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
               <span className="text-sm text-slate-600">от {DIVISOR_RANGE.min} до {DIVISOR_RANGE.max}, по умолчанию {DEFAULT_DIVISOR}</span>
             </div>
           </div>
+
+          <div>
+            <label htmlFor="payroll-divisor-from" className={labelClasses}>{DIVISOR_FROM_LABEL}</label>
+            <select
+              id="payroll-divisor-from"
+              value={draft.validFrom}
+              onChange={(event) => draft.setValidFrom(event.target.value)}
+              className={`${inputClasses} !w-60`}
+            >
+              {months.map((option) => <option key={option.value} value={option.value}>{option.value === draft.validFrom ? divisorMonthTitle(option.value) : option.label}</option>)}
+            </select>
+            <p className="mt-1.5 text-xs text-slate-500" data-testid="divisor-change">{divisorChangeText(parsed.value, draft.validFrom, inForce)}</p>
+            <p className="mt-0.5 text-xs text-slate-500">{DIVISOR_HELP}</p>
+          </div>
+
+          {rows.length > 0 && (
+            <div>
+              <p className={labelClasses}>История делителя</p>
+              <ul className="space-y-1 text-sm text-slate-700" data-testid="divisor-history">
+                {rows.map((row) => <li key={row.key} className="tabular-nums">{row.text}</li>)}
+              </ul>
+            </div>
+          )}
 
           <div id="payroll-divisor-help" className="space-y-2 rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <p className="font-semibold text-slate-900">{payrollFormulaText(divisor)}</p>

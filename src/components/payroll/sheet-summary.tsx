@@ -14,6 +14,7 @@ import {
   type PayrollSheetWarnings,
   type SheetCardStatus,
 } from "@/lib/payroll";
+import { sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
 
 const DOT: Record<SheetCardStatus["tone"], string> = {
@@ -78,7 +79,7 @@ export function SheetSummaryCard({
         <div className="min-w-0">
           <p className="text-sm text-slate-500">К выплате</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(total)}</p>
-          <p className="mt-2 text-sm text-slate-600">{facts.join(" · ")}</p>
+          <p className="mt-2 text-sm text-slate-600">{[...facts, writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
           {warningList.length > 0 && (
             <div className="mt-1.5">
               <WarningLinks views={warningList} label="Предупреждения ведомости" />

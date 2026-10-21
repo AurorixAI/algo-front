@@ -290,6 +290,7 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.deepEqual(users, [
     "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-student-table.tsx",
     "payments/group-prices-page.tsx", "payments/membership-payments.tsx", "payments/payments-page.tsx", "payments/statement-view.tsx",
-    "payroll/month-status.tsx", "students/student-profile-view.tsx",
+    "payroll/month-status.tsx", "payroll/payroll-month-page.tsx", "students/student-profile-view.tsx",
   ]);
+  assert.match(read("components/payroll/payroll-month-page.tsx"), /label=\{`Действия: \$\{teacher\.teacher_name\}`\}/); // LOGIC-A: «Отметить выплату» of a teacher's row
 });

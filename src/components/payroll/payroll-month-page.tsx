@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, AlertTriangle, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, Loader2, X } from "lucide-react";
+import { AlertCircle, AlertTriangle, Banknote, Calculator, ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney } from "@/lib/payments";
@@ -48,6 +48,9 @@ import {
   type SheetEdits,
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, monthPayoutText, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
+import { RowMenu } from "@/components/ui/row-menu";
+import { PayoutDialog } from "./payout-dialog";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
@@ -60,8 +63,8 @@ import { PayrollSheetTable } from "./sheet-table";
 import { SheetSummaryCard } from "./sheet-summary";
 import { ConflictBanner, PayrollForbidden, RateRequiredNotice, SaveBar, StatusChip, WarningLinks, usePrintWithDates } from "./sheet-controls";
 
-/** Преподаватель | Ставка | К выплате | Статус | action.  Identity left, rate and status centred, the money of the ledger right. */
-const GRID = "xl:grid xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)] xl:items-start xl:gap-x-3";
+/** Преподаватель | Ставка | К выплате | Выплата | Статус | action.  Identity left, rate, payout and status centred, the money of the ledger right. */
+const GRID = "xl:grid xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)] xl:items-start xl:gap-x-3";
 
 interface Preview {
   sheet: PayrollSheet;
@@ -119,6 +122,8 @@ function PayrollMonthContent() {
   const [exporting, setExporting] = useState(false);
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  /** «Отметить выплату» of a row's «⋯». */
+  const [payoutFor, setPayoutFor] = useState<PayrollMonthTeacher | null>(null);
 
   const loads = useRef(createRequestSequence());
   const calcs = useRef(createRequestSequence());
@@ -257,6 +262,7 @@ function PayrollMonthContent() {
       const error = cause as PayrollErrorLike;
       if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
       else if (isDataChanged(error)) patchPreview(teacherId, { saving: false, dataChanged: payrollErrorText(error) });
+      else if (isFingerprintRequired(error)) patchPreview(teacherId, { saving: false, dataChanged: FINGERPRINT_REQUIRED_TEXT });
       else if (isRateRequired(error)) patchPreview(teacherId, { saving: false, rateMissing: payrollErrorText(error) });
       else patchPreview(teacherId, { saving: false, error: payrollErrorText(error) });
     }
@@ -369,7 +375,7 @@ function PayrollMonthContent() {
         </div>
 
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} />}
+          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} payoutText={monthPayoutText(month, teachers)} />}
           {overview && gate.text && (
             <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
               {gate.text}
@@ -413,9 +419,9 @@ function PayrollMonthContent() {
           <div className="xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white">
             <TableHeader
               show="xl"
-              gridClass="xl:grid-cols-[minmax(0,1.7fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.1fr)]"
-              labels={["Преподаватель", "Ставка", "К выплате", "Статус", ""]}
-              aligns={["left", "center", "center", "center", "center"]}
+              gridClass="xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1.3fr)]"
+              labels={["Преподаватель", "Ставка", "К выплате", "Выплата", "Статус", ""]}
+              aligns={["left", "center", "center", "center", "center", "center"]}
               hints={[undefined, RATE_COLUMN_HINT]}
             />
             <ul className="space-y-3 xl:space-y-0 xl:divide-y xl:divide-slate-100">
@@ -427,6 +433,7 @@ function PayrollMonthContent() {
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
+                  onPayout={() => setPayoutFor(teacher)}
                 />
               ))}
             </ul>
@@ -512,6 +519,15 @@ function PayrollMonthContent() {
           />
         </section>
       )}
+      <PayoutDialog
+        open={payoutFor !== null && payoutFor.sheet !== null}
+        sheetId={payoutFor?.sheet?.id ?? ""}
+        teacherName={payoutFor?.teacher_name ?? ""}
+        month={month}
+        state={normalizePayoutState(payoutFor?.payout)}
+        onClose={() => setPayoutFor(null)}
+        onDone={(text) => { showToast(text); void load(true); }}
+      />
       {toastNode}
     </div>
   );
@@ -572,7 +588,7 @@ function PreviewBody({
  * ONE status chip and ONE button by the status.  A phone gets the same as a card.
  */
 export function TeacherRow({
-  teacher, month, busy, onCalculate, onOpen,
+  teacher, month, busy, onCalculate, onOpen, onPayout,
 }: {
   teacher: PayrollMonthTeacher;
   /** The month of the page: «Указать» opens the rate dialog with it. */
@@ -580,8 +596,11 @@ export function TeacherRow({
   busy: boolean;
   onCalculate: () => void;
   onOpen: () => void;
+  /** «Отметить выплату» (the menu of the row); absent: no menu. */
+  onPayout?: () => void;
 }) {
   const status = sheetStatus(teacher.sheet);
+  const chip = payoutChip(normalizePayoutState(teacher.payout));
   const action = rowAction(teacher.sheet);
   const rate = monthRateSummary(teacher);
   const warnings = warningViews(teacher.warnings);
@@ -618,11 +637,21 @@ export function TeacherRow({
         {teacher.sheet ? formatMoney(teacher.sheet.total_amount) : <span className="font-normal text-slate-400">—</span>}
       </div>
 
+      {/* LOGIC-A decision 6: how much of the pay has been paid out */}
+      <div className="mt-1 min-w-0 text-sm xl:mt-0 xl:text-center">
+        <span className="mr-1.5 text-xs text-slate-400 xl:hidden">Выплата</span>
+        {chip ? (
+          <span title={normalizePayoutState(teacher.payout)?.text || undefined} data-testid="payout-chip" className={`inline-block max-w-full rounded-2xl border px-2.5 py-1 text-xs font-semibold ${PAYOUT_CHIP_CLASS[chip.tone]}`}>{chip.text}</span>
+        ) : (
+          <span className="text-slate-400">—</span>
+        )}
+      </div>
+
       <div className="mt-2 min-w-0 xl:mt-0 xl:text-center">
         <StatusChip status={status} hint={statusHint(teacher.sheet)} />
       </div>
 
-      <div className="mt-3 flex items-center xl:mt-0 xl:justify-center">
+      <div className="mt-3 flex items-center gap-1.5 xl:mt-0 xl:justify-center">
         <button
           type="button"
           onClick={run}
@@ -633,6 +662,16 @@ export function TeacherRow({
         >
           {action.label}
         </button>
+        {onPayout && (
+          <RowMenu
+            label={`Действия: ${teacher.teacher_name}`}
+            items={[
+              ...(teacher.sheet ? [{ key: "payout", label: PAYOUT_ACTION_LABEL, icon: Banknote, onSelect: onPayout }] : []),
+              ...(teacher.sheet ? [{ key: "open", label: "Открыть ведомость", icon: FileText, onSelect: onOpen }] : []),
+              ...(!teacher.sheet ? [{ key: "calc", label: "Рассчитать", icon: Calculator, onSelect: onCalculate, disabled: busy || blocked }] : []),
+            ]}
+          />
+        )}
       </div>
     </li>
   );

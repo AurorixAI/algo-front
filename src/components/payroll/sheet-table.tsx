@@ -33,6 +33,7 @@ import {
 } from "@/lib/payroll-help";
 import { Hint } from "@/components/ui/hint";
 import { groupPriceHref, priceLabelOf } from "@/lib/group-price";
+import { splitLayout } from "@/lib/payroll-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1.5 print:px-1 print:py-1";
@@ -189,7 +190,9 @@ export function PayrollSheetTable({
           >
             <header className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-slate-100 bg-slate-50/70 px-4 py-3 print:bg-transparent">
               <h3 className="min-w-0 break-words text-base font-bold text-slate-900">{block.groupName}</h3>
-              <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{lessonTypeLabel(block.lessonType)}</span>
+              {block.lessonTypes.length > 1
+                ? block.lessonTypes.map((type) => <span key={type} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{lessonTypeLabel(type)}</span>)
+                : <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{lessonTypeLabel(block.lessonType)}</span>}
               {block.lessonTime && <span className="text-sm text-slate-500">{block.lessonTime}</span>}
               <span className="ml-auto flex items-center gap-3">
                 {block.columns.length > 0 && (
@@ -236,14 +239,17 @@ export function PayrollSheetTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {block.lines.map((view) => {
+                  {block.lines.map((view, rowIndex) => {
                     const { line } = view;
                     const id = line.membership_id;
+                    // F14: a student whose group changed its type inside the month has one sub-row per type («Группа · 6 уроков» / «Пара · 6 уроков»)
+                    const split = splitLayout(block.lines.map((item) => item.line))[rowIndex];
                     return (
-                      <tr key={id} className="border-b border-slate-100 last:border-b-0 print:break-inside-avoid">
+                      <tr key={line.line_key ?? id} className={`border-b border-slate-100 last:border-b-0 print:break-inside-avoid ${split.first ? "" : "border-t-0"}`}>
                         <th scope="row" className={`${CELL} ${showDates ? `${STICKY} bg-white shadow-[1px_0_0_0_rgb(226_232_240)] print:shadow-none` : ""} text-left font-medium text-slate-900`}>
-                          <span className="block break-words leading-tight">{line.student_name}</span>
-                          {line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-400">{line.display_id}</span>}
+                          <span className={split.first ? "block break-words leading-tight" : "sr-only"}>{line.student_name}</span>
+                          {split.first && line.display_id && <span className="block font-mono text-[11px] font-normal text-slate-400">{line.display_id}</span>}
+                          {split.typeLabel && <span className="block text-xs font-medium text-slate-600" data-testid="split-type">{split.typeLabel}</span>}
                           {line.pending_excused > 0 && (
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
                           )}

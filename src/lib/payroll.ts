@@ -795,6 +795,8 @@ export interface SheetBlock {
   groupId: string;
   groupName: string;
   lessonType: LessonType;
+  /** LOGIC-A F14: every type of lessons the lines of the group had in the month (more than one when the type changed inside it). */
+  lessonTypes: LessonType[];
   lessonTime: string | null;
   columns: MarkColumn[];
   lines: LineView[];
@@ -820,13 +822,38 @@ export function buildBlocks(sheet: PayrollSheet, views: LineView[]): SheetBlock[
     if (list) list.push(view);
     else byGroup.set(view.line.group_id, [view]);
   }
-  return sheet.groups
+  // The blocks the server sends; a group may come once per type (F14) - they are one block; a group with lines but no block (an
+  // older answer, a sheet whose blocks were not sent) gets one made from its lines.
+  const groups = new Map<string, PayrollGroupBlock>();
+  for (const group of sheet.groups ?? []) {
+    const known = groups.get(group.group_id);
+    if (!known) { groups.set(group.group_id, { ...group, dates: [...(group.dates ?? [])] }); continue; }
+    const seen = new Set(known.dates.map((item) => columnKey(item.date, item.lesson_id)));
+    for (const item of group.dates ?? []) if (!seen.has(columnKey(item.date, item.lesson_id))) known.dates.push(item);
+    known.dates.sort((a, b) => (a.date === b.date ? a.lesson_id.localeCompare(b.lesson_id) : a.date.localeCompare(b.date)));
+  }
+  for (const view of views) {
+    if (groups.has(view.line.group_id)) continue;
+    const dates = new Map<string, PayrollBlockDate>();
+    for (const line of views.filter((other) => other.line.group_id === view.line.group_id)) {
+      for (const mark of line.line.marks) dates.set(columnKey(mark.date, mark.lesson_id), { date: mark.date, lesson_id: mark.lesson_id });
+    }
+    groups.set(view.line.group_id, {
+      group_id: view.line.group_id, group_name: view.line.group_name, lesson_type: view.line.lesson_type, lesson_time: view.line.lesson_time,
+      percent: view.line.percent, dates: [...dates.values()].sort((a, b) => (a.date === b.date ? a.lesson_id.localeCompare(b.lesson_id) : a.date.localeCompare(b.date))),
+      line_count: 0, counted: 0, unpaid: 0, total_amount: 0,
+    });
+  }
+  return [...groups.values()]
     .map((group): SheetBlock => {
+      // by student; the sub-lines of one student (one per lesson type) stay together in the order the server sent them
       const lines = [...(byGroup.get(group.group_id) ?? [])].sort((a, b) => a.line.student_name.localeCompare(b.line.student_name, "ru"));
+      const types = [...new Set(lines.map((view) => normalizeLessonType(view.line.lesson_type)))].sort((a, b) => lessonTypeOrder(a) - lessonTypeOrder(b));
       return {
         groupId: group.group_id,
         groupName: group.group_name,
         lessonType: normalizeLessonType(group.lesson_type),
+        lessonTypes: types.length > 0 ? types : [normalizeLessonType(group.lesson_type)],
         lessonTime: group.lesson_time,
         columns: group.dates.map((item) => ({ key: columnKey(item.date, item.lesson_id), date: item.date, lessonId: item.lesson_id })),
         lines,
