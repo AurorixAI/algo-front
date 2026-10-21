@@ -105,6 +105,8 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
             : "justify-start"
         }`}
       >
+        {/* a centred label gets a spacer as wide as the arrow, so it stays exactly over its centred cells */}
+        {align === "text-center" && <span aria-hidden="true" className="w-3.5" />}
         {label}
         <SortIcon col={col} />
       </div>
