@@ -163,7 +163,7 @@ function OwnerTeachersContent() {
           <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center">
             <div className="w-6 h-6 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
           </div>
-          <p className="text-sm font-medium text-slate-500 animate-pulse">Загрузка команды...</p>
+          <p className="text-sm font-medium text-slate-500 animate-pulse">Загрузка сотрудников...</p>
         </div>
       </div>
     );
@@ -173,7 +173,7 @@ function OwnerTeachersContent() {
     <div className="space-y-8 w-full max-w-[1400px] mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Команда</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Сотрудники</h1>
           <p className="text-slate-500 mt-1 font-medium">Управление доступом и сотрудниками организации</p>
         </div>
         <button
