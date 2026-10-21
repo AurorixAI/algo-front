@@ -419,7 +419,7 @@ function StatementRowItem({ view, menu }: { view: StatementRowView; menu: RowMen
         </p>
         {view.notes.length > 0 && <p className="break-words text-xs text-slate-500">{view.notes.join(" · ")}</p>}
         {view.allocations.length > 0 && (
-          <ul aria-label="Куда пошли деньги" className="mt-1 space-y-px border-l-2 border-slate-100 pl-2.5 text-xs text-slate-600">
+          <ul aria-label="Куда пошли деньги" className="mt-1 max-w-md space-y-px border-l-2 border-slate-100 pl-2.5 text-xs text-slate-600">
             {view.allocations.map((line, index) => (
               <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3">
                 <span className="min-w-0">{line.label}</span>
@@ -441,7 +441,7 @@ function StatementRowItem({ view, menu }: { view: StatementRowView; menu: RowMen
       </div>
 
       <div className="mt-1 flex justify-end md:mt-0 print:hidden">
-        {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${view.title}`} width={220} /> : <span className="h-8 w-8" aria-hidden />}
+        {menu.length > 0 ? <RowMenu items={menu} label={`Действия: ${view.title}`} width={220} /> : <span className="hidden h-8 w-8 md:block" aria-hidden />}
       </div>
     </li>
   );

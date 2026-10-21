@@ -56,19 +56,19 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
       )}
 
       <dl className="mt-5 space-y-3 text-sm">
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
           <dt className="text-slate-500">Ученик</dt>
           <dd className="break-words font-semibold">
             {receipt.student_name}
             {receipt.display_id && <span className="ml-1.5 font-mono text-xs font-medium text-slate-500">ID {receipt.display_id}</span>}
           </dd>
         </div>
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+        <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
           <dt className="text-slate-500">Группа</dt>
           <dd className="break-words font-medium">{receipt.group_name}</dd>
         </div>
         {facts.legacy ? (
-          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+          <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
             <dt className="text-slate-500">{receipt.lessons_count ? "Оплачено" : "Период"}</dt>
             <dd className="font-medium">
               {paymentPeriodLabel(receipt)}
@@ -82,13 +82,13 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
         ) : (
           <>
             {facts.method && (
-              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
                 <dt className="text-slate-500">Способ оплаты</dt>
                 <dd className="font-medium">{facts.method}</dd>
               </div>
             )}
             {facts.paidUntil && (
-              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+              <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
                 <dt className="text-slate-500">Покрытие</dt>
                 <dd className="font-medium">{facts.paidUntil.replace(/^Оплачено до: /, "оплачено до ")}</dd>
               </div>
@@ -96,7 +96,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
           </>
         )}
         {receipt.note && (
-          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+          <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
             <dt className="text-slate-500">Комментарий</dt>
             <dd className="break-words">{receipt.note}</dd>
           </div>

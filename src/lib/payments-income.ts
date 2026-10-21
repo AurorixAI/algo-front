@@ -288,6 +288,20 @@ export function distributionRows(totals: ReceiptsTotals): DistributionRow[] {
   ] as Array<[ReceiptsColumn, number]>).map(([column, amount]) => ({ column, label: COLUMN_LABEL[column], amount: sum(amount) }));
 }
 
+/**
+ * The part of the received money that went back out: refunds and transfers to another group (`refunded_from_received`).
+ * Together with the three rows of `distributionRows` it adds up to what was received; null when nothing went back.
+ */
+export function returnedRow(totals: ReceiptsTotals): { label: string; amount: number } | null {
+  const amount = sum(totals.refunded_from_received);
+  return amount > 0 ? { label: "Возвращено и переведено в другие группы", amount } : null;
+}
+
+/** The days (months) of the series that have money moving: the others are not worth a row of a table. */
+export function activeSeries(points: ReceiptsSeriesPoint[]): ReceiptsSeriesPoint[] {
+  return points.filter((point) => point.count > 0 || point.received !== 0 || point.refunded !== 0 || point.written_off !== 0 || point.to_past_debt !== 0 || point.to_current !== 0 || point.to_advance !== 0);
+}
+
 /** Received − returned equals what was distributed: the first check of the report, kept on screen. */
 export function distributionAddsUp(totals: ReceiptsTotals): boolean {
   return sum(totals.received) - sum(totals.refunded_from_received) === sum(totals.to_past_debt) + sum(totals.to_current) + sum(totals.to_advance);

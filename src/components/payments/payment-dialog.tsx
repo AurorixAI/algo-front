@@ -304,7 +304,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             ) : null}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
             <div>
               <label htmlFor="payment-paid-on" className={LABEL}>Дата оплаты</label>
               <input

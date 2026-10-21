@@ -19,7 +19,9 @@ import {
 import { balanceRowNote, METHODS, methodLabel } from "@/lib/payments-ledger";
 import {
   balancesDrill,
+  activeSeries,
   bucketLabel,
+  returnedRow,
   COLUMN_LABEL,
   distributionRows,
   drillQuery,
@@ -286,7 +288,8 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
  */
 export function IncomeReportView({ report, period, open }: { report: ReceiptsReport; period: IncomePeriod; open: (target: DrillTarget) => void }) {
   const check = reconciliationView(report.reconciliation);
-  const series = period.kind !== "day" ? fillSeries(report) : [];
+  const series = period.kind !== "day" ? activeSeries(fillSeries(report)) : [];
+  const returned = returnedRow(report.totals);
   const dayList = (extra: Partial<{ bucket: string; method: string; groupId: string; teacherId: string; of: string }>, column: ReceiptsColumn) => itemsDrill(column, extra);
   return (
     <div className="space-y-6">
@@ -322,7 +325,7 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
                 <span className="flex min-w-0 items-center gap-2 text-slate-700">
                   <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${DOT[row.column]}`} aria-hidden />
                   {row.label}
-                  <span className="text-xs text-slate-400">{sharePercent(row.amount, report.totals.net_received)}%</span>
+                  <span className="text-xs text-slate-400">{sharePercent(row.amount, report.totals.received)}%</span>
                 </span>
                 <Figure value={row.amount} label={`${row.label}: оплаты`} onOpen={() => open(dayList({}, row.column))} className="shrink-0 text-slate-900" />
               </li>
@@ -429,7 +432,7 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
       )}
 
       {/* Day by day / month by month */}
-      {series.length > 1 && (
+      {series.length > 0 && (
         <div className="space-y-2">
           <h2 className="text-sm font-semibold text-slate-800">{report.group_by === "month" ? "По месяцам" : "По дням"}</h2>
           <MoneyTable
@@ -454,13 +457,16 @@ const DOT: Record<string, string> = { to_past_debt: "bg-slate-700", to_current: 
 
 /** The three parts of the received money on one line; an empty part takes no room. */
 function DistributionBar({ totals }: { totals: ReceiptsReport["totals"] }) {
-  const rows = distributionRows(totals);
-  const whole = rows.reduce((acc, row) => acc + row.amount, 0);
+  const parts = [
+    ...distributionRows(totals).map((row) => ({ key: row.column as string, label: row.label, amount: row.amount, className: DOT[row.column] })),
+    ...(returnedRow(totals) ? [{ key: "returned", label: returnedRow(totals)!.label, amount: returnedRow(totals)!.amount, className: "bg-slate-300" }] : []),
+  ];
+  const whole = parts.reduce((acc, part) => acc + part.amount, 0);
   if (whole <= 0) return null;
   return (
-    <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={rows.map((row) => `${row.label}: ${sharePercent(row.amount, whole)}%`).join(", ")}>
-      {rows.filter((row) => row.amount > 0).map((row) => (
-        <span key={row.column} className={DOT[row.column]} style={{ width: `${(row.amount * 100) / whole}%` }} />
+    <div className="mt-2 flex h-2.5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={parts.map((part) => `${part.label}: ${sharePercent(part.amount, whole)}%`).join(", ")}>
+      {parts.filter((part) => part.amount > 0).map((part) => (
+        <span key={part.key} className={part.className} style={{ width: `${(part.amount * 100) / whole}%` }} />
       ))}
     </div>
   );

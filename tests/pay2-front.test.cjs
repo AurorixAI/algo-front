@@ -413,6 +413,12 @@ test("the receipts report: totals, where the money went, the days the server lea
   assert.equal(I.distributionAddsUp(totals), true);
   assert.deepEqual(I.distributionRows(totals).map((row) => [row.column, row.amount]), [["to_past_debt", 269000], ["to_current", 926000], ["to_advance", 21000]]);
   assert.equal(I.sharePercent(926000, totals.net_received), 76);
+  // money that went back out (refunds, transfers to another group) is the fourth part of the received money
+  assert.deepEqual(I.returnedRow(totals), { label: "Возвращено и переведено в другие группы", amount: 324000 });
+  assert.equal(I.returnedRow({ ...totals, refunded_from_received: 0 }), null);
+  assert.equal(I.distributionRows(totals).reduce((a, row) => a + row.amount, 0) + I.returnedRow(totals).amount, totals.received);
+  // only the days that have money get a row in the table
+  assert.deepEqual(I.activeSeries(I.fillSeries(report)).map((point) => point.bucket), report.series.map((point) => point.bucket));
   assert.equal(I.sharePercent(1, 0), 0);
   // by method adds up to the received money, by group and by teacher too
   assert.equal(report.by_method.reduce((a, item) => a + item.amount, 0), totals.received);
@@ -642,7 +648,7 @@ test("the income report draws the totals, the distribution, the position, the ta
   const body = text(React.createElement(IncomeReportView, { report, period, open: (target) => opened.push(target) }));
   for (const part of [
     "3 оплаты", "Поступило", "1 540 000 сум", "Возвращено", "324 000 сум", "Списано долгов", "30 000 сум", "Остаётся в центре", "1 216 000 сум",
-    "Куда ушли деньги", "На долги прошлых периодов", "269 000 сум", "На текущие периоды", "926 000 сум", "В аванс", "21 000 сум",
+    "Куда ушли деньги", "Возвращено и переведено в другие группы", "На долги прошлых периодов", "269 000 сум", "На текущие периоды", "926 000 сум", "В аванс", "21 000 сум",
     "Как платили", "Наличные", "Карта", "1 340 000 сум", "200 000 сум",
     "Долг учеников", "70 000 сум", "Аванс — оплачено вперёд",
     "По группам", "Математика 7А", "Иванова Мария", "Алгебра 9Б", "По преподавателям", "Петров Олег", "По дням", "Сходится",
