@@ -34,6 +34,7 @@ interface PaymentsSummaryState {
   /** The rows of each tab (memberships); null from an older server. */
   buckets: { debt: number; expiring: number; active: number; paused: number } | null;
   paused: number;
+  studentsPaused: number | null;
   studentsWithAdvance: number | null;
   priceMissing: number;
   /**
@@ -72,6 +73,7 @@ const EMPTY = {
   debtors: null as number | null,
   buckets: null as { debt: number; expiring: number; active: number; paused: number } | null,
   paused: 0,
+  studentsPaused: null as number | null,
   studentsWithAdvance: null as number | null,
   priceMissing: 0,
 };
@@ -112,6 +114,7 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
       ? { debt: count(summary.buckets.debt), expiring: count(summary.buckets.expiring), active: count(summary.buckets.active), paused: count(summary.buckets.paused) }
       : null,
     paused: count(summary?.paused),
+    studentsPaused: optionalCount(summary?.students_paused),
     studentsWithAdvance: optionalCount(summary?.students_with_advance),
     priceMissing: count(summary?.price_missing),
   };

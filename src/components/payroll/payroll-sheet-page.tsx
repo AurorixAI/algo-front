@@ -42,7 +42,7 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
 import { PayrollPageMenu } from "./month-status";
 import { SheetPayoutBlock } from "./payout-block";
 import { PayrollSheetTable } from "./sheet-table";
@@ -260,7 +260,8 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
       const error = cause as PayrollErrorLike;
-      if (isRevisionConflict(error)) setConflict(true);
+      if (isLineNotFound(error)) { setSaveError(LINE_NOT_FOUND_TEXT); void load(true); }
+      else if (isRevisionConflict(error)) setConflict(true);
       else if (isDataChanged(error)) setDataChanged({ message: payrollErrorText(error), fingerprint: freshFingerprintOf(error), acknowledged: false });
       else if (isFingerprintRequired(error)) setDataChanged({ message: FINGERPRINT_REQUIRED_TEXT, fingerprint: null, acknowledged: false, actionLabel: "Проверить данные" });
       else if (isRateRequired(error)) setRateMissing(payrollErrorText(error));

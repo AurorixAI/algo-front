@@ -48,7 +48,7 @@ import {
   type SheetEdits,
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, monthPayoutText, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutText, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
 import { RowMenu } from "@/components/ui/row-menu";
 import { PayoutDialog } from "./payout-dialog";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -260,7 +260,8 @@ function PayrollMonthContent() {
     } catch (cause) {
       if (monthRef.current !== requestedMonth) return;
       const error = cause as PayrollErrorLike;
-      if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
+      if (isLineNotFound(error)) { patchPreview(teacherId, { saving: false, error: LINE_NOT_FOUND_TEXT }); void load(true); }
+      else if (isRevisionConflict(error)) patchPreview(teacherId, { saving: false, conflict: true });
       else if (isDataChanged(error)) patchPreview(teacherId, { saving: false, dataChanged: payrollErrorText(error) });
       else if (isFingerprintRequired(error)) patchPreview(teacherId, { saving: false, dataChanged: FINGERPRINT_REQUIRED_TEXT });
       else if (isRateRequired(error)) patchPreview(teacherId, { saving: false, rateMissing: payrollErrorText(error) });

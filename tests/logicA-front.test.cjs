@@ -545,6 +545,9 @@ test("pause PATCH: REASON_REQUIRED opens the reason, PAUSE_RANGE is said inline;
 });
 
 test("B1: the group edit form says the type changes from today", () => {
+  assert.equal(Y.LINE_NOT_FOUND_TEXT, "Строка ведомости изменилась — обновите страницу");
+  assert.equal(Y.isLineNotFound({ code: "LINE_NOT_FOUND" }), true);
+  assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /isLineNotFound\(error\)\) \{ setSaveError\(LINE_NOT_FOUND_TEXT\); void load\(true\)/);
   assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, "Тип меняется с сегодняшнего дня; прошлые месяцы зарплаты не меняются");
   for (const role of ["owner", "admin"]) assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), /\{LESSON_TYPE_FROM_TODAY_TEXT\}/, role);
 });
@@ -553,6 +556,11 @@ test("payment tabs: the rows of each tab come from `buckets`, a tab «На па�
   const summary = named("A30_");
   assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Оплачено (4)"]);
   assert.equal(P.bucketCount(summary, "paused"), 1);
+  // owner: the badge counts STUDENTS, like the card, even when a student owes in two groups (4 rows, 3 students)
+  const twoGroups = { ...summary, debtors: 3, students_with_debt: 3, buckets: { ...summary.buckets, debt: 4, paused: 2 }, students_paused: 1 };
+  assert.equal(P.bucketCount(twoGroups, "debt"), 3);
+  assert.equal(P.positionCards(twoGroups)[0].sub.split(" ")[0], String(P.bucketCount(twoGroups, "debt"))); // card == tab badge
+  assert.equal(P.bucketCount(twoGroups, "paused"), 1);
   assert.deepEqual(P.visibleBuckets(summary, "debt").map((b) => b.label), ["Должники", "Скоро платить", "Оплачено", "На паузе"]);
   assert.deepEqual(P.visibleBuckets({ buckets: { paused: 0 } }, "debt").length, 3);
   assert.equal(P.parseBucket("paused"), "paused");

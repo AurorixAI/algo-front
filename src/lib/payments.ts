@@ -98,6 +98,8 @@ export interface PaymentsSummary {
   debtors?: number;
   /** The rows of each tab (memberships): `buckets.debt` is the length of the «Должники» list. */
   buckets?: { debt: number; expiring: number; active: number; paused: number };
+  /** Distinct students on a pause (the badge of «На паузе»); older answers only have `buckets.paused`. */
+  students_paused?: number;
   students_with_advance?: number;
   price_missing?: number;
 }
@@ -931,15 +933,20 @@ export function debtorsCount(summary: { debtors?: number | null; students_with_d
 export function bucketCount(
   summary: {
     buckets?: { debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
-    debtors?: number | null; students_with_debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
+    debtors?: number | null; students_with_debt?: number | null; students_paused?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
   } | null,
   key: PaymentBucket,
 ): number | null {
-  // the server's `buckets` count the rows of each tab; an answer without them falls back to the older counters
+  // Owner 21.10: the badge counts STUDENTS (a student with a debt in two groups is one), the same number as the card «Долг учеников»;
+  // the list under the tab still has a row per group membership.
+  if (key === "debt") {
+    const students = debtorsCount(summary);
+    if (students !== null) return students;
+  }
+  if (key === "paused" && typeof summary?.students_paused === "number") return summary.students_paused;
   const own = summary?.buckets?.[key];
   if (typeof own === "number" && Number.isFinite(own)) return own;
-  if (key === "debt") return debtorsCount(summary);
-  const value = summary?.[key];
+  const value = key === "debt" ? null : summary?.[key as "expiring" | "active" | "paused"];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 

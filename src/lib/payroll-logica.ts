@@ -435,6 +435,13 @@ export function divisorMonthTitle(month: string): string {
 
 export const FINGERPRINT_REQUIRED_TEXT = "Откройте расчёт заново: сохранение без проверки данных невозможно";
 
+/** 422 `LINE_NOT_FOUND`: a ticked line is not on the sheet any more (the data moved): the page reads the sheet again. */
+export const LINE_NOT_FOUND_TEXT = "Строка ведомости изменилась — обновите страницу";
+
+export function isLineNotFound(error: PayrollErrorLike | null | undefined): boolean {
+  return error?.code === "LINE_NOT_FOUND";
+}
+
 export function isFingerprintRequired(error: PayrollErrorLike | null | undefined): boolean {
   return error?.code === "FINGERPRINT_REQUIRED";
 }

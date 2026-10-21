@@ -253,6 +253,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const debtors = usePaymentsSummary((state) => state.debtors);
   const buckets = usePaymentsSummary((state) => state.buckets);
   const pausedCount = usePaymentsSummary((state) => state.paused);
+  const studentsPaused = usePaymentsSummary((state) => state.studentsPaused);
   const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
   const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
   const priceMissing = usePaymentsSummary((state) => state.priceMissing);
@@ -400,7 +401,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount } : null;
+  const summaryForTabs = summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
   const cards = positionCards({ debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 
