@@ -75,7 +75,7 @@ const PAGE_SIZE = 50;
  * The header and every row use the same template, the same horizontal padding and the same gap, so a
  * header and its cells share one left edge; cells are top-aligned, so first lines share one axis.
  */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_216px_224px]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_208px_240px]";
 const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.1fr)_104px_minmax(0,1.5fr)_minmax(0,1.2fr)_40px]";
 
 /** Ученик and Причина (free text) left, Урок and Срок / Решение centred, the actions right (see table-chrome). */

@@ -290,7 +290,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   const excuses = read("src/components/attendance/excuses-page.tsx");
   assert.match(excuses, /<TableHeader\s+show="xl"\s+gridClass=\{cols\}/);
   assert.match(excuses, /xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 \$\{cols\}/);
-  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.1fr\)_104px_minmax\(0,1\.5fr\)_216px_224px\]"/);
+  assert.match(excuses, /COLS_PENDING = "xl:grid-cols-\[minmax\(0,1\.1fr\)_104px_minmax\(0,1\.5fr\)_208px_240px\]"/);
   const open = read("src/components/attendance/open-lessons-view.tsx");
   assert.match(open, /<TableHeader show="lg" gridClass=\{COLS\} labels=\{\["Урок", "Группа", "Статус", ""\]\} aligns=\{\["center", "center", "center", "right"\]\}/);
   assert.match(open, /lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 \$\{COLS\}/);
