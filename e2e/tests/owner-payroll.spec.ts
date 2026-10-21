@@ -171,7 +171,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await page.reload();
   await page.getByRole("tab", { name: "Ведомость" }).click();
   await expect(card).toContainText("После сохранения изменились данные");
-  await expect(card).toContainText(/\+[\s\d]+ сум/); // the difference of the total
+  await expect(card).toContainText(/\+[\s\d]+\s*сум/); // the difference of the total
   await card.getByText("Что изменилось").click();
   await expect(card).toContainText(/ставка/i);
   await card.getByRole("button", { name: "Пересчитать" }).click();
