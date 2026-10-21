@@ -17,6 +17,7 @@ import {
   RECEIPT_VOID_STAMP,
   type ReceiptOut,
 } from "@/lib/payments";
+import { receiptFacts } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -30,6 +31,8 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   const replacedNote = receiptReplacedNote(receipt);
   const replacesNote = receiptReplacesNote(receipt);
   const place = [receipt.org_city, receipt.org_phone].filter(Boolean).join(" · ");
+  // From the snapshot taken at the moment of payment: what the money covered then (a later correction does not rewrite it).
+  const facts = receiptFacts(receipt);
 
   return (
     <article
@@ -64,17 +67,34 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
           <dt className="text-slate-500">Группа</dt>
           <dd className="break-words font-medium">{receipt.group_name}</dd>
         </div>
-        <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
-          <dt className="text-slate-500">{receipt.lessons_count ? "Оплачено" : "Период"}</dt>
-          <dd className="font-medium">
-            {paymentPeriodLabel(receipt)}
-            {receipt.partial_period && (
-              <span className="ml-2 inline-flex rounded-md border border-amber-300 bg-amber-50 px-1.5 py-px align-middle text-[11px] font-semibold text-amber-800 print:border-slate-400 print:bg-transparent print:text-slate-700">
-                {PARTIAL_PERIOD_TAG}
-              </span>
+        {facts.legacy ? (
+          <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+            <dt className="text-slate-500">{receipt.lessons_count ? "Оплачено" : "Период"}</dt>
+            <dd className="font-medium">
+              {paymentPeriodLabel(receipt)}
+              {receipt.partial_period && (
+                <span className="ml-2 inline-flex rounded-md border border-amber-300 bg-amber-50 px-1.5 py-px align-middle text-[11px] font-semibold text-amber-800 print:border-slate-400 print:bg-transparent print:text-slate-700">
+                  {PARTIAL_PERIOD_TAG}
+                </span>
+              )}
+            </dd>
+          </div>
+        ) : (
+          <>
+            {facts.method && (
+              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+                <dt className="text-slate-500">Способ оплаты</dt>
+                <dd className="font-medium">{facts.method}</dd>
+              </div>
             )}
-          </dd>
-        </div>
+            {facts.paidUntil && (
+              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
+                <dt className="text-slate-500">Покрытие</dt>
+                <dd className="font-medium">{facts.paidUntil.replace(/^Оплачено до: /, "оплачено до ")}</dd>
+              </div>
+            )}
+          </>
+        )}
         {receipt.note && (
           <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-x-3">
             <dt className="text-slate-500">Комментарий</dt>
@@ -88,6 +108,27 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
         <p className="text-2xl font-bold tabular-nums">{formatMoney(receipt.amount)}</p>
         {receipt.amount_words && <p className="mt-0.5 text-sm text-slate-700">{receipt.amount_words}</p>}
       </div>
+
+      {!facts.legacy && (facts.lines.length > 0 || facts.after) && (
+        <section aria-label="Куда пошли деньги" className="mt-4 text-sm">
+          <h2 className="text-xs text-slate-500">Куда пошли деньги</h2>
+          {facts.lines.length > 0 && (
+            <ul className="mt-1 divide-y divide-slate-100 print:divide-slate-300">
+              {facts.lines.map((line, index) => (
+                <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3 py-1">
+                  <span className="min-w-0">{line.label}</span>
+                  <span className="shrink-0 tabular-nums">{formatMoney(line.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 space-y-0.5 text-xs text-slate-600">
+            {facts.debtBefore && <p>{facts.debtBefore}</p>}
+            {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}
+            {facts.price && <p>{facts.price}</p>}
+          </div>
+        </section>
+      )}
 
       <div className="mt-8 grid grid-cols-1 gap-x-8 gap-y-6 text-sm sm:grid-cols-2">
         <div>
