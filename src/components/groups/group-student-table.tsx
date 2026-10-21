@@ -139,7 +139,7 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
         <thead>
           <tr className="bg-slate-50/80 border-b border-slate-100">
             <Th col="name" label="Ученик" className="pl-6" />
-            <Th col="display_id" label="ID Ученика" align="text-center" />
+            <Th col="display_id" label="ID ученика" align="text-center" />
             <Th col="class_level" label="Класс" align="text-center" />
             <Th col="phone" label="Телефон" align="text-center" />
             <Th col="joined_at" label="Дата зачисления" align="text-center" className={removable ? "" : "pr-6"} />
