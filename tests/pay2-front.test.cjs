@@ -80,6 +80,20 @@ test("E1: the top block of the dialog is «Долг … · Текущий пер
   assert.equal(L.previewView(preview), null);
 });
 
+test("segments carry the server's bucket: past debts and the running period are told apart by it", () => {
+  const preview = L.normalizePreview(fixture("e1_preview_due"));
+  assert.deepEqual(preview.due.segments.map((segment) => segment.bucket), ["past_debt", "current"]);
+  const split = L.splitDueSegments(preview);
+  assert.equal(split.past.length, 1);
+  assert.equal(split.running.id, "seg:0:2026-10-15");
+  // a package of lessons that has held its lessons is a debt, never the running period
+  const lessons = L.splitDueSegments(L.normalizePreview(fixture("e5_preview_630000_held12")));
+  assert.equal(lessons.running, null);
+  // an answer without bucket falls back to the dates
+  const bare = { ...preview, due: { ...preview.due, segments: preview.due.segments.map(({ bucket, ...rest }) => rest) } };
+  assert.equal(L.splitDueSegments(bare).running.id, "seg:0:2026-10-15");
+});
+
 test("E1: previews of 250 000 / 300 000 / 769 000 / 790 000 show exactly where the money goes", () => {
   const view = (name) => L.previewView(L.normalizePreview(fixture(name)));
 

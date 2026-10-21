@@ -318,6 +318,8 @@ export interface Segment {
   covered_through: string | null;
   partial_credit: number;
   state: SegmentState;
+  /** Relative to `as_of`: the period has ended / is running / has not begun (a lessons package is `past_debt` once all its lessons are held). */
+  bucket?: "past_debt" | "current" | "future";
 }
 
 /** What is due now, for the top block of the payment dialog. */

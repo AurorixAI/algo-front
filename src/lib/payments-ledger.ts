@@ -274,12 +274,14 @@ function segmentName(segment: Segment): string {
 }
 
 /**
- * Splits the segments of `due` into the periods of the debt and the running one.  The server gives `past_debt` and
- * `current_due` as sums; the running period is the begun one that holds `as_of` (a package of lessons has none:
- * a package that has held lessons is always a debt, `current_due` is 0 there).
+ * Splits the segments of `due` into the periods of the debt and the running one by the server's `bucket`.  An older
+ * answer without it falls back to the dates: the running period is the begun one that holds `as_of`.
  */
 export function splitDueSegments(preview: Pick<PaymentPreview, "as_of" | "due">): { past: Segment[]; running: Segment | null } {
   const open = list<Segment>(preview.due?.segments).filter((segment) => sum(segment.unpaid) > 0);
+  if (open.some((segment) => segment.bucket)) {
+    return { past: open.filter((segment) => segment.bucket === "past_debt"), running: open.find((segment) => segment.bucket === "current") ?? null };
+  }
   if (sum(preview.due?.current_due) <= 0) return { past: open, running: null };
   const running = [...open].reverse().find((segment) => segment.period_from <= preview.as_of && preview.as_of <= segment.period_to) ?? null;
   return { past: open.filter((segment) => segment !== running), running };
