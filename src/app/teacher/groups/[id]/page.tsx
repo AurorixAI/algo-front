@@ -55,7 +55,7 @@ interface ScheduleLesson {
   dayOfWeek: number;
   startTime: string;
   endTime: string;
-  room: string;
+  room: string | null;
   format: "offline" | "online";
 }
 
@@ -181,7 +181,7 @@ export default function TeacherGroupDetailPage() {
         days: number[];
         startTime: string;
         endTime: string;
-        room: string;
+        room: string | null;
         format: "offline" | "online";
       }
     >();

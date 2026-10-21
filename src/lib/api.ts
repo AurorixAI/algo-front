@@ -64,6 +64,29 @@ import {
   type PayrollSheetBrief,
 } from "./payroll";
 
+import type {
+  ArchiveGroupBody,
+  ArchiveGroupResult,
+  ArchiveImpact,
+  HandoverBody,
+  HandoverResult,
+  ImportCountsB,
+  ImportIssueB,
+  ImportSkipped,
+  InvitationRow,
+  InviteInfo,
+  LessonTeacherCandidates,
+  LessonTeacherInfo,
+  LessonTeacherPut,
+  LessonTeacherResult,
+  MemberListStatus,
+  OpsWarning,
+  OrgMemberRow,
+  RemoveMemberResult,
+  RemovalImpact,
+  SaveAttendanceResult,
+} from "./ops-b-types";
+
 /**
  * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
  * `GET /org/memberships/{id}/price-override` (PriceOverrideChange); the shapes are declared next to their renderers.
@@ -608,6 +631,8 @@ export interface GroupInfo {
     subject?: string;
     color?: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
     topic?: string;
+    /** LOGIC-B (O1): the date the slot starts acting. */
+    validFrom?: string | null;
   }> | null;
   status: string;
   max_students: number;
@@ -621,6 +646,11 @@ export interface GroupInfo {
    */
   price_current?: GroupPriceBrief | null;
   created_at: string | null;
+  /** LOGIC-B (O4): when the group went to the archive (naive UTC) and why; absent on an older server / for a live group. */
+  archivedAt?: string | null;
+  archiveReason?: string | null;
+  /** LOGIC-B (O5): in the teacher's «Мои группы» only because of a substitution. */
+  substitution?: boolean;
 }
 
 export type Group = GroupInfo;
@@ -634,13 +664,18 @@ export interface LessonEvent {
   dayOfWeek: number; // 1 (Mon) .. 7 (Sun)
   startTime: string; // "14:00"
   endTime: string; // "15:30"
-  room: string;
+  /** LOGIC-B (O11): `null` when no room was given - the screens say «Кабинет не указан» (see `roomLabel`). */
+  room: string | null;
   format: "offline" | "online";
   color: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
   topic?: string;
+  /** LOGIC-B (O1): the date a recurring slot starts acting («Действует с»); absent on an older server. */
+  validFrom?: string | null;
+  /** LOGIC-B (O11): non-blocking notes of a write (`ROOM_BUSY`). */
+  warnings?: OpsWarning[];
 }
 
-export interface ScheduleOccurrence extends LessonEvent {
+export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherInfo> {
   occurrenceDate: string;
   isRescheduled: boolean;
   /** A concrete lesson added for one calendar date, not a recurring slot. */
@@ -868,6 +903,10 @@ export interface GroupAttendance {
   excuses?: Record<string, Record<string, AttendanceExcuseInfo>>;
   /** lessonKey -> last correction. */
   corrections?: Record<string, AttendanceCorrectionInfo>;
+  /** LOGIC-B (O7): lessonKey -> version of the lesson record; send it back as `expectedVersion`. */
+  versions?: Record<string, number>;
+  /** LOGIC-B (O5): lessonKey -> who teaches this lesson (a substitute or the group's teacher). */
+  lessonTeachers?: Record<string, LessonTeacherInfo>;
   month?: string | null;
   lessons: Lesson[];
   records: Record<string, Record<string, AttendanceStatus>>; // instance_key -> student_id -> status
@@ -923,6 +962,12 @@ export interface OpenAttendanceAction {
   /** Lesson snapshot teacher, else the group's teacher (administrators' list). */
   teacherId?: string | null;
   teacherName?: string | null;
+  /** LOGIC-B (O7): version of an `in_progress` record (the next save's `expectedVersion`). */
+  version?: number | null;
+  /** LOGIC-B (decision 7): the lesson is older than 7 days and only an administrator or the owner closes it. */
+  requiresAdmin?: boolean;
+  ageDays?: number;
+  isSubstitution?: boolean;
 }
 
 export interface AttendancePeriod {
@@ -1134,7 +1179,7 @@ export const authApi = {
     }),
 
   getInviteInfo: (code: string) =>
-    api<{ org_name: string; org_role: string; email: string | null }>(
+    api<InviteInfo>(
       `/auth/invite/${encodeURIComponent(code)}`,
       { noAuth: true }
     ),
@@ -1205,20 +1250,23 @@ export const orgApi = {
     api<OrgInfo>("/auth/org", { method: "PUT", body: data }),
 
   // Invitations
-  createInvitation: (data: { email?: string; org_role: string }) =>
-    api<{ code: string; org_role: string; expires_at: string }>("/auth/org/invitations", {
+  /** LOGIC-B (O10): the e-mail is required (422 EMAIL_REQUIRED); only the owner invites an administrator. */
+  createInvitation: (data: { email: string; org_role: string }) =>
+    api<InvitationRow>("/auth/org/invitations", {
       method: "POST", body: data
     }),
-  listInvitations: () => api<any[]>("/auth/org/invitations"),
+  listInvitations: () => api<InvitationRow[]>("/auth/org/invitations"),
   revokeInvitation: (id: string) =>
     api<{ message: string }>(`/auth/org/invitations/${id}`, { method: "DELETE" }),
 
   // Members
-  listMembers: () => api<any[]>("/auth/org/members"),
+  /** `status`: `active` (the default), `removed` (the former staff) or `all` (LOGIC-B O2). */
+  listMembers: (status?: MemberListStatus) =>
+    api<any[]>(`/auth/org/members${status ? `?status=${status}` : ""}`),
   updateMemberRole: (memberId: string, role: string) =>
     api<any>(`/auth/org/members/${memberId}/role?role=${role}`, { method: "PUT" }),
   removeMember: (memberId: string) =>
-    api<{ message: string }>(`/auth/org/members/${memberId}`, { method: "DELETE" }),
+    api<RemoveMemberResult>(`/auth/org/members/${memberId}`, { method: "DELETE" }),
 
   // Students
   createStudent: (data: { first_name: string; last_name: string; class_level: number; student_phone: string; comment?: string }) =>
@@ -1319,13 +1367,16 @@ export const orgApi = {
   },
   getGroup: (id: string) => api<GroupDetail>(`/auth/org/groups/${id}`),
   getGroupStats: (id: string) => api<GroupStats>(`/auth/org/groups/${id}/stats`),
-  updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; status: string; lesson_type: LessonType }>) =>
+  updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; lesson_type: LessonType }>) =>
     api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
-  archiveGroup: (id: string) =>
-    // No dedicated /archive route — the PUT endpoint already accepts status.
-    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "archived" } }),
-  unarchiveGroup: (id: string) =>
-    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: { status: "active" } }),
+  /** LOGIC-B (O4): archiving is an operation of its own (`POST …/archive` after `GET …/archive-impact`); `PUT status` answers 422. */
+  archiveGroup: (id: string, body: ArchiveGroupBody = {}) =>
+    api<ArchiveGroupResult & GroupInfo>(`/auth/org/groups/${id}/archive`, { method: "POST", body }),
+  unarchiveGroup: (id: string, teacherId?: string | null) =>
+    api<GroupInfo>(`/auth/org/groups/${id}/restore`, {
+      method: "POST",
+      body: teacherId === undefined ? {} : { teacherId },
+    }),
   /**
    * `mode: "transfer"` (default) closes the other memberships and makes this group the main one;
    * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
@@ -1382,7 +1433,7 @@ export const orgApi = {
     lessonDate: string;
     startTime: string;
     endTime: string;
-    room?: string;
+    room?: string | null;
     format?: "offline" | "online";
     color?: LessonEvent["color"];
     topic?: string;
@@ -1453,27 +1504,31 @@ export const orgApi = {
       cancellationReason?: string;
       /** student_id -> reason (3..300) for every newly "excused" student. */
       excuseReasons?: Record<string, string>;
+      /** LOGIC-B (O7): the version this screen saw; another one on the server answers 409 ATTENDANCE_CONFLICT. */
+      expectedVersion?: number;
+      /** LOGIC-B (O8): the person confirmed that an exam is still running (409 LESSON_HAS_LIVE_EXAM asked for it). */
+      acknowledgeLiveExam?: boolean;
     }
   ) =>
-    api<{ ok: boolean; saved: boolean }>(`/auth/org/groups/${groupId}/attendance`, { method: "POST", body: data }),
+    api<SaveAttendanceResult & { ok: boolean; saved: boolean }>(`/auth/org/groups/${groupId}/attendance`, { method: "POST", body: data }),
 
   startGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; topic?: string },
   ) =>
-    api<{ ok: boolean; started: boolean }>(`/auth/org/groups/${groupId}/attendance/start`, { method: "POST", body: data }),
+    api<{ ok: boolean; started: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/start`, { method: "POST", body: data }),
 
   reconcileMissedGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; topic?: string },
   ) =>
-    api<{ ok: boolean; reconciled: boolean }>(`/auth/org/groups/${groupId}/attendance/reconcile`, { method: "POST", body: data }),
+    api<{ ok: boolean; reconciled: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/reconcile`, { method: "POST", body: data }),
 
   cancelMissedGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; cancellationReason: string },
   ) =>
-    api<{ ok: boolean; cancelled: boolean }>(`/auth/org/groups/${groupId}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+    api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/reconcile/cancel`, { method: "POST", body: data }),
 
   // ── Excused absences (admin / owner) ──────────────────────────────────
   listAttendanceExcuses: (q: AttendanceExcuseQuery = {}) => {
@@ -1711,6 +1766,8 @@ export interface ImportIssue {
   field?: string | null;
   level: "error" | "warning";
   message: string;
+  /** LOGIC-B (O9): a code of a blocking issue (`TEACHER_NOT_FOUND`, `TEACHER_NOT_TEACHER`, `TEACHER_INACTIVE`, …). */
+  code?: ImportIssueB["code"];
 }
 
 export interface ImportCounts {
@@ -1720,12 +1777,18 @@ export interface ImportCounts {
   groups_existing: number;
   students_new: number;
   students_existing: number;
+  /** LOGIC-B (O9): what the import did with the students of the file. */
+  students_enrolled?: ImportCountsB["students_enrolled"];
+  students_unchanged?: ImportCountsB["students_unchanged"];
+  students_skipped?: ImportCountsB["students_skipped"];
 }
 
 export interface ImportPreviewResult {
   ok: boolean;
   counts: ImportCounts;
   issues: ImportIssue[];
+  /** LOGIC-B (O9): rows that are not imported and why. */
+  skipped?: ImportSkipped[];
   teachers_preview: Array<{ name: string; email: string; role: string; action: string }>;
   groups_preview: Array<{ name: string; class_level: number | null; teacher_email: string; action: string }>;
   students_preview: Array<{ name: string; class_level: number; phone: string | null; group: string; action: string }>;
@@ -1743,6 +1806,9 @@ export interface ImportCommitResult {
   counts: ImportCounts;
   issues: ImportIssue[];
   credentials: TeacherCredential[];
+  skipped?: ImportSkipped[];
+  /** LOGIC-B (O9): the groups this import created (there is no roll-back: the list is the way back). */
+  created_groups?: Array<{ id: string; name: string }>;
 }
 
 /** Server error text for a non-OK Response: string detail, {message}, or validation list. */
@@ -2737,6 +2803,34 @@ export const textbookApi = {
     const qs = classLevel ? `?class_level=${classLevel}` : "";
     return examApi<SkillTreeNode[]>(`/textbooks/skills/tree${qs}`, "staff");
   },
+};
+
+// ── LOGIC-B («операции»): endpoints added by the pack, kept in one section ────────────────────────────────────────────
+// Prefix `/auth` as everywhere in this file (the contract says `/api/v1/auth`).  Refusals arrive as `ApiError` with `code`
+// and `detail` (`{code, message, ...fields}`); see `lib/ops-errors.ts`.
+
+export const opsApi = {
+  // O5 / F6 — the teacher of one lesson
+  lessonTeacherCandidates: (groupId: string, lessonId: string, lessonDate: string) => {
+    const query = new URLSearchParams({ lessonId, lessonDate });
+    return api<LessonTeacherCandidates>(`/auth/org/groups/${encodePathId(groupId)}/lesson-teacher-candidates?${query.toString()}`);
+  },
+  setLessonTeacher: (groupId: string, body: LessonTeacherPut) =>
+    api<LessonTeacherResult>(`/auth/org/groups/${encodePathId(groupId)}/lesson-teacher`, { method: "PUT", body }),
+
+  // O4 / F2 — archive of a group
+  archiveImpact: (groupId: string) =>
+    api<ArchiveImpact>(`/auth/org/groups/${encodePathId(groupId)}/archive-impact`),
+
+  // O2 — removal of a member, handover of his groups, return to the team
+  removalImpact: (memberId: string) =>
+    api<RemovalImpact>(`/auth/org/members/${encodePathId(memberId)}/removal-impact`),
+  handover: (memberId: string, body: HandoverBody) =>
+    api<HandoverResult>(`/auth/org/members/${encodePathId(memberId)}/handover`, { method: "POST", body }),
+  restoreMember: (memberId: string) =>
+    api<{ member_id: string; is_active: boolean }>(`/auth/org/members/${encodePathId(memberId)}/restore`, { method: "POST" }),
+  listMembersByStatus: (status: MemberListStatus) =>
+    api<OrgMemberRow[]>(`/auth/org/members?status=${status}`),
 };
 
 export { api, ApiError };

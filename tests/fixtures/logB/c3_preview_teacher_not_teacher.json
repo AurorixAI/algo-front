@@ -1,0 +1,28 @@
+{
+  "counts": {
+    "groups_existing": 2,
+    "groups_new": 0,
+    "students_enrolled": 0,
+    "students_existing": 0,
+    "students_new": 0,
+    "students_skipped": 0,
+    "students_unchanged": 0,
+    "teachers_existing": 0,
+    "teachers_new": 0
+  },
+  "groups_preview": [],
+  "issues": [
+    {
+      "code": "TEACHER_NOT_TEACHER",
+      "field": "Email учителя",
+      "level": "error",
+      "message": "karimova@algo.test — не преподаватель (роль: администратор)",
+      "row": 4,
+      "sheet": "Группы"
+    }
+  ],
+  "ok": false,
+  "skipped": [],
+  "students_preview": [],
+  "teachers_preview": []
+}
