@@ -36,7 +36,7 @@ import {
   type PeriodMode,
 } from "@/lib/payments";
 import { allocationLines, canRefund, canWriteOff, methodLabel, savedPaymentDetails } from "@/lib/payments-ledger";
-import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
+import { canPayLeftDebt, INDIVIDUAL_PRICE_ENDS_TEXT, openingSummary } from "@/lib/payments-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -279,6 +279,9 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
           )}
         </div>
       )}
+
+      {/* F13: an individual price ends with the stay in the group */}
+      {row.price_ends_on_leave && row.is_active && <p className="text-xs text-slate-500">{INDIVIDUAL_PRICE_ENDS_TEXT}</p>}
 
       {/* What the student had before ALGO */}
       {row.opening && openingSummary(row.opening) && (

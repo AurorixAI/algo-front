@@ -26,7 +26,9 @@ import {
 } from "@/lib/group-price";
 import { formatMoneyInput } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { logicaError, type LogicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
+import { PriceBlockedBanner, PriceImpactMoneyBlock } from "@/components/payments/price-impact";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
 
 /** Wait this long after the last keystroke before asking the server what the change would touch. */
@@ -64,6 +66,8 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
   const [impact, setImpact] = useState<{ key: string; data: PriceImpact } | null>(null);
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
+  /** 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the day reaches a period somebody has paid for; the key of the answer says which sum and day. */
+  const [blocked, setBlocked] = useState<{ key: string; error: LogicaError } | null>(null);
   /** Bumped to ask again (retry, or after a conflict made the old answer stale). */
   const [nonce, setNonce] = useState(0);
   const sequence = useRef(createRequestSequence());
@@ -76,6 +80,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
     setSaving(false);
     setError(null);
     setImpact(null);
+    setBlocked(null);
     setCheckError(null);
     // The dialog restarts when it is opened again (or for another group), not when the block refreshes behind it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -102,12 +107,16 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         .then((result) => {
           if (!sequence.current.isCurrent(token)) return;
           setImpact({ key: askedKey, data: result.impact });
+          setBlocked(null);
           setChecking(false);
         })
         .catch((cause) => {
           if (!sequence.current.isCurrent(token)) return;
           setImpact(null);
           setChecking(false);
+          const refusal = logicaError(cause);
+          if (refusal.code === "PRICE_BACKDATE_WITH_PAYMENTS") { setBlocked({ key: askedKey, error: refusal }); return; }
+          setBlocked(null);
           setCheckError(cause instanceof Error ? cause.message : "Не удалось проверить последствия");
         });
     }, IMPACT_DEBOUNCE_MS);
@@ -119,7 +128,8 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, groupId, key, nonce]);
 
-  const ready = Boolean(check.request) && impact !== null && impact.key === key && !checking;
+  const blockedNow = blocked && blocked.key === key ? blocked.error : null;
+  const ready = Boolean(check.request) && impact !== null && impact.key === key && !checking && !blockedNow;
   // The same sum and note on a day that already has them is no change: nothing to save
   const noop = isNoopPriceChange(history, check.request);
   const canSave = ready && !noop;
@@ -145,6 +155,8 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         setImpact(null);
         setNonce((value) => value + 1);
         setError(PRICE_CONFLICT_TEXT);
+      } else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") {
+        setBlocked({ key, error: logicaError(cause) });
       } else {
         setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
       }
@@ -234,7 +246,9 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         {check.request && (
           <div aria-live="polite" className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700">
             <p className="font-semibold text-slate-800">Что изменится</p>
-            {checking || (!shownImpact && !checkError) ? (
+            {blockedNow ? (
+              <PriceBlockedBanner error={blockedNow} />
+            ) : checking || (!shownImpact && !checkError) ? (
               <p className="inline-flex items-center gap-1.5 text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем последствия…</p>
             ) : checkError ? (
               <p role="alert" className="text-rose-700">
@@ -244,6 +258,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
             ) : shownImpact ? (
               <>
                 <p>{impactStudentsText(shownImpact)}.</p>
+                <PriceImpactMoneyBlock money={shownImpact.money} />
                 {stale && (
                   <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-amber-900">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />

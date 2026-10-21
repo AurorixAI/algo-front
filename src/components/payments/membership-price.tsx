@@ -1,5 +1,7 @@
 "use client";
 
+import { logicaError, type LogicaError } from "@/lib/payments-logica";
+import { PriceBlockedBanner } from "./price-impact";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -230,11 +232,14 @@ function AssignOverrideDialog({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the day reaches a period that has money behind it. */
+  const [blocked, setBlocked] = useState<LogicaError | null>(null);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
 
   useEffect(() => {
     if (!open) return;
+    setBlocked(null);
     setAmount("");
     setValidFrom(today);
     setReason("");
@@ -252,12 +257,14 @@ function AssignOverrideDialog({
     if (check.error || !check.request) { setError(check.error); return; }
     setBusy(true);
     setError(null);
+    setBlocked(null);
     try {
       const result = await orgApi.setMembershipPrice(row.membership_id, check.request);
       onSaved(result.row, check.request.valid_from && check.request.valid_from > today ? sinceText(check.request.valid_from) : "");
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
       else setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
     } finally {
       setBusy(false);
@@ -307,6 +314,7 @@ function AssignOverrideDialog({
         </div>
         <ReasonField id="membership-price-reason" value={reason} onChange={(text) => { setError(null); setReason(text); }} />
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
+        {blocked && <PriceBlockedBanner error={blocked} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>
@@ -331,6 +339,7 @@ function ReturnPriceDialog({
   const [validFrom, setValidFrom] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<LogicaError | null>(null);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
   const earliest = notBefore && notBefore > range.min ? notBefore : range.min;
@@ -340,6 +349,7 @@ function ReturnPriceDialog({
     setValidFrom(today);
     setBusy(false);
     setError(null);
+    setBlocked(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, row.membership_id]);
 
@@ -357,6 +367,7 @@ function ReturnPriceDialog({
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
       else setError(cause instanceof Error ? cause.message : "Не удалось вернуть цену группы");
     } finally {
       setBusy(false);
@@ -404,6 +415,7 @@ function ReturnPriceDialog({
           />
         </div>
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
+        {blocked && <PriceBlockedBanner error={blocked} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

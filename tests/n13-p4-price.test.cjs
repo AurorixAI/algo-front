@@ -207,7 +207,7 @@ test("a past day warns that calculations change and payments never do; a future 
   const warning = G.pastDateWarning("2026-09-01", "2026-10-17");
   assert.match(warning, /Дата в прошлом/);
   assert.match(warning, /с 01\.09\.2026/);
-  assert.match(warning, /Уже внесённые оплаты не меняются никогда\./);
+  assert.match(warning, /Внесённые оплаты не меняются, но долг и аванс пересчитываются — ниже, у кого\./);
   assert.equal(G.pastDateWarning("2026-10-17", "2026-10-17"), null);
   assert.equal(G.pastDateWarning("2026-11-01", "2026-10-17"), null);
   assert.equal(G.pastDateWarning("", "2026-10-17"), null);

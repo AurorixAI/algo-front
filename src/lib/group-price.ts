@@ -20,6 +20,7 @@ import {
   type PeriodMode,
 } from "./payments";
 import { formatUtcNaiveAsBusinessDateTime, monthYearLabelRu } from "./business-time";
+import type { PriceImpactMoney } from "./payments-logica";
 
 // ── Shapes of the API ───────────────────────────────────────────────────────
 
@@ -131,6 +132,8 @@ export interface PriceImpact {
   stale_payroll_sheets: number;
   /** The sheets themselves: the owner only (an administrator gets the count). */
   stale_sheets: PriceImpactSheet[];
+  /** LOGIC-A decision 4: who gets a debt / buys fewer days with the new price (null from an older server and for a role without money). */
+  money?: PriceImpactMoney | null;
 }
 
 /** `PUT /org/groups/{id}/price`; with `?dry_run=1` only `impact` is filled (`current` and `history` are null). */
@@ -594,7 +597,8 @@ export function staleSheetsText(impact: Pick<PriceImpact, "stale_payroll_sheets"
   return { text, items };
 }
 
-export const PAID_NEVER_CHANGE_TEXT = "Уже внесённые оплаты не меняются никогда.";
+/** LOGIC-A decision 4: the payments stay, the debt and the advance are recounted. */
+export const PAID_NEVER_CHANGE_TEXT = "Внесённые оплаты не меняются, но долг и аванс пересчитываются — ниже, у кого.";
 
 /** The past date warning: the calculations before today change, the recorded payments do not. */
 export function pastDateWarning(validFrom: string, today: string): string | null {
