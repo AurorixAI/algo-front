@@ -93,7 +93,7 @@ export function OpeningBalanceFields({
  * Money roles only, and only for one student that does not come by a transfer (the server answers `OPENING_NOT_ALLOWED` otherwise).
  */
 export function OpeningToggle({
-  idPrefix, enabled, onEnabled, values, onChange, enrolDate, today, accountingStart,
+  idPrefix, enabled, onEnabled, values, onChange, enrolDate, today, accountingStart, needsReason = false,
 }: {
   idPrefix: string;
   enabled: boolean;
@@ -103,6 +103,8 @@ export function OpeningToggle({
   enrolDate: string;
   today: string;
   accountingStart?: string | null;
+  /** The server answered `REASON_REQUIRED`: the student already has money, the replacement needs a reason. */
+  needsReason?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -120,6 +122,12 @@ export function OpeningToggle({
       </button>
       {enabled && (
         <OpeningBalanceFields idPrefix={idPrefix} values={values} onChange={onChange} enrolDate={enrolDate} today={today} accountingStart={accountingStart} compact legend={false} />
+      )}
+      {enabled && needsReason && (
+        <div>
+          <label htmlFor={`${idPrefix}-reason`} className={PRICE_LABEL}>Причина <span className="font-normal text-slate-400">(обязательно: у ученика уже есть оплаты)</span></label>
+          <input id={`${idPrefix}-reason`} value={values.reason} onChange={(event) => onChange({ ...values, reason: event.target.value })} maxLength={500} autoComplete="off" className={PRICE_FIELD} />
+        </div>
       )}
     </div>
   );

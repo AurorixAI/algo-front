@@ -92,7 +92,12 @@ export function formatDateTimeRu(value: string | null | undefined): string {
   return Number.isNaN(date.getTime()) ? "" : formatBusinessDateTime(date);
 }
 
-export type ExcuseStatus = "pending" | "confirmed" | "rejected";
+/** `not_required`: the lesson fell on a pause of the student, the excuse is closed by the server (LOGIC-A). */
+export type ExcuseStatus = "pending" | "confirmed" | "rejected" | "not_required";
+
+/** «Не требуется (пауза)» and the server's refusal of an excuse on a pause day (422 `EXCUSE_ON_PAUSE`). */
+export const EXCUSE_NOT_REQUIRED_LABEL = "Не требуется (пауза)";
+export const EXCUSE_ON_PAUSE_TEXT = "Не требуется: ученик на паузе";
 
 export interface ExcuseCellView {
   label: string;
@@ -101,6 +106,7 @@ export interface ExcuseCellView {
 
 /** Journal cell text and tone for an "excused" mark by the review status (whole words, see `attendance-marks`). */
 export function excuseCellView(status: ExcuseStatus | null | undefined): ExcuseCellView {
+  if (status === "not_required") return { label: EXCUSE_NOT_REQUIRED_LABEL, tone: "plain" };
   if (status === "confirmed" || status === "rejected" || status === "pending") {
     return { label: EXCUSE_REVIEW_LABEL[status], tone: status };
   }

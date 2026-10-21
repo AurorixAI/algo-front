@@ -314,6 +314,8 @@ export interface PayrollBlockDate {
 }
 
 export interface PayrollGroupBlock {
+  /** LOGIC-A F14: `<group>` (one type in the month) or `<group>:<type>` (the group changed its type: a block per type). */
+  block_key?: string;
   group_id: string;
   group_name: string;
   lesson_type: LessonType;
@@ -502,6 +504,8 @@ export function diffReasons(diff: Pick<PayrollDiff, "reasons" | "rate_changes">)
 /** `include_unpaid`: «начислить».  The price is not sent any more: the server rejects `monthly_fee` (UX-2). */
 export interface PayrollLineOverride {
   membership_id: string;
+  /** LOGIC-A m12: the sheet line the tick belongs to (`<membership>:<type>` for a split line); without it the tick is for every line of the student. */
+  line_key?: string;
   include_unpaid?: boolean;
 }
 
@@ -720,7 +724,7 @@ export function marksAmount(input: {
  * is set in «Цены групп» and the card of the student, the rate in «Сотрудники»); only «начислить» is.
  */
 export interface SheetEdits {
-  /** Membership id -> «начислить» (the unpaid lessons of the student are paid to the teacher too). */
+  /** Line key (`line_key`, else the membership id) -> «начислить» (the unpaid lessons of the student are paid to the teacher too). */
   include: Record<string, boolean>;
 }
 
@@ -731,16 +735,21 @@ export function editsDirty(edits: SheetEdits): boolean {
   return Object.keys(edits.include).length > 0;
 }
 
-function findLine(sheet: PayrollSheet, membershipId: string): PayrollLine | undefined {
-  return sheet.lines.find((line) => line.membership_id === membershipId);
+/** The key of a sheet line: its `line_key`, or the membership id of a line that is not split. */
+export function lineKeyOf(line: Pick<PayrollLine, "line_key" | "membership_id">): string {
+  return line.line_key || line.membership_id;
 }
 
-export function setIncludeEdit(edits: SheetEdits, sheet: PayrollSheet, membershipId: string, include: boolean): SheetEdits {
-  const line = findLine(sheet, membershipId);
+function findLine(sheet: PayrollSheet, key: string): PayrollLine | undefined {
+  return sheet.lines.find((line) => lineKeyOf(line) === key);
+}
+
+export function setIncludeEdit(edits: SheetEdits, sheet: PayrollSheet, lineKey: string, include: boolean): SheetEdits {
+  const line = findLine(sheet, lineKey);
   if (!line) return edits;
   const next = { ...edits.include };
-  if (include === line.include_unpaid) delete next[membershipId];
-  else next[membershipId] = include;
+  if (include === line.include_unpaid) delete next[lineKey];
+  else next[lineKey] = include;
   return { ...edits, include: next };
 }
 
@@ -762,7 +771,7 @@ export interface LineView {
 
 export function buildLineViews(sheet: PayrollSheet, edits: SheetEdits): LineView[] {
   return sheet.lines.map((line) => {
-    const id = line.membership_id;
+    const id = lineKeyOf(line);
     const edited = id in edits.include;
     const include = edited ? edits.include[id] : line.include_unpaid;
     return {
@@ -792,6 +801,8 @@ export interface MarkColumn {
 }
 
 export interface SheetBlock {
+  /** The block key of the server (`<group>` or `<group>:<type>`): one block per group and lesson type. */
+  key: string;
   groupId: string;
   groupName: string;
   lessonType: LessonType;
@@ -816,50 +827,59 @@ export function markFor(line: PayrollLine, column: MarkColumn): PayrollMark | un
 
 /** The blocks the server sends (`groups`, with their date columns), the students of a block by name; sums follow the edits. */
 export function buildBlocks(sheet: PayrollSheet, views: LineView[]): SheetBlock[] {
-  const byGroup = new Map<string, LineView[]>();
-  for (const view of views) {
-    const list = byGroup.get(view.line.group_id);
-    if (list) list.push(view);
-    else byGroup.set(view.line.group_id, [view]);
-  }
-  // The blocks the server sends; a group may come once per type (F14) - they are one block; a group with lines but no block (an
-  // older answer, a sheet whose blocks were not sent) gets one made from its lines.
-  const groups = new Map<string, PayrollGroupBlock>();
+  const sortDates = (list: PayrollBlockDate[]) => list.sort((x, y) => (x.date === y.date ? x.lesson_id.localeCompare(y.lesson_id) : x.date.localeCompare(y.date)));
+  // LOGIC-A F14: the server sends ONE block per (group, lesson type): `block_key` is the group id, or `<group>:<type>` when the group
+  // changed its type inside the month; the lines of a block are the lines of that group and (for a keyed block) that type.
+  const blocks = new Map<string, PayrollGroupBlock>();
   for (const group of sheet.groups ?? []) {
-    const known = groups.get(group.group_id);
-    if (!known) { groups.set(group.group_id, { ...group, dates: [...(group.dates ?? [])] }); continue; }
-    const seen = new Set(known.dates.map((item) => columnKey(item.date, item.lesson_id)));
-    for (const item of group.dates ?? []) if (!seen.has(columnKey(item.date, item.lesson_id))) known.dates.push(item);
-    known.dates.sort((a, b) => (a.date === b.date ? a.lesson_id.localeCompare(b.lesson_id) : a.date.localeCompare(b.date)));
+    const key = group.block_key || group.group_id;
+    if (!blocks.has(key)) blocks.set(key, { ...group, block_key: key, dates: [...(group.dates ?? [])] });
   }
+  const typesOfGroup = new Map<string, Set<string>>();
   for (const view of views) {
-    if (groups.has(view.line.group_id)) continue;
-    const dates = new Map<string, PayrollBlockDate>();
-    for (const line of views.filter((other) => other.line.group_id === view.line.group_id)) {
-      for (const mark of line.line.marks) dates.set(columnKey(mark.date, mark.lesson_id), { date: mark.date, lesson_id: mark.lesson_id });
-    }
-    groups.set(view.line.group_id, {
-      group_id: view.line.group_id, group_name: view.line.group_name, lesson_type: view.line.lesson_type, lesson_time: view.line.lesson_time,
-      percent: view.line.percent, dates: [...dates.values()].sort((a, b) => (a.date === b.date ? a.lesson_id.localeCompare(b.lesson_id) : a.date.localeCompare(b.date))),
-      line_count: 0, counted: 0, unpaid: 0, total_amount: 0,
-    });
+    const set = typesOfGroup.get(view.line.group_id) ?? new Set<string>();
+    set.add(normalizeLessonType(view.line.lesson_type));
+    typesOfGroup.set(view.line.group_id, set);
   }
-  return [...groups.values()]
-    .map((group): SheetBlock => {
-      // by student; the sub-lines of one student (one per lesson type) stay together in the order the server sent them
-      const lines = [...(byGroup.get(group.group_id) ?? [])].sort((a, b) => a.line.student_name.localeCompare(b.line.student_name, "ru"));
-      const types = [...new Set(lines.map((view) => normalizeLessonType(view.line.lesson_type)))].sort((a, b) => lessonTypeOrder(a) - lessonTypeOrder(b));
+  const blockOf = (view: LineView): string => {
+    const line = view.line;
+    const typed = `${line.group_id}:${normalizeLessonType(line.lesson_type)}`;
+    if (blocks.has(typed)) return typed;
+    if (blocks.has(line.group_id)) return line.group_id;
+    // a sheet that came without blocks (an older answer): one per group, one per type when the group has several
+    return (typesOfGroup.get(line.group_id)?.size ?? 1) > 1 ? typed : line.group_id;
+  };
+  const lines = new Map<string, LineView[]>();
+  for (const view of views) {
+    const key = blockOf(view);
+    lines.set(key, [...(lines.get(key) ?? []), view]);
+    if (!blocks.has(key)) {
+      const dates = new Map<string, PayrollBlockDate>();
+      for (const other of views.filter((candidate) => blockOf(candidate) === key)) {
+        for (const mark of other.line.marks) dates.set(columnKey(mark.date, mark.lesson_id), { date: mark.date, lesson_id: mark.lesson_id });
+      }
+      blocks.set(key, {
+        block_key: key, group_id: view.line.group_id, group_name: view.line.group_name, lesson_type: view.line.lesson_type, lesson_time: view.line.lesson_time,
+        percent: view.line.percent, dates: sortDates([...dates.values()]), line_count: 0, counted: 0, unpaid: 0, total_amount: 0,
+      });
+    }
+  }
+  return [...blocks.entries()]
+    .map(([key, group]): SheetBlock => {
+      const own = [...(lines.get(key) ?? [])].sort((a, b) => a.line.student_name.localeCompare(b.line.student_name, "ru"));
+      const types = [...new Set(own.map((view) => normalizeLessonType(view.line.lesson_type)))].sort((a, b) => lessonTypeOrder(a) - lessonTypeOrder(b));
       return {
+        key,
         groupId: group.group_id,
         groupName: group.group_name,
         lessonType: normalizeLessonType(group.lesson_type),
         lessonTypes: types.length > 0 ? types : [normalizeLessonType(group.lesson_type)],
         lessonTime: group.lesson_time,
         columns: group.dates.map((item) => ({ key: columnKey(item.date, item.lesson_id), date: item.date, lessonId: item.lesson_id })),
-        lines,
-        counted: lines.reduce((sum, view) => sum + view.line.counted, 0),
-        unpaid: lines.reduce((sum, view) => sum + view.line.unpaid, 0),
-        amount: lines.reduce((sum, view) => sum + view.amount, 0),
+        lines: own,
+        counted: own.reduce((sum, view) => sum + view.line.counted, 0),
+        unpaid: own.reduce((sum, view) => sum + view.line.unpaid, 0),
+        amount: own.reduce((sum, view) => sum + view.amount, 0),
       };
     })
     .filter((block) => block.lines.length > 0);
@@ -923,7 +943,8 @@ function priceStepLine(step: PayrollPriceStep): string {
 export function buildLineOverrides(sheet: PayrollSheet, edits: SheetEdits): PayrollLineOverride[] {
   const out: PayrollLineOverride[] = [];
   for (const line of sheet.lines) {
-    if (line.membership_id in edits.include) out.push({ membership_id: line.membership_id, include_unpaid: edits.include[line.membership_id] });
+    const key = lineKeyOf(line);
+    if (key in edits.include) out.push({ membership_id: line.membership_id, ...(line.line_key ? { line_key: line.line_key } : {}), include_unpaid: edits.include[key] });
   }
   return out;
 }

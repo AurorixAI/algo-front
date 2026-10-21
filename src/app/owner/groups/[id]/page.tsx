@@ -18,6 +18,7 @@ import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/ad
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
+import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
@@ -307,6 +308,8 @@ export default function OwnerGroupDetailPage() {
                     onChange={(e) => setEditState((s) => ({ ...s, lesson_type: normalizeLessonType(e.target.value) }))}
                     options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
                   />
+                  {/* LOGIC-A B1: the server writes the type history from today */}
+                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-from-today">{LESSON_TYPE_FROM_TODAY_TEXT}</p>
                 </div>
 
                 {/* Description */}

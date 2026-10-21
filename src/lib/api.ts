@@ -1575,8 +1575,8 @@ export const orgApi = {
   getMembershipPrice: (membershipId: string) =>
     api<MembershipPrice>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`),
   /** `amount` a sum (+ `reason`): the individual price from `valid_from`; `amount` null: the price of the group again. */
-  setMembershipPrice: (membershipId: string, body: PriceOverrideRequest) =>
-    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`, {
+  setMembershipPrice: (membershipId: string, body: PriceOverrideRequest, options?: { dryRun?: boolean }) =>
+    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override${options?.dryRun ? "?dry_run=true" : ""}`, {
       method: "PUT", body,
     }),
   listMembershipPayments: (membershipId: string, includeVoided = true) =>

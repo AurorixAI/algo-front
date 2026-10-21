@@ -20,7 +20,7 @@ export type PeriodMode = "calendar" | "lessons";
 export type BillingAnchor = "payment_date" | "fixed_day";
 export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
 /** The tabs of «Оплаты» by money: «Должники» (debt), «Скоро платить», «Оплачено» (owner 21.10; «Без оплат» is gone: its rows are debtors «Ещё не платил»). */
-export type PaymentBucket = "debt" | "expiring" | "active";
+export type PaymentBucket = "debt" | "expiring" | "active" | "paused";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
 export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
@@ -96,6 +96,8 @@ export interface PaymentsSummary {
    * the card «Долг учеников» also shows), students who paid ahead, memberships whose group has no price.
    */
   debtors?: number;
+  /** The rows of each tab (memberships): `buckets.debt` is the length of the «Должники» list. */
+  buckets?: { debt: number; expiring: number; active: number; paused: number };
   students_with_advance?: number;
   price_missing?: number;
 }
@@ -281,6 +283,9 @@ export interface MembershipPaymentRow {
   writeoff_allowed?: boolean;
   /** Owner 21.10: why the row is among the debtors, in the server's words («Не доплачено за октябрь: 150 000»). */
   reason?: string | null;
+  /** The tab the row is on (null: on none, e.g. a free student) and why it is a debtor. */
+  bucket?: PaymentBucket | null;
+  debt_reason?: "overdue" | "partial" | "never_paid" | null;
   /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
   paused?: PausedRange | null;
   /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
@@ -899,9 +904,18 @@ export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "active", label: "Оплачено" },
 ];
 
+/** «На паузе»: a fourth tab, shown while somebody is on a pause (or while it is the open one). */
+export const PAUSED_BUCKET: { key: PaymentBucket; label: string } = { key: "paused", label: "На паузе" };
+
 /** `?bucket=` of the page; unknown or missing values (and the old `due` / `none` links) open «Должники», the most urgent tab. */
 export function parseBucket(value: string | null | undefined): PaymentBucket {
-  return PAYMENT_BUCKETS.find((bucket) => bucket.key === value)?.key ?? "debt";
+  return [...PAYMENT_BUCKETS, PAUSED_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
+}
+
+/** The tabs on screen: the three of the owner, and «На паузе» when it has somebody or is the open one. */
+export function visibleBuckets(summary: { buckets?: { paused?: number | null } | null; paused?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
+  const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);
+  return paused > 0 || open === "paused" ? [...PAYMENT_BUCKETS, PAUSED_BUCKET] : PAYMENT_BUCKETS;
 }
 
 /**
@@ -915,9 +929,15 @@ export function debtorsCount(summary: { debtors?: number | null; students_with_d
 
 /** The number on a tab - every tab has one; null while the summary is not known. */
 export function bucketCount(
-  summary: { debtors?: number | null; students_with_debt?: number | null; expiring?: number | null; active?: number | null } | null,
+  summary: {
+    buckets?: { debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
+    debtors?: number | null; students_with_debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
+  } | null,
   key: PaymentBucket,
 ): number | null {
+  // the server's `buckets` count the rows of each tab; an answer without them falls back to the older counters
+  const own = summary?.buckets?.[key];
+  if (typeof own === "number" && Number.isFinite(own)) return own;
   if (key === "debt") return debtorsCount(summary);
   const value = summary?.[key];
   return typeof value === "number" && Number.isFinite(value) ? value : null;

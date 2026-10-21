@@ -10,6 +10,7 @@ import {
   attendedText,
   buildPauseBody,
   emptyPauseValues,
+  isReasonRequired,
   livePauses,
   logicaError,
   pauseBackdateHint,
@@ -60,6 +61,8 @@ export function PauseDialog({
   /** The pause being ended / cancelled and the cancel reason. */
   const [acting, setActing] = useState<{ pause: PauseOut; action: "end" | "cancel" } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  /** The server answered `REASON_REQUIRED` to a shortening: the change moves money, say why. */
+  const [endNeedsReason, setEndNeedsReason] = useState(false);
   const idempotencyKey = useRef(newIdempotencyKey());
   const sequence = useRef(createRequestSequence());
 
@@ -74,6 +77,7 @@ export function PauseDialog({
     setBusy(false);
     setActing(null);
     setCancelReason("");
+    setEndNeedsReason(false);
     setPauses(null);
     idempotencyKey.current = newIdempotencyKey();
     void loadPauses();
@@ -128,12 +132,12 @@ export function PauseDialog({
 
   const finish = async () => {
     if (!acting || busy) return;
-    if (acting.action === "cancel" && cancelReason.trim().length < REASON_MIN) { setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
+    if ((acting.action === "cancel" || endNeedsReason) && cancelReason.trim().length < REASON_MIN) { setError(`Укажите причину (не короче ${REASON_MIN} символов)`); return; }
     setBusy(true);
     setError(null);
     try {
       if (acting.action === "end") {
-        const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today) });
+        const result = await orgApi.patchPause(acting.pause.id, { last_day: pauseEndDay(today), ...(endNeedsReason ? { reason: cancelReason.trim() } : {}) });
         onChanged(result.row, "Пауза закончена: дни с сегодняшнего снова считаются в стоимость");
       } else {
         const result = await orgApi.voidPause(acting.pause.id, cancelReason.trim());
@@ -141,9 +145,13 @@ export function PauseDialog({
       }
       setActing(null);
       setCancelReason("");
+      setEndNeedsReason(false);
       await loadPauses();
     } catch (cause) {
-      setError(logicaError(cause, "Не удалось изменить паузу").message);
+      const failure = logicaError(cause, "Не удалось изменить паузу");
+      // REASON_REQUIRED: money is affected, the reason field opens; PAUSE_RANGE (a day older than 30 days) says so inline
+      if (isReasonRequired(failure) && acting.action === "end") { setEndNeedsReason(true); setError(`${failure.message}. Укажите причину.`); }
+      else setError(failure.message);
     } finally {
       setBusy(false);
     }
@@ -241,8 +249,8 @@ export function PauseDialog({
                           ? `Пауза закончится вчера (${formatDateRu(pauseEndDay(today))}): дни с сегодняшнего снова входят в стоимость.`
                           : "Пауза ещё не началась: она будет отменена, дни останутся платными."}
                       </p>
-                      {acting?.action === "cancel" && (
-                        <input aria-label="Причина отмены паузы" value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder="Причина отмены" className={PRICE_FIELD} autoComplete="off" />
+                      {(acting?.action === "cancel" || endNeedsReason) && (
+                        <input aria-label={acting?.action === "cancel" ? "Причина отмены паузы" : "Причина изменения паузы"} value={cancelReason} onChange={(event) => { setError(null); setCancelReason(event.target.value); }} placeholder={acting?.action === "cancel" ? "Причина отмены" : "Причина изменения"} className={PRICE_FIELD} autoComplete="off" />
                       )}
                       <div className="flex gap-2">
                         <button type="button" onClick={() => void finish()} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-3 py-1.5 font-semibold text-white hover:bg-primary-700 disabled:opacity-50">

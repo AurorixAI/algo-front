@@ -49,17 +49,17 @@ function renderer() {
 
 // ── the contract ─────────────────────────────────────────────────────────────────────────────
 
-test("the contract: 32 operations, every one the front needs has a helper in orgApi", () => {
+test("the contract: 36 operations, every one the front needs has a helper in orgApi", () => {
   const contract = fixture("_contract");
   const operations = Object.entries(contract.paths).flatMap(([route, methods]) => Object.keys(methods).map((method) => `${method.toUpperCase()} ${route}`));
-  assert.equal(operations.length, 32);
+  assert.equal(operations.length, 36);
   const api = read("src/lib/api.ts");
   const needed = {
     "opening get/put": /opening-balance\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}/, "opening void": /opening-balances\/\$\{encodePathId\(openingId\)\}\/void/,
     "pauses": /\/pauses\$\{options\?\.dryRun/, "pause patch": /\/pauses\/\$\{encodePathId\(pauseId\)\}\$\{options\?\.dryRun/, "pause void": /pauses\/\$\{encodePathId\(pauseId\)\}\/void/,
     "leave preview": /leave-preview/, "leave": /\/leave`/, "archive preview": /archive-preview/, "payouts": /payroll\/sheets\/\$\{encodePathId\(sheetId\)\}\/payouts/,
     "payout void": /payroll\/payouts\/\$\{encodePathId\(payoutId\)\}\/void/, "payouts list": /payroll\/payouts\?month=/, "divisor": /payroll\/settings", \{ method: "PUT", body \}/,
-    "opening in add": /opening_balance/, "Idempotency-Key": /"Idempotency-Key"/,
+    "opening in add": /opening_balance/, "price dry run": /price-override\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}/, "Idempotency-Key": /"Idempotency-Key"/,
   };
   for (const [name, pattern] of Object.entries(needed)) assert.match(api, pattern, name);
 });
@@ -372,21 +372,28 @@ test("the sheet: lines split by lesson type are sub-rows of one student in one b
   assert.deepEqual(Y.splitLayout(sheet.lines).map((row) => [row.first, row.typeLabel]), [[true, "Группа · 6 уроков"], [false, "Парный · 6 уроков"]]);
   // an ordinary line has no sub-label
   assert.deepEqual(Y.splitLayout(named("A26_").lines), [{ first: true, typeLabel: null }]);
-  // a sheet that came without blocks gets them from its lines (one block, both types)
+  // the server sends one block per (group, lesson type), keyed `<group>:<type>`; the lines of a block are those of that type
+  assert.deepEqual(sheet.groups.map((g) => g.block_key.split(":")[1]), ["group", "pair"]);
   const views = R.buildLineViews(sheet, R.EMPTY_EDITS);
   const blocks = R.buildBlocks(sheet, views);
-  assert.equal(blocks.length, 1);
-  assert.deepEqual(blocks[0].lessonTypes, ["group", "pair"]);
-  assert.equal(blocks[0].columns.length, 12);
-  assert.equal(blocks[0].amount, 330000);
+  assert.equal(blocks.length, 2);
+  assert.deepEqual(blocks.map((b) => [b.lessonTypes, b.lines.length, b.amount, b.columns.length]), [[["group"], 1, 150000, 6], [["pair"], 1, 180000, 6]]);
+  // a sheet that came without blocks gets them from its lines (one per type when the group has several)
+  const bare = R.buildBlocks({ ...sheet, groups: [] }, views);
+  assert.deepEqual(bare.map((b) => [b.lessonTypes, b.amount]), [[["group"], 150000], [["pair"], 180000]]);
   assert.equal(Y.writtenOffText(2), "из них списано центром: 2 урока");
   assert.equal(Y.writtenOffText(0), null);
   assert.equal(Y.writtenOffLessons({ marks: [{ cover: "writeoff" }, { cover: "money" }, { cover: "writeoff" }] }), 2);
   const { React, text } = renderer();
   const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
   const drawn = text(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS }));
-  for (const part of ["Каримов Алишер", "Группа · 6 уроков", "Парный · 6 уроков", "150 000 сум", "180 000 сум", "330 000 сум"]) assert.ok(drawn.includes(part), part);
-  assert.equal((drawn.match(/Каримов Алишер/g) || []).length, 2); // the second row names the student for a screen reader only
+  for (const part of ["Каримов Алишер", "Группа", "Парный", "150 000 сум", "180 000 сум"]) assert.ok(drawn.includes(part), part);
+  assert.equal((drawn.match(/Каримов Алишер/g) || []).length, 2); // the student is in both blocks, one row in each
+  // the ticks «начислить» belong to a sheet line: they carry its line_key
+  const ticked = R.setIncludeEdit(R.EMPTY_EDITS, { ...sheet, lines: sheet.lines.map((l) => ({ ...l, unpaid: 1 })) }, sheet.lines[1].line_key, true);
+  assert.deepEqual(R.buildLineOverrides(sheet, ticked), [{ membership_id: sheet.lines[1].membership_id, line_key: sheet.lines[1].line_key, include_unpaid: true }]);
+  assert.deepEqual(Object.keys(ticked.include), [sheet.lines[1].line_key]); // the other line of the student is not ticked
+  assert.equal(R.lineKeyOf({ membership_id: "m" }), "m");
 });
 
 test("the fingerprint is required to save a calculation (F14)", () => {
@@ -507,4 +514,69 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.match(page, /Задать<\/Link>/);
   assert.match(page, /debtReasonText\(row\)/);
   assert.match(page, /isFirstPaymentRow\(row\)/);
+});
+
+// ── the final contract (addenda 2-4) ─────────────────────────────────────────────────────────
+
+test("the opening reason: required when a replacement meets money (m13); the form says so after REASON_REQUIRED", () => {
+  const values = { ...G.emptyOpeningValues(), paidUntil: "2026-10-31", reason: " вносим вручную " };
+  assert.deepEqual(G.buildOpeningIn(values), { paid_until: "2026-10-31", debt_amount: null, debt_on: null, reason: "вносим вручную" });
+  assert.equal(G.buildOpeningIn({ ...values, reason: "" }).reason, undefined);
+  assert.equal(G.isReasonRequired({ code: "REASON_REQUIRED" }), true);
+  assert.match(G.validateOpeningReason("ab"), /не короче 3/);
+  assert.equal(G.validateOpeningReason("ok ok"), null);
+  const { React, text } = renderer();
+  const { OpeningToggle } = require(path.join(root, "src/components/payments/opening-balance-fields.tsx"));
+  const props = { idPrefix: "o", enabled: true, onEnabled: () => undefined, values, onChange: () => undefined, enrolDate: "2026-10-21", today: "2026-10-21" };
+  assert.ok(!text(React.createElement(OpeningToggle, props)).includes("Причина"));
+  assert.ok(text(React.createElement(OpeningToggle, { ...props, needsReason: true })).includes("обязательно: у ученика уже есть оплаты"));
+  for (const file of ["src/components/groups/add-student-drawer.tsx", "src/components/groups/assign-group-modal.tsx"]) assert.match(read(file), /isReasonRequired\(failure\) && openingOn/, file);
+});
+
+test("pause PATCH: REASON_REQUIRED opens the reason, PAUSE_RANGE is said inline; excuses on a pause", () => {
+  const dialog = read("src/components/payments/pause-dialog.tsx");
+  assert.match(dialog, /isReasonRequired\(failure\) && acting\.action === "end"\) \{ setEndNeedsReason\(true\)/);
+  assert.match(dialog, /\.\.\.\(endNeedsReason \? \{ reason: cancelReason\.trim\(\) \} : \{\}\)/);
+  assert.equal(fixture("errors").PAUSE_RANGE.body.detail.message, "Пауза начинается не раньше чем 30 дней назад");
+  const E = require(path.join(root, "src/lib/attendance-excuses.ts"));
+  assert.equal(E.excuseCellView("not_required").label, "Не требуется (пауза)");
+  assert.equal(E.EXCUSE_ON_PAUSE_TEXT, "Не требуется: ученик на паузе");
+  assert.equal(E.excuseCellView("confirmed").tone, "confirmed");
+});
+
+test("B1: the group edit form says the type changes from today", () => {
+  assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, "Тип меняется с сегодняшнего дня; прошлые месяцы зарплаты не меняются");
+  for (const role of ["owner", "admin"]) assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), /\{LESSON_TYPE_FROM_TODAY_TEXT\}/, role);
+});
+
+test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
+  const summary = named("A30_");
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Оплачено (4)"]);
+  assert.equal(P.bucketCount(summary, "paused"), 1);
+  assert.deepEqual(P.visibleBuckets(summary, "debt").map((b) => b.label), ["Должники", "Скоро платить", "Оплачено", "На паузе"]);
+  assert.deepEqual(P.visibleBuckets({ buckets: { paused: 0 } }, "debt").length, 3);
+  assert.equal(P.parseBucket("paused"), "paused");
+  // the card shows students, the tab rows: with one debt membership per student they are the same number
+  assert.equal(P.positionCards(summary)[0].sub, "3 ученика с долгом");
+  assert.equal(P.positionCards(summary)[0].sub.split(" ")[0], String(P.bucketCount(summary, "debt")));
+  assert.equal(P.positionCards(summary)[1].sub, "1 ученик оплатил вперёд");
+  assert.equal(P.priceMissingText(summary.price_missing), "У 1 ученика не задана цена");
+  const row = named("A29_");
+  assert.equal(P.debtReasonText(row), "Ещё не платил");
+  assert.equal(row.bucket, "debt");
+  const opening = L.buildStatementItems(L.normalizeStatement(named("A31_")), null);
+  assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);
+  assert.match(opening.find((i) => i.kind === "month").summary, /долг на начало/);
+  const info = L.buildStatementItems(L.normalizeStatement(named("A32_")), null).filter((i) => i.kind === "row");
+  assert.deepEqual(info.map((r) => [r.type, r.title, r.charged, r.paid]), [["opening_paid_until", "Остаток на начало: оплачено до 15.11", null, null], ["pause", "Пауза 05.11–20.11 — начислений нет", null, null]]);
+});
+
+test("an individual price asks the server what it changes (dry run) and shows the same window as the group price", () => {
+  const dry = named("A33_");
+  assert.equal(dry.dry_run, true);
+  const money = G.normalizePriceMoney(dry.impact.money);
+  assert.ok(G.priceMoneyLines(money).length >= 0);
+  const code = read("src/components/payments/membership-price.tsx");
+  assert.match(code, /orgApi\.setMembershipPrice\(membershipId, request, \{ dryRun: true \}\)/);
+  assert.equal((code.match(/<OverrideImpactBlock/g) || []).length, 2); // «Назначить» and «Вернуть цену группы»
 });

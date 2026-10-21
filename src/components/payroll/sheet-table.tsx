@@ -10,6 +10,7 @@ import {
   formatDayMonth,
   lessonTypeLabel,
   markCell,
+  lineKeyOf,
   markFor,
   priceCellView,
   setIncludeEdit,
@@ -179,7 +180,7 @@ export function PayrollSheetTable({
   return (
     <div className="min-w-0 space-y-4 print:space-y-4">
       {blocks.map((block) => {
-        const key = block.groupId || block.groupName;
+        const key = block.key || block.groupId || block.groupName;
         const showDates = forceDates || openDates.has(key);
         const gridId = `payroll-dates-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
         return (
@@ -290,7 +291,7 @@ export function PayrollSheetTable({
                           <IncludeCell
                             view={view}
                             editable={canEdit}
-                            onChange={(include) => onEdits?.((previous) => setIncludeEdit(previous, sheet, id, include))}
+                            onChange={(include) => onEdits?.((previous) => setIncludeEdit(previous, sheet, lineKeyOf(line), include))}
                           />
                         </td>
                         <td className={`${CELL} whitespace-nowrap text-right font-semibold tabular-nums text-slate-900`}>

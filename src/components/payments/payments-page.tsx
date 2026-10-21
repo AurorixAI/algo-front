@@ -18,7 +18,7 @@ import {
   isFirstPaymentRow,
   lastPaymentLabel,
   paymentAmountLabel,
-  PAYMENT_BUCKETS,
+  visibleBuckets,
   parseBucket,
   paymentsBaseOf,
   PAY_ACTION_LABEL,
@@ -77,6 +77,7 @@ const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
   expiring: "Скоро платить пока никому",
   active: "Оплаченных учеников пока нет",
+  paused: "Сейчас никто не на паузе",
 };
 
 interface FormState {
@@ -250,6 +251,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const available = usePaymentsSummary((state) => state.available);
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
   const debtors = usePaymentsSummary((state) => state.debtors);
+  const buckets = usePaymentsSummary((state) => state.buckets);
+  const pausedCount = usePaymentsSummary((state) => state.paused);
   const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
   const studentsWithAdvance = usePaymentsSummary((state) => state.studentsWithAdvance);
   const priceMissing = usePaymentsSummary((state) => state.priceMissing);
@@ -397,7 +400,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = summaryLoaded ? { debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount } : null;
+  const summaryForTabs = summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount } : null;
   const cards = positionCards({ debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 
@@ -452,7 +455,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <ScrollHint focusable={false} className="w-full overflow-x-auto rounded-xl bg-slate-100 p-1">
             {/* the role sits one level below the scroller: ScrollHint owns the attributes of its own box */}
             <div role="tablist" className="flex w-max min-w-full gap-1">
-              {PAYMENT_BUCKETS.map(({ key, label }) => (
+              {visibleBuckets(summaryForTabs, bucket).map(({ key, label }) => (
                 <button
                   key={key}
                   type="button"

@@ -185,6 +185,9 @@ export interface MembershipPrice {
 
 export interface MembershipPriceChanged extends MembershipPrice {
   row: MembershipPaymentRow;
+  /** LOGIC-A: the money and payroll effect of the change (on every answer of the PUT; the only thing a `dry_run` fills). */
+  impact?: PriceImpact | null;
+  dry_run?: boolean;
 }
 
 export interface PriceOverrideRequest {

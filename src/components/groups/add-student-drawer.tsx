@@ -13,7 +13,7 @@ import {
   type GroupPriceBrief,
 } from "@/lib/group-price";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
-import { buildOpeningIn, emptyOpeningValues, logicaError, validateOpening, type OpeningFormValues } from "@/lib/payments-logica";
+import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -93,6 +93,7 @@ export function AddStudentDrawer({
   // LOGIC-A decision 1: what the student had before ALGO («оплачено до» / «долг на дату»); one student at a time, never with a transfer.
   const [openingOn, setOpeningOn] = useState(false);
   const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
+  const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
@@ -107,6 +108,7 @@ export function AddStudentDrawer({
     setExceptionReason("");
     setOpeningOn(false);
     setOpening(emptyOpeningValues());
+    setOpeningNeedsReason(false);
     setAllClasses(false);
   }, [open]);
 
@@ -205,6 +207,8 @@ export function AddStudentDrawer({
     if (withOpening) {
       const problem = validateOpening(opening, { enrolDate: today, today });
       if (problem) { setAddError(problem); return; }
+      const reasonProblem = openingNeedsReason ? validateOpeningReason(opening.reason) : null;
+      if (reasonProblem) { setAddError(reasonProblem); return; }
     }
     setAdding(true);
     setAddError(null);
@@ -242,7 +246,9 @@ export function AddStudentDrawer({
         infos: notes.infos,
       });
     } catch (e: any) {
-      setAddError(logicaError(e, "Ошибка добавления учеников").message);
+      const failure = logicaError(e, "Ошибка добавления учеников");
+      if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
+      setAddError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message);
     } finally {
       setAdding(false);
     }
@@ -342,6 +348,7 @@ export function AddStudentDrawer({
               onChange={(next) => { setAddError(null); setOpening(next); }}
               enrolDate={today}
               today={today}
+              needsReason={openingNeedsReason}
             />
           </div>
         )}

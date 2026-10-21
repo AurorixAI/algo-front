@@ -141,6 +141,8 @@ export interface OpeningIn {
   paid_until?: string | null;
   debt_amount?: number | null;
   debt_on?: string | null;
+  /** 3..500; required when the opening replaces a live one on a membership that already has money (422 `REASON_REQUIRED`, nothing written). */
+  reason?: string | null;
 }
 
 export interface OpeningPut extends OpeningIn {
@@ -242,11 +244,27 @@ export function validateOpening(values: OpeningFormValues, context: OpeningConte
 export function buildOpeningIn(values: OpeningFormValues): OpeningIn | null {
   if (openingIsEmpty(values)) return null;
   const debt = parseMoneyInput(values.debt);
-  return {
+  const body: OpeningIn = {
     paid_until: values.paidUntil || null,
     debt_amount: debt !== null && debt > 0 ? debt : null,
     debt_on: debt !== null && debt > 0 ? values.debtOn || null : null,
   };
+  const reason = values.reason.trim();
+  if (reason) body.reason = reason;
+  return body;
+}
+
+/** The reason an add / return needs once the server said `REASON_REQUIRED` (3..500 characters); null when it is fine. */
+export function validateOpeningReason(reason: string | null | undefined): string | null {
+  const text = (reason ?? "").trim();
+  if (text.length < REASON_MIN) return `Укажите причину (не короче ${REASON_MIN} символов)`;
+  if (text.length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;
+  return null;
+}
+
+/** The server wants a reason (422 `REASON_REQUIRED`): a pause change that moves money, a replaced opening over money. */
+export function isReasonRequired(error: { code?: string | null } | null | undefined): boolean {
+  return error?.code === "REASON_REQUIRED";
 }
 
 /** `OpeningPut`: all three empty = the live one is voided (the server needs the reason when money was taken). */
