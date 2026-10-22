@@ -24,6 +24,8 @@ import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-er
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
+import { GroupLessonTypeDialog } from "@/components/groups/group-lesson-type-dialog";
+import { LESSON_TYPE_CHANGE_LABEL, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
@@ -68,6 +70,7 @@ export default function AdminGroupDetailPage() {
   const { showToast, toastNode } = useToast();
   const [addOpen, setAddOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [lessonTypeOpen, setLessonTypeOpen] = useState(false);
   const [restoreOpen, setRestoreOpen] = useState(false);
 
   const load = useCallback(async (silent = false) => {
@@ -173,6 +176,12 @@ export default function AdminGroupDetailPage() {
       student_count: prev.student_count - 1,
     } : null);
     showToast("Ученик убран из группы", "success", settled);
+  };
+
+  // LOGIC-A F14: the server took the new type; the card shows the current one at once.
+  const handleLessonTypeSaved = (result: GroupLessonTypeChanged) => {
+    setGroup((prev) => prev ? { ...prev, lesson_type: result.current } : null);
+    showToast("Тип занятий изменён");
   };
 
   if (loading) {
@@ -375,6 +384,20 @@ export default function AdminGroupDetailPage() {
                       {group.teacher_name ? `Учитель: ${group.teacher_name}` : "Учитель не назначен"}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
+                    {/* LOGIC-A F14: the type of the lessons by date; «Изменить…» opens the dialog with the history */}
+                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-600" data-testid="group-lesson-type-line">
+                      <span>{lessonTypeLine(group.lesson_type)}</span>
+                      {group.status !== "archived" && (
+                        <button
+                          type="button"
+                          onClick={() => setLessonTypeOpen(true)}
+                          data-testid="group-lesson-type-change"
+                          className="text-sm font-semibold text-primary-700 hover:underline"
+                        >
+                          {LESSON_TYPE_CHANGE_LABEL}
+                        </button>
+                      )}
+                    </p>
                     {group.description && (
                       <p className="text-xs text-slate-400 mt-1 max-w-lg">{group.description}</p>
                     )}
@@ -503,6 +526,14 @@ export default function AdminGroupDetailPage() {
         existingStudentIds={existingIds}
         onClose={() => setAddOpen(false)}
         onAdded={handleStudentsAdded}
+      />
+
+      <GroupLessonTypeDialog
+        open={lessonTypeOpen}
+        groupId={group.id}
+        groupName={group.name}
+        onSaved={handleLessonTypeSaved}
+        onClose={() => setLessonTypeOpen(false)}
       />
 
       <GroupArchiveDialog

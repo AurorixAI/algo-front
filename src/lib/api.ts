@@ -69,6 +69,7 @@ import type {
 } from "./payments";
 import { normalizePreview, normalizeRow, normalizeSaveResult, normalizeStatement } from "./payments-ledger";
 import { normalizeBalances, normalizeItems, normalizeReport } from "./payments-income";
+import { normalizeLessonTypeChanged, normalizeLessonTypes, type GroupLessonTypeChanged, type GroupLessonTypes, type LessonTypeRequest } from "./group-lesson-type";
 import {
   filenameFromContentDisposition,
   type LessonType,
@@ -1853,6 +1854,13 @@ export const orgApi = {
   /** The archive with the money settled: `reason` + `settle` (the answer is the archived student + `settled`). */
   archiveStudentSettled: (studentId: string, body: { reason?: string | null; settle?: SettleItem[] }) =>
     api<StudentArchiveResult & { settled?: SettledOut[] }>(`/auth/org/students/${encodePathId(studentId)}/archive`, { method: "POST", body }),
+  /** F14: the type of the lessons of a group by date (the current one and the history). */
+  getGroupLessonTypes: (groupId: string) =>
+    api<GroupLessonTypes>(`/auth/org/groups/${encodePathId(groupId)}/lesson-types`).then(normalizeLessonTypes),
+  /** `dryRun`: nothing is written, the answer holds the `impact` (the saved sheets that will say «Есть изменения»; the list is for the owner). */
+  setGroupLessonType: (groupId: string, body: LessonTypeRequest, options?: { dryRun?: boolean }) =>
+    api<GroupLessonTypeChanged>(`/auth/org/groups/${encodePathId(groupId)}/lesson-type${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PUT", body })
+      .then(normalizeLessonTypeChanged),
   /** The divisor by month (F7): the current one and the history. */
   getPayrollSettingsHistory: () => api<PayrollSettingsFull>("/auth/org/payroll/settings"),
   setPayrollDivisor: (body: { divisor: number; valid_from?: string }) =>
