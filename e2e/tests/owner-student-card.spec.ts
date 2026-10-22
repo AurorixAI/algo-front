@@ -39,7 +39,7 @@ test("the card opens on «Обучение»; the owner's menu has no diagnostic
   await expect(form).toContainText("Класс влияет на диагностику и уровни");
   await form.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Данные ученика сохранены")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toContainText("Изменённый");
+  await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toContainText("Изменённый");
   await expect(page.getByText("9 класс").first()).toBeVisible();
   const saved = await org.owner.api.get(`/auth/org/students/${student.id}`);
   expect(saved).toMatchObject({ last_name: "Изменённый", class_level: 9 });

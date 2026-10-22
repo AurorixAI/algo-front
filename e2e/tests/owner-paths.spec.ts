@@ -50,7 +50,7 @@ test("«Группы»: the class filter and the status are in the address of th
   await page.goto("/owner/groups");
   await page.getByTestId("groups-class-filter").selectOption("9");
   await expect(page).toHaveURL(/class=9/);
-  await expect(page.getByText("Группа К9")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Группа К9" })).toBeVisible();
   await page.reload();
   await expect(page.getByTestId("groups-class-filter")).toHaveValue("9");
 });

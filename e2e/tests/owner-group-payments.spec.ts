@@ -111,7 +111,7 @@ test("@mobile the tab fits a phone: cards, no horizontal scroll, the badge opens
   await expect(page.getByTestId("group-payment-row")).toHaveCount(9);
   await expectNoHorizontalScroll(page);
   await expect(page.getByLabel("Поиск ученика")).toBeVisible(); // from 9 rows
-  await page.getByTestId("individual-badge").first().tap();
+  await page.getByTestId("individual-badge").first().click(); // a tap is a click for the page (the desktop project has no touch)
   await expect(page.getByRole("tooltip")).toContainText("Сестра ученика");
   await expectNoHorizontalScroll(page);
 });
@@ -139,7 +139,7 @@ test("the header of the group has no «Изменить…»; a changed «Тип
   const dialog = page.getByRole("dialog", { name: "Тип занятий" });
   await expect(dialog.getByLabel("Тип занятий меняется с")).toBeVisible();
   await expect(dialog.getByTestId("lesson-type-impact")).toContainText("Что изменится");
-  await expect(dialog.getByTestId("lesson-type-history")).toBeVisible();
+  await expect(dialog.getByTestId("lesson-type-current")).toContainText("Группа"); // a new group has no earlier change to list
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, /тип занятий изменён/)).toBeVisible();
   await expect(page.getByTestId("group-lesson-type-line")).toHaveText("Тип занятий: Парный");

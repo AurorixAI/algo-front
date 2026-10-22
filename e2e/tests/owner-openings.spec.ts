@@ -25,6 +25,17 @@ test.beforeAll(async () => {
 });
 
 const groupBlock = (page: import("@playwright/test").Page, group: GroupInfo) => page.getByTestId("openings-group").filter({ hasText: group.name });
+/** The accordion opens only the first groups to fill: a test opens its own group, whatever the others do. */
+async function openBlock(page: import("@playwright/test").Page, group: GroupInfo) {
+  const block = groupBlock(page, group);
+  const toggle = block.getByTestId("openings-group-toggle");
+  await expect(toggle).toBeVisible();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  return block;
+}
+/** The progress line of a group exists twice (wide and phone layout); the visible one. */
+const progressOf = (block: import("@playwright/test").Locator) => block.locator('[data-testid="openings-group-progress"]:visible');
 const rowOf = (block: import("@playwright/test").Locator, membershipId: string) => block.locator(`[data-membership-id="${membershipId}"]`);
 
 async function groupWithStudents(name: string, surnames: string[], price = 500000): Promise<{ group: GroupInfo; students: StudentInfo[]; memberships: string[] }> {
@@ -52,8 +63,8 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   await expect(page.getByRole("heading", { name: "Остатки на начало" })).toBeVisible();
   await expect(page.getByTestId("openings-intro")).toContainText(`до начала учёта ${dmy(start)}`);
   await expect(page.getByTestId("openings-progress")).toContainText(/^Заполнено \d+ из \d+$/);
-  const block = groupBlock(page, group);
-  await expect(block.getByTestId("openings-group-progress")).toHaveText("заполнено 0 из 3");
+  const block = await openBlock(page, group);
+  await expect(progressOf(block)).toHaveText("заполнено 0 из 3");
   await expect(block.getByTestId("openings-row")).toHaveCount(3);
   await expect(block.getByTestId("openings-now").first()).toHaveText("Не заполнено");
   // the student is a link to the payments tab of the card
@@ -85,7 +96,7 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   await expect(toast(page, "Сохранено: 3 ученика")).toBeVisible();
 
   // --- the table is read again: filled; the server and the statement agree
-  await expect(block.getByTestId("openings-group-progress")).toHaveText("заполнено 3 из 3");
+  await expect(progressOf(block)).toHaveText("заполнено 3 из 3");
   await expect(page.getByTestId("openings-save-bar")).toHaveCount(0);
   await expect(rowOf(block, memberships[1]).getByTestId("openings-now")).toHaveText(`Оплачено до ${dm(paidUntil)}`);
   expect(await savedOpening(memberships[2])).toMatchObject({ paid_until: paidUntil, debt_amount: null });
@@ -101,7 +112,7 @@ test("«Долга нет» writes «оплачено до» the day before the 
   const { group, memberships } = await groupWithStudents("Группа О2", ["Чистый", "Спокойный"]);
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
-  const block = groupBlock(page, group);
+  const block = await openBlock(page, group);
   await block.getByTestId("openings-group-select").check();
   await page.getByTestId("openings-bulk-nodebt").click();
   await expect(rowOf(block, memberships[0]).getByTestId("openings-paid-until")).toHaveValue(dayBefore);
@@ -111,7 +122,7 @@ test("«Долга нет» writes «оплачено до» the day before the 
   await dialog.getByTestId("openings-review-save").click();
   await expect(toast(page, "Сохранено: 2 ученика")).toBeVisible();
   await expect(rowOf(block, memberships[0]).getByTestId("openings-now")).toHaveText("Долга на начало нет");
-  await expect(block.getByTestId("openings-group-progress")).toHaveText("заполнено 2 из 2");
+  await expect(progressOf(block)).toHaveText("заполнено 2 из 2");
   expect(await savedOpening(memberships[1])).toMatchObject({ paid_until: dayBefore });
 });
 
@@ -119,7 +130,7 @@ test("a debt for one student → the effect says a debtor appears → saved → 
   const { group, students, memberships } = await groupWithStudents("Группа О3", ["Должный", "Платящий"]);
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
-  const block = groupBlock(page, group);
+  const block = await openBlock(page, group);
   const row = rowOf(block, memberships[0]);
   await row.getByTestId("openings-debt").fill("250000");
   await expect(row.getByTestId("openings-debt")).toHaveValue(/250\s000/);
@@ -205,7 +216,7 @@ test("Excel round trip: the file without edits changes nothing; edited cells cha
   expect(await savedOpening(memberships[0])).toMatchObject({ paid_until: paidUntil });
   expect(await savedOpening(memberships[1])).toMatchObject({ debt_amount: 120000 });
   expect(await savedOpening(memberships[2])).toBeNull(); // the broken row was not applied
-  await expect(groupBlock(page, group).getByTestId("openings-group-progress")).toHaveText("заполнено 2 из 3");
+  await expect(progressOf(groupBlock(page, group))).toHaveText("заполнено 2 из 3");
 });
 
 test("a student who left before the start: «Показать ушедших» → only the debt can be entered", async ({ signIn }) => {
@@ -213,7 +224,7 @@ test("a student who left before the start: «Показать ушедших» �
   await org.owner.api.post(`/auth/org/groups/${group.id}/students/${students[1].id}/leave`, { settle: [] });
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
-  const block = groupBlock(page, group);
+  const block = await openBlock(page, group);
   await expect(block.getByTestId("openings-row")).toHaveCount(1); // the left student is not in the table...
   await page.getByTestId("openings-show-left").check(); // ... until the toggle
   await expect(block.getByTestId("openings-row")).toHaveCount(2);
@@ -240,7 +251,7 @@ test("a conflict: somebody else changed the row between the table and the save �
   const { group, memberships } = await groupWithStudents("Группа О7", ["Конфликтный", "Спокойный"]);
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
-  const block = groupBlock(page, group);
+  const block = await openBlock(page, group);
   await rowOf(block, memberships[0]).getByTestId("openings-paid-until").fill(addDays(start, 10));
   await rowOf(block, memberships[1]).getByTestId("openings-paid-until").fill(addDays(start, 11));
   // «Проверить» is done: the summary is on the screen ...
@@ -271,7 +282,7 @@ test("unsaved edits are guarded: leaving the page asks first, and a phone shows 
   const page = await signIn(org.owner);
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/owner/payments/openings");
-  const block = groupBlock(page, group);
+  const block = await openBlock(page, group);
   await expect(block.getByTestId("openings-row")).toHaveCount(1);
   await expectNoHorizontalScroll(page);
   await rowOf(block, memberships[0]).getByTestId("openings-paid-until").fill(addDays(start, 10));
@@ -301,7 +312,7 @@ test.describe("lessons mode", () => {
     const membership = await lessonsOrg.membershipId(student.id, group.id);
     const page = await signIn(lessonsOrg.owner);
     await page.goto("/owner/payments/openings");
-    const block = page.getByTestId("openings-group").filter({ hasText: group.name });
+    const block = await openBlock(page, group);
     const row = rowOf(block, membership);
     await expect(row.getByTestId("openings-price")).toContainText(new RegExp(`${moneyPattern(800000)}\\sсум за пакет`));
     await row.getByTestId("openings-lessons").fill("4");

@@ -82,7 +82,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
   const paymentRow = page.getByTestId("statement-row-payment");
   await expect(paymentRow).toContainText(`№ ${payment.receipt_no}`);
-  await expect(paymentRow).toContainText("Наличные"); // the method
+  await expect(paymentRow).toContainText(/наличные/i); // the method
   await expect(paymentRow.getByRole("list", { name: "Куда пошли деньги" })).toBeVisible(); // where the money went
   await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
   // the statement leads on: the student's «Оплаты» tab and the group
