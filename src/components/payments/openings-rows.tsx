@@ -24,9 +24,16 @@ import {
 } from "@/lib/openings";
 import { studentHref } from "@/lib/ia-links";
 
-/** Wide layout (xl): ☐ · student · price · now · paid until · debt.  Below it a row is a card (the phone has no table). */
-export const OPENINGS_GRID_COLS = "xl:grid-cols-[1.75rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.15fr)_10.5rem_minmax(0,13rem)]";
-const GRID = `xl:grid ${OPENINGS_GRID_COLS} xl:items-start xl:gap-x-3`;
+/**
+ * Wide layout (xl): ONE column template for the header and every row, so each header sits over its cells.
+ * ☐ · student · price · now · paid until · [lessons left] · debt (the sum over its date).  Below xl a row is a card (the phone has no table).
+ */
+export const OPENINGS_GRID_COLS = "xl:grid-cols-[1.75rem_minmax(0,1fr)_8.5rem_minmax(0,1fr)_10rem_10rem]";
+/** The lessons centre has one more column: «Осталось уроков». */
+export const OPENINGS_GRID_COLS_LESSONS = "xl:grid-cols-[1.75rem_minmax(0,1fr)_8.5rem_minmax(0,1fr)_10rem_7.5rem_10rem]";
+/** The template of a group (the header and its rows call this one function). */
+export const openingsGridCols = (lessons: boolean): string => (lessons ? OPENINGS_GRID_COLS_LESSONS : OPENINGS_GRID_COLS);
+const gridOf = (lessons: boolean): string => `xl:grid ${openingsGridCols(lessons)} xl:items-start xl:gap-x-3`;
 
 /** 16 px on a phone: iOS does not zoom into a field of at least 16 px. */
 const FIELD = "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:text-sm";
@@ -56,16 +63,17 @@ export interface OpeningsListProps {
   onUndo: (row: OpeningRow) => void;
 }
 
-/** The header row of the wide table. */
+/** The header row of the wide table: one cell per column of the template (the checkbox column has a cell too, or every title sits one column off). */
 export function OpeningsTableHead({ lessons }: { lessons: boolean }) {
   const cell = "min-w-0 text-[13px] font-semibold text-slate-500";
   return (
-    <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 ${GRID} xl:items-center`}>
-      <span className="sr-only">Выбор</span>
+    <div role="presentation" data-testid="openings-head" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 ${gridOf(lessons)} xl:items-center`}>
+      <span className={cell}><span className="sr-only">Выбор</span></span>
       <span className={cell}>Ученик</span>
       <span className={cell}>{lessons ? "Цена пакета" : "Цена в месяц"}</span>
       <span className={cell}>Сейчас</span>
       <span className={cell}>Оплачено до</span>
+      {lessons && <span className={cell}>Осталось уроков</span>}
       <span className={cell}>Долг на начало</span>
     </div>
   );
@@ -93,7 +101,7 @@ function GroupBlock({ group, open, onToggle, ...props }: OpeningsListProps & { g
   const edited = group.memberships.filter((row) => isChanged(row, drafts[row.membership_id])).length;
   const selectable = group.memberships.some(isSelectable);
   const panelId = `openings-group-${group.id}`;
-  const lessons = group.memberships[0]?.mode === "lessons";
+  const lessons = group.memberships.some((member) => member.mode === "lessons");
 
   return (
     <section data-testid="openings-group" data-group-id={group.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -135,7 +143,7 @@ function GroupBlock({ group, open, onToggle, ...props }: OpeningsListProps & { g
         <div id={panelId} className="border-t border-slate-100">
           <OpeningsTableHead lessons={lessons} />
           <ul className="divide-y divide-slate-100">
-            {group.memberships.map((row) => <OpeningRowView key={row.membership_id} row={row} {...props} />)}
+            {group.memberships.map((row) => <OpeningRowView key={row.membership_id} row={row} lessons={lessons} {...props} />)}
           </ul>
         </div>
       )}
@@ -147,7 +155,7 @@ function Chip({ chip }: { chip: RowChip }) {
   return <span title={chip.title} className={`rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 ${CHIP_TONE[chip.tone]}`}>{chip.label}</span>;
 }
 
-function OpeningRowView({ row, ...props }: OpeningsListProps & { row: OpeningRow }) {
+function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: OpeningRow; lessons: boolean }) {
   const { drafts, problems, arrows, selected, accountingStart, paidUntilMax, studentsBase, onToggleRow, onEdit, onUndo } = props;
   const id = row.membership_id;
   const draft = drafts[id];
@@ -162,6 +170,8 @@ function OpeningRowView({ row, ...props }: OpeningsListProps & { row: OpeningRow
   const name = row.student.name;
   const disabled = !row.editable;
   const debtDate = shown.debtOn || row.floor;
+  /** The locked / cleared row has no fields: its words take the cells of «paid until», «lessons left» and «debt». */
+  const span = lessons ? "xl:col-span-3" : "xl:col-span-2";
 
   const nowText = shown.clear
     ? "Остаток уберём"
@@ -174,7 +184,7 @@ function OpeningRowView({ row, ...props }: OpeningsListProps & { row: OpeningRow
       data-membership-id={id}
       data-changed={changed ? "1" : undefined}
       data-error={problem ? "1" : undefined}
-      className={`relative flex flex-col gap-2.5 border-l-[3px] px-3.5 py-3 xl:px-4 ${GRID} ${problem ? "border-l-rose-400 bg-rose-50/50" : changed ? "border-l-primary-400 bg-primary-50/30" : "border-l-transparent"} ${disabled ? "bg-slate-50/60" : ""}`}
+      className={`relative flex flex-col gap-2.5 border-l-[3px] px-3.5 py-3 xl:px-4 ${gridOf(lessons)} ${problem ? "border-l-rose-400 bg-rose-50/50" : changed ? "border-l-primary-400 bg-primary-50/30" : "border-l-transparent"} ${disabled ? "bg-slate-50/60" : ""}`}
     >
       <div className="flex items-start gap-2 xl:contents">
         <label className="-ml-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center xl:ml-0 xl:h-6 xl:w-6">
@@ -210,88 +220,94 @@ function OpeningRowView({ row, ...props }: OpeningsListProps & { row: OpeningRow
       </div>
 
       {reason ? (
-        <p className="text-xs text-slate-500 xl:col-span-2" data-testid="openings-locked">{reason}</p>
+        <p className={`text-xs text-slate-500 ${span}`} data-testid="openings-locked">{reason}</p>
       ) : shown.clear ? (
-        <div className="flex items-center justify-between gap-2 xl:col-span-2">
+        <div className={`flex items-center justify-between gap-2 ${span}`}>
           <p className="text-xs font-medium text-rose-700">Сохранённый остаток будет убран</p>
           <button type="button" onClick={() => onUndo(row)} className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100">
             <Undo2 className="h-3.5 w-3.5" aria-hidden="true" /> Вернуть
           </button>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 xl:contents">
-            <div className="min-w-0">
-              <label className="mb-1 block text-xs text-slate-500 xl:hidden" htmlFor={`op-paid-${id}`}>Оплачено до</label>
-              <input
-                id={`op-paid-${id}`}
-                type="date"
-                value={shown.paidUntil}
-                min={row.floor || undefined}
-                max={paidUntilMax || undefined}
-                disabled={left}
-                title={left ? OPENINGS_LEFT_NOTE : undefined}
-                onChange={(event) => onEdit(row, { paidUntil: event.target.value, lessons: "" })}
-                aria-label={`Оплачено до — ${name}`}
-                data-testid="openings-paid-until"
-                className={FIELD}
-              />
-              {lessonsMode && !left && (
-                <div className="mt-1.5 flex items-center gap-1.5">
-                  <label htmlFor={`op-lessons-${id}`} className="shrink-0 text-xs text-slate-500">Осталось уроков</label>
-                  <input
-                    id={`op-lessons-${id}`}
-                    value={shown.lessons}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    onChange={(event) => onEdit(row, { lessons: event.target.value.replace(/\D+/g, "").slice(0, 3), paidUntil: "" })}
-                    aria-label={`Осталось уроков — ${name}`}
-                    data-testid="openings-lessons"
-                    className={`${FIELD} !h-8 w-16 shrink-0 text-center`}
-                  />
-                </div>
-              )}
-              {lessonsMode && !left && shown.lessons && (
-                <p className="mt-1 text-xs text-slate-500" data-testid="openings-lessons-arrow">{arrow ?? "→ дата появится после проверки"}</p>
+        <div className="grid grid-cols-2 gap-3 xl:contents">
+          <div className="min-w-0" data-col="paid">
+            <label className="mb-1 block text-xs text-slate-500 xl:hidden" htmlFor={`op-paid-${id}`}>Оплачено до</label>
+            <input
+              id={`op-paid-${id}`}
+              type="date"
+              value={shown.paidUntil}
+              min={row.floor || undefined}
+              max={paidUntilMax || undefined}
+              disabled={left}
+              title={left ? OPENINGS_LEFT_NOTE : undefined}
+              onChange={(event) => onEdit(row, { paidUntil: event.target.value, lessons: "" })}
+              aria-label={`Оплачено до — ${name}`}
+              data-testid="openings-paid-until"
+              className={FIELD}
+            />
+          </div>
+          {lessons && (
+            <div className="col-span-2 min-w-0 xl:col-span-1" data-col="lessons">
+              {!left && (
+                <>
+                  <label htmlFor={`op-lessons-${id}`} className="mb-1 block text-xs text-slate-500 xl:hidden">Осталось уроков</label>
+                  <div className="w-28 xl:w-full">
+                    <input
+                      id={`op-lessons-${id}`}
+                      value={shown.lessons}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="уроков"
+                      onChange={(event) => onEdit(row, { lessons: event.target.value.replace(/\D+/g, "").slice(0, 3), paidUntil: "" })}
+                      aria-label={`Осталось уроков — ${name}`}
+                      data-testid="openings-lessons"
+                      className={FIELD}
+                    />
+                  </div>
+                  {shown.lessons && (
+                    <p className="mt-1 text-xs text-slate-500" data-testid="openings-lessons-arrow">{arrow ?? "→ дата появится после проверки"}</p>
+                  )}
+                </>
               )}
             </div>
-            <div className="min-w-0">
-              <label className="mb-1 block text-xs text-slate-500 xl:hidden" htmlFor={`op-debt-${id}`}>Долг на начало</label>
-              <div className="relative">
-                <input
-                  id={`op-debt-${id}`}
-                  value={shown.debt}
-                  inputMode="numeric"
-                  autoComplete="off"
-                  placeholder="сумма"
-                  onChange={(event) => onEdit(row, { debt: reformatMoneyTyping(event.target.value) })}
-                  aria-label={`Долг на начало — ${name}`}
-                  data-testid="openings-debt"
-                  className={`${FIELD} pr-11`}
-                />
-                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
-              </div>
-              {shown.debt && (
-                <div className="mt-1 text-xs text-slate-500">
-                  <span>на </span>
-                  <input
-                    type="date"
-                    value={debtDate}
-                    min={OPENING_MIN_DATE}
-                    max={row.floor || undefined}
-                    onChange={(event) => onEdit(row, { debtOn: event.target.value })}
-                    aria-label={`Дата долга — ${name}`}
-                    data-testid="openings-debt-on"
-                    className="h-7 rounded-md border border-slate-200 bg-white px-1.5 text-base text-slate-700 outline-none focus:border-primary-500 sm:text-xs"
-                  />
-                </div>
-              )}
+          )}
+          <div className="min-w-0" data-col="debt">
+            <label className="mb-1 block text-xs text-slate-500 xl:hidden" htmlFor={`op-debt-${id}`}>Долг на начало</label>
+            <div className="relative">
+              <input
+                id={`op-debt-${id}`}
+                value={shown.debt}
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="сумма"
+                onChange={(event) => onEdit(row, { debt: reformatMoneyTyping(event.target.value) })}
+                aria-label={`Долг на начало — ${name}`}
+                data-testid="openings-debt"
+                className={`${FIELD} pr-11`}
+              />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+            </div>
+            <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
+              <label htmlFor={`op-debt-on-${id}`} className="shrink-0">на</label>
+              <input
+                id={`op-debt-on-${id}`}
+                type="date"
+                value={debtDate}
+                min={OPENING_MIN_DATE}
+                max={row.floor || undefined}
+                disabled={!shown.debt}
+                title={shown.debt ? undefined : "Сначала введите сумму долга"}
+                onChange={(event) => onEdit(row, { debtOn: event.target.value })}
+                aria-label={`Дата долга — ${name}`}
+                data-testid="openings-debt-on"
+                className="h-8 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 text-base text-slate-700 outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:text-xs"
+              />
             </div>
           </div>
-        </>
+        </div>
       )}
 
-      {problem && <p role="alert" className="text-xs font-medium text-rose-700 xl:col-span-6 xl:pl-[2.5rem]" data-testid="openings-row-problem">{problem}</p>}
+      {problem && <p role="alert" className="text-xs font-medium text-rose-700 xl:col-span-full xl:pl-[2.5rem]" data-testid="openings-row-problem">{problem}</p>}
     </li>
   );
 }

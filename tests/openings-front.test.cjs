@@ -741,3 +741,82 @@ test("the three pieces for the other screens exist and are not wired into the fi
   assert.match(widgets, /setOpeningsState\("skipped"\)/);
   assert.match(read("src/lib/openings-summary.ts"), /getOpeningsSummary\(\)/);
 });
+
+// ── the table of the wide screen: one template for the header and the rows (lead review 23.10: «УченикЦена», every title one column off) ──
+
+test("table: the header and every row of a group share ONE grid template, each title has a cell, and every editable row renders the debt date", () => {
+  const { React, html } = renderer();
+  const R = require(path.join(root, "src/components/payments/openings-rows.tsx"));
+  const groups = list().groups;
+  const markup = html(React.createElement(R.OpeningsGroups, {
+    groups, drafts: {}, problems: {}, arrows: {}, selected: new Set(), openIds: new Set(groups.map((g) => g.id)),
+    accountingStart: START, paidUntilMax: "2027-10-23", studentsBase: "/owner/students",
+    onToggleOpen() {}, onToggleRow() {}, onToggleGroup() {}, onEdit() {}, onUndo() {},
+  }));
+  const sections = markup.split('<section data-testid="openings-group"').slice(1);
+  assert.equal(sections.length, groups.length);
+  let withLessons = 0;
+  let datedRows = 0;
+  for (const section of sections) {
+    const template = (/xl:grid-cols-\[[^\]]+\]/.exec(/data-testid="openings-head"[^>]*class="([^"]*)"|class="([^"]*)"[^>]*data-testid="openings-head"/.exec(section).slice(1).join(" ")) ?? [])[0];
+    assert.ok(template, "the header has a template");
+    const lessons = /Осталось уроков<\/span>/.test(section.slice(0, section.indexOf("<ul")));
+    withLessons += lessons ? 1 : 0;
+    assert.equal(template, R.openingsGridCols(lessons));
+    // one cell per column: the checkbox column has its own (empty) cell, or every title sits one column off
+    const head = section.slice(section.indexOf('data-testid="openings-head"'), section.indexOf("<ul"));
+    const cells = (head.match(/<span class="min-w-0 text-\[13px\]/g) ?? []).length;
+    assert.equal(cells, template.slice(template.indexOf("[") + 1, -1).split("_").length);
+    assert.match(head.replace(/<[^>]+>/g, " "), /Ученик\s+Цена (в месяц|пакета)\s+Сейчас\s+Оплачено до\s+(Осталось уроков\s+)?Долг на начало/);
+    // every row of the group carries the same template as the header
+    const rows = section.split('<li data-testid="openings-row"').slice(1);
+    assert.ok(rows.length > 0);
+    for (const row of rows) {
+      assert.ok(row.includes(template), "the row has the template of its header");
+      if (/data-testid="openings-paid-until"/.test(row)) {
+        assert.ok(/data-testid="openings-debt-on"/.test(row), "an editable row renders the date of the debt");
+        datedRows += 1;
+      }
+    }
+  }
+  assert.equal(withLessons, 1);
+  assert.ok(datedRows >= 3);
+  // the two templates differ only by the «lessons left» column
+  assert.equal(R.OPENINGS_GRID_COLS_LESSONS.split("_").length, R.OPENINGS_GRID_COLS.split("_").length + 1);
+});
+
+test("table: the date of the debt is on, shows the floor and is off only while there is no sum", () => {
+  const { React, html } = renderer();
+  const R = require(path.join(root, "src/components/payments/openings-rows.tsx"));
+  const groups = list().groups;
+  const row = r(103);
+  const props = { groups, problems: {}, arrows: {}, selected: new Set(), openIds: new Set(groups.map((g) => g.id)), accountingStart: START, paidUntilMax: "2027-10-23", studentsBase: "/owner/students",
+    onToggleOpen() {}, onToggleRow() {}, onToggleGroup() {}, onEdit() {}, onUndo() {} };
+  const dateOf = (markup) => /<input[^>]*aria-label="Дата долга — Орлова Дана"[^>]*>/.exec(markup)[0];
+  const empty = dateOf(html(React.createElement(R.OpeningsGroups, { ...props, drafts: { [row.membership_id]: { ...O.draftOfRow(row), debt: "" } } })));
+  assert.match(empty, /disabled=""/);
+  assert.ok(empty.includes(`value="${row.floor}"`));
+  const typed = dateOf(html(React.createElement(R.OpeningsGroups, { ...props, drafts: { [row.membership_id]: { ...O.draftOfRow(row), debt: "250 000" } } })));
+  assert.ok(!/disabled=""/.test(typed));
+  assert.ok(typed.includes(`value="${row.floor}"`));
+});
+
+// ── plurals of the counts ────────────────────────────────────────────────────
+
+test("plural: the hint of the reason and the review note decline the count (1 ученика / 2 учеников / 5 учеников; 1 остатка / 5 остатков)", () => {
+  assert.equal(O.reasonHint(1), "обязательно: у 1 ученика уже есть оплаты");
+  assert.equal(O.reasonHint(2), "обязательно: у 2 учеников уже есть оплаты");
+  assert.equal(O.reasonHint(5), "обязательно: у 5 учеников уже есть оплаты");
+  assert.equal(O.reasonHint(21), "обязательно: у 21 ученика уже есть оплаты");
+  assert.equal(O.reasonHint(11), "обязательно: у 11 учеников уже есть оплаты");
+  assert.equal(O.reasonHint(0), "обязательно: у части учеников уже есть оплаты");
+  assert.match(O.needsReviewText(1), /^У 1 остатка дата не подходит под начало учёта — он отмечен «проверьте даты»\.$/);
+  assert.match(O.needsReviewText(3), /^У 3 остатков .* — они отмечены/);
+  assert.match(O.needsReviewText(5), /^У 5 остатков /);
+  // every count phrase of the screen goes through a helper: no «${n} учеников» / «${n} остатков» glued by hand
+  for (const file of ["src/components/payments/openings-page.tsx", "src/components/payments/openings-rows.tsx", "src/components/payments/openings-dialogs.tsx", "src/components/payments/openings-widgets.tsx", "src/lib/openings.ts"]) {
+    const bad = read(file).split("\n").filter((line) => /\}\s*(учеников|остатков|строк)\b|[^а-яё]у\s+\{[^}]+\}\s+(учеников|остатков)/.test(line));
+    assert.equal(bad.length, 0, `${file}: ${bad.join("\n")}`);
+  }
+  assert.ok(!/\)\s*учеников уже есть оплаты/.test(read("src/components/payments/openings-dialogs.tsx")));
+});

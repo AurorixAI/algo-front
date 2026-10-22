@@ -6,6 +6,7 @@ import { FloatingPanel } from "@/components/ui/floating-panel";
 import { Modal } from "@/components/ui/modal";
 import {
   atStudentsWord,
+  reasonHint,
   canApplyImport,
   canSave,
   errorRowIds,
@@ -204,7 +205,7 @@ export function OpeningsReviewDialog({
             {needReason && (
               <div>
                 <label htmlFor="openings-reason" className="mb-1 block text-xs font-semibold text-slate-600">
-                  Причина <span className="font-normal text-slate-400">(обязательно: у {preview.needs_reason.length > 0 ? `${preview.needs_reason.length} ` : ""}учеников уже есть оплаты)</span>
+                  Причина <span className="font-normal text-slate-400">({reasonHint(preview.needs_reason.length)})</span>
                 </label>
                 <input id="openings-reason" value={reason} onChange={(event) => onReason(event.target.value)} maxLength={500} autoComplete="off" placeholder="Например: сверили с тетрадью учёта" data-testid="openings-reason" className={FIELD} />
                 {reason !== "" && problem && <p className="mt-1 text-xs text-rose-700">{problem}</p>}
@@ -318,7 +319,7 @@ export function OpeningsExcelDialog({
             )}
             {needReason && (
               <div>
-                <label htmlFor="openings-excel-reason" className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-400">(обязательно: у части учеников уже есть оплаты)</span></label>
+                <label htmlFor="openings-excel-reason" className="mb-1 block text-xs font-semibold text-slate-600">Причина <span className="font-normal text-slate-400">({reasonHint(0)})</span></label>
                 <input id="openings-excel-reason" value={reason} onChange={(event) => onReason(event.target.value)} maxLength={500} autoComplete="off" data-testid="openings-excel-reason" className={FIELD} />
                 {reason !== "" && reasonProblem(reason) && <p className="mt-1 text-xs text-rose-700">{reasonProblem(reason)}</p>}
               </div>

@@ -430,6 +430,8 @@ export function noDebtDay(accountingStart: string): string {
 export const studentsWord = (count: number): string => pluralRu(count, "ученик", "ученика", "учеников");
 /** After «у»: «у 1 ученика / у 5 учеников». */
 export const atStudentsWord = (count: number): string => pluralRu(count, "ученика", "учеников", "учеников");
+/** After «у» for a count of balances: «у 1 остатка / у 5 остатков». */
+const balancesWord = (count: number): string => pluralRu(count, "остатка", "остатков", "остатков");
 const rowsWord = (count: number): string => pluralRu(count, "строку", "строки", "строк");
 const changesWord = (count: number): string => pluralRu(count, "изменение", "изменения", "изменений");
 
@@ -1225,4 +1227,15 @@ export function keyForBody(previous: { sig: string; key: string } | null, body: 
 export function canApplyImport(report: OpeningsImportPreview | null | undefined, reason: string): boolean {
   if (!report || !report.ok || report.batch_items.length === 0) return false;
   return !reasonNeeded(report) || reasonProblem(reason) === null;
+}
+
+/** The hint of the reason field: «обязательно: у 1 ученика уже есть оплаты» / «у 5 учеников …» / «у части учеников …» (no count known). */
+export function reasonHint(count: number): string {
+  return count > 0 ? `обязательно: у ${count} ${atStudentsWord(count)} уже есть оплаты` : "обязательно: у части учеников уже есть оплаты";
+}
+
+/** Under the progress bar: «У 1 остатка дата не подходит под начало учёта — он отмечен …» / «У 3 остатков … они отмечены …». */
+export function needsReviewText(count: number): string {
+  const one = pluralRu(count, "он отмечен", "они отмечены", "они отмечены");
+  return `У ${count} ${balancesWord(count)} дата не подходит под начало учёта — ${one} «проверьте даты».`;
 }

@@ -38,6 +38,7 @@ import {
   progressOf,
   prunedDrafts,
   selectedRows,
+  needsReviewText,
   staleIds,
   staleMessage,
   toggleGroupSelection,
@@ -551,7 +552,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
                 <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${progress.percent}%` }} />
               </div>
               {data.totals.needs_review > 0 && (
-                <p className="mt-2 text-xs text-rose-700" data-testid="openings-needs-review">У {data.totals.needs_review} остатков дата не подходит под начало учёта — они отмечены «проверьте даты».</p>
+                <p className="mt-2 text-xs text-rose-700" data-testid="openings-needs-review">{needsReviewText(data.totals.needs_review)}</p>
               )}
               {doneAll && <p className="mt-2 text-xs text-emerald-700">Учёт оплат идёт с {formatDateRu(data.accounting_start)}.</p>}
             </section>

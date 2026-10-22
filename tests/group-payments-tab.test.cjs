@@ -75,7 +75,7 @@ test("the pages of the owner and of the administrator carry the 4th tab; the tea
     assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${role}" />`), role);
     const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /<GroupPaymentsTab/, role);
-    assert.match(page, /\.\.\.\(paymentsAccess === "show" \? \[\{ key: "payments", label: GROUP_PAYMENTS_LABEL/, role);
+    assert.match(page, /\.\.\.\(paymentsAccess === "show" \? \[\{ key: "payments", Icon: Wallet \}\]/, role);
     assert.match(page, /groupsBasePath=\{paths\.groups\}/, role);
     assert.match(page, /paymentsBasePath=\{paths\.payments\}/, role);
     assert.match(page, /archived: group\?\.status === "archived"/, role);
@@ -316,4 +316,35 @@ test("e2e finding: the debt chip of the group header is read again after the pri
   const view = read("src/components/groups/group-detail-view.tsx");
   assert.match(view, /\[debtEnabled, groupId, tab, debtTick\]/);
   assert.ok((view.match(/setDebtTick\(\(n\) => n \+ 1\)/g) ?? []).length >= 2);
+});
+
+// ── the group page on a 390 px phone (lead review 23.10: the active «Оплаты» tab cut at the edge, «⋯» alone under the title) ──
+
+test("phone: the four tabs have short labels below sm (ids and the desktop names stay), the strip is full width and shows the active tab", () => {
+  assert.deepEqual(Object.keys(G.GROUP_TAB_LABELS), ["students", "schedule", "attendance", "payments"]);
+  assert.equal(G.GROUP_TAB_LABELS.attendance.full, "Посещаемость");
+  assert.equal(G.GROUP_TAB_LABELS.attendance.short, "Журнал");
+  assert.equal(G.GROUP_TAB_LABELS.payments.short, "Оплаты");
+  // four short labels fit 358 px at 13 px: about 6 characters of the longest each side of the padding
+  const widest = Math.max(...Object.values(G.GROUP_TAB_LABELS).map((l) => l.short.length));
+  const total = Object.values(G.GROUP_TAB_LABELS).reduce((sum, l) => sum + l.short.length, 0);
+  assert.ok(widest <= 10 && total * 7.2 + 4 * 16 + 12 + 8 <= 358, `the short labels are ${total} characters`);
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.match(view, /<span className="sm:hidden">\{GROUP_TAB_LABELS\[key as Tab\]\.short\}<\/span>/);
+  assert.match(view, /<span className="hidden sm:inline">\{GROUP_TAB_LABELS\[key as Tab\]\.full\}<\/span>/);
+  assert.match(view, /data-testid="group-tabs" className="flex w-full max-w-full[^"]*sm:w-fit/);
+  // a strip that still overflows scrolls the active tab into view
+  assert.match(view, /ref=\{tabStrip\}/);
+  assert.match(view, /querySelector<HTMLElement>\('\[aria-selected="true"\]'\)/);
+  assert.match(view, /strip\.scrollLeft \+= over/);
+});
+
+test("phone: the «⋯» of the group header stays top-right of the title at every width (a row, not a column), only the archive button wraps", () => {
+  const view = read("src/components/groups/group-detail-view.tsx");
+  const line = view.split("\n").find((l) => l.includes('data-testid="group-header-row"'));
+  assert.ok(line, "the header row exists");
+  assert.match(line, /className=\{`flex items-start justify-between gap-3 \$\{group\.status === "archived" \? "flex-col sm:flex-row sm:gap-4" : "sm:gap-4"\}`\}/);
+  assert.ok(!/flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between/.test(view), "the old column layout is gone");
+  assert.match(view, /<div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">/);
+  assert.match(view, /<div className="flex shrink-0 flex-wrap items-center gap-2">\s*\{group\.status === "archived"/);
 });

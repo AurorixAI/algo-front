@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -12,7 +12,7 @@ import Link from "next/link";
 import { orgApi, DEMO_MODE, GroupDetail, type StudentInGroup } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
-import { GROUP_PAYMENTS_LABEL, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, resolveGroupTab, type PaymentsFilter } from "@/lib/group-payments";
+import { GROUP_TAB_LABELS, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, resolveGroupTab, type PaymentsFilter } from "@/lib/group-payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
@@ -77,6 +77,16 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
   const setTab = (newTab: Tab) => {
     router.replace(`?tab=${newTab}`, { scroll: false });
   };
+  // a strip that does not fit (a narrow phone, a deep link to «Оплаты») shows the active tab, never cut at the edge
+  const tabStrip = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const strip = tabStrip.current;
+    const active = strip?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!strip || !active) return;
+    const over = active.offsetLeft + active.offsetWidth - (strip.scrollLeft + strip.clientWidth);
+    if (over > 0) strip.scrollLeft += over + 4;
+    else if (active.offsetLeft < strip.scrollLeft) strip.scrollLeft = Math.max(0, active.offsetLeft - 4);
+  }, [tab, group]);
 
   // Inline edit
   const [editing, setEditing] = useState(false);
@@ -404,8 +414,9 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
           ) : (
             /* ── View mode ── */
             <div>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div className="flex min-w-0 items-center gap-4">
+              {/* The «⋯» menu stays top-right of the title at every width; only the wide «Вернуть из архива» button drops under the title on a phone */}
+              <div data-testid="group-header-row" className={`flex items-start justify-between gap-3 ${group.status === "archived" ? "flex-col sm:flex-row sm:gap-4" : "sm:gap-4"}`}>
+                <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-4">
                   <div className="w-14 h-14 shrink-0 rounded-2xl bg-primary-50 border border-primary-100 flex items-center justify-center">
                     <GraduationCap className="w-7 h-7 text-primary-600" />
                   </div>
@@ -435,7 +446,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   {group.status === "archived" ? (
                     <button
                       type="button"
@@ -457,26 +468,27 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex max-w-full items-center gap-1 overflow-x-auto bg-slate-100 rounded-xl p-1 w-fit [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Разделы группы">
+      <div ref={tabStrip} data-testid="group-tabs" className="flex w-full max-w-full items-center gap-1 overflow-x-auto bg-slate-100 rounded-xl p-1 sm:w-fit [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Разделы группы">
         {([
-          { key: "students",  label: "Ученики",   Icon: Users    },
-          { key: "schedule", label: "Расписание", Icon: CalendarDays },
-          { key: "attendance", label: "Посещаемость", Icon: BookOpen },
-          ...(paymentsAccess === "show" ? [{ key: "payments", label: GROUP_PAYMENTS_LABEL, Icon: Wallet }] : []),
-        ] as const).map(({ key, label, Icon }) => (
+          { key: "students", Icon: Users },
+          { key: "schedule", Icon: CalendarDays },
+          { key: "attendance", Icon: BookOpen },
+          ...(paymentsAccess === "show" ? [{ key: "payments", Icon: Wallet }] : []),
+        ] as const).map(({ key, Icon }) => (
           <button
             key={key}
             role="tab"
             aria-selected={tab === key}
             onClick={() => setTab(key as Tab)}
-            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 sm:px-4 rounded-lg text-sm font-medium transition-all ${
+            className={`flex min-w-0 flex-1 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:flex-none sm:px-4 sm:text-sm ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
             <Icon className="hidden h-3.5 w-3.5 sm:block" />
-            {label}
+            <span className="sm:hidden">{GROUP_TAB_LABELS[key as Tab].short}</span>
+            <span className="hidden sm:inline">{GROUP_TAB_LABELS[key as Tab].full}</span>
           </button>
         ))}
       </div>

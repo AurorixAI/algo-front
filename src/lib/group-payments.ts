@@ -29,6 +29,17 @@ import type { CollectionRow } from "./payments-income-v2";
 export const GROUP_PAYMENTS_TAB = "payments";
 export const GROUP_PAYMENTS_LABEL = "Оплаты";
 
+/**
+ * The four tabs of the group page.  `short` is read below `sm`, so all four fit a 390 px phone without cutting the active one
+ * («Журнал» is the attendance journal); the tab ids and the accessible name on a desktop stay as they were.
+ */
+export const GROUP_TAB_LABELS = {
+  students: { full: "Ученики", short: "Ученики" },
+  schedule: { full: "Расписание", short: "Расписание" },
+  attendance: { full: "Посещаемость", short: "Журнал" },
+  payments: { full: GROUP_PAYMENTS_LABEL, short: GROUP_PAYMENTS_LABEL },
+} as const;
+
 export type GroupPaymentsAccess = "show" | "pending" | "hidden";
 
 /**

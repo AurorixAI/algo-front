@@ -690,6 +690,16 @@ function OwnerSettingsContent() {
 
   // A form is filled from the store, but never over unsaved typing: the session sync replaces `user` whenever
   // the tab gets focus, and saving one section changes only that section's record.
+  // The organisation is stored at sign-in; a session restored from the cookies alone (cleared site data, another device, the e2e
+  // sign-in) has `org: null`, and the form would stay empty — a blank name that a «Сохранить» would then try to write.  Read it once.
+  useEffect(() => {
+    if (org) return;
+    let alive = true;
+    orgApi.get().then((loaded) => {
+      if (alive && loaded) useAuthStore.setState((state) => (state.org ? {} : { org: loaded }));
+    }).catch(() => { /* the form stays empty; the next visit tries again */ });
+    return () => { alive = false; };
+  }, [org]);
   const orgBase = useRef<typeof orgForm | null>(null);
   const profileBase = useRef<typeof profileForm | null>(null);
   useEffect(() => {
