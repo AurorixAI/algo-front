@@ -1,0 +1,895 @@
+/**
+ * LOGIC-B2 («Замены»): pure helpers of the screens - the words of the spec (§5.2), the deadline, the status lines, the bodies of the
+ * requests, the reading of a refusal, who may ask for a substitute, whose roster comes from where.  No React and no network,
+ * so node:test loads this file directly.
+ */
+import type { StudentInGroup } from "./api";
+import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
+import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
+import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
+import type {
+  AlreadyDecidedDetail,
+  BulkSkipped,
+  CandidateBusy,
+  ClosedReasonCode,
+  CreateSubstitutionBody,
+  CreateSubstitutionOut,
+  DecideBody,
+  DecideBulkBody,
+  DecideBulkOut,
+  DecideOut,
+  LessonRosterStudent,
+  MoveCheckOut,
+  MoveCheckParams,
+  MyLesson,
+  MyLessonBlockReason,
+  StudentNotice,
+  SubstitutionCandidate,
+  SubstitutionItem,
+  SubstitutionListParams,
+  SubstitutionMovedTo,
+  SubstitutionOutcome,
+  SubstitutionReasonCode,
+  SubstitutionRequestMark,
+} from "./substitution-types";
+
+// ── reasons ────────────────────────────────────────────────────────────────────────────────────
+
+export const REASON_OPTIONS: ReadonlyArray<{ code: SubstitutionReasonCode; label: string }> = [
+  { code: "sick", label: "Болезнь" },
+  { code: "personal", label: "Личное" },
+  { code: "other", label: "Другое" },
+];
+
+export function reasonLabelOf(code: SubstitutionReasonCode | string | null | undefined): string {
+  return REASON_OPTIONS.find((option) => option.code === code)?.label ?? "";
+}
+
+export const COMMENT_MIN = 3;
+export const COMMENT_MAX = 500;
+export const MAX_RANGE_DAYS = 62;
+
+/** The range of «Другие мои уроки»: both dates, in order, not longer than the server takes. */
+export function rangeError(from: string, to: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) return "Укажите даты «С» и «По»";
+  if (from > to) return "Дата «С» не может быть позже даты «По»";
+  return addIsoDays(from, MAX_RANGE_DAYS) < to ? "Период не может превышать 63 дня" : null;
+}
+
+export const COMMENT_REQUIRED_TEXT = "Опишите причину — не менее 3 символов";
+
+/** The comment is optional except for «Другое»; a typed one is cut to the limit by the field. */
+export function commentError(reasonCode: SubstitutionReasonCode, comment: string): string | null {
+  const length = comment.trim().length;
+  if (reasonCode === "other" && length < COMMENT_MIN) return COMMENT_REQUIRED_TEXT;
+  if (length > COMMENT_MAX) return `Комментарий — не более ${COMMENT_MAX} символов`;
+  return null;
+}
+
+// ── time and words of a lesson ───────────────────────────────────────────────────────────────────
+
+/** «пн, 26.10» + «10:00–11:30»: the day and the time of a lesson. */
+export function lessonWhen(date: string, startTime: string, endTime: string): string {
+  return `${dayAndDateLabel(date)} · ${startTime}–${endTime}`;
+}
+
+/** «9-А · пн, 26.10 · 10:00–11:30». */
+export function lessonLine(groupName: string, date: string, startTime: string, endTime: string): string {
+  return `${groupName} · ${lessonWhen(date, startTime, endTime)}`;
+}
+
+export function itemLessonLine(item: Pick<SubstitutionItem, "group" | "lesson">): string {
+  return lessonLine(item.group.name, item.lesson.date, item.lesson.startTime, item.lesson.endTime);
+}
+
+/** «чт, 29.10, 16:00» - where a lesson was moved to. */
+export function movedToLabel(movedTo: Pick<SubstitutionMovedTo, "date" | "startTime">): string {
+  return `${dayAndDateLabel(movedTo.date)}, ${movedTo.startTime}`;
+}
+
+export const movedText = (movedTo: Pick<SubstitutionMovedTo, "date" | "startTime">): string => `Урок перенесён на ${movedToLabel(movedTo)}`;
+export const LESSON_CANCELLED_LABEL = "Урок отменён";
+export const REQUESTED_LABEL = "Вы запросили замену";
+export const WITHDRAW_ACTION = "Отозвать запрос";
+export const REQUEST_ACTION = "Не смогу провести";
+export const REQUEST_REJECTED_LABEL = "Запрос отклонён";
+
+// ── deadline of a request ────────────────────────────────────────────────────────────────────────
+
+export const URGENT_LABEL = "Срочно";
+
+/**
+ * «до начала 40 мин» / «до начала 5 ч» / «до начала 5 дн.»: under an hour in minutes, under 72 hours in hours (rounded),
+ * further in days (rounded).  Null once the lesson has started: the row says so in words (`startedLabel`).
+ */
+export function deadlineText(minutesToStart: number): string | null {
+  const minutes = Math.trunc(Number(minutesToStart));
+  if (!Number.isFinite(minutes) || minutes <= 0) return null;
+  if (minutes < 60) return `до начала ${minutes} мин`;
+  if (minutes < 72 * 60) return `до начала ${Math.round(minutes / 60)} ч`;
+  return `до начала ${Math.round(minutes / 1440)} дн.`;
+}
+
+/** The length of a lesson in minutes (from its «HH:MM» ends); 0 when unreadable. */
+export function lessonMinutes(startTime: string, endTime: string): number {
+  const read = (value: string) => {
+    const match = /^(\d{1,2}):(\d{2})/.exec(value ?? "");
+    return match ? Number(match[1]) * 60 + Number(match[2]) : NaN;
+  };
+  const length = read(endTime) - read(startTime);
+  return Number.isFinite(length) && length > 0 ? length : 0;
+}
+
+/** «Урок уже начался» while it runs, «Урок прошёл» once its end has passed. */
+export function startedLabel(item: Pick<SubstitutionItem, "minutesToStart" | "lesson">): string {
+  const passedFor = -Math.trunc(Number(item.minutesToStart));
+  const length = lessonMinutes(item.lesson.startTime, item.lesson.endTime);
+  return length > 0 && passedFor >= length ? "Урок прошёл" : "Урок уже начался";
+}
+
+/** A request the lesson of which has started: the administrator can only name who taught, cancel or reject. */
+export function isLateRequest(item: Pick<SubstitutionItem, "status" | "overdue">): boolean {
+  return item.status === "pending" && Boolean(item.overdue);
+}
+
+export const LATE_BANNER_TEXT = "Урок уже начался или прошёл. Можно назначить того, кто его провёл, отменить урок или отклонить запрос. Перенести нельзя.";
+
+export type DeadlineChip = { text: string; tone: "danger" | "dark" | "neutral" };
+
+/** What the «Срок» cell shows: the dark-red «Урок уже начался» / «Урок прошёл», the red «Срочно» (< 24 h), else the quiet count. */
+export function deadlineChips(item: SubstitutionItem): DeadlineChip[] {
+  if (item.status !== "pending") return [];
+  if (item.overdue) return [{ text: startedLabel(item), tone: "dark" }];
+  const chips: DeadlineChip[] = [];
+  if (item.urgent) chips.push({ text: URGENT_LABEL, tone: "danger" });
+  const text = deadlineText(item.minutesToStart);
+  if (text) chips.push({ text, tone: "neutral" });
+  return chips;
+}
+
+/** «Предложил: Рахимов Т.»; an inactive colleague: the spec's sentence. */
+export function suggestedLine(item: Pick<SubstitutionItem, "suggestedTeacher">): string | null {
+  const suggested = item.suggestedTeacher;
+  if (!suggested) return null;
+  return suggested.active === false ? "Предложенный коллега больше не работает в центре" : `Предложил: ${suggested.name}`;
+}
+
+// ── status lines ───────────────────────────────────────────────────────────────────────────────
+
+export const CLOSED_REASON_TEXT: Record<ClosedReasonCode, string> = {
+  LESSON_STARTED: "Урок начат — запрос закрыт",
+  LESSON_CANCELLED: "Урок отменён",
+  LESSON_REMOVED: "Урока больше нет в расписании",
+  GROUP_ARCHIVED: "Группа закрыта",
+  GROUP_TEACHER_CHANGED: "Преподаватель группы изменён",
+  TEACHER_REMOVED: "Преподаватель больше не работает в центре",
+  LESSON_OUTSIDE_WINDOW: "Срок разбора истёк",
+};
+
+/** The words of a closing: the server's own text, else the table (`GROUP_TEACHER_CHANGED` names the new teacher when known). */
+export function closedReasonText(item: Pick<SubstitutionItem, "decision">, currentTeacherName?: string | null): string {
+  const decision = item.decision;
+  const code = String(decision?.closedReason ?? "");
+  const name = (currentTeacherName ?? "").trim();
+  if (code === "GROUP_TEACHER_CHANGED" && name) return `Преподаватель группы изменён: урок ведёт ${name}`;
+  const own = (decision?.closedReasonText ?? "").trim();
+  if (own) return own;
+  return CLOSED_REASON_TEXT[code as ClosedReasonCode] ?? "Запрос закрыт";
+}
+
+export type StatusTone = "amber" | "green" | "blue" | "gray" | "red";
+
+/**
+ * The status of a request as the teacher reads it (T2): «Ждёт решения», «Замена: Рахимов Т.», «Урок перенесён на чт, 29.10, 16:00»,
+ * «Урок отменён», «Отклонено: <причина>», «Отозван», «Закрыт: <причина>».
+ */
+export function teacherStatusLine(item: SubstitutionItem): { text: string; tone: StatusTone } {
+  const decision = item.decision;
+  switch (item.status) {
+    case "pending": return { text: "Ждёт решения", tone: "amber" };
+    case "substituted": {
+      const name = (decision?.substitute?.name ?? "").trim();
+      return { text: name ? `Замена: ${name}` : "Замена назначена", tone: "green" };
+    }
+    case "rescheduled":
+      return { text: decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён", tone: "blue" };
+    case "cancelled": return { text: LESSON_CANCELLED_LABEL, tone: "gray" };
+    case "rejected": {
+      const reason = (decision?.note ?? "").trim();
+      return { text: reason ? `Отклонено: ${reason}` : "Отклонено", tone: "red" };
+    }
+    case "withdrawn": return { text: "Отозван", tone: "gray" };
+    case "closed": return { text: `Закрыт: ${closedReasonText(item)}`, tone: "gray" };
+    default: return { text: "", tone: "gray" };
+  }
+}
+
+/** «Решил(а) Каримова Н., 21.10 14:12» in the list of decided requests. */
+export function decidedByLine(item: SubstitutionItem): string {
+  const decision = item.decision;
+  if (!decision) return "";
+  const when = formatUtcNaiveAsBusinessDateTime(decision.at);
+  // «ДД.ММ.ГГГГ ЧЧ:ММ» -> «ДД.ММ ЧЧ:ММ»
+  const short = when.replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+  if (decision.via === "system" || decision.kind === "closed") return short ? `Закрыто системой, ${short}` : "Закрыто системой";
+  if (decision.kind === "withdraw" || item.status === "withdrawn") return short ? `Отозван учителем, ${short}` : "Отозван учителем";
+  const by = (decision.by?.name ?? "").trim();
+  return [by ? `Решил(а) ${by}` : "", short].filter(Boolean).join(", ");
+}
+
+/** What the administrator decided, in a few words (the chip of a decided row). */
+export function decisionResultText(item: SubstitutionItem): string {
+  const decision = item.decision;
+  switch (item.status) {
+    case "substituted": return decision?.substitute?.name ? `Замена: ${decision.substitute.name}` : "Замена назначена";
+    case "rescheduled": return decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён";
+    case "cancelled": return LESSON_CANCELLED_LABEL;
+    case "rejected": return "Запрос отклонён";
+    case "withdrawn": return "Отозван учителем";
+    case "closed": return `Закрыт: ${closedReasonText(item)}`;
+    default: return "";
+  }
+}
+
+export const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+  amber: "border-amber-200 bg-amber-50 text-amber-900",
+  green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  blue: "border-sky-200 bg-sky-50 text-sky-800",
+  gray: "border-slate-200 bg-slate-50 text-slate-600",
+  red: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+// ── refusals ─────────────────────────────────────────────────────────────────────────────────────
+
+/** The `item` a 409 SUBSTITUTION_ALREADY_DECIDED carries, with the sentence for the person; null for any other failure. */
+export function alreadyDecided(error: unknown): { item: SubstitutionItem | null; message: string } | null {
+  if (opsErrorCode(error) !== "SUBSTITUTION_ALREADY_DECIDED") return null;
+  const detail = opsErrorDetail<AlreadyDecidedDetail>(error);
+  const item = detail?.item && typeof detail.item === "object" && detail.item.id ? detail.item : null;
+  return { item, message: alreadyDecidedText(item) };
+}
+
+/** «Запрос уже решён» (withdrawn: «Учитель отозвал запрос», closed: «Запрос закрыт: <причина>»). */
+export function alreadyDecidedText(item: SubstitutionItem | null | undefined): string {
+  if (item?.status === "withdrawn") return "Учитель отозвал запрос";
+  if (item?.status === "closed") return `Запрос закрыт: ${closedReasonText(item).toLowerCase()}`;
+  return "Запрос уже решён";
+}
+
+export interface ErrorContext {
+  /** The teacher the administrator picked: «У {имя} уже есть урок…». */
+  teacherName?: string | null;
+  /** The teacher who teaches the lesson: «Этот урок ведёт {имя}». */
+  lessonTeacherName?: string | null;
+}
+
+/** «У Рахимов Т. уже есть урок «8-В» вт, 27.10 10:00–11:30. Выберите другого преподавателя.» */
+export function teacherBusyText(detail: TeacherBusyDetail | null, teacherName: string | null | undefined, fallback: string): string {
+  const first = detail?.conflicts?.[0];
+  const name = (teacherName ?? "").trim();
+  if (!first || !name) return fallback;
+  return `У ${name} уже есть урок «${first.withGroupName}» ${dayAndDateLabel(first.date)} ${first.startTime}–${first.endTime}. Выберите другого преподавателя.`;
+}
+
+/** The refusals of the substitution endpoints in the words of the spec (T1, M3); the server's own text for the rest. */
+export function substitutionErrorText(error: unknown, fallback = "Не удалось выполнить действие. Повторите попытку.", context: ErrorContext = {}): string {
+  const detail = opsErrorDetail<OpsErrorDetail & { teacher_name?: string }>(error);
+  const server = errorMessageOf(error, fallback);
+  switch (opsErrorCode(error)) {
+    case "SUBSTITUTION_ALREADY_DECIDED": return alreadyDecided(error)?.message ?? "Запрос уже решён";
+    case "SUBSTITUTION_NOT_FOUND": return "Запрос на замену не найден";
+    case "NOT_REQUEST_OWNER": return "Это запрос другого преподавателя";
+    case "MANAGER_ASSIGNS_DIRECTLY": return "Вы можете назначить замену сами: меню урока «Заменить преподавателя»";
+    case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл. Обратитесь к администратору";
+    case "NO_LESSONS_REQUESTABLE": return "Ни один из выбранных уроков нельзя запросить";
+    case "TOO_MANY_LESSONS": return "Не более 60 уроков в одном запросе";
+    case "LESSON_TOO_FAR": return "Запрос можно подать не дальше чем на 90 дней вперёд";
+    case "COMMENT_REQUIRED": return COMMENT_REQUIRED_TEXT;
+    case "REASON_REQUIRED": return "Укажите причину (не менее 3 символов)";
+    case "TEACHER_REQUIRED": return "Выберите преподавателя";
+    case "TARGET_NOT_TEACHER": return "Выберите преподавателя центра";
+    case "SUBSTITUTE_IS_REQUESTER": return "Нельзя назначить заменой того, кто запросил замену";
+    case "MOVE_SAME_SLOT": return "Выберите другую дату или время";
+    case "MOVE_IN_PAST": return "Новое время урока уже прошло";
+    case "MOVE_TOO_FAR": return "Перенести можно не дальше чем на 60 дней";
+    case "MOVE_FIELDS_REQUIRED": return "Укажите новую дату и время урока";
+    case "PERIOD_TOO_LONG": return "Период не может превышать 63 дня";
+    case "GROUP_BUSY": return "У группы уже есть урок в это время";
+    case "TEACHER_BUSY": return teacherBusyText(opsErrorDetail<TeacherBusyDetail>(error), context.teacherName, server);
+    case "NOT_LESSON_TEACHER": {
+      const name = (context.lessonTeacherName ?? "").trim();
+      return name ? `Этот урок ведёт ${name}${name.endsWith(".") ? "" : "."}` : server;
+    }
+    case "GROUP_ARCHIVED": return "Группа в архиве: действие недоступно";
+    case "LESSON_CANCELLED": return "Урок уже отменён";
+    case "LESSON_NOT_FOUND": return "Урока больше нет в расписании";
+    case "LESSON_HAS_LIVE_EXAM": return detail?.message?.trim() || "У урока идёт экзамен: отменить его нельзя";
+    case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
+    case "LESSON_OUTSIDE_WINDOW": return "Урок старше окна незакрытых уроков: назначить или отменить его нельзя — можно только отклонить запрос";
+    case "PAYROLL_LOCKED": return "Ведомость за этот месяц уже утверждена: смена преподавателя недоступна";
+    default: return server;
+  }
+}
+
+/** True when a refusal means «the list of candidates changed / look again»: the dialog reads the candidates once more. */
+export function needsFreshCandidates(error: unknown): boolean {
+  const code = opsErrorCode(error);
+  return code === "TEACHER_BUSY" || code === "SUBSTITUTE_IS_REQUESTER" || code === "TARGET_NOT_TEACHER";
+}
+
+// ── the request of a teacher ─────────────────────────────────────────────────────────────────────
+
+export const REQUEST_DIALOG_TITLE = "Не смогу провести урок";
+export const SUGGEST_HINT = "Решение принимает администратор. Коллега ничего не подтверждает — администратор договорится с ним сам.";
+export const REQUEST_EXPLAIN = "Администратор назначит замену, перенесёт или отменит урок. Статус запроса — на дашборде, в разделе «Запросы на замену».";
+
+export const MY_LESSON_BLOCK_TEXT: Record<MyLessonBlockReason, string> = {
+  LESSON_ALREADY_STARTED: "Урок уже начался",
+  ALREADY_REQUESTED: "Запрос уже подан",
+  LESSON_CANCELLED: "Урок отменён",
+};
+
+/** «пн, 26.10 · 10:00–11:30 · 9-А» - a row of «Другие мои уроки». */
+export function myLessonLabel(lesson: Pick<MyLesson, "lessonDate" | "startTime" | "endTime" | "groupName">): string {
+  return `${lessonWhen(lesson.lessonDate, lesson.startTime, lesson.endTime)} · ${lesson.groupName}`;
+}
+
+export function lessonKeyOfRef(ref: { groupId: string; lessonId: string; lessonDate: string }): string {
+  return `${ref.groupId}|${ref.lessonDate}|${ref.lessonId}`;
+}
+
+/** «Отправить запрос» / «Отправить запрос (3 урока)». */
+export function sendLabel(count: number): string {
+  return count > 1 ? `Отправить запрос (${count} ${pluralLessons(count)})` : "Отправить запрос";
+}
+
+function pluralLessons(count: number): string {
+  const tail = count % 100;
+  const last = count % 10;
+  if (tail >= 11 && tail <= 14) return "уроков";
+  if (last === 1) return "урок";
+  if (last >= 2 && last <= 4) return "урока";
+  return "уроков";
+}
+
+export function buildCreate(input: {
+  lessons: Array<{ groupId: string; lessonId: string; lessonDate: string }>;
+  reasonCode: SubstitutionReasonCode;
+  comment: string;
+  suggestedTeacherId?: string | null;
+}): CreateSubstitutionBody {
+  const comment = input.comment.trim();
+  return {
+    lessons: input.lessons.map(({ groupId, lessonId, lessonDate }) => ({ groupId, lessonId, lessonDate })),
+    reasonCode: input.reasonCode,
+    ...(comment ? { comment } : {}),
+    ...(input.suggestedTeacherId ? { suggestedTeacherId: input.suggestedTeacherId } : {}),
+  };
+}
+
+const SKIP_REASON_TEXT: Record<string, string> = {
+  LESSON_ALREADY_STARTED: "урок уже начался",
+  LESSON_CANCELLED: "урок отменён",
+  ALREADY_REQUESTED: "запрос уже подан",
+  NOT_LESSON_TEACHER: "урок ведёт другой преподаватель",
+  GROUP_ARCHIVED: "группа в архиве",
+  LESSON_TOO_FAR: "слишком далеко вперёд",
+  LESSON_NOT_FOUND: "урока нет в расписании",
+};
+
+/** The toast after a request: one, several, or a part of them (the rest and why). */
+export function createToast(out: Pick<CreateSubstitutionOut, "created" | "alreadyRequested" | "skipped">): { text: string; type: "success" | "warning" } {
+  const sent = out.created.length;
+  const skipped = out.skipped ?? [];
+  if (skipped.length > 0) {
+    const reasons = Array.from(new Set(skipped.map((entry) => SKIP_REASON_TEXT[entry.code] ?? entry.message.toLowerCase())));
+    return { text: `Отправлено: ${sent}. Не отправлено: ${skipped.length} — ${reasons.join(", ")}`, type: "warning" };
+  }
+  if (sent === 0 && out.alreadyRequested.length > 0) return { text: "Запрос уже ждёт решения", type: "success" };
+  return { text: sent > 1 ? `Запросов отправлено: ${sent}` : "Запрос отправлен администратору", type: "success" };
+}
+
+/** The request cards already shown on the lessons the person picks: a lesson of another day cannot be asked for from here when the server says no. */
+export function requestableSelection(lessons: MyLesson[], picked: ReadonlySet<string>): MyLesson[] {
+  return lessons.filter((lesson) => lesson.canRequest && picked.has(lessonKeyOfRef(lesson)));
+}
+
+// ── the lesson panel: who may ask, and what the lesson says ──────────────────────────────────────
+
+export type RequestControl =
+  | { kind: "none" }
+  | { kind: "button" }
+  | { kind: "pending"; requestId: string }
+  | { kind: "rejected"; requestId: string };
+
+/**
+ * «Не смогу провести» is on the teacher's own future lesson that is not started and not cancelled.  A waiting request replaces the
+ * button with the plate «Вы запросили замену» and «Отозвать запрос»; a rejected one leaves the words «Запрос отклонён».
+ * Owner and administrator never ask (they assign the substitute themselves).
+ */
+export function requestControl(input: {
+  role: string | null | undefined;
+  userId: string | null | undefined;
+  /** Who teaches the lesson (journal `lessonTeachers`); absent = the lesson is the viewer's own as far as we know. */
+  lessonTeacherId?: string | null;
+  lessonStatus: string | null | undefined;
+  startsAtMs: number | null;
+  nowMs: number;
+  mark?: Pick<SubstitutionRequestMark, "id" | "status"> | null;
+}): RequestControl {
+  if (input.role !== "teacher") return { kind: "none" };
+  const mark = input.mark;
+  if (mark?.status === "pending") return { kind: "pending", requestId: mark.id };
+  if (input.lessonTeacherId && input.userId && input.lessonTeacherId !== input.userId) return { kind: "none" };
+  if (mark?.status === "rejected") return { kind: "rejected", requestId: mark.id };
+  if (input.lessonStatus && input.lessonStatus !== "scheduled") return { kind: "none" };
+  if (input.startsAtMs === null || input.startsAtMs <= input.nowMs) return { kind: "none" };
+  return { kind: "button" };
+}
+
+/** The planned start of a lesson as an instant (the organisation's clock); null when the date or the time is unreadable. */
+export function lessonStartMs(date: string, startTime: string, parse: (date: string, time: string) => Date | null): number | null {
+  const instant = parse(date, startTime);
+  return instant ? instant.getTime() : null;
+}
+
+/** «Замена: 9-А» - the chip of the lesson of a substitute in his own schedule. */
+export function substituteGroupLabel(groupName: string | null | undefined): string {
+  const name = (groupName ?? "").trim();
+  return name ? `Замена: ${name}` : "Замена";
+}
+
+export const RECENT_DAYS = 14;
+
+/**
+ * The block «Запросы на замену» of the dashboard: every waiting request (the nearest lesson first) and the decided ones of the last
+ * 14 days (the latest decision first).  The server sends the last 60 days; the rest is cut here.
+ */
+export function recentRequests(items: SubstitutionItem[], nowMs: number): SubstitutionItem[] {
+  const decidedAt = (item: SubstitutionItem) => parseUtcNaive(item.decision?.at ?? item.createdAt)?.getTime() ?? 0;
+  const limit = nowMs - RECENT_DAYS * 86_400_000;
+  const pending = items
+    .filter((item) => item.status === "pending")
+    .sort((a, b) => (startsAtMsOf(a) ?? 0) - (startsAtMsOf(b) ?? 0));
+  const decided = items
+    .filter((item) => item.status !== "pending" && decidedAt(item) >= limit)
+    .sort((a, b) => decidedAt(b) - decidedAt(a));
+  return [...pending, ...decided];
+}
+
+export const ASSIGNED_TITLE = "Вам назначена замена";
+export const MY_REQUESTS_TITLE = "Запросы на замену";
+export const NEW_REQUEST_LINK = "Новый запрос";
+
+/** «Иванов А.» -> «Иванова А.»: the genitive of a short name for «вместо …»; null when the surname is not a plain -ов/-ев/-ин/-ова/-ева/-ина one. */
+export function genitiveShortName(name: string | null | undefined): string | null {
+  const text = (name ?? "").trim();
+  const match = /^(\S+)(\s.+)?$/.exec(text);
+  if (!match) return null;
+  const [, surname, rest = ""] = match;
+  if (/(ов|ев|ёв|ин|ын)$/i.test(surname)) return `${surname}а${rest}`;
+  if (/(ова|ева|ёва|ина|ына)$/i.test(surname)) return `${surname.slice(0, -1)}ой${rest}`;
+  return null;
+}
+
+/** «Замена: 9-А — пн, 26.10, 10:00–11:30 (вместо Иванова А.)»; an indeclinable surname: «(вместо: Ким А.)». */
+export function assignedLine(entry: { groupName: string; lessonDate: string; startTime: string; endTime: string; replacing?: { name: string } | null }): string {
+  const head = `Замена: ${entry.groupName} — ${dayAndDateLabel(entry.lessonDate)}, ${entry.startTime}–${entry.endTime}`;
+  const who = (entry.replacing?.name ?? "").trim();
+  if (!who) return head;
+  const genitive = genitiveShortName(who);
+  return genitive ? `${head} (вместо ${genitive})` : `${head} (вместо: ${who})`;
+}
+
+// ── who reads which roster ───────────────────────────────────────────────────────────────────────
+
+/**
+ * The lead's rule (21.10): a substitute and a former teacher have no group page (`GET /org/groups/{id}` is 403 for them).  The roster of
+ * their lesson comes with the journal (`lessonRoster`), and the screens show no link to the group, no phones, no diagnostics.
+ * The group's own teacher and the managers read the group page as before.
+ */
+export type RosterSource = "group" | "journal";
+
+export function rosterSource(input: {
+  isManager: boolean;
+  groupId: string;
+  /** The groups the viewer teaches (the dashboard / schedule group list; a substituted lesson's group is not among them). */
+  ownGroupIds: ReadonlyArray<string>;
+}): RosterSource {
+  if (input.isManager) return "group";
+  return input.ownGroupIds.includes(input.groupId) ? "group" : "journal";
+}
+
+/** The group link and the student cards are for those who read the group page. */
+export function showsGroupLinks(source: RosterSource): boolean {
+  return source === "group";
+}
+
+/** `lessonRoster` of the journal as the students of the panel: the shape of a group member, without a phone and without a level. */
+export function rosterFromJournal(roster: LessonRosterStudent[] | null | undefined): StudentInGroup[] {
+  return (roster ?? []).map((student) => ({
+    id: student.id,
+    first_name: student.first_name || "",
+    last_name: student.last_name || "",
+    full_name: student.full_name || `${student.last_name} ${student.first_name}`.trim() || "Ученик",
+    class_level: student.class_level ?? 0,
+    status: "active",
+    display_id: student.display_id ?? null,
+    student_phone: null,
+    joined_at: null,
+    last_theta: null,
+    last_level: null,
+    last_diagnosed_at: null,
+  }));
+}
+
+// ── owner / admin: the list ───────────────────────────────────────────────────────────────────────
+
+export const PAGE_SIZE = 50;
+
+export function listQuery(params: SubstitutionListParams): string {
+  const query = new URLSearchParams();
+  query.set("status", params.status);
+  if (params.groupId) query.set("groupId", params.groupId);
+  if (params.teacherId) query.set("teacherId", params.teacherId);
+  if (params.dateFrom) query.set("dateFrom", params.dateFrom);
+  if (params.dateTo) query.set("dateTo", params.dateTo);
+  if (params.urgent) query.set("urgent", "true");
+  const search = (params.search ?? "").trim();
+  if (search) query.set("search", search);
+  query.set("limit", String(params.limit ?? PAGE_SIZE));
+  query.set("offset", String(params.offset ?? 0));
+  return query.toString();
+}
+
+export const EMPTY_TEXT = "Запросов на замену нет";
+export const LOAD_ERROR_TEXT = "Не удалось загрузить запросы. Повторите попытку.";
+
+/** «Ждут решения (3)» / «Решённые». */
+export function tabLabel(tab: "pending" | "decided", pendingTotal: number): string {
+  return tab === "pending" ? `Ждут решения (${pendingTotal})` : "Решённые";
+}
+
+/** «В запросе ещё 2 урока» for the other requests of the batch on screen. */
+export function batchSiblings(item: SubstitutionItem, items: SubstitutionItem[]): SubstitutionItem[] {
+  if (!item.batchId) return [];
+  return items.filter((other) => other.batchId === item.batchId && other.id !== item.id);
+}
+
+export function moreLessonsText(count: number): string {
+  return `В запросе ещё ${count} ${pluralLessons(count)}`;
+}
+
+/**
+ * Replace the row of the list by the fresh item the server sent (a decision answer, or the 409 body), keeping the order; an item that
+ * left the open tab leaves the list, and the counter of the tab follows.
+ */
+export function applyFreshItem(
+  state: { items: SubstitutionItem[]; total: number; pendingTotal: number },
+  fresh: SubstitutionItem,
+  tab: "pending" | "decided",
+): { items: SubstitutionItem[]; total: number; pendingTotal: number } {
+  const index = state.items.findIndex((item) => item.id === fresh.id);
+  if (index < 0) return state;
+  const was = state.items[index];
+  const pendingTotal = was.status === "pending" && fresh.status !== "pending" ? Math.max(0, state.pendingTotal - 1) : state.pendingTotal;
+  const leaves = tab === "pending" ? fresh.status !== "pending" : false;
+  if (leaves) {
+    return { items: state.items.filter((item) => item.id !== fresh.id), total: Math.max(0, state.total - 1), pendingTotal };
+  }
+  const items = state.items.slice();
+  items[index] = fresh;
+  return { items, total: state.total, pendingTotal };
+}
+
+// ── the decision ────────────────────────────────────────────────────────────────────────────────
+
+export const DECISION_CARDS: ReadonlyArray<{ kind: "substitute" | "reschedule" | "cancel" | "reject"; title: string; late?: string }> = [
+  { kind: "substitute", title: "Назначить замену", late: "Назначить того, кто провёл урок" },
+  { kind: "reschedule", title: "Перенести урок" },
+  { kind: "cancel", title: "Отменить урок" },
+  { kind: "reject", title: "Отклонить запрос" },
+];
+
+export function decisionCardTitle(kind: string, late: boolean): string {
+  const card = DECISION_CARDS.find((entry) => entry.kind === kind);
+  return (late && card?.late) || card?.title || "";
+}
+
+/** The cards on offer: «Перенести» is off for a lesson that has started. */
+export function availableDecisions(item: Pick<SubstitutionItem, "status" | "overdue">): Array<"substitute" | "reschedule" | "cancel" | "reject"> {
+  const late = isLateRequest(item);
+  return DECISION_CARDS.map((card) => card.kind).filter((kind) => !(late && kind === "reschedule"));
+}
+
+export const SUBSTITUTE_NOTE_HINT = "Заменяющий ничего не подтверждает: договоритесь с ним сами. Урок появится у него в расписании.";
+export const NO_FREE_TEACHERS_TEXT = "Свободных преподавателей на это время нет. Перенесите или отмените урок.";
+export const RATE_MISSING_TEXT = "Ставка не задана — оплата урока не будет начислена, пока вы её не зададите";
+export const CANCEL_CONSEQUENCES = "Урок будет отменён и не вернётся. Ученики на нём не отмечаются. При помесячной оплате стоимость месяца не меняется. В пакете занятий урок не списывается. Преподавателю за этот урок оплата не начисляется.";
+export const REJECT_REASON_LABEL = "Причина отказа (её увидит преподаватель)";
+export const CANCEL_REASON_LABEL = "Причина отмены";
+export const MOVE_REASON_LABEL = "Причина переноса";
+export const MOVE_EXPLAIN_TEXT = "Исходный урок будет отменён как перенесённый — ученики на нём не отмечаются.";
+
+export function moveExplain(groupTeacherName: string | null | undefined): string {
+  const name = (groupTeacherName ?? "").trim();
+  return `${MOVE_EXPLAIN_TEXT} Новый урок проведёт преподаватель группы${name ? ` (${name})` : ""}. Замена, назначенная на исходный урок, на новый не переходит. Отменённый урок вернуть нельзя.`;
+}
+
+export const rejectConsequence = (teacherName: string): string => `Урок остаётся за ${teacherName}. Если он не придёт, урок попадёт в «Незакрытые».`;
+export const examDraftText = (title: string): string => `Экзамен «${title}» вернётся в черновик — привяжите его к новому уроку.`;
+export const examDraftCancelText = (title: string): string => `Экзамен «${title}» вернётся в черновик, код доступа будет закрыт.`;
+export const examRunningText = (title: string): string => `Экзамен «${title}» уже идёт — отменить урок нельзя`;
+
+/** «{Имя} не сможет провести урок». */
+export function decisionHeader(item: Pick<SubstitutionItem, "teacher">): string {
+  return `${item.teacher.name} не сможет провести урок`;
+}
+
+/** Candidate ranking per the contract: suggested first (even busy), free ones, then the busy ones. */
+export function orderedCandidates(candidates: SubstitutionCandidate[]): SubstitutionCandidate[] {
+  const rank = (candidate: SubstitutionCandidate) => (candidate.suggested ? 0 : candidate.busy ? 2 : 1);
+  return candidates
+    .map((candidate, index) => ({ candidate, index }))
+    .sort((a, b) => rank(a.candidate) - rank(b.candidate) || a.index - b.index)
+    .map((entry) => entry.candidate);
+}
+
+/** «Занят: 8-В, 10:00–11:30» / «Занят: замена в 8-В, 10:00–11:30» / «… (сам запросил замену)». */
+export function candidateBusyLine(busy: CandidateBusy | null | undefined): string {
+  if (!busy) return "Занят";
+  const where = busy.kind === "substitution" ? `замена в ${busy.groupName}` : busy.groupName;
+  return `Занят: ${where}, ${busy.startTime}–${busy.endTime}${busy.pendingRequest ? " (сам запросил замену)" : ""}`;
+}
+
+export function roleChip(orgRole: string | null | undefined): string | null {
+  if (orgRole === "admin") return "Администратор";
+  if (orgRole === "owner") return "Владелец";
+  return null;
+}
+
+export const SUGGESTED_CHIP = "Предложил учитель";
+
+export function canPickCandidate(candidate: SubstitutionCandidate, requesterId: string | null | undefined): boolean {
+  return !candidate.busy && candidate.teacherId !== requesterId;
+}
+
+export function noFreeCandidates(candidates: SubstitutionCandidate[], requesterId: string | null | undefined): boolean {
+  return candidates.every((candidate) => !canPickCandidate(candidate, requesterId));
+}
+
+export const DECIDE_REASON_MIN = 3;
+
+export function decisionReasonError(kind: "reschedule" | "cancel" | "reject", reason: string): string | null {
+  const length = reason.trim().length;
+  const max = kind === "reject" ? 300 : 500;
+  if (length < DECIDE_REASON_MIN) return "Укажите причину — не менее 3 символов";
+  if (length > max) return `Причина — не более ${max} символов`;
+  return null;
+}
+
+export interface MoveForm {
+  newDate: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  format: "offline" | "online";
+  reason: string;
+}
+
+export function moveFormError(form: MoveForm, item: Pick<SubstitutionItem, "lesson">, today: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.newDate)) return "Укажите новую дату и время урока";
+  if (!/^\d{1,2}:\d{2}$/.test(form.startTime) || !/^\d{1,2}:\d{2}$/.test(form.endTime)) return "Укажите новую дату и время урока";
+  if (lessonMinutes(form.startTime, form.endTime) === 0) return "Окончание должно быть позже начала";
+  if (form.newDate < today) return "Новое время урока уже прошло";
+  if (form.newDate === item.lesson.date && form.startTime === item.lesson.startTime && form.endTime === item.lesson.endTime) return "Выберите другую дату или время";
+  return decisionReasonError("reschedule", form.reason);
+}
+
+export function moveCheckParams(form: MoveForm): MoveCheckParams | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.newDate)) return null;
+  if (!/^\d{1,2}:\d{2}$/.test(form.startTime) || !/^\d{1,2}:\d{2}$/.test(form.endTime)) return null;
+  if (lessonMinutes(form.startTime, form.endTime) === 0) return null;
+  return { newDate: form.newDate, startTime: form.startTime, endTime: form.endTime };
+}
+
+/** The live check under the move form: free, or the clashes in the words of the spec. */
+export function moveCheckLines(check: MoveCheckOut, groupName: string): { ok: boolean; lines: string[]; warnings: string[] } {
+  const teacher = (check.teacherName ?? "").trim() || "преподавателя";
+  const lines: string[] = [];
+  for (const conflict of check.teacherConflicts ?? []) {
+    lines.push(`У ${teacher} в это время урок «${conflict.withGroupName}» (${dayAndDateLabel(conflict.date)}, ${conflict.startTime}–${conflict.endTime})`);
+  }
+  for (const conflict of check.groupConflicts ?? []) {
+    lines.push(`У группы «${groupName}» уже есть урок ${dayAndDateLabel(conflict.date)} ${conflict.startTime}–${conflict.endTime}`);
+  }
+  const warnings = (check.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
+  if (lines.length === 0 && check.ok) {
+    return { ok: true, lines: [`Время свободно: у ${teacher} и группы «${groupName}» пересечений нет`], warnings };
+  }
+  return { ok: false, lines, warnings };
+}
+
+export function buildDecide(
+  kind: "substitute" | "reschedule" | "cancel" | "reject",
+  form: { teacherId?: string | null; note?: string; reason?: string; move?: MoveForm },
+): DecideBody {
+  const expectedStatus = "pending" as const;
+  if (kind === "substitute") {
+    const note = (form.note ?? "").trim();
+    return { decision: "substitute", teacherId: form.teacherId ?? "", ...(note ? { note } : {}), expectedStatus };
+  }
+  if (kind === "reschedule") {
+    const move = form.move as MoveForm;
+    const room = move.room.trim();
+    return {
+      decision: "reschedule",
+      newDate: move.newDate,
+      startTime: move.startTime,
+      endTime: move.endTime,
+      room: room || null,
+      format: move.format,
+      reason: move.reason.trim(),
+      expectedStatus,
+    };
+  }
+  return { decision: kind, reason: (form.reason ?? "").trim(), expectedStatus };
+}
+
+export function buildBulk(
+  ids: string[],
+  kind: "substitute" | "cancel" | "reject",
+  form: { teacherId?: string | null; reason?: string; note?: string },
+): DecideBulkBody {
+  if (kind === "substitute") {
+    const note = (form.note ?? "").trim();
+    return { ids, decision: kind, teacherId: form.teacherId ?? null, ...(note ? { note } : {}) };
+  }
+  return { ids, decision: kind, reason: (form.reason ?? "").trim() };
+}
+
+/** The toast after one decision. */
+export function decisionToast(out: Pick<DecideOut, "item" | "result">): string {
+  const result = out.result;
+  switch (result?.kind) {
+    case "substitute": return `Замена назначена: ${result.teacherName ?? out.item.decision?.substitute?.name ?? ""}`.trim();
+    case "reschedule": {
+      const moved = result.newLesson ?? out.item.decision?.movedTo;
+      return moved ? movedText(moved) : "Урок перенесён";
+    }
+    case "cancel": return LESSON_CANCELLED_LABEL;
+    case "reject": return "Запрос отклонён";
+    default: return "Решение сохранено";
+  }
+}
+
+/** «Решено: 5. Не удалось: 2» and a line per refusal. */
+export function bulkToast(out: Pick<DecideBulkOut, "updated" | "skipped">, items: SubstitutionItem[]): { text: string; type: "success" | "warning"; details: string[] } {
+  const skipped = out.skipped ?? [];
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const details = skipped.map((entry) => bulkSkippedLine(entry, byId.get(entry.id)));
+  return { text: `Решено: ${out.updated}. Не удалось: ${skipped.length}`, type: skipped.length > 0 ? "warning" : "success", details };
+}
+
+export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): string {
+  const prefix = item ? `${item.group.name}, ${dayAndDateLabel(item.lesson.date)} ${item.lesson.startTime}: ` : "";
+  let text = entry.message;
+  if (entry.code === "SUBSTITUTION_ALREADY_DECIDED") text = "Запрос уже решён";
+  else if (entry.code === "TEACHER_BUSY" && entry.conflicts?.[0]) {
+    const first: TeacherConflict = entry.conflicts[0];
+    text = `преподаватель занят: ${teacherConflictLine(first)}`;
+  } else if (entry.code === "LESSON_OUTSIDE_WINDOW") text = "урок старше окна незакрытых уроков";
+  else if (entry.code === "PAYROLL_LOCKED") text = "ведомость за месяц уже утверждена";
+  return `${prefix}${text}`;
+}
+
+// ── the numbers of the menu ──────────────────────────────────────────────────────────────────────
+
+export const BADGE_LABEL = "Ждут решения";
+
+/** The tooltip of the menu counter: «Ждут решения: 3, срочных: 1». */
+export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number; overdueTotal?: number }): string {
+  const extra = summary.urgentTotal > 0 ? `, срочных: ${summary.urgentTotal}` : "";
+  return `${BADGE_LABEL}: ${summary.pendingTotal}${extra}`;
+}
+
+// ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────
+
+export const WAITING_MARK = "Ждёт замены";
+
+export interface LessonMark {
+  text: string;
+  tone: "amber" | "blue" | "gray" | "violet" | "red";
+  /** The request the mark leads to (only a waiting request has a page of its own). */
+  requestId?: string;
+}
+
+/** «Ждёт замены» on a lesson with a waiting request; «Урок перенесён на …» / «Урок отменён» on the original. */
+export function lessonMarks(mark: SubstitutionRequestMark | null | undefined, outcome: SubstitutionOutcome | null | undefined): LessonMark[] {
+  const marks: LessonMark[] = [];
+  if (mark?.status === "pending") marks.push({ text: WAITING_MARK, tone: "amber", requestId: mark.id });
+  if (outcome?.kind === "rescheduled") marks.push({ text: outcome.movedTo ? movedText(outcome.movedTo) : "Урок перенесён", tone: "blue" });
+  else if (outcome?.kind === "cancelled") marks.push({ text: LESSON_CANCELLED_LABEL, tone: "gray" });
+  return marks;
+}
+
+export const MARK_TONE_CLASS: Record<LessonMark["tone"], string> = {
+  amber: "bg-amber-50 text-amber-900 ring-amber-200",
+  blue: "bg-sky-50 text-sky-800 ring-sky-200",
+  gray: "bg-slate-100 text-slate-600 ring-slate-200",
+  violet: "bg-violet-50 text-violet-800 ring-violet-200",
+  red: "bg-rose-50 text-rose-700 ring-rose-200",
+};
+
+/**
+ * The chips on a lesson of the teacher's own schedule: «Замена: 9-А» on the lesson of a substitute, «Заменяет Рахимов Т.» on the
+ * lesson of the teacher who was replaced, «Вы запросили замену» / «Запрос отклонён» for his request, and where a cancelled original went.
+ */
+export function occurrenceChips(
+  occurrence: {
+    groupName?: string | null;
+    isSubstitution?: boolean;
+    teacherId?: string | null;
+    teacherName?: string | null;
+    defaultTeacherId?: string | null;
+    substitutionRequest?: SubstitutionRequestMark | null;
+    substitutionOutcome?: SubstitutionOutcome | null;
+  },
+  viewerId: string | null | undefined,
+  options: { manager?: boolean } = {},
+): LessonMark[] {
+  const chips: LessonMark[] = [];
+  if (occurrence.isSubstitution) {
+    if (viewerId && occurrence.teacherId === viewerId) chips.push({ text: substituteGroupLabel(occurrence.groupName), tone: "violet" });
+    else {
+      const name = (occurrence.teacherName ?? "").trim();
+      if (viewerId && occurrence.defaultTeacherId === viewerId) chips.push({ text: name ? `Заменяет ${name}` : "Заменяет другой преподаватель", tone: "violet" });
+      else chips.push({ text: name ? `Замена: ${name}` : "Замена", tone: "violet" });
+    }
+  }
+  const mark = occurrence.substitutionRequest;
+  // the teacher who asked reads «Вы запросили замену», the administrator «Ждёт замены» (a link to the request)
+  if (mark?.status === "pending") chips.push({ text: options.manager ? WAITING_MARK : REQUESTED_LABEL, tone: "amber", requestId: mark.id });
+  else if (mark?.status === "rejected" && !options.manager) chips.push({ text: REQUEST_REJECTED_LABEL, tone: "red" });
+  const outcome = occurrence.substitutionOutcome;
+  if (outcome?.kind === "rescheduled") chips.push({ text: outcome.movedTo ? movedText(outcome.movedTo) : "Урок перенесён", tone: "blue" });
+  else if (outcome?.kind === "cancelled") chips.push({ text: LESSON_CANCELLED_LABEL, tone: "gray" });
+  return chips;
+}
+
+/** The page of the requests of the role, opened on one request: `/owner/substitutions?request=<id>`. */
+export function substitutionsHref(basePath: string, requestId?: string | null): string {
+  return requestId ? `${basePath}?request=${encodeURIComponent(requestId)}` : basePath;
+}
+
+export const SUBSTITUTIONS_PATH: Record<"owner" | "admin", string> = { owner: "/owner/substitutions", admin: "/admin/substitutions" };
+
+// ── the card of a student ────────────────────────────────────────────────────────────────────────
+
+/** The labels under a lesson in the student's attendance: «Замена: Рахимов Т.»; never a reason. */
+export function studentLessonLabel(lesson: { isSubstitution?: boolean | null; teacherName?: string | null }): string | null {
+  if (!lesson.isSubstitution) return null;
+  const name = (lesson.teacherName ?? "").trim();
+  return name ? `Замена: ${name}` : "Замена";
+}
+
+/** «Урок отменён» / «Урок перенесён на чт, 29.10, 16:00». */
+export function studentNoticeLabel(notice: Pick<StudentNotice, "kind" | "movedTo">): string {
+  if (notice.kind === "rescheduled") return notice.movedTo ? movedText(notice.movedTo) : "Урок перенесён";
+  return LESSON_CANCELLED_LABEL;
+}
+
+export const STUDENT_NOTICE_FOOTNOTE = "Отменённые и перенесённые уроки в посещаемость не входят.";
+
+/** The notices of the month in the order of the calendar. */
+export function sortedNotices(notices: StudentNotice[] | null | undefined): StudentNotice[] {
+  return (notices ?? []).slice().sort((a, b) => a.date.localeCompare(b.date) || a.groupName.localeCompare(b.groupName, "ru"));
+}
+
+// ── time helpers used by the screens ─────────────────────────────────────────────────────────────
+
+/** The instant a request item says the lesson starts (naive UTC), or null. */
+export function startsAtMsOf(item: Pick<SubstitutionItem, "lesson">): number | null {
+  const instant = parseUtcNaive(item.lesson.startsAtUtc);
+  return instant ? instant.getTime() : null;
+}

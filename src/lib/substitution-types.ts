@@ -1,0 +1,361 @@
+/**
+ * LOGIC-B2 («Замены»): the shapes of the frozen contract (artifacts/partner_doc_check/logicB2_contract.json, golden
+ * answers in tests/fixtures/logB2).  Types only.  Every key the server may leave out is optional: an older server
+ * answers with the old shape and the screens must read it without surprises.
+ */
+import type { OpsErrorDetail, TeacherConflict } from "./ops-b-types";
+
+export type SubstitutionReasonCode = "sick" | "personal" | "other";
+
+export type SubstitutionStatus =
+  | "pending"
+  | "substituted"
+  | "rescheduled"
+  | "cancelled"
+  | "rejected"
+  | "withdrawn"
+  | "closed";
+
+export type SubstitutionDecisionKind = "substitute" | "reschedule" | "cancel" | "reject";
+
+export type ClosedReasonCode =
+  | "LESSON_STARTED"
+  | "LESSON_CANCELLED"
+  | "LESSON_REMOVED"
+  | "GROUP_ARCHIVED"
+  | "GROUP_TEACHER_CHANGED"
+  | "TEACHER_REMOVED"
+  | "LESSON_OUTSIDE_WINDOW";
+
+export interface PersonRef {
+  id: string;
+  name: string;
+}
+
+export interface SubstitutionMovedTo {
+  date: string;
+  startTime: string;
+  endTime: string;
+  lessonId?: string | null;
+}
+
+export interface SubstitutionLessonInfo {
+  lessonId: string;
+  /** YYYY-MM-DD (the business calendar). */
+  date: string;
+  startTime: string;
+  endTime: string;
+  room?: string | null;
+  format?: string | null;
+  /** Naive UTC. */
+  startsAtUtc?: string | null;
+  exists?: boolean;
+}
+
+export interface SubstitutionDecision {
+  kind: SubstitutionDecisionKind | "withdraw" | "closed";
+  by?: PersonRef | null;
+  /** Naive UTC. */
+  at?: string | null;
+  via?: "request" | "lesson_teacher_put" | "system" | "withdraw" | string | null;
+  /** The reason of a rejection / a cancellation / a move, or the comment of a substitution. */
+  note?: string | null;
+  substitute?: PersonRef | null;
+  movedTo?: SubstitutionMovedTo | null;
+  closedReason?: ClosedReasonCode | string | null;
+  closedReasonText?: string | null;
+}
+
+export interface SubstitutionPrevious {
+  id: string;
+  status: SubstitutionStatus;
+  teacherName?: string | null;
+  substituteName?: string | null;
+}
+
+export interface SubstitutionItem {
+  id: string;
+  batchId?: string | null;
+  status: SubstitutionStatus;
+  origin?: "teacher" | "system" | string;
+  group: { id: string; name: string; studentCount?: number };
+  lesson: SubstitutionLessonInfo;
+  teacher: PersonRef;
+  reasonCode: SubstitutionReasonCode;
+  reasonLabel?: string;
+  comment?: string | null;
+  suggestedTeacher?: (PersonRef & { active?: boolean }) | null;
+  /** Naive UTC. */
+  createdAt?: string | null;
+  /** Negative after the start. */
+  minutesToStart: number;
+  urgent: boolean;
+  overdue: boolean;
+  decision?: SubstitutionDecision | null;
+  previous?: SubstitutionPrevious | null;
+}
+
+// ── teacher ───────────────────────────────────────────────────────────────────
+
+export type MyLessonStatus = "scheduled" | "requested" | "started" | "passed" | "cancelled";
+export type MyLessonBlockReason = "LESSON_ALREADY_STARTED" | "LESSON_CANCELLED" | "ALREADY_REQUESTED";
+
+export interface MyLesson {
+  groupId: string;
+  groupName: string;
+  lessonId: string;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  room?: string | null;
+  format?: string;
+  isSubstitution?: boolean;
+  status: MyLessonStatus;
+  requestId?: string | null;
+  canRequest: boolean;
+  blockReason?: MyLessonBlockReason | null;
+}
+
+export interface MyLessonsOut {
+  dateFrom: string;
+  dateTo: string;
+  lessons: MyLesson[];
+}
+
+export interface SubstitutionLessonRef {
+  groupId: string;
+  lessonId: string;
+  lessonDate: string;
+}
+
+export interface CreateSubstitutionBody {
+  lessons: SubstitutionLessonRef[];
+  reasonCode: SubstitutionReasonCode;
+  comment?: string | null;
+  suggestedTeacherId?: string | null;
+}
+
+export interface SkippedLesson extends SubstitutionLessonRef {
+  code: string;
+  message: string;
+}
+
+export interface CreateSubstitutionOut {
+  batchId: string;
+  created: SubstitutionItem[];
+  alreadyRequested: SubstitutionItem[];
+  skipped: SkippedLesson[];
+}
+
+export interface AssignedToMe {
+  groupId: string;
+  groupName: string;
+  lessonId: string;
+  lessonDate: string;
+  startTime: string;
+  endTime: string;
+  replacing: PersonRef;
+  assignedAt?: string | null;
+}
+
+export interface MineOut {
+  items: SubstitutionItem[];
+  pendingTotal: number;
+  assignedToMe: AssignedToMe[];
+}
+
+export interface WithdrawBatchOut {
+  withdrawn: SubstitutionItem[];
+  skipped: Array<{ id: string; code: string; message: string }>;
+}
+
+// ── owner / admin ─────────────────────────────────────────────────────────────
+
+export interface SubstitutionSummary {
+  pendingTotal: number;
+  urgentTotal: number;
+  overdueTotal: number;
+}
+
+export type SubstitutionListStatus = "pending" | "decided" | "all";
+
+export interface SubstitutionListParams {
+  status: SubstitutionListStatus;
+  groupId?: string;
+  teacherId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  urgent?: boolean;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface SubstitutionListOut {
+  items: SubstitutionItem[];
+  total: number;
+  pendingTotal: number;
+  urgentTotal: number;
+}
+
+export interface SubstitutionEvent {
+  action: string;
+  actor?: PersonRef | null;
+  at?: string | null;
+  snapshot?: Record<string, unknown> | null;
+}
+
+export interface ExamBinding {
+  state: "ok" | "none" | "unavailable";
+  title?: string | null;
+  canCancel?: boolean;
+}
+
+export interface SubstitutionDetailOut {
+  item: SubstitutionItem;
+  chain?: SubstitutionItem[];
+  events?: SubstitutionEvent[];
+  examBinding?: ExamBinding | null;
+}
+
+export interface CandidateBusy {
+  kind: "lesson" | "substitution";
+  groupName: string;
+  startTime: string;
+  endTime: string;
+  pendingRequest?: boolean;
+}
+
+export interface SubstitutionCandidate {
+  teacherId: string;
+  name: string;
+  orgRole: "teacher" | "admin" | "owner" | string;
+  suggested?: boolean;
+  isDefaultTeacher?: boolean;
+  busy?: boolean;
+  busyWith?: CandidateBusy | null;
+  /** Only for the owner. */
+  rateMissing?: boolean | null;
+}
+
+export interface CandidatesOut {
+  requestId: string;
+  lesson: { groupId: string; groupName: string; lessonId: string; date: string; startTime: string; endTime: string };
+  requesterId: string;
+  candidates: SubstitutionCandidate[];
+}
+
+export interface MoveCheckOut {
+  ok: boolean;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  teacherConflicts: TeacherConflict[];
+  groupConflicts: TeacherConflict[];
+  warnings: Array<{ code: string; message: string }>;
+}
+
+export interface MoveCheckParams {
+  newDate: string;
+  startTime: string;
+  endTime: string;
+}
+
+export type DecideBody =
+  | { decision: "substitute"; teacherId: string; note?: string | null; expectedStatus?: "pending" }
+  | {
+      decision: "reschedule";
+      newDate: string;
+      startTime: string;
+      endTime: string;
+      room?: string | null;
+      format?: "offline" | "online" | null;
+      reason: string;
+      expectedStatus?: "pending";
+    }
+  | { decision: "cancel"; reason: string; expectedStatus?: "pending" }
+  | { decision: "reject"; reason: string; expectedStatus?: "pending" };
+
+export interface DecideResult {
+  kind: SubstitutionDecisionKind;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  isSubstitution?: boolean | null;
+  attendanceUpdated?: boolean | null;
+  payrollSheetsAffected?: unknown[] | null;
+  cancelledVersion?: number | null;
+  newLesson?: { id: string; groupId: string; date: string; startTime: string; endTime: string; room?: string | null; format?: string | null } | null;
+  warnings?: Array<{ code: string; message: string }> | null;
+  version?: number | null;
+}
+
+export interface DecideOut {
+  item: SubstitutionItem;
+  result: DecideResult;
+}
+
+export interface DecideBulkBody {
+  ids: string[];
+  decision: "substitute" | "cancel" | "reject";
+  teacherId?: string | null;
+  reason?: string | null;
+  note?: string | null;
+}
+
+export interface BulkSkipped {
+  id: string;
+  code: string;
+  message: string;
+  conflicts?: TeacherConflict[];
+  total?: number;
+}
+
+export interface DecideBulkOut {
+  updated: number;
+  items: SubstitutionItem[];
+  skipped: BulkSkipped[];
+}
+
+export interface AlreadyDecidedDetail extends OpsErrorDetail {
+  item?: SubstitutionItem | null;
+}
+
+// ── additive fields of the existing answers ───────────────────────────────────
+
+/** `substitutionRequest` of an occurrence / `substitutionRequests[<date>_<lessonId>]` of the journal. */
+export interface SubstitutionRequestMark {
+  id: string;
+  status: SubstitutionStatus;
+  reasonCode: SubstitutionReasonCode;
+  teacherName?: string | null;
+}
+
+/** `substitutionOutcome` of the cancelled original of a lesson. */
+export interface SubstitutionOutcome {
+  kind: "rescheduled" | "cancelled";
+  movedTo?: SubstitutionMovedTo | null;
+}
+
+/** The roster of the lesson of a substitute (`lessonRoster` of the journal): no phone, no diagnostics. */
+export interface LessonRosterStudent {
+  id: string;
+  first_name: string;
+  last_name: string;
+  full_name: string;
+  display_id?: string | null;
+  class_level?: number | null;
+}
+
+/** `notices[]` of the attendance of a student: no reason, ever. */
+export interface StudentNotice {
+  lessonId: string;
+  date: string;
+  groupId: string;
+  groupName: string;
+  kind: "cancelled" | "rescheduled";
+  movedTo?: SubstitutionMovedTo | null;
+}
+
+export interface RequestClosed {
+  id: string;
+  status: SubstitutionStatus;
+}

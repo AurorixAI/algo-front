@@ -1,4 +1,28 @@
 import { encodePathId } from "./encode-id";
+import { listQuery } from "./substitutions";
+import type {
+  CandidatesOut,
+  CreateSubstitutionBody,
+  CreateSubstitutionOut,
+  DecideBody,
+  DecideBulkBody,
+  DecideBulkOut,
+  DecideOut,
+  LessonRosterStudent,
+  MineOut,
+  MoveCheckOut,
+  MoveCheckParams,
+  MyLessonsOut,
+  StudentNotice,
+  SubstitutionDetailOut,
+  SubstitutionItem,
+  SubstitutionListOut,
+  SubstitutionListParams,
+  SubstitutionOutcome,
+  SubstitutionRequestMark,
+  SubstitutionSummary,
+  WithdrawBatchOut,
+} from "./substitution-types";
 import { loginUrlForPage } from "./safe-redirect";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
@@ -684,6 +708,10 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   originalEndTime?: string | null;
   originalRoom?: string | null;
   rescheduleReason?: string | null;
+  /** LOGIC-B2: the waiting / last request for this lesson (owner, administrator and the teacher who asked). */
+  substitutionRequest?: SubstitutionRequestMark | null;
+  /** LOGIC-B2: a cancelled original says where it went («Урок перенесён на …») or that it is cancelled. */
+  substitutionOutcome?: SubstitutionOutcome | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -907,6 +935,10 @@ export interface GroupAttendance {
   versions?: Record<string, number>;
   /** LOGIC-B (O5): lessonKey -> who teaches this lesson (a substitute or the group's teacher). */
   lessonTeachers?: Record<string, LessonTeacherInfo>;
+  /** LOGIC-B2: lessonKey -> the request for this lesson (owner, administrator and the teacher who asked). */
+  substitutionRequests?: Record<string, SubstitutionRequestMark>;
+  /** LOGIC-B2: for a substitute only - the students of HIS lesson (the group page is closed to him). */
+  lessonRoster?: LessonRosterStudent[] | null;
   month?: string | null;
   lessons: Lesson[];
   records: Record<string, Record<string, AttendanceStatus>>; // instance_key -> student_id -> status
@@ -1143,7 +1175,12 @@ export interface StudentAttendanceSummary {
     group_name: string;
     status: AttendanceStatus | "not_marked";
     attendance_status: LessonAttendanceStatus;
+    /** LOGIC-B2: who taught it and whether it was a substitute (never the reason). */
+    teacherName?: string | null;
+    isSubstitution?: boolean;
   }>;
+  /** LOGIC-B2: cancelled / moved lessons of the month, without a reason. */
+  notices?: StudentNotice[];
 }
 
 export const authApi = {
@@ -2832,6 +2869,37 @@ export const opsApi = {
     api<{ member_id: string; is_active: boolean }>(`/auth/org/members/${encodePathId(memberId)}/restore`, { method: "POST" }),
   listMembersByStatus: (status: MemberListStatus) =>
     api<OrgMemberRow[]>(`/auth/org/members?status=${status}`),
+};
+
+// ── LOGIC-B2 («Замены»): the request of a teacher and the decision of an administrator ──────────────────────────────
+
+export const substitutionsApi = {
+  // teacher
+  myLessons: (dateFrom: string, dateTo: string) =>
+    api<MyLessonsOut>(`/auth/org/substitutions/my-lessons?${new URLSearchParams({ dateFrom, dateTo }).toString()}`),
+  create: (body: CreateSubstitutionBody) =>
+    api<CreateSubstitutionOut>("/auth/org/substitutions", { method: "POST", body }),
+  mine: (status: "pending" | "all" = "all") =>
+    api<MineOut>(`/auth/org/substitutions/mine?status=${status}`),
+  withdraw: (requestId: string) =>
+    api<SubstitutionItem>(`/auth/org/substitutions/${encodePathId(requestId)}/withdraw`, { method: "POST" }),
+  withdrawMany: (ids: string[]) =>
+    api<WithdrawBatchOut>("/auth/org/substitutions/withdraw", { method: "POST", body: { ids } }),
+
+  // owner / administrator
+  summary: () => api<SubstitutionSummary>("/auth/org/substitutions/summary"),
+  list: (params: SubstitutionListParams) =>
+    api<SubstitutionListOut>(`/auth/org/substitutions?${listQuery(params)}`),
+  detail: (requestId: string) =>
+    api<SubstitutionDetailOut>(`/auth/org/substitutions/${encodePathId(requestId)}`),
+  candidates: (requestId: string) =>
+    api<CandidatesOut>(`/auth/org/substitutions/${encodePathId(requestId)}/candidates`),
+  moveCheck: (requestId: string, params: MoveCheckParams) =>
+    api<MoveCheckOut>(`/auth/org/substitutions/${encodePathId(requestId)}/move-check?${new URLSearchParams({ newDate: params.newDate, startTime: params.startTime, endTime: params.endTime }).toString()}`),
+  decide: (requestId: string, body: DecideBody) =>
+    api<DecideOut>(`/auth/org/substitutions/${encodePathId(requestId)}/decide`, { method: "POST", body }),
+  decideBulk: (body: DecideBulkBody) =>
+    api<DecideBulkOut>("/auth/org/substitutions/decide-bulk", { method: "POST", body }),
 };
 
 export { api, ApiError };

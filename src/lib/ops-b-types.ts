@@ -78,6 +78,8 @@ export interface LessonTeacherResult extends LessonTeacherInfo {
   attendanceUpdated?: boolean;
   version?: number | null;
   payrollSheetsAffected?: Array<{ sheet_id?: string | null; teacher_id: string; month: string; status?: string | null }>;
+  /** LOGIC-B2: this assignment closed a waiting request. */
+  requestClosed?: { id: string; status: string } | null;
 }
 
 // ── attendance (O6, O7, O8, decision 7) ─────────────────────────────────────────────────────────
@@ -166,6 +168,8 @@ export interface ArchiveGroupResult {
   archiveReason?: string | null;
   releasedExamIds?: string[];
   cancelledMissedLessons?: number;
+  /** LOGIC-B2: waiting substitution requests of the group closed by the archive. */
+  closedSubstitutionRequests?: number;
 }
 
 export interface TeacherInactiveDetail extends OpsErrorDetail {
@@ -198,6 +202,8 @@ export interface RemovalImpact {
   inProgressLessons?: RemovalLesson[];
   futureSubstitutions?: { count?: number };
   missedLessons?: { count?: number };
+  /** LOGIC-B2: waiting «Не смогу провести» requests of this member: they are closed with the removal. */
+  pendingSubstitutionRequests?: { count?: number };
 }
 
 export interface HandoverAssignment {
@@ -215,11 +221,15 @@ export interface HandoverResult {
   handedOver?: Array<{ groupId: string; groupName: string; fromTeacherId?: string | null; toTeacherId?: string | null }>;
   remainingGroups?: unknown[];
   releasedSubstitutions?: number;
+  /** LOGIC-B2 */
+  closedSubstitutionRequests?: number;
 }
 
 export interface RemoveMemberResult {
   message: string;
   releasedSubstitutions?: number;
+  /** LOGIC-B2 */
+  closedSubstitutionRequests?: number;
 }
 
 export type MemberListStatus = "active" | "removed" | "all";
