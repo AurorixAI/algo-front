@@ -289,8 +289,13 @@ export default function TeacherGroupDetailPage() {
         <DataLoadError
           title="Не удалось загрузить группу"
           message={loadError || "Группа пока недоступна. Повторите попытку."}
-          onRetry={() => load(true)}
+          onRetry={/Нет доступа/i.test(loadError || "") ? undefined : () => load(true)}
         />
+        {/Нет доступа/i.test(loadError || "") && (
+          <p className="mt-4 text-center">
+            <Link href="/teacher/groups" className="text-sm font-semibold text-primary-600 hover:text-primary-700">К моим группам</Link>
+          </p>
+        )}
       </div>
     );
   }

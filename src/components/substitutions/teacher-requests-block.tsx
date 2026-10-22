@@ -72,7 +72,7 @@ export function TeacherRequestsBlock({
   if (items.length === 0 && assigned.length === 0) return null;
 
   return (
-    <section aria-label={MY_REQUESTS_TITLE} className="grid gap-5 lg:grid-cols-2">
+    <section aria-label={MY_REQUESTS_TITLE} className={`grid gap-5 ${items.length > 0 && assigned.length > 0 ? "lg:grid-cols-2" : ""}`}>
       {items.length > 0 && (
         <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">

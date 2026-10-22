@@ -333,14 +333,15 @@ export class Org {
    * start = the current minute, end = start + 10. The API refuses a lesson that starts earlier than "now",
    * and refuses to START one before its time, so "this very minute" is the earliest valid shape. The
    * finish button opens `end - 15` min, i.e. at once. The lesson stays startable until midnight.
+   * `ahead` > 0: a lesson that starts that many minutes from now (still ahead: a teacher may ask for a substitute); the caller waits with `clockReaches(lesson.startMinutes)`.
    */
-  async createLessonStartingNow(groupId: string, actor: Session = this.owner, minutes = 10): Promise<LessonInfo> {
+  async createLessonStartingNow(groupId: string, actor: Session = this.owner, minutes = 10, ahead = 0): Promise<LessonInfo> {
     for (let attempt = 0; attempt < 4; attempt++) {
       const now = await serverNow();
-      if (now.minutes > 23 * 60 + 45) {
+      if (now.minutes + ahead > 23 * 60 + 45) {
         throw new Error("Too close to midnight (Asia/Tashkent) for a same-day lesson: rerun the suite in a few minutes");
       }
-      const start = now.minutes;
+      const start = now.minutes + ahead;
       const end = Math.min(start + minutes, 23 * 60 + 59);
       try {
         const lesson = await actor.api.post("/auth/org/schedule/lessons", {
@@ -350,8 +351,8 @@ export class Org {
           endTime: hhmm(end),
           topic: "E2E",
         });
-        await clockReaches(start); // the server (and this machine) must have reached the lesson's minute: a start before it is refused
-        return { id: lesson.id, groupId, date: now.date, startTime: hhmm(start), endTime: hhmm(end) };
+        if (ahead === 0) await clockReaches(start); // the server (and this machine) must have reached the lesson's minute: a start before it is refused
+        return { id: lesson.id, groupId, date: now.date, startTime: hhmm(start), endTime: hhmm(end), startMinutes: start };
       } catch (e) {
         if (!(e instanceof ApiError && /прошедшее время/.test(JSON.stringify(e.detail)))) throw e;
       }
@@ -413,4 +414,6 @@ export interface LessonInfo {
   date: string;
   startTime: string;
   endTime: string;
+  /** Minutes since midnight (business time) the lesson starts at. */
+  startMinutes?: number;
 }
