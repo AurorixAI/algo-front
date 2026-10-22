@@ -22,6 +22,7 @@ import {
   REASON_MIN,
   type PeriodMode,
 } from "./payments";
+import { formatBusinessDate } from "./business-time";
 import { pluralRu } from "./plural";
 
 // ── The contract ────────────────────────────────────────────────────────────
@@ -618,15 +619,35 @@ export function changedCount(rows: readonly OpeningRow[], drafts: Drafts): numbe
   return rows.filter((row) => isChanged(row, drafts[row.membership_id])).length;
 }
 
-/** The drafts of rows that no longer change anything are dropped (the user typed the saved value back). */
+/**
+ * The drafts of rows that no longer change anything are dropped (the user typed the saved value back).  A draft of a row that is not
+ * in `rows` is KEPT: the table can be read again with fewer rows («Показать ушедших» off, another group) and the typed values come
+ * back with the rows; they are only never sent while their row is not on the page.
+ */
 export function prunedDrafts(rows: readonly OpeningRow[], drafts: Drafts): Drafts {
   const next: Drafts = {};
   const byId = new Map(rows.map((row) => [row.membership_id, row] as const));
   for (const [id, draft] of Object.entries(drafts)) {
     const row = byId.get(id);
-    if (row && isChanged(row, draft)) next[id] = draft;
+    if (!row || isChanged(row, draft)) next[id] = draft;
   }
   return next;
+}
+
+/** Drafts whose row is not in the table now (they wait for the row to come back). */
+export function hiddenDraftCount(rows: readonly OpeningRow[], drafts: Drafts): number {
+  const present = new Set(rows.map((row) => row.membership_id));
+  return Object.keys(drafts).filter((id) => !present.has(id)).length;
+}
+
+/** What a coming read would hide: the rows it keeps are tested by `stays`; the count is of the changed drafts among the others. */
+export function draftsAtRisk(rows: readonly OpeningRow[], drafts: Drafts, stays: (row: OpeningRow) => boolean): number {
+  return rows.filter((row) => !stays(row) && isChanged(row, drafts[row.membership_id])).length;
+}
+
+/** The question before a read that hides rows with typed values (`window.confirm` through `confirmLeave`). */
+export function openingsHiddenDraftsText(count: number): string {
+  return `Вы изменили остатки у ${count} ${atStudentsWord(count)}, которые пропадут из таблицы. Эти правки не попадут в сохранение, пока вы снова не покажете строки. Продолжить?`;
 }
 
 export interface DraftContext {
@@ -1136,7 +1157,7 @@ export interface Checklist {
 }
 
 /** «Дата начала учёта → Остатки на начало → Готово» with the state of each step (from `GET /summary`). */
-export function checklistOf(summary: OpeningsSummary): Checklist {
+export function checklistOf(summary: OpeningsSummary, today: string = formatBusinessDate()): Checklist {
   const start = dmy(summary.accounting_start);
   const progress = progressOf(summary.totals);
   const ended = summary.state === "done" || summary.state === "skipped";
@@ -1154,7 +1175,8 @@ export function checklistOf(summary: OpeningsSummary): Checklist {
       { key: "launch", status: launched ? "done" : "todo", title: "Готово", detail: `с ${start ? start.slice(0, 5) : "…"} центр считает долги`, action: null },
     ],
     launched: launched && (ended || filledAll),
-    line: launched ? `Учёт оплат запущен с ${start} ✓` : null,
+    // «запущен» only once the day has come: a start that is still ahead is «начнётся»
+    line: !launched ? null : summary.accounting_start && summary.accounting_start > today ? `Учёт начнётся с ${start}` : `Учёт оплат запущен с ${start} ✓`,
   };
 }
 

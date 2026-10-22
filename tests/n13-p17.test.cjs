@@ -151,7 +151,7 @@ test("the subtitle is the sum of both tabs (the dashboard's «Всего уче�
 test("the list uses the tabs, no longer hides students without a group, and is guarded against slow answers", () => {
   const list = read("components/students/students-list-view.tsx");
   assert.doesNotMatch(list, /has_primary_group/);
-  assert.match(list, /\.\.\.studentTabQuery\(activeTab, search\)/);
+  assert.match(list, /studentsPageQuery\(\{ tab: activeTab, search,/);
   assert.match(list, /role="tablist"/);
   assert.match(list, /studentTabLabel\(value, counts\[value\]\)/);
   assert.match(list, /const activeTab: StudentTab = filterGroup \|\| filterTeacher \? "grouped" : tab;/); // a chosen group (or teacher) means «in a group»

@@ -9,6 +9,8 @@ import {
   OPENING_PAID_UNTIL_HINT,
   OPENING_PAID_UNTIL_LABEL,
   OPENING_TITLE,
+  openingDebtMax,
+  openingFloor,
   openingLine,
   openingPaidUntilMax,
   type OpeningFormValues,
@@ -20,7 +22,7 @@ import {
  * Оплачено до 31.10. Долг на начало: 250 000 сум.»).  Money roles only: the server refuses the opening balance to everybody else.
  */
 export function OpeningBalanceFields({
-  idPrefix, values, onChange, enrolDate, today, accountingStart, compact = false, line = true, legend = true,
+  idPrefix, values, onChange, enrolDate, today, accountingStart, floor, compact = false, line = true, legend = true,
 }: {
   idPrefix: string;
   values: OpeningFormValues;
@@ -29,6 +31,8 @@ export function OpeningBalanceFields({
   enrolDate: string | null;
   today: string;
   accountingStart?: string | null;
+  /** `L` from the server, when it sent one (wins over the local `max(enrolDate, accountingStart − 1)`). */
+  floor?: string | null;
   compact?: boolean;
   /** The live line under the fields (the card shows the server's calculation instead). */
   line?: boolean;
@@ -37,7 +41,7 @@ export function OpeningBalanceFields({
 }) {
   const patch = (next: Partial<OpeningFormValues>) => onChange({ ...values, ...next });
   const summary = line ? openingLine(values, { enrolDate }) : "";
-  const earliest = [enrolDate, accountingStart].filter((day): day is string => Boolean(day)).sort().pop() ?? undefined;
+  const earliest = openingFloor({ enrolDate, accountingStart, floor }) ?? undefined;
   return (
     <fieldset className="space-y-3">
       {legend ? (
@@ -75,7 +79,7 @@ export function OpeningBalanceFields({
             type="date"
             value={values.debtOn}
             min={OPENING_MIN_DATE}
-            max={enrolDate ?? today}
+            max={openingDebtMax({ enrolDate, accountingStart, floor }) ?? today}
             onChange={(event) => patch({ debtOn: event.target.value })}
             aria-describedby={`${idPrefix}-debt-hint`}
             className={PRICE_FIELD}
@@ -93,7 +97,7 @@ export function OpeningBalanceFields({
  * Money roles only, and only for one student that does not come by a transfer (the server answers `OPENING_NOT_ALLOWED` otherwise).
  */
 export function OpeningToggle({
-  idPrefix, enabled, onEnabled, values, onChange, enrolDate, today, accountingStart, needsReason = false,
+  idPrefix, enabled, onEnabled, values, onChange, enrolDate, today, accountingStart, floor, needsReason = false,
 }: {
   idPrefix: string;
   enabled: boolean;
@@ -103,6 +107,7 @@ export function OpeningToggle({
   enrolDate: string;
   today: string;
   accountingStart?: string | null;
+  floor?: string | null;
   /** The server answered `REASON_REQUIRED`: the student already has money, the replacement needs a reason. */
   needsReason?: boolean;
 }) {
@@ -121,7 +126,7 @@ export function OpeningToggle({
         {OPENING_TITLE}
       </button>
       {enabled && (
-        <OpeningBalanceFields idPrefix={idPrefix} values={values} onChange={onChange} enrolDate={enrolDate} today={today} accountingStart={accountingStart} compact legend={false} />
+        <OpeningBalanceFields idPrefix={idPrefix} values={values} onChange={onChange} enrolDate={enrolDate} today={today} accountingStart={accountingStart} floor={floor} compact legend={false} />
       )}
       {enabled && needsReason && (
         <div>

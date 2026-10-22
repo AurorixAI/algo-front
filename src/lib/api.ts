@@ -1385,12 +1385,13 @@ export const orgApi = {
   },
   /** One server-side page of students plus the exact total of the filtered set. */
   listStudentsPage: async (params: {
-    class_level?: number; group_id?: string; has_group?: boolean; has_primary_group?: boolean;
+    class_level?: number; group_id?: string; teacher_id?: string; has_group?: boolean; has_primary_group?: boolean;
     status?: string; exclude_status?: string; search?: string; limit?: number; offset?: number;
   }) => {
     const query = new URLSearchParams({ include_meta: "true" });
     if (params.class_level) query.set("class_level", String(params.class_level));
     if (params.group_id) query.set("group_id", params.group_id);
+    if (params.teacher_id) query.set("teacher_id", params.teacher_id);
     if (params.has_group !== undefined) query.set("has_group", String(params.has_group));
     if (params.has_primary_group !== undefined) query.set("has_primary_group", String(params.has_primary_group));
     if (params.status) query.set("status", params.status);

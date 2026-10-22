@@ -85,6 +85,7 @@ export function AddStudentDrawer({
   const [mode, setMode] = useState<GroupJoinMode>("transfer");
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   // The center's mode names the price («Цена в месяц» / «Цена пакета»).
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   // An individual price is an exception: off by default, a sum and a reason when on (one for everybody added now).
@@ -206,7 +207,7 @@ export function AddStudentDrawer({
     if (exception.error) { setAddError(exception.error); return; }
     const withOpening = openingAllowed && openingOn;
     if (withOpening) {
-      const problem = validateOpening(opening, { enrolDate: today, today });
+      const problem = validateOpening(opening, { enrolDate: today, accountingStart, today });
       if (problem) { setAddError(problem); return; }
       const reasonProblem = openingNeedsReason ? validateOpeningReason(opening.reason) : null;
       if (reasonProblem) { setAddError(reasonProblem); return; }
@@ -349,6 +350,7 @@ export function AddStudentDrawer({
               onChange={(next) => { setAddError(null); setOpening(next); }}
               enrolDate={today}
               today={today}
+              accountingStart={accountingStart}
               needsReason={openingNeedsReason}
             />
           </div>

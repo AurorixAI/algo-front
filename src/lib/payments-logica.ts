@@ -206,10 +206,34 @@ export function openingIsEmpty(values: Pick<OpeningFormValues, "paidUntil" | "de
 }
 
 export interface OpeningContext {
-  /** The day the membership starts (the enrolment): «Оплачено до» is not earlier, «Долг на дату» not later.  null: not known here, the server checks. */
+  /** The day the membership starts (the enrolment).  null: not known here, the server checks. */
   enrolDate: string | null;
+  /** The day the accounting starts (S0: the seam is the day before it). */
   accountingStart?: string | null;
+  /** `L` as the server computed it (`OpeningRow.floor`): wins over the local rule when present. */
+  floor?: string | null;
   today: string;
+}
+
+/**
+ * S0 (22.10): `L = max(enrolDate, accountingStart − 1 day)`, the same as the server's `OpeningService.floor_of`.  «Оплачено до» is not
+ * earlier than `L`, «Долг на дату» is not later.  A server-provided `floor` wins.  null: nothing known to compute it from.
+ */
+export function openingFloor(context: Pick<OpeningContext, "enrolDate" | "accountingStart" | "floor">): string | null {
+  if (context.floor && isIsoDate(context.floor)) return context.floor;
+  const seam = context.accountingStart && isIsoDate(context.accountingStart) ? addDays(context.accountingStart, -1) : null;
+  const days = [context.enrolDate, seam].filter((day): day is string => Boolean(day));
+  return days.length ? days.sort().pop() ?? null : null;
+}
+
+/** The latest «Долг на дату»: `L` itself, but only when it is exact (the server's, or the enrolment is known); null: the server decides. */
+export function openingDebtMax(context: Pick<OpeningContext, "enrolDate" | "accountingStart" | "floor">): string | null {
+  return context.floor || context.enrolDate ? openingFloor(context) : null;
+}
+
+/** `L` is the seam (the day before the accounting start), not the enrolment: the hint says where the earlier days go. */
+function floorIsSeam(floor: string, context: Pick<OpeningContext, "enrolDate" | "accountingStart">): boolean {
+  return Boolean(context.accountingStart && isIsoDate(context.accountingStart) && floor === addDays(context.accountingStart, -1));
 }
 
 /** The latest «Оплачено до» the server accepts: today + 366 days. */
@@ -221,10 +245,14 @@ export function openingPaidUntilMax(today: string): string {
 export function validateOpening(values: OpeningFormValues, context: OpeningContext): string | null {
   if (openingIsEmpty(values)) return null;
   const debt = parseMoneyInput(values.debt);
+  const floor = openingFloor(context);
   if (values.paidUntil) {
     if (!isIsoDate(values.paidUntil)) return "Укажите дату «Оплачено до»";
-    const floor = [context.enrolDate, context.accountingStart].filter((day): day is string => Boolean(day)).sort().pop() ?? null;
-    if (floor && values.paidUntil < floor) return `«Оплачено до» не раньше ${formatDateRu(floor)}: даты зачисления и начала учёта`;
+    if (floor && values.paidUntil < floor) {
+      return floorIsSeam(floor, context)
+        ? `«Оплачено до» — не раньше ${formatDateRu(floor)}: за более ранние дни внесите как долг`
+        : `«Оплачено до» — не раньше ${formatDateRu(floor)}: дня зачисления`;
+    }
     if (values.paidUntil > openingPaidUntilMax(context.today)) return "«Оплачено до» — не дальше чем на год вперёд";
   }
   if (debt !== null || values.debtOn) {
@@ -233,7 +261,12 @@ export function validateOpening(values: OpeningFormValues, context: OpeningConte
     if (debt > MAX_MONEY) return "Сумма долга слишком большая";
     if (!isIsoDate(values.debtOn)) return "Укажите, на какую дату был долг";
     if (values.debtOn < OPENING_MIN_DATE) return "Дата долга не раньше 01.01.2020";
-    if (context.enrolDate && values.debtOn > context.enrolDate) return `«Долг на дату» — не позже дня зачисления (${formatDateRu(context.enrolDate)})`;
+    const debtMax = openingDebtMax(context);
+    if (debtMax && values.debtOn > debtMax) {
+      return context.enrolDate && debtMax === context.enrolDate
+        ? `«Долг на дату» — не позже дня зачисления (${formatDateRu(debtMax)})`
+        : `«Долг на дату» — не позже ${formatDateRu(debtMax)}: долг после начала учёта считается сам`;
+    }
   }
   if (values.note.trim().length > OPENING_NOTE_MAX) return `Примечание не длиннее ${OPENING_NOTE_MAX} символов`;
   if (values.reason.trim().length > REASON_MAX) return `Причина не длиннее ${REASON_MAX} символов`;

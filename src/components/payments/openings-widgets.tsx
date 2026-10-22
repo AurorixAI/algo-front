@@ -100,12 +100,12 @@ function StepMark({ status }: { status: ChecklistStep["status"] }) {
  * first two steps are done the card folds into one line.  `onChangeDate` brings the owner to the field of the date (the page knows
  * where it is); without it the step has no button.
  */
-export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given }: { paymentsBase: string; onChangeDate?: () => void; summary?: OpeningsSummary | null }) {
+export function OpeningsChecklist({ paymentsBase, onChangeDate, summary: given, today }: { paymentsBase: string; onChangeDate?: () => void; summary?: OpeningsSummary | null; /** `YYYY-MM-DD`, the business day (tests pin it). */ today?: string }) {
   const { summary: own } = useOpeningsSummary();
   const summary = given !== undefined ? given : own;
   const [expanded, setExpanded] = useState(false);
   if (!summary) return null;
-  const checklist = checklistOf(summary);
+  const checklist = checklistOf(summary, today);
   if (checklist.launched && checklist.line && !expanded) {
     return (
       <section aria-label="Запуск учёта оплат" data-testid="openings-checklist" className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3">

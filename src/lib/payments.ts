@@ -57,6 +57,8 @@ export interface AccountingStartImpact {
   memberships_with_changed_advance?: number;
   advance_delta?: number;
   refundable_delta?: number;
+  /** S0: memberships whose live opening has «оплачено до» earlier than the new start − 1 (they need a second look in «Остатки на начало»; older servers do not send it). */
+  openings_to_review?: number;
 }
 
 /** `PUT /org/settings/payments`: the settings plus the impact of the requested start date (`dry_run`: nothing was saved). */
@@ -212,6 +214,10 @@ export interface ReceiptOut {
   student_name: string;
   display_id?: string | null;
   group_name: string;
+  /** The ids behind the names: a receipt opened by a bare link still leads on to the statement, the student and the group. */
+  student_id?: string | null;
+  membership_id?: string | null;
+  group_id?: string | null;
   amount: number;
   /** «Пятьсот тысяч сум», with a capital letter. */
   amount_words: string;
@@ -1402,6 +1408,19 @@ export function receiptContextOf(params: { get(name: string): string | null } | 
   return { membershipId: clean(params?.get("m")), studentId: clean(params?.get("s")), groupId: clean(params?.get("g")) };
 }
 
+/** The links of the receipt: what the address says first, the ids of the receipt itself when it was opened by a bare link. */
+export function receiptContextWithFallback(
+  context: ReceiptContext,
+  receipt: Pick<ReceiptOut, "membership_id" | "student_id" | "group_id"> | null | undefined,
+): ReceiptContext {
+  const clean = (value: string | null | undefined) => (value && /^[\w-]{1,64}$/.test(value) ? value : null);
+  return {
+    membershipId: context.membershipId ?? clean(receipt?.membership_id),
+    studentId: context.studentId ?? clean(receipt?.student_id),
+    groupId: context.groupId ?? clean(receipt?.group_id),
+  };
+}
+
 /** `/owner/payments` + id -> `/owner/payments/statement/<membership>`: the account of a student in a group. */
 export function statementHref(paymentsBasePath: string, membershipId: string): string {
   return `${paymentsBasePath.replace(/\/+$/, "")}/statement/${encodeURIComponent(membershipId)}`;
@@ -1501,7 +1520,16 @@ export function accountingStartImpactLines(impact: AccountingStartImpact | null 
   if (advanceCount > 0 || advanceDelta !== 0) lines.push(`Аванс изменится у ${advanceCount} ${pluralRu(advanceCount, "ученика", "учеников", "учеников")}: ${signed(advanceDelta)}`);
   const refundable = Math.round(impact.refundable_delta ?? 0);
   if (refundable !== 0) lines.push(`Можно будет вернуть: ${signed(refundable)}`);
-  return lines.length > 0 ? lines : ["Долг и аванс ни у кого не изменятся"];
+  if (lines.length === 0) lines.push("Долг и аванс ни у кого не изменятся");
+  const review = accountingStartOpeningsToReview(impact);
+  if (review > 0) lines.push(`У ${review} ${pluralRu(review, "остатка", "остатков", "остатков")} «оплачено до» раньше нового начала — пересмотрите их в «Остатки на начало»`);
+  return lines;
+}
+
+/** How many live openings the new start leaves with «оплачено до» before it (0 from an older server). */
+export function accountingStartOpeningsToReview(impact: AccountingStartImpact | null | undefined): number {
+  const count = Math.floor(Number(impact?.openings_to_review));
+  return Number.isFinite(count) && count > 0 ? count : 0;
 }
 
 /** The same lines as one text (a sentence for assistive technology and tests). */

@@ -563,7 +563,7 @@ test("checklist: «Дата начала учёта → Остатки на на
   assert.equal(pending.launched, false);
   assert.equal(pending.line, null);
   // everything filled: the state is done on the server, the card folds into one line
-  const done = O.checklistOf(summary("done", 0));
+  const done = O.checklistOf(summary("done", 0), "2026-11-02");
   assert.deepEqual(status(done), ["done", "done", "done"]);
   assert.equal(done.launched, true);
   assert.equal(done.line, "Учёт оплат запущен с 01.11.2026 ✓");
@@ -727,10 +727,10 @@ test("pieces: the banner, the checklist and the button render from a summary (an
   assert.match(open, /1\. Дата начала учёта — 01\.11\.2026 Изменить/);
   assert.match(open, /2\. Остатки на начало — заполнено 52 из 90 Открыть →/);
   assert.match(open, /3\. Готово — с 01\.11 центр считает долги/);
-  const folded = text(html(React.createElement(W.OpeningsChecklist, { paymentsBase: "/owner/payments", summary: summary("done", 0) })));
+  const folded = text(html(React.createElement(W.OpeningsChecklist, { paymentsBase: "/owner/payments", summary: summary("done", 0), today: "2026-11-02" })));
   assert.match(folded, /Учёт оплат запущен с 01\.11\.2026 ✓/);
   assert.doesNotMatch(folded, /Открыть/);
-  assert.match(text(html(React.createElement(W.OpeningsChecklist, { paymentsBase: "/owner/payments", summary: summary("skipped", 38) }))), /пропущено — центр начинает с нуля|Учёт оплат запущен/);
+  assert.match(text(html(React.createElement(W.OpeningsChecklist, { paymentsBase: "/owner/payments", summary: summary("skipped", 38), today: "2026-11-02" }))), /пропущено — центр начинает с нуля|Учёт оплат запущен/);
   assert.equal(html(React.createElement(W.OpeningsChecklist, { paymentsBase: "/owner/payments", summary: null })), "");
 });
 

@@ -397,10 +397,10 @@ test("F34 / F37: the students list lives in the address (tab, search, teacher, g
   const parsed = S.parseStudentsListQuery(new URLSearchParams("tab=ungrouped&q=али&teacher=t1&group=g1&page=3"));
   assert.deepEqual(parsed, state({ tab: "ungrouped", q: "али", teacher: "t1", group: "g1", page: 2 }));
   assert.deepEqual(S.parseStudentsListQuery(new URLSearchParams("page=0&tab=zzz")), state({}));
-  assert.deepEqual(S.mergeTeacherStudents([[{ id: "2", last_name: "Б", first_name: "А" }, { id: "1", last_name: "А", first_name: "Я" }], [{ id: "2", last_name: "Б", first_name: "А" }]]).map((s) => s.id), ["1", "2"]);
   const list = read("src/components/students/students-list-view.tsx");
   assert.doesNotMatch(list, /<GroupCard|Folder|У преподавателя пока нет групп|создать группы в разделе/);
-  assert.match(list, /mergeTeacherStudents\(/);
+  assert.match(list, /studentsPageQuery\(/);
+  assert.doesNotMatch(list, /mergeTeacherStudents|teacherGroupIds|groups\.length === 0\) return/);
 });
 
 test("F16 / F36: one «Копировать ID» (useCopy); no dead copy code on the card, no «copyDisplayId»", () => {
@@ -429,7 +429,6 @@ test("ia-links: every link is built from the workspace; money screens lead to th
   assert.equal(L2.studentHref("/owner/students", "s1", null), "/owner/students/s1");
   assert.equal(L2.groupHref("/admin/groups", "g1"), "/admin/groups/g1");
   assert.equal(L2.groupHref("/admin/groups", "g1", "payments"), "/admin/groups/g1?tab=payments");
-  assert.equal(L2.groupLessonHref("/owner/groups", "g1", "l1", "2026-10-22T10:00"), "/owner/groups/g1?tab=schedule&lesson=l1&date=2026-10-22");
   assert.equal(L2.groupPaymentsListHref("/owner/payments", "g1"), "/owner/payments?bucket=debt&group_id=g1");
   assert.equal(L2.teacherHref("t 1"), "/owner/teachers?teacher=t%201");
   assert.equal(INC.debtorsHref("/owner/payments"), "/owner/payments?bucket=debt");

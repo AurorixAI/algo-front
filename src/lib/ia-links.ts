@@ -47,14 +47,6 @@ export function groupHref(groupsBase: string, groupId: string, tab: "students" |
   return `${trim(groupsBase)}/${encodeURIComponent(groupId)}${tab ? `?tab=${tab}` : ""}`;
 }
 
-/** A lesson in the schedule of its group (a substitution row leads here, F31): `?tab=schedule&lesson=…&date=…`. */
-export function groupLessonHref(groupsBase: string, groupId: string, lessonId: string | null | undefined, date: string | null | undefined): string {
-  const params = new URLSearchParams({ tab: "schedule" });
-  if (lessonId) params.set("lesson", lessonId);
-  if (date) params.set("date", date.slice(0, 10));
-  return `${trim(groupsBase)}/${encodeURIComponent(groupId)}?${params.toString()}`;
-}
-
 /** The payments list narrowed to one group (`?bucket=&group_id=`). */
 export function groupPaymentsListHref(paymentsBase: string, groupId: string, bucket: "debt" | "expiring" | "active" | "paused" = "debt"): string {
   return `${trim(paymentsBase)}?bucket=${bucket}&group_id=${encodeURIComponent(groupId)}`;

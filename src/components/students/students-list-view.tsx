@@ -10,7 +10,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ImportButton } from "@/components/import/import-button";
 import { createRequestSequence } from "@/lib/request-sequence";
 import {
-  availableStudentTabs, mergeTeacherStudents, parseStudentsListQuery, studentTabCounts, studentTabQuery, studentTabLabel, studentsListHref, studentsSubtitle, extraGroupsLabel, studentCardMeta,
+  availableStudentTabs, parseStudentsListQuery, studentTabCounts, studentTabQuery, studentsPageQuery, studentTabLabel, studentsListHref, studentsSubtitle, extraGroupsLabel, studentCardMeta,
   type StudentTab, type StudentTabCounts, type StudentsListState,
 } from "@/lib/students-tabs";
 import { displayPhone, telHref } from "@/lib/phone";
@@ -109,21 +109,12 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
 
   // A chosen group (or a chosen teacher: his groups) means «in a group», whatever tab was open.
   const activeTab: StudentTab = filterGroup || filterTeacher ? "grouped" : tab;
-  // The live groups of the chosen teacher (the server has no teacher filter on the list: his groups are read one by one, see `mergeTeacherStudents`).
-  const teacherGroupIds = useMemo(
-    () => (filterTeacher && !filterGroup ? groups.filter((g) => g.teacher_id === filterTeacher && g.status !== "archived").map((g) => g.id as string) : []),
-    [groups, filterTeacher, filterGroup],
-  );
-  const teacherMode = Boolean(filterTeacher && !filterGroup);
-
   // Server-side paging: only the current page is fetched; `total` is the exact size of the
   // filtered set. Archived students are in neither live tab (the dashboard total leaves them out
   // too), so «В группах» + «Без группы» add up to the dashboard «Всего учеников»; «Архив» is a
   // list of its own (`status=archived`). The other tabs' counts come from one-row requests with
   // the same search.
   const loadStudents = useCallback(async () => {
-    // a teacher is chosen: his groups come with the directories; nothing to ask before that
-    if (teacherMode && groups.length === 0) return;
     const token = listSeq.next();
     setRefreshing(true);
     setListError(null);
@@ -131,18 +122,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
       const search = debouncedSearch || undefined;
       const otherTabs = filterGroup || filterTeacher ? [] : OFFERED_TABS.filter((value) => value !== activeTab);
       const [data, otherPages] = await Promise.all([
-        teacherMode
-          ? Promise.all(teacherGroupIds.map((id) =>
-            orgApi.listStudentsPage({ ...studentTabQuery("grouped", search), group_id: id, limit: 500, offset: 0 }))).then((pages) => {
-            const merged = mergeTeacherStudents(pages.map((one) => one.items as StudentInfo[]));
-            return { items: merged.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), total: merged.length };
-          })
-          : orgApi.listStudentsPage({
-            ...studentTabQuery(activeTab, search),
-            group_id: filterGroup || undefined,
-            limit: PAGE_SIZE,
-            offset: page * PAGE_SIZE,
-          }),
+        orgApi.listStudentsPage(studentsPageQuery({ tab: activeTab, search, groupId: filterGroup, teacherId: filterTeacher, page, pageSize: PAGE_SIZE })),
         Promise.all(otherTabs.map((value) =>
           orgApi.listStudentsPage({ ...studentTabQuery(value, search), limit: 1 }).catch(() => null))),
       ]);
@@ -165,7 +145,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
     } finally {
       if (listSeq.isCurrent(token)) { setLoading(false); setRefreshing(false); }
     }
-  }, [debouncedSearch, filterGroup, filterTeacher, teacherMode, teacherGroupIds, groups.length, page, activeTab, listSeq]);
+  }, [debouncedSearch, filterGroup, filterTeacher, page, activeTab, listSeq]);
 
   const loadAll = () => { loadDirectories(); loadStudents(); };
 

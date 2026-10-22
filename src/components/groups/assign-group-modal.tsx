@@ -109,6 +109,7 @@ export function AssignGroupModal({
   // Calm notes of the server, e.g. "оплата перенесена в новую группу" (N13 P2.1).
   const [serverInfos, setServerInfos] = useState<string[]>([]);
   const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   const paymentHint = transferPaymentHint({ transfer: isTransfer, moneyAvailable });
   const priceHint = enrolPriceHint({ transfer: isTransfer, moneyAvailable });
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
@@ -220,7 +221,7 @@ export function AssignGroupModal({
     const todayDate = formatBusinessDate();
     const withOpening = moneyAvailable && !isTransfer && openingOn;
     if (withOpening) {
-      const problem = validateOpening(opening, { enrolDate: todayDate, today: todayDate });
+      const problem = validateOpening(opening, { enrolDate: todayDate, accountingStart, today: todayDate });
       if (problem) { setAssignmentError(problem); return; }
       const reasonProblem = openingNeedsReason ? validateOpeningReason(opening.reason) : null;
       if (reasonProblem) { setAssignmentError(reasonProblem); return; }
@@ -622,6 +623,7 @@ export function AssignGroupModal({
               onChange={(next) => { setAssignmentError(null); setOpening(next); }}
               enrolDate={formatBusinessDate()}
               today={formatBusinessDate()}
+              accountingStart={accountingStart}
               needsReason={openingNeedsReason}
             />
           </div>

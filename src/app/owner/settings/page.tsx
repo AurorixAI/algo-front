@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { orgApi, authApi } from "@/lib/api";
@@ -37,9 +38,10 @@ import {
   payrollFormulaText,
   type PayrollSettings,
 } from "@/lib/payroll";
-import { ACCOUNTING_START_MIN, accountingStartImpactLines, formatMoney, isIsoDate } from "@/lib/payments";
+import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpeningsToReview, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { OpeningsChecklist } from "@/components/payments/openings-widgets";
+import { openingsHref } from "@/lib/openings";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -285,7 +287,7 @@ function NumberField({
 function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   const { form, loaded, saves } = draft;
   const accountingChanged = Boolean(form.accounting_start_date) && form.accounting_start_date !== loaded.accounting_start_date;
-  const [impact, setImpact] = useState<{ date: string; lines: string[]; error: string | null } | null>(null);
+  const [impact, setImpact] = useState<{ date: string; lines: string[]; toReview: number; error: string | null } | null>(null);
   // What a new start of the accounting changes (the dry run of the server): asked once the owner stops typing the date.
   useEffect(() => {
     const date = form.accounting_start_date;
@@ -293,9 +295,9 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
     let cancelled = false;
     const timer = setTimeout(() => {
       orgApi.previewPaymentSettings({ accounting_start_date: date })
-        .then((answer) => { if (!cancelled) setImpact({ date, lines: accountingStartImpactLines(answer.impact), error: null }); })
+        .then((answer) => { if (!cancelled) setImpact({ date, lines: accountingStartImpactLines(answer.impact), toReview: accountingStartOpeningsToReview(answer.impact), error: null }); })
         // The server refuses a date later than the earliest payment («Есть оплаты до этой даты: …») or before 2020: its sentence goes under the field.
-        .catch((cause) => { if (!cancelled) setImpact({ date, lines: [], error: cause instanceof Error ? cause.message : "Не удалось проверить дату" }); });
+        .catch((cause) => { if (!cancelled) setImpact({ date, lines: [], toReview: 0, error: cause instanceof Error ? cause.message : "Не удалось проверить дату" }); });
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
   }, [accountingChanged, form.accounting_start_date]);
@@ -383,7 +385,14 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         )}
         {impact && impact.date === form.accounting_start_date && impact.lines.length > 0 && (
           <ul role="status" className="space-y-0.5 text-xs font-medium text-amber-800">
-            {impact.lines.map((line) => <li key={line}>{line}</li>)}
+            {impact.lines.map((line, index) => (
+              <li key={line}>
+                {line}
+                {impact.toReview > 0 && index === impact.lines.length - 1 && (
+                  <>{" "}<Link href={openingsHref("/owner/payments")} data-testid="accounting-start-openings-link" className="font-semibold underline">Открыть остатки</Link></>
+                )}
+              </li>
+            ))}
           </ul>
         )}
       </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eraser, PiggyBank, Tag, Undo2 } from "lucide-react";
 import { formatMoney, type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { membershipActionKeys, membershipActionLabel, type MembershipActionKey } from "@/lib/membership-actions";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { OpeningBalanceDialog } from "./opening-balance-dialog";
 import { IndividualPriceDialog } from "./membership-price";
@@ -36,6 +37,7 @@ export interface MembershipRowActionsProps {
  */
 export function MembershipRowActions({ row, studentName, periodMode, archived = false, joinedAt = null, onRowChange, onNotify, label }: MembershipRowActionsProps) {
   const [open, setOpen] = useState<MembershipActionKey | null>(null);
+  const accountingStart = usePaymentsSummary((state) => state.accountingStart);
   const close = () => setOpen(null);
   const keys = membershipActionKeys(row, { archived });
   const items: RowMenuItem[] = keys.map((key) => ({
@@ -76,6 +78,7 @@ export function MembershipRowActions({ row, studentName, periodMode, archived = 
         groupName={row.group_name}
         opening={row.opening ?? null}
         enrolDate={joinedAt}
+        accountingStart={accountingStart}
         onClose={close}
         onSaved={(next, removed) => {
           if (next) onRowChange(next, "opening");

@@ -431,7 +431,7 @@ test("the list: three tabs from the address, a Suspense boundary, the archive wi
   assert.match(list, /OFFERED_TABS\.map\(\(value\) =>/);
   assert.match(list, /OFFERED_TABS\.filter\(\(value\) => value !== activeTab\)/);   // no archive count request in the demo
   assert.match(list, /studentTabLabel\(value, counts\[value\]\)/);
-  assert.match(list, /\.\.\.studentTabQuery\(activeTab, search\)/);
+  assert.match(list, /studentsPageQuery\(\{ tab: activeTab, search,/);
   assert.match(list, /studentTabCounts\(activeTab, data\.total, otherTotals\)/);
   assert.match(list, /\{activeTab !== "archived" && \(\s*<CascadingFilter/);
   assert.match(list, /aria-label="Поиск по имени или ID ученика"/);               // search stays on every tab

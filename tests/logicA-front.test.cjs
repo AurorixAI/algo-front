@@ -102,7 +102,8 @@ test("opening balance: the form, its live line and the body of the request (G-OP
   const c = { ...empty, paidUntil: "2026-10-25", debt: "100 000", debtOn: "2026-09-30" };
   assert.equal(plain(G.openingLine(c, ctx)), "Стоимость считается с 26.10. Оплачено до 25.10. Долг на начало: 100 000 сум на 30.09.");
   // refusals, in words
-  assert.match(G.validateOpening({ ...empty, paidUntil: "2026-09-15" }, ctx), /не раньше 21\.10\.2026/);
+  // enrolment after the start: L = the enrolment day, the hint is about the enrolment (not «внесите как долг»)
+  assert.match(G.validateOpening({ ...empty, paidUntil: "2026-09-15" }, ctx), /не раньше 21\.10\.2026: дня зачисления/);
   assert.match(G.validateOpening({ ...empty, debt: "250 000" }, ctx), /на какую дату был долг/);
   assert.match(G.validateOpening({ ...empty, debt: "250 000", debtOn: "2026-10-22" }, ctx), /не позже дня зачисления/);
   assert.match(G.validateOpening({ ...empty, paidUntil: "2028-01-01" }, ctx), /не дальше чем на год/);
@@ -112,6 +113,64 @@ test("opening balance: the form, its live line and the body of the request (G-OP
   // the words of the owner on the form
   assert.equal(G.OPENING_TITLE, "Остаток на начало учёта");
   assert.equal(G.OPENING_PAID_UNTIL_HINT, "Ученик уже заплатил до этой даты — до запуска в ALGO. Эти дни не входят в стоимость и не превращаются в аванс.");
+});
+
+// S0 (22.10): the single opening follows the server rule `L = max(enrolDate, accountingStart − 1)` (`LogicaService.floor_of`), the same as the bulk page
+test("S0 parity: the form of the single opening checks against L = max(enrolDate, accountingStart − 1 day)", () => {
+  const empty = G.emptyOpeningValues();
+  const paid = (paidUntil) => ({ ...empty, paidUntil });
+  const owes = (debtOn) => ({ ...empty, debt: "100 000", debtOn });
+  // came before the start: L = start − 1
+  const before = { enrolDate: "2026-09-10", accountingStart: "2026-11-01", today: "2026-10-22" };
+  assert.equal(G.openingFloor(before), "2026-10-31");
+  assert.equal(G.validateOpening(paid("2026-10-31"), before), null); // paidUntil = start − 1: OK
+  assert.equal(G.validateOpening(owes("2026-10-31"), before), null); // debtOn = start − 1: OK
+  assert.match(G.validateOpening(owes("2026-11-01"), before), /не позже 31\.10\.2026/); // debtOn = start: refused
+  assert.match(G.validateOpening(paid("2026-10-30"), before), /не раньше 31\.10\.2026: за более ранние дни внесите как долг/);
+  // enrolment on / after the start: L = the enrolment day
+  const after = { enrolDate: "2026-11-05", accountingStart: "2026-11-01", today: "2026-11-05" };
+  assert.equal(G.openingFloor(after), "2026-11-05");
+  assert.equal(G.validateOpening(paid("2026-11-05"), after), null);
+  assert.match(G.validateOpening(paid("2026-11-04"), after), /не раньше 05\.11\.2026: дня зачисления/);
+  assert.doesNotMatch(G.validateOpening(paid("2026-11-04"), after), /как долг/);
+  assert.equal(G.validateOpening(owes("2026-11-05"), after), null);
+  assert.match(G.validateOpening(owes("2026-11-06"), after), /не позже дня зачисления \(05\.11\.2026\)/);
+  // enrolDate = start: the enrolment day is later than the seam
+  assert.equal(G.openingFloor({ enrolDate: "2026-11-01", accountingStart: "2026-11-01" }), "2026-11-01");
+  // the server's own floor wins over the local rule
+  const served = { ...before, floor: "2026-10-15" };
+  assert.equal(G.openingFloor(served), "2026-10-15");
+  assert.equal(G.validateOpening(paid("2026-10-15"), served), null);
+  assert.match(G.validateOpening(owes("2026-10-16"), served), /не позже 15\.10\.2026/);
+  // the enrolment is not known (the card): the seam alone bounds «оплачено до»; the debt date is left to the server
+  const unknown = { enrolDate: null, accountingStart: "2026-11-01", today: "2026-10-22" };
+  assert.match(G.validateOpening(paid("2026-10-30"), unknown), /не раньше 31\.10\.2026/);
+  assert.equal(G.openingDebtMax(unknown), null);
+  assert.equal(G.validateOpening(owes("2026-11-20"), unknown), null); // L may be later than the seam (the enrolment): not for the front to refuse
+  // no accounting start known at all: only the enrolment rule is left
+  assert.match(G.validateOpening(paid("2026-09-01"), { enrolDate: "2026-09-10", today: "2026-10-22" }), /не раньше 10\.09\.2026/);
+});
+
+test("S0 parity: every caller passes the accounting start and the date inputs carry L", () => {
+  assert.match(read("src/lib/payments-summary.ts"), /accountingStart: .*accounting_start_date/);
+  const summaryOf = require(path.join(root, "src/lib/payments-summary.ts")).summaryToState;
+  assert.equal(summaryOf({ accounting_start_date: "2026-11-01" }).accountingStart, "2026-11-01");
+  assert.equal(summaryOf({}).accountingStart, null);
+  for (const file of ["src/components/groups/assign-group-modal.tsx", "src/components/groups/add-student-drawer.tsx"]) {
+    const code = read(file);
+    assert.match(code, /state\.accountingStart/, file);
+    assert.match(code, /validateOpening\(opening, \{ enrolDate: [^}]*accountingStart/, file);
+    assert.match(code, /accountingStart=\{accountingStart\}/, file);
+  }
+  const actions = read("src/components/payments/membership-row-actions.tsx");
+  assert.match(actions, /state\.accountingStart/);
+  assert.match(actions, /accountingStart=\{accountingStart\}/);
+  const fields = read("src/components/payments/opening-balance-fields.tsx");
+  assert.match(fields, /openingFloor\(\{ enrolDate, accountingStart, floor \}\)/);
+  assert.match(fields, /min=\{earliest\}/);
+  assert.match(fields, /max=\{openingDebtMax\(\{ enrolDate, accountingStart, floor \}\) \?\? today\}/); // the debt date: not later than L
+  const dialog = read("src/components/payments/opening-balance-dialog.tsx");
+  assert.match(dialog, /validateOpening\(values, \{ enrolDate: enrolDate \?\? null, accountingStart, floor, today \}\)/);
 });
 
 test("opening balance fixtures: the impact in words, the card line, the void", () => {

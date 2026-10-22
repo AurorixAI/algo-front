@@ -30,6 +30,9 @@ import {
   OPENINGS_SHOW_LEFT,
   OPENINGS_TITLE,
   OPENINGS_UNSAVED,
+  draftsAtRisk,
+  hiddenDraftCount,
+  openingsHiddenDraftsText,
   openingsIntro,
   previewErrors,
   progressOf,
@@ -55,7 +58,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { pluralRu } from "@/lib/plural";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useOpeningsSummary } from "@/lib/openings-summary";
-import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
+import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { useToast } from "@/components/ui/toast";
 import {
   OpeningsBulkBar,
@@ -129,7 +132,8 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   const rows = useMemo(() => flatRows(data?.groups ?? []), [data]);
   const start = data?.accounting_start ?? "";
   const paidUntilMax = data?.paid_until_max ?? "";
-  const dirtyCount = useMemo(() => changedCount(rows, drafts), [rows, drafts]);
+  const hiddenDrafts = useMemo(() => hiddenDraftCount(rows, drafts), [rows, drafts]);
+  const dirtyCount = useMemo(() => changedCount(rows, drafts) + hiddenDrafts, [rows, drafts, hiddenDrafts]);
   useUnsavedGuard(dirtyCount > 0, OPENINGS_UNSAVED);
 
   // ── loading
@@ -148,7 +152,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
         firstLoad.current = false;
         setOpenIds(initiallyOpenGroups(result.groups, false));
       }
-      // The drafts of rows that now equal what is saved (or are gone) are dropped
+      // The drafts of rows that now equal what is saved are dropped; those of rows that are not in this answer wait for their rows
       setDrafts((previous) => prunedDrafts(flatRows(result.groups), previous));
     } catch (cause) {
       if (!requests.current.isCurrent(token)) return;
@@ -168,6 +172,24 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     return () => { requests.current.next(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** A read that hides rows with typed values asks first (the values are kept, but not sent while the rows are away). */
+  const confirmHiding = useCallback((stays: (row: OpeningRow) => boolean): boolean => {
+    const risk = draftsAtRisk(rows, drafts, stays);
+    return confirmLeave(risk > 0, openingsHiddenDraftsText(risk));
+  }, [rows, drafts]);
+
+  const changeServerGroup = (groupId: string) => {
+    if (!confirmHiding((row) => groupId === "" || row.group.id === groupId)) return;
+    setServerGroup(groupId);
+    void load({ group: groupId });
+  };
+
+  const toggleLeft = (checked: boolean) => {
+    if (!checked && !confirmHiding((row) => row.status !== "left" && !row.only_debt)) return;
+    setIncludeLeft(checked);
+    void load({ silent: true, left: checked });
+  };
 
   const refreshMoney = useCallback(() => {
     void summaryHook.refresh(true);
@@ -284,7 +306,10 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
       return;
     }
     const items = itemsOf(rows, drafts, skipIds);
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      if (hiddenDrafts > 0) showToast("Правки скрытых строк не попадут в сохранение: покажите эти строки", "warning");
+      return;
+    }
     void runPreview(items, reason);
   };
 
@@ -501,7 +526,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
           <p className="text-sm font-medium text-slate-800">{tooMany}</p>
           <select
             value={serverGroup}
-            onChange={(event) => { setServerGroup(event.target.value); void load({ group: event.target.value }); }}
+            onChange={(event) => changeServerGroup(event.target.value)}
             aria-label="Группа"
             className="h-10 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 text-base sm:text-sm"
           >
@@ -546,7 +571,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
             <select
               value={serverGroup || filters.groupId}
               onChange={(event) => {
-                if (serverGroup !== "" || groupOptions === catalog) { setServerGroup(event.target.value); void load({ group: event.target.value }); }
+                if (serverGroup !== "" || groupOptions === catalog) changeServerGroup(event.target.value);
                 else setFilters({ ...filters, groupId: event.target.value });
               }}
               aria-label="Группа"
@@ -565,7 +590,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
                 <input
                   type="checkbox"
                   checked={includeLeft}
-                  onChange={(event) => { setIncludeLeft(event.target.checked); void load({ silent: true, left: event.target.checked }); }}
+                  onChange={(event) => toggleLeft(event.target.checked)}
                   data-testid="openings-show-left"
                   className="h-4 w-4 rounded border-slate-300 text-primary-600"
                 />

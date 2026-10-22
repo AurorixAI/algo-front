@@ -32,7 +32,7 @@ const keyOf = (values: OpeningFormValues): string => JSON.stringify([values.paid
  * that is already taken needs a reason (the server says so with `REASON_REQUIRED`, the field is there from the start).
  */
 export function OpeningBalanceDialog({
-  open, membershipId, studentName, groupName, opening, enrolDate, accountingStart, onClose, onSaved,
+  open, membershipId, studentName, groupName, opening, enrolDate, accountingStart, floor, onClose, onSaved,
 }: {
   open: boolean;
   membershipId: string;
@@ -43,6 +43,8 @@ export function OpeningBalanceDialog({
   /** The day the membership started, when the card knows it. */
   enrolDate?: string | null;
   accountingStart?: string | null;
+  /** `L` from the server, when the caller has it. */
+  floor?: string | null;
   onClose: () => void;
   /** The server accepted it: the row it sends back replaces the one the card holds. */
   onSaved: (row: MembershipPaymentRow | null, removed: boolean) => void;
@@ -77,7 +79,7 @@ export function OpeningBalanceDialog({
   }, [open, membershipId]);
 
   const empty = openingIsEmpty(values);
-  const problem = validateOpening(values, { enrolDate: enrolDate ?? null, accountingStart, today });
+  const problem = validateOpening(values, { enrolDate: enrolDate ?? null, accountingStart, floor, today });
   const unchanged = keyOf(values) === keyOf(baseline);
   const removing = empty && opening !== null;
   const key = keyOf(values);
@@ -159,6 +161,7 @@ export function OpeningBalanceDialog({
           enrolDate={enrolDate ?? null}
           today={today}
           accountingStart={accountingStart}
+          floor={floor}
           line={!opening || !empty}
         />
 

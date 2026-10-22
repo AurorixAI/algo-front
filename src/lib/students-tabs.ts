@@ -147,12 +147,19 @@ export function studentsListHref(pathname: string, state: StudentsListState): st
 }
 
 /**
- * IA audit F37: a teacher chosen without a group filters the STUDENTS (not a second screen of group cards).  The server has no `teacher_id`
- * filter on the list, so the students of the teacher's live groups are read group by group and merged here; a student who is in two of
- * them is counted once.  Sorted like the list (surname, name).
+ * IA audit F37: a teacher chosen without a group filters the STUDENTS (not a second screen of group cards).  The server filters and pages
+ * them itself (`GET /org/students?teacher_id=`: the students of the teacher's active groups, each once), so the list is one request like
+ * any other tab; a chosen group wins over the teacher.
  */
-export function mergeTeacherStudents<T extends { id: string; last_name?: string; first_name?: string }>(pages: ReadonlyArray<ReadonlyArray<T>>): T[] {
-  const seen = new Map<string, T>();
-  for (const page of pages) for (const student of page) if (!seen.has(student.id)) seen.set(student.id, student);
-  return [...seen.values()].sort((a, b) => `${a.last_name ?? ""} ${a.first_name ?? ""}`.localeCompare(`${b.last_name ?? ""} ${b.first_name ?? ""}`, "ru"));
+export function studentsPageQuery(options: {
+  tab: StudentTab; search?: string; groupId?: string; teacherId?: string; page: number; pageSize: number;
+}): StudentTabQuery & { group_id?: string; teacher_id?: string; limit: number; offset: number } {
+  const teacherOnly = Boolean(options.teacherId && !options.groupId);
+  return {
+    ...studentTabQuery(options.groupId || options.teacherId ? "grouped" : options.tab, options.search),
+    group_id: options.groupId || undefined,
+    teacher_id: teacherOnly ? options.teacherId : undefined,
+    limit: options.pageSize,
+    offset: Math.max(0, options.page) * options.pageSize,
+  };
 }

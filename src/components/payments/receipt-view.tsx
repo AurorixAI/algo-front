@@ -12,6 +12,7 @@ import {
   paymentPeriodLabel,
   PARTIAL_PERIOD_TAG,
   receiptContextOf,
+  receiptContextWithFallback,
   receiptErrorText,
   receiptReplacedNote,
   receiptReplacesNote,
@@ -178,7 +179,7 @@ export function ReceiptView(props: { /** The payments page of this workspace: wh
 function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
   const params = useParams();
   const router = useRouter();
-  const context = receiptContextOf(useSearchParams());
+  const queryContext = receiptContextOf(useSearchParams());
   const bases = basesOfPayments(paymentsHref);
   const paymentId = String(params?.id ?? "");
 
@@ -239,6 +240,7 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
     else router.push(paymentsHref);
   };
 
+  const context = receiptContextWithFallback(queryContext, receipt);
   const message = noRight ? receiptErrorText(403, undefined) : failure?.message ?? null;
 
   return (

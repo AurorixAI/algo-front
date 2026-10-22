@@ -24,6 +24,8 @@ interface PaymentsSummaryState {
   active: number;
   trackedTotal: number;
   periodMode: PeriodMode;
+  /** The day the accounting starts (S0: the opening balances are checked against the day before it); null until the server sends it. */
+  accountingStart: string | null;
   lessonsPerPayment: number | null;
   /** PAY-2: what the students owe the center today, and what they have paid ahead (whole сум; 0 from an older server). */
   debtTotal: number;
@@ -66,6 +68,7 @@ const EMPTY = {
   active: 0,
   trackedTotal: 0,
   periodMode: "calendar" as PeriodMode,
+  accountingStart: null as string | null,
   lessonsPerPayment: null as number | null,
   debtTotal: 0,
   advanceTotal: 0,
@@ -105,6 +108,7 @@ export function summaryToState(summary: Partial<PaymentsSummary> | null | undefi
     active: count(summary?.active),
     trackedTotal: count(summary?.tracked_total),
     periodMode: (summary?.period_mode === "lessons" ? "lessons" : "calendar") as PeriodMode,
+    accountingStart: typeof summary?.accounting_start_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(summary.accounting_start_date) ? summary.accounting_start_date : null,
     lessonsPerPayment: Number.isInteger(lessons) && lessons > 0 ? lessons : null,
     debtTotal: count(summary?.debt_total),
     advanceTotal: count(summary?.advance_total),
