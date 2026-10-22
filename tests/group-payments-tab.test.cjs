@@ -311,3 +311,9 @@ test("the tab renders the line of the group and a loader first (no table before 
   assert.match(noPrice, /Цена группы не задана/);
   assert.match(noPrice, /href="\/owner\/payments\/prices\?group=g1"/); // «Задать цену группы»
 });
+
+test("e2e finding: the debt chip of the group header is read again after the price is set or a student leaves", () => {
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.match(view, /\[debtEnabled, groupId, tab, debtTick\]/);
+  assert.ok((view.match(/setDebtTick\(\(n\) => n \+ 1\)/g) ?? []).length >= 2);
+});

@@ -95,6 +95,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
   const periodMode = usePaymentsSummary((state) => state.periodMode);
   // The debt of the group for the chip of the header (only while the tab «Оплаты» exists for this role)
   const [debt, setDebt] = useState<GroupDebtSummary | null>(null);
+  const [debtTick, setDebtTick] = useState(0); // a price or a lesson type just changed: the debt of the group is read again
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -190,6 +191,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
       students: prev.students.filter((s) => s.id !== studentId),
       student_count: prev.student_count - 1,
     } : null);
+    setDebtTick((n) => n + 1);
     showToast("Ученик убран из группы", "success", settled);
   };
 
@@ -210,7 +212,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
       .then((result) => { if (!cancelled) setDebt(groupDebtSummary(result.items ?? [])); })
       .catch(() => { if (!cancelled) setDebt(null); });
     return () => { cancelled = true; };
-  }, [debtEnabled, groupId, tab]);
+  }, [debtEnabled, groupId, tab, debtTick]);
 
   if (loading) {
     return (
@@ -593,7 +595,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
         groupId={group.id}
         groupName={group.name}
         onClose={() => setPriceOpen(false)}
-        onSaved={(wasSet) => { setPriceOpen(false); showToast(wasSet ? "Цена группы изменена" : "Цена группы задана"); void load(true); }}
+        onSaved={(wasSet) => { setPriceOpen(false); showToast(wasSet ? "Цена группы изменена" : "Цена группы задана"); setDebtTick((n) => n + 1); void load(true); }}
         onError={(message) => showToast(message, "error")}
       />
 
