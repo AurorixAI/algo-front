@@ -69,6 +69,14 @@ import type {
 } from "./payments";
 import { normalizePreview, normalizeRow, normalizeSaveResult, normalizeStatement } from "./payments-ledger";
 import { normalizeBalances, normalizeItems, normalizeReport } from "./payments-income";
+import {
+  normalizeJournal,
+  normalizeOverview,
+  type IncomeOverview,
+  type IncomeQuery,
+  type JournalQuery,
+  type PaymentsJournal,
+} from "./payments-income-v2";
 import { normalizeLessonTypeChanged, normalizeLessonTypes, type GroupLessonTypeChanged, type GroupLessonTypes, type LessonTypeRequest } from "./group-lesson-type";
 import {
   filenameFromContentDisposition,
@@ -1742,6 +1750,23 @@ export const orgApi = {
     if (q.teacher_id) params.set("teacher_id", q.teacher_id);
     return api<ReceiptsReport>(`/auth/org/payments/receipts?${params.toString()}`, { signal }).then(normalizeReport);
   },
+  /** «Поступления» v2: everything above the journal in one answer (the cards, the sentence, the chart, the till, the groups of the month). */
+  getIncomeOverview: (q: IncomeQuery, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ from: q.from, to: q.to, period: q.period });
+    if (q.method) params.set("method", q.method);
+    if (q.group_id) params.set("group_id", q.group_id);
+    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
+    return api<IncomeOverview>(`/auth/org/payments/income?${params.toString()}`, { signal }).then(normalizeOverview);
+  },
+  /** The journal of payments of a period: newest first, cancelled and corrected ones included (`status=all`), paged by the server. */
+  getPaymentsJournal: (q: JournalQuery, signal?: AbortSignal) =>
+    api<PaymentsJournal>(`/auth/org/payments/journal?${journalParams(q).toString()}`, { signal }).then(normalizeJournal),
+  /** The same journal as an .xlsx file (the server builds it from every row of the filtered set). */
+  exportPaymentsJournal: (q: Omit<JournalQuery, "page" | "size">, fallbackName = "Оплаты.xlsx") => {
+    const params = journalParams(q);
+    params.set("format", "xlsx");
+    return fetchFile(`/auth/org/payments/journal/export?${params.toString()}`, fallbackName, "Не удалось скачать Excel");
+  },
   /** The payments (write-offs, refunds) behind one figure of the report. */
   getReceiptItems: (q: ReceiptItemsQuery) => {
     const params = new URLSearchParams({ from: q.from, to: q.to, column: q.column });
@@ -2002,6 +2027,18 @@ async function fetchBinary(endpoint: string, fallback: string): Promise<Blob> {
     throw new ApiError(res.status, message, code);
   }
   return res.blob();
+}
+
+/** The query string of the payments journal (and of its export): only what is set. */
+function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number; size?: number }): URLSearchParams {
+  const params = new URLSearchParams({ from: q.from, to: q.to });
+  if (q.page) params.set("page", String(q.page));
+  if (q.size) params.set("size", String(q.size));
+  for (const key of ["method", "group_id", "teacher_id", "created_by", "q", "status"] as const) {
+    const value = q[key];
+    if (value) params.set(key, value);
+  }
+  return params;
 }
 
 /**

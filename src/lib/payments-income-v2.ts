@@ -1,0 +1,865 @@
+/**
+ * «Поступления» v2 (INCOME-2, ROADMAP #123).  The screen answers the owner's questions instead of showing every cut at once:
+ * how much came in (and is it more or less than last time), how much of the month's price is collected, who owes, how much
+ * cash must be in the till, which groups pay badly, what exactly was paid today.
+ *
+ * Every number comes from the server (`GET /org/payments/income`, `/journal`); this file only chooses the words, the order
+ * and the visible parts.  The one arithmetic here is presentation: the percent shares of the «Куда ушли деньги» line
+ * (rounded so they add up to 100) and the height of a bar.  Contract: tests/fixtures/income2 (the frozen income2_contract.json).
+ * No React and no network here, so node:test loads this file.
+ */
+import { addDays, daysBetween, formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
+import { monthEnd, monthStart, shiftMonth } from "./payments-income";
+import { sum } from "./payments-ledger";
+import { capitalizeFirst, monthYearLabelRu } from "./business-time";
+
+// ── Contract (income2_contract.json) ───────────────────────────────────────
+
+export type PeriodKind = "day" | "week" | "month" | "custom";
+
+export interface IncomePeriodOut {
+  kind: PeriodKind;
+  from: string;
+  to: string;
+  label: string;
+  days: number;
+  in_progress: boolean;
+}
+
+export interface IncomeTotals {
+  received: number;
+  payments_count: number;
+  refunded: number;
+  refunded_from_received: number;
+  transferred: number;
+  to_past_debt: number;
+  to_current: number;
+  to_advance: number;
+  written_off: number;
+  net_received: number;
+}
+
+export interface IncomeMethodRow { method: string; label: string; amount: number; count: number }
+export interface IncomeDay { bucket: string; received: number; count: number }
+
+export interface IncomeCash {
+  date: string;
+  label: string;
+  cash_received: number;
+  cash_refunded: number;
+  expected: number;
+  payments_count: number;
+  text: string;
+}
+
+export interface CollectionRow {
+  group_id: string | null;
+  group_name: string | null;
+  teacher_id: string | null;
+  teacher_name: string | null;
+  charged: number;
+  paid: number;
+  forgiven: number;
+  debt: number;
+  students: number;
+  students_with_debt: number;
+  pct: number | null;
+}
+
+export interface MonthCollection {
+  month: string;
+  month_label: string;
+  from: string;
+  to: string;
+  text: string;
+  total: CollectionRow;
+  groups: CollectionRow[];
+}
+
+export interface IncomePosition {
+  debt_total: number;
+  past_debt_total: number;
+  advance_total: number;
+  memberships_with_debt: number;
+  students_with_debt: number;
+  memberships_with_advance: number;
+  students_with_advance: number;
+}
+
+export interface IncomeCheck { code: string; left: number; right: number; diff: number }
+
+export interface IncomeOverview {
+  as_of: string;
+  period: IncomePeriodOut;
+  previous_period: IncomePeriodOut;
+  current: IncomeTotals;
+  previous: IncomeTotals;
+  delta_amount: number;
+  delta_pct: number | null;
+  delta_direction: "up" | "down" | "same" | null;
+  delta_text: string | null;
+  summary_text: string;
+  by_method: IncomeMethodRow[];
+  series: IncomeDay[];
+  series_by: "day" | "month";
+  cash: IncomeCash | null;
+  collection: MonthCollection | null;
+  position: IncomePosition;
+  checks: IncomeCheck[];
+  ok: boolean;
+}
+
+export interface JournalAllocation {
+  segment_id: string;
+  period_from: string;
+  period_to: string;
+  amount: number;
+  days: number;
+  bucket: string;
+  closes: boolean;
+  label: string;
+  price: number | null;
+  segment_remaining_after: number | null;
+}
+
+export type JournalStatus = "active" | "voided" | "replaced";
+
+export interface JournalRow {
+  id: string;
+  receipt_no: number | null;
+  paid_on: string;
+  paid_time: string | null;
+  created_at: string | null;
+  student_id: string;
+  student_name: string;
+  display_id: string | null;
+  membership_id: string;
+  group_id: string;
+  group_name: string;
+  teacher_name: string | null;
+  amount: number;
+  method: string;
+  method_label: string;
+  created_by_id: string | null;
+  created_by_name: string | null;
+  note: string | null;
+  allocation_text: string | null;
+  allocations: JournalAllocation[];
+  refunded: number;
+  transferred: number;
+  status: JournalStatus;
+  replaces_receipt_no: number | null;
+  replaces_amount: number | null;
+  replaced_by_receipt_no: number | null;
+  void_reason: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+}
+
+export interface JournalAuthor { user_id: string; name: string | null; count: number }
+export interface JournalTotals { count: number; sum: number; voided_count: number }
+
+export interface PaymentsJournal {
+  as_of: string;
+  from: string;
+  to: string;
+  page: number;
+  size: number;
+  total: number;
+  pages: number;
+  totals: JournalTotals;
+  rows: JournalRow[];
+  authors: JournalAuthor[];
+}
+
+export const JOURNAL_PAGE_SIZE = 25;
+
+// ── Tolerant readers (an unexpected null never becomes NaN on screen) ──────
+
+const arr = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+const text = (value: unknown): string => (typeof value === "string" ? value : "");
+const nullableText = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
+
+const TOTALS_ZERO: IncomeTotals = {
+  received: 0, payments_count: 0, refunded: 0, refunded_from_received: 0, transferred: 0,
+  to_past_debt: 0, to_current: 0, to_advance: 0, written_off: 0, net_received: 0,
+};
+
+function totalsOf(raw: Partial<IncomeTotals> | null | undefined): IncomeTotals {
+  const out = { ...TOTALS_ZERO };
+  for (const key of Object.keys(TOTALS_ZERO) as Array<keyof IncomeTotals>) out[key] = sum(raw?.[key]);
+  return out;
+}
+
+function periodOut(raw: Partial<IncomePeriodOut> | null | undefined): IncomePeriodOut {
+  return {
+    kind: (raw?.kind ?? "custom") as PeriodKind,
+    from: text(raw?.from), to: text(raw?.to), label: text(raw?.label), days: sum(raw?.days), in_progress: raw?.in_progress === true,
+  };
+}
+
+function collectionRow(raw: Partial<CollectionRow> | null | undefined): CollectionRow {
+  return {
+    group_id: raw?.group_id ?? null, group_name: raw?.group_name ?? null, teacher_id: raw?.teacher_id ?? null, teacher_name: raw?.teacher_name ?? null,
+    charged: sum(raw?.charged), paid: sum(raw?.paid), forgiven: sum(raw?.forgiven), debt: sum(raw?.debt),
+    students: sum(raw?.students), students_with_debt: sum(raw?.students_with_debt),
+    pct: raw?.pct === null || raw?.pct === undefined ? null : sum(raw.pct),
+  };
+}
+
+export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
+  const cash = raw?.cash ?? null;
+  const collection = raw?.collection ?? null;
+  const position: Partial<IncomePosition> = raw?.position ?? {};
+  return {
+    as_of: text(raw?.as_of),
+    period: periodOut(raw?.period),
+    previous_period: periodOut(raw?.previous_period),
+    current: totalsOf(raw?.current),
+    previous: totalsOf(raw?.previous),
+    delta_amount: sum(raw?.delta_amount),
+    delta_pct: raw?.delta_pct === null || raw?.delta_pct === undefined ? null : sum(raw.delta_pct),
+    delta_direction: raw?.delta_direction === "up" || raw?.delta_direction === "down" || raw?.delta_direction === "same" ? raw.delta_direction : null,
+    delta_text: nullableText(raw?.delta_text),
+    summary_text: text(raw?.summary_text),
+    by_method: arr<IncomeMethodRow>(raw?.by_method).map((item) => ({ method: text(item.method), label: text(item.label), amount: sum(item.amount), count: sum(item.count) })),
+    series: arr<IncomeDay>(raw?.series).map((item) => ({ bucket: text(item.bucket), received: sum(item.received), count: sum(item.count) })),
+    series_by: raw?.series_by === "month" ? "month" : "day",
+    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text) } : null,
+    collection: collection ? {
+      month: text(collection.month), month_label: text(collection.month_label), from: text(collection.from), to: text(collection.to), text: text(collection.text),
+      total: collectionRow(collection.total), groups: arr<CollectionRow>(collection.groups).map(collectionRow),
+    } : null,
+    position: {
+      debt_total: sum(position.debt_total), past_debt_total: sum(position.past_debt_total), advance_total: sum(position.advance_total),
+      memberships_with_debt: sum(position.memberships_with_debt), students_with_debt: sum(position.students_with_debt),
+      memberships_with_advance: sum(position.memberships_with_advance), students_with_advance: sum(position.students_with_advance),
+    },
+    checks: arr<IncomeCheck>(raw?.checks).map((check) => ({ code: text(check.code), left: sum(check.left), right: sum(check.right), diff: sum(check.diff) })),
+    ok: raw?.ok !== false,
+  };
+}
+
+function journalRow(raw: JournalRow): JournalRow {
+  const status: JournalStatus = raw.status === "voided" || raw.status === "replaced" ? raw.status : "active";
+  return {
+    id: text(raw.id), receipt_no: raw.receipt_no ?? null, paid_on: text(raw.paid_on), paid_time: nullableText(raw.paid_time), created_at: nullableText(raw.created_at),
+    student_id: text(raw.student_id), student_name: text(raw.student_name), display_id: nullableText(raw.display_id), membership_id: text(raw.membership_id),
+    group_id: text(raw.group_id), group_name: text(raw.group_name), teacher_name: nullableText(raw.teacher_name),
+    amount: sum(raw.amount), method: text(raw.method), method_label: text(raw.method_label),
+    created_by_id: nullableText(raw.created_by_id), created_by_name: nullableText(raw.created_by_name), note: nullableText(raw.note),
+    allocation_text: nullableText(raw.allocation_text), allocations: arr<JournalAllocation>(raw.allocations),
+    refunded: sum(raw.refunded), transferred: sum(raw.transferred), status,
+    replaces_receipt_no: raw.replaces_receipt_no ?? null, replaces_amount: raw.replaces_amount ?? null, replaced_by_receipt_no: raw.replaced_by_receipt_no ?? null,
+    void_reason: nullableText(raw.void_reason), voided_at: nullableText(raw.voided_at), voided_by_name: nullableText(raw.voided_by_name),
+  };
+}
+
+export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
+  const totals: Partial<JournalTotals> = raw?.totals ?? {};
+  return {
+    as_of: text(raw?.as_of), from: text(raw?.from), to: text(raw?.to),
+    page: Math.max(1, sum(raw?.page)), size: Math.max(1, sum(raw?.size) || JOURNAL_PAGE_SIZE), total: sum(raw?.total), pages: Math.max(1, sum(raw?.pages)),
+    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count) },
+    rows: arr<JournalRow>(raw?.rows).map(journalRow),
+    authors: arr<JournalAuthor>(raw?.authors).map((author) => ({ user_id: text(author.user_id), name: nullableText(author.name), count: sum(author.count) })),
+  };
+}
+
+// ── Period: «День / Неделя / Месяц / Свой период» with arrows ──────────────
+
+export interface Period { kind: PeriodKind; from: string; to: string }
+
+export const PERIOD_TABS: Array<{ key: PeriodKind; label: string }> = [
+  { key: "day", label: "День" },
+  { key: "week", label: "Неделя" },
+  { key: "month", label: "Месяц" },
+  { key: "custom", label: "Свой период" },
+];
+
+/** The server accepts a range of at most 366 days; longer than 92 days it answers month by month. */
+export const MAX_RANGE_DAYS = 366;
+
+/** Monday of the week that holds `iso` (the server's week is seven days from a Monday). */
+export function mondayOf(iso: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0 = Sunday
+  return addDays(iso, -((weekday + 6) % 7));
+}
+
+/** The period of `kind` that holds `anchor`: today → «День», this week, this month; a custom period keeps the dates it had. */
+export function periodOf(kind: PeriodKind, anchor: string, current?: Period): Period {
+  if (kind === "day") return { kind, from: anchor, to: anchor };
+  if (kind === "week") {
+    const monday = mondayOf(anchor);
+    return { kind, from: monday, to: addDays(monday, 6) };
+  }
+  if (kind === "month") return { kind, from: monthStart(anchor), to: monthEnd(anchor) };
+  return { kind, from: current?.from ?? monthStart(anchor), to: current?.to ?? anchor };
+}
+
+/** One step back / forward: a day, a week, a month, or a custom range of the same length. */
+export function stepPeriod(period: Period, delta: 1 | -1): Period {
+  if (period.kind === "day") {
+    const day = addDays(period.from, delta);
+    return { kind: "day", from: day, to: day };
+  }
+  if (period.kind === "week") return { kind: "week", from: addDays(period.from, 7 * delta), to: addDays(period.to, 7 * delta) };
+  if (period.kind === "month") {
+    const first = shiftMonth(period.from, delta);
+    return { kind: "month", from: first, to: monthEnd(first) };
+  }
+  const length = daysBetween(period.from, period.to) + 1;
+  return { kind: "custom", from: addDays(period.from, delta * length), to: addDays(period.to, delta * length) };
+}
+
+/** The forward arrow stops at the period that holds today: there is nothing to read in the future. */
+export function canStepForward(period: Period, today: string): boolean {
+  return period.to < today;
+}
+
+/** Switching the tab keeps the moment on screen: the end of the current period, but never later than today. */
+export function switchKind(kind: PeriodKind, current: Period, today: string): Period {
+  return periodOf(kind, current.to <= today ? current.to : today, current);
+}
+
+export function validatePeriod(period: Period): string | null {
+  if (!isIsoDate(period.from) || !isIsoDate(period.to)) return "Укажите даты периода";
+  if (period.to < period.from) return "Конец периода раньше начала";
+  if (daysBetween(period.from, period.to) + 1 > MAX_RANGE_DAYS) return "Период не длиннее года";
+  return null;
+}
+
+const MONTHS_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+
+/** «21 октября» (+ « 2025» when the year is not the year of `today`). */
+export function dayLabel(iso: string, today: string): string {
+  const [year, month, day] = iso.split("-").map(Number);
+  return `${day} ${MONTHS_GENITIVE[month - 1]}${iso.slice(0, 4) === today.slice(0, 4) ? "" : ` ${year}`}`;
+}
+
+/** The title between the arrows: «Сегодня, 21 октября» / «12–18 октября» / «Октябрь 2026 г.» / «01.10.2026 — 21.10.2026». */
+export function periodTitle(period: Period, today: string): string {
+  if (period.kind === "day") {
+    const prefix = period.from === today ? "Сегодня, " : period.from === addDays(today, -1) ? "Вчера, " : "";
+    return `${prefix}${dayLabel(period.from, today)}`;
+  }
+  if (period.kind === "week") {
+    const [fromYear, fromMonth, fromDay] = period.from.split("-").map(Number);
+    const [, toMonth, toDay] = period.to.split("-").map(Number);
+    const year = period.from.slice(0, 4) === today.slice(0, 4) && period.to.slice(0, 4) === today.slice(0, 4) ? "" : ` ${period.to.slice(0, 4)}`;
+    if (fromMonth === toMonth) return `${fromDay}–${toDay} ${MONTHS_GENITIVE[toMonth - 1]}${year}`;
+    return `${fromDay} ${MONTHS_GENITIVE[fromMonth - 1]}${fromYear === Number(period.to.slice(0, 4)) ? "" : ` ${fromYear}`} – ${toDay} ${MONTHS_GENITIVE[toMonth - 1]}${year}`;
+  }
+  if (period.kind === "month") return capitalizeFirst(monthYearLabelRu(period.from.slice(0, 7)));
+  return `${formatDateRu(period.from)} — ${formatDateRu(period.to)}`;
+}
+
+/** «За этот день» / «За эту неделю» / «За этот месяц» / «За этот период»: the words of an empty state. */
+export function periodWords(kind: PeriodKind): string {
+  return kind === "day" ? "За этот день" : kind === "week" ? "За эту неделю" : kind === "month" ? "За этот месяц" : "За этот период";
+}
+
+// ── Queries ────────────────────────────────────────────────────────────────
+
+export interface IncomeFilters { method: string; groupId: string; teacherId: string }
+export const NO_FILTERS: IncomeFilters = { method: "", groupId: "", teacherId: "" };
+
+export interface IncomeQuery { from: string; to: string; period: PeriodKind; method?: string; group_id?: string; teacher_id?: string }
+
+export function overviewQuery(period: Period, filters: IncomeFilters): IncomeQuery {
+  const query: IncomeQuery = { from: period.from, to: period.to, period: period.kind };
+  if (filters.method) query.method = filters.method;
+  if (filters.groupId) query.group_id = filters.groupId;
+  if (filters.teacherId) query.teacher_id = filters.teacherId;
+  return query;
+}
+
+/** The days a click on a bar narrows the journal to (a day, or a month of a long period). */
+export interface JournalRange { from: string; to: string; label: string }
+
+export interface JournalQuery {
+  from: string;
+  to: string;
+  page?: number;
+  size?: number;
+  method?: string;
+  group_id?: string;
+  teacher_id?: string;
+  created_by?: string;
+  q?: string;
+  status?: "all" | "active" | "voided";
+}
+
+export interface JournalExtras { q: string; createdBy: string }
+export const NO_JOURNAL_EXTRAS: JournalExtras = { q: "", createdBy: "" };
+
+export function journalQuery(period: Period, range: JournalRange | null, filters: IncomeFilters, extras: JournalExtras, page = 1, size = JOURNAL_PAGE_SIZE): JournalQuery {
+  const query: JournalQuery = { from: range?.from ?? period.from, to: range?.to ?? period.to, page, size };
+  if (filters.method) query.method = filters.method;
+  if (filters.groupId) query.group_id = filters.groupId;
+  if (filters.teacherId) query.teacher_id = filters.teacherId;
+  if (extras.createdBy) query.created_by = extras.createdBy;
+  if (extras.q.trim()) query.q = extras.q.trim();
+  return query;
+}
+
+/** The file has every row of the filtered set: the page and the size are the screen's, not the file's. */
+export function exportQuery(query: JournalQuery): Omit<JournalQuery, "page" | "size"> {
+  const { page: _page, size: _size, ...rest } = query;
+  return rest;
+}
+
+// ── The four cards ─────────────────────────────────────────────────────────
+
+export type Tone = "up" | "down" | "same" | "none";
+
+export interface DeltaView {
+  /** «▲» / «▼» / «» (the arrow is the front's; the sentence is the server's). */
+  arrow: string;
+  text: string;
+  tone: Tone;
+}
+
+/** «▲ 12% к сентябрю» (green) / «▼ 30% к сентябрю» (red) / «0% к сентябрю» (grey); nothing to compare → a quiet word. */
+export function deltaView(overview: IncomeOverview): DeltaView {
+  const direction = overview.delta_direction;
+  if (overview.delta_text && direction) {
+    if (direction === "up") return { arrow: "▲", text: overview.delta_text, tone: "up" };
+    if (direction === "down") return { arrow: "▼", text: overview.delta_text, tone: "down" };
+    return { arrow: "", text: overview.delta_text, tone: "same" };
+  }
+  const before = overview.previous_period.label;
+  return {
+    arrow: "", tone: "none",
+    text: overview.previous.payments_count === 0 && before ? `Для сравнения (${before}): оплат не было` : "",
+  };
+}
+
+export const DELTA_CLASS: Record<Tone, string> = {
+  up: "text-emerald-700",
+  down: "text-rose-700",
+  same: "text-slate-500",
+  none: "text-slate-400",
+};
+
+/** «7 оплат» / «1 оплата» / «оплат не было». */
+export function paymentsCountText(count: number): string {
+  const n = sum(count);
+  return n > 0 ? `${n} ${pluralRu(n, "оплата", "оплаты", "оплат")}` : "оплат не было";
+}
+
+export interface ReceivedCard { amount: string; delta: DeltaView; countText: string }
+
+export function receivedCard(overview: IncomeOverview): ReceivedCard {
+  return { amount: formatMoney(overview.current.received), delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count) };
+}
+
+export interface CollectedCard {
+  /** The accent number: what has been paid of the month's price. */
+  amount: string;
+  /** «из 2 500 000 сум · 76%»; the server's words when nothing was charged. */
+  caption: string;
+  /** 0–100 for the bar; null: nothing was charged, no bar. */
+  pct: number | null;
+}
+
+/** «Собрано за месяц» (month mode only): X из Y (Z%) with a bar; `charged` and `paid` are the server's, the percent too. */
+export function collectedCard(overview: IncomeOverview): CollectedCard | null {
+  const total = overview.collection?.total;
+  if (!total) return null;
+  if (total.charged <= 0) return { amount: formatMoney(0), caption: "За этот месяц ничего не начислено", pct: null };
+  const pct = Math.max(0, Math.min(100, sum(total.pct)));
+  return { amount: formatMoney(total.paid), caption: `из ${formatMoney(total.charged)} · ${pct}%`, pct };
+}
+
+export interface PositionCard {
+  /** The accent: «1 250 000 сум», or the word when there is none. */
+  amount: string;
+  /** «3 ученика». */
+  caption: string;
+  none: boolean;
+}
+
+const studentsText = (count: number): string => `${count} ${pluralRu(count, "ученик", "ученика", "учеников")}`;
+
+export function debtCard(overview: IncomeOverview): PositionCard {
+  const { debt_total: debt, students_with_debt: students } = overview.position;
+  return debt > 0 ? { amount: formatMoney(debt), caption: studentsText(students), none: false } : { amount: "Долгов нет", caption: "Все оплатили вовремя", none: true };
+}
+
+export function advanceCard(overview: IncomeOverview): PositionCard {
+  const { advance_total: advance, students_with_advance: students } = overview.position;
+  return advance > 0 ? { amount: formatMoney(advance), caption: `${studentsText(students)} оплатили вперёд`, none: false } : { amount: "Авансов нет", caption: "Никто не платил вперёд", none: true };
+}
+
+/** The «Должники» tab of «Оплаты», narrowed to a group / a teacher when the screen is. */
+export function debtorsHref(paymentsBase: string, scope: { groupId?: string | null; teacherId?: string | null } = {}): string {
+  const params = new URLSearchParams({ bucket: "debt" });
+  if (scope.groupId) params.set("group_id", scope.groupId);
+  else if (scope.teacherId) params.set("teacher_id", scope.teacherId);
+  return `${paymentsBase.replace(/\/+$/, "")}?${params.toString()}`;
+}
+
+// ── «Куда ушли деньги»: one line ───────────────────────────────────────────
+
+export interface FlowPart {
+  key: "to_past_debt" | "to_current" | "to_advance" | "refunded" | "transferred";
+  label: string;
+  amount: number;
+  /** Whole percent of the line; the parts add up to 100. */
+  percent: number;
+  /** Tailwind background of the bar segment / the dot. */
+  dot: string;
+}
+
+const FLOW_PARTS: Array<{ key: FlowPart["key"]; field: keyof IncomeTotals; label: string; dot: string }> = [
+  { key: "to_past_debt", field: "to_past_debt", label: "на старые долги", dot: "bg-slate-700" },
+  { key: "to_current", field: "to_current", label: "на текущие периоды", dot: "bg-primary-600" },
+  { key: "to_advance", field: "to_advance", label: "в аванс", dot: "bg-emerald-500" },
+  { key: "refunded", field: "refunded_from_received", label: "возвращено", dot: "bg-amber-400" },
+  { key: "transferred", field: "transferred", label: "переведено в другие группы", dot: "bg-slate-300" },
+];
+
+/** Percent shares that add up to exactly 100 (largest remainder); the plain rounding gives 99 or 101 too often. */
+export function sharesOf(amounts: number[]): number[] {
+  const total = amounts.reduce((acc, value) => acc + value, 0);
+  if (total <= 0) return amounts.map(() => 0);
+  const exact = amounts.map((value) => (value * 100) / total);
+  const floors = exact.map(Math.floor);
+  let left = 100 - floors.reduce((acc, value) => acc + value, 0);
+  const order = exact.map((value, index) => ({ index, rest: value - Math.floor(value) })).sort((a, b) => b.rest - a.rest || a.index - b.index);
+  for (const { index } of order) {
+    if (left <= 0) break;
+    if (amounts[index] > 0) { floors[index] += 1; left -= 1; }
+  }
+  return floors;
+}
+
+/** The parts of the received money that are not zero (a zero part is not shown, no «0%»). */
+export function flowParts(overview: IncomeOverview): FlowPart[] {
+  const present = FLOW_PARTS.map((part) => ({ part, amount: sum(overview.current[part.field]) })).filter((item) => item.amount > 0);
+  const shares = sharesOf(present.map((item) => item.amount));
+  return present.map((item, index) => ({ key: item.part.key, label: item.part.label, amount: item.amount, percent: shares[index], dot: item.part.dot }));
+}
+
+/** «Прощено долгов: 100 000 сум», or «» when nobody was forgiven (nothing is said about zero). */
+export function writtenOffText(overview: IncomeOverview): string {
+  return overview.current.written_off > 0 ? `Прощено долгов: ${formatMoney(overview.current.written_off)}` : "";
+}
+
+export const CHECK_LABEL: Record<string, string> = {
+  received_eq_strip: "Поступило = куда ушли деньги",
+  received_eq_methods: "Поступило = сумма по способам оплаты",
+  received_eq_series: "Поступило = сумма по дням",
+  received_eq_journal: "Поступило = сумма журнала оплат",
+  collection_total_eq_groups: "Стоимость месяца = сумма по группам",
+};
+
+export interface CheckView {
+  ok: boolean;
+  /** «Сходится» / «Не сходится: расхождение 1 000 сум». */
+  text: string;
+  lines: Array<{ label: string; left: string; right: string; ok: boolean }>;
+}
+
+export function checkView(overview: Pick<IncomeOverview, "ok" | "checks">): CheckView {
+  const bad = overview.checks.filter((check) => check.diff !== 0);
+  const ok = overview.ok && bad.length === 0;
+  const gap = bad.reduce((acc, check) => acc + Math.abs(check.diff), 0);
+  return {
+    ok,
+    text: ok ? "Сходится" : gap > 0 ? `Не сходится: расхождение ${formatMoney(gap)}` : "Не сходится",
+    lines: overview.checks.map((check) => ({ label: CHECK_LABEL[check.code] ?? check.code, left: formatMoney(check.left), right: formatMoney(check.right), ok: check.diff === 0 })),
+  };
+}
+
+// ── The chart of income by day ─────────────────────────────────────────────
+
+export interface Bar {
+  bucket: string;
+  /** Under the bar: «7» (a day of a month), «пн 12» (a week), «окт» (a month). */
+  label: string;
+  /** The tooltip's first line: «7 октября» / «Октябрь 2026 г.». */
+  title: string;
+  amount: number;
+  count: number;
+  /** 0–100; a day with money is never thinner than a sliver. */
+  height: number;
+  /** After today: nothing to read yet, drawn faint. */
+  future: boolean;
+  /** The journal range a click opens; null for a day without payments. */
+  range: JournalRange | null;
+  /** The tooltip's second line: «1 250 000 сум · 1 оплата». */
+  detail: string;
+}
+
+const WEEKDAYS_SHORT = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+
+/** The chart has something to tell when the period has more than one day and some money. */
+export function showChart(overview: IncomeOverview): boolean {
+  return overview.series.length > 1 && overview.series.some((point) => point.received !== 0 || point.count > 0);
+}
+
+export function chartBars(overview: IncomeOverview, today: string): Bar[] {
+  const peak = Math.max(0, ...overview.series.map((point) => point.received));
+  const dayBuckets = overview.series_by === "day";
+  const week = dayBuckets && overview.series.length <= 7;
+  const { from: periodFrom, to: periodTo } = overview.period;
+  return overview.series.map((point) => {
+    const active = point.received !== 0 || point.count > 0;
+    let label: string;
+    let title: string;
+    let range: JournalRange | null = null;
+    if (dayBuckets) {
+      const [year, month, day] = point.bucket.split("-").map(Number);
+      const weekday = WEEKDAYS_SHORT[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+      label = week ? `${weekday} ${day}` : String(day);
+      title = `${dayLabel(point.bucket, today)}, ${weekday}`;
+      range = active ? { from: point.bucket, to: point.bucket, label: dayLabel(point.bucket, today) } : null;
+    } else {
+      const first = `${point.bucket}-01`;
+      const month = Number(point.bucket.split("-")[1]);
+      label = MONTHS_SHORT[month - 1] ?? point.bucket;
+      title = capitalizeFirst(monthYearLabelRu(point.bucket));
+      const from = first < periodFrom ? periodFrom : first;
+      const to = monthEnd(first) > periodTo ? periodTo : monthEnd(first);
+      range = active ? { from, to, label: title } : null;
+    }
+    return {
+      bucket: point.bucket, label, title, amount: point.received, count: point.count,
+      height: peak > 0 && point.received > 0 ? Math.max(4, Math.round((point.received * 100) / peak)) : 0,
+      future: dayBuckets && point.bucket > today,
+      range,
+      detail: active ? `${formatMoney(point.received)} · ${paymentsCountText(point.count)}` : "оплат не было",
+    };
+  });
+}
+
+// ── «Касса по способам» ────────────────────────────────────────────────────
+
+export interface MethodRow {
+  method: string;
+  label: string;
+  amount: number;
+  count: number;
+  /** «должно быть в кассе 150 000 сум» (cash, one-day period only). */
+  hint: string | null;
+  /** «принято 250 000 сум, возвращено 100 000 сум», only when something was returned from the till. */
+  hintNote: string | null;
+}
+
+/** Only the methods that took money; the cash row of a day carries the hint «должно быть в кассе». */
+export function methodRows(overview: IncomeOverview): MethodRow[] {
+  const cash = overview.cash;
+  const hintOf = (method: string) => (method === "cash" && cash ? `должно быть в кассе ${formatMoney(cash.expected)}` : null);
+  const noteOf = (method: string) => (method === "cash" && cash && cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null);
+  const rows: MethodRow[] = overview.by_method
+    .filter((item) => item.amount !== 0 || item.count > 0)
+    .map((item) => ({ method: item.method, label: item.label || "Способ не указан", amount: item.amount, count: item.count, hint: hintOf(item.method), hintNote: noteOf(item.method) }));
+  // The till does not depend on the method filter: with another method chosen the cash row is absent, but the till still has its sum.
+  if (cash && cash.expected !== 0 && !rows.some((row) => row.method === "cash")) {
+    rows.push({ method: "cash", label: "Наличные", amount: 0, count: 0, hint: hintOf("cash"), hintNote: noteOf("cash") });
+  }
+  return rows;
+}
+
+// ── «Группы — собираемость» ────────────────────────────────────────────────
+
+export interface CollectionRowView {
+  key: string;
+  groupId: string | null;
+  title: string;
+  teacher: string | null;
+  charged: number;
+  paid: number;
+  debt: number;
+  debtors: number;
+  /** 0–100 or null (nothing charged). */
+  pct: number | null;
+  pctText: string;
+  /** «3 ученика с долгом» / «долгов нет». */
+  debtorsText: string;
+}
+
+function collectionView(row: CollectionRow, index: number): CollectionRowView {
+  return {
+    key: row.group_id ?? `row-${index}`,
+    groupId: row.group_id,
+    title: row.group_name || "Без группы",
+    teacher: row.teacher_name,
+    charged: row.charged, paid: row.paid, debt: row.debt, debtors: row.students_with_debt,
+    pct: row.pct === null ? null : Math.max(0, Math.min(100, row.pct)),
+    pctText: row.pct === null ? "" : `${row.pct}%`,
+    debtorsText: row.students_with_debt > 0 ? `${row.students_with_debt} ${pluralRu(row.students_with_debt, "ученик", "ученика", "учеников")} с долгом` : "долгов нет",
+  };
+}
+
+/** Worst first: the lowest percent on top; a group with nothing charged has no percent and goes last; ties: the bigger debt first. */
+export function collectionRows(collection: MonthCollection | null | undefined): CollectionRowView[] {
+  if (!collection) return [];
+  return collection.groups
+    .map((row, index) => ({ row, view: collectionView(row, index) }))
+    .sort((a, b) => {
+      const pa = a.row.pct === null ? 101 : a.row.pct;
+      const pb = b.row.pct === null ? 101 : b.row.pct;
+      return pa - pb || b.row.debt - a.row.debt || a.view.title.localeCompare(b.view.title, "ru");
+    })
+    .map((item) => item.view);
+}
+
+export function collectionTotalView(collection: MonthCollection | null | undefined): CollectionRowView | null {
+  return collection ? { ...collectionView(collection.total, 0), key: "total", title: "Всего" } : null;
+}
+
+// ── The journal ────────────────────────────────────────────────────────────
+
+export const STATUS_TAG: Record<JournalStatus, string | null> = { active: null, voided: "отменена", replaced: "отменена" };
+
+export interface JournalRowView {
+  id: string;
+  /** «21.10» (+ year when the period spans years). */
+  date: string;
+  time: string;
+  student: string;
+  displayId: string | null;
+  group: string;
+  teacher: string | null;
+  amount: string;
+  method: string;
+  /** «отменена» for a cancelled and for a corrected (replaced) payment; null for a live one. */
+  tag: string | null;
+  muted: boolean;
+}
+
+export function journalRowView(row: JournalRow, withYear = false): JournalRowView {
+  const date = formatDateRu(row.paid_on);
+  const tag = STATUS_TAG[row.status];
+  return {
+    id: row.id,
+    date: withYear ? date : date.slice(0, 5),
+    time: row.paid_time ?? "",
+    student: row.student_name,
+    displayId: row.display_id,
+    group: row.group_name,
+    teacher: row.teacher_name,
+    amount: formatMoney(row.amount),
+    method: row.method_label,
+    tag,
+    muted: tag !== null,
+  };
+}
+
+/** The columns carry the year only when the shown days are not all of one year. */
+export function journalSpansYears(from: string, to: string): boolean {
+  return from.slice(0, 4) !== to.slice(0, 4);
+}
+
+export interface DrawerFact { label: string; value: string }
+
+export interface DrawerLink { key: "receipt" | "student" | "statement"; label: string }
+
+export interface DrawerView {
+  title: string;
+  /** «21.10.2026 · 11:40». */
+  when: string;
+  amount: string;
+  method: string;
+  tag: string | null;
+  facts: DrawerFact[];
+  /** «Куда пошли деньги»: «за сентябрь — 200 000», «аванс — 50 000»; the server's lines. */
+  destination: string[];
+  /** The history of a cancelled or corrected payment, in words. */
+  notes: string[];
+  note: string | null;
+  links: DrawerLink[];
+}
+
+/** «за сентябрь — 200 000 · аванс — 50 000» → two lines; the sentence is the server's, the split is only the layout. */
+export function destinationLines(row: Pick<JournalRow, "allocation_text" | "allocations">): string[] {
+  if (row.allocation_text) return row.allocation_text.split(" · ").map((part) => part.trim()).filter(Boolean);
+  return row.allocations.filter((line) => line.amount > 0).map((line) => `${line.label} — ${formatMoney(line.amount)}`);
+}
+
+export function drawerView(row: JournalRow): DrawerView {
+  const facts: DrawerFact[] = [{ label: "Ученик", value: row.student_name }, { label: "Группа", value: row.teacher_name ? `${row.group_name} · ${row.teacher_name}` : row.group_name }];
+  if (row.created_by_name) facts.push({ label: "Кто внёс", value: row.created_by_name });
+  const notes: string[] = [];
+  if (row.status === "voided") {
+    notes.push(`Оплата отменена${row.void_reason ? `: ${row.void_reason}` : ""}${row.voided_by_name ? ` (${row.voided_by_name})` : ""}`);
+  } else if (row.status === "replaced") {
+    notes.push(`Оплата исправлена${row.replaced_by_receipt_no ? `: действует квитанция № ${row.replaced_by_receipt_no}` : ""}${row.void_reason ? ` (${row.void_reason})` : ""}`);
+  }
+  if (row.replaces_receipt_no) {
+    notes.push(`Исправляет квитанцию № ${row.replaces_receipt_no}${row.replaces_amount ? `, было ${formatMoney(row.replaces_amount)}` : ""}`);
+  }
+  return {
+    title: row.receipt_no ? `Оплата № ${row.receipt_no}` : "Оплата",
+    when: `${formatDateRu(row.paid_on)}${row.paid_time ? ` · ${row.paid_time}` : ""}`,
+    amount: formatMoney(row.amount),
+    method: row.method_label,
+    tag: STATUS_TAG[row.status],
+    facts,
+    destination: row.status === "active" ? destinationLines(row) : [],
+    notes,
+    note: row.note,
+    links: [
+      { key: "receipt", label: row.receipt_no ? `Квитанция № ${row.receipt_no}` : "Квитанция" },
+      { key: "student", label: "Карточка ученика" },
+      { key: "statement", label: "Выписка по группе" },
+    ],
+  };
+}
+
+export interface JournalPaging {
+  /** «1–25 из 98». */
+  text: string;
+  page: number;
+  pages: number;
+  canPrev: boolean;
+  canNext: boolean;
+}
+
+export function journalPaging(journal: Pick<PaymentsJournal, "page" | "size" | "total" | "pages" | "rows">): JournalPaging {
+  const first = (journal.page - 1) * journal.size + 1;
+  const last = first + journal.rows.length - 1;
+  return {
+    text: journal.rows.length === 0 ? "" : `${first}–${last} из ${journal.total}`,
+    page: journal.page, pages: journal.pages,
+    canPrev: journal.page > 1, canNext: journal.page < journal.pages,
+  };
+}
+
+/** «7 оплат на 3 450 000 сум · отменено 2»; nothing when there are no live payments. */
+export function journalTotalsText(totals: JournalTotals): string {
+  if (totals.count <= 0) return totals.voided_count > 0 ? `Отменено: ${totals.voided_count}` : "";
+  const head = `${paymentsCountText(totals.count)} на ${formatMoney(totals.sum)}`;
+  return totals.voided_count > 0 ? `${head} · отменено ${totals.voided_count}` : head;
+}
+
+export interface EmptyContext {
+  kind: PeriodKind;
+  /** A bar was clicked: the journal is narrowed to this label. */
+  focusLabel: string | null;
+  /** The search, the author or a method / group / teacher is set. */
+  narrowed: boolean;
+}
+
+/** The human sentence of an empty journal: never a bare table. */
+export function journalEmptyText(context: EmptyContext): string {
+  if (context.narrowed) return "По этому запросу оплат не нашлось";
+  if (context.focusLabel) return `В этот день оплат не было`;
+  return `${periodWords(context.kind)} оплат не было`;
+}
+
+export const LOAD_ERROR_FALLBACK = "Не удалось загрузить поступления";
+export const NO_ACCESS_TEXT = "Нет доступа к поступлениям. Доступ даёт владелец центра в настройках.";
+
+/** What the screen says when a request fails: the server's own sentence when it has one, a calm default otherwise. */
+export function incomeErrorText(cause: unknown): { text: string; denied: boolean } {
+  const status = (cause as { status?: number } | null)?.status;
+  if (status === 403 || status === 404) return { text: NO_ACCESS_TEXT, denied: true };
+  const message = cause instanceof Error && cause.message ? cause.message : "";
+  return { text: message || LOAD_ERROR_FALLBACK, denied: false };
+}
