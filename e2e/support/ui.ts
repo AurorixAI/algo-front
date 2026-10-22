@@ -96,8 +96,9 @@ export async function cardMenuItem(page: Page, name: string | RegExp) {
   // a real click scrolls a menu clipped by a phone's viewport into view first): the click event is sent to the item itself,
   // and the menu is opened again when a late scroll closed it.
   for (let attempt = 0; ; attempt++) {
-    await openPaymentCardMenu(page);
     try {
+      await page.getByRole("button", { name: /^Действия по оплате:/ }).first().click();
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
       await page.getByRole("menuitem", { name, exact: typeof name === "string" }).dispatchEvent("click", undefined, { timeout: 3000 });
       return;
     } catch (error) {
