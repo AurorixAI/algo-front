@@ -18,6 +18,7 @@ let selected=0,role='teacher';
 const result={frontendRevision:process.env.GITHUB_SHA || process.env.QA_REVISION || 'local-working-tree',scope:'Local frontend with synthetic intercepted HTTP data; geometry and visible glyphs, not bank/math/authorization acceptance',label,base,checks:[],optionChecks:[],skipped:[],pageErrors:[],unhandledAPI:[]};
 function payload(path){
  if(path==='/api/v1/auth/org/attendance/excuses/summary')return{pending_total:0,open_lessons_total:0};
+ if(path==='/api/v1/auth/org/substitutions/summary')return{pendingTotal:0,urgentTotal:0,overdueTotal:0}; // LOGIC-B2: the «Замены» badge of the owner/admin sidebar
  if(path==='/api/v1/auth/org/payments/summary')return{as_of:'2026-10-14',due:0,ends_today:0,expired:0,expiring:0,none:0,active:0,free:0,tracked_total:0,period_mode:'calendar'}; // N13 P2: payments summary of the owner/admin layouts (the admin pages of this test mount the sidebar and the banner)
  if(path==='/api/v1/auth/org/attendance/open-actions')return[]; // N13 P1.1: open lessons list of the attendance section // N13 P1: menu badge of admin/owner layouts
  if(path==='/api/v1/auth/me')return{id:'UI-STAFF',role,org_role:role,first_name:'Проверка',last_name:'Отображения',org_id:'UI-ORG'};
