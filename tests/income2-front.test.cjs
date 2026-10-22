@@ -867,39 +867,53 @@ test("inc8-1: the chart fills the card from md (flexible columns, no inner scrol
   for (const label of ["1", "28", "29", "30", "31"]) assert.ok(markup.includes(`tabular-nums text-slate-500">${label}</span>`) || markup.includes(`tabular-nums text-slate-300">${label}</span>`), `label ${label}`);
 });
 
-test("inc8-2: the donut centre — a compact sum from 10 000 000, the exact one in the title, ≥ 8 px from the ring for any amount", () => {
-  assert.equal(plain(V.donutCenterAmount(7885000).text), "7 885 000 сум");
-  assert.equal(plain(V.donutCenterAmount(9999999).text), "9 999 999 сум");
-  assert.equal(plain(V.donutCenterAmount(10000000).text), "10 млн сум", "«,0» is dropped");
-  assert.equal(plain(V.donutCenterAmount(21400000).text), "21,4 млн сум");
-  assert.equal(plain(V.donutCenterAmount(21449999).text), "21,4 млн сум");
-  assert.equal(plain(V.donutCenterAmount(21450000).text), "21,5 млн сум");
-  assert.equal(plain(V.donutCenterAmount(999940000).text), "999,9 млн сум");
-  assert.equal(plain(V.donutCenterAmount(999960000).text), "1 млрд сум");
-  assert.equal(plain(V.donutCenterAmount(1234000000).text), "1,2 млрд сум");
+test("inc8-2: the donut centre — exact below 1 000 000, compact from there (≤ 3 significant digits), the exact sum in the title, font ≥ 16 / 18 px and ≥ 8 px from the ring", () => {
+  const text = (amount) => plain(V.donutCenterAmount(amount).text);
+  assert.equal(text(0), "0 сум");
+  assert.equal(text(850000), "850 000 сум", "below a million: exact");
+  assert.equal(text(999999), "999 999 сум");
+  assert.equal(text(1000000), "1 млн сум");
+  assert.equal(text(3050000), "3,05 млн сум");
+  assert.equal(text(7885000), "7,89 млн сум");
+  assert.equal(text(9996000), "10 млн сум", "9,996 rounds up to 10, no «10,00»");
+  assert.equal(text(10000000), "10 млн сум", "trailing zeros are trimmed");
+  assert.equal(text(21400000), "21,4 млн сум");
+  assert.equal(text(21449999), "21,4 млн сум");
+  assert.equal(text(21450000), "21,5 млн сум", "integer rounding, not a float's 21,4");
+  assert.equal(text(123456000), "123 млн сум");
+  assert.equal(text(999400000), "999 млн сум");
+  assert.equal(text(999600000), "1 млрд сум", "999,6 млн rolls over to a billion");
+  assert.equal(text(1200000000), "1,2 млрд сум");
+  assert.equal(text(1250000000), "1,25 млрд сум");
+  assert.equal(text(12340000000), "12 млрд сум", "from 10 billions no decimals");
   assert.equal(plain(V.donutCenterAmount(21400000).title), "21 400 000 сум", "the exact sum is the tooltip");
-  // clearance: the farthest corner of the centre block stays ≥ 8 px inside the inner edge of the thickest (highlighted) ring
+  assert.equal(plain(V.donutCenterAmount(850000).title), "850 000 сум");
+  // the geometry: ≥ 8 px between the farthest corner of the centre block and the inner edge of the thickest (highlighted) ring; the ring stays in the 180 box
   const inner = V.DONUT.radius - V.DONUT.widthActive / 2;
-  for (const amount of [0, 5, 235000, 7885000, 9999999, 21400000, 999900000, 1234000000, 98765000000]) {
-    for (const cap of [16, 18]) {
-      const chars = V.donutCenterAmount(amount).text.length;
-      const font = V.donutCenterFont(chars, cap);
-      assert.ok(font <= cap && font >= 9, `${amount}@${cap}: font ${font}`);
-      assert.ok(inner - V.donutCenterReach(chars, font) >= V.DONUT.clearance, `${amount}@${cap}: clearance ${inner - V.donutCenterReach(chars, font)}`);
-    }
+  assert.ok(V.DONUT.radius + V.DONUT.widthActive / 2 <= V.DONUT.size / 2);
+  for (const amount of [0, 5, 235000, 850000, 999999, 1000000, 3050000, 7885000, 9996000, 21400000, 21450000, 99960000, 123456000, 999400000, 1200000000, 12340000000, 123400000000]) {
+    const centre = V.donutCenterAmount(amount).text;
+    const phone = V.donutCenterFont(centre, 16);
+    const desk = V.donutCenterFont(centre, 18);
+    assert.equal(phone, 16, `${amount}: phone font ${phone}`);
+    assert.equal(desk, 18, `${amount}: desktop font ${desk}`);
+    for (const font of [phone, desk]) assert.ok(inner - V.donutCenterReach(centre, font) >= V.DONUT.clearance, `${amount}@${font}: clearance ${inner - V.donutCenterReach(centre, font)}`);
   }
-  assert.ok(V.donutCenterFont(8, 18) > V.donutCenterFont(14, 18), "a longer sum gets a smaller font");
-  assert.equal(V.donutCenterFont(3, 16), 16, "a short one keeps the cap");
-  // on screen: «21,4 млн сум» + «7 оплат», the exact sum in the title, the font from the fit
-  const { React, text, html, P } = parts();
+  // the fit still protects an absurd sum: the font shrinks, the clearance holds
+  const absurd = "123 456 789 012 345 сум";
+  assert.ok(V.donutCenterFont(absurd, 18) < 18);
+  assert.ok(inner - V.donutCenterReach(absurd, V.donutCenterFont(absurd, 18)) >= V.DONUT.clearance);
+  // on screen: «21,4 млн сум» + «7 оплат», the exact sum in the title and for a screen reader
+  const { React, text: toText, html, P } = parts();
   const o = { ...overview("I01_income_month_october"), by_method: [{ method: "cash", label: "Наличные", amount: 21400000, count: 7 }] };
   const view = React.createElement(P.MethodsDonut, { overview: o });
-  const body = text(view);
+  const body = toText(view);
   assert.ok(body.includes("21,4 млн сум") && body.includes("7 оплат"));
   const markup = plain(html(view));
   assert.match(markup, /title="21 400 000 сум"/);
+  assert.match(markup, /<span class="sr-only">21 400 000 сум<\/span>/);
   assert.match(markup, /font-semibold tabular-nums tracking-tight text-slate-800 \[font-size:var\(--fs\)\] md:\[font-size:var\(--fs-md\)\]/);
-  assert.match(markup, /--fs:[\d.]+px;--fs-md:[\d.]+px/);
+  assert.match(markup, /--fs:16px;--fs-md:18px/);
 });
 
 test("inc8-3: the palette of the donut and the tooltip dot of the same colour", () => {

@@ -284,8 +284,8 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
   const total = methodsTotal(segments);
   const centre = donutCenterAmount(total.amount);
   // The centre text is fitted to the inner edge of the ring: ≥ 8 px of clearance for any amount (text-base cap on a phone, text-lg from md).
-  const fontPhone = donutCenterFont(centre.text.length, 16);
-  const fontDesk = donutCenterFont(centre.text.length, 18);
+  const fontPhone = donutCenterFont(centre.text, 16);
+  const fontDesk = donutCenterFont(centre.text, 18);
   const cash = cashTodayLine(cashToday);
   const lit = hover ?? (selected || null);
   const tip = hover ? segments.find((segment) => segment.method === hover) ?? null : null;
@@ -347,11 +347,11 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
             className="whitespace-nowrap font-semibold tabular-nums tracking-tight text-slate-800 [font-size:var(--fs)] md:[font-size:var(--fs-md)]"
             style={{ "--fs": `${fontPhone}px`, "--fs-md": `${fontDesk}px` } as CSSProperties}
             data-testid="method-total"
-            data-chars={centre.text.length}
           >
-            {centre.text}
+            <span aria-hidden>{centre.text}</span>
+            <span className="sr-only">{centre.title}</span>
           </p>
-          <p className="text-xs text-slate-500" data-testid="method-total-count">{total.countText}</p>
+          <p className="text-xs leading-[14px] text-slate-500" data-testid="method-total-count">{total.countText}</p>
         </div>
       </div>
 

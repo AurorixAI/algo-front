@@ -842,34 +842,46 @@ export function methodsTotal(segments: Array<Pick<MethodSegment, "amount" | "cou
 }
 
 /** The ring of the donut (px of the 180 × 180 box); the centre text is fitted to its inner edge. */
-export const DONUT = { size: 180, radius: 74, width: 18, widthActive: 22, clearance: 8 } as const;
+export const DONUT = { size: 180, radius: 80, width: 13, widthActive: 16, clearance: 8 } as const;
 
 /**
- * The sum in the centre: the exact money below 10 000 000 («7 885 000 сум»), compact from there («21,4 млн сум», one decimal,
- * the ru comma, «,0» dropped; «1,2 млрд сум»).  `title` is always the exact sum.
+ * The sum in the centre: exact below 1 000 000 («850 000 сум»), compact from there with three significant digits at most, the ru comma,
+ * trailing zeros trimmed: «3,05 млн сум», «21,4 млн сум», «123 млн сум», «10 млн сум», «1,2 млрд сум».  `title` is always the exact sum.
  */
 export function donutCenterAmount(amount: number): { text: string; title: string } {
   const title = formatMoney(amount);
-  if (amount < 10_000_000) return { text: title, title };
-  // whole tenths (integer arithmetic: 21 450 000 is exactly 21,5, not a float's 21,4)
-  const tenthsText = (tenths: number, unit: string) => `${Math.floor(tenths / 10)}${tenths % 10 ? `,${tenths % 10}` : ""} ${unit} сум`;
-  const millionTenths = Math.round(amount / 100_000);
-  if (millionTenths >= 10_000) return { text: tenthsText(Math.round(amount / 100_000_000), "млрд"), title };
-  return { text: tenthsText(millionTenths, "млн"), title };
+  if (amount < 1_000_000) return { text: title, title };
+  // integer arithmetic on the scaled sum (21 450 000 is exactly 21,5; a float's toFixed would give 21,4)
+  const scaled = (unit: number) => {
+    const value = amount / unit;
+    // «млрд» is the longer word: from 10 of them no decimals, so the centre keeps its font
+    const factor = value < 10 ? 100 : value < 100 && unit < 1_000_000_000 ? 10 : 1;
+    return { rounded: Math.round((amount * factor) / unit), factor };
+  };
+  const write = ({ rounded, factor }: { rounded: number; factor: number }, unit: string) => {
+    const frac = String(rounded % factor).padStart(String(factor).length - 1, "0").replace(/0+$/, "");
+    return `${Math.floor(rounded / factor)}${frac ? `,${frac}` : ""} ${unit} сум`;
+  };
+  const million = scaled(1_000_000);
+  if (amount < 1_000_000_000 && million.rounded < 1000 * million.factor) return { text: write(million, "млн"), title };
+  return { text: write(scaled(1_000_000_000), "млрд"), title };
 }
 
-/** The farthest corner of the centre block (the amount line at `fontPx`, the count line below it) from the centre of the ring, px.  An average glyph is taken 0.6 em wide: wider than a digit or a Cyrillic letter, so the real text only has more room. */
-export function donutCenterReach(chars: number, fontPx: number): number {
-  const width = chars * fontPx * 0.6;
-  const height = fontPx * 1.3 + 16;
+/** The width of a glyph, em: a digit / a Cyrillic letter 0.6 (wider than the fonts' real average), a space or a comma 0.28. */
+const glyphEm = (char: string): number => (/[\s\u00a0\u202f,.]/.test(char) ? 0.28 : 0.6);
+
+/** The farthest corner of the centre block (the amount line at `fontPx`, the 14 px count line below it) from the centre of the ring, px. */
+export function donutCenterReach(text: string, fontPx: number): number {
+  const width = Array.from(text).reduce((acc, char) => acc + glyphEm(char), 0) * fontPx;
+  const height = fontPx * 1.3 + 14;
   return Math.hypot(width / 2, height / 2);
 }
 
 /** The biggest font ≤ `cap` whose centre block keeps `DONUT.clearance` px from the inner edge of the (highlighted, thickest) ring. */
-export function donutCenterFont(chars: number, cap: number): number {
+export function donutCenterFont(text: string, cap: number): number {
   const room = DONUT.radius - DONUT.widthActive / 2 - DONUT.clearance;
   let font = cap;
-  while (font > 9 && donutCenterReach(chars, font) > room) font -= 0.25;
+  while (font > 9 && donutCenterReach(text, font) > room) font -= 0.25;
   return font;
 }
 
