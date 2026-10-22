@@ -71,6 +71,20 @@ import type {
   WriteoffVoided,
 } from "./payments";
 import { normalizePreview, normalizeRow, normalizeSaveResult, normalizeStatement } from "./payments-ledger";
+import {
+  normalizeApplied as normalizeOpeningApplied,
+  normalizeImport as normalizeOpeningsImport,
+  normalizeList as normalizeOpeningsList,
+  normalizePreview as normalizeOpeningPreview,
+  normalizeSummary as normalizeOpeningsSummary,
+  OPENINGS_EXPORT_FALLBACK,
+  type OpeningBatchApplied,
+  type OpeningBatchItem,
+  type OpeningBatchPreview,
+  type OpeningsImportPreview,
+  type OpeningsList,
+  type OpeningsSummary,
+} from "./openings";
 import { normalizeBalances, normalizeItems, normalizeReport } from "./payments-income";
 import {
   normalizeJournal,
@@ -1866,6 +1880,41 @@ export const orgApi = {
   voidOpeningBalance: (openingId: string, reason: string) =>
     api<OpeningVoided>(`/auth/org/opening-balances/${encodePathId(openingId)}/void`, { method: "POST", body: { reason } })
       .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  // ── ROADMAP #125 «Остатки на начало»: the table, the batch (preview -> apply), the checklist state, the Excel round trip ──
+  // Contract: tests/fixtures/openings (openings_contract.json of the backend).  Money roles only (403 for everybody else).
+  /** The table of every membership of the centre by group; `include_left`: the students who left before the accounting start (only a debt). */
+  listOpenings: (params: { group_id?: string; include_left?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (params.group_id) query.set("group_id", params.group_id);
+    if (params.include_left) query.set("include_left", "true");
+    const suffix = query.toString();
+    return api<OpeningsList>(`/auth/org/opening-balances${suffix ? `?${suffix}` : ""}`).then(normalizeOpeningsList);
+  },
+  /** No rows: the banner of «Должники», the checklist of the settings, the button of «Оплаты». */
+  getOpeningsSummary: () => api<OpeningsSummary>("/auth/org/opening-balances/summary").then(normalizeOpeningsSummary),
+  /** The dry run: nothing is written; the answer holds the summary, the effect on the debts, the errors per row and the `digest`. */
+  previewOpeningBatch: (body: { items: OpeningBatchItem[]; reason?: string | null }, options?: { signal?: AbortSignal }) =>
+    api<OpeningBatchPreview>("/auth/org/opening-balances/batch/preview", { method: "POST", body: { items: body.items, ...(body.reason ? { reason: body.reason } : {}) }, signal: options?.signal })
+      .then(normalizeOpeningPreview),
+  /** All or nothing.  The same `idempotency_key` with the same body gives the same answer (`replayed`). */
+  applyOpeningBatch: (body: { items: OpeningBatchItem[]; reason?: string | null; idempotency_key: string; digest: string }) =>
+    api<OpeningBatchApplied>("/auth/org/opening-balances/batch", { method: "POST", body: { items: body.items, ...(body.reason ? { reason: body.reason } : {}), idempotency_key: body.idempotency_key, digest: body.digest } })
+      .then(normalizeOpeningApplied),
+  /** «Готово» / «Не нужно» of the banner and the checklist (`pending` is set by the release script only). */
+  setOpeningsState: (state: "done" | "skipped") =>
+    api<OpeningsSummary>("/auth/org/opening-balances/state", { method: "POST", body: { state } }).then(normalizeOpeningsSummary),
+  exportOpenings: (params: { group_id?: string; missing_only?: boolean; q?: string; include_left?: boolean } = {}) => {
+    const query = new URLSearchParams();
+    if (params.group_id) query.set("group_id", params.group_id);
+    if (params.missing_only) query.set("missing_only", "true");
+    if (params.q) query.set("q", params.q);
+    if (params.include_left) query.set("include_left", "true");
+    const suffix = query.toString();
+    return fetchFile(`/auth/org/opening-balances/export${suffix ? `?${suffix}` : ""}`, OPENINGS_EXPORT_FALLBACK, "Не удалось скачать файл");
+  },
+  /** The file is read and compared; `batch_items` + `digest` go to `applyOpeningBatch` (the file is never uploaded twice). */
+  importOpeningsPreview: (file: File) =>
+    uploadMultipart<OpeningsImportPreview>("/auth/org/opening-balances/import/preview", file, file.name, "Не удалось прочитать файл").then(normalizeOpeningsImport),
   listPauses: (membershipId: string) =>
     api<PauseOut[]>(`/auth/org/memberships/${encodePathId(membershipId)}/pauses`).then((list) => (Array.isArray(list) ? list : [])),
   /** `dryRun`: the calculation and the warnings without writing; `Idempotency-Key` is optional (a repeat of the same range is a no-op). */
