@@ -1,4 +1,8 @@
 import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from "./lesson-teacher";
+import { dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
+import { examDraftCancelText, examRunningText, movedFromLabel, substitutionErrorText } from "./substitutions";
+import type { ExamBinding, MoveCheckOut } from "./substitution-types";
+import type { TeacherBusyDetail } from "./ops-b-types";
 
 /** What the owner / administrator can do with one lesson of the group's week schedule, from the lesson sheet (the card itself has no buttons). */
 export type ScheduleCardAction =
@@ -114,4 +118,78 @@ export function normalizeTime(text: string): string | null {
   const minutes = Number(match[2]);
   if (hours > 23 || minutes > 59) return null;
   return `${String(hours).padStart(2, "0")}:${match[2]}`;
+}
+
+// ── #124: the move without a request, the cancel precheck, «Перенесён с …» ─────────────────────────────────────────
+
+/** «Перенесён с 25.10, 10:00» on the new lesson of a move; null on any other lesson (one text with the schedules of the teacher and the student). */
+export const movedFromText = movedFromLabel;
+
+export const LESSON_CHANGED_TEXT = "Урок уже изменили — обновите";
+
+/** A refusal that means «somebody changed this lesson first»: the sheet offers «Обновить» instead of a retry. */
+export function isLessonChanged(error: unknown): boolean {
+  const code = opsErrorCode(error);
+  return code === "LESSON_CHANGED" || code === "SUBSTITUTION_ALREADY_DECIDED";
+}
+
+/** The refusals of `lesson-move` in the words of the sheet; the shared texts of the substitutions for the rest. */
+export function lessonMoveErrorText(error: unknown, fallback = "Не удалось перенести урок. Расписание не изменено."): string {
+  switch (opsErrorCode(error)) {
+    case "LESSON_CHANGED":
+    case "SUBSTITUTION_ALREADY_DECIDED": return LESSON_CHANGED_TEXT;
+    case "LESSON_HAS_NO_TEACHER": return "У урока нет преподавателя: сначала назначьте его, потом переносите урок";
+    case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
+    case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл: перенести его нельзя";
+    case "TEACHER_BUSY": {
+      const first = opsErrorDetail<TeacherBusyDetail>(error)?.conflicts?.[0];
+      return first ? `Преподаватель занят в это время: «${first.withGroupName}», ${dayAndDateLabel(first.date)} ${first.startTime}–${first.endTime}` : "Преподаватель занят в это время";
+    }
+    case "GROUP_BUSY": return "У группы уже есть урок в это время";
+    default: return substitutionErrorText(error, fallback);
+  }
+}
+
+/** The live check under the move form: «Время свободно» or what is in the way («Преподаватель занят в это время», «У группы уже есть урок»). */
+export function lessonMoveCheckLines(check: MoveCheckOut, teacherLabel?: string | null): { ok: boolean; lines: string[]; warnings: string[] } {
+  const lines: string[] = [];
+  for (const conflict of check.teacherConflicts ?? []) {
+    lines.push(`Преподаватель занят в это время: «${conflict.withGroupName}», ${dayAndDateLabel(conflict.date)} ${conflict.startTime}–${conflict.endTime}`);
+  }
+  for (const conflict of check.groupConflicts ?? []) {
+    lines.push(`У группы уже есть урок ${dayAndDateLabel(conflict.date)} ${conflict.startTime}–${conflict.endTime}`);
+  }
+  const warnings = (check.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
+  if (lines.length === 0 && check.ok) {
+    const name = (teacherLabel ?? check.teacherName ?? "").trim();
+    return { ok: true, lines: [name ? `Время свободно: у ${name} и у группы пересечений нет` : "Время свободно"], warnings };
+  }
+  return { ok: false, lines: lines.length ? lines : ["Это время недоступно"], warnings };
+}
+
+export interface ExamCancelState {
+  /** The binding has not arrived yet. */
+  loading: boolean;
+  /** The confirm button is disabled. */
+  blocked: boolean;
+  /** The sentence to show (null: nothing to say). */
+  message: string | null;
+  tone: "info" | "warn" | "error";
+  /** «Повторить»: the exam service did not answer. */
+  retry: boolean;
+}
+
+/** What the exam bound to the lesson means for «Отменить урок» (`lesson-exam-binding`). `null` = not read yet. */
+export function examCancelState(binding: ExamBinding | null | undefined): ExamCancelState {
+  if (!binding) return { loading: true, blocked: true, message: null, tone: "info", retry: false };
+  const title = (binding.title ?? "").trim();
+  const message = (binding.message ?? "").trim();
+  if (binding.state === "unavailable") {
+    return { loading: false, blocked: true, message: message || "Не удалось проверить экзамены группы. Повторите попытку.", tone: "error", retry: true };
+  }
+  if (binding.state === "none") return { loading: false, blocked: false, message: null, tone: "info", retry: false };
+  if (binding.canCancel === false) {
+    return { loading: false, blocked: true, message: message || (title ? examRunningText(title) : "Нельзя отменить урок с активным экзаменом"), tone: "error", retry: false };
+  }
+  return { loading: false, blocked: false, message: title ? examDraftCancelText(title) : null, tone: "warn", retry: false };
 }

@@ -21,6 +21,7 @@ import type {
   LessonRosterStudent,
   MoveCheckOut,
   MoveCheckParams,
+  MovedFrom,
   MyLesson,
   MyLessonBlockReason,
   StudentNotice,
@@ -89,6 +90,12 @@ export function movedToLabel(movedTo: Pick<SubstitutionMovedTo, "date" | "startT
 
 export const movedText = (movedTo: Pick<SubstitutionMovedTo, "date" | "startTime">): string => `Урок перенесён на ${movedToLabel(movedTo)}`;
 export const LESSON_CANCELLED_LABEL = "Урок отменён";
+
+/** «Перенесён с 25.10, 10:00» on the new lesson of a move (#124); null on any other lesson. */
+export function movedFromLabel(movedFrom: Pick<MovedFrom, "date" | "startTime"> | null | undefined): string | null {
+  if (!movedFrom?.date || !/^\d{4}-\d{2}-\d{2}/.test(movedFrom.date)) return null;
+  return `Перенесён с ${movedFrom.date.slice(8, 10)}.${movedFrom.date.slice(5, 7)}${movedFrom.startTime ? `, ${movedFrom.startTime}` : ""}`;
+}
 export const REQUESTED_LABEL = "Вы запросили замену";
 export const WITHDRAW_ACTION = "Отозвать запрос";
 export const REQUEST_ACTION = "Не смогу провести";
@@ -915,6 +922,8 @@ export function occurrenceChips(
     defaultTeacherId?: string | null;
     substitutionRequest?: SubstitutionRequestMark | null;
     substitutionOutcome?: SubstitutionOutcome | null;
+    /** #124: the new lesson of a move says where it came from. */
+    movedFrom?: MovedFrom | null;
   },
   viewerId: string | null | undefined,
   options: { manager?: boolean } = {},
@@ -935,6 +944,8 @@ export function occurrenceChips(
   const outcome = occurrence.substitutionOutcome;
   if (outcome?.kind === "rescheduled") chips.push({ text: outcome.movedTo ? movedText(outcome.movedTo) : "Урок перенесён", tone: "blue" });
   else if (outcome?.kind === "cancelled") chips.push({ text: LESSON_CANCELLED_LABEL, tone: "gray" });
+  const from = movedFromLabel(occurrence.movedFrom);
+  if (from) chips.push({ text: from, tone: "blue" });
   return chips;
 }
 
@@ -975,6 +986,8 @@ export interface StudentLessonRow {
   substituteText: string | null;
   /** «Урок отменён» / «Урок перенесён на …» - the row of a lesson that did not take place. */
   noticeText: string | null;
+  /** «Перенесён с 25.10, 10:00» on the new lesson of a move. */
+  movedFromText: string | null;
 }
 
 /**
@@ -982,7 +995,7 @@ export interface StudentLessonRow {
  * did not take place (cancelled / moved, without a reason), by date.  `markLabel` turns a status into its words.
  */
 export function studentLessonRows(
-  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean }> | null | undefined,
+  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: MovedFrom | null }> | null | undefined,
   notices: StudentNotice[] | null | undefined,
   markLabel: (status: string) => string | null,
 ): StudentLessonRow[] {
@@ -995,10 +1008,11 @@ export function studentLessonRows(
       markText: lesson.status ? markLabel(lesson.status) : null,
       substituteText: studentLessonLabel(lesson),
       noticeText: null,
+      movedFromText: movedFromLabel(lesson.movedFrom),
     });
   }
   for (const notice of sortedNotices(notices)) {
-    rows.push({ key: `notice:${notice.lessonId}:${notice.date}`, date: notice.date, groupName: notice.groupName, markText: null, substituteText: null, noticeText: studentNoticeLabel(notice) });
+    rows.push({ key: `notice:${notice.lessonId}:${notice.date}`, date: notice.date, groupName: notice.groupName, markText: null, substituteText: null, noticeText: studentNoticeLabel(notice), movedFromText: null });
   }
   return rows.sort((a, b) => a.date.localeCompare(b.date) || a.groupName.localeCompare(b.groupName, "ru"));
 }

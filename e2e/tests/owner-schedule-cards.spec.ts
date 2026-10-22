@@ -24,6 +24,10 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "15:00", endTime: "16:00", topic: "Квадратные уравнения и неравенства" });
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "17:00", endTime: "18:00", topic: "Вторая" });
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "19:00", endTime: "20:00", topic: "Для переноса" });
+  // #124: a lesson that the owner moves from the sheet, and a clash of the teacher on the day it is moved to
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "11:00", endTime: "12:00", topic: "Для сдвига" });
+  const other = await org.createGroup({ name: "Группа К2", teacherId: teacher.userId });
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: other.id, dayOfWeek: weekdayOf(addDays(day, 1)), startTime: "12:00", endTime: "13:00", topic: "Занято" });
   // a lesson of the teacher moved to the next day on his request (the original stays as «Перенесён»)
   const mine = await teacher.api.get("/auth/org/substitutions/my-lessons", { dateFrom: day, dateTo: day });
   const toMove = mine.lessons.find((l: any) => l.startTime === "19:00");
@@ -100,4 +104,31 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   const movedSheet = page.getByRole("dialog", { name: "Для переноса" });
   await expect(movedSheet).toContainText(/Перенесён на \S+, \d\d\.\d\d, 19:00/);
   await expect(movedSheet).toContainText("Причина: Перенос по просьбе преподавателя");
+
+  // --- #124: «Перенести урок» moves to ANY date, with a live check; the old card says «Перенесён», the new one «Перенесён с …»
+  const shift = cards.filter({ hasText: "Для сдвига" });
+  await shift.click();
+  const moveSheet = page.getByRole("dialog", { name: "Для сдвига" });
+  await moveSheet.getByRole("button", { name: "Перенести урок" }).click();
+  const target = addDays(day, 1);
+  await moveSheet.getByLabel("Новая дата").fill(target);
+  await moveSheet.getByLabel("Начало").fill("1200");
+  await moveSheet.getByLabel("Окончание").fill("13:00");
+  await expect(moveSheet.getByTestId("move-check")).toContainText("Преподаватель занят в это время"); // the clash of the other group
+  await expect(moveSheet.getByRole("button", { name: "Перенести урок" })).toBeDisabled();
+  await moveSheet.getByLabel("Начало").fill("1300");
+  await moveSheet.getByLabel("Окончание").fill("14:00");
+  await expect(moveSheet.getByTestId("move-check")).toContainText("Время свободно");
+  await moveSheet.getByLabel("Причина переноса").fill("Пересечение с другим мероприятием");
+  await moveSheet.getByRole("button", { name: "Перенести урок" }).click();
+  await expect(toast(page, "Урок перенесён")).toBeVisible();
+  await expect(cards.filter({ hasText: "Для сдвига" }).first()).toContainText("Перенесён");
+  await expect(cards.filter({ hasText: "Для сдвига" }).first()).not.toContainText("Отменён");
+  // the new lesson stands on the next day (the next week when the day is a Sunday)
+  if (weekdayOf(day) === 7) await page.getByRole("button", { name: "Следующая неделя" }).click();
+  const fresh = cards.filter({ has: page.getByTestId("moved-from"), hasText: "13:00–14:00" });
+  await expect(fresh).toHaveCount(1);
+  await expect(fresh.getByTestId("moved-from")).toHaveText(new RegExp(`^Перенесён с ${day.slice(8, 10)}\\.${day.slice(5, 7)}, 11:00$`));
+  await fresh.click();
+  await expect(page.getByRole("dialog", { name: "Для сдвига" })).toContainText(`Перенесён с ${day.slice(8, 10)}.${day.slice(5, 7)}, 11:00`);
 });

@@ -31,7 +31,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
-import { assignActionLabel, lessonTitle, roomLabel, scheduleCardActions, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
+import { assignActionLabel, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
   label: string;
@@ -374,6 +374,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                             <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" />{startTime}–{lesson.endTime || "—"}</p>
                             {room && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{room}</p>}
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
+                            {movedFromText(lesson.movedFrom) && <p className="mt-1.5 text-xs font-semibold text-sky-800" data-testid="moved-from">{movedFromText(lesson.movedFrom)}</p>}
                             {moved && outcome?.movedTo && <p className="mt-1.5 text-xs font-semibold text-sky-800">на {movedToLabel(outcome.movedTo)}</p>}
                             {!moved && cancellationReason && <p className="mt-2 break-words rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
                             {/* LOGIC-B2: a request waiting for a decision */}
@@ -411,7 +412,8 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
-        const notes = lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [];
+        const movedFromLine = lesson ? movedFromText(lesson.movedFrom) : null;
+        const notes = [...(movedFromLine ? [movedFromLine] : []), ...(lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [])];
         const room = lesson ? roomLabel(lesson) : null;
         const subtitle = lesson && presentation
           ? [`${formatIsoDateLabel(lesson.date, { weekday: "short", day: "numeric", month: "long" }).replace(".", "")}`, `${startTime}–${lesson.endTime || "—"}`, presentation.label, ...(room ? [room] : [])].join(" · ")
@@ -439,6 +441,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
               router.push(`${base}/groups/${groupId}?tab=attendance&month=${lesson.date.slice(0, 7)}&lesson=${encodeURIComponent(lesson.id)}&date=${lesson.date}`);
             }}
             onChanged={(text) => { setSheetLesson(null); showToast(text); void loadSchedule(); }}
+            onRefresh={() => { setSheetLesson(null); void loadSchedule(); }}
           />
         );
       })()}

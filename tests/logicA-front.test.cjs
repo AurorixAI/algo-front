@@ -706,3 +706,61 @@ test("schedule cards v2 (owner review 22.10): titles, room, teacher line, moved 
     assert.match(page, /groupName=\{group\.name\}/);
   }
 });
+
+test("#124: the move from the lesson sheet - error texts, live check lines, the exam precheck, «Перенесён с …»", () => {
+  const C = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const S = require(path.join(root, "src/lib/substitutions.ts"));
+  const err = (code, extra = {}) => ({ status: 409, code, message: "server", detail: { code, message: "server", ...extra } });
+  // the refusals of lesson-move
+  assert.equal(C.lessonMoveErrorText(err("LESSON_CHANGED", { current: { startTime: "16:00", endTime: "17:30" } })), "Урок уже изменили — обновите");
+  assert.equal(C.lessonMoveErrorText(err("SUBSTITUTION_ALREADY_DECIDED", { item: null })), "Урок уже изменили — обновите");
+  assert.equal(C.isLessonChanged(err("LESSON_CHANGED")), true);
+  assert.equal(C.isLessonChanged(err("SUBSTITUTION_ALREADY_DECIDED")), true);
+  assert.equal(C.isLessonChanged(err("TEACHER_BUSY")), false);
+  assert.match(C.lessonMoveErrorText(err("LESSON_HAS_NO_TEACHER")), /нет преподавателя.*назначьте/);
+  assert.equal(C.lessonMoveErrorText(err("EXAM_SERVICE_UNAVAILABLE")), "Не удалось проверить экзамены группы. Повторите попытку.");
+  assert.match(C.lessonMoveErrorText(err("LESSON_ALREADY_STARTED")), /уже начался или прошёл/);
+  assert.equal(C.lessonMoveErrorText(err("MOVE_IN_PAST")), "Новое время урока уже прошло");
+  assert.equal(C.lessonMoveErrorText(err("MOVE_TOO_FAR")), "Перенести можно не дальше чем на 60 дней");
+  assert.equal(C.lessonMoveErrorText(err("GROUP_BUSY")), "У группы уже есть урок в это время");
+  assert.match(C.lessonMoveErrorText(err("TEACHER_BUSY", { conflicts: [{ date: "2026-10-27", startTime: "10:00", endTime: "11:30", groupId: "G1", groupName: "9-А", withGroupName: "7-Б" }] })), /^Преподаватель занят в это время: «7-Б», .*10:00–11:30$/);
+  // the live check (fixtures K01, K02)
+  const K01 = { ok: false, teacherId: "A", teacherName: "Иванов И.", teacherConflicts: [{ date: "2026-10-27", startTime: "10:00", endTime: "11:30", groupId: "G1", groupName: "9-А", withGroupName: "7-Б" }], groupConflicts: [], warnings: [] };
+  const busy = C.lessonMoveCheckLines(K01);
+  assert.equal(busy.ok, false);
+  assert.match(busy.lines[0], /^Преподаватель занят в это время: «7-Б»/);
+  const grp = C.lessonMoveCheckLines({ ok: false, teacherConflicts: [], groupConflicts: [{ date: "2026-10-27", startTime: "10:00", endTime: "11:30", groupId: "G", groupName: "9-А", withGroupName: "9-А" }], warnings: [] });
+  assert.match(grp.lines[0], /^У группы уже есть урок/);
+  const free = C.lessonMoveCheckLines({ ok: true, teacherName: "Иванов И.", teacherConflicts: [], groupConflicts: [], warnings: [{ code: "ROOM_BUSY", message: "Кабинет занят" }] });
+  assert.equal(free.ok, true);
+  assert.match(free.lines[0], /^Время свободно/);
+  assert.deepEqual(free.warnings, ["Кабинет занят"]);
+  // the exam precheck (fixtures K05..K08, K11)
+  assert.deepEqual(Object.values(C.examCancelState(null)).slice(0, 2), [true, true], "not read yet: confirm stays off");
+  const none = C.examCancelState({ state: "none", title: null, canCancel: true, message: null });
+  assert.equal(none.blocked, false); assert.equal(none.message, null);
+  const lobby = C.examCancelState({ state: "ok", title: "Контрольная №3", canCancel: true, message: null });
+  assert.equal(lobby.blocked, false); assert.equal(lobby.message, "Экзамен «Контрольная №3» вернётся в черновик, код доступа будет закрыт.");
+  const active = C.examCancelState({ state: "ok", title: "Контрольная №3", canCancel: false, message: null });
+  assert.equal(active.blocked, true); assert.equal(active.message, "Экзамен «Контрольная №3» уже идёт — отменить урок нельзя");
+  const attempts = C.examCancelState({ state: "ok", title: "Контрольная №3", canCancel: false, message: "Нельзя отменить урок с активным экзаменом" });
+  assert.equal(attempts.blocked, true); assert.equal(attempts.message, "Нельзя отменить урок с активным экзаменом");
+  const down = C.examCancelState({ state: "unavailable", title: null, canCancel: false, message: "Не удалось проверить экзамены группы. Повторите попытку." });
+  assert.equal(down.blocked, true); assert.equal(down.retry, true); assert.equal(down.tone, "error");
+  // «Перенесён с …» (fixture K12) on the card, the teacher's chips and the student's rows
+  const from = { lessonId: "lesson-l2", date: "2026-10-28", startTime: "16:00", endTime: "17:30" };
+  assert.equal(C.movedFromText(from), "Перенесён с 28.10, 16:00");
+  assert.equal(C.movedFromText(null), null);
+  assert.equal(S.occurrenceChips({ movedFrom: from }, "u").map((c) => c.text).join("|"), "Перенесён с 28.10, 16:00");
+  assert.deepEqual(S.occurrenceChips({}, "u"), []);
+  const rows = S.studentLessonRows([{ lesson_id: "x", date: "2026-10-29", group_name: "9-А", status: "present", movedFrom: from }], [], (s) => s);
+  assert.equal(rows[0].movedFromText, "Перенесён с 28.10, 16:00");
+  // wiring
+  const api = read("src/lib/api.ts");
+  assert.match(api, /lesson-move-check\?/); assert.match(api, /lesson-move`/); assert.match(api, /lesson-exam-binding\?/);
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /expectedStartTime: lessonStart/); assert.match(sheet, /expectedEndTime: lessonEnd/);
+  assert.doesNotMatch(sheet, /rescheduleLessonOccurrence/, "the same-day-only move is gone");
+  assert.match(sheet, /id="sheet-date"/);
+  assert.match(sheet, /examState\.blocked/);
+});
