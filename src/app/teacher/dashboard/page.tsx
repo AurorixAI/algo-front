@@ -66,7 +66,7 @@ import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendanc
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
-import { createToast, narrowToFrozenRoster, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { RequestControl } from "@/components/substitutions/request-control";
@@ -534,7 +534,8 @@ export default function TeacherDashboardPage() {
               return student ? [student] : [];
             }));
           } else {
-            setGroupStudents(g.students);
+            // a student on a pause today is not in the class (before the start the group list still holds him)
+            setGroupStudents(isTodayLesson ? withoutPaused(g.students) : g.students);
           }
         } else {
           setGroupStudents([]);

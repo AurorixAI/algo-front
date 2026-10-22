@@ -615,3 +615,13 @@ test("moneyChip: the status chip comes from the money, never contradicts the deb
     assert.notEqual(P.moneyChip({ status, debt: 1, last_payment: { id: "p" } }).label, "Оплачено");
   }
 });
+
+test("pause on the group list: on_pause hides the student from a lesson of today, the chip says until when", () => {
+  const S = require(path.join(root, "src/lib/substitutions.ts"));
+  const list = [{ id: "a", on_pause: false }, { id: "b", on_pause: true, paused_until: "2026-11-01" }, { id: "c" }];
+  assert.deepEqual(S.withoutPaused(list).map((s) => s.id), ["a", "c"]);
+  assert.equal(P.pausedChipText(list[1]), "На паузе до 01.11");
+  assert.equal(P.pausedChipText({ on_pause: true }), "На паузе");
+  assert.equal(P.pausedChipText(list[0]), null);
+  assert.equal(P.pausedChipText(list[2]), null);
+});

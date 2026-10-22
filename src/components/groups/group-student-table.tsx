@@ -7,6 +7,7 @@ import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, UserRoun
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { StudentInGroup } from "@/lib/api";
+import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu } from "@/components/ui/row-menu";
@@ -177,6 +178,9 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
                     <span className="text-sm font-medium text-slate-700 group-hover/student:text-primary-600 transition-colors truncate">
                       {s.full_name || `${s.last_name} ${s.first_name}`}
                     </span>
+                    {pausedChipText(s) && (
+                      <span className="shrink-0 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-600">{pausedChipText(s)}</span>
+                    )}
                   </Link>
                 </td>
 

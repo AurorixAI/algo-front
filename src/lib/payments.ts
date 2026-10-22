@@ -1041,6 +1041,13 @@ export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone 
   return { label: statusLabel(row), tone: statusTone(row.status) };
 }
 
+/** «На паузе до 01.11» for a student of the group list (`paused_until` = the last day of the live pause, ISO); «На паузе» without the day. */
+export function pausedChipText(student: { on_pause?: boolean | null; paused_until?: string | null }): string | null {
+  if (!student.on_pause) return null;
+  const day = student.paused_until;
+  return day && /^\d{4}-\d{2}-\d{2}/.test(day) ? `На паузе до ${day.slice(8, 10)}.${day.slice(5, 7)}` : "На паузе";
+}
+
 /** «Осталось 3 урока из 12» / «Остался 1 урок из 12» / «Осталось 3 урока»; "" when the count is not known. */
 function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "lessons_left">): string {
   if (row.lessons_left === null || row.lessons_left === undefined) return "";

@@ -67,6 +67,10 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   expect(full).toBe(500000);
   expect(paused).toBe(0); // the pause starts on the first day: the period begins after it, the paused days cost nothing
 
+  // --- the group roster says who is on a pause
+  await page.goto(`/owner/groups/${group.id}`);
+  await expect(page.getByText(`На паузе до ${dm(last)}`)).toBeVisible();
+
   // --- a lesson inside the pause: the teacher's list has one student, not two
   await org.createLessonStartingNow(group.id);
   const teacherPage = await signIn(teacher);

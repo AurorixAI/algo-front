@@ -535,6 +535,11 @@ export function showsGroupLinks(source: RosterSource): boolean {
   return source === "group";
 }
 
+/** Students of the group list who are NOT on a pause today (`on_pause` comes with `GET /org/groups/{id}`); the list of a lesson of today. */
+export function withoutPaused<T extends { on_pause?: boolean | null }>(students: T[]): T[] {
+  return students.filter((student) => !student.on_pause);
+}
+
 /**
  * The roster the server froze when the lesson was started (`rosterStudentIds[<date>_<lessonId>]`): the group's list is read before
  * the start and still holds a student who is on a pause that day (he is not in the class and is not marked).  No frozen roster yet:

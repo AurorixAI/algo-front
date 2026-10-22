@@ -49,7 +49,7 @@ import {
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
-import { narrowToFrozenRoster, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
+import { narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
@@ -728,7 +728,8 @@ export default function TeacherSchedulePage() {
         if (source === "journal") {
           setGroupStudents(rosterFromJournal(att?.lessonRoster));
         } else if (g?.students) {
-          setGroupStudents(g.students);
+          // a student on a pause today is not in the class (before the start the group list still holds him)
+          setGroupStudents(occurrenceDate === formatBusinessDate() ? withoutPaused(g.students) : g.students);
         } else {
           setGroupStudents([]);
         }

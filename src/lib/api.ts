@@ -875,6 +875,9 @@ export interface StudentInGroup {
   last_level_status?: "critical" | "below" | "partial_gap" | "on_level" | "above" | null;
   last_level_provisional?: boolean | null;
   last_diagnosed_at: string | null;
+  /** LOGIC-A: the student is on a pause today (not in the class); `paused_until` = the last day of the live pause (ISO). Older servers do not send them. */
+  on_pause?: boolean | null;
+  paused_until?: string | null;
 }
 
 export interface GroupDetail extends GroupInfo {
