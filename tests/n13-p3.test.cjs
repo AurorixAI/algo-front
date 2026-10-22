@@ -712,7 +712,7 @@ test("groups: «Тип занятий» in the create and edit forms, shown on t
     assert.match(page, /label="Тип занятий"/, role);
     assert.match(page, /options=\{LESSON_TYPES\.map/, role);
     assert.match(page, /lesson_type: editState\.lesson_type/, role);
-    assert.match(page, /lessonTypeLabel\(group\.lesson_type\)/, role);
+    assert.match(page, /lessonTypeLine\(group\.lesson_type\)/, role);
     assert.match(page, /lesson_type: normalizeLessonType\(g\.lesson_type\)/, role);
   }
   assert.match(read("src/components/groups/group-card.tsx"), /lessonTypeLabel\(group\.lesson_type\)/);

@@ -22,7 +22,7 @@ import { handoverTargets } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
-import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
+import { LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
 import { GroupLessonTypeDialog } from "@/components/groups/group-lesson-type-dialog";
 import { LESSON_TYPE_CHANGE_LABEL, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
@@ -380,7 +380,6 @@ export default function AdminGroupDetailPage() {
                     <h1 className="break-words text-xl font-bold text-slate-900">{group.name}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">
                       {group.class_level ? `${group.class_level} класс · ` : ""}
-                      {`${lessonTypeLabel(group.lesson_type)} · `}
                       {group.teacher_name ? `Учитель: ${group.teacher_name}` : "Учитель не назначен"}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
