@@ -73,7 +73,7 @@ const MONEY_COLUMNS: Array<{ key: keyof ReceiptsMoneyColumns & ReceiptsColumn; l
   { key: "to_past_debt", label: "На долги" },
   { key: "to_current", label: "На текущие" },
   { key: "to_advance", label: "В аванс" },
-  { key: "written_off", label: "Списано" },
+  { key: "written_off", label: "Прощено" },
   { key: "refunded", label: "Возвращено" },
 ];
 
@@ -306,8 +306,8 @@ export function IncomeReportView({ report, period, open }: { report: ReceiptsRep
             <dd className="text-xl font-bold text-slate-900"><Figure value={report.totals.refunded} label="Возвращено: все возвраты" onOpen={() => open(dayList({}, "refunded"))} zero={<span className="text-slate-400">0 сум</span>} /></dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Списано долгов</dt>
-            <dd className="text-xl font-bold text-slate-900"><Figure value={report.totals.written_off} label="Списано: все списания" onOpen={() => open(dayList({}, "written_off"))} zero={<span className="text-slate-400">0 сум</span>} /></dd>
+            <dt className="text-xs text-slate-500">Прощено долгов</dt>
+            <dd className="text-xl font-bold text-slate-900"><Figure value={report.totals.written_off} label="Прощено: все прощённые долги" onOpen={() => open(dayList({}, "written_off"))} zero={<span className="text-slate-400">0 сум</span>} /></dd>
           </div>
           <div>
             <dt className="text-xs text-slate-500">Остаётся в центре</dt>

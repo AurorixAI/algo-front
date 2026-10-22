@@ -51,7 +51,7 @@ const TOTAL_TONE = {
 const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium";
 
 /**
- * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Начислено | Оплачено | Остаток.
+ * «Выписка»: the account of one student in one group like a bank statement - Дата | Операция | Стоимость | Оплачено | Баланс.
  * Charges are told in words (the month, the part of it, the price and where the price comes from), a payment says how it
  * was made and where each part of it went («за август — 69 000 (август закрыт)»), write-offs, refunds and transfers carry a
  * tag.  A light row per month sums it up; the switcher shows one month (with the balance carried in) or all of them.
@@ -176,14 +176,14 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
     if (entry.type === "writeoff" && item.details.writeoff_id) {
       const id = item.details.writeoff_id;
       items.push({
-        key: "void", label: "Отменить списание", icon: XCircle, danger: true,
+        key: "void", label: "Отменить прощение", icon: XCircle, danger: true,
         onSelect: () => setVoidRecord({
           key: id,
-          title: "Отменить списание?",
+          title: "Отменить прощение долга?",
           description: `${formatDateRu(item.date)} · ${formatMoney(item.credit)}`,
-          explain: "Списанная сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
-          action: "Отменить списание",
-          run: async (reason) => { await orgApi.voidWriteoff(id, reason); showToast("Списание отменено"); changed(); },
+          explain: "Прощённая сумма снова станет долгом. Запись останется в выписке серым с этой причиной.",
+          action: "Отменить прощение",
+          run: async (reason) => { await orgApi.voidWriteoff(id, reason); showToast("Прощение долга отменено"); changed(); },
         }),
       });
     }
@@ -318,7 +318,7 @@ function Help({ text, label }: { text: string; label: string }) {
   );
 }
 
-/** The title, who and which group, and the tiles: Начислено · Оплачено · Остаток (+ Списано / Возвращено when there are some). */
+/** The title, who and which group, and the tiles: Стоимость обучения · Оплачено · Баланс (+ Прощено / Возвращено when there are some). */
 export function StatementHeader({ statement }: { statement: StatementOut }) {
   const m = statement.membership;
   const totals = statementTotals(statement.summary);
@@ -380,16 +380,16 @@ export function StatementTimeline({
         <div className="flex flex-col items-center gap-1.5 rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-12 text-center">
           <ScrollText className="h-6 w-6 text-slate-300" aria-hidden />
           <p className="text-sm font-medium text-slate-700">В выписке пока нет записей</p>
-          <p className="max-w-sm text-xs text-slate-500">Начисления появятся, когда начнётся первый период, оплаты — после первой оплаты.</p>
+          <p className="max-w-sm text-xs text-slate-500">Стоимость появится, когда начнётся первый период, оплаты — после первой оплаты.</p>
         </div>
       ) : (
         <section aria-label="Записи счёта" className="md:overflow-hidden md:rounded-2xl md:border md:border-slate-200 md:bg-white print:border-slate-400">
           <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-center text-[13px] font-semibold text-slate-500 ${GRID} md:items-center`}>
             <span>Дата</span>
             <span className="text-left">Операция</span>
-            <span className="text-right">Начислено</span>
+            <span className="text-right">Стоимость</span>
             <span className="text-right">Оплачено</span>
-            <span className="text-right">Остаток</span>
+            <span className="text-right">Баланс</span>
             <span className="sr-only">Действия</span>
           </div>
           <ol className="space-y-2.5 md:space-y-0 md:divide-y md:divide-slate-100">
@@ -482,7 +482,7 @@ function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMen
       </div>
 
       <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block md:text-right ${chargedText ? "flex" : "hidden md:block"}`}>
-        <span className="text-xs text-slate-400 md:hidden">Начислено</span>
+        <span className="text-xs text-slate-400 md:hidden">Стоимость</span>
         <span className="text-sm tabular-nums text-slate-900">{chargedText}</span>
       </div>
 
@@ -495,7 +495,7 @@ function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMen
       </div>
 
       <div className="flex items-baseline justify-between gap-3 md:block md:text-right">
-        <span className="text-xs text-slate-400 md:hidden">Остаток</span>
+        <span className="text-xs text-slate-400 md:hidden">Баланс</span>
         <span className={`text-sm tabular-nums ${BALANCE_TEXT_CLASS[entry.balance.kind]}`}>{entry.balance.text}</span>
       </div>
 

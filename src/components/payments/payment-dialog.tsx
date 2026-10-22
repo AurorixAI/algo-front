@@ -35,6 +35,7 @@ import {
   type PaymentFormValues,
   type PreviewView,
 } from "@/lib/payments-ledger";
+import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { groupPriceHref } from "@/lib/group-price";
 import { Modal } from "@/components/ui/modal";
@@ -147,6 +148,10 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const latest = state.preview;
   const fresh = latest && state.previewKey === key ? latest : null;
   const due = dueView(latest);
+  // S-5: a student who has left (or an archived one) pays at most his debt; the server says so with `left_debt_only` and refuses more.
+  const leftOnly = isLeftDebtOnly(latest);
+  const leftDebt = due?.total ?? 0;
+  const leftProblem = leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
   const view = amountNow !== null ? previewView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
 
@@ -161,7 +166,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
 
   const submit = async () => {
     if (busy || saved) return;
-    const problem = validatePaymentForm(values, today);
+    const problem = validatePaymentForm(values, today) ?? leftProblem;
     if (problem) { setError(problem); return; }
     setBusy(true);
     setError(null);
@@ -251,6 +256,13 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
               ? { text: PRICE_NOT_SET_TEXT, href: groupsBasePath && membership.group_id ? groupPriceHref(groupsBasePath, membership.group_id) : null }
               : null}
           />
+
+          {leftOnly && (
+            <p role="note" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              <span>{LEFT_DEBT_ONLY_TEXT}{leftDebt > 0 ? `: не больше ${formatMoney(leftDebt)}` : "; долга нет — принимать нечего"}</span>
+            </p>
+          )}
 
           {/* The amount */}
           <div>
@@ -363,6 +375,9 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             </div>
           )}
 
+          {leftProblem && !error && amountNow !== null && (
+            <p role="alert" className="text-xs font-medium text-rose-700">{leftProblem}</p>
+          )}
           {error && (
             <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>
           )}
@@ -427,7 +442,12 @@ export function PreviewBlock({ view, loading = false }: { view: PreviewView; loa
           {view.lines.map((line, index) => (
             <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3">
               <span className={`min-w-0 ${LINE_TONE[line.bucket]}`}>{line.label}</span>
-              <span className="shrink-0 tabular-nums text-slate-700">{formatMoney(line.amount)}</span>
+              <span className="shrink-0 text-right tabular-nums text-slate-700">
+                {formatMoney(line.amount)}
+                {!line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
+                  <span className="block text-[11px] text-slate-500">по периоду осталось {formatMoney(line.remainingAfter)}</span>
+                )}
+              </span>
             </li>
           ))}
         </ul>

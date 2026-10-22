@@ -6,6 +6,7 @@
  * example of «Как считается зарплата», which uses the same `lineAmount` as the sheet's preview.
  */
 import { formatMoney } from "./payments";
+import { CANCELLED_LESSON_TEXT } from "./payments-logica";
 import { lineAmount, PENDING_CELL_LABEL, versionLabel, type PayrollMonthSheetRef } from "./payroll";
 
 // ── Statuses of a teacher's month ───────────────────────────────────────────
@@ -94,5 +95,7 @@ export function howItWorksLines(divisor: number = 12): string[] {
     "Цена берётся на день каждого урока: цена группы или индивидуальная цена ученика. Если цену подняли с 15-го числа, месяц считается по двум ценам. Цену не правят в ведомости: её задают в «Оплаты → Цены групп» и в карточке ученика.",
     "Ставка преподавателя (процент по видам занятий) задаётся в «Сотрудниках» и действует с выбранного месяца; сохранённые ведомости она не меняет.",
     "Если неоплаченные уроки всё же надо оплатить преподавателю, отметьте «начислить» в строке ученика.",
+    // LOGIC-A decisions 3 and 5
+    CANCELLED_LESSON_TEXT,
   ];
 }

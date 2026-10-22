@@ -14,7 +14,9 @@ import {
   validateArchiveReason,
   type ArchiveDiagnosticCounts,
 } from "@/lib/student-archive";
+import { logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
+import { SettleBlock, SettleStatus, useSettle } from "@/components/payments/settle-block";
 
 interface StudentArchiveModalProps {
   open: boolean;
@@ -36,6 +38,8 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // LOGIC-A F9: what is left on the account of each group after leaving, and what to do with it (keep / forgive / give back).
+  const settle = useSettle(() => orgApi.getArchivePreview(studentId), open, studentId);
 
   // A dialog that opens again (or for another student) never keeps the old draft or the old error.
   useEffect(() => {
@@ -44,14 +48,24 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
 
   const submit = async () => {
     if (busy) return;
-    const problem = validateArchiveReason(reason);
+    const problem = validateArchiveReason(reason) ?? (settle.failure?.refused ? null : settle.problem);
     if (problem) { setError(problem); return; }
+    // The preview is the base of the choice: without it (still loading, or it failed) nothing is archived blindly.
+    if (!settle.preview && !settle.failure?.refused) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await orgApi.archiveStudent(studentId, normalizeArchiveReason(reason));
+      const result = settle.preview
+        ? await orgApi.archiveStudentSettled(studentId, { reason: normalizeArchiveReason(reason), settle: settle.settle })
+        : await orgApi.archiveStudent(studentId, normalizeArchiveReason(reason));
       onArchived(result);
     } catch (cause) {
+      const failed = logicaError(cause);
+      if (failed.code === "BALANCE_CHANGED" && failed.fresh.length > 0) {
+        settle.applyFresh(failed.fresh);
+        setBusy(false);
+        return;
+      }
       const message = cause instanceof Error ? cause.message : "Не удалось отправить ученика в архив";
       // 409 «Ученик уже в архиве» = a stale card; 409 «…пока идёт урок…» and the rest: the server's text, the dialog stays.
       if ((cause as { status?: number } | null)?.status === 409 && isStaleArchiveConflict("archive", message)) onStale(message);
@@ -74,7 +88,7 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
           <button
             type="submit"
             form="student-archive-form"
-            disabled={busy}
+            disabled={busy || (!settle.preview && !settle.failure?.refused)}
             className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -86,7 +100,11 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
       <form id="student-archive-form" onSubmit={(event) => { event.preventDefault(); void submit(); }} className="space-y-4 pb-2" noValidate>
         <div>
           <p id="student-archive-groups" className="text-sm text-slate-700">{archiveGroupsHeading(groupNames.length)}</p>
-          {groupNames.length > 0 && (
+          {settle.preview && settle.preview.memberships.length > 0 ? (
+            <div className="mt-2">
+              <SettleBlock preview={settle.preview} choices={settle.choices} onChoice={settle.setChoice} disabled={busy} />
+            </div>
+          ) : groupNames.length > 0 && (
             <ul aria-labelledby="student-archive-groups" className="mt-2 space-y-1">
               {groupNames.map((name) => (
                 <li key={name} className="break-words rounded-lg bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-800">{name}</li>
@@ -94,6 +112,8 @@ export function StudentArchiveModal({ open, studentId, studentName, groupNames, 
             </ul>
           )}
         </div>
+
+        <SettleStatus loading={settle.loading} failure={settle.failure} notice={settle.notice} onRetry={settle.reload} />
 
         <div className="space-y-1.5">
           <label htmlFor="student-archive-reason" className="block text-xs font-semibold text-slate-600">Причина (необязательно)</label>

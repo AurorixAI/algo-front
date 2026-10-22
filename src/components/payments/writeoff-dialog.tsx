@@ -11,10 +11,10 @@ import { Modal } from "@/components/ui/modal";
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
-export const WRITEOFF_ACTION_LABEL = "Списать долг";
+export const WRITEOFF_ACTION_LABEL = "Простить долг";
 
 /**
- * «Списать долг» (a concession, an illness, an agreement): an amount up to the debt or the whole debt, and a reason
+ * «Простить долг» (a concession, an illness, an agreement): an amount up to the debt or the whole debt, and a reason
  * that stays in the statement and the audit.  The owner and the administrator the owner allowed.
  */
 export function WriteoffDialog({
@@ -51,7 +51,7 @@ export function WriteoffDialog({
       onDone(result);
       onClose();
     } catch (cause) {
-      setError(payError(cause, "Не удалось списать долг").message);
+      setError(payError(cause, "Не удалось простить долг").message);
     } finally {
       setBusy(false);
     }
@@ -76,7 +76,7 @@ export function WriteoffDialog({
             className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Списать
+            Простить долг
           </button>
         </>
       }
@@ -87,7 +87,7 @@ export function WriteoffDialog({
         </p>
 
         <fieldset className="space-y-2">
-          <legend className={LABEL}>Сколько списать</legend>
+          <legend className={LABEL}>Сколько простить</legend>
           <label className="flex items-center gap-2 text-sm text-slate-800">
             <input type="radio" name="writeoff-kind" checked={values.all} onChange={() => patch({ all: true })} className="h-4 w-4 accent-primary-600" />
             Весь долг
@@ -99,7 +99,7 @@ export function WriteoffDialog({
           {!values.all && (
             <div className="relative">
               <input
-                aria-label="Сумма списания"
+                aria-label="Сумма прощения"
                 value={values.amount}
                 onChange={(event) => patch({ amount: reformatMoneyTyping(event.target.value) })}
                 inputMode="numeric"
@@ -126,7 +126,7 @@ export function WriteoffDialog({
             placeholder="Например: болезнь, договорённость с родителем"
             className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
           />
-          <p className="mt-1 text-xs text-slate-500">Причина и ваше имя останутся в выписке ученика. Списание можно отменить.</p>
+          <p className="mt-1 text-xs text-slate-500">Причина и ваше имя останутся в выписке ученика. Прощение можно отменить.</p>
         </div>
 
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}

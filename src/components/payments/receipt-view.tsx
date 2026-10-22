@@ -116,7 +116,12 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
             <ul className="mt-1 divide-y divide-slate-100 print:divide-slate-300">
               {facts.lines.map((line, index) => (
                 <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3 py-1">
-                  <span className="min-w-0">{line.label}</span>
+                  <span className="min-w-0">
+                    {line.label}
+                    {!line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
+                      <span className="block text-xs text-slate-500">по этому периоду осталось {formatMoney(line.remainingAfter)}</span>
+                    )}
+                  </span>
                   <span className="shrink-0 tabular-nums">{formatMoney(line.amount)}</span>
                 </li>
               ))}

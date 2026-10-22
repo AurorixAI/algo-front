@@ -12,7 +12,7 @@ import { PayrollHowItWorksDialog } from "./how-it-works";
  * The one line under the buttons of the month page: «К выплате за сентябрь: 1 410 415 сум · сохранено 2 из 3» and, for a month
  * that is not over, the calm «Октябрь ещё идёт — расчёт предварительный».  Nothing here is an error, so nothing is red.
  */
-export function PayrollMonthSummary({ summary, month, open }: { summary: MonthSummary; month: string; open: boolean }) {
+export function PayrollMonthSummary({ summary, month, open, payoutText = null }: { summary: MonthSummary; month: string; open: boolean; payoutText?: string | null }) {
   const status = monthStatusText(month, open);
   return (
     <div className="space-y-0.5 print:hidden">
@@ -22,6 +22,8 @@ export function PayrollMonthSummary({ summary, month, open }: { summary: MonthSu
         {" · "}
         <span className="whitespace-nowrap">{summary.saved}</span>
       </p>
+      {/* LOGIC-A decision 6: «К выплате за октябрь: 600 000 сум · выплачено 475 000 · доплатить 125 000» */}
+      {payoutText && <p data-testid="payroll-month-payout" className="text-sm text-slate-600">{payoutText}</p>}
       {status && <p role="status" className="text-xs text-slate-500">{status}</p>}
     </div>
   );

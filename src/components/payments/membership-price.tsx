@@ -1,5 +1,7 @@
 "use client";
 
+import { logicaError, type LogicaError } from "@/lib/payments-logica";
+import { PriceBlockedBanner, PriceImpactMoneyBlock } from "./price-impact";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
@@ -25,7 +27,10 @@ import {
   priceOfRow,
   PRICE_CONFLICT_TEXT,
   sinceText,
+  staleSheetsText,
   type MembershipPrice,
+  type PriceImpact,
+  type PriceOverrideRequest,
   type PriceOverrideRow,
 } from "@/lib/group-price";
 import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
@@ -210,6 +215,57 @@ export function useMembershipPriceControls({
   return { line, items, panel, dialogs };
 }
 
+/**
+ * What an individual price (or «цена группы снова») would do: the server's dry run of exactly this request, asked once the owner stops
+ * typing.  `impact` carries the money of this membership and the payroll sheets that go «Есть изменения»; a backdated price over a
+ * paid period is refused (409 `PRICE_BACKDATE_WITH_PAYMENTS`) and says so before saving.
+ */
+function useOverrideImpact(open: boolean, membershipId: string, request: PriceOverrideRequest | null) {
+  const key = JSON.stringify(request);
+  const [state, setState] = useState<{ key: string; impact: PriceImpact | null; blocked: LogicaError | null } | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    if (!open || !request) { setState(null); setChecking(false); return undefined; }
+    let cancelled = false;
+    setChecking(true);
+    const timer = setTimeout(() => {
+      orgApi.setMembershipPrice(membershipId, request, { dryRun: true })
+        .then((answer) => { if (!cancelled) { setState({ key, impact: answer.impact ?? null, blocked: null }); setChecking(false); } })
+        .catch((cause) => {
+          if (cancelled) return;
+          const failure = logicaError(cause);
+          setState({ key, impact: null, blocked: failure.code === "PRICE_BACKDATE_WITH_PAYMENTS" ? failure : null });
+          setChecking(false);
+        });
+    }, 350);
+    return () => { cancelled = true; clearTimeout(timer); };
+    // `request` is a new object on every render; `key` stands for its content.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, membershipId, key]);
+  const current = state && state.key === key ? state : null;
+  return { impact: current?.impact ?? null, blocked: current?.blocked ?? null, checking };
+}
+
+/** «Что изменится» of an individual price: the money block and the payroll sheets. */
+function OverrideImpactBlock({ impact, blocked, checking }: { impact: PriceImpact | null; blocked: LogicaError | null; checking: boolean }) {
+  if (blocked) return <PriceBlockedBanner error={blocked} />;
+  if (checking) return <p className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем последствия…</p>;
+  const stale = impact ? staleSheetsText(impact) : null;
+  if (!impact || (!impact.money && !stale)) return null;
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700" data-testid="override-impact">
+      <p className="font-semibold text-slate-800">Что изменится</p>
+      <PriceImpactMoneyBlock money={impact.money} />
+      {stale && (
+        <div>
+          <p>{stale.text}</p>
+          {stale.items.length > 0 && <ul className="mt-1 list-disc space-y-0.5 pl-4">{stale.items.map((item) => <li key={item}>{item}</li>)}</ul>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** «Назначить индивидуальную цену»: a sum, the day it starts and the reason (3..200 characters, required). */
 function AssignOverrideDialog({
   open, row, studentName, label, onClose, onConflict, onSaved,
@@ -230,11 +286,14 @@ function AssignOverrideDialog({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** 409 `PRICE_BACKDATE_WITH_PAYMENTS`: the day reaches a period that has money behind it. */
+  const [blocked, setBlocked] = useState<LogicaError | null>(null);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
 
   useEffect(() => {
     if (!open) return;
+    setBlocked(null);
     setAmount("");
     setValidFrom(today);
     setReason("");
@@ -245,6 +304,8 @@ function AssignOverrideDialog({
   }, [open, row.membership_id]);
 
   const past = pastDateWarning(validFrom, today);
+  const formCheck = checkOverrideForm({ amount, validFrom, reason }, today);
+  const whatIf = useOverrideImpact(open, row.membership_id, formCheck.request);
 
   const submit = async () => {
     if (busy) return;
@@ -252,12 +313,14 @@ function AssignOverrideDialog({
     if (check.error || !check.request) { setError(check.error); return; }
     setBusy(true);
     setError(null);
+    setBlocked(null);
     try {
       const result = await orgApi.setMembershipPrice(row.membership_id, check.request);
       onSaved(result.row, check.request.valid_from && check.request.valid_from > today ? sinceText(check.request.valid_from) : "");
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
       else setError(cause instanceof Error ? cause.message : "Не удалось сохранить цену");
     } finally {
       setBusy(false);
@@ -307,6 +370,8 @@ function AssignOverrideDialog({
         </div>
         <ReasonField id="membership-price-reason" value={reason} onChange={(text) => { setError(null); setReason(text); }} />
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
+        {!blocked && <OverrideImpactBlock impact={whatIf.impact} blocked={whatIf.blocked} checking={whatIf.checking} />}
+        {blocked && <PriceBlockedBanner error={blocked} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>
@@ -331,6 +396,7 @@ function ReturnPriceDialog({
   const [validFrom, setValidFrom] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blocked, setBlocked] = useState<LogicaError | null>(null);
   const price = priceOfRow(row);
   const range = priceDateRange(today);
   const earliest = notBefore && notBefore > range.min ? notBefore : range.min;
@@ -340,10 +406,13 @@ function ReturnPriceDialog({
     setValidFrom(today);
     setBusy(false);
     setError(null);
+    setBlocked(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, row.membership_id]);
 
   const past = pastDateWarning(validFrom, today);
+  const returnCheck = checkReturnForm(validFrom, today, notBefore);
+  const whatIf = useOverrideImpact(open, row.membership_id, returnCheck.request);
 
   const submit = async () => {
     if (busy) return;
@@ -357,6 +426,7 @@ function ReturnPriceDialog({
       onClose();
     } catch (cause) {
       if (isPriceConflict(cause)) { setError(PRICE_CONFLICT_TEXT); onConflict(); }
+      else if (logicaError(cause).code === "PRICE_BACKDATE_WITH_PAYMENTS") setBlocked(logicaError(cause));
       else setError(cause instanceof Error ? cause.message : "Не удалось вернуть цену группы");
     } finally {
       setBusy(false);
@@ -404,6 +474,8 @@ function ReturnPriceDialog({
           />
         </div>
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}
+        {!blocked && <OverrideImpactBlock impact={whatIf.impact} blocked={whatIf.blocked} checking={whatIf.checking} />}
+        {blocked && <PriceBlockedBanner error={blocked} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </form>
     </Modal>

@@ -241,7 +241,7 @@ export const COLUMN_LABEL: Record<ReceiptsColumn, string> = {
   to_past_debt: "На долги прошлых периодов",
   to_current: "На текущие периоды",
   to_advance: "В аванс",
-  written_off: "Списано",
+  written_off: "Прощено",
   refunded: "Возвращено",
 };
 
@@ -313,7 +313,7 @@ export function distributionAddsUp(totals: ReceiptsTotals): boolean {
 
 export const CHECK_LABEL: Record<ReconciliationCheck["code"], string> = {
   received_eq_allocated_plus_refunded: "Поступило = распределено + возвращено из поступивших",
-  charged_minus_paid_eq_debt_minus_advance: "Начислено − оплачено − списано + возвращено = долг − аванс",
+  charged_minus_paid_eq_debt_minus_advance: "Стоимость − оплачено − прощено + возвращено = долг − аванс",
   transfers_net_zero: "Переводы между группами в сумме дают ноль",
 };
 
@@ -347,11 +347,11 @@ export function reconciliationView(reconciliation: Reconciliation | null | undef
 
 export const ITEM_TYPE_LABEL: Record<ReceiptItem["type"], string> = {
   payment: "Оплата",
-  writeoff: "Списание",
+  writeoff: "Долг прощён",
   refund: "Возврат",
 };
 
-/** «Оплата № 17 · Наличные» / «Списание» / «Возврат · Наличные». */
+/** «Оплата № 17 · Наличные» / «Долг прощён» / «Возврат · Наличные». */
 export function itemTitle(item: Pick<ReceiptItem, "type" | "receipt_no" | "method">): string {
   const head = item.type === "payment" && item.receipt_no ? `Оплата № ${item.receipt_no}` : ITEM_TYPE_LABEL[item.type];
   return item.type === "writeoff" ? head : `${head} · ${methodLabel(item.method as PayMethod | null)}`;

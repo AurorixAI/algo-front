@@ -18,8 +18,9 @@ import type { PriceInfo } from "./group-price";
 export type PeriodMode = "calendar" | "lessons";
 /** How a calendar period starts: from the payment date, or on one day of the month for the whole center. */
 export type BillingAnchor = "payment_date" | "fixed_day";
-export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active";
-export type PaymentBucket = "due" | "expiring" | "none" | "active";
+export type PaymentStatus = "none" | "free" | "expired" | "ends_today" | "expiring" | "active" | "paused";
+/** The tabs of «Оплаты» by money: «Должники» (debt), «Скоро платить», «Оплачено» (owner 21.10; «Без оплат» is gone: its rows are debtors «Ещё не платил»). */
+export type PaymentBucket = "debt" | "expiring" | "active" | "paused";
 
 /** How the money was received.  `unknown` exists on old records only: the server refuses it for a new payment. */
 export type PayMethod = "cash" | "card" | "bank_transfer" | "click" | "payme" | "other" | "unknown";
@@ -62,6 +63,8 @@ export interface AccountingStartImpact {
 export interface PaymentSettingsChanged extends PaymentSettings {
   dry_run?: boolean;
   impact?: AccountingStartImpact | null;
+  /** LOGIC-A F12: only on the dry run of a change of the billing mode: who is touched and when each switches. */
+  regime_impact?: { students_affected: number; first_switch: string | null; latest_switch: string | null; defer: boolean } | null;
 }
 
 export interface PaymentsSummary {
@@ -86,6 +89,19 @@ export interface PaymentsSummary {
   memberships_with_debt?: number;
   students_with_debt?: number;
   accounting_start_date?: string | null;
+  /** LOGIC-A: memberships on a pause today (they are in no tab of the list). */
+  paused?: number;
+  /**
+   * Owner 21.10 (the page «Оплаты»), read defensively until the server's names are frozen: the count of the «Должники» tab (the one
+   * the card «Долг учеников» also shows), students who paid ahead, memberships whose group has no price.
+   */
+  debtors?: number;
+  /** The rows of each tab (memberships): `buckets.debt` is the length of the «Должники» list. */
+  buckets?: { debt: number; expiring: number; active: number; paused: number };
+  /** Distinct students on a pause (the badge of «На паузе»); older answers only have `buckets.paused`. */
+  students_paused?: number;
+  students_with_advance?: number;
+  price_missing?: number;
 }
 
 /** The payment a carry-over (amount 0, made by a transfer) was made from. */
@@ -116,6 +132,11 @@ export interface Allocation {
   label: string;
   /** The price of that period; null for «аванс на следующие уроки». */
   price: number | null;
+  /**
+   * LOGIC-A addendum: what is still unpaid of THAT period right after this piece of money (after the earlier payments and
+   * forgiven debts).  Null on the «аванс» line and in a receipt made before the addendum.
+   */
+  segment_remaining_after?: number | null;
 }
 
 /** The current, factual distribution of a payment (it changes when other money changes). */
@@ -218,7 +239,7 @@ export interface ReceiptOut {
   void_reason?: string | null;
   replaced_by_receipt_no?: number | null;
   replaces_receipt_no?: number | null;
-  /** The amount of the payment this one replaces (not sent by the server yet; the receipt says it when present). */
+  /** The amount of the payment this one replaces («Исправление оплаты № 17 (было 450 000 сум)»). */
   replaces_amount?: number | null;
 }
 
@@ -262,6 +283,31 @@ export interface MembershipPaymentRow {
   /** How much of the advance may be given back. */
   refundable?: number;
   writeoff_allowed?: boolean;
+  /** Owner 21.10: why the row is among the debtors, in the server's words («Не доплачено за октябрь: 150 000»). */
+  reason?: string | null;
+  /** The tab the row is on (null: on none, e.g. a free student) and why it is a debtor. */
+  bucket?: PaymentBucket | null;
+  debt_reason?: "overdue" | "partial" | "never_paid" | null;
+  /** LOGIC-A: the live pause that covers today («На паузе до …»); null outside a pause. */
+  paused?: PausedRange | null;
+  /** LOGIC-A decision 1: the live opening balance of the membership (null when there is none). */
+  opening?: OpeningBrief | null;
+  /** LOGIC-A F13: the individual price of this membership ends when the student leaves. */
+  price_ends_on_leave?: boolean;
+}
+
+/** `from` / `to` are business days, both included. */
+export interface PausedRange {
+  from: string;
+  to: string;
+}
+
+/** The live opening balance of a membership as the list shows it: «оплачено до» and / or «долг X на дату T». */
+export interface OpeningBrief {
+  id: string;
+  paid_until: string | null;
+  debt_amount: number | null;
+  debt_on: string | null;
 }
 
 /** A warning of a saved payment or of a preview. */
@@ -329,6 +375,8 @@ export interface Segment {
   state: SegmentState;
   /** Relative to `as_of`: the period has ended / is running / has not begun (a lessons package is `past_debt` once all its lessons are held). */
   bucket?: "past_debt" | "current" | "future";
+  /** LOGIC-A addendum: the unpaid part of THIS charge as of the statement date (= `unpaid`); the month header reads charge / paid / remaining. */
+  remaining?: number;
 }
 
 /** What is due now, for the top block of the payment dialog. */
@@ -480,7 +528,11 @@ export interface PayErrorDetail {
 
 // ── Statement (GET …/statement) ────────────────────────────────────────────
 
-export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out";
+/**
+ * `opening_debt` (the debt «на начало учёта», debit) and `opening_paid_until` / `pause` (information rows, no money) are the LOGIC-A
+ * ledger events; the contract does not freeze how the statement carries them, so the front reads them defensively.
+ */
+export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out" | "opening_debt" | "opening_paid_until" | "pause";
 
 export interface StatementDetails {
   allocations: Allocation[];
@@ -497,9 +549,11 @@ export interface StatementDetails {
   to_group_name: string | null;
   to_membership_id: string | null;
   writeoff_id: string | null;
-  /** A corrected payment: the receipt it replaces and what it was (the server does not send them yet; the statement shows them when present). */
+  /** A corrected payment: the receipt it replaces and what it was («исправлена: было 450 000»). */
   replaces_receipt_no?: number | null;
   replaces_amount?: number | null;
+  /** On the cancelled original: the receipt of its correction. */
+  replaced_by_receipt_no?: number | null;
 }
 
 export interface StatementRow {
@@ -847,24 +901,76 @@ export { pluralRu };
 // ── Buckets (tabs) ─────────────────────────────────────────────────────────
 
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
-  { key: "due", label: "Требуют оплаты" },
-  { key: "expiring", label: "Скоро заканчивается" },
-  { key: "none", label: "Без оплат" },
+  { key: "debt", label: "Должники" },
+  { key: "expiring", label: "Скоро платить" },
   { key: "active", label: "Оплачено" },
 ];
 
-/** `?bucket=` of the page; unknown or missing values open the most urgent tab. */
+/** «На паузе»: a fourth tab, shown while somebody is on a pause (or while it is the open one). */
+export const PAUSED_BUCKET: { key: PaymentBucket; label: string } = { key: "paused", label: "На паузе" };
+
+/** `?bucket=` of the page; unknown or missing values (and the old `due` / `none` links) open «Должники», the most urgent tab. */
 export function parseBucket(value: string | null | undefined): PaymentBucket {
-  return PAYMENT_BUCKETS.find((bucket) => bucket.key === value)?.key ?? "due";
+  return [...PAYMENT_BUCKETS, PAUSED_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
+}
+
+/** The tabs on screen: the three of the owner, and «На паузе» when it has somebody or is the open one. */
+export function visibleBuckets(summary: { buckets?: { paused?: number | null } | null; paused?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
+  const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);
+  return paused > 0 || open === "paused" ? [...PAYMENT_BUCKETS, PAUSED_BUCKET] : PAYMENT_BUCKETS;
+}
+
+/**
+ * The number of the «Должники» tab AND of the card «Долг учеников»: one function, so the two can never differ.  The server's
+ * `debtors`; an answer without it falls back to the students with a debt.
+ */
+export function debtorsCount(summary: { debtors?: number | null; students_with_debt?: number | null } | null | undefined): number | null {
+  const value = summary?.debtors ?? summary?.students_with_debt;
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : null;
 }
 
 /** The number on a tab - every tab has one; null while the summary is not known. */
 export function bucketCount(
-  summary: Partial<Pick<PaymentsSummary, "due" | "expiring" | "none" | "active">> | null,
+  summary: {
+    buckets?: { debt?: number | null; expiring?: number | null; active?: number | null; paused?: number | null } | null;
+    debtors?: number | null; students_with_debt?: number | null; students_paused?: number | null; expiring?: number | null; active?: number | null; paused?: number | null;
+  } | null,
   key: PaymentBucket,
 ): number | null {
-  const value = summary?.[key];
+  // Owner 21.10: the badge counts STUDENTS (a student with a debt in two groups is one), the same number as the card «Долг учеников»;
+  // the list under the tab still has a row per group membership.
+  if (key === "debt") {
+    const students = debtorsCount(summary);
+    if (students !== null) return students;
+  }
+  if (key === "paused" && typeof summary?.students_paused === "number") return summary.students_paused;
+  const own = summary?.buckets?.[key];
+  if (typeof own === "number" && Number.isFinite(own)) return own;
+  const value = key === "debt" ? null : summary?.[key as "expiring" | "active" | "paused"];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/**
+ * The reason line of a debtor's row: the server's (`reason`: «Просрочено на 12 дней» / «Не доплачено за октябрь: 150 000» / «Ещё не
+ * платил»), else read from the row: overdue days, never paid, or the debt.
+ */
+export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason">): string {
+  if (row.reason) return row.reason;
+  if (row.status === "expired" && row.days_overdue) return `Просрочено на ${daysLabel(row.days_overdue)}`;
+  if (!row.last_payment && (row.status === "none" || row.status === "expired")) return "Ещё не платил";
+  if ((row.debt ?? 0) > 0) return `Долг ${formatMoney(row.debt)}`;
+  return "";
+}
+
+/** A debtor who has never paid: his row keeps the quick entry of a first payment. */
+export function isFirstPaymentRow(row: Pick<MembershipPaymentRow, "status" | "last_payment" | "is_active">): boolean {
+  return row.status === "none" && !row.last_payment && row.is_active;
+}
+
+/** «У 3 учеников не задана цена» above the list (the card links to «Цены групп»). */
+export function priceMissingText(count: number | null | undefined): string | null {
+  const n = Math.floor(Number(count) || 0);
+  return n > 0 ? `У ${n} ${pluralRu(n, "ученика", "учеников", "учеников")} не задана цена` : null;
 }
 
 /** «Требуют оплаты (12)»; the bare label while the number is not known. */
@@ -886,7 +992,7 @@ export { lessonsWord };
  * By lessons: «Осталось 3 урока из 12» / «Остался 1 урок из 12» (amber), «Уроки закончились» (red).
  */
 export function statusLabel(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left">,
+  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "days_overdue" | "days_left" | "lessons_total" | "lessons_left"> & Partial<Pick<MembershipPaymentRow, "paused">>,
 ): string {
   const lessons = row.period_mode === "lessons";
   switch (row.status) {
@@ -904,6 +1010,9 @@ export function statusLabel(
       return row.days_left ? leftPhrase(row.days_left, "день", "дня", "дней") : "Скоро закончится";
     case "active":
       return "Оплачено";
+    case "paused":
+      // «На паузе до 20.10» (the day is the end of the live pause).
+      return row.paused?.to ? `На паузе до ${formatDateRu(row.paused.to).slice(0, 5)}` : "На паузе";
   }
   return "";
 }
@@ -926,7 +1035,7 @@ export function statusDetail(
     return row.status === "active" ? lessonsLeftText(row).toLowerCase() : "";
   }
   if (!row.paid_until) return "";
-  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active") {
+  if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active" || row.status === "paused") {
     return `оплачено до ${formatDateRu(row.paid_until)}`;
   }
   return "";
@@ -1331,4 +1440,49 @@ export function diffPaymentSettings(
  */
 export function bannerDismissed(dismissedAt: number | null, due: number): boolean {
   return dismissedAt !== null && due <= dismissedAt;
+}
+
+// ── The two cards under the header of «Оплаты» (owner 21.10) ───────────────
+
+export interface PositionCard {
+  key: "debt" | "advance";
+  label: string;
+  /** The big sum: «1 250 000 сум». */
+  amount: string;
+  /** Under it: «33 ученика с долгом» / «5 учеников оплатили вперёд»; "" while the server has not told the count. */
+  sub: string;
+  tone: "debt" | "advance" | "none";
+}
+
+/**
+ * «Долг учеников» (big, red) with «33 ученика с долгом» and «Аванс» (big, green) with «N учеников оплатили вперёд».  The debtors count is
+ * `debtorsCount`, the very number of the «Должники» tab.
+ */
+export function positionCards(summary: {
+  debt_total?: number | null;
+  advance_total?: number | null;
+  debtors?: number | null;
+  students_with_debt?: number | null;
+  students_with_advance?: number | null;
+} | null | undefined): PositionCard[] {
+  const debt = Math.max(0, Math.round(Number(summary?.debt_total) || 0));
+  const advance = Math.max(0, Math.round(Number(summary?.advance_total) || 0));
+  const debtors = debtorsCount(summary);
+  const ahead = typeof summary?.students_with_advance === "number" && summary.students_with_advance >= 0 ? Math.floor(summary.students_with_advance) : null;
+  return [
+    {
+      key: "debt",
+      label: "Долг учеников",
+      amount: formatMoney(debt),
+      sub: debtors === null ? "" : `${debtors} ${pluralRu(debtors, "ученик с долгом", "ученика с долгом", "учеников с долгом")}`,
+      tone: debt > 0 ? "debt" : "none",
+    },
+    {
+      key: "advance",
+      label: "Аванс",
+      amount: formatMoney(advance),
+      sub: ahead === null ? "" : `${ahead} ${pluralRu(ahead, "ученик оплатил вперёд", "ученика оплатили вперёд", "учеников оплатили вперёд")}`,
+      tone: advance > 0 ? "advance" : "none",
+    },
+  ];
 }

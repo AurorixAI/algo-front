@@ -9,13 +9,13 @@ import { Modal } from "@/components/ui/modal";
 /** What is being cancelled: the key changes the state of the dialog, the rest is its wording. */
 export interface VoidTarget {
   key: string;
-  /** «Отменить списание?» */
+  /** «Отменить прощение долга?» */
   title: string;
   /** «Иванов · 21.10.2026 · 40 000 сум» */
   description: string;
   /** Under the reason: what happens to the money. */
   explain?: ReactNode;
-  /** Label of the red button: «Отменить списание». */
+  /** Label of the red button: «Отменить прощение». */
   action: string;
   run: (reason: string) => Promise<void>;
 }

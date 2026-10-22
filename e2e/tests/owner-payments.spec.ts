@@ -24,9 +24,9 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   const page = await signIn(org.owner);
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Платёжкин Анвар", exact: true }) });
 
-  // --- a student without data waits in «Без оплат»; the group has no price: the row says so and links to the group
+  // --- a student without data waits in «Должники» (Ещё не платил); the group has no price: the row says so and links to the group
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Без оплат/ }).click();
+  await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText("Цена группы не задана");
   await expect(row().getByRole("link", { name: "задать цену группы" })).toHaveAttribute("href", new RegExp(`/owner/payments/prices\\?group=${group.id}$`));
@@ -36,7 +36,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   // --- the price is set ON THE GROUP (its own spec covers the screen); the row now suggests the sum from it
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
-  await page.getByRole("tab", { name: /Без оплат/ }).click();
+  await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toContainText(new RegExp(`Цена группы: ${moneyPattern(450000)}\\s*сум/мес`));
   await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0);
   await expect(row().getByRole("textbox", { name: "Дата оплаты" })).toHaveCount(0); // PAY-2: no dates, the server distributes the money
@@ -51,7 +51,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await row().getByRole("combobox", { name: "Способ оплаты" }).selectOption("cash");
   await row().getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Оплата внесена")).toBeVisible();
-  await expect(row()).toHaveCount(0); // left «Без оплат»
+  await expect(row()).toHaveCount(0); // left «Должники» (Ещё не платил)
 
   // --- it is now under «Оплачено»
   await page.getByRole("tab", { name: "Оплачено" }).click();
@@ -140,7 +140,7 @@ test("@mobile the payments list and the quick-pay row fit a phone", async ({ sig
   await org.addStudent(group, "Мадина", "Телефонова");
   const page = await signIn(org.owner);
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: /Без оплат/ }).click();
+  await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
   await expect(row.getByText("Цена группы не задана")).toBeVisible();
   await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toBeVisible();

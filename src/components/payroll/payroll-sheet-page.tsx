@@ -42,7 +42,9 @@ import { useUnsavedGuard } from "@/lib/use-unsaved-guard";
 import { effectiveRole } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT } from "@/lib/payroll-logica";
 import { PayrollPageMenu } from "./month-status";
+import { SheetPayoutBlock } from "./payout-block";
 import { PayrollSheetTable } from "./sheet-table";
 import { SheetSummaryCard } from "./sheet-summary";
 import { BackLink, ConflictBanner, PayrollForbidden, RateRequiredNotice, RevisionList, SaveBar, usePrintWithDates } from "./sheet-controls";
@@ -100,7 +102,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   /** A recalculation was refused for want of a rate: the server's words; the notice leads to «Сотрудники». */
   const [rateMissing, setRateMissing] = useState<string | null>(null);
   /** The recalculation was refused because the data moved after the diff the owner looked at (409 SHEET_DATA_CHANGED). */
-  const [dataChanged, setDataChanged] = useState<{ message: string; fingerprint: string | null; acknowledged: boolean } | null>(null);
+  const [dataChanged, setDataChanged] = useState<{ message: string; fingerprint: string | null; acknowledged: boolean; actionLabel?: string } | null>(null);
 
   /** The rate in force in the month of the sheet (what «Сотрудники» says now): the card names a difference from the saved one. */
   const [ratesNow, setRatesNow] = useState<RatesNow | null>(null);
@@ -230,11 +232,18 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
   const apply = async (recalculate: boolean) => {
     if (!sheet || !sheet.id || saving) return;
     const requestedFor = sheetId;
+    const fingerprint = diff?.source_fingerprint ?? dataChanged?.fingerprint ?? null;
+    // LOGIC-A F14: a recalculation without the fingerprint of the data the owner looked at is refused (422 FINGERPRINT_REQUIRED):
+    // say so at once and read the data again instead of sending it.
+    if (recalculate && !fingerprint) {
+      setDataChanged({ message: FINGERPRINT_REQUIRED_TEXT, fingerprint: null, acknowledged: false, actionLabel: "Проверить данные" });
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     setRateMissing(null);
     try {
-      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: diff?.source_fingerprint ?? dataChanged?.fingerprint ?? null }));
+      const updated = await orgApi.patchPayrollSheet(sheet.id, buildPatchBody(sheet, edits, note, { recalculate, expectedFingerprint: fingerprint }));
       if (sheetIdRef.current !== requestedFor) return;
       showToast(
         `${recalculate ? "Ведомость пересчитана" : "Сохранено"} · ${updated.revision ? versionLabel(updated.revision) : "новая версия"}`,
@@ -251,8 +260,10 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
     } catch (cause) {
       if (sheetIdRef.current !== requestedFor) return;
       const error = cause as PayrollErrorLike;
-      if (isRevisionConflict(error)) setConflict(true);
+      if (isLineNotFound(error)) { setSaveError(LINE_NOT_FOUND_TEXT); void load(true); }
+      else if (isRevisionConflict(error)) setConflict(true);
       else if (isDataChanged(error)) setDataChanged({ message: payrollErrorText(error), fingerprint: freshFingerprintOf(error), acknowledged: false });
+      else if (isFingerprintRequired(error)) setDataChanged({ message: FINGERPRINT_REQUIRED_TEXT, fingerprint: null, acknowledged: false, actionLabel: "Проверить данные" });
       else if (isRateRequired(error)) setRateMissing(payrollErrorText(error));
       else setSaveError(payrollErrorText(error));
     } finally {
@@ -368,7 +379,7 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
               {dataChanged && !dataChanged.acknowledged && (
                 <ConflictBanner
                   message={dataChanged.message}
-                  actionLabel="Пересчитать"
+                  actionLabel={dataChanged.actionLabel ?? "Пересчитать"}
                   reloading={refreshing}
                   onReload={async () => {
                     // Look at the new difference first; the next «Пересчитать» expects exactly this data.
@@ -396,6 +407,15 @@ function PayrollSheetContent({ sheetId }: { sheetId: string }) {
                 exporting={exporting}
                 onPrint={print}
               />
+              {sheet.id && sheet.payout && (
+                <SheetPayoutBlock
+                  sheetId={sheet.id}
+                  month={sheet.month}
+                  teacherName={sheet.teacher_name ?? ""}
+                  payout={sheet.payout}
+                  onChanged={(text) => { showToast(text); void load(true); }}
+                />
+              )}
               {diffFailed && (
                 <p className="flex flex-wrap items-center gap-2 text-xs text-slate-500 print:hidden">
                   Не удалось проверить, изменились ли данные после сохранения.

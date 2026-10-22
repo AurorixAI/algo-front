@@ -130,19 +130,22 @@ test("cancellation reason is 3..500 characters", () => {
 });
 
 test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter", () => {
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["due", "expiring", "none", "active"]);
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Требуют оплаты", "Скоро заканчивается", "Без оплат", "Оплачено"]);
-  assert.equal(rules.parseBucket("none"), "none");
+  // owner 21.10: tabs by money; «Без оплат» is gone (its rows are debtors «Ещё не платил»)
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debt", "expiring", "active"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Оплачено"]);
+  assert.equal(rules.parseBucket("none"), "debt"); // an old link opens the most urgent tab
+  assert.equal(rules.parseBucket("due"), "debt");
   assert.equal(rules.parseBucket("active"), "active");
-  assert.equal(rules.parseBucket("all"), "due");
-  assert.equal(rules.parseBucket(null), "due");
-  assert.equal(rules.parseBucket("<script>"), "due");
-  const summary = { due: 4, expiring: 3, none: 7, active: 120 };
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(summary, b.key)), [4, 3, 7, 120]);
-  assert.equal(rules.bucketCount({ due: 0, expiring: 0, none: 0, active: 0 }, "expiring"), 0);
-  assert.equal(rules.bucketCount(null, "due"), null);
-  assert.equal(rules.bucketCount({ due: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
-  assert.equal(rules.bucketTabLabel("Без оплат", 7), "Без оплат (7)");
+  assert.equal(rules.parseBucket("all"), "debt");
+  assert.equal(rules.parseBucket(null), "debt");
+  assert.equal(rules.parseBucket("<script>"), "debt");
+  const summary = { debtors: 4, expiring: 3, active: 120 };
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => rules.bucketCount(summary, b.key)), [4, 3, 120]);
+  assert.equal(rules.bucketCount({ students_with_debt: 9, expiring: 0, active: 0 }, "debt"), 9); // an answer without `debtors`
+  assert.equal(rules.bucketCount({ debtors: 0, expiring: 0, active: 0 }, "expiring"), 0);
+  assert.equal(rules.bucketCount(null, "debt"), null);
+  assert.equal(rules.bucketCount({ debtors: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
+  assert.equal(rules.bucketTabLabel("Должники", 7), "Должники (7)");
   assert.equal(rules.bucketTabLabel("Оплачено", 0), "Оплачено (0)");
   assert.equal(rules.bucketTabLabel("Оплачено", null), "Оплачено");
 });

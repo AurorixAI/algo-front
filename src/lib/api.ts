@@ -63,6 +63,31 @@ import {
   type PayrollSheet,
   type PayrollSheetBrief,
 } from "./payroll";
+// LOGIC-A («деньги»): the types and readers of its routes live in two files of their own (a separate section below).
+import {
+  normalizeImpact,
+  normalizeLeavePreview,
+  type LeavePreview,
+  type OpeningIn,
+  type OpeningOut,
+  type OpeningPut,
+  type OpeningSaved,
+  type OpeningVoided,
+  type PauseOut,
+  type PauseSaved,
+  type PauseVoided,
+  type SettleItem,
+  type SettledOut,
+} from "./payments-logica";
+import {
+  normalizePayout,
+  normalizePayoutState,
+  type PayoutCreate,
+  type PayoutCreated,
+  type PayoutOut,
+  type PayoutVoided,
+  type PayrollSettingsFull,
+} from "./payroll-logica";
 
 /**
  * #105 audit trail of the money: `changes` of the items of `GET /org/groups/{id}/prices` (GroupPriceChange) and of
@@ -1331,9 +1356,14 @@ export const orgApi = {
    * `"add"` keeps them.  The student takes the price of the group; `price_override` is an explicit individual
    * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
-  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null }) => {
+  addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null }) => {
     const query = options?.mode ? `?mode=${options.mode}` : "";
-    const body = options?.price_override ? { price_override: options.price_override } : undefined;
+    // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership ride along (needs access to money).
+    const extra = {
+      ...(options?.price_override ? { price_override: options.price_override } : {}),
+      ...(options?.opening_balance ? { opening_balance: options.opening_balance } : {}),
+    };
+    const body = Object.keys(extra).length > 0 ? extra : undefined;
     return api<{
       student_id: string;
       group_id: string;
@@ -1545,8 +1575,8 @@ export const orgApi = {
   getMembershipPrice: (membershipId: string) =>
     api<MembershipPrice>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`),
   /** `amount` a sum (+ `reason`): the individual price from `valid_from`; `amount` null: the price of the group again. */
-  setMembershipPrice: (membershipId: string, body: PriceOverrideRequest) =>
-    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override`, {
+  setMembershipPrice: (membershipId: string, body: PriceOverrideRequest, options?: { dryRun?: boolean }) =>
+    api<MembershipPriceChanged>(`/auth/org/memberships/${encodePathId(membershipId)}/price-override${options?.dryRun ? "?dry_run=true" : ""}`, {
       method: "PUT", body,
     }),
   listMembershipPayments: (membershipId: string, includeVoided = true) =>
@@ -1691,6 +1721,60 @@ export const orgApi = {
   downloadPayrollMonth: (month: string, fallbackName: string) =>
     fetchFile(`/auth/org/payroll/months/${encodePathId(month)}/export.xlsx`, fallbackName, "Не удалось скачать Excel"),
 
+  // ── LOGIC-A «деньги»: opening balance, pause, leave / archive with the money, payouts, lesson type ──
+  // Contract: tests/fixtures/logicA (the frozen logicA_contract.json).  Errors carry `detail.{code, message, dates, students, fresh}`.
+  /** The live opening balance of a membership («оплачено до» / «долг на дату»); null when there is none. */
+  getOpeningBalance: (membershipId: string) =>
+    api<OpeningOut | null>(`/auth/org/memberships/${encodePathId(membershipId)}/opening-balance`),
+  /** `dryRun`: nothing is written, the answer holds the `impact` (the ledger before / after).  All three fields empty: the live one is voided. */
+  putOpeningBalance: (membershipId: string, body: OpeningPut, options?: { dryRun?: boolean }) =>
+    api<OpeningSaved>(`/auth/org/memberships/${encodePathId(membershipId)}/opening-balance${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PUT", body })
+      .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  voidOpeningBalance: (openingId: string, reason: string) =>
+    api<OpeningVoided>(`/auth/org/opening-balances/${encodePathId(openingId)}/void`, { method: "POST", body: { reason } })
+      .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  listPauses: (membershipId: string) =>
+    api<PauseOut[]>(`/auth/org/memberships/${encodePathId(membershipId)}/pauses`).then((list) => (Array.isArray(list) ? list : [])),
+  /** `dryRun`: the calculation and the warnings without writing; `Idempotency-Key` is optional (a repeat of the same range is a no-op). */
+  createPause: (membershipId: string, body: { first_day: string; last_day: string; reason?: string }, options?: { dryRun?: boolean; idempotencyKey?: string }) =>
+    api<PauseSaved>(`/auth/org/memberships/${encodePathId(membershipId)}/pauses${options?.dryRun ? "?dry_run=true" : ""}`, {
+      method: "POST", body, headers: options?.idempotencyKey ? { "Idempotency-Key": options.idempotencyKey } : undefined,
+    }).then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  /** Shortens (or moves) a pause: «Закончить паузу» sends `last_day` = yesterday. */
+  patchPause: (pauseId: string, body: { first_day?: string | null; last_day?: string | null; reason?: string | null }, options?: { dryRun?: boolean }) =>
+    api<PauseSaved>(`/auth/org/pauses/${encodePathId(pauseId)}${options?.dryRun ? "?dry_run=true" : ""}`, { method: "PATCH", body })
+      .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  voidPause: (pauseId: string, reason: string) =>
+    api<PauseVoided>(`/auth/org/pauses/${encodePathId(pauseId)}/void`, { method: "POST", body: { reason } })
+      .then((result) => ({ ...result, impact: normalizeImpact(result.impact), row: result.row ? normalizeRow(result.row) : null })),
+  /** What leaving the group would leave on the account of the student (`money` is null for a role without access to money). */
+  getLeavePreview: (groupId: string, studentId: string) =>
+    api<LeavePreview>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}/leave-preview`).then(normalizeLeavePreview),
+  /** Takes the student out of the group and settles the money in one transaction (`settle` per membership); 409 `BALANCE_CHANGED` carries the fresh numbers. */
+  leaveStudent: (groupId: string, studentId: string, body: { reason?: string | null; settle?: SettleItem[] }) =>
+    api<{ message: string; settled: SettledOut[] }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}/leave`, { method: "POST", body }),
+  getArchivePreview: (studentId: string) =>
+    api<LeavePreview>(`/auth/org/students/${encodePathId(studentId)}/archive-preview`).then(normalizeLeavePreview),
+  /** The archive with the money settled: `reason` + `settle` (the answer is the archived student + `settled`). */
+  archiveStudentSettled: (studentId: string, body: { reason?: string | null; settle?: SettleItem[] }) =>
+    api<StudentArchiveResult & { settled?: SettledOut[] }>(`/auth/org/students/${encodePathId(studentId)}/archive`, { method: "POST", body }),
+  /** The divisor by month (F7): the current one and the history. */
+  getPayrollSettingsHistory: () => api<PayrollSettingsFull>("/auth/org/payroll/settings"),
+  setPayrollDivisor: (body: { divisor: number; valid_from?: string }) =>
+    api<PayrollSettingsFull>("/auth/org/payroll/settings", { method: "PUT", body }),
+  /** Payouts of the month (live and cancelled), optionally of one teacher. */
+  listPayrollPayouts: (month: string, teacherId?: string) =>
+    api<PayoutOut[]>(`/auth/org/payroll/payouts?month=${encodeURIComponent(month)}${teacherId ? `&teacher_id=${encodePathId(teacherId)}` : ""}`)
+      .then((list) => (Array.isArray(list) ? list.map(normalizePayout).filter((item): item is PayoutOut => item !== null) : [])),
+  /** «Отметить выплату»; `Idempotency-Key`: one per opening of the dialog (409 `DUPLICATE_PAYOUT` carries `payout_id`). */
+  createPayrollPayout: (sheetId: string, body: PayoutCreate, idempotencyKey?: string) =>
+    api<PayoutCreated>(`/auth/org/payroll/sheets/${encodePathId(sheetId)}/payouts`, {
+      method: "POST", body, headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+    }).then((result) => ({ payout: normalizePayout(result.payout) as PayoutOut, state: normalizePayoutState(result.state)! })),
+  voidPayrollPayout: (payoutId: string, reason: string) =>
+    api<PayoutVoided>(`/auth/org/payroll/payouts/${encodePathId(payoutId)}/void`, { method: "POST", body: { reason } })
+      .then((result) => ({ payout: normalizePayout(result.payout) as PayoutOut, state: normalizePayoutState(result.state)! })),
+
   // ── Bulk import (xlsx) ────────────────────────────────────────────────
   downloadImportTemplate: async (): Promise<Blob> => {
     const res = await fetchAuthed(`${AUTH_API_V1}/auth/org/import/template`, {
@@ -1720,6 +1804,8 @@ export interface ImportCounts {
   groups_existing: number;
   students_new: number;
   students_existing: number;
+  /** LOGIC-A decision 1: students whose row carries an opening balance («оплачено до» / «долг на дату»). */
+  openings?: number;
 }
 
 export interface ImportPreviewResult {

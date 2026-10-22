@@ -207,7 +207,7 @@ test("a past day warns that calculations change and payments never do; a future 
   const warning = G.pastDateWarning("2026-09-01", "2026-10-17");
   assert.match(warning, /Дата в прошлом/);
   assert.match(warning, /с 01\.09\.2026/);
-  assert.match(warning, /Уже внесённые оплаты не меняются никогда\./);
+  assert.match(warning, /Внесённые оплаты не меняются, но долг и аванс пересчитываются — ниже, у кого\./);
   assert.equal(G.pastDateWarning("2026-10-17", "2026-10-17"), null);
   assert.equal(G.pastDateWarning("2026-11-01", "2026-10-17"), null);
   assert.equal(G.pastDateWarning("", "2026-10-17"), null);
@@ -643,7 +643,7 @@ test("the month list: a status chip with its explanation, warnings in one line w
   // the warnings: one line under the name, each one a link to where it is fixed, in the right units
   assert.match(html, /href="\/owner\/attendance\?tab=open"[^>]*>1 незакрытый урок</);
   assert.match(html, /href="\/owner\/payments\/prices"[^>]*>у 2 учеников нет цены</);
-  assert.match(html, /href="\/owner\/payments\?bucket=due"[^>]*>140 посещений без оплаты</);
+  assert.match(html, /href="\/owner\/payments\?bucket=debt"[^>]*>140 посещений без оплаты</);
   assert.equal((html.match(/<ul/g) || []).length, 1);
   assert.ok(text.includes("Ученики были на уроках, но эти уроки не покрыты оплатой — в сумму не входят. Их можно начислить в ведомости."));
   // no checkbox, no percent field: the row is read, the rate is set in «Сотрудники»
@@ -754,7 +754,7 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<StatusChip status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} \/>/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutText\(month, teachers\)\} \/>/);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
   assert.match(controls, /<Hint text=\{views\.map\(\(item\) => `\$\{item\.text\}\\n\$\{item\.hint\}`\)/);
@@ -771,7 +771,7 @@ test("«Изменить цену»: «Сохранить» waits for the conseq
   assert.match(dialog, /orgApi\.setGroupPrice\(groupId, asked, \{ dryRun: true \}\)/);
   assert.match(dialog, /const asked = \{ amount: check\.request\.amount, valid_from: check\.request\.valid_from \};/);
   // the answer counts for the key it was asked for, and the button waits for it
-  assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking;/);
+  assert.match(dialog, /const ready = Boolean\(check\.request\) && impact !== null && impact\.key === key && !checking && !blockedNow;/);
   assert.match(dialog, /const canSave = ready && !noop;/);
   assert.match(dialog, /disabled=\{!canSave \|\| saving\}/);
   assert.match(dialog, /if \(!check\.request \|\| !canSave \|\| saving\) return;/);

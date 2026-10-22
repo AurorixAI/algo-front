@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { DEMO_MODE, orgApi, type StudentProfile } from "@/lib/api";
+import { utcNaiveToBusinessIsoDate } from "@/lib/business-time";
 import { type MembershipPaymentRow } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -97,6 +98,7 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
         paymentsBasePath={paymentsBasePath}
         groupsBasePath={groupsBasePath}
         archived={archived}
+        joinedAt={utcNaiveToBusinessIsoDate((profile.groups ?? []).find((group) => group.membership_id === row.membership_id)?.joined_at) || null}
         onRowChange={replaceRow}
         onNotify={showToast}
       />

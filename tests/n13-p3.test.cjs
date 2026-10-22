@@ -343,7 +343,7 @@ test("warnings are counts: one unit each (lessons, visits, students), the links 
     ["open_lessons", "1 незакрытый урок", "/owner/attendance?tab=open", "warning"],
     ["pending_excused", "2 уважительные ждут решения", "/owner/attendance?tab=excuses", "warning"],
     ["no_fee", "у 4 учеников нет цены", "/owner/payments/prices", "warning"],
-    ["unpaid", "5 посещений без оплаты", "/owner/payments?bucket=due", "info"],
+    ["unpaid", "5 посещений без оплаты", "/owner/payments?bucket=debt", "info"],
   ]);
   assert.equal(views({ open_lessons: 3, pending_excused: 1, no_fee: 1, unpaid: 2 }).map((v) => v.text).join("|"), "3 незакрытых урока|1 уважительная ждёт решения|у 1 ученика нет цены|2 посещения без оплаты");
   assert.equal(views({ open_lessons: 7, pending_excused: 5, no_fee: 21, unpaid: 1 }).map((v) => v.text).join("|"), "7 незакрытых уроков|5 уважительных ждут решения|у 21 ученика нет цены|1 посещение без оплаты");
@@ -634,11 +634,11 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /parseMonthParam\(searchParams\?\.get\("month"\), today\)/);
   assert.match(month, /Скачать Excel за месяц/);
   assert.match(month, /disabled=\{savedCount === 0 \|\| exporting\}/);
-  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} \/>/);
+  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutText\(month, teachers\)\} \/>/);
   assert.match(month, /<PayrollPageMenu divisor=\{overview\.divisor\} \/>/);
   assert.match(month, /aria-label=\{`\$\{action\.label\}: \$\{teacher\.teacher_name\}`\}/);
   assert.doesNotMatch(month, /type="checkbox"|Процент для|sanitizePercentTyping/); // no selection, no percent field
-  assert.doesNotMatch(month, /RowMenu/); // one button per row; Excel of a sheet is inside the sheet
+  assert.equal((month.match(/<RowMenu/g) || []).length, 1); // one button per row; the only «⋯» is «Отметить выплату» (LOGIC-A); Excel of a sheet is inside the sheet
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /useUnsavedGuard\(dirty, UNSAVED_TEXT\)/);
   assert.match(sheetPage, /История сохранений/);
@@ -693,7 +693,7 @@ test("settings: the owner's section «Зарплата» with the divisor and th
   const page = read("src/app/owner/settings/page.tsx");
   assert.match(page, /section === "payroll"/);
   assert.match(page, /orgApi\.getPayrollSettings\(\)/);
-  assert.match(page, /orgApi\.updatePayrollSettings\(\{ divisor: parsed\.value \}\)/);
+  assert.match(page, /orgApi\.setPayrollDivisor\(buildDivisorBody\(parsed\.value, validFrom\)\)/);
   assert.match(page, /payrollFormulaText\(divisor\)/);
   assert.match(page, /PAYROLL_PACKAGE_TEXT/);
   assert.match(R.PAYROLL_PACKAGE_TEXT, /Для оплаты пакетом уроков делитель — размер пакета/);
@@ -1059,8 +1059,8 @@ test("the data moved after the preview / the diff: the fingerprint is sent, a 40
   assert.match(month, /savedRevisionLine\(activeExisting\.revision\)/); // one compact line (#104); the words are tested in n13-p4-price
   const page = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(page, /isDataChanged\(error\)\) setDataChanged/);
-  assert.match(page, /expectedFingerprint: diff\?\.source_fingerprint \?\? dataChanged\?\.fingerprint \?\? null/);
-  assert.match(page, /actionLabel="Пересчитать"/);
+  assert.match(page, /expectedFingerprint: fingerprint/);
+  assert.match(page, /actionLabel=\{dataChanged\.actionLabel \?\? "Пересчитать"\}/);
   assert.match(page, /await loadDiff\(\)/);
 });
 

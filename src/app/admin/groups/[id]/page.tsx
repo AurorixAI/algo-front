@@ -19,6 +19,7 @@ import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/ad
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
+import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
@@ -166,6 +167,16 @@ export default function AdminGroupDetailPage() {
     }
   };
 
+  // LOGIC-A F9: the dialog of GroupStudentTable has already taken the student out (and settled the money): the page only forgets him.
+  const handleStudentLeft = (studentId: string, settled: string[]) => {
+    setGroup((prev) => prev ? {
+      ...prev,
+      students: prev.students.filter((s) => s.id !== studentId),
+      student_count: prev.student_count - 1,
+    } : null);
+    showToast("Ученик убран из группы", "success", settled);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -298,6 +309,8 @@ export default function AdminGroupDetailPage() {
                     onChange={(e) => setEditState((s) => ({ ...s, lesson_type: normalizeLessonType(e.target.value) }))}
                     options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
                   />
+                  {/* LOGIC-A B1: the server writes the type history from today */}
+                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-from-today">{LESSON_TYPE_FROM_TODAY_TEXT}</p>
                 </div>
 
                 {/* Description */}
@@ -447,6 +460,8 @@ export default function AdminGroupDetailPage() {
             <GroupStudentTable
               students={group.students}
               onRemove={group.status === "active" ? handleRemoveStudent : undefined}
+              groupId={groupId}
+              onLeft={handleStudentLeft}
               canRemove={group.status === "active"}
             />
           </motion.div>

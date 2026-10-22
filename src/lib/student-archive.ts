@@ -6,6 +6,7 @@
  * offered back by `archived_groups`, a full or archived group is skipped with a reason).  This file
  * only turns those answers into what the owner reads and clicks.
  */
+import { settledLines } from "./payments-logica";
 import { formatUtcNaiveAsBusinessDate } from "./business-time";
 import { isInviteRunning, isInviteWaiting } from "./diagnostic-invite";
 
@@ -109,13 +110,15 @@ export function archiveDiagnosticLines(counts: ArchiveDiagnosticCounts): string[
 }
 
 /** What the server did (`diagnostic_invites_cancelled` / `_in_progress` of the archive answer), for the toast; only numbers above zero. */
-export function archiveResultDetails(result: { diagnostic_invites_cancelled?: unknown; diagnostic_invites_in_progress?: unknown } | null | undefined): string[] {
+export function archiveResultDetails(result: { diagnostic_invites_cancelled?: unknown; diagnostic_invites_in_progress?: unknown; settled?: unknown } | null | undefined): string[] {
   const whole = (value: unknown) => (typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
   const lines: string[] = [];
   const cancelled = whole(result?.diagnostic_invites_cancelled);
   const running = whole(result?.diagnostic_invites_in_progress);
   if (cancelled > 0) lines.push(`Отменено приглашений на диагностику: ${cancelled}`);
   if (running > 0) lines.push(`Идёт диагностика: ${running} — ${ARCHIVE_DIAGNOSTICS_RUNNING_NOTE}`);
+  // LOGIC-A F9: what was settled with the archive («Возвращено 135 000 сум», «Долг 120 000 сум прощён»)
+  lines.push(...settledLines(Array.isArray(result?.settled) ? (result?.settled as Parameters<typeof settledLines>[0]) : []));
   return lines;
 }
 

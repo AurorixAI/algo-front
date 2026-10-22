@@ -13,11 +13,14 @@ import {
   type GroupPriceBrief,
 } from "@/lib/group-price";
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
+import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
+import { formatBusinessDate } from "@/lib/business-time";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
 import { studentGroupId, studentStatusKey, studentStatusLabel } from "@/lib/student-status";
 import { EnrolPriceToggle } from "@/components/payments/price-fields";
+import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { Modal } from "@/components/ui/modal";
 
 interface Student {
@@ -87,6 +90,10 @@ export function AddStudentDrawer({
   const [exceptionOn, setExceptionOn] = useState(false);
   const [exceptionAmount, setExceptionAmount] = useState("");
   const [exceptionReason, setExceptionReason] = useState("");
+  // LOGIC-A decision 1: what the student had before ALGO («оплачено до» / «долг на дату»); one student at a time, never with a transfer.
+  const [openingOn, setOpeningOn] = useState(false);
+  const [opening, setOpening] = useState<OpeningFormValues>(emptyOpeningValues);
+  const [openingNeedsReason, setOpeningNeedsReason] = useState(false);
   // By default only the group's own class is offered; «Все классы» drops that filter.
   const [allClasses, setAllClasses] = useState(false);
   // Latest-request-wins: a slow answer for the previous filter (fast «Все классы» toggle, typing)
@@ -99,6 +106,9 @@ export function AddStudentDrawer({
     setExceptionOn(false);
     setExceptionAmount("");
     setExceptionReason("");
+    setOpeningOn(false);
+    setOpening(emptyOpeningValues());
+    setOpeningNeedsReason(false);
     setAllClasses(false);
   }, [open]);
 
@@ -183,25 +193,49 @@ export function AddStudentDrawer({
   const priceLine = moneyAvailable ? targetGroupPriceText(groupPrice, priceLabel) : null;
   const priceNote = moneyAvailable ? targetGroupPriceHint(groupPrice, selected.size) : null;
 
+  // The opening balance belongs to ONE student who comes new (a transfer closes memberships: the server refuses it then).
+  const today = formatBusinessDate();
+  const openingAllowed = moneyAvailable && selected.size === 1 && (transfers.length === 0 || mode === "add");
+
   const handleAdd = async () => {
     if (selected.size === 0) return;
     const exception = moneyAvailable
       ? checkEnrolOverride({ enabled: exceptionOn, amount: exceptionAmount, reason: exceptionReason })
       : { error: null, request: null };
     if (exception.error) { setAddError(exception.error); return; }
+    const withOpening = openingAllowed && openingOn;
+    if (withOpening) {
+      const problem = validateOpening(opening, { enrolDate: today, today });
+      if (problem) { setAddError(problem); return; }
+      const reasonProblem = openingNeedsReason ? validateOpeningReason(opening.reason) : null;
+      if (reasonProblem) { setAddError(reasonProblem); return; }
+    }
     setAdding(true);
     setAddError(null);
     try {
       const picked = Array.from(selected.values());
-      const result = await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
-        // The mode only matters for students who are already in another group.
-        mode: transfers.length > 0 ? mode : undefined,
-        price_override: exception.request,
-      });
       const nameOf = (id: string) => {
         const s = picked.find((item) => item.id === id);
         return s ? (s.full_name || `${s.last_name} ${s.first_name}`.trim()) : "Ученик";
       };
+      const openingBody = withOpening ? buildOpeningIn(opening) : null;
+      // One student with an opening balance goes through the route that takes it; the bulk route has no such field.
+      const result = openingBody
+        ? await orgApi.addStudentToGroup(groupId, picked[0].id, {
+          mode: transfers.length > 0 ? mode : undefined,
+          price_override: exception.request,
+          opening_balance: openingBody,
+        }).then((single) => ({
+          added: single.status === "added" ? 1 : 0,
+          skipped: single.status === "added" ? 0 : 1,
+          skipped_details: single.status === "added" ? [] : [{ student_id: picked[0].id, reason: "уже в этой группе" }],
+          warnings: single.warnings,
+        }))
+        : await orgApi.bulkAddStudents(groupId, Array.from(selected.keys()), {
+          // The mode only matters for students who are already in another group.
+          mode: transfers.length > 0 ? mode : undefined,
+          price_override: exception.request,
+        });
       setSelected(new Map());
       const notes = splitTransferNotes(result.warnings, nameOf);
       onAdded({
@@ -212,7 +246,9 @@ export function AddStudentDrawer({
         infos: notes.infos,
       });
     } catch (e: any) {
-      setAddError(e.message || "Ошибка добавления учеников");
+      const failure = logicaError(e, "Ошибка добавления учеников");
+      if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
+      setAddError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message);
     } finally {
       setAdding(false);
     }
@@ -300,6 +336,20 @@ export function AddStudentDrawer({
                 compact
               />
             </div>
+          </div>
+        )}
+        {openingAllowed && (
+          <div className="max-h-[40vh] overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs">
+            <OpeningToggle
+              idPrefix="add-student-opening"
+              enabled={openingOn}
+              onEnabled={(value) => { setAddError(null); setOpeningOn(value); }}
+              values={opening}
+              onChange={(next) => { setAddError(null); setOpening(next); }}
+              enrolDate={today}
+              today={today}
+              needsReason={openingNeedsReason}
+            />
           </div>
         )}
         {addError && (

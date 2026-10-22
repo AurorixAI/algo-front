@@ -98,14 +98,14 @@ test("status: the chip says the state, the second line says «оплачено �
   assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
 });
 
-test("tabs: «Без оплат», and a counter on every tab", () => {
-  assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none").label, "Без оплат");
-  const summary = { due: 12, expiring: 3, none: 0, active: 48 };
+test("tabs by money: «Должники», «Скоро платить», «Оплачено» and a counter on every tab", () => {
+  assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none"), undefined);
+  const summary = { debtors: 12, expiring: 3, active: 48 };
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(summary, bucket.key))), [
-    "Требуют оплаты (12)", "Скоро заканчивается (3)", "Без оплат (0)", "Оплачено (48)",
+    "Должники (12)", "Скоро платить (3)", "Оплачено (48)",
   ]);
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(null, bucket.key))), [
-    "Требуют оплаты", "Скоро заканчивается", "Без оплат", "Оплачено",
+    "Должники", "Скоро платить", "Оплачено",
   ]);
 });
 
@@ -132,7 +132,7 @@ test("price line: «Цена 500 000 сум/мес · цена группы» / 
 
 test("the payments table: sentence-case headers, a tab bar that scrolls with a fade, one main button per row", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  const header = page.slice(page.indexOf("{bucket !== \"none\" && ("), page.indexOf("<ul className=\"space-y-2.5"));
+  const header = page.slice(page.indexOf("<div className={`hidden border-b border-slate-100 bg-slate-50"), page.indexOf("<ul className=\"space-y-2.5"));
   assert.doesNotMatch(header, /uppercase|tracking-wider/);
   assert.match(header, /text-\[13px\] font-semibold text-slate-500/);
   assert.match(page, /<ScrollHint focusable=\{false\} className="[^"]*overflow-x-auto[^"]*">\s*\{\/\*[^*]*\*\/\}\s*<div role="tablist" className="flex w-max min-w-full gap-1">/); // the role is not on the box ScrollHint manages
