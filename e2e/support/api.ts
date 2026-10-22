@@ -355,6 +355,9 @@ export class Org {
         return { id: lesson.id, groupId, date: now.date, startTime: hhmm(start), endTime: hhmm(end), startMinutes: start };
       } catch (e) {
         if (!(e instanceof ApiError && /прошедшее время/.test(JSON.stringify(e.detail)))) throw e;
+        // The `Date` header of /health is cached for up to a second: right after a minute boundary it still shows the old minute,
+        // so the start is "in the past" for the server. Retrying at once reads the same stale header; give the cache time to expire.
+        await new Promise((r) => setTimeout(r, 1200));
       }
     }
     throw new Error("could not create a lesson starting now");
