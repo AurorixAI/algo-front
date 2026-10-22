@@ -42,9 +42,9 @@ test("the hint says why and when on the business calendar: «ученик в а�
   assert.equal(hint({ status: "expired" }), "");
 });
 
-test("the student card names every unfinished status: cancelled and expired are not «Ожидает прохождения»", () => {
-  assert.equal(D.studentCardInviteLabel("pending"), "Ожидает прохождения");
-  assert.equal(D.studentCardInviteLabel("confirmed"), "Ожидает прохождения");
+test("the student card names every unfinished status: cancelled and expired are not «Не начата»", () => {
+  assert.equal(D.studentCardInviteLabel("pending"), "Не начата");
+  assert.equal(D.studentCardInviteLabel("confirmed"), "Не начата");
   assert.equal(D.studentCardInviteLabel("in_progress"), "В процессе");
   assert.equal(D.studentCardInviteLabel("cancelled"), "Отменён"); // agrees with «Истёк» / «Завершён» next to it
   assert.equal(D.studentCardInviteLabel("expired"), "Истёк");
@@ -152,7 +152,7 @@ test("the student card: a grey badge and the hint for a cancelled invite; no «�
   const card = read("src/components/students/student-profile-view.tsx");
   assert.match(card, /const isDead = isInviteDead\(diag\.status\);/);
   assert.match(card, /\{studentCardInviteLabel\(diag\.status\)\}/);
-  assert.doesNotMatch(card, /"Ожидает прохождения"/);
+  assert.doesNotMatch(card, /"Не начата"/);
   assert.match(card, /\{cancelHint && <p className="mt-0\.5 text-xs text-slate-500">\{cancelHint\}<\/p>\}/);
   // the grey chip reaches AA at 12px (slate-600 on slate-50); the muted hint is slate-500 on white at least
   assert.match(card, /isDead \? "bg-slate-50 text-slate-600 border-slate-200"/);

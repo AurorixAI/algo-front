@@ -69,7 +69,7 @@ export function studentCardInviteLabel(status: string | null | undefined): strin
   if (status === "in_progress") return "В процессе";
   if (status === "cancelled") return INVITE_CANCELLED_LABEL;
   if (status === "expired") return "Истёк";
-  return "Ожидает прохождения";
+  return "Не начата";
 }
 
 /**

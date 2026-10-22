@@ -72,7 +72,7 @@ test("#102: the report header and the stored level ignore the flag", () => {
 // ── #102: one size of badges and buttons ───────────────────────────────────────────────────────
 
 const chrome = () => require(path.join(root, "src/components/diagnostics/list-chrome.tsx"));
-const STATUS_LABELS = ["Ожидает подтверждения", "Готов к началу", "Проходит тест", "Завершён", "Истёк", "Отменён", "Зачислен", "Ожидает прохождения", "В процессе"];
+const STATUS_LABELS = ["Ожидает", "Готов к началу", "Проходит тест", "Завершён", "Истёк", "Отменён", "Зачислен", "Не начата", "В процессе"];
 const TONES = [
   ["bg-amber-50 text-amber-700 border-amber-200", "bg-amber-400"],
   ["bg-emerald-50 text-emerald-700 border-emerald-200", "bg-emerald-400"],
@@ -94,19 +94,19 @@ test("#102: every status badge has the same height, padding, radius, font and wi
   });
   assert.equal(shapes.size, 1, [...shapes].join(" | "));
   const [one] = shapes;
-  for (const part of ["h-7", "rounded-full", "px-3", "text-xs", "font-medium", "w-full", "sm:w-52", "whitespace-nowrap"]) assert.ok(one.includes(part), part);
+  for (const part of ["h-8", "rounded-full", "px-3", "text-sm", "font-medium", "w-[9.5rem]", "whitespace-nowrap"]) assert.ok(one.includes(part), part);
 });
 
 test("#102: every action has the same height and width class whatever its tone; the actions column is fixed", () => {
   const c = chrome();
   const tones = ["primary", "neutral", "solid"].map((tone) => c.diagnosticActionClass(tone).split(/\s+/));
-  for (const classes of tones) for (const part of ["h-8", "w-full", "sm:w-36", "rounded-lg", "px-3", "text-xs", "whitespace-nowrap"]) assert.ok(classes.includes(part), part);
-  // the slot of the badge + the slot of the action + the gap = the fixed column from lg up (13 + 9 rem + 0.5 rem)
-  assert.match(c.DIAGNOSTIC_ACTIONS_COLUMN, /lg:w-\[22\.5rem\]/);
-  assert.match(c.DIAGNOSTIC_BADGE_WIDTH, /sm:w-52/);
-  assert.match(c.DIAGNOSTIC_ACTION_WIDTH, /sm:w-36/);
+  for (const classes of tones) for (const part of ["h-8", "w-[9.5rem]", "rounded-lg", "px-3", "text-sm", "whitespace-nowrap"]) assert.ok(classes.includes(part), part);
+  // the column is as wide as its content (badge + gap-2 + action), it does not stretch from lg up
+  assert.match(c.DIAGNOSTIC_ACTIONS_COLUMN, /lg:w-auto/);
+  assert.match(c.DIAGNOSTIC_BADGE_WIDTH, /w-\[9\.5rem\]/);
+  assert.match(c.DIAGNOSTIC_ACTION_WIDTH, /w-\[9\.5rem\]/);
   // a row without an action keeps the slot, so its badge stays in the column
-  assert.match(renderToStaticMarkup(React.createElement(c.DiagnosticActionSpacer)), /hidden h-8 w-36 shrink-0 lg:block/);
+  assert.match(renderToStaticMarkup(React.createElement(c.DiagnosticActionSpacer)), /hidden h-8 shrink-0 lg:block w-\[9\.5rem\]/);
 });
 
 test("#102: the diagnostics list and the student card use the shared badge and action, no ad-hoc sizes", () => {

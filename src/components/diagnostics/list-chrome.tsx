@@ -4,23 +4,27 @@ import type { ReactNode } from "react";
  * One size for every status badge and every action button of the diagnostics list (admin) and of the
  * diagnostics block of the student card, so rows line up and do not jump when a status changes (#102).
  *
- * Badge: 28 px high, a pill, 12 px / medium, one width slot.  Action: 32 px high, one width slot, so
- * «Отчёт», «Профиль» and «Ссылка» are the same size.  Both slots are fixed from `sm` up; on a phone
- * they take the whole line instead, so nothing overflows and the label never has to be cut.
+ * Badge and action: the same compact slot (9.5 rem = 152 px) and the same height (h-8 = 32 px), 14 px / medium.
+ * The slot was measured, not guessed: Inter 500 at 14 px, the widest label («Готов к началу») is 104 px, plus the
+ * dot (6) + gap (6) + padding (2 x 12) + border (2) = 142 px, so 152 px leaves 10 px to spare.  A label longer than
+ * ~110 px does not widen every pill - it is shortened («Ожидает», «Не начата»).  The slot is the same on a phone;
+ * there the badge and the action stand left-aligned under the name block instead of stretching.
  * No client hooks here: node:test renders the badge directly.
  */
 
-/** The slot of a status badge: the longest label («Ожидает подтверждения», «Ожидает прохождения») fits in it. */
-export const DIAGNOSTIC_BADGE_WIDTH = "w-full sm:w-52";
+/** The one width slot of every badge and every action (and of the empty placeholder). */
+export const DIAGNOSTIC_PILL_WIDTH = "w-[9.5rem]";
+/** The slot of a status badge. */
+export const DIAGNOSTIC_BADGE_WIDTH = DIAGNOSTIC_PILL_WIDTH;
 /** The slot of an action button («Отчёт», «Профиль», «Ссылка», «Скопировано»). */
-export const DIAGNOSTIC_ACTION_WIDTH = "w-full sm:w-36";
-/** Actions column of a list row: badge slot + gap + action slot, fixed from `lg` up so rows do not jump. */
-export const DIAGNOSTIC_ACTIONS_COLUMN = "flex w-full flex-wrap items-center gap-2 lg:w-[22.5rem] lg:shrink-0 lg:flex-nowrap";
+export const DIAGNOSTIC_ACTION_WIDTH = DIAGNOSTIC_PILL_WIDTH;
+/** Actions column of a list row: badge + gap-2 + action, as wide as its content (no stretching); under the name block below `lg`. */
+export const DIAGNOSTIC_ACTIONS_COLUMN = "flex w-full flex-wrap items-center gap-2 lg:w-auto lg:shrink-0 lg:flex-nowrap";
 
 const BADGE_BASE =
-  "inline-flex h-7 max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-xs font-medium leading-none";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-sm font-medium leading-none";
 const ACTION_BASE =
-  "inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-medium transition-colors";
+  "inline-flex h-8 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors";
 
 export type DiagnosticActionTone = "primary" | "neutral" | "solid";
 
@@ -37,7 +41,7 @@ export function diagnosticActionClass(tone: DiagnosticActionTone = "primary"): s
 
 /** Empty action slot: keeps the badge column of a row without an action in line with the other rows. */
 export function DiagnosticActionSpacer() {
-  return <span aria-hidden="true" className="hidden h-8 w-36 shrink-0 lg:block" />;
+  return <span aria-hidden="true" className={`hidden h-8 shrink-0 lg:block ${DIAGNOSTIC_PILL_WIDTH}`} />;
 }
 
 /** Status of an invite: a dot and a label in a fixed-size pill. `tone` is the colour classes (border, background, text). */
