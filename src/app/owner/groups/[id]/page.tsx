@@ -459,7 +459,7 @@ export default function OwnerGroupDetailPage() {
                 : "text-slate-500 hover:text-slate-700"
             }`}
           >
-            <Icon className="w-3.5 h-3.5" />
+            <Icon className="hidden h-3.5 w-3.5 sm:block" />
             {label}
           </button>
         ))}
