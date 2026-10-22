@@ -197,7 +197,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   };
 
   const decided = (out: DecideOut) => {
-    showToast(decisionToast(out));
+    // non-blocking notes of a move (the room is busy at that time) are shown, not hidden
+    const notes = (out.result?.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
+    showToast(decisionToast(out), notes.length > 0 ? "warning" : "success", notes.length > 0 ? notes : undefined);
     setDialogItem(null);
     void afterDecision(() => patchItem(out.item), refreshBadge);
   };
@@ -265,7 +267,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
               Только срочные
             </label>
           )}
-          <CascadingFilter teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
+          <CascadingFilter allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
         </div>
       </div>
 
@@ -384,7 +386,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         {siblings.map((sibling) => (
                           <li key={sibling.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-700">
                             <span>{itemLessonLine(sibling)}</span>
-                            <button type="button" onClick={() => setDialogItem(sibling)} className="font-semibold text-primary-700 hover:underline">Решить</button>
+                            {sibling.status === "pending" && <button type="button" onClick={() => setDialogItem(sibling)} className="font-semibold text-primary-700 hover:underline">Решить</button>}
                           </li>
                         ))}
                       </ul>
@@ -411,7 +413,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       <DecisionDialog
         item={dialogItem}
         role={role}
-        onClose={() => { setDialogItem(null); if (requestedId) router.replace(`/${role}/substitutions`, { scroll: false }); }}
+        onClose={() => { setDialogItem(null); if (requestedId) { openedFor.current = null; router.replace(`/${role}/substitutions`, { scroll: false }); } }}
         onDecided={decided}
         onStale={stale}
       />

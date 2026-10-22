@@ -833,6 +833,15 @@ export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number;
 
 // ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────
 
+/**
+ * The toast after «Заменить преподавателя» (a direct assignment): the request of the teacher that this assignment answered is closed by it,
+ * and the administrator is told so.
+ */
+export function directAssignToast(result: { isSubstitution?: boolean; teacherName?: string | null; requestClosed?: { id: string; status: string } | null }): string {
+  const head = result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : "Преподаватель урока возвращён";
+  return result.requestClosed ? `${head}${head.endsWith(".") ? "" : "."} Запрос преподавателя закрыт.` : head;
+}
+
 /** The archive dialog of a group: its waiting requests are closed by the archive. */
 export function archiveRequestsText(count: number): string {
   return `Запросов на замену: ${count} — они будут закрыты.`;

@@ -25,7 +25,7 @@ import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { Hint } from "@/components/ui/hint";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { ASSIGN_TEACHER_ACTION, NO_LESSON_TEACHER_TEXT, REPLACE_TEACHER_ACTION, canReplaceTeacher, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
@@ -385,7 +385,7 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
         onClose={() => setTeacherTarget(null)}
         onChanged={(result) => {
           setTeacherTarget(null);
-          showToast(result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : "Преподаватель урока возвращён");
+          showToast(directAssignToast(result));
           void loadSchedule();
         }}
       />

@@ -182,6 +182,8 @@ function DecisionDialogInner({
     if (kind !== "reschedule" || !params || move.newDate < today) { setCheck(null); setCheckError(null); setChecking(false); return undefined; }
     const token = ++checkToken.current;
     setChecking(true);
+    // the answer of the previous time no longer describes this one
+    setCheck(null);
     const timer = window.setTimeout(() => {
       substitutionsApi.moveCheck(item.id, params)
         .then((out) => { if (token === checkToken.current) { setCheck(out); setCheckError(null); } })
@@ -225,7 +227,6 @@ function DecisionDialogInner({
     }
   };
 
-  const actionLabel = decisionCardTitle(kind, late);
   const submitLabel = kind === "substitute" ? "Назначить замену" : kind === "reschedule" ? "Перенести урок" : kind === "cancel" ? "Отменить урок" : "Отклонить запрос";
 
   return (
@@ -247,7 +248,6 @@ function DecisionDialogInner({
               type="button"
               onClick={() => void submit()}
               disabled={busy || (touched && blocked)}
-              title={actionLabel}
               className={`flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${kind === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} {submitLabel}

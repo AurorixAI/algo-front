@@ -77,7 +77,7 @@ import {
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { useAuthStore } from "@/lib/store";
-import { lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -1892,7 +1892,7 @@ export function GroupAttendanceJournal({
         onClose={() => setTeacherTarget(null)}
         onChanged={(result) => {
           setTeacherTarget(null);
-          showToast(result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : "Преподаватель урока возвращён");
+          showToast(directAssignToast(result));
           void loadAttendanceRef.current(true);
         }}
       />

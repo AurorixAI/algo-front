@@ -230,6 +230,12 @@ test("[chain 2] a move with a conflict: the live check says who is busy, the res
   assert.equal(S.studentNoticeLabel(notice), "Урок перенесён на чт, 29.10, 16:00");
 });
 
+test("[chain 1] a direct assignment («Заменить преподавателя») that answers a waiting request closes it, and the toast says so", () => {
+  assert.equal(S.directAssignToast({ isSubstitution: true, teacherName: "Рахимов Т.", requestClosed: null }), "Замена назначена: Рахимов Т.");
+  assert.equal(S.directAssignToast({ isSubstitution: true, teacherName: "Рахимов Т.", requestClosed: { id: "r", status: "substituted" } }), "Замена назначена: Рахимов Т. Запрос преподавателя закрыт.");
+  assert.equal(S.directAssignToast({ isSubstitution: false }), "Преподаватель урока возвращён");
+});
+
 test("[chain 3] a cancellation: the consequences of decision 3 in the words of the spec, the toast and the student's grey line", () => {
   const decided = fx("b2c3_decide_cancel");
   assert.equal(S.decisionToast(decided), "Урок отменён");

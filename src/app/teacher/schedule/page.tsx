@@ -2720,6 +2720,14 @@ export default function TeacherSchedulePage() {
                 </div>
               )}
 
+              {/* LOGIC-B2: the manager sees that a request waits and goes to it */}
+              {isManager && activeRequestMark?.status === "pending" && (
+                <p role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+                  <span>Ждёт замены{activeRequestMark.teacherName ? `: ${activeRequestMark.teacherName}` : ""}</span>
+                  <Link href={requestHrefFor(activeRequestMark.id)} className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">Открыть запрос</Link>
+                </p>
+              )}
+
               {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
               {!loadingStudents && (
                 <RequestControl

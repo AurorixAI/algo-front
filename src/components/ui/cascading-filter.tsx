@@ -35,6 +35,8 @@ interface CascadingFilterProps {
   groups: Group[];
   value: { teacherId: string; groupId: string };
   onChange: (value: { teacherId: string; groupId: string }) => void;
+  /** The words for «nothing chosen» (the pill and the first row): the students of the attendance pages by default. */
+  allLabel?: string;
 }
 
 const PANEL_WIDTH = 256; // w-64
@@ -48,7 +50,7 @@ const ROW_SELECTOR = "button:not([disabled])";
  * Escape closes and returns focus to the trigger).  The panel aligns to the trigger's nearer viewport edge,
  * opens upward when there is no room below and scrolls inside a ~60vh cap (`useFloatingPlacement`).
  */
-export function CascadingFilter({ teachers, groups, value, onChange }: CascadingFilterProps) {
+export function CascadingFilter({ teachers, groups, value, onChange, allLabel = "Все ученики" }: CascadingFilterProps) {
   const [panel, setPanel] = useState<FilterPanelState>(CLOSED_FILTER_PANEL);
   const isOpen = panel.open;
 
@@ -157,7 +159,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
     filterLabel(value, groups, (teacherId) => {
       const t = teachers.find((t) => t.id === teacherId);
       return t ? staffDisplayName(t, "Фильтр") : null;
-    });
+    }, "Фильтр", allLabel);
 
   const hasSelection = Boolean(value.teacherId || value.groupId);
   const nothingSelected = !hasSelection;
@@ -221,7 +223,7 @@ export function CascadingFilter({ teachers, groups, value, onChange }: Cascading
               onClick={() => dispatch({ type: "pick-all" })}
               className="w-full flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
             >
-              <div className="flex-1 text-left font-medium">Все ученики</div>
+              <div className="flex-1 text-left font-medium">{allLabel}</div>
               {nothingSelected && <Check className="w-4 h-4 text-primary-600" />}
             </button>
 

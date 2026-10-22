@@ -119,10 +119,11 @@ export function RequestDialog({
     setPicked(new Set());
     setFrom(today);
     setTo(addIsoDays(today, 13));
-    const pickMode = lesson === null;
+    const pickMode = primaryKey === null;
     setRangeOpen(pickMode);
     if (pickMode) void loadOthers(today, addIsoDays(today, 13));
-  }, [open, lesson, today, loadOthers]);
+    // keyed by the lesson's identity, not by the object: the parent builds a new one on every render and a half-typed form must survive that
+  }, [open, primaryKey, today, loadOthers]);
 
   // The colleagues a teacher may name.  A teacher has no list of staff of his own (the server refuses `/org/members` to him): the
   // choice then simply is not offered, the request goes without a suggestion.
