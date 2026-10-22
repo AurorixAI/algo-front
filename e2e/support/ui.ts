@@ -92,10 +92,19 @@ export async function openPaymentCardMenu(page: Page) {
 
 /** Open the card's «⋯» menu and choose an item (its dialog / panel opens). */
 export async function cardMenuItem(page: Page, name: string | RegExp) {
-  await openPaymentCardMenu(page);
-  // A scroll closes the menu by design, and a real click scrolls a menu that is clipped by a phone's viewport into view first:
-  // the click event is sent to the item itself.
-  await page.getByRole("menuitem", { name, exact: typeof name === "string" }).dispatchEvent("click");
+  // A scroll closes the menu by design (the page can still settle - the payments notice slides in above the card - and
+  // a real click scrolls a menu clipped by a phone's viewport into view first): the click event is sent to the item itself,
+  // and the menu is opened again when a late scroll closed it.
+  for (let attempt = 0; ; attempt++) {
+    await openPaymentCardMenu(page);
+    try {
+      await page.getByRole("menuitem", { name, exact: typeof name === "string" }).dispatchEvent("click", undefined, { timeout: 3000 });
+      return;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+      await page.waitForTimeout(400);
+    }
+  }
 }
 
 /** The labels of the card's «⋯» menu (it is closed again). */
