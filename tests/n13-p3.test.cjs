@@ -708,7 +708,7 @@ test("groups: «Тип занятий» in the create and edit forms, shown on t
   assert.match(modal, /LESSON_TYPES\.map/);
   assert.match(modal, /lesson_type: form\.lesson_type/);
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /label="Тип занятий"/, role);
     assert.match(page, /options=\{LESSON_TYPES\.map/, role);
     assert.match(page, /lesson_type: editState\.lesson_type/, role);

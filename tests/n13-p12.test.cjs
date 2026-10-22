@@ -137,7 +137,7 @@ test("?lesson= and ?date= are read only when both are valid", () => {
   assert.match(journal, /parseJournalHighlight/);
   assert.match(journal, /data-lesson-key/);
   for (const role of ["admin", "owner", "teacher"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /initialMonth=\{searchParams\?\.get\("month"\)\}/, role);
     assert.match(page, /highlightLessonId=\{searchParams\?\.get\("lesson"\)\}/, role);
     assert.match(page, /highlightDate=\{searchParams\?\.get\("date"\)\}/, role);

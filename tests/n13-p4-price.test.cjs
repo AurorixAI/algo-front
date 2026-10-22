@@ -710,15 +710,17 @@ test("the per-student fee is gone: no input, no call of the retired endpoint, no
   assert.match(read("src/components/groups/assign-group-modal.tsx"), /moneyAvailable[\s\S]*?checkEnrolOverride/);
 });
 
-test("the group page has no price line (owner 21.10): the price is set on the page «Оплаты -> Цены групп» of both roles", () => {
+test("the group page has a price chip and «Цена группы…» in its «⋯» (owner 22.10, Q3); «Оплаты -> Цены групп» stays the overview of both roles", () => {
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
-    assert.doesNotMatch(page, /GroupPriceBlock|group-price-block|GroupPriceDialog/, role);
+    const page = read("src/components/groups/group-detail-view.tsx");
+    assert.doesNotMatch(page, /GroupPriceBlock|group-price-block|<GroupPriceDialog/, role); // the dialog comes through GroupPriceAction
+    assert.match(page, /<GroupPriceAction\b/, role);
     assert.match(page, /groupPrice=\{group\.price_current\}/, role); // the drawer still tells the price the new students take
-    assert.match(page, new RegExp(`groupsBasePath="/${role}/groups"`), role);
-    const list = read(`src/app/${role}/groups/page.tsx`);
+    assert.match(page, /groupsBasePath=\{paths\.groups\}/, role);
+    const list = read("src/components/groups/groups-list-view.tsx");
     assert.match(list, /GroupPriceFilter/, role);
     assert.match(list, /parsePriceFilter\(searchParams\?\.get\("price"\)\)/, role);
+    assert.match(read(`src/app/${role}/groups/page.tsx`), new RegExp(`<GroupsListView workspace="${role}" />`), role);
     const prices = read(`src/app/${role}/payments/prices/page.tsx`);
     assert.match(prices, new RegExp(`<GroupPricesPage paymentsHref="/${role}/payments" groupsBasePath="/${role}/groups" />`), role);
   }

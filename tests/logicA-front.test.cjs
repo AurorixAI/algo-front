@@ -560,7 +560,7 @@ test("B1: the payroll sheet line-not-found text; the edit form no longer promise
   assert.equal(Y.isLineNotFound({ code: "LINE_NOT_FOUND" }), true);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /isLineNotFound\(error\)\) \{ setSaveError\(LINE_NOT_FOUND_TEXT\); void load\(true\)/);
   assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, undefined);
-  for (const role of ["owner", "admin"]) assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), /\{LESSON_TYPE_EDIT_NOTE\}/, role);
+  for (const role of ["owner", "admin"]) assert.match(read("src/components/groups/group-detail-view.tsx"), /\{LESSON_TYPE_EDIT_NOTE\}/, role);
 });
 
 test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
@@ -717,7 +717,7 @@ test("schedule cards v2 (owner review 22.10): titles, room, teacher line, moved 
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.doesNotMatch(sheet, /type="time"/, "24 h whatever the browser's locale");
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /max-w-full[^"]*overflow-x-auto/, `${role}: the tab row scrolls inside itself`);
     assert.match(page, /groupName=\{group\.name\}/);
   }

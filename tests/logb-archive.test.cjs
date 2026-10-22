@@ -134,12 +134,13 @@ test("[O4.R3] the return refused for a teacher who left: the name rides in the a
 
 test("the group pages are wired: «В архив» opens the dialog, the archived group is read-only, nobody sends `status` any more", () => {
   for (const who of ["admin", "owner"]) {
-    const page = read(`src/app/${who}/groups/[id]/page.tsx`);
+    assert.match(read(`src/app/${who}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${who}" />`), who);
+    const page = read("src/components/groups/group-detail-view.tsx");
     for (const needle of [/GroupArchiveDialog/, /GroupRestoreDialog/, /GroupArchivedBanner/, /canEdit=\{group\.status !== "archived"\}/, /Вернуть из архива/]) assert.match(page, needle, `${who} ${needle}`);
     assert.doesNotMatch(page, /confirm\(`Архивировать/);
   }
   const api = read("src/lib/api.ts");
-  assert.match(read("src/app/owner/groups/[id]/page.tsx"), /GroupScheduleOverview groupId=\{groupId\} groupName=\{group\.name\} viewerRole="owner"/, "the owner replaces a lesson's teacher from the schedule tab too");
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /GroupScheduleOverview groupId=\{groupId\} groupName=\{group\.name\} viewerRole=\{paths\.viewerRole\}/, "the owner replaces a lesson's teacher from the schedule tab too");
   assert.match(api, /groups\/\$\{id\}\/archive`, \{ method: "POST"/);
   assert.match(api, /groups\/\$\{id\}\/restore`/);
   assert.match(api, /archive-impact/);

@@ -71,11 +71,13 @@ test("the tab of ?tab=: payments only where it may be seen; a deep link waits wh
 
 test("the pages of the owner and of the administrator carry the 4th tab; the teacher's page does not", () => {
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    // IA audit F9: one shared page for both workspaces; the wrapper only names the workspace
+    assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${role}" />`), role);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /<GroupPaymentsTab/, role);
     assert.match(page, /\.\.\.\(paymentsAccess === "show" \? \[\{ key: "payments", label: GROUP_PAYMENTS_LABEL/, role);
-    assert.match(page, new RegExp(`groupsBasePath="/${role}/groups"`), role);
-    assert.match(page, new RegExp(`paymentsBasePath="/${role}/payments"`), role);
+    assert.match(page, /groupsBasePath=\{paths\.groups\}/, role);
+    assert.match(page, /paymentsBasePath=\{paths\.payments\}/, role);
     assert.match(page, /archived: group\?\.status === "archived"/, role);
     assert.match(page, /demo: DEMO_MODE/, role);
     assert.match(page, /tab === "payments" && paymentsAccess === "pending"/, role);

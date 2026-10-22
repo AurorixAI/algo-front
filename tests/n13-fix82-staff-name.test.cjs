@@ -54,7 +54,7 @@ test("the team page and every staff-name render go through staffDisplayName, nev
   assert.doesNotMatch(team, /m\.full_name \|\|/, "the team list must not prefer the server's «Фамилия Имя»");
 
   const renders = [
-    "app/owner/teachers/page.tsx", "app/owner/groups/[id]/page.tsx", "app/admin/groups/[id]/page.tsx", "app/admin/groups/page.tsx",
+    "app/owner/teachers/page.tsx", "components/groups/group-detail-view.tsx", "components/groups/groups-list-view.tsx",
     "components/layout/sidebar.tsx", "components/ui/cascading-filter.tsx", "components/groups/assign-group-modal.tsx",
     "components/groups/group-create-modal.tsx", "app/teacher/dashboard/page.tsx", "app/teacher/exams/new/page.tsx",
   ];

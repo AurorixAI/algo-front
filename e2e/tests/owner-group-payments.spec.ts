@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { expectNoHorizontalScroll, moneyPattern, openPriceMode, toast } from "../support/ui";
+import { expectNoHorizontalScroll, groupMenuItem, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
  * ROADMAP #126: the tab «Оплаты» of the group page - who pays what, who has an individual price (and why).
@@ -125,14 +125,14 @@ test("the header of the group has no «Изменить…»; a changed «Тип
   await expect(page.getByTestId("group-lesson-type-line")).toHaveText("Тип занятий: Группа");
   await expect(page.getByRole("button", { name: "Изменить…" })).toHaveCount(0);
 
-  // unchanged: a plain save
-  await page.getByRole("button", { name: "Изменить", exact: true }).click();
+  // unchanged: a plain save (the edit form opens from «⋯» -> «Изменить группу…»)
+  await groupMenuItem(page, group.name, "Изменить группу…");
   await page.getByRole("button", { name: "Сохранить изменения" }).click();
   await expect(toast(page, "Группа обновлена")).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Тип занятий" })).toHaveCount(0);
 
   // changed: the impact step first (date, payroll, history), then the saved type
-  await page.getByRole("button", { name: "Изменить", exact: true }).click();
+  await groupMenuItem(page, group.name, "Изменить группу…");
   await page.getByRole("combobox", { name: /Тип занятий/ }).click();
   await page.getByRole("option", { name: "Парный" }).click();
   await page.getByRole("button", { name: "Сохранить изменения" }).click();
@@ -144,4 +144,24 @@ test("the header of the group has no «Изменить…»; a changed «Тип
   await expect(toast(page, /тип занятий изменён/)).toBeVisible();
   await expect(page.getByTestId("group-lesson-type-line")).toHaveText("Тип занятий: Парный");
   expect((await org.owner.api.get(`/auth/org/groups/${group.id}/lesson-types`)).current).toBe("pair");
+});
+
+test("the header of the group: the price chip and «Цена группы…» in «⋯» (the same dialog as «Цены групп»), «Долг N» leads to the tab «Оплаты»", async ({ signIn }) => {
+  const teacher = await org.addStaff("teacher", "Ценовой");
+  const group = await org.createGroup({ name: "Группа Г5", teacherId: teacher.userId });
+  await org.addStudent(group, "Тимур", "Должников");
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}`);
+  await expect(page.getByTestId("group-price-chip")).toContainText("Цена группы не задана");
+  await groupMenuItem(page, group.name, "Цена группы…");
+  const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
+  await dialog.getByLabel("Цена в месяц").fill("500000");
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(toast(page, "Цена группы задана")).toBeVisible();
+  await expect(page.getByTestId("group-price-chip")).toContainText(new RegExp(moneyPattern(500000)));
+  // the student has not paid: the debt of the group is a chip, a link to the filtered tab
+  await expect(page.getByTestId("group-debt-chip")).toContainText(/Долг/);
+  await page.getByTestId("group-debt-chip").click();
+  await expect(page).toHaveURL(new RegExp(`/owner/groups/${group.id}\\?tab=payments&filter=debt`));
+  await expect(page.getByTestId("group-payments-tab")).toBeVisible();
 });

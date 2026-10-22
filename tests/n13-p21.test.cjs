@@ -128,7 +128,7 @@ test("transfer hint: drawer and «Перевести» modal, only via transferP
 });
 
 test("both group pages build the add-students toast with enrolToast", () => {
-  for (const file of ["src/app/owner/groups/[id]/page.tsx", "src/app/admin/groups/[id]/page.tsx"]) {
+  for (const file of ["src/components/groups/group-detail-view.tsx"]) { // one shared page for both workspaces (IA audit F9)
     const page = read(file);
     assert.match(page, /enrolToast\(result\)/, file);
     assert.doesNotMatch(page, /Ни одного ученика не зачислено/, file);

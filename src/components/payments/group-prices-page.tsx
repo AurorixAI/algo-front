@@ -26,7 +26,6 @@ import {
 import { individualPricesHref } from "@/lib/group-payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { TableHeader } from "@/components/attendance/table-chrome";
-import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
 import { GroupPriceCancelDialog } from "@/components/groups/group-price-cancel-dialog";
 import { GroupPriceDialog } from "@/components/groups/group-price-dialog";
@@ -281,7 +280,6 @@ function PriceRow({
   const price = priceCellText(item.current);
   const scheduled = scheduledCellText(item.scheduled);
   const individual = individualPricesText(item.students_with_override);
-  const menu: RowMenuItem[] = [{ key: "history", label: "История цены", icon: History, onSelect: onHistory }];
   const second = [item.teacher_name, item.kind !== "group" ? lessonTypeLabel(item.kind) : null].filter(Boolean).join(" · ");
 
   return (
@@ -339,7 +337,18 @@ function PriceRow({
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
           {item.current ? "Изменить цену" : "Задать цену"}
         </button>
-        <RowMenu items={menu} label={`Действия: ${item.name}`} />
+        {/* IA audit F3: the history is an icon, not a «⋯» with one item */}
+        <button
+          type="button"
+          onClick={onHistory}
+          disabled={busy}
+          aria-label={`История цены: ${item.name}`}
+          title="История цены"
+          data-testid="group-price-history"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 disabled:opacity-60"
+        >
+          <History className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
     </li>
   );

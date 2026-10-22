@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { displayPhone } from "@/lib/phone";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, UserRound, Loader2 } from "lucide-react";
+import { ChevronUp, ChevronDown, GraduationCap, Check, Copy, UserMinus, ArrowRightLeft } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { StudentInGroup } from "@/lib/api";
+import { usePathname } from "next/navigation";
+import { orgApi, StudentInGroup } from "@/lib/api";
 import { pausedChipText } from "@/lib/payments";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
-import { Modal } from "@/components/ui/modal";
-import { RowMenu } from "@/components/ui/row-menu";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
 import { LeaveStudentDialog } from "./leave-student-dialog";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
@@ -18,25 +18,28 @@ type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 interface GroupStudentTableProps {
   students: StudentInGroup[];
   studentBasePath?: string;
-  /** Called after the administrator confirms; a rejected promise keeps the dialog open. */
-  onRemove?: (studentId: string) => void | Promise<void>;
-  onViewProfile?: (studentId: string) => void;
+  /** Owner / administrator, an active group: the «⋯» of a row is shown. */
   canRemove?: boolean;
   /**
-   * LOGIC-A F9: with the group the removal shows what is left on the account and settles it (keep / forgive / refund); `onLeft` is
-   * called after the server took the student out.  Without it (a teacher) the old confirmation stays.
+   * With the group the removal shows what is left on the account and settles it (keep / forgive / refund, `LeaveStudentDialog`);
+   * `onLeft` is called after the server took the student out.  Without them (a teacher) a row has no menu.
    */
   groupId?: string;
   onLeft?: (studentId: string, settledLines: string[]) => void;
+  /** «Перевести в другую группу…» of a row: the page opens the transfer dialog of the card for this student. */
+  onTransfer?: (student: StudentInGroup) => void;
 }
 
-export function GroupStudentTable({ students, studentBasePath, onRemove, canRemove, groupId, onLeft }: GroupStudentTableProps) {
-  const removable = Boolean(canRemove && onRemove);
-  const [removeTarget, setRemoveTarget] = useState<StudentInGroup | null>(null);
-  const [removing, setRemoving] = useState(false);
+/**
+ * The roster of a group.  The name is the link to the card of the student; the «⋯» of a row has at most two items (IA audit F4, d2):
+ * «Перевести в другую группу…» and «Убрать из группы…» (the one dialog with the money).  The card of the student is the link of the name.
+ */
+export function GroupStudentTable({ students, studentBasePath, canRemove, groupId, onLeft, onTransfer }: GroupStudentTableProps) {
   const pathname = usePathname();
-  const router = useRouter();
   const isTeacher = pathname?.startsWith("/teacher");
+  const [leaveTarget, setLeaveTarget] = useState<StudentInGroup | null>(null);
+  const menuKeys = rosterMenuKeys({ canLeave: Boolean(canRemove && groupId && onLeft && !isTeacher), canTransfer: Boolean(canRemove && onTransfer && !isTeacher) });
+  const removable = menuKeys.length > 0;
   const basePath = studentBasePath || (isTeacher ? "/teacher/students" : "/admin/students");
 
   const [sortKey, setSortKey] = useState<SortKey>("name");
@@ -49,19 +52,6 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
     navigator.clipboard.writeText(displayId);
     setCopiedId(displayId);
     setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const confirmRemove = async () => {
-    if (!removeTarget || !onRemove) return;
-    setRemoving(true);
-    try {
-      await onRemove(removeTarget.id);
-      setRemoveTarget(null);
-    } catch {
-      // The page shows the error; keep the dialog so the action can be repeated.
-    } finally {
-      setRemoving(false);
-    }
   };
 
   const handleSort = (key: SortKey) => {
@@ -235,10 +225,9 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
                   <td className="px-4 py-4 pr-6 align-middle text-right">
                     <RowMenu
                       label={`Действия: ${s.full_name || `${s.last_name} ${s.first_name}`}`}
-                      items={[
-                        { key: "profile", label: "Карточка ученика", icon: UserRound, onSelect: () => router.push(`${basePath}/${s.id}`) },
-                        { key: "remove", label: "Убрать из группы", icon: UserMinus, danger: true, onSelect: () => setRemoveTarget(s) },
-                      ]}
+                      items={menuKeys.map((key): RowMenuItem => key === "transfer"
+                        ? { key, label: ROSTER_TRANSFER_LABEL, icon: ArrowRightLeft, onSelect: () => onTransfer?.(s) }
+                        : { key, label: ROSTER_LEAVE_LABEL, icon: UserMinus, danger: true, onSelect: () => setLeaveTarget(s) })}
                     />
                   </td>
                 )}
@@ -249,47 +238,15 @@ export function GroupStudentTable({ students, studentBasePath, onRemove, canRemo
       </table>
       {groupId && onLeft && !isTeacher && (
         <LeaveStudentDialog
-          open={removeTarget !== null}
+          open={leaveTarget !== null}
           groupId={groupId}
-          studentId={removeTarget?.id ?? ""}
-          studentName={removeTarget ? (removeTarget.full_name || `${removeTarget.last_name} ${removeTarget.first_name}`) : ""}
-          onClose={() => setRemoveTarget(null)}
-          onLeft={(lines) => { if (removeTarget) onLeft(removeTarget.id, lines); }}
-          onLegacy={removeTarget && onRemove ? () => onRemove(removeTarget.id) : undefined}
+          studentId={leaveTarget?.id ?? ""}
+          studentName={leaveTarget ? (leaveTarget.full_name || `${leaveTarget.last_name} ${leaveTarget.first_name}`) : ""}
+          onClose={() => setLeaveTarget(null)}
+          onLeft={(lines) => { if (leaveTarget) onLeft(leaveTarget.id, lines); }}
+          onLegacy={leaveTarget ? () => orgApi.removeStudentFromGroup(groupId, leaveTarget.id) : undefined}
         />
       )}
-      <Modal
-        open={removeTarget !== null && !(groupId && onLeft && !isTeacher)}
-        title="Убрать ученика из группы?"
-        description={removeTarget ? (removeTarget.full_name || `${removeTarget.last_name} ${removeTarget.first_name}`) : undefined}
-        onClose={() => setRemoveTarget(null)}
-        busy={removing}
-        footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setRemoveTarget(null)}
-              disabled={removing}
-              className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-            >
-              Отмена
-            </button>
-            <button
-              type="button"
-              onClick={() => void confirmRemove()}
-              disabled={removing}
-              className="flex items-center justify-center gap-2 rounded-xl bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {removing && <Loader2 className="h-4 w-4 animate-spin" />}
-              Убрать из группы
-            </button>
-          </>
-        }
-      >
-        <p className="pb-2 text-sm text-slate-600">
-          Ученик останется в системе, но перестанет числиться в этой группе.
-        </p>
-      </Modal>
     </div>
   );
 }

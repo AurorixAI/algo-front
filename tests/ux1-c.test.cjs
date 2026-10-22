@@ -193,7 +193,8 @@ test("the page «Цены групп» is the one place of the group price: a ta
   const page = read("src/components/payments/group-prices-page.tsx");
   assert.match(page, /<TableHeader[\s\S]*labels=\{\["Группа", priceColumnLabel\(label\), "Запланировано", "Индивидуальные цены", ""\]\}[\s\S]*aligns=\{\["left", "center", "center", "center", "right"\]\}/);
   assert.match(page, /\{item\.current \? "Изменить цену" : "Задать цену"\}/);
-  assert.match(page, /label: "История цены"/);
+  assert.match(page, /aria-label=\{`История цены: \$\{item\.name\}`\}/); // IA audit F3: an icon, not a «⋯» with one item
+  assert.doesNotMatch(page, /RowMenu/);
   assert.match(page, /Не задана/);
   assert.match(page, /Групп пока нет/);
   assert.match(page, /showToast\(item\.current \? "Цена группы изменена" : "Цена группы задана"\)/);
@@ -205,7 +206,7 @@ test("the page «Цены групп» is the one place of the group price: a ta
   assert.match(read("src/components/payments/payments-page.tsx"), /href=\{pricesBaseOf\(groupsBasePath\)\}[\s\S]*?Цены групп/);
   assert.match(page, /<Link href=\{paymentsHref\}[\s\S]*?Оплаты\s*<\/Link>/);
   for (const role of ["owner", "admin"]) {
-    const group = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const group = read("src/components/groups/group-detail-view.tsx");
     assert.doesNotMatch(group, /<GroupPriceBlock|GroupPriceDialog/, role);
     assert.doesNotMatch(group, /bg-gradient-to-r from-primary-500 via-violet-400 to-emerald-400/, role);
   }

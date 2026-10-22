@@ -347,7 +347,7 @@ test("#103: in the journal «Подтвердить» / «Отклонить» o
   assert.match(journal, /const reviewable = adminMode && !inCorrection && Boolean\(excuse\);/);
   assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /adminMode/);
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /adminMode\s+groupName=\{group\.name\}/, role);
   }
 });

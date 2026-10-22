@@ -121,12 +121,15 @@ test("owner student routes render the shared components and keep links in the ow
   assert.match(profile, /isOwnerPath \? "\/owner\/groups"/);
   assert.match(profile, /isOwnerPath \? "\/owner\/students"/);
   // owner pages open the student card under /owner/students
-  for (const file of ["app/owner/groups/[id]/page.tsx", "app/owner/payments/page.tsx", "app/owner/attendance/page.tsx"]) {
+  for (const file of ["app/owner/groups/[id]/page.tsx", "app/owner/groups/page.tsx", "app/owner/payments/page.tsx", "app/owner/attendance/page.tsx"]) {
     const text = read(file);
+    // IA audit F9: the group pages are the shared view; the owner wrapper only names its workspace
+    if (/groups\//.test(file) || /groups\/page/.test(file)) { assert.match(text, /workspace="owner"/, file); assert.doesNotMatch(text, /\/admin\//, file); continue; }
     assert.match(text, /\/owner\/students/, file);
     assert.doesNotMatch(text, /\/admin\/students/, file);
   }
-  assert.match(read("app/owner/groups/[id]/page.tsx"), /studentBasePath="\/owner\/students"/);
+  assert.match(read("components/groups/group-detail-view.tsx"), /studentBasePath=\{paths\.students\}/);
+  assert.equal(require(path.join(__dirname, "..", "src/lib/group-workspace.ts")).groupWorkspacePaths("owner").students, "/owner/students");
 });
 
 // ---- 3. add-student drawer ---------------------------------------------------

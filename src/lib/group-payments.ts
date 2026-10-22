@@ -43,12 +43,12 @@ export function groupPaymentsAccess(input: { moneyAvailable: boolean; moneyLoade
   return input.moneyLoaded ? "hidden" : "pending";
 }
 
-export type GroupTab = "students" | "schedule" | "attendance" | "settings" | "payments";
+export type GroupTab = "students" | "schedule" | "attendance" | "payments";
 
 /** The tab of `?tab=`: «payments» only for who may see it (`pending` keeps it: the page shows a loader); anything unknown is «Ученики». */
 export function resolveGroupTab(requested: string | null | undefined, access: GroupPaymentsAccess): GroupTab {
   if (requested === "payments") return access === "hidden" ? "students" : "payments";
-  if (requested === "attendance" || requested === "settings" || requested === "students" || requested === "schedule") return requested;
+  if (requested === "attendance" || requested === "students" || requested === "schedule") return requested;
   return "students";
 }
 

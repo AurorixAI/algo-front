@@ -59,8 +59,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(toast(page, "Цена группы задана")).toBeVisible();
   await expect(block).toContainText(new RegExp(moneyPattern(500000)));
   await expect(block).toContainText(`с ${dmy(today)}`);
-  await block.getByRole("button", { name: /^Действия: / }).click();
-  await page.getByRole("menuitem", { name: "История цены", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  await block.getByRole("button", { name: /^История цены: / }).click(); // IA audit F3: an icon button, not a «⋯» with one item
   const history = page.getByRole("dialog", { name: "История цены" });
   await expect(history.getByRole("list", { name: "История цены" })).toContainText("Новый учебный год");
   await page.keyboard.press("Escape");
@@ -86,8 +85,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
   await expect(toast(page, "Запланированная цена отменена")).toBeVisible();
   await expect(block.getByTestId("group-price-scheduled")).toHaveCount(0);
-  await block.getByRole("button", { name: /^Действия: / }).click();
-  await page.getByRole("menuitem", { name: "История цены", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  await block.getByRole("button", { name: /^История цены: / }).click();
   await expect(page.getByRole("dialog", { name: "История цены" }).getByRole("list", { name: "Отменённые цены" })).toContainText("отменил запланированную цену");
   await page.keyboard.press("Escape");
   const afterGroupCancel = await org.owner.api.get(`/auth/org/groups/${group.id}/prices`);

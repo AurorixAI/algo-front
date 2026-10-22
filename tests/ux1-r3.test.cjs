@@ -382,7 +382,7 @@ test("nits: «Осталось: N» does not wrap, the student toast says «От
   assert.doesNotMatch(read("src/components/diagnostics/report-score-header.tsx"), /\buppercase\b|tracking-widest|tracking-wider/);
   // the group header wraps on a phone
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between/, role);
     assert.match(page, /flex flex-wrap items-center gap-2 sm:shrink-0/, role);
   }

@@ -139,3 +139,18 @@ export async function openPriceMode(page: Page, mode: "assign" | "return" | "can
     }
   }
 }
+
+/** «⋯» of the header of a group page (IA audit 22.10: «Изменить группу…», «Цена группы…», «В архив») -> an item. */
+export async function groupMenuItem(page: Page, groupName: string, name: string | RegExp) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await page.getByRole("button", { name: `Действия: ${groupName}` }).first().click();
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
+      await page.getByRole("menuitem", { name, exact: typeof name === "string" }).dispatchEvent("click", undefined, { timeout: 3000 });
+      return;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+      await page.waitForTimeout(400);
+    }
+  }
+}

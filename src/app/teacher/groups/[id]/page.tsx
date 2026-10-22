@@ -219,7 +219,6 @@ export default function TeacherGroupDetailPage() {
     });
   }, [groupLessons]);
 
-  const canEdit = user?.org_role === "admin" || user?.org_role === "owner" || user?.role === "owner";
 
   const load = useCallback(async (isInitial = false) => {
     if (isInitial) setLoading(true);
@@ -259,21 +258,6 @@ export default function TeacherGroupDetailPage() {
 
   // ─── Background scroll lock while any dialog is open (shared hook: no layout shift) ───
   useScrollLock(modalState !== "none");
-
-  const handleRemoveStudent = async (studentId: string) => {
-    if (!group) return;
-    if (!confirm("Удалить ученика из группы?")) return;
-    try {
-      await orgApi.removeStudentFromGroup(groupId, studentId);
-      setGroup((prev) => prev ? {
-        ...prev,
-        students: prev.students.filter((s) => s.id !== studentId),
-        student_count: prev.student_count - 1,
-      } : null);
-    } catch (e: any) {
-      alert(e.message || "Ошибка");
-    }
-  };
 
   if (loading) {
     return (
@@ -439,11 +423,7 @@ export default function TeacherGroupDetailPage() {
               </p>
             </div>
 
-            <GroupStudentTable
-              students={group.students}
-              onRemove={canEdit ? handleRemoveStudent : undefined}
-              canRemove={canEdit}
-            />
+            <GroupStudentTable students={group.students} />
           </div>
         )}
 

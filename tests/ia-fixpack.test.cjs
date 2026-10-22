@@ -188,3 +188,122 @@ test("F20: «Цена в месяц» / «Цена пакета» name the price
   for (const file of files) assert.doesNotMatch(read(file), /["'`>]Оплата в месяц|["'`>]Стоимость пакета/, file);
   assert.match(read("src/lib/payments-ledger.ts"), /Стоимость обучения/); // the statement's total keeps its word
 });
+
+// ── F9 / F30 / F4: one group page and one group list for both workspaces ────────────────────────────────
+
+const stubNavigation = () => {
+  const navigation = require.resolve("next/navigation");
+  require(navigation);
+  require.cache[navigation].exports = {
+    ...require(navigation),
+    useRouter: () => ({ push() {}, replace() {}, refresh() {}, back() {} }),
+    useParams: () => ({ id: "g1" }),
+    usePathname: () => "/owner/groups",
+    useSearchParams: () => new URLSearchParams(""),
+  };
+};
+
+test("F9: both workspaces render the SAME group page and group list (wrappers of one line, a `workspace` param)", () => {
+  const W = require(path.join(root, "src/lib/group-workspace.ts"));
+  for (const role of ["owner", "admin"]) {
+    assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), new RegExp(`<GroupDetailView workspace="${role}" />`));
+    assert.match(read(`src/app/${role}/groups/page.tsx`), new RegExp(`<GroupsListView workspace="${role}" />`));
+    assert.ok(read(`src/app/${role}/groups/[id]/page.tsx`).split("\n").length <= 12, "a thin wrapper");
+    assert.ok(read(`src/app/${role}/groups/page.tsx`).split("\n").length <= 12, "a thin wrapper");
+    const paths = W.groupWorkspacePaths(role);
+    assert.deepEqual([paths.groups, paths.students, paths.payments, paths.viewerRole], [`/${role}/groups`, `/${role}/students`, `/${role}/payments`, role]);
+  }
+  // the view has no path of one workspace typed in
+  for (const file of ["src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx"]) assert.doesNotMatch(read(file), /["'`]\/(owner|admin)\//, file);
+  stubNavigation();
+  const { GroupDetailView } = require(path.join(root, "src/components/groups/group-detail-view.tsx"));
+  const { GroupsListView } = require(path.join(root, "src/components/groups/groups-list-view.tsx"));
+  for (const workspace of ["owner", "admin"]) {
+    const detail = renderToStaticMarkup(React.createElement(GroupDetailView, { workspace }));
+    assert.match(detail, /animate-spin/, `${workspace}: the page renders its loader first`);
+    const list = renderToStaticMarkup(React.createElement(GroupsListView, { workspace }));
+    assert.ok(list.length > 0, workspace);
+  }
+});
+
+test("F9: the class filter is on the shared list (the administrator's list had lost it) and the filters live in the URL (F34)", () => {
+  const W = require(path.join(root, "src/lib/group-workspace.ts"));
+  const list = read("src/components/groups/groups-list-view.tsx");
+  assert.match(list, /data-testid="groups-class-filter"/);
+  assert.match(list, /GROUP_CLASS_LEVELS\.map/);
+  const groups = [
+    { name: "Алгебра 8А", status: "active", teacher_id: "t1", teacher_name: "Иванов", class_level: 8 },
+    { name: "Геометрия 9", status: "active", teacher_id: null, class_level: 9 },
+    { name: "Старая 8", status: "archived", teacher_id: "t1", teacher_name: "Иванов", class_level: 8 },
+    { name: "Без цены 9", status: "active", teacher_id: "t2", class_level: 9, price_current: null },
+  ];
+  const q = (over) => ({ status: "active", classLevel: null, q: "", ...over });
+  assert.deepEqual(W.filterGroups(groups, q({})).map((g) => g.name), ["Алгебра 8А", "Без цены 9"]);
+  assert.deepEqual(W.filterGroups(groups, q({ status: "waiting" })).map((g) => g.name), ["Геометрия 9"]);
+  assert.deepEqual(W.filterGroups(groups, q({ status: "archived" })).map((g) => g.name), ["Старая 8"]);
+  assert.deepEqual(W.filterGroups(groups, q({ classLevel: 9 })).map((g) => g.name), ["Без цены 9"]);
+  assert.deepEqual(W.filterGroups(groups, q({ q: "иванов" })).map((g) => g.name), ["Алгебра 8А"]);
+  assert.deepEqual(W.filterGroups(groups, q({ status: "archived" }), "none").map((g) => g.name), ["Без цены 9"]); // «Без цены» wins over the tab
+  // the URL: defaults are not written, everything round-trips
+  assert.equal(W.groupListQueryString(q({})), "?");
+  assert.equal(W.groupListQueryString(q({ status: "waiting", classLevel: 9, q: "алг" })), "?status=waiting&class=9&q=%D0%B0%D0%BB%D0%B3");
+  const parsed = W.parseGroupListQuery(new URLSearchParams("status=waiting&class=9&q=алг"));
+  assert.deepEqual(parsed, { status: "waiting", classLevel: 9, q: "алг" });
+  assert.deepEqual(W.parseGroupListQuery(new URLSearchParams("status=zzz&class=3")), { status: "active", classLevel: null, q: "" });
+  assert.equal(W.groupListQueryString(q({}), { price: "none" }), "?price=none");
+});
+
+test("Q3 / F7 / F30: the header menu of a group is «Изменить группу…» · «Цена группы…» · «В архив»; the lesson type is NOT a separate item", () => {
+  const W = require(path.join(root, "src/lib/group-workspace.ts"));
+  const labels = (input) => W.groupHeaderActions(input).map((key) => W.GROUP_HEADER_LABEL[key]);
+  assert.deepEqual(labels({ archived: false, priceAvailable: true }), ["Изменить группу…", "Цена группы…", "В архив"]);
+  assert.deepEqual(labels({ archived: false, priceAvailable: false }), ["Изменить группу…", "В архив"]);   // a role without money has no price
+  assert.deepEqual(labels({ archived: true, priceAvailable: true }), []);                                    // an archived group: «Вернуть из архива» is its button
+  for (const input of [{ archived: false, priceAvailable: true }]) assert.ok(W.groupHeaderActions(input).length <= 4);
+  for (const label of Object.values(W.GROUP_HEADER_LABEL)) assert.doesNotMatch(label, /Тип занятий/);
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.match(view, /<GroupPriceAction\b/);
+  assert.match(view, /label="Тип занятий"/); // inside the edit form (owner decision, 292a2a1)
+  assert.doesNotMatch(view, /Изменить…|group-lesson-type-change/);
+  // F30: the chips of the header
+  assert.equal(W.groupPriceChipText(null, "Цена в месяц"), "Цена группы не задана");
+  assert.equal(plain(W.groupPriceChipText({ amount: 500000 }, "Цена в месяц")), "Цена 500 000 сум/мес");
+  assert.equal(W.groupPriceChipText(undefined, "Цена в месяц"), null);
+  assert.deepEqual(W.groupDebtSummary([{ debt: 100000 }, { debt: 0 }, { debt: 50000 }]), { count: 2, total: 150000 });
+  assert.equal(plain(W.groupDebtChipText({ count: 2, total: 150000 })), "Долг 150 000 сум · 2 ученика");
+  assert.equal(W.groupDebtChipText({ count: 0, total: 0 }), null);
+  assert.match(view, /groupPaymentsHref\(paths\.groups, group\.id, "debt"\)/);
+});
+
+test("F4 / F8: the roster menu has at most two items, no «Карточка ученика», no legacy confirmation; the name is the link", () => {
+  const W = require(path.join(root, "src/lib/group-workspace.ts"));
+  assert.deepEqual(W.rosterMenuKeys({ canLeave: true, canTransfer: true }), ["transfer", "leave"]);
+  assert.deepEqual(W.rosterMenuKeys({ canLeave: false, canTransfer: false }), []);
+  assert.equal(W.ROSTER_TRANSFER_LABEL, "Перевести в другую группу…");
+  assert.equal(W.ROSTER_LEAVE_LABEL, "Убрать из группы…");
+  const table = read("src/components/groups/group-student-table.tsx");
+  assert.doesNotMatch(table, /Карточка ученика|UserRound|Убрать ученика из группы\?|onRemove|confirmRemove/);
+  assert.match(table, /href=\{`\$\{basePath\}\/\$\{s\.id\}`\}/); // the name leads to the card
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /onTransfer=\{setTransferStudent\}/);
+  // the teacher's page has no menu at all
+  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /onRemove|onTransfer|handleRemoveStudent/);
+});
+
+test("F3: «Цены групп» has no «⋯» with one item: «История цены» is an icon button of the row", () => {
+  const page = read("src/components/payments/group-prices-page.tsx");
+  assert.doesNotMatch(page, /RowMenu/);
+  assert.match(page, /data-testid="group-price-history"/);
+});
+
+test("F36: the dead tab «settings» and the unused group statistics are gone from the group page", () => {
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.doesNotMatch(view, /"settings"|GroupStatsPanel|getGroupStats|diagPct/);
+  assert.doesNotMatch(read("src/lib/group-payments.ts"), /"settings"/);
+});
+
+test("F21 / F24: «Преподаватель» (not «Учитель») and one H1 size on the group screens", () => {
+  for (const file of ["src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx", "src/components/groups/assign-group-modal.tsx"]) {
+    assert.doesNotMatch(read(file), /Учитель|учителю/, file);
+  }
+  for (const file of ["src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx"]) assert.match(read(file), /<h1 className="[^"]*text-xl font-bold [^"]*md:text-2xl/, file);
+});

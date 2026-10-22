@@ -71,7 +71,7 @@ test("the API: GET lesson-types and PUT lesson-type (dry_run in the query)", () 
 
 test("the header of the group has no «Изменить…»; the dialog opens from «Сохранить» of the edit form when the type changed (owner and administrator)", () => {
   for (const role of ["owner", "admin"]) {
-    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    const page = read("src/components/groups/group-detail-view.tsx");
     assert.match(page, /<GroupLessonTypeDialog/);
     assert.match(page, /data-testid="group-lesson-type-line">\{lessonTypeLine\(group\.lesson_type\)\}<\/p>/, role);
     assert.doesNotMatch(page, /group-lesson-type-change|LESSON_TYPE_CHANGE_LABEL|Изменить…/, role);

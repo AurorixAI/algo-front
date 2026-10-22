@@ -281,19 +281,19 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/payments/payments-page.tsx"), /<RowMenu items=\{menu\} label=\{`Действия: \$\{row\.student_name\}`\} \/>/);
   assert.match(read("components/payments/membership-row-actions.tsx"), /label=\{label \?\? `Действия по оплате: \$\{row\.group_name\}`\}/); // the card and the group tab share it (IA audit F1)
   assert.match(read("components/groups/group-student-table.tsx"), /label=\{`Действия: \$\{s\.full_name/);
+  assert.match(read("components/groups/group-detail-view.tsx"), /<RowMenu items=\{headerMenu\} label=\{`Действия: \$\{group\.name\}`\}/);
   assert.match(read("components/attendance/open-lessons-view.tsx"), /label=\{`Действия: \$\{item\.groupName\}, /);
   assert.match(read("components/payroll/month-status.tsx"), /label="Ещё: как считается, делитель"/); // the menu of the payroll pages
   assert.match(read("components/students/student-profile-view.tsx"), /label=\{`Действия: \$\{student\.full_name\}`\}/);
   assert.match(read("components/students/student-groups-block.tsx"), /label=\{`Действия по группе: \$\{item\.group_name\}`\}/); // the pause / leaving of a group (IA audit F2, F8)
-  assert.match(read("components/payments/group-prices-page.tsx"), /<RowMenu items=\{menu\} label=\{`Действия: \$\{item\.name\}`\} \/>/);
   assert.match(read("components/payments/statement-view.tsx"), /label=\{`Действия: \$\{entry\.title\}`\}/);
   assert.match(read("components/groups/group-payments-tab.tsx"), /label=\{`Действия по оплате: \$\{view\.name\}`\}/); // passed to the shared MembershipRowActions
   // all ten files that use <RowMenu> are listed above
   const users = fs.readdirSync(src("components"), { recursive: true }).filter((f) => /\.tsx$/.test(f) && !/row-menu\.tsx$/.test(f))
     .filter((f) => read(`components/${f}`).includes("<RowMenu")).map((f) => f.replace(/\\/g, "/")).sort();
   assert.deepEqual(users, [
-    "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-student-table.tsx",
-    "payments/group-prices-page.tsx", "payments/membership-row-actions.tsx", "payments/payments-page.tsx", "payments/statement-view.tsx",
+    "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-detail-view.tsx", "groups/group-student-table.tsx",
+    "payments/membership-row-actions.tsx", "payments/payments-page.tsx", "payments/statement-view.tsx",
     "payroll/month-status.tsx", "students/student-groups-block.tsx", "students/student-profile-view.tsx",
   ]);
   assert.doesNotMatch(read("components/payroll/payroll-month-page.tsx"), /RowMenu/); // owner 22.10: a row keeps one action; «Отметить выплату» lives on the sheet card
