@@ -147,7 +147,7 @@ test("progress: «Заполнено 38 из 120»; 100% exactly when nobody is 
 });
 
 test("the intro is the sentence of the lead with the date of the start", () => {
-  assert.equal(O.openingsIntro(START), "Отметьте, что было у учеников до начала учёта 01.11.2026: кто оплатил вперёд и кто должен. Начисления в ALGO идут с этой даты.");
+  assert.equal(O.openingsIntro(START), "Отметьте, что было у учеников до начала учёта 01.11.2026: кто оплатил вперёд и кто должен. Стоимость занятий в ALGO считается с этой даты.");
   assert.equal(O.OPENINGS_TITLE, "Остатки на начало");
   assert.equal(O.noDebtDay(START), "2026-10-31");
 });
@@ -700,8 +700,7 @@ test("vocabulary: no screen of the pack says «Начисление» (the one s
   const files = ["src/components/payments/openings-page.tsx", "src/components/payments/openings-rows.tsx", "src/components/payments/openings-dialogs.tsx", "src/components/payments/openings-widgets.tsx"];
   for (const file of files) assert.ok(!/начислени/i.test(read(file)), file);
   const lib = read("src/lib/openings.ts").split("\n").filter((line) => /начислени/i.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line));
-  assert.equal(lib.length, 1, lib.join("\n"));
-  assert.match(lib[0], /Начисления в ALGO идут с этой даты/);
+  assert.equal(lib.length, 0, lib.join("\n")); // the intro says «Стоимость занятий … считается», never «Начисления»
 });
 
 test("pieces: the banner, the checklist and the button render from a summary (and nothing when the rules say so)", () => {

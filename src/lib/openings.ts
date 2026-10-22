@@ -417,7 +417,7 @@ const dmy = (iso: string): string => formatDateRu(iso);
 /** The one sentence under the title (the wording of the lead, 22.10). */
 export function openingsIntro(accountingStart: string): string {
   const day = dmy(accountingStart);
-  return `Отметьте, что было у учеников до начала учёта ${day || "—"}: кто оплатил вперёд и кто должен. Начисления в ALGO идут с этой даты.`;
+  return `Отметьте, что было у учеников до начала учёта ${day || "—"}: кто оплатил вперёд и кто должен. Стоимость занятий в ALGO считается с этой даты.`;
 }
 
 /** The day before the accounting start: «оплачено до» that day = «на начало долга нет». */
