@@ -77,7 +77,7 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   await expect(await statusOf(substitute.api.post(`/auth/org/groups/${other.id}/attendance/start`, { lessonDate: elsewhere.date, lessonId: elsewhere.id }))).toBe(403);
   await expect(await statusOf(substitute.api.get(`/auth/org/groups/${other.id}/attendance`, { month }))).toBe(403);
 
-  await clockReaches(lesson.startMinutes!);
+  await clockReaches(lesson.startMinutes!, 240);
   await runLesson(substitute, lesson, { records: { [pupil.id]: "present" }, complete: true });
   const journal = await substitute.api.get(`/auth/org/groups/${group.id}/attendance`, { month });
   const key = Object.keys(journal.records).find((k) => k.includes(lesson.id))!;

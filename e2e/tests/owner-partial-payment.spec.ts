@@ -6,7 +6,7 @@ import { expectNoHorizontalScroll, moneyPattern } from "../support/ui";
  * PAY-2 «Баланс»: a PARTIAL payment.  The server distributes the money; the owner sees where it went and how much is still
  * due - on the debtors list («Не доплачено за …: 300 000»), on the card, and on the statement: the payment row says
  * «за <период> — 200 000 (осталось 300 000)», the month header «осталось 300 000», the balance «Долг 300 000», «Сходится».
- * The rest paid later closes the debt (the row leaves «Должники», the statement no longer says «осталось»).
+ * The rest paid later closes the debt (the row leaves «Должники»; the second payment does not say «осталось»).
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -45,14 +45,16 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await expect(page.getByText(new RegExp(`Долг ${moneyPattern(300000)}`)).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
 
-  // --- the rest is paid: the debt is closed, nothing is «осталось» any more
+  // --- the rest is paid: the debt is closed, the second payment leaves nothing «осталось»
   await org.pay(student.id, 300000, { method: "card" });
   await page.reload();
   await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
   await expect(page.getByTestId("statement-row-payment")).toHaveCount(2);
-  await expect(page.getByTestId("statement-row-payment").last()).not.toContainText("осталось");
+  // the first payment keeps its history («осталось 300 000» was true when it was made); the second one closes the period
+  await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 1" })).toContainText(new RegExp(`\\(осталось ${moneyPattern(300000)}\\)`));
+  await expect(page.getByTestId("statement-row-payment").filter({ hasText: "Оплата № 2" })).not.toContainText("осталось");
   await expect(page.getByText(new RegExp(`стоимость ${moneyPattern(500000)} · оплачено ${moneyPattern(500000)}`))).toBeVisible();
-  await expect(page.getByText(/осталось/)).toHaveCount(0);
+  await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
 
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();

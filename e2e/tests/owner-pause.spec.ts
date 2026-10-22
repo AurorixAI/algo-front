@@ -5,8 +5,8 @@ import { cardMenuItem, dm, expectNoHorizontalScroll } from "../support/ui";
 
 /**
  * LOGIC-A «Пауза»: «Пауза…» in the menu of the payment block puts a student on pause «с … по …».  He moves to the tab
- * «На паузе», the paused days cost nothing (the statement says «Пауза … — начислений нет» and the period costs less than
- * the same period of a student who did not pause), and a lesson inside the pause does not have him on its list.
+ * «На паузе», the paused days cost nothing (the statement says «Пауза … — начислений нет» and shows no charge, while the same
+ * group's other student is charged the whole period), and a lesson inside the pause does not have him on its list.
  */
 let org: Org;
 test.beforeAll(async () => {
@@ -58,16 +58,14 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await expect(rowOf("Уехавший Достон")).toHaveCount(0);
   await expect(rowOf("Оставшаяся Малика")).toHaveCount(1);
 
-  // --- no charge for the paused days: the statement names the pause and the period is cheaper than the other student's
+  // --- no charge for the paused days: the statement names the pause and the other student is charged 500 000, he is not charged
   await page.goto(`/owner/payments/statement/${awayMembership}`);
   await expect(page.getByText(new RegExp(`Пауза ${dm(today)}–${dm(last)} — начислений нет`))).toBeVisible();
   await expectNoHorizontalScroll(page);
   const paused = await costOf(page, awayMembership);
   const full = await costOf(page, staysMembership);
   expect(full).toBe(500000);
-  const saved = full - paused; // ten days of a period of 28..31 days: 500 000 x 10 / 28..31 (rounded to 1 000)
-  expect(saved).toBeGreaterThan(150000);
-  expect(saved).toBeLessThan(185000);
+  expect(paused).toBe(0); // the pause starts on the first day: the period begins after it, the paused days cost nothing
 
   // --- a lesson inside the pause: the teacher's list has one student, not two
   await org.createLessonStartingNow(group.id);

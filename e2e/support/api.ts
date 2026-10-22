@@ -367,9 +367,9 @@ export async function serverNow() {
   return businessNow(header ? new Date(header) : new Date());
 }
 
-/** Wait until server and local clocks both show at least `minutes` (since midnight, business time) - at most ~70 s. */
-export async function clockReaches(minutes: number): Promise<void> {
-  for (let i = 0; i < 280; i++) {
+/** Wait until server and local clocks both show at least `minutes` (since midnight, business time) - at most `maxSeconds` (70 by default). */
+export async function clockReaches(minutes: number, maxSeconds = 70): Promise<void> {
+  for (let i = 0; i < maxSeconds * 4; i++) {
     const server = await serverNow();
     // 1.5 s cushion: the `Date` header is cached by the server for up to a second
     if (server.minutes >= minutes && businessNow(new Date(Date.now() - 1500)).minutes >= minutes) return;
