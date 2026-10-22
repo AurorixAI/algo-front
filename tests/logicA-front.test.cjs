@@ -506,6 +506,16 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
   assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
   assert.equal(P.debtReasonText({ status: "none", last_payment: null, debt: 0 }), "Ещё не платил");
+  // the chip already says «Ещё не платил…»: the line under it never repeats it (owner 22.10)
+  const never = { status: "none", last_payment: null, debt: 1500000, past_debt: 1000000, reason: "Ещё не платил" };
+  const chipNever = P.moneyChip(never);
+  assert.equal(chipNever.label, "Ещё не платил · просрочено");
+  assert.equal(P.debtReasonLine(never, chipNever.label), "", "only the amount line (the balance) stays");
+  assert.equal(P.debtReasonLine({ ...never, past_debt: 0 }, P.moneyChip({ ...never, past_debt: 0 }).label), "", "the plain chip «Ещё не платил» too");
+  assert.equal(P.debtReasonLine({ ...never, reason: undefined, status: "expired", days_overdue: 12 }, "Ещё не платил · просрочено"), "Просрочено на 12 дней", "the overdue days when known");
+  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 150000, reason: "Не доплачено за октябрь: 150 000" }, "Не доплачено"), "Не доплачено за октябрь: 150 000", "other reasons are kept");
+  assert.equal(P.debtReasonLine({ status: "active", last_payment: { id: "p" }, debt: 5, reason: "Не доплачено" }, "Не доплачено"), "", "a line equal to the chip is dropped");
+  assert.doesNotMatch(read("src/components/payments/payments-page.tsx"), /reason !== chip\.label/);
   assert.equal(P.priceMissingText(3), "У 3 учеников не задана цена");
   assert.equal(P.priceMissingText(0), null);
   const page = read("src/components/payments/payments-page.tsx");
@@ -513,7 +523,7 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.match(page, /sm:grid-cols-2/);
   assert.match(page, /priceMissingText\(priceMissing\)/);
   assert.match(page, /Задать<\/Link>/);
-  assert.match(page, /debtReasonText\(row\)/);
+  assert.match(page, /debtReasonLine\(row, chip\.label\)/);
   assert.doesNotMatch(page, /QuickEntry|isFirstPaymentRow/, "no inline quick entry: every debtor row is a plain row with «Внести оплату»");
 });
 

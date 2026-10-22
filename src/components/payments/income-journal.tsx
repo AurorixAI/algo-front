@@ -63,7 +63,7 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                   {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
                 </span>
                 <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
-                <span className={`col-start-2 row-start-1 text-right text-sm font-semibold tabular-nums md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-900"}`}>{view.amount}</span>
+                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>{view.amount}</span>
                 <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-left md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
               </button>
             </li>
@@ -101,7 +101,7 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
   return (
     <div className="space-y-5 pb-4 pt-3" data-testid="journal-drawer">
       <div>
-        <p className={`text-3xl font-bold tabular-nums ${view.tag ? "text-slate-400 line-through" : "text-slate-900"}`}>{view.amount}</p>
+        <p className={`text-3xl font-semibold tabular-nums tracking-tight ${view.tag ? "text-slate-400 line-through" : "text-slate-800"}`}>{view.amount}</p>
         <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {view.method}
           {view.tag && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
@@ -187,6 +187,9 @@ export interface JournalSectionProps {
   /** A bar of the chart narrowed the journal to this label (a day / a month). */
   focusLabel: string | null;
   onClearFocus: () => void;
+  /** A segment of the donut narrowed the journal to this method («Наличные»); null when every method is shown. */
+  methodLabel?: string | null;
+  onClearMethod?: () => void;
   empty: EmptyContext;
   onResetNarrowing: () => void;
   onPage: (page: number) => void;
@@ -197,7 +200,7 @@ export interface JournalSectionProps {
 }
 
 export function JournalSection(props: JournalSectionProps) {
-  const { journal, loading, error, authors, focusLabel } = props;
+  const { journal, loading, error, authors, focusLabel, methodLabel } = props;
   const paging = journal ? journalPaging(journal) : null;
   const withYear = journal ? journalSpansYears(journal.from, journal.to) : false;
   const totals = journal ? journalTotalsText(journal.totals) : "";
@@ -243,12 +246,18 @@ export function JournalSection(props: JournalSectionProps) {
         </div>
       </div>
 
-      {(focusLabel || totals) && (
+      {(focusLabel || methodLabel || totals) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-500">
           {focusLabel && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium text-primary-800" data-testid="journal-focus">
               Оплаты: {focusLabel}
               <button type="button" onClick={props.onClearFocus} aria-label="Показать весь период" className="rounded-full p-1 text-primary-600 hover:bg-primary-100"><X className="h-3.5 w-3.5" aria-hidden /></button>
+            </span>
+          )}
+          {methodLabel && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium text-primary-800" data-testid="journal-method">
+              {methodLabel}
+              <button type="button" onClick={props.onClearMethod} aria-label="Показать все способы" className="rounded-full p-1 text-primary-600 hover:bg-primary-100"><X className="h-3.5 w-3.5" aria-hidden /></button>
             </span>
           )}
           {totals && <span data-testid="journal-totals">{totals}</span>}

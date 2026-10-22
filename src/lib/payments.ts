@@ -962,6 +962,18 @@ export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_
   return "";
 }
 
+/**
+ * What the row of a debtor says under its chip.  When the chip already says «Ещё не платил…» the reason line must not repeat it: it
+ * is the overdue days when they are known, else nothing (the amount is the balance line under it).  A line equal to the chip is dropped.
+ */
+export function debtReasonLine(row: Pick<MembershipPaymentRow, "status" | "days_overdue" | "debt" | "last_payment" | "reason">, chipLabel: string): string {
+  let reason = debtReasonText(row);
+  if (reason.startsWith(NEVER_PAID) && chipLabel.startsWith(NEVER_PAID)) {
+    reason = row.status === "expired" && row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "";
+  }
+  return reason === chipLabel ? "" : reason;
+}
+
 /** «У 3 учеников не задана цена» above the list (the card links to «Цены групп»). */
 export function priceMissingText(count: number | null | undefined): string | null {
   const n = Math.floor(Number(count) || 0);

@@ -148,20 +148,15 @@ test("«Должники» of the debt card carries the group / teacher the scre
   assert.match(page, /scope=\{\{ groupId: filters\.groupId, teacherId: filters\.teacherId \}\}/);
 });
 
-test("the till says «В кассе центра за сегодня (все группы)» when the screen is narrowed", () => {
+test("the till block keeps the server's centre-wide scope through the normalizer (the cash line of the donut card reads it)", () => {
   const { React, text, P } = renderer();
   const day = V.normalizeOverview(fixture("I02_income_day_today_cash"));
-  const hint = (o, scope) => V.methodRows(o, scope)[0].hint;
-  assert.equal(plain(hint(day)), "должно быть в кассе 150 000 сум", "no narrowing: the old words");
-  assert.equal(plain(hint({ ...day, cash: { ...day.cash, scope: "centre", filtered_view: true } })), "В кассе центра за сегодня (все группы): 150 000 сум", "the server says so");
-  assert.equal(plain(hint(day, { groupId: "g1" })), "В кассе центра за сегодня (все группы): 150 000 сум", "a filter and no scope from an older server");
-  assert.equal(plain(hint(day, { teacherId: "t1" })), "В кассе центра за сегодня (все группы): 150 000 сум");
-  assert.equal(plain(hint({ ...day, cash: { ...day.cash, scope: "centre", filtered_view: false } }, { groupId: "g1" })), "должно быть в кассе 150 000 сум", "the server's scope is answered: the till is not narrowed");
-  // the fields arrive through the normalizer; an answer without them reads as before
   assert.deepEqual([V.normalizeOverview({ ...fixture("I02_income_day_today_cash"), cash: { ...fixture("I02_income_day_today_cash").cash, scope: "centre", filtered_view: true } }).cash.scope, V.normalizeOverview(fixture("I02_income_day_today_cash")).cash.filtered_view], ["centre", false]);
-  const body = text(React.createElement(P.IncomeOverviewView, { overview: day, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {}, scope: { groupId: "g1" } }));
-  assert.ok(body.includes("В кассе центра за сегодня (все группы)"));
-  assert.ok(!body.includes("должно быть в кассе"));
+  assert.equal(day.cash.expected, 150000);
+  const o = { ...day, by_method: [{ method: "cash", label: "Наличные", amount: 250000, count: 2 }] };
+  const body = text(React.createElement(P.IncomeOverviewView, { overview: o, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {}, cashToday: day.cash }));
+  assert.ok(body.includes("Сегодня наличными: 150 000 сум — столько должно быть в кассе"));
+  assert.ok(!text(React.createElement(P.IncomeOverviewView, { overview: o, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} })).includes("Сегодня наличными"));
 });
 
 test("the journal: time only when paid_time is there; «внесена …» quietly in the drawer and as a grey line of the phone card, not a column", () => {
@@ -210,21 +205,4 @@ test("a month bar's empty journal says the month: «В октябре оплат
   const bar = V.chartBars(overview, "2026-10-21")[0];
   assert.equal(V.journalEmptyText({ kind: "custom", focusLabel: bar.range.label, narrowed: false, year: "2026" }), "В октябре оплат не было");
   assert.match(read("src/components/payments/income-page.tsx"), /year: today\.slice\(0, 4\)/);
-});
-
-test("the period tabs fit 320 px: text-xs and tight padding below sm, a scroll container as the last resort", () => {
-  const page = read("src/components/payments/income-page.tsx");
-  const bar = page.slice(page.indexOf("export function PeriodBar"), page.indexOf("function FiltersBar"));
-  const tablist = /<div role="tablist" aria-label="Период"[^>]*className="([^"]+)"/.exec(bar);
-  assert.ok(tablist, "the tab list");
-  assert.match(tablist[1], /\bmax-w-full\b/);
-  assert.match(tablist[1], /\boverflow-x-auto\b/);
-  const button = /className=\{`([^`]*?)\$\{period\.kind === key/.exec(bar);
-  assert.ok(button, "the tab button");
-  assert.match(button[1], /\btext-xs\b/);
-  assert.match(button[1], /\bsm:text-sm\b/);
-  assert.match(button[1], /\bpx-1\.5\b/);
-  assert.match(button[1], /\bsm:px-3\.5\b/);
-  assert.match(button[1], /\bwhitespace-nowrap\b/);
-  assert.doesNotMatch(button[1], /text-\[13px\]/, "no fixed 13px below sm");
 });

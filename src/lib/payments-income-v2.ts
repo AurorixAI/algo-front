@@ -111,6 +111,7 @@ export interface IncomeOverview {
   delta_pct: number | null;
   delta_direction: "up" | "down" | "same" | null;
   delta_text: string | null;
+  /** The server's one-sentence answer.  The screen does not show it any more (the cards carry the facts); kept as the contract has it. */
   summary_text: string;
   /** The parts of «Куда ушли деньги» with the server's kinds and labels (absent on an older server: the fixed fields of `current` are used). */
   strip?: IncomeFlowItem[] | null;
@@ -294,42 +295,21 @@ export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
 
 export interface Period { kind: PeriodKind; from: string; to: string }
 
-/** `short` is the label below `sm` (a 360 px phone must hold all four tabs without scrolling); `label` from `sm` up. */
-export const PERIOD_TABS: Array<{ key: PeriodKind; label: string; short: string }> = [
-  { key: "day", label: "День", short: "День" },
-  { key: "week", label: "Неделя", short: "Неделя" },
-  { key: "month", label: "Месяц", short: "Месяц" },
-  { key: "custom", label: "Свой период", short: "Период" },
-];
-
 /** The server accepts a range of at most 366 days; longer than 92 days it answers month by month. */
 export const MAX_RANGE_DAYS = 366;
 
-/** Monday of the week that holds `iso` (the server's week is seven days from a Monday). */
-export function mondayOf(iso: string): string {
-  const [year, month, day] = iso.split("-").map(Number);
-  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay(); // 0 = Sunday
-  return addDays(iso, -((weekday + 6) % 7));
-}
-
-/** The period of `kind` that holds `anchor`: today → «День», this week, this month; a custom period keeps the dates it had. */
-export function periodOf(kind: PeriodKind, anchor: string, current?: Period): Period {
+/**
+ * The period of `kind` that holds `anchor`: a month, one day (only the till of today asks for it), or a custom range that keeps the
+ * dates it had.  The screen shows a month (the arrows move by month) or a custom range; there is no week / day switch.
+ */
+export function periodOf(kind: "day" | "month" | "custom", anchor: string, current?: Period): Period {
   if (kind === "day") return { kind, from: anchor, to: anchor };
-  if (kind === "week") {
-    const monday = mondayOf(anchor);
-    return { kind, from: monday, to: addDays(monday, 6) };
-  }
   if (kind === "month") return { kind, from: monthStart(anchor), to: monthEnd(anchor) };
   return { kind, from: current?.from ?? monthStart(anchor), to: current?.to ?? anchor };
 }
 
-/** One step back / forward: a day, a week, a month, or a custom range of the same length. */
+/** One step back / forward: a month, or a custom range of the same length. */
 export function stepPeriod(period: Period, delta: 1 | -1): Period {
-  if (period.kind === "day") {
-    const day = addDays(period.from, delta);
-    return { kind: "day", from: day, to: day };
-  }
-  if (period.kind === "week") return { kind: "week", from: addDays(period.from, 7 * delta), to: addDays(period.to, 7 * delta) };
   if (period.kind === "month") {
     const first = shiftMonth(period.from, delta);
     return { kind: "month", from: first, to: monthEnd(first) };
@@ -343,9 +323,9 @@ export function canStepForward(period: Period, today: string): boolean {
   return period.to < today;
 }
 
-/** Switching the tab keeps the moment on screen: the end of the current period, but never later than today. */
-export function switchKind(kind: PeriodKind, current: Period, today: string): Period {
-  return periodOf(kind, current.to <= today ? current.to : today, current);
+/** The ✕ of the custom chip: back to the month that holds the end of the range (never later than today). */
+export function monthOfPeriod(period: Period, today: string): Period {
+  return periodOf("month", period.to <= today ? period.to : today);
 }
 
 export function validatePeriod(period: Period): string | null {
@@ -363,21 +343,22 @@ export function dayLabel(iso: string, today: string): string {
   return `${day} ${MONTHS_GENITIVE[month - 1]}${iso.slice(0, 4) === today.slice(0, 4) ? "" : ` ${year}`}`;
 }
 
-/** The title between the arrows: «Сегодня, 21 октября» / «12–18 октября» / «Октябрь 2026 г.» / «01.10.2026 — 21.10.2026». */
-export function periodTitle(period: Period, today: string): string {
-  if (period.kind === "day") {
-    const prefix = period.from === today ? "Сегодня, " : period.from === addDays(today, -1) ? "Вчера, " : "";
-    return `${prefix}${dayLabel(period.from, today)}`;
-  }
-  if (period.kind === "week") {
-    const [fromYear, fromMonth, fromDay] = period.from.split("-").map(Number);
-    const [, toMonth, toDay] = period.to.split("-").map(Number);
-    const year = period.from.slice(0, 4) === today.slice(0, 4) && period.to.slice(0, 4) === today.slice(0, 4) ? "" : ` ${period.to.slice(0, 4)}`;
-    if (fromMonth === toMonth) return `${fromDay}–${toDay} ${MONTHS_GENITIVE[toMonth - 1]}${year}`;
-    return `${fromDay} ${MONTHS_GENITIVE[fromMonth - 1]}${fromYear === Number(period.to.slice(0, 4)) ? "" : ` ${fromYear}`} – ${toDay} ${MONTHS_GENITIVE[toMonth - 1]}${year}`;
-  }
+/** The title between the arrows: «Октябрь 2026 г.».  A custom range is the chip `rangeChipText`. */
+export function periodTitle(period: Period): string {
   if (period.kind === "month") return capitalizeFirst(monthYearLabelRu(period.from.slice(0, 7)));
   return `${formatDateRu(period.from)} — ${formatDateRu(period.to)}`;
+}
+
+/** The chip of a custom range: «12.10 – 18.10» (the year is added when the range is not inside the year of `today`). */
+export function rangeChipText(period: Pick<Period, "from" | "to">, today: string): string {
+  const inYear = period.from.slice(0, 4) === today.slice(0, 4) && period.to.slice(0, 4) === today.slice(0, 4);
+  const short = (iso: string) => (inYear ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`);
+  return `${short(period.from)} – ${short(period.to)}`;
+}
+
+/** Whether the screen is on the month that holds today: only then «Сегодня наличными» is asked for. */
+export function isCurrentMonth(period: Period, today: string): boolean {
+  return period.kind === "month" && period.from === monthStart(today);
 }
 
 /** «За этот день» / «За эту неделю» / «За этот месяц» / «За этот период»: the words of an empty state. */
@@ -392,9 +373,9 @@ export const NO_FILTERS: IncomeFilters = { method: "", groupId: "", teacherId: "
 
 export interface IncomeQuery { from: string; to: string; period: PeriodKind; method?: string; group_id?: string; teacher_id?: string }
 
-export function overviewQuery(period: Period, filters: IncomeFilters): IncomeQuery {
+/** The overview never takes the method: the donut «Чем платили» always shows every method; the method narrows only the journal. */
+export function overviewQuery(period: Period, filters: Pick<IncomeFilters, "groupId" | "teacherId">): IncomeQuery {
   const query: IncomeQuery = { from: period.from, to: period.to, period: period.kind };
-  if (filters.method) query.method = filters.method;
   if (filters.groupId) query.group_id = filters.groupId;
   if (filters.teacherId) query.teacher_id = filters.teacherId;
   return query;
@@ -769,52 +750,121 @@ export function focusBucket(range: JournalRange | null, overview: Pick<IncomeOve
   return overview.series_by === "day" && range.to !== range.from ? null : bucket;
 }
 
-// ── «Касса по способам» ────────────────────────────────────────────────────
+// ── «Чем платили»: the donut ───────────────────────────────────────────────
 
-export interface MethodRow {
+/** Calm, distinct colours of the methods: a Tailwind class for the dot and one for the ring (the classes are written out so they are generated). */
+export const METHOD_COLOR: Record<string, { dot: string; stroke: string }> = {
+  cash: { dot: "bg-emerald-500", stroke: "stroke-emerald-500" },
+  card: { dot: "bg-blue-500", stroke: "stroke-blue-500" },
+  bank_transfer: { dot: "bg-violet-500", stroke: "stroke-violet-500" },
+  click: { dot: "bg-sky-400", stroke: "stroke-sky-400" },
+  payme: { dot: "bg-cyan-600", stroke: "stroke-cyan-600" },
+  other: { dot: "bg-amber-500", stroke: "stroke-amber-500" },
+  unknown: { dot: "bg-slate-300", stroke: "stroke-slate-300" },
+};
+const METHOD_COLOR_FALLBACK = METHOD_COLOR.unknown;
+
+/** One method of the donut: its part of the ring (degrees, 0 = twelve o'clock, clockwise), its share and its colour. */
+export interface MethodSegment {
   method: string;
   label: string;
   amount: number;
   count: number;
-  /** «должно быть в кассе 150 000 сум» (cash, one-day period only). */
-  hint: string | null;
-  /** «принято 250 000 сум, возвращено 100 000 сум», only when something was returned from the till. */
-  hintNote: string | null;
+  /** Whole percent; the segments add up to 100. */
+  percent: number;
+  /** «3%», «<1%» for a method that took less than one percent. */
+  percentText: string;
+  dot: string;
+  stroke: string;
+  start: number;
+  end: number;
+  sweep: number;
 }
 
-/** The till is the centre's, not the group's: a screen narrowed to a group / teacher must say so next to the sum. */
-export const CENTRE_CASH_LABEL = "В кассе центра за сегодня (все группы)";
+const METHOD_ORDER = ["cash", "card", "bank_transfer", "click", "payme", "other", "unknown"];
 
-/** `cash.filtered_view`, or (an older server sent no scope) a group / teacher filter on the screen. */
-export function cashIsCentreWide(cash: Pick<IncomeCash, "scope" | "filtered_view"> | null, filtersActive: boolean): boolean {
-  if (!cash) return false;
-  return cash.filtered_view === true || (filtersActive && !cash.scope);
+/**
+ * The segments of the donut, the biggest sum first.  A method that took nothing (zero or less) is not drawn.  The sweeps add up to
+ * exactly 360 (the last segment closes the ring); a single method is a whole ring (sweep 360).
+ */
+export function methodSegments(byMethod: Array<Pick<IncomeMethodRow, "method" | "label" | "amount" | "count">> | null | undefined): MethodSegment[] {
+  const present = (byMethod ?? [])
+    .filter((item) => item.amount > 0)
+    .sort((a, b) => b.amount - a.amount || METHOD_ORDER.indexOf(a.method) - METHOD_ORDER.indexOf(b.method));
+  const total = present.reduce((acc, item) => acc + item.amount, 0);
+  const shares = sharesOf(present.map((item) => item.amount));
+  let start = 0;
+  return present.map((item, index) => {
+    const last = index === present.length - 1;
+    const end = last ? 360 : start + (item.amount * 360) / total;
+    const color = METHOD_COLOR[item.method] ?? METHOD_COLOR_FALLBACK;
+    const segment: MethodSegment = {
+      method: item.method,
+      label: item.label || "Способ не указан",
+      amount: item.amount,
+      count: item.count,
+      percent: shares[index],
+      percentText: shares[index] > 0 ? `${shares[index]}%` : "<1%",
+      dot: color.dot,
+      stroke: color.stroke,
+      start,
+      end,
+      sweep: end - start,
+    };
+    start = end;
+    return segment;
+  });
+}
+
+/** The centre of the donut: the sum of the drawn methods and the number of their payments. */
+export function methodsTotal(segments: Array<Pick<MethodSegment, "amount" | "count">>): { amount: number; count: number; amountText: string; countText: string } {
+  const amount = segments.reduce((acc, item) => acc + item.amount, 0);
+  const count = segments.reduce((acc, item) => acc + item.count, 0);
+  return { amount, count, amountText: formatMoney(amount), countText: paymentsCountText(count) };
+}
+
+/** «Наличные · 235 000 сум · 1 оплата · 3%»: the tooltip of a segment and the line of the screen reader. */
+export function methodTooltip(segment: Pick<MethodSegment, "label" | "amount" | "count" | "percentText">): string {
+  return `${segment.label} · ${formatMoney(segment.amount)} · ${paymentsCountText(segment.count)} · ${segment.percentText}`;
+}
+
+/** A click on a segment / a legend line: the method is chosen; the same one again clears it. */
+export function toggleMethod(current: string, clicked: string): string {
+  return current === clicked ? "" : clicked;
+}
+
+/** The label of the chip «Наличные ✕» above the journal. */
+export function methodChipLabel(method: string, byMethod: Array<Pick<IncomeMethodRow, "method" | "label">> | null | undefined): string {
+  const row = (byMethod ?? []).find((item) => item.method === method);
+  return row?.label || METHODS.find((item) => item.key === method)?.label || "Способ не указан";
+}
+
+/** A whole ring cannot be one SVG arc (its ends coincide): it is drawn as a circle. */
+export function isFullRing(segment: Pick<MethodSegment, "sweep">): boolean {
+  return segment.sweep >= 359.999;
+}
+
+/** The SVG path of an arc of the ring from `start` to `end` degrees (0 = twelve o'clock, clockwise); for a whole ring use a circle. */
+export function arcPath(cx: number, cy: number, radius: number, start: number, end: number): string {
+  const point = (deg: number) => {
+    const rad = ((deg - 90) * Math.PI) / 180;
+    return `${(cx + radius * Math.cos(rad)).toFixed(3)} ${(cy + radius * Math.sin(rad)).toFixed(3)}`;
+  };
+  return `M ${point(start)} A ${radius} ${radius} 0 ${end - start > 180 ? 1 : 0} 1 ${point(end)}`;
 }
 
 /**
- * «в кассе центра за сегодня (все группы): 150 000 сум».  The server's `scope_text` is used verbatim; without it (an older server) the
- * front's own words for a narrowed screen, and «должно быть в кассе 150 000 сум» for an unnarrowed one.
+ * The quiet line of the donut card on the current month: how much cash must be in the till today (the server's `cash.expected`, the
+ * till of the whole centre).  No answer → no line; nothing taken in cash and nothing returned → «Сегодня наличными оплат не было»
+ * (never «0 сум»).
  */
-export function cashHint(cash: Pick<IncomeCash, "expected" | "scope_text">, centreWide: boolean): string {
-  const scope = (cash.scope_text ?? "").trim();
-  if (scope) return /сум/.test(scope) ? scope : `${scope}: ${formatMoney(cash.expected)}`;
-  return centreWide ? `${CENTRE_CASH_LABEL}: ${formatMoney(cash.expected)}` : `должно быть в кассе ${formatMoney(cash.expected)}`;
-}
-
-/** Only the methods that took money; the cash row of a day carries the hint «должно быть в кассе» (narrowed screen: «В кассе центра за сегодня (все группы)»). */
-export function methodRows(overview: IncomeOverview, scope: { groupId?: string | null; teacherId?: string | null } = {}): MethodRow[] {
-  const cash = overview.cash;
-  const centre = cashIsCentreWide(cash, Boolean(scope.groupId || scope.teacherId));
-  const hintOf = (method: string) => (method === "cash" && cash ? cashHint(cash, centre) : null);
-  const noteOf = (method: string) => (method === "cash" && cash && cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null);
-  const rows: MethodRow[] = overview.by_method
-    .filter((item) => item.amount !== 0 || item.count > 0)
-    .map((item) => ({ method: item.method, label: item.label || "Способ не указан", amount: item.amount, count: item.count, hint: hintOf(item.method), hintNote: noteOf(item.method) }));
-  // The till does not depend on the method filter: with another method chosen the cash row is absent, but the till still has its sum.
-  if (cash && cash.expected !== 0 && !rows.some((row) => row.method === "cash")) {
-    rows.push({ method: "cash", label: "Наличные", amount: 0, count: 0, hint: hintOf("cash"), hintNote: noteOf("cash") });
-  }
-  return rows;
+export function cashTodayLine(cash: Pick<IncomeCash, "expected" | "cash_received" | "cash_refunded"> | null | undefined): { text: string; note: string | null } | null {
+  if (!cash) return null;
+  if (cash.expected === 0 && cash.cash_received === 0 && cash.cash_refunded === 0) return { text: "Сегодня наличными оплат не было", note: null };
+  return {
+    text: `Сегодня наличными: ${formatMoney(cash.expected)} — столько должно быть в кассе`,
+    note: cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null,
+  };
 }
 
 // ── «Группы — собираемость» ────────────────────────────────────────────────
@@ -876,6 +926,15 @@ export function collectionDebtNote(collection: MonthCollection | null | undefine
 export function collectionTotalView(collection: MonthCollection | null | undefined): CollectionRowView | null {
   return collection ? { ...collectionView(collection.total, 0), key: "total", title: "Всего" } : null;
 }
+
+/** The small caption above the table of the groups: «Октябрь 2026 · по группам» / «12.10–18.10 · по группам». */
+export function collectionCaption(period: Pick<Period, "kind" | "from" | "to">, today: string): string {
+  if (period.kind === "month") return `${capitalizeFirst(monthYearLabelRu(period.from.slice(0, 7))).replace(/\s*г\.$/, "")} · по группам`;
+  return `${rangeChipText(period, today).replace(" – ", "–")} · по группам`;
+}
+
+/** The tooltip of the column «Стоимость» (and of its ⓘ). */
+export const COLLECTION_COST_HINT = "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца";
 
 export const COLLECTION_DEBTORS_TOTAL_TITLE = "учеников без повторов: кто учится в двух группах, считается один раз";
 
@@ -1164,24 +1223,6 @@ export function exportErrorText(cause: unknown): string {
   const code = (cause as { code?: string } | null)?.code;
   if (code === "EXPORT_TOO_LONG") return EXPORT_TOO_LONG_TEXT;
   return cause instanceof Error && cause.message ? cause.message : "Не удалось скачать Excel";
-}
-
-/** «Способ не указан» is a filter only when some payment of the period has no method. */
-export function hasUnknownMethod(overview: Pick<IncomeOverview, "by_method"> | null | undefined): boolean {
-  return Boolean(overview?.by_method.some((item) => item.method === "unknown"));
-}
-
-/**
- * The «Все способы» select: only the methods that took money in the period (`by_method`), the chosen one even when it took none
- * (it never disappears while chosen), and «Способ не указан» only when some payment has no method (or it is chosen).
- */
-export function methodFilterOptions(byMethod: Array<Pick<IncomeMethodRow, "method" | "amount" | "count">> | null | undefined, selected: string): Array<{ key: string; label: string }> {
-  const present = new Set((byMethod ?? []).filter((item) => item.amount !== 0 || item.count > 0).map((item) => item.method));
-  const options: Array<{ key: string; label: string }> = METHODS
-    .filter((method) => present.has(method.key) || method.key === selected)
-    .map((method) => ({ key: method.key, label: method.label }));
-  if (present.has("unknown") || selected === "unknown") options.push({ key: "unknown", label: "Способ не указан" });
-  return options;
 }
 
 /** The note of «Должники» opened from a group's row: the tab counts the debt of all months, the row only of the month. */

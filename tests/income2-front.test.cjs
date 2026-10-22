@@ -94,31 +94,31 @@ test("identities of the fixtures hold in what the screen shows: Σ methods = Σ 
 
 // ── period switch ───────────────────────────────────────────────────────────────────────────────
 
-test("period: day / week (from a Monday) / month / custom, arrows step by the length, the forward arrow stops at today", () => {
-  assert.deepEqual(V.PERIOD_TABS.map((t) => t.label), ["День", "Неделя", "Месяц", "Свой период"]);
-  assert.deepEqual(V.periodOf("day", TODAY), { kind: "day", from: TODAY, to: TODAY });
-  assert.deepEqual(V.periodOf("week", TODAY), { kind: "week", from: "2026-10-19", to: "2026-10-25" }); // 21.10.2026 is a Wednesday
-  assert.deepEqual(V.periodOf("week", "2026-10-25"), { kind: "week", from: "2026-10-19", to: "2026-10-25" }); // a Sunday belongs to the week it ends
-  assert.deepEqual(V.periodOf("week", "2026-10-19"), { kind: "week", from: "2026-10-19", to: "2026-10-25" });
+test("period: a month (the arrows step by month) and a custom range (the arrows step by its length); no day / week switch; the forward arrow stops at today", () => {
+  assert.equal(V.PERIOD_TABS, undefined, "no tab strip");
+  assert.equal(V.switchKind, undefined);
+  assert.deepEqual(V.periodOf("day", TODAY), { kind: "day", from: TODAY, to: TODAY }); // only the till of today asks for a day
   assert.deepEqual(V.periodOf("month", TODAY), { kind: "month", from: "2026-10-01", to: "2026-10-31" });
-  assert.deepEqual(V.periodOf("custom", TODAY, { kind: "week", from: "2026-10-12", to: "2026-10-18" }), { kind: "custom", from: "2026-10-12", to: "2026-10-18" });
+  assert.deepEqual(V.periodOf("custom", TODAY, { kind: "month", from: "2026-10-12", to: "2026-10-18" }), { kind: "custom", from: "2026-10-12", to: "2026-10-18" });
 
-  assert.deepEqual(V.stepPeriod(V.periodOf("day", TODAY), -1), { kind: "day", from: "2026-10-20", to: "2026-10-20" });
-  assert.deepEqual(V.stepPeriod(V.periodOf("week", TODAY), -1), { kind: "week", from: "2026-10-12", to: "2026-10-18" });
-  assert.deepEqual(V.stepPeriod(V.periodOf("week", "2026-12-30"), 1), { kind: "week", from: "2027-01-04", to: "2027-01-10" }); // across the new year
   assert.deepEqual(V.stepPeriod(V.periodOf("month", TODAY), -1), { kind: "month", from: "2026-09-01", to: "2026-09-30" });
   assert.deepEqual(V.stepPeriod(V.periodOf("month", "2026-01-15"), -1), { kind: "month", from: "2025-12-01", to: "2025-12-31" });
+  assert.deepEqual(V.stepPeriod(V.periodOf("month", "2026-12-15"), 1), { kind: "month", from: "2027-01-01", to: "2027-01-31" });
   assert.deepEqual(V.stepPeriod({ kind: "custom", from: "2026-10-10", to: "2026-10-19" }, -1), { kind: "custom", from: "2026-09-30", to: "2026-10-09" });
 
   assert.equal(V.canStepForward(V.periodOf("month", TODAY), TODAY), false); // this month holds today
-  assert.equal(V.canStepForward(V.periodOf("week", TODAY), TODAY), false);
-  assert.equal(V.canStepForward(V.periodOf("day", "2026-10-20"), TODAY), true);
   assert.equal(V.canStepForward(V.periodOf("month", "2026-09-10"), TODAY), true);
+  assert.equal(V.canStepForward({ kind: "custom", from: "2026-10-12", to: "2026-10-18" }, TODAY), true);
 
-  // a tab keeps the moment on screen, but never goes after today
-  assert.deepEqual(V.switchKind("day", V.periodOf("month", TODAY), TODAY), { kind: "day", from: TODAY, to: TODAY });
-  assert.deepEqual(V.switchKind("month", V.periodOf("week", "2026-09-10"), TODAY), { kind: "month", from: "2026-09-01", to: "2026-09-30" });
-  assert.deepEqual(V.switchKind("week", V.periodOf("month", TODAY), TODAY), V.periodOf("week", TODAY));
+  // the ✕ of the chip: back to the month of the end of the range, never after today
+  assert.deepEqual(V.monthOfPeriod({ kind: "custom", from: "2026-09-20", to: "2026-10-05" }, TODAY), V.periodOf("month", "2026-10-05"));
+  assert.deepEqual(V.monthOfPeriod({ kind: "custom", from: "2026-11-01", to: "2026-12-05" }, TODAY), V.periodOf("month", TODAY));
+  // the chip «12.10 – 18.10» (the year only when the range leaves the year of today)
+  assert.equal(V.rangeChipText({ from: "2026-10-12", to: "2026-10-18" }, TODAY), "12.10 – 18.10");
+  assert.equal(V.rangeChipText({ from: "2025-12-20", to: "2026-01-05" }, TODAY), "20.12.2025 – 05.01.2026");
+  assert.equal(V.isCurrentMonth(V.periodOf("month", TODAY), TODAY), true);
+  assert.equal(V.isCurrentMonth(V.periodOf("month", "2026-09-10"), TODAY), false);
+  assert.equal(V.isCurrentMonth({ kind: "custom", from: "2026-10-01", to: "2026-10-21" }, TODAY), false, "a custom range is not «the month»");
 
   assert.equal(V.validatePeriod({ kind: "custom", from: "2026-10-10", to: "2026-10-09" }), "Конец периода раньше начала");
   assert.equal(V.validatePeriod({ kind: "custom", from: "2025-01-01", to: "2026-10-09" }), "Период не длиннее года");
@@ -126,21 +126,18 @@ test("period: day / week (from a Monday) / month / custom, arrows step by the le
   assert.equal(V.validatePeriod({ kind: "custom", from: "2025-10-09", to: "2026-10-09" }), null); // 366 days
 });
 
-test("period titles read like a person: «Сегодня, 21 октября» · «19–25 октября» · «Октябрь 2026 г.»", () => {
-  assert.equal(V.periodTitle(V.periodOf("day", TODAY), TODAY), "Сегодня, 21 октября");
-  assert.equal(V.periodTitle(V.periodOf("day", "2026-10-20"), TODAY), "Вчера, 20 октября");
-  assert.equal(V.periodTitle(V.periodOf("day", "2025-12-31"), TODAY), "31 декабря 2025");
-  assert.equal(V.periodTitle(V.periodOf("week", TODAY), TODAY), "19–25 октября");
-  assert.equal(V.periodTitle(V.periodOf("week", "2026-09-30"), TODAY), "28 сентября – 4 октября");
-  assert.equal(V.periodTitle(V.periodOf("week", "2026-12-30"), TODAY), "28 декабря 2026 – 3 января 2027");
-  assert.equal(V.periodTitle(V.periodOf("month", TODAY), TODAY), "Октябрь 2026 г.");
-  assert.equal(V.periodTitle({ kind: "custom", from: "2026-10-01", to: "2026-10-21" }, TODAY), "01.10.2026 — 21.10.2026");
+test("the title between the arrows: «Октябрь 2026 г.»; the dead day / week titles are gone", () => {
+  assert.equal(V.periodTitle(V.periodOf("month", TODAY)), "Октябрь 2026 г.");
+  assert.equal(V.periodTitle({ kind: "custom", from: "2026-10-01", to: "2026-10-21" }), "01.10.2026 — 21.10.2026");
+  assert.equal(V.mondayOf, undefined);
 });
 
 test("queries: the kind is sent to the server; filters only when set; the journal of a clicked day; export has no page", () => {
   const month = V.periodOf("month", TODAY);
   assert.deepEqual(V.overviewQuery(month, V.NO_FILTERS), { from: "2026-10-01", to: "2026-10-31", period: "month" });
-  assert.deepEqual(V.overviewQuery(V.periodOf("week", TODAY), { method: "cash", groupId: "g1", teacherId: "t1" }), { from: "2026-10-19", to: "2026-10-25", period: "week", method: "cash", group_id: "g1", teacher_id: "t1" });
+  // the overview never takes the method (the donut shows every method); the method narrows only the journal
+  assert.deepEqual(V.overviewQuery(month, { method: "cash", groupId: "g1", teacherId: "t1" }), { from: "2026-10-01", to: "2026-10-31", period: "month", group_id: "g1", teacher_id: "t1" });
+  assert.deepEqual(V.overviewQuery(V.periodOf("day", TODAY), V.NO_FILTERS), { from: TODAY, to: TODAY, period: "day" }); // the till of today
   assert.equal(V.overviewQuery({ kind: "custom", from: "2026-10-01", to: "2026-10-09" }, V.NO_FILTERS).period, "custom");
 
   assert.deepEqual(V.journalQuery(month, null, V.NO_FILTERS, V.NO_JOURNAL_EXTRAS), { from: "2026-10-01", to: "2026-10-31", page: 1, size: 25 });
@@ -274,23 +271,176 @@ test("chart: a bar per day with the sum and the count; the tallest is 100; a cli
   assert.equal(V.focusBucket(null, o), null);
 });
 
-// ── «Касса по способам» ─────────────────────────────────────────────────────────────────────────
+// ── «Чем платили»: the donut ─────────────────────────────────────────────────────────────────
 
-test("till by method: only the methods that took money; «должно быть в кассе» on the cash row of a day", () => {
-  const month = V.methodRows(overview("I01_income_month_october"));
-  assert.deepEqual(month.map((m) => [m.label, m.amount, m.count, m.hint]), [["Click", 1250000, 1, null], ["Наличные", 950000, 4, null], ["Перевод", 900000, 1, null], ["Карта", 350000, 1, null]]);
-  const day = V.methodRows(overview("I02_income_day_today_cash"));
-  assert.equal(day.length, 1);
-  assert.equal(plain(day[0].hint), "должно быть в кассе 150 000 сум");
-  assert.equal(plain(day[0].hintNote), "принято 250 000 сум, возвращено 100 000 сум");
-  // with another method chosen the till is still known: it stands on its own, without a «0 сум · 0 оплат» row of figures
-  const o = overview("I02_income_day_today_cash");
-  const card = V.methodRows({ ...o, by_method: [{ method: "card", label: "Карта", amount: 100000, count: 1 }] });
-  assert.deepEqual(card.map((m) => m.method), ["card", "cash"]);
-  assert.equal(card[1].count, 0);
-  // a method with zero in zero is not listed
-  assert.equal(V.methodRows({ ...o, by_method: [{ method: "payme", label: "Payme", amount: 0, count: 0 }], cash: null }).length, 0);
-  assert.equal(V.methodRows({ ...o, cash: { ...o.cash, expected: 0, cash_refunded: 0 }, by_method: [] }).length, 0);
+const SPEC_METHODS = [
+  { method: "cash", label: "Наличные", amount: 235000, count: 1 },
+  { method: "card", label: "Карта", amount: 3000000, count: 8 },
+  { method: "bank_transfer", label: "Перевод", amount: 2650000, count: 6 },
+  { method: "click", label: "Click", amount: 2000000, count: 4 },
+];
+
+test("donut geometry: the angles add up to 360 and are contiguous; a single method is a full ring; a method with no money is not drawn", () => {
+  const segments = V.methodSegments(SPEC_METHODS);
+  assert.equal(segments.length, 4);
+  assert.ok(Math.abs(segments.reduce((acc, seg) => acc + seg.sweep, 0) - 360) < 1e-9, "sweeps add up to 360");
+  assert.equal(segments[0].start, 0);
+  assert.equal(segments[3].end, 360);
+  for (let i = 1; i < segments.length; i++) assert.equal(segments[i].start, segments[i - 1].end, "no gap, no overlap");
+  assert.ok(Math.abs(segments[0].sweep - (3000000 * 360) / 7885000) < 1e-9, "the angle is the share of the sum");
+  // one method: the whole ring (not an arc whose ends coincide)
+  const single = V.methodSegments([{ method: "cash", label: "Наличные", amount: 500000, count: 2 }]);
+  assert.equal(single.length, 1);
+  assert.equal(single[0].sweep, 360);
+  assert.equal(V.isFullRing(single[0]), true);
+  assert.equal(V.isFullRing(segments[0]), false);
+  // zero (and a refund taking it below zero) is not shown; nothing at all → no donut
+  const zero = V.methodSegments([{ method: "cash", label: "Наличные", amount: 100, count: 1 }, { method: "payme", label: "Payme", amount: 0, count: 0 }, { method: "other", label: "Другое", amount: -5, count: 1 }]);
+  assert.deepEqual(zero.map((seg) => seg.method), ["cash"]);
+  assert.deepEqual(V.methodSegments([{ method: "payme", label: "Payme", amount: 0, count: 0 }]), []);
+  assert.deepEqual(V.methodSegments([]), []);
+  assert.deepEqual(V.methodSegments(null), []);
+  // an arc: a quarter of the ring from twelve o'clock goes to three o'clock; more than half uses the large-arc flag
+  assert.equal(V.arcPath(90, 90, 70, 0, 90), "M 90.000 20.000 A 70 70 0 0 1 160.000 90.000");
+  assert.match(V.arcPath(90, 90, 70, 0, 200), /A 70 70 0 1 1/);
+  // the colours: every known method has its own, «Способ не указан» is slate-300
+  const colors = ["cash", "card", "bank_transfer", "click", "payme", "other", "unknown"].map((key) => V.METHOD_COLOR[key].dot);
+  assert.equal(new Set(colors).size, 7);
+  assert.deepEqual(colors, ["bg-emerald-500", "bg-blue-500", "bg-violet-500", "bg-sky-400", "bg-cyan-600", "bg-amber-500", "bg-slate-300"]);
+});
+
+test("legend: the biggest sum first, shares add up to 100, the centre says the total and the number of payments, the tooltip has the four facts", () => {
+  const segments = V.methodSegments(SPEC_METHODS);
+  assert.deepEqual(segments.map((seg) => [seg.label, seg.percent, seg.percentText]), [["Карта", 38, "38%"], ["Перевод", 34, "34%"], ["Click", 25, "25%"], ["Наличные", 3, "3%"]]);
+  assert.equal(segments.reduce((acc, seg) => acc + seg.percent, 0), 100);
+  const total = V.methodsTotal(segments);
+  assert.equal(plain(total.amountText), "7 885 000 сум");
+  assert.equal(plain(total.countText), "19 оплат");
+  const cash = segments.find((seg) => seg.method === "cash");
+  assert.equal(plain(V.methodTooltip(cash)), "Наличные · 235 000 сум · 1 оплата · 3%");
+  assert.equal(plain(V.methodTooltip(segments[0])), "Карта · 3 000 000 сум · 8 оплат · 38%");
+  // a method under one percent never reads «0%»
+  const tiny = V.methodSegments([{ method: "cash", label: "Наличные", amount: 1, count: 1 }, { method: "card", label: "Карта", amount: 1000000, count: 9 }]);
+  assert.equal(tiny.find((seg) => seg.method === "cash").percentText, "<1%");
+  assert.equal(tiny.reduce((acc, seg) => acc + seg.percent, 0), 100);
+  // ties keep the order of the methods of the form; a label missing from the server says «Способ не указан»
+  assert.deepEqual(V.methodSegments([{ method: "card", label: "Карта", amount: 5, count: 1 }, { method: "cash", label: "Наличные", amount: 5, count: 1 }]).map((seg) => seg.method), ["cash", "card"]);
+  assert.equal(V.methodSegments([{ method: "unknown", label: "", amount: 5, count: 1 }])[0].label, "Способ не указан");
+  assert.equal(V.methodChipLabel("cash", SPEC_METHODS), "Наличные");
+  assert.equal(V.methodChipLabel("payme", []), "Payme");
+  assert.equal(V.methodChipLabel("unknown", []), "Способ не указан");
+});
+
+test("click-to-filter at the state level: a click chooses the method for the journal only, the same one again clears it, the overview never takes it", () => {
+  assert.equal(V.toggleMethod("", "cash"), "cash");
+  assert.equal(V.toggleMethod("cash", "cash"), "");
+  assert.equal(V.toggleMethod("cash", "card"), "card");
+  const month = V.periodOf("month", TODAY);
+  const chosen = { method: V.toggleMethod("", "cash"), groupId: "", teacherId: "" };
+  assert.equal(V.journalQuery(month, null, chosen, V.NO_JOURNAL_EXTRAS).method, "cash");
+  assert.equal("method" in V.journalQuery(month, null, { ...chosen, method: V.toggleMethod("cash", "cash") }, V.NO_JOURNAL_EXTRAS), false);
+  assert.equal("method" in V.overviewQuery(month, chosen), false, "the donut keeps showing every method");
+  // the page: the chip above the journal clears it, a new period / group drops it, the old select is gone
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /toggleMethod\(filters\.method, method\)/);
+  assert.match(page, /onClearMethod=\{\(\) => \{ setFilters\(\(state\) => \(\{ \.\.\.state, method: "" \}\)\); setPage\(1\); \}\}/);
+  assert.match(page, /const changeFilters = \(next: IncomeFilters\) => \{ setFilters\(\{ \.\.\.next, method: "" \}\)/);
+  assert.match(page, /const changePeriod = \(next: Period\) => \{ setPeriod\(next\); setFilters\(\(state\) => \(\{ \.\.\.state, method: "" \}\)\)/);
+  assert.doesNotMatch(page, /Все способы|methodOptions|<select/);
+  assert.equal(V.methodFilterOptions, undefined);
+  assert.equal(V.hasUnknownMethod, undefined);
+  assert.equal(V.methodRows, undefined);
+  // the chip on the journal
+  const { React, text, html, J } = parts();
+  const data = journal("J03_journal_cash");
+  const base = { journal: data, loading: false, error: null, onRetry: () => {}, search: "", onSearch: () => {}, createdBy: "", onCreatedBy: () => {}, authors: [], focusLabel: null, onClearFocus: () => {}, empty: { kind: "month", focusLabel: null, narrowed: true }, onResetNarrowing: () => {}, onPage: () => {}, onExport: () => {}, exporting: false, activeId: null, onOpen: () => {} };
+  assert.ok(!html(React.createElement(J.JournalSection, base)).includes("journal-method"));
+  const withChip = React.createElement(J.JournalSection, { ...base, methodLabel: "Наличные", onClearMethod: () => {} });
+  assert.match(text(withChip), /Наличные/);
+  assert.match(html(withChip), /data-testid="journal-method"[^>]*>Наличные<button[^>]*aria-label="Показать все способы"/);
+});
+
+test("the donut on screen: buttons with aria-labels, the total in the centre, the legend, the chosen one pressed; a single method is a full circle", () => {
+  const { React, text, html, P } = parts();
+  const o = { ...overview("I01_income_month_october"), by_method: SPEC_METHODS };
+  const view = (extra = {}) => React.createElement(P.MethodsDonut, { overview: o, ...extra });
+  const body = text(view());
+  for (const piece of ["Чем платили", "7 885 000 сум", "19 оплат", "Карта", "3 000 000 сум", "38%", "Перевод", "Click", "Наличные", "235 000 сум", "3%"]) assert.ok(body.includes(piece), piece);
+  assert.ok(!body.includes("Касса по способам") && !body.includes("Все способы"));
+  const markup = plain(html(view()));
+  assert.equal((markup.match(/data-testid="method-segment"/g) || []).length, 4);
+  assert.equal((markup.match(/data-testid="method-legend-row"/g) || []).length, 4);
+  assert.match(markup, /aria-label="Наличные · 235 000 сум · 1 оплата · 3%\. Показать оплаты"/);
+  assert.equal((markup.match(/role="button"/g) || []).length, 4, "the segments are buttons");
+  assert.ok(markup.indexOf('data-method="card"') < markup.indexOf('data-method="cash"'), "ordered by amount");
+  assert.equal((markup.match(/aria-pressed="true"/g) || []).length, 0);
+  assert.equal((markup.match(/aria-pressed="true"/g) || plain(html(view({ selected: "cash" }))).match(/aria-pressed="true"/g)).length, 2, "the chosen method is pressed in the ring and in the legend");
+  // ordering of the legend dots
+  assert.ok(markup.indexOf("bg-blue-500") < markup.indexOf("bg-emerald-500"));
+  // a single method: a whole ring (a circle), no arcs
+  const one = html(React.createElement(P.MethodsDonut, { overview: { ...o, by_method: [SPEC_METHODS[0]] } }));
+  assert.equal((one.match(/data-testid="method-segment"/g) || []).length, 1);
+  assert.match(one, /<circle[^>]*data-testid="method-segment"/);
+  assert.doesNotMatch(one, /<path/);
+  // nothing taken: no card
+  assert.equal(html(React.createElement(P.MethodsDonut, { overview: { ...o, by_method: [] } })), "");
+  // the focus / hover handlers are on both the ring and the legend (a tap focuses a button)
+  const src = read("src/components/payments/income-parts.tsx");
+  assert.match(src, /onFocus: \(\) => setHover\(method\)/);
+  assert.match(src, /onMouseEnter: \(\) => setHover\(method\)/);
+  assert.equal((src.match(/\.\.\.hoverProps\(/g) || []).length, 2);
+});
+
+test("«Сегодня наличными»: one quiet line on the current month only; hidden when the request failed; «оплат не было» instead of 0", () => {
+  const day = overview("I02_income_day_today_cash");
+  const line = V.cashTodayLine(day.cash);
+  assert.equal(plain(line.text), "Сегодня наличными: 150 000 сум — столько должно быть в кассе");
+  assert.equal(plain(line.note), "принято 250 000 сум, возвращено 100 000 сум");
+  assert.equal(V.cashTodayLine(null), null, "the request failed / no block: no line");
+  assert.equal(V.cashTodayLine(undefined), null);
+  assert.deepEqual(V.cashTodayLine({ expected: 0, cash_received: 0, cash_refunded: 0 }), { text: "Сегодня наличными оплат не было", note: null }, "never «0 сум»");
+  assert.equal(plain(V.cashTodayLine({ expected: 0, cash_received: 100000, cash_refunded: 100000 }).text), "Сегодня наличными: 0 сум — столько должно быть в кассе", "a refund took it back to zero: the figure is real");
+  assert.equal(V.cashTodayLine({ expected: 235000, cash_received: 235000, cash_refunded: 0 }).note, null);
+  // on screen
+  const { React, text, html, P } = parts();
+  const o = { ...overview("I01_income_month_october"), by_method: SPEC_METHODS };
+  assert.ok(!html(React.createElement(P.MethodsDonut, { overview: o })).includes("cash-today"), "no line without the till");
+  const withCash = text(React.createElement(P.MethodsDonut, { overview: o, cashToday: { ...day.cash, expected: 235000, cash_received: 235000, cash_refunded: 0 } }));
+  assert.ok(withCash.includes("Сегодня наличными: 235 000 сум — столько должно быть в кассе"));
+  assert.ok(text(React.createElement(P.MethodsDonut, { overview: o, cashToday: { ...day.cash, expected: 0, cash_received: 0, cash_refunded: 0 } })).includes("Сегодня наличными оплат не было"));
+  // the page: ONE request for today (period=day, no filters), only on the current month; the answer is not shown elsewhere
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /const cashWanted = !blocked && isCurrentMonth\(period, today\);/);
+  assert.match(page, /overviewQuery\(periodOf\("day", today\), \{ groupId: "", teacherId: "" \}\)/);
+  assert.match(page, /cashToday=\{cashWanted \? cashToday : null\}/);
+  assert.match(page, /\.catch\(\(\) => \{ if \(live\) setCashToday\(null\); \}\)/);
+  assert.equal((page.match(/getIncomeOverview\(/g) || []).length, 2, "the overview and the till of today, nothing else");
+});
+
+test("softer numbers: semibold (not bold), tabular, tight; neutral slate-800, debt rose-600, advance emerald-600; money stays right-aligned", () => {
+  const { React, html, P, J } = parts();
+  const o = overview("I01_income_month_october");
+  assert.equal(P.ACCENT, "mt-1 text-2xl font-semibold leading-8 tabular-nums tracking-tight");
+  const markup = plain(html(React.createElement(P.IncomeCards, { overview: o, paymentsBase: "/owner/payments" })));
+  assert.equal((markup.match(/font-semibold leading-8 tabular-nums tracking-tight/g) || []).length, 4, "four big numbers");
+  assert.ok(!/font-(bold|extrabold)/.test(markup), "nothing shouts");
+  assert.match(markup, /tracking-tight text-slate-800">3 450 000/);
+  assert.match(markup, /tracking-tight text-rose-600">500 000/);
+  assert.match(markup, /tracking-tight text-emerald-600">450 000/);
+  assert.doesNotMatch(markup, /text-slate-900|text-rose-700|text-emerald-700">\d/);
+  // «Куда ушли деньги» and the journal amounts are font-medium
+  const flow = plain(html(React.createElement(P.FlowLine, { overview: o })));
+  assert.match(flow, /font-medium tabular-nums tracking-tight text-slate-800">1 000 000/);
+  assert.doesNotMatch(flow, /font-semibold tabular-nums/);
+  const list = html(React.createElement(J.JournalList, { rows: journal("J04_journal_voided_and_replaced").rows, withYear: false, activeId: null, onOpen: () => {} }));
+  assert.match(list, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4/);
+  assert.ok(!/text-sm font-semibold tabular-nums/.test(list));
+  // contrast of the lighter colours on white: rose-600 and emerald-600 on 24 px (large) text
+  const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+  assert.ok(ratio("#e11d48", "#ffffff") >= 4.5, "rose-600");
+  assert.ok(ratio("#059669", "#ffffff") >= 3, "emerald-600, large text");
+  assert.ok(ratio("#1e293b", "#ffffff") >= 12, "slate-800");
 });
 
 // ── the groups' collection ──────────────────────────────────────────────────────────────────────
@@ -396,17 +546,17 @@ test("the month on screen: the sentence of the server, four cards, one line, the
   const view = (extra = {}) => React.createElement(P.IncomeOverviewView, { overview: o, today: TODAY, paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {}, ...extra });
   const body = text(view());
   for (const piece of [
-    "За октябрь пришло 3 450 000 сум — на 130% больше, чем за 1–21 сентября. Собрано 76% стоимости месяца.",
     "Поступило", "3 450 000 сум", "▲ 130% к 1–21 сентября", "7 оплат",
     "Собрано за месяц", "1 900 000 сум", "из 2 500 000 сум · 76%",
     "Долг на сегодня", "500 000 сум", "3 ученика", "Должники",
     "Аванс", "450 000 сум", "2 ученика оплатили вперёд",
     "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "на текущие периоды", "55%", "в аванс", "13%", "возвращено", "3%", "Сходится", "Прощено долгов: 100 000 сум",
-    "Пришло по дням", "Касса по способам", "Click", "1 250 000 сум", "Наличные", "4 оплаты", "Перевод", "Карта",
+    "Пришло по дням", "Чем платили", "Click", "1 250 000 сум", "Наличные", "Перевод", "Карта", "36%", "28%",
   ]) assert.ok(body.includes(piece), piece);
   assert.ok(!body.includes("NaN") && !body.includes("undefined") && !body.includes("null"));
-  {const rest=body.replace(plain(o.summary_text), "");const m=/(^|\s)—(\s|$)/.exec(rest);assert.ok(!m, "dash: "+(m&&rest.slice(m.index-40,m.index+40)));}
-  assert.ok(!body.includes("должно быть в кассе")); // the till hint is a day's
+  assert.ok(!body.includes("За октябрь пришло") && !html(view()).includes("income-summary"), "the sentence of the server is not shown");
+  {const m=/(^|\s)—(\s|$)/.exec(body);assert.ok(!m, "dash: "+(m&&body.slice(m.index-40,m.index+40)));}
+  assert.ok(!body.includes("должно быть в кассе") && !body.includes("Сегодня наличными")); // the till of today is the page's own request
   const markup = html(view());
   assert.ok(!markup.includes("<table") && !markup.includes('role="table"'));
   assert.ok(!body.includes("По преподавателям") && !body.includes("По дням"));
@@ -420,10 +570,11 @@ test("the month on screen: the sentence of the server, four cards, one line, the
   assert.match(html(view({ activeBucket: "2026-10-07" })), /aria-pressed="true"/);
 });
 
-test("a day: three cards (no «Собрано за месяц»), no chart, the till says how much cash must be in the box; a week: three cards and the chart", () => {
+test("a day answer (the shape the till of today asks for): three cards (no «Собрано за месяц»), no chart, the donut; a week: three cards and the chart", () => {
   const { React, text, html, P } = parts();
   const day = text(React.createElement(P.IncomeOverviewView, { overview: overview("I02_income_day_today_cash"), today: TODAY, paymentsBase: "/admin/payments", activeBucket: null, onPick: () => {} }));
-  for (const piece of ["Сегодня пришло 250 000 сум; вчера оплат не было.", "Вчера оплат не было", "2 оплаты", "Касса по способам", "должно быть в кассе 150 000 сум", "принято 250 000 сум, возвращено 100 000 сум", "Сходится"]) assert.ok(day.includes(piece), piece);
+  for (const piece of ["Вчера оплат не было", "2 оплаты", "Чем платили", "Сходится"]) assert.ok(day.includes(piece), piece);
+  assert.ok(!day.includes("Сегодня пришло") && !day.includes("должно быть в кассе"), "no sentence, and the till of today is not in the overview view");
   assert.ok(!day.includes("Собрано за месяц") && !day.includes("Пришло по дням"));
   const weekMarkup = html(React.createElement(P.IncomeOverviewView, { overview: overview("I03_income_week"), today: TODAY, paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
   const week = plain(weekMarkup.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
@@ -431,13 +582,13 @@ test("a day: three cards (no «Собрано за месяц»), no chart, the 
   assert.match(weekMarkup, /sm:grid-cols-2 xl:grid-cols-3/);
 });
 
-test("a quiet period: the sentence and the cards, no chart, no line of shares, no till; the zero is said in words", () => {
+test("a quiet period: the cards, no chart, no line of shares, no till; the zero is said in words", () => {
   const { React, text, P } = parts();
   const o = overview("I02_income_day_today_cash");
-  const quiet = { ...o, summary_text: "Сегодня оплат не было; вчера оплат не было.", current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debt_total: 0, students_with_debt: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
+  const quiet = { ...o, current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debt_total: 0, students_with_debt: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
   const body = text(React.createElement(P.IncomeOverviewView, { overview: quiet, today: TODAY, paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
-  for (const piece of ["Сегодня оплат не было", "оплат не было", "Долгов нет", "Авансов нет"]) assert.ok(body.includes(piece), piece);
-  for (const absent of ["Куда ушли деньги", "Касса по способам", "Пришло по дням", "Должники"]) assert.ok(!body.includes(absent), absent);
+  for (const piece of ["Оплат не было", "Долгов нет", "Авансов нет"]) assert.ok(body.includes(piece), piece);
+  for (const absent of ["Куда ушли деньги", "Чем платили", "Пришло по дням", "Должники"]) assert.ok(!body.includes(absent), absent);
   assert.ok(body.includes("Сходится") === false); // the mark lives with the line; nothing to reconcile in an empty day
   // but a mismatch is never hidden
   const broken = { ...quiet, ok: false, checks: [{ code: "received_eq_journal", left: 0, right: 1000, diff: -1000 }] };
@@ -469,7 +620,7 @@ test("the journal on screen: compact rows, cancelled ones grey with «отмен
   assert.match(markup, /aria-haspopup="dialog"/);
   // money is right-aligned and the date centred in the table; one markup, the grid decides
   assert.match(markup, /md:text-center/);
-  assert.match(markup, /text-right text-sm font-semibold tabular-nums md:col-start-4/);
+  assert.match(markup, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4/);
   assert.match(markup, /md:grid-cols-\[6\.5rem_/);
 });
 
@@ -521,20 +672,73 @@ test("the journal section: search and filters, the focus chip, pages; empty and 
 test("the groups' collection on screen: worst first, bars, a row is a link to «Должники» of the group; one table, not two", () => {
   const { React, text, html, C } = parts();
   const o = overview("I01_income_month_october");
-  const el = React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments" });
+  const el = React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", caption: V.collectionCaption(V.periodOf("month", TODAY), TODAY) });
   const body = text(el);
-  for (const piece of ["Группа (преподаватель)", "Стоимость за месяц", "Оплачено", "Собрано", "Долг", "С долгом за месяц", "Математика 9А", "Пётр Иванов", "73%", "1 100 000 сум", "300 000 сум", "Всего", "76%"]) assert.ok(body.includes(piece), piece);
+  for (const piece of ["Октябрь 2026 · по группам", "Группа", "Стоимость", "Оплачено", "Собрано", "Долг", "Должников", "Математика 9А", "Пётр Иванов", "73%", "1 100 000 сум", "300 000 сум", "Всего", "76%"]) assert.ok(body.includes(piece), piece);
   assert.ok(body.indexOf("Математика 9А") < body.indexOf("Английский 7Б") && body.indexOf("Английский 7Б") < body.indexOf("Физика 10В"));
   const markup = html(el);
   assert.match(markup, /href="\/owner\/payments\?bucket=debt&amp;group_id=group%3AA"/);
   assert.equal((markup.match(/role="progressbar"/g) || []).length, 4); // three groups and the total
   assert.equal((markup.match(/data-testid="collection-row"/g) || []).length, 3);
-  // a group without a debt says it in words, not with a dash
+  // a group without a debt says it with a quiet green tick, not «нет» or a dash
   const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, students_with_debt: 0, pct: 100, paid: 1500000 }] };
   const quiet = text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/admin/payments" }));
-  assert.ok(quiet.includes("нет") && !/(^|\s)—(\s|$)/.test(quiet));
+  assert.ok(quiet.includes("✓ оплачено") && !/(^|\s)нет(\s|$)/.test(quiet) && !/(^|\s)—(\s|$)/.test(quiet));
   // a month without groups
   assert.ok(text(React.createElement(C.CollectionTable, { collection: { ...o.collection, groups: [] }, paymentsBase: "/owner/payments" })).includes("В этом месяце в группах ничего не начислено"));
+});
+
+test("collection table: one-line headers (no «за месяц»), the caption, alignment per column, ✓ оплачено and a muted 0, the ⓘ of «Стоимость»", () => {
+  const { React, text, html, C } = parts();
+  const o = overview("I01_income_month_october");
+  const month = V.periodOf("month", TODAY);
+  assert.equal(V.collectionCaption(month, TODAY), "Октябрь 2026 · по группам");
+  assert.equal(V.collectionCaption({ kind: "custom", from: "2026-10-12", to: "2026-10-18" }, TODAY), "12.10–18.10 · по группам");
+  const el = React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", caption: V.collectionCaption(month, TODAY) });
+  const markup = plain(html(el));
+  assert.match(markup, /data-testid="collection-caption"[^>]*>Октябрь 2026 · по группам/);
+  // the headers: the six short words, each a single-line span
+  const head = /data-testid="collection-head">(.*?)<\/div>/s.exec(markup)[1];
+  const headText = text(React.createElement("div", { dangerouslySetInnerHTML: { __html: head } }));
+  for (const word of ["Группа", "Стоимость", "Оплачено", "Собрано", "Долг", "Должников"]) assert.ok(headText.includes(word), word);
+  assert.ok(!/за месяц|С долгом|\(преподаватель\)/.test(headText), headText);
+  assert.match(markup, /whitespace-nowrap/);
+  // money columns right, «Должников» centred, the header like its cells
+  for (const col of ["charged", "paid", "debt"]) assert.match(head, new RegExp(`data-col="${col}" class="text-right"`), `${col} header`);
+  assert.match(head, /data-col="debtors" class="text-center"/);
+  assert.match(head, /data-col="group">Группа<\/span>/);
+  for (const col of ["charged", "paid", "debt"]) assert.match(markup, new RegExp(`data-col="${col}" class="flex [^"]*md:text-right`), `${col} cells`);
+  assert.match(markup, /data-col="debtors" class="flex [^"]*md:text-center/);
+  assert.ok(!/data-col="debtors" class="flex [^"]*md:text-right/.test(markup));
+  // the cell labels on a phone are the same short words
+  const cards = text(el);
+  assert.ok(!cards.includes("Стоимость за месяц") && !cards.includes("Долг за месяц") && !cards.includes("С долгом за месяц"));
+  // softer numbers: font-medium money, the debt in rose-600
+  assert.match(markup, /font-medium text-rose-600">300 000/);
+  assert.ok(!/font-semibold tabular-nums|text-rose-700/.test(markup));
+  // the ⓘ is the shared Hint (hover, focus, a tap, Escape) with the same text for a screen reader; the header cell has it as a title too
+  assert.match(markup, /data-testid="collection-cost-info"[^>]*><span[^>]*role="button"[^>]*aria-describedby=[^>]*>.*?<span class="sr-only">Что значит «Стоимость»<\/span>/);
+  assert.ok((markup.match(/<span id="[^"]*" class="sr-only">Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца<\/span>/g) || []).length >= 1);
+  assert.match(markup, /data-col="charged" class="text-right" title="Сколько ученики группы/);
+  assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
+  assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
+  // debt 0 → ✓ оплачено (emerald-600, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
+  const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, students_with_debt: 0, pct: 100, paid: 1500000 }], total: { ...o.collection.total, debt: 0, students_with_debt: 0 } };
+  const cleanMarkup = html(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" }));
+  assert.equal((cleanMarkup.match(/data-testid="collection-paid"/g) || []).length, 2, "the row and the total follow the same rule");
+  assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-600" data-testid="collection-paid">✓ оплачено<\/span>/);
+  assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="text-xs text-slate-400 md:hidden">Должников<\/span><span class="tabular-nums"><span class="text-slate-400">0<\/span>/);
+  assert.ok(!text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" })).includes(" нет"));
+  // nothing charged: no «оплачено» for a debt that never existed
+  const idle = { ...clean, groups: [{ ...clean.groups[0], charged: 0, paid: 0, pct: null }] };
+  assert.equal((html(React.createElement(C.CollectionTable, { collection: idle, paymentsBase: "/owner/payments" })).match(/data-testid="collection-paid"/g) || []).length, 1);
+  // the «*» marker and the title of the total «Должников» cell and the debt note stay
+  const src = read("src/components/payments/income-collection.tsx");
+  assert.match(src, /title=\{debtorsHint\?\.title\}/);
+  assert.match(src, /data-testid="collection-total-marker"/);
+  assert.match(src, /data-testid="collection-debt-note"/);
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /caption=\{collectionCaption\(period, today\)\}/);
 });
 
 // ── the screen's rules, read from the source ────────────────────────────────────────────────────
@@ -543,8 +747,9 @@ test("the page: «Поступления» v2 has the period bar, one table at a
   const page = read("src/components/payments/income-page.tsx");
   const parts_ = ["income-parts", "income-journal", "income-collection"].map((name) => read(`src/components/payments/${name}.tsx`)).join("\n");
   const all = `${page}\n${parts_}`;
-  assert.match(page, /role="tablist" aria-label="Период"/);
-  assert.match(page, /PERIOD_TABS\.map/);
+  assert.doesNotMatch(page, /aria-label="Период"|PERIOD_TABS|period-tabs|switchKind/, "no tab strip");
+  assert.match(page, /data-testid="period-custom"/);
+  assert.match(page, /data-testid="period-chip"/);
   assert.match(page, /orgApi\.getIncomeOverview\(/);
   assert.match(page, /orgApi\.getPaymentsJournal\(/);
   assert.match(page, /orgApi\.exportPaymentsJournal\(/);
@@ -564,7 +769,7 @@ test("the page: «Поступления» v2 has the period bar, one table at a
   // numbers only from the server: the page never adds money up
   assert.doesNotMatch(all, /\.reduce\([^)]*amount|\+ point\.received|\.received \+/);
   // the vocabulary
-  for (const word of ["Поступило", "Собрано за месяц", "Долг на сегодня", "Аванс", "Должники", "Куда ушли деньги", "Касса по способам", "Группы — собираемость"]) assert.ok(all.includes(word), word);
+  for (const word of ["Поступило", "Собрано за месяц", "Долг на сегодня", "Аванс", "Должники", "Куда ушли деньги", "Чем платили", "Группы — собираемость"]) assert.ok(all.includes(word), word);
   assert.doesNotMatch(all, /Начислено|Списано|Списать долг/);
   assert.doesNotMatch(all, /сальдо|дебет|кредит|проводк/i);
   // the hash link of «Оплаты» still lands on the debt card
@@ -600,29 +805,16 @@ test("the shared Modal has a `sheet` placement: a bottom sheet on a phone, the s
   assert.match(modal, /initial=\{slideUp \? \{ y: "100%" \} : \{ x: "100%" \}\}/);
 });
 
-test("no hover-only reveal: the tooltip of a bar appears by hover and by focus (a tap focuses the pressed bar)", () => {
+test("no hover-only reveal: the tooltip of a bar appears by hover and by focus (a tap focuses the pressed bar); the donut reacts to focus as well as hover", () => {
   const parts_ = read("src/components/payments/income-parts.tsx");
-  assert.doesNotMatch(parts_, /onMouseEnter|onMouseOver|onPointerEnter/);
-  assert.match(parts_, /opacity-0[^"`]*group-hover:opacity-100 group-focus-within:opacity-100/);
+  const chart = parts_.slice(parts_.indexOf("export function IncomeChart"), parts_.indexOf("// ── «Чем платили»"));
+  assert.doesNotMatch(chart, /onMouseEnter|onMouseOver|onPointerEnter/);
+  assert.match(chart, /opacity-0[^"`]*group-hover:opacity-100 group-focus-within:opacity-100/);
+  assert.match(parts_, /onFocus: \(\) => setHover\(method\)/);
 });
 
-test("INCOME-2 addendum: «Способ не указан» as a filter, «Кто внёс» from two authors, the Excel limit, the note of «Должники» of a group", () => {
+test("INCOME-2 addendum: «Кто внёс» from two authors, the Excel limit, the note of «Должники» of a group", () => {
   const o = overview("I01_income_month_october");
-  assert.equal(V.hasUnknownMethod(o), false);
-  assert.equal(V.hasUnknownMethod({ by_method: [...o.by_method, { method: "unknown", label: "Способ не указан", amount: 1, count: 1 }] }), true);
-  assert.equal(V.hasUnknownMethod(null), false);
-  const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /methodOptions\.map\(\(method\) => <option key=\{method\.key\} value=\{method\.key\}>/);
-  // the method filter lists only the methods of the period, the chosen one, and «Способ не указан» only when present
-  const keys = (rows, selected) => V.methodFilterOptions(rows, selected).map((m) => m.key);
-  const by = (method, amount, count) => ({ method, label: method, amount, count });
-  assert.deepEqual(keys([by("card", 50000, 2), by("cash", 100000, 3), by("payme", 0, 0)], ""), ["cash", "card"]); // METHODS order, a zero method dropped, no «Другое»
-  assert.deepEqual(keys([by("cash", 100000, 3)], "payme"), ["cash", "payme"]); // the chosen one never disappears
-  assert.deepEqual(keys([by("cash", 1, 1), by("unknown", 5, 1)], ""), ["cash", "unknown"]);
-  assert.deepEqual(keys([by("cash", 1, 1)], "unknown"), ["cash", "unknown"]);
-  assert.deepEqual(keys([by("other", 10, 1)], ""), ["other"]); // «Другое» only when it took money
-  assert.deepEqual(keys([], ""), []);
-  assert.deepEqual(keys(null, ""), []);
   assert.match(read("src/components/payments/income-journal.tsx"), /const showAuthors = authors\.length > 1;/);
   const { React, text, J } = parts();
   const data = journal("J03_journal_cash");
@@ -637,14 +829,13 @@ test("INCOME-2 addendum: «Способ не указан» as a filter, «Кт�
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/); // income3: the hint is the tooltip of line 1, not a third line
 });
 
-test("phone polish (stage walk 22.10): the status chip leaves the name line, the till count and the total tooltip", () => {
+test("phone polish (stage walk 22.10): the status chip leaves the name line and the total tooltip", () => {
   const journal = read("src/components/payments/income-journal.tsx");
   // the name has the whole first line of a card; the chip goes to row 3 under the amount on a phone and stays beside the name from md
   assert.match(journal, /col-start-1 row-start-1 min-w-0 truncate">\{view\.student\}/);
   assert.match(journal, /data-testid="journal-tag" className="col-start-2 row-start-3 [^"]*whitespace-nowrap[^"]*md:justify-self-auto"/);
   assert.match(journal, /contents text-sm font-medium md:col-start-2 md:flex/);
-  // «18 оплат» is one unit
-  assert.match(read("src/components/payments/income-parts.tsx"), /whitespace-nowrap text-xs text-slate-400">\{paymentsCountText\(row\.count\)\}/);
+  assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /\{paymentsCountText\(row\.count\)\}/);
   // the total row says why its number is smaller than the sum of the rows
   const collection = read("src/components/payments/income-collection.tsx");
   assert.match(collection, /debtorsHint=\{totalHint\}/);

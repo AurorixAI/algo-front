@@ -11,7 +11,7 @@ import {
   filteredTabCounts,
   narrowedTabSummary,
   type TabCounts,
-  debtReasonText,
+  debtReasonLine,
   formatDateRu,
   formatMoney,
   incomeHref,
@@ -471,7 +471,7 @@ function PaymentRow({
   const chip = moneyChip(row);
   const tone = STATUS_TONE_CLASS[chip.tone];
   const detail = statusDetail(row);
-  const reason = bucket === "debt" ? debtReasonText(row) : "";
+  const reason = bucket === "debt" ? debtReasonLine(row, chip.label) : "";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
   const price = priceOfRow(row);
   const tag = priceSourceTag(price);
@@ -527,7 +527,7 @@ function PaymentRow({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{chip.label}</span>
-            {bucket === "debt" && reason && reason !== chip.label && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
+            {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />
           </div>

@@ -138,7 +138,7 @@ test("the chart opens at the last day with money (else today, else the end) and 
   assert.equal(V.chartScrollLeft({ barRight: 800, viewWidth: 358, contentWidth: 806 }), 448);
   assert.equal(V.chartScrollLeft({ barRight: 300, viewWidth: 358, contentWidth: 300 }), 0, "nothing to scroll on a desktop");
   const src = read("src/components/payments/income-parts.tsx");
-  const chartSrc = src.slice(src.indexOf("export function IncomeChart"), src.indexOf("// ── «Касса по способам»"));
+  const chartSrc = src.slice(src.indexOf("export function IncomeChart"), src.indexOf("// ── «Чем платили»"));
   assert.match(chartSrc, /box\.scrollLeft = chartScrollLeft\(/);
   assert.doesNotMatch(chartSrc, /scrollIntoView/, "the page never jumps");
   assert.match(chartSrc, /\[days, focusIndex\]/); // again only for another set of days
@@ -190,17 +190,11 @@ test("«Куда пошли деньги»: «сум» after every amount, «з�
 
 // ── 6. the till ────────────────────────────────────────────────────────────────────────────────
 
-test("the till says the server's scope_text verbatim; without it the front's words as before", () => {
-  const day = overview("I02_income_day_today_cash");
-  const scoped = { ...day, cash: { ...day.cash, filtered_view: true, scope_text: "в кассе центра за 15 октября (все группы)" } };
-  const cash = V.methodRows(scoped, { groupId: "g1" }).find((row) => row.method === "cash");
-  assert.equal(plain(cash.hint), `в кассе центра за 15 октября (все группы): ${plain(P.formatMoney(day.cash.expected))}`);
-  assert.ok(V.cashHint({ expected: 5000, scope_text: "в кассе центра за сегодня (все группы)" }, true).startsWith("в кассе центра за сегодня (все группы): "));
-  assert.equal(V.cashHint({ expected: 5000, scope_text: "в кассе центра: 5 000 сум" }, true), "в кассе центра: 5 000 сум", "a text that already has the sum is not extended");
-  assert.equal(plain(V.cashHint({ expected: 5000, scope_text: null }, true)), "В кассе центра за сегодня (все группы): 5 000 сум");
-  assert.equal(plain(V.cashHint({ expected: 5000 }, false)), "должно быть в кассе 5 000 сум");
+test("the till of today reads only the server's `cash` block (normalised); the old scope_text stays in the contract", () => {
   const raw = fixture("I02_income_day_today_cash");
   assert.equal(V.normalizeOverview({ ...raw, cash: { ...raw.cash, scope_text: "в кассе центра за сегодня (все группы)" } }).cash.scope_text, "в кассе центра за сегодня (все группы)");
+  assert.equal(V.cashHint, undefined, "the per-method till hint is gone: the donut card has one line for it");
+  assert.equal(V.cashIsCentreWide, undefined);
 });
 
 // ── «Куда ушли деньги»: the kinds are the server's ─────────────────────────────────────────────
@@ -360,7 +354,7 @@ test("strip colours: «вперёд» is violet, clearly apart from «аванс
   assert.ok(!/teal/.test(read("src/lib/payments-income-v2.ts").slice(read("src/lib/payments-income-v2.ts").indexOf("FLOW_DOT"), read("src/lib/payments-income-v2.ts").indexOf("FLOW_DOT_UNKNOWN"))));
 });
 
-test("debt numbers: «Долг за месяц» header, and one quiet line under the total when the month's debt differs from «Долг на сегодня»", () => {
+test("debt numbers: «Долг» header, and one quiet line under the total when the month's debt differs from «Долг на сегодня»", () => {
   const { React, text, html } = parts();
   const C = require(path.join(root, "src/components/payments/income-collection.tsx"));
   const o = overview("I01_income_month_october");
@@ -373,9 +367,9 @@ test("debt numbers: «Долг за месяц» header, and one quiet line unde
   assert.match(html(el(total + 150000)), /data-testid="collection-debt-note"/);
   assert.ok(text(el(total + 150000)).includes("(с прошлыми месяцами)"));
   assert.ok(!html(el(total)).includes("collection-debt-note") && !html(el(undefined)).includes("collection-debt-note"));
-  assert.ok(text(el(total)).includes("Долг за месяц") && !/ Долг С долгом/.test(text(el(total))), "the column is «Долг за месяц»");
+  assert.ok(text(el(total)).includes("Долг") && !text(el(total)).includes("Долг за месяц"), "the column is «Долг»");
   const src = read("src/components/payments/income-collection.tsx");
-  assert.match(src, /<span className="text-right">Долг за месяц<\/span>/);
+  assert.match(src, /<span data-col="debt" className="text-right">Долг<\/span>/);
   assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data\?\.position\.debt_total \?\? null\}/);
 });
 
@@ -386,13 +380,23 @@ test("I07: «Журнал оплат пуст» is the normal secondary grey (sl
   assert.ok(contrast("#94a3b8", "#ffffff") < 4.5, "slate-400 was the defect");
 });
 
-test("phone tabs: «День / Неделя / Месяц / Период» below sm, the full «Свой период» from sm, the overflow container stays as a safety net", () => {
-  assert.deepEqual(V.PERIOD_TABS.map((t) => t.short), ["День", "Неделя", "Месяц", "Период"]);
-  assert.deepEqual(V.PERIOD_TABS.map((t) => t.label), ["День", "Неделя", "Месяц", "Свой период"]);
-  // 360 px: 4 tabs at text-xs in (360 - 2 × 16 gutter - 8 padding - 3 × 4 gap) / 4 = 77 px each; the widest short label at 12 px is ≈ 6 letters × 7 px + 2 × 6 px padding
-  const widest = Math.max(...V.PERIOD_TABS.map((t) => t.short.length));
-  assert.ok(widest * 7 + 12 <= (360 - 32 - 8 - 12) / 4, "fits at 360 px");
+test("the period bar: the month navigator and one «Свой период» button; no tab strip, no day / week UI", () => {
   const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /<span className="sm:hidden">\{short\}<\/span>\s*<span className="hidden sm:inline">\{label\}<\/span>/);
-  assert.match(page, /data-testid="period-tabs" className="flex max-w-full gap-1 overflow-x-auto/, "the safety net stays");
+  const bar = page.slice(page.indexOf("export function PeriodBar"), page.indexOf("function FiltersBar"));
+  assert.doesNotMatch(bar, /role="tablist"|PERIOD_TABS|type="date" aria-label=\{`Выбрать|Предыдущий день|Предыдущая неделя/);
+  assert.match(bar, /Свой период/);
+  assert.match(bar, /aria-label="Вернуться к месяцу"/); // the ✕ of the chip
+  assert.match(bar, /aria-label="С какого дня"/); // the existing custom-range picker
+  assert.match(bar, /aria-label="По какой день"/);
+  assert.match(bar, /rangeChipText\(period, today\)/);
+  assert.match(bar, /monthOfPeriod\(period, today\)/);
+  assert.match(page, /useState<Period>\(\(\) => periodOf\("month", formatBusinessDate\(\)\)\)/, "the page opens on the current month");
+  const { React, html } = parts();
+  const P = require(path.join(root, "src/components/payments/income-page.tsx"));
+  const month = html(React.createElement(P.PeriodBar, { period: V.periodOf("month", TODAY), today: TODAY, onChange() {} }));
+  assert.match(month, /data-testid="period-title"[^>]*>Октябрь 2026 г\./);
+  assert.ok(!month.includes("period-chip") && month.includes("Свой период") && !month.includes("Неделя") && !month.includes("День"));
+  const custom = html(React.createElement(P.PeriodBar, { period: { kind: "custom", from: "2026-10-12", to: "2026-10-18" }, today: TODAY, onChange() {} }));
+  assert.match(custom, /data-testid="period-chip"[^>]*>12\.10 – 18\.10<button[^>]*aria-label="Вернуться к месяцу"/);
+  assert.ok(!custom.includes("period-title"));
 });

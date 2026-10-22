@@ -254,8 +254,13 @@ const allTsx = walk("src");
 test("no component reveals content on mouse hover only: hover handlers have a focus / tap twin, hover-reveals have a focus twin", () => {
   const hoverHandlers = allTsx.filter((f) => /onMouseEnter|onMouseOver|onPointerEnter/.test(read(f)));
   // feature-lock: hover + focus + tap-to-pin;  hint: hover + focus + click / Enter pin
-  assert.deepEqual(hoverHandlers.sort(), ["src/components/ui/feature-lock.tsx", "src/components/ui/hint.tsx"]);
-  for (const f of hoverHandlers) {
+  // income-parts: the donut «Чем платили» — the hover only HIGHLIGHTS a segment and its legend line (nothing is revealed by hover alone): focus does the same, a tap / Enter chooses it
+  assert.deepEqual(hoverHandlers.sort(), ["src/components/payments/income-parts.tsx", "src/components/ui/feature-lock.tsx", "src/components/ui/hint.tsx"]);
+  const donut = read("src/components/payments/income-parts.tsx");
+  assert.match(donut, /onFocus: \(\) => setHover\(method\)/, "the donut: focus highlights too");
+  assert.match(donut, /onClick=\{\(\) => pick\(segment\.method\)\}/, "the donut: a tap chooses");
+  assert.match(donut, /event\.key === "Enter" \|\| event\.key === " "/, "the donut: the keyboard chooses");
+  for (const f of hoverHandlers.filter((name) => name !== "src/components/payments/income-parts.tsx")) {
     const src = read(f);
     assert.match(src, /onFocus[=:]/, `${f}: focus shows it too`);
     assert.match(src, /onClick[=:]/, `${f}: a tap shows it too`);

@@ -2,37 +2,38 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { saveBlobAs } from "@/lib/download";
 import {
   canStepForward,
+  collectionCaption,
   exportErrorText,
   exportQuery,
-  methodFilterOptions,
   focusBucket,
   incomeErrorText,
+  isCurrentMonth,
   journalIsQuiet,
   journalQuery,
+  methodChipLabel,
+  monthOfPeriod,
   NO_FILTERS,
-  NO_JOURNAL_EXTRAS,
   overviewQuery,
   periodOf,
-  PERIOD_TABS,
   periodTitle,
+  rangeChipText,
   stepPeriod,
-  switchKind,
+  toggleMethod,
   validatePeriod,
   type Bar,
+  type IncomeCash,
   type IncomeFilters,
-  type IncomeMethodRow,
   type IncomeOverview,
   type JournalExtras,
   type JournalRange,
   type JournalRow,
   type Period,
-  type PeriodKind,
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
 import { usePaymentsDirectory } from "@/lib/use-payments-directory";
@@ -58,8 +59,8 @@ interface Loaded<T> {
 const idle = <T,>(): Loaded<T> => ({ data: null, loading: true, error: null, denied: false });
 
 /**
- * «Поступления» v2: the answer first (a sentence and four cards), then the details — where the money went, the chart by
- * day, the till by method — and one table at a time below: the journal of payments or the groups' collection.  Every number
+ * «Поступления» v2: the answer first (four cards), then the details — where the money went, the chart by
+ * day, the donut «Чем платили» — and one table at a time below: the journal of payments or the groups' collection.  Every number
  * comes from the server (`/org/payments/income`, `/journal`).  Shared by /owner/payments/income and /admin/payments/income.
  */
 export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsHref: string; studentProfileBasePath: string }) {
@@ -78,11 +79,12 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
   // ── the overview ──
   const [overview, setOverview] = useState<Loaded<IncomeOverview>>(idle);
   const overviewRequests = useRef(createRequestSequence());
+  // The overview never takes the method: the donut always shows every method, the method (a click on it) narrows only the journal.
   const loadOverview = useCallback(async () => {
     const token = overviewRequests.current.next();
     setOverview((state) => ({ ...state, loading: true, error: null }));
     try {
-      const data = await orgApi.getIncomeOverview(overviewQuery(period, filters));
+      const data = await orgApi.getIncomeOverview(overviewQuery(period, { groupId: filters.groupId, teacherId: filters.teacherId }));
       if (!overviewRequests.current.isCurrent(token)) return;
       setOverview({ data, loading: false, error: null, denied: false });
     } catch (cause) {
@@ -90,7 +92,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
       const failure = incomeErrorText(cause);
       setOverview({ data: null, loading: false, error: failure.text, denied: failure.denied });
     }
-  }, [period, filters]);
+  }, [period, filters.groupId, filters.teacherId]);
 
   // ── the journal ──
   const [focus, setFocus] = useState<JournalRange | null>(null);
@@ -135,8 +137,9 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
 
   // Another period or another method / group / teacher is another set of payments: the narrowing of the old one is dropped.
   const resetNarrowing = () => { setFocus(null); setPage(1); setCreatedBy(""); };
-  const changePeriod = (next: Period) => { setPeriod(next); resetNarrowing(); };
-  const changeFilters = (next: IncomeFilters) => { setFilters(next); resetNarrowing(); };
+  // Another group / teacher is another donut: the method chosen on the old one is dropped with the rest.
+  const changeFilters = (next: IncomeFilters) => { setFilters({ ...next, method: "" }); resetNarrowing(); };
+  const changePeriod = (next: Period) => { setPeriod(next); setFilters((state) => ({ ...state, method: "" })); resetNarrowing(); };
 
   // ── tabs, the drawer, the chart ──
   const [requestedTab, setTab] = useState<Tab>("journal");
@@ -153,6 +156,27 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
     setTab("journal");
     if (!same) requestAnimationFrame(() => journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
+
+  // A click on a segment / a legend line of «Чем платили» narrows the journal to that method; the same one again clears it.
+  const pickMethod = (method: string) => {
+    const next = toggleMethod(filters.method, method);
+    setFilters((state) => ({ ...state, method: next }));
+    setPage(1);
+    setTab("journal");
+    if (next) requestAnimationFrame(() => journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
+  // «Сегодня наличными»: one light request for today (period=day, no filters: the till is the centre's), only on the current month.
+  const cashWanted = !blocked && isCurrentMonth(period, today);
+  const [cashToday, setCashToday] = useState<IncomeCash | null>(null);
+  useEffect(() => {
+    if (!cashWanted) return undefined;
+    let live = true;
+    orgApi.getIncomeOverview(overviewQuery(periodOf("day", today), { groupId: "", teacherId: "" }))
+      .then((data) => { if (live) setCashToday(data.cash ?? null); })
+      .catch(() => { if (live) setCashToday(null); });
+    return () => { live = false; };
+  }, [cashWanted, today]);
 
   // A link from «Оплаты» ("Долг учеников …") lands on the card of the debt.
   const landed = useRef(false);
@@ -177,15 +201,6 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
 
   const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || filters.groupId !== "" || filters.teacherId !== "";
   const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
-  // The methods of the period.  With a method chosen the server narrows `by_method` to it, so the list of the last unfiltered answer of the same period / group / teacher is kept: another method stays one click away.
-  const seenMethods = useRef<{ key: string; rows: IncomeMethodRow[] } | null>(null);
-  const methodOptions = useMemo(() => {
-    const data = overview.data;
-    const key = data ? `${data.period.from}|${data.period.to}|${filters.groupId}|${filters.teacherId}` : "";
-    if (data && filters.method === "") seenMethods.current = { key, rows: data.by_method };
-    const rows = filters.method !== "" && seenMethods.current && seenMethods.current.key === key ? [...seenMethods.current.rows, ...(data?.by_method ?? [])] : (data?.by_method ?? []);
-    return methodFilterOptions(rows, filters.method);
-  }, [overview.data, filters.method, filters.groupId, filters.teacherId]);
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
   const anyDenied = noRight || overview.denied || journal.denied;
@@ -201,7 +216,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
       </div>
 
       <PeriodBar period={period} today={today} onChange={changePeriod} />
-      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} methodOptions={methodOptions} />
+      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} />
       {periodProblem && <p role="alert" className="text-sm font-medium text-rose-700">{periodProblem}</p>}
 
       {anyDenied ? (
@@ -221,6 +236,9 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
                 scope={{ groupId: filters.groupId, teacherId: filters.teacherId }}
                 activeBucket={focusBucket(focus, overview.data)}
                 onPick={pickBar}
+                method={filters.method}
+                onPickMethod={pickMethod}
+                cashToday={cashWanted ? cashToday : null}
               />
             ) : null}
           </div>
@@ -245,7 +263,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
               <h2 className="text-sm font-semibold text-slate-800">Оплаты</h2>
             )}
             {tab === "groups" && collection ? (
-              <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data?.position.debt_total ?? null} />
+              <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data?.position.debt_total ?? null} caption={collectionCaption(period, today)} />
             ) : (
               <JournalSection
                 journal={journal.data}
@@ -259,6 +277,8 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
                 authors={journal.data?.authors ?? []}
                 focusLabel={focus?.label ?? null}
                 onClearFocus={() => { setFocus(null); setPage(1); }}
+                methodLabel={filters.method ? methodChipLabel(filters.method, overview.data?.by_method) : null}
+                onClearMethod={() => { setFilters((state) => ({ ...state, method: "" })); setPage(1); }}
                 empty={{ kind: period.kind, focusLabel: focus?.label ?? null, narrowed, year: today.slice(0, 4) }}
                 onResetNarrowing={() => { setSearch(""); setDebouncedSearch(""); setCreatedBy(""); setPage(1); setFilters(NO_FILTERS); }}
                 onPage={setPage}
@@ -278,55 +298,64 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
   );
 }
 
-/** «День / Неделя / Месяц / Свой период» with arrows. */
+/**
+ * The month navigator «‹ Октябрь 2026 г. ›» and one secondary button «Свой период».  A custom range is a chip «12.10 – 18.10 ✕» in place
+ * of the month; ✕ returns to the month.  The picker is two dates and «Показать».
+ */
 export function PeriodBar({ period, today, onChange }: { period: Period; today: string; onChange: (period: Period) => void }) {
-  const noun: Record<PeriodKind, string> = { day: "день", week: "неделя", month: "месяц", custom: "период" };
-  const prev = { day: "Предыдущий день", week: "Предыдущая неделя", month: "Предыдущий месяц", custom: "Предыдущий период" }[period.kind];
-  const next = { day: "Следующий день", week: "Следующая неделя", month: "Следующий месяц", custom: "Следующий период" }[period.kind];
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const custom = period.kind === "custom";
+  const draft: Period = { kind: "custom", from, to };
+  const problem = open ? validatePeriod(draft) : null;
+  const prev = custom ? "Предыдущий период" : "Предыдущий месяц";
+  const next = custom ? "Следующий период" : "Следующий месяц";
+  const openPicker = () => {
+    if (open) { setOpen(false); return; }
+    setFrom(period.from);
+    setTo(period.to <= today ? period.to : today);
+    setOpen(true);
+  };
+  const apply = () => {
+    if (validatePeriod(draft) !== null) return;
+    onChange(draft);
+    setOpen(false);
+  };
   return (
-    <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center" data-testid="income-period">
-      <div role="tablist" aria-label="Период" data-testid="period-tabs" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 md:w-fit">
-        {PERIOD_TABS.map(({ key, label, short }) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={period.kind === key}
-            onClick={() => onChange(switchKind(key, period, today))}
-            className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-medium transition-all sm:px-3.5 sm:text-sm md:flex-none ${period.kind === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            <span className="sm:hidden">{short}</span>
-            <span className="hidden sm:inline">{label}</span>
-          </button>
-        ))}
-      </div>
-      <div className="flex items-center justify-between gap-1 md:justify-start">
+    <div className="flex flex-wrap items-center gap-2" data-testid="income-period" onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
+      <div className="flex items-center gap-1">
         <button type="button" onClick={() => onChange(stepPeriod(period, -1))} aria-label={prev} title={prev} className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" aria-hidden /></button>
-        {period.kind === "custom" ? (
-          <div className="flex flex-wrap items-center justify-center gap-1.5">
-            <input type="date" aria-label="С какого дня" value={period.from} max={today} onChange={(event) => event.target.value && onChange({ ...period, from: event.target.value })} className={`${FIELD} py-2`} />
-            <span className="text-slate-400" aria-hidden>—</span>
-            <input type="date" aria-label="По какой день" value={period.to} max={today} onChange={(event) => event.target.value && onChange({ ...period, to: event.target.value })} className={`${FIELD} py-2`} />
-          </div>
-        ) : period.kind === "day" ? (
-          <input type="date" aria-label={`Выбрать ${noun.day}`} value={period.from} max={today} onChange={(event) => event.target.value && onChange(periodOf("day", event.target.value))} className={`${FIELD} py-2`} />
+        {custom ? (
+          <span className="inline-flex min-w-[10rem] items-center justify-center gap-0.5 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium tabular-nums text-primary-800" data-testid="period-chip" aria-live="polite">
+            {rangeChipText(period, today)}
+            <button type="button" onClick={() => onChange(monthOfPeriod(period, today))} aria-label="Вернуться к месяцу" title="Вернуться к месяцу" className="rounded-full p-1 text-primary-600 hover:bg-primary-100"><X className="h-3.5 w-3.5" aria-hidden /></button>
+          </span>
         ) : (
-          <span className="min-w-[10rem] px-2 text-center text-sm font-semibold text-slate-900" aria-live="polite" data-testid="period-title">{periodTitle(period, today)}</span>
+          <span className="min-w-[10rem] px-2 text-center text-sm font-semibold text-slate-800" aria-live="polite" data-testid="period-title">{periodTitle(period)}</span>
         )}
         <button type="button" onClick={() => onChange(stepPeriod(period, 1))} disabled={!canStepForward(period, today)} aria-label={next} title={next} className="rounded-lg border border-slate-200 bg-white p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" aria-hidden /></button>
       </div>
-      {period.kind === "day" && <p className="text-sm text-slate-500" data-testid="period-title">{periodTitle(period, today)}</p>}
+      <button type="button" onClick={openPicker} aria-expanded={open} data-testid="period-custom" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+        <CalendarRange className="h-4 w-4 text-slate-400" aria-hidden />
+        Свой период
+      </button>
+      {open && (
+        <div className="flex w-full flex-wrap items-center gap-1.5" data-testid="period-picker">
+          <input type="date" aria-label="С какого дня" value={from} max={today} onChange={(event) => setFrom(event.target.value)} className={`${FIELD} py-2`} />
+          <span className="text-slate-400" aria-hidden>—</span>
+          <input type="date" aria-label="По какой день" value={to} max={today} onChange={(event) => setTo(event.target.value)} className={`${FIELD} py-2`} />
+          <button type="button" onClick={apply} disabled={problem !== null} className="rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">Показать</button>
+          {problem && <p role="alert" className="w-full text-sm font-medium text-rose-600">{problem}</p>}
+        </div>
+      )}
     </div>
   );
 }
 
-function FiltersBar({ filters, onChange, teachers, groups, methodOptions }: { methodOptions: Array<{ key: string; label: string }>; filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
+function FiltersBar({ filters, onChange, teachers, groups }: { filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <select aria-label="Способ оплаты" value={filters.method} onChange={(event) => onChange({ ...filters, method: event.target.value })} className={FIELD}>
-        <option value="">Все способы</option>
-        {methodOptions.map((method) => <option key={method.key} value={method.key}>{method.label}</option>)}
-      </select>
       <CascadingFilter
         teachers={teachers}
         groups={groups}
