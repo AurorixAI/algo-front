@@ -94,10 +94,11 @@ test("the error is rendered outside the marking list on both lesson panels", () 
     const page = read(file);
     assert.match(page, /\{!isMarkingAttendance && <LessonPanelError message=\{attendanceError\} \/>\}/, file);
     // start / finish / cancel keep the server text instead of a canned sentence
-    assert.match(page, /serverErrorMessage\(err, "Не удалось отменить урок/, file);
-    assert.match(page, /serverErrorMessage\(err, "Не удалось завершить урок/, file);
+    // (LOGIC-B: the refusal goes through `lessonFailure` / `marksOps.refused`, whose text is the server's message, the canned sentence only as a fallback)
+    assert.match(page, /(serverErrorMessage|marksOps\.refused)\(err, ("cancel", )?"Не удалось отменить урок/, file);
+    assert.match(page, /(serverErrorMessage|marksOps\.refused)\(err, ("finish", )?"Не удалось завершить урок/, file);
   }
-  assert.match(read("app/teacher/dashboard/page.tsx"), /serverErrorMessage\(err, "Не удалось начать урок/);
+  assert.match(read("app/teacher/dashboard/page.tsx"), /(serverErrorMessage|lessonFailure)\(err, ("start", )?"Не удалось начать урок/);
 });
 
 // ---- 2. "my students" counts people ------------------------------------------

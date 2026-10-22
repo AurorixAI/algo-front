@@ -59,6 +59,19 @@ import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 import { staffDisplayName } from "@/lib/staff-name";
 import { useScrollLock } from "@/components/ui/modal";
+import { roomLabel } from "@/lib/schedule-slots";
+import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
+import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
+import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendance-ops";
+import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
+import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
+import type { LessonTeacherInfo } from "@/lib/ops-b-types";
+import { createToast, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { RequestControl } from "@/components/substitutions/request-control";
+import { RequestDialog } from "@/components/substitutions/request-dialog";
+import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -84,6 +97,13 @@ interface LessonSummary {
   topic?: string;
   /** The actual date for an unresolved historical lesson instance. */
   occurrenceDate?: string;
+  /** LOGIC-B (O5) / B2: who teaches this lesson, and the request «Не смогу провести» (sent by the dashboard summary). */
+  isSubstitution?: boolean;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  defaultTeacherId?: string | null;
+  substitutionRequest?: SubstitutionRequestMark | null;
+  substitutionOutcome?: SubstitutionOutcome | null;
 }
 
 type LessonAction = {
@@ -100,6 +120,8 @@ type LessonAction = {
   markedCount?: number;
   rosterCount?: number;
   remainingCount?: number;
+  /** Decision 7: older than 7 days - only an administrator or the owner closes it (the row is grey, without buttons). */
+  locked?: boolean;
 };
 
 function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary {
@@ -249,6 +271,8 @@ export default function TeacherDashboardPage() {
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
   const [liveExamSnapshotAt, setLiveExamSnapshotAt] = useState<number | null>(null);
   const [dashboardError, setDashboardError] = useState<string | null>(null);
+  /** O8: «Урок завершён, но проверить экзамены не удалось.» - a notice that outlives the closed lesson panel. */
+  const [dashboardNotice, setDashboardNotice] = useState<string | null>(null);
   const [dashboardRefreshNonce, setDashboardRefreshNonce] = useState(0);
   const [liveExamError, setLiveExamError] = useState<string | null>(null);
   const [isExamQueueOpen, setIsExamQueueOpen] = useState(false);
@@ -268,6 +292,15 @@ export default function TeacherDashboardPage() {
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
   const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
+  // LOGIC-B: the version of the lesson record, the conflict of two editors, the exam a finish waits for.
+  const marksOps = useLessonMarksOps();
+  const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
+  /** LOGIC-B2: the request «Не смогу провести» for the open lesson, and where its roster comes from (the group page or only the journal). */
+  const [newRequestOpen, setNewRequestOpen] = useState(false);
+  /** Only a teacher asks for a substitute; an owner / administrator assigns one himself («Заменить преподавателя»). */
+  const canAskForSubstitute = (user?.org_role ?? user?.role) === "teacher";
+  const [activeRequestMark, setActiveRequestMark] = useState<SubstitutionRequestMark | null>(null);
+  const [activeRosterSource, setActiveRosterSource] = useState<RosterSource>("group");
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -343,6 +376,8 @@ export default function TeacherDashboardPage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // a conflict of marks / a running exam is being decided in a dialog over the panel: the panel stays
+        if (marksOps.conflict || marksOps.liveExams) return;
         if (isExamQueueOpen) setIsExamQueueOpen(false);
         else if (missedLessonAction) setMissedLessonAction(null);
         else if (isActionCenterOpen) setIsActionCenterOpen(false);
@@ -351,7 +386,7 @@ export default function TeacherDashboardPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction]);
+  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction, marksOps.conflict, marksOps.liveExams]);
 
   const todayDayOfWeek = businessDayOfWeek();
 
@@ -430,6 +465,9 @@ export default function TeacherDashboardPage() {
       setIsCancellingLesson(false);
       setCancellationReason("");
       setLessonExamBinding(null);
+      setActiveTeacherInfo(null);
+      setActiveRequestMark(null);
+      setActiveRosterSource("group");
       return;
     }
     setLoadingStudents(true);
@@ -449,15 +487,21 @@ export default function TeacherDashboardPage() {
     const isTodayLesson = lessonDate === businessDate;
     const lessonKey = `${lessonDate}_${activeLesson.id}`;
 
-    Promise.all([
-      orgApi.getGroup(activeLesson.groupId),
-      orgApi.getGroupAttendance(activeLesson.groupId, {
-        dateFrom: lessonDate,
-        dateTo: lessonDate,
-      }),
-    ])
+    // LOGIC-B2: the lesson of a substitute (or of a former teacher) is not in «his» groups and he has no group page (it answers 403):
+    // the roster of the lesson comes with the journal (`lessonRoster`), and no call goes to the group.
+    const source = rosterSource({ isManager: user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner", groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
+    setActiveRosterSource(source);
+    readLessonRoster({
+      source,
+      groupId: activeLesson.groupId,
+      getGroup: (id) => orgApi.getGroup(id),
+      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: lessonDate, dateTo: lessonDate }),
+    })
       .then(([g, att]) => {
-        if (g?.students) {
+        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
+        if (source === "journal") {
+          setGroupStudents(rosterFromJournal(att?.lessonRoster));
+        } else if (g?.students) {
           // Attendance belongs to the roster frozen when the lesson was
           // started. In the rare case of a later transfer, do not let the
           // current group roster add/remove people from this open lesson.
@@ -497,6 +541,8 @@ export default function TeacherDashboardPage() {
         }
 
         const status = att?.statuses?.[lessonKey] || "scheduled";
+        marksOps.reset(att?.versions?.[lessonKey], att?.records?.[lessonKey] || {});
+        setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
         setActiveInstanceStatus(status);
         setActiveCancellationReason(att?.cancellationReasons?.[lessonKey] || null);
         if (isTodayLesson) {
@@ -621,14 +667,21 @@ export default function TeacherDashboardPage() {
       return;
     }
 
+    // O6: nobody to teach - the server refuses with NO_STUDENTS; the panel says it first
+    if (groupStudents.length === 0) {
+      setAttendanceError(NO_STUDENTS_START_TEXT);
+      return;
+    }
+
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
-      await orgApi.startGroupAttendance(activeLesson.groupId, {
+      const started = await orgApi.startGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
       });
+      marksOps.noteVersion(started);
       setActiveInstanceStatus("in_progress");
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
@@ -637,7 +690,7 @@ export default function TeacherDashboardPage() {
       setIsMarkingAttendance(true);
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      setAttendanceError(serverErrorMessage(err, "Не удалось начать урок. Данные не изменены."));
+      setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
     } finally {
       setSavingAttendance(false);
     }
@@ -664,11 +717,7 @@ export default function TeacherDashboardPage() {
       setActiveLesson(lesson);
     } catch (err) {
       console.error("Failed to reconcile missed lesson:", err);
-      setMissedLessonError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Не удалось открыть журнал пропущенного урока. Данные не изменены.",
-      );
+      setMissedLessonError(lessonFailure(err, "reconcile", "Не удалось открыть журнал пропущенного урока. Данные не изменены.").text);
     } finally {
       setIsResolvingMissedLesson(false);
     }
@@ -701,11 +750,7 @@ export default function TeacherDashboardPage() {
       setDashboardRefreshNonce((value) => value + 1);
     } catch (err) {
       console.error("Failed to cancel missed lesson:", err);
-      setMissedLessonError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Не удалось отменить пропущенный урок. Данные не изменены.",
-      );
+      setMissedLessonError(lessonFailure(err, "cancel", "Не удалось отменить пропущенный урок. Данные не изменены.").text);
     } finally {
       setIsResolvingMissedLesson(false);
     }
@@ -722,22 +767,22 @@ export default function TeacherDashboardPage() {
   };
 
   /** Reasons to send with the save, or an error text when an "Уважительная" mark has no valid reason. */
-  const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
-    const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
+  const prepareExcuseReasons = (marks: Record<string, AttendanceStatus> = attendance): { reasons: Record<string, string> } | { error: string } => {
+    const missing = firstMissingExcuseReason(marks, excuseReasons, savedExcuses);
     if (missing) {
       setExcuseReasonInvalidId(missing.studentId);
       const name = groupStudents.find((st) => st.id === missing.studentId)?.full_name;
       return { error: `${name ? `${name}: ` : ""}${missing.error}` };
     }
     setExcuseReasonInvalidId(null);
-    return { reasons: collectExcuseReasons(attendance, excuseReasons, savedExcuses) };
+    return { reasons: collectExcuseReasons(marks, excuseReasons, savedExcuses) };
   };
 
-  const rememberSavedExcuses = (sent: Record<string, string>) => {
+  const rememberSavedExcuses = (sent: Record<string, string>, marks: Record<string, AttendanceStatus> = attendance) => {
     setSavedExcuses((prev) => {
       const next: Record<string, { reason: string }> = {};
-      Object.keys(attendance).forEach((studentId) => {
-        if (attendance[studentId] !== "excused") return;
+      Object.keys(marks).forEach((studentId) => {
+        if (marks[studentId] !== "excused") return;
         const reason = sent[studentId] ?? prev[studentId]?.reason;
         if (reason) next[studentId] = { reason };
       });
@@ -746,8 +791,11 @@ export default function TeacherDashboardPage() {
     setExcuseReasons({});
   };
 
-  const handleSaveAttendance = async () => {
+  const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    // «Оставить мои» repeats this very action with the merged marks
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
 
     // Attendance is allowed only after the server recorded the real start of
     // this lesson. This is a client-side guard; the API enforces it too.
@@ -759,7 +807,7 @@ export default function TeacherDashboardPage() {
 
     setAttendanceError(null);
 
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       return;
@@ -767,15 +815,17 @@ export default function TeacherDashboardPage() {
 
     setSavingAttendance(true);
     try {
-      await orgApi.saveGroupAttendance(activeLesson.groupId, {
+      const saved = await orgApi.saveGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "in_progress",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
+        ...marksOps.versionBody(),
       });
-      rememberSavedExcuses(prepared.reasons);
+      marksOps.noteSaved(saved, marks);
+      rememberSavedExcuses(prepared.reasons, marks);
       setIsAttendanceSaved(true);
       setIsAttendanceDirty(false);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
@@ -789,7 +839,7 @@ export default function TeacherDashboardPage() {
       setOpenAttendanceActions((previous) => previous.map((action) => {
         if (action.groupId !== activeLesson.groupId || action.lessonId !== activeLesson.id || action.lessonDate !== activeDate) return action;
         const rosterCount = groupStudents.length || action.rosterCount;
-        const markedCount = Object.keys(attendance).length;
+        const markedCount = Object.keys(marks).length;
         return {
           ...action,
           markedCount,
@@ -800,24 +850,29 @@ export default function TeacherDashboardPage() {
       setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to save attendance:", err);
-      setAttendanceError(
-        excuseReasonHint(err)
-          ?? (err instanceof Error && err.message
-          ? err.message
-          : "Не удалось сохранить посещаемость. Данные не изменены.")
-      );
+      const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
+      // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
+      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       setSavingAttendance(false);
     }
   };
 
-  const handleFinishLesson = async () => {
+  const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
+
+    // O6: a lesson of an empty roster cannot be finished - «Урока не было» is the way out (the server says the same: NO_STUDENTS)
+    if (groupStudents.length === 0) {
+      setAttendanceError(NO_STUDENTS_FINISH_TEXT);
+      return;
+    }
 
     // A frozen empty roster is a valid historical fact. There are no records to
     // save in that case, so it must not prevent closing the lesson.
     const hasSaved = isAttendanceSaved || !!lessonAttendanceMap[activeLesson.id];
-    const unmarked = groupStudents.filter((st) => !attendance[st.id]);
+    const unmarked = groupStudents.filter((st) => !marks[st.id]);
     const hasStudentsToMark = groupStudents.length > 0;
 
     if (hasStudentsToMark && (!hasSaved || unmarked.length > 0)) {
@@ -829,7 +884,7 @@ export default function TeacherDashboardPage() {
     }
 
     setAttendanceError(null);
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       // Reopen the marking panel: the missing reason field is there.
@@ -839,15 +894,22 @@ export default function TeacherDashboardPage() {
 
     setSavingAttendance(true);
     try {
-      await orgApi.saveGroupAttendance(activeLesson.groupId, {
+      const finished = await orgApi.saveGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate || businessDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "completed",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
+        ...marksOps.versionBody(),
+        ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
       });
-      rememberSavedExcuses(prepared.reasons);
+      marksOps.noteSaved(finished, marks);
+      marksOps.clearLiveExams();
+      // O8: the exam service could not be asked - the lesson is closed anyway; say so
+      const syncNotice = examSyncNotice(finished?.examSync);
+      if (syncNotice) setDashboardNotice(syncNotice);
+      rememberSavedExcuses(prepared.reasons, marks);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
@@ -858,7 +920,9 @@ export default function TeacherDashboardPage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      setAttendanceError(excuseReasonHint(err) ?? serverErrorMessage(err, "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз."));
+      const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
+      // a running exam / a conflict is decided in its dialog; anything else is the text of the panel
+      if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       setSavingAttendance(false);
     }
@@ -882,6 +946,7 @@ export default function TeacherDashboardPage() {
         status: "cancelled",
         records: {},
         cancellationReason: reason,
+        ...marksOps.versionBody(),
       });
       setActiveInstanceStatus("cancelled");
       setActiveCancellationReason(reason);
@@ -901,7 +966,8 @@ export default function TeacherDashboardPage() {
       setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      setAttendanceError(serverErrorMessage(err, "Не удалось отменить урок. Данные не изменены."));
+      const failure = marksOps.refused(err, "cancel", "Не удалось отменить урок. Данные не изменены.", attendance);
+      if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
       setSavingAttendance(false);
     }
@@ -1023,6 +1089,7 @@ export default function TeacherDashboardPage() {
       const isHistorical = action.lessonDate < businessDate;
       const hasNoRoster = !isMissed && action.rosterCount === 0;
       const lesson = lessonFromAttendanceAction(action);
+      const locked = openLessonAccess(action, user?.org_role ?? null, businessDate).locked;
       const progress = hasNoRoster
         ? "На дату занятия в составе группы не было учеников — отметки не требуются."
         : action.rosterCount > 0
@@ -1049,12 +1116,16 @@ export default function TeacherDashboardPage() {
         markedCount: action.markedCount,
         rosterCount: action.rosterCount,
         remainingCount: action.remainingCount,
+        locked,
       };
     })
-  ), [openAttendanceActions, businessDate]);
+  ), [openAttendanceActions, businessDate, user?.org_role]);
+
+  /** Decision 7: lessons older than 7 days. They stay in the list, grey and without buttons; they never become the card of the next action. */
+  const lockedLessonActions = useMemo(() => openLessonActions.filter((action) => action.locked), [openLessonActions]);
 
   const lessonActions = useMemo<LessonAction[]>(() => (
-    [...openLessonActions, ...scheduledLessonActions].sort((left, right) => {
+    [...openLessonActions.filter((action) => !action.locked), ...scheduledLessonActions].sort((left, right) => {
       const leftDate = left.lesson.occurrenceDate || businessDate;
       const rightDate = right.lesson.occurrenceDate || businessDate;
       return `${leftDate}T${left.lesson.startTime}`.localeCompare(`${rightDate}T${right.lesson.startTime}`);
@@ -1176,7 +1247,7 @@ export default function TeacherDashboardPage() {
     { label: "Мои группы", value: stats.groups || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
     { label: "Мои ученики", value: stats.students || 0, icon: GraduationCap, color: "from-emerald-400 to-emerald-600", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
     { label: "Уроков сегодня", value: todayLessons.length, icon: CalendarIcon, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Требуют действия", value: actionCount ?? "—", icon: ClipboardCheck, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600", onClick: actionCount !== null && actionCount > 0 ? () => setIsActionCenterOpen(true) : undefined },
+    { label: "Требуют действия", value: actionCount ?? "—", icon: ClipboardCheck, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600", onClick: (actionCount !== null && actionCount > 0) || lockedLessonActions.length > 0 ? () => setIsActionCenterOpen(true) : undefined },
   ];
 
   const activeLessonStatus = useMemo(() => {
@@ -1238,6 +1309,13 @@ export default function TeacherDashboardPage() {
         </div>
       </div>
 
+      {dashboardNotice && (
+        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          <span className="flex items-start gap-2"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />{dashboardNotice}</span>
+          <button type="button" onClick={() => setDashboardNotice(null)} aria-label="Скрыть" className="shrink-0 rounded p-0.5 text-amber-700 hover:bg-amber-100"><X className="h-4 w-4" /></button>
+        </div>
+      )}
+
       {dashboardError && (
         <DataLoadError
           compact
@@ -1280,6 +1358,13 @@ export default function TeacherDashboardPage() {
           </motion.div>
         ))}
       </div>
+
+      {/* LOGIC-B2: my requests «Не смогу провести» and the lessons I take over */}
+      {canAskForSubstitute && <TeacherRequestsBlock
+        refreshKey={dashboardRefreshNonce}
+        onNewRequest={() => setNewRequestOpen(true)}
+        onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+      />}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -1633,6 +1718,7 @@ export default function TeacherDashboardPage() {
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <p className="font-bold text-sm text-slate-900 truncate group-hover:text-primary-600 transition-colors">
                           {l.groupName}
+                          <LessonChips marks={occurrenceChips(l, user?.id)} className="ml-2 align-middle" />
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {attendanceStatusUnknown ? (
@@ -1718,7 +1804,7 @@ export default function TeacherDashboardPage() {
                           </span>
                         ) : (
                           <span className="flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" /> {l.room}
+                            <MapPin className="w-3.5 h-3.5 text-slate-400" /> {roomLabel(l)}
                           </span>
                         )}
                       </div>
@@ -1739,6 +1825,15 @@ export default function TeacherDashboardPage() {
               <Plus className="w-3.5 h-3.5" />
               Добавить занятие в календарь
             </Link>
+            {canAskForSubstitute && (
+              <button
+                type="button"
+                onClick={() => setNewRequestOpen(true)}
+                className="mt-2 w-full rounded-xl py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
+              >
+                Не смогу провести несколько уроков
+              </button>
+            )}
           </div>
         </div>
 
@@ -1948,6 +2043,27 @@ export default function TeacherDashboardPage() {
                       </button>
                     );
                   })}
+                  {lockedLessonActions.map((action) => (
+                    <div
+                      key={`locked_${action.lesson.occurrenceDate}_${action.lesson.groupId}_${action.lesson.id}`}
+                      aria-disabled="true"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-slate-500"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-200 text-slate-500">
+                          <ClipboardCheck className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-600">{action.lesson.groupName}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                            {formatIsoDateLabel(action.lesson.occurrenceDate || businessDate, { weekday: "long", day: "numeric", month: "long" })} · {action.lesson.startTime} — {action.lesson.endTime}
+                          </p>
+                          <p className="mt-2 text-xs leading-5">{LESSON_TOO_OLD_TEXT}</p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-600">{LESSON_TOO_OLD_HINT}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
                   <button type="button" onClick={() => setIsActionCenterOpen(false)} className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-white">
@@ -2130,7 +2246,13 @@ export default function TeacherDashboardPage() {
                           {activeLesson.classLevel} класс
                         </span>
                       )}
+                      {activeTeacherInfo?.isSubstitution && activeTeacherInfo.teacherId === user?.id && (
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-600 text-white">{substituteGroupLabel(activeLesson.groupName)}</span>
+                      )}
                     </div>
+                    {lessonBelongsToOther(activeTeacherInfo, user?.id) && (
+                      <p role="status" className="mt-1.5 text-xs font-semibold text-amber-800">{notYourLessonText(activeTeacherInfo)}</p>
+                    )}
                     <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
                       {activeLesson.format === "online" ? (
                         <>
@@ -2138,7 +2260,7 @@ export default function TeacherDashboardPage() {
                         </>
                       ) : (
                         <>
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" /> {activeLesson.room || "Кабинет не указан"}
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" /> {roomLabel(activeLesson)}
                         </>
                       )}
                     </p>
@@ -2151,6 +2273,24 @@ export default function TeacherDashboardPage() {
                   </button>
                 </div>
 
+                {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
+                {!loadingStudents && (
+                  <RequestControl
+                    lesson={{
+                      groupId: activeLesson.groupId,
+                      groupName: activeLesson.groupName,
+                      lessonId: activeLesson.id,
+                      lessonDate: activeLesson.occurrenceDate || businessDate,
+                      startTime: activeLesson.startTime,
+                      endTime: activeLesson.endTime,
+                    }}
+                    mark={activeRequestMark}
+                    lessonTeacherId={activeTeacherInfo?.teacherId}
+                    lessonStatus={activeInstanceStatus}
+                    onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+                  />
+                )}
+
                 {/* Attendance Section */}
                 <div className="mb-6">
                   {loadingStudents ? (
@@ -2158,10 +2298,14 @@ export default function TeacherDashboardPage() {
                       Загрузка данных урока...
                     </div>
                   ) : groupStudents.length === 0 ? (
-                    <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 border border-slate-100">
-                      {activeLesson.occurrenceDate && activeLesson.occurrenceDate < businessDate
-                        ? "На дату этого урока в группе не было зачисленных учеников. Урок можно завершить без отметок."
-                        : "В этой группе пока нет добавленных учеников"}
+                    <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                      {/* O6: a lesson with nobody on its roster is not started and not finished - «Урока не было» closes it */}
+                      <p role="status" className="font-medium">{activeInstanceStatus === "in_progress" ? NO_STUDENTS_FINISH_TEXT : NO_STUDENTS_START_TEXT}</p>
+                      {activeInstanceStatus === "scheduled" && (
+                        <button type="button" disabled title={NO_STUDENTS_START_TEXT} className="inline-flex shrink-0 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500">
+                          <Play className="h-3.5 w-3.5" /> Начать урок
+                        </button>
+                      )}
                     </div>
                   ) : !isMarkingAttendance ? (
                     /* STEP 1: Overview & Status Banner */
@@ -2506,17 +2650,28 @@ export default function TeacherDashboardPage() {
                         })}
                       </div>
 
-                      <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                      <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-100">
                         <button
                           type="button"
                           onClick={() => setIsMarkingAttendance(false)}
-                          className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                          className="mr-auto px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
                         >
                           Отметить позже
                         </button>
+                        {canFinishLesson && (
+                          <button
+                            type="button"
+                            onClick={() => void handleFinishLesson()}
+                            disabled={savingAttendance}
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors disabled:opacity-50"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Завершить урок
+                          </button>
+                        )}
                         <button
                           type="button"
-                          onClick={handleSaveAttendance}
+                          onClick={() => void handleSaveAttendance()}
                           disabled={savingAttendance}
                           className="px-4 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-xl transition-colors shadow-xs"
                         >
@@ -2577,8 +2732,11 @@ export default function TeacherDashboardPage() {
                 {/* The marking list shows its own copy of the error; every other step shows it here. */}
                 {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
 
-                {/* Actions footer */}
+                {/* Actions footer.  While the marks are being entered the list has its own row of buttons (with «Завершить урок»):
+                    a second row under it, with a «Закрыть» that repeats the cross, is not shown (ROADMAP #114). */}
+                {!isMarkingAttendance && (
                 <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                  {showsGroupLinks(activeRosterSource) ? (
                   <Link
                     href={`/teacher/groups/${activeLesson.groupId || ""}`}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
@@ -2586,6 +2744,7 @@ export default function TeacherDashboardPage() {
                     Перейти в группу
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
+                  ) : <span />}
 
                   <div className="flex items-center gap-2">
                     {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && (
@@ -2601,11 +2760,13 @@ export default function TeacherDashboardPage() {
                     {canFinishLesson ? (
                       <button
                         type="button"
-                        onClick={handleFinishLesson}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors shadow-2xs"
+                        onClick={() => void handleFinishLesson()}
+                        disabled={groupStudents.length === 0}
+                        title={groupStudents.length === 0 ? NO_STUDENTS_FINISH_TEXT : undefined}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors shadow-2xs disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />
-                        {groupStudents.length === 0 ? "Завершить без отметок" : "Завершить урок"}
+                        Завершить урок
                       </button>
                     ) : isAttendanceSaved ? (
                       <button
@@ -2615,22 +2776,58 @@ export default function TeacherDashboardPage() {
                       >
                         Готово
                       </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveLesson(null)}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
-                      >
-                        Закрыть
-                      </button>
-                    )}
+                    ) : null}
                   </div>
                 </div>
+                )}
               </motion.div>
             </div>
           </AnimatePresence>,
           document.body
         )}
+
+      {/* LOGIC-B2: «Новый запрос» - the lessons are picked from the list of the teacher's own */}
+      <RequestDialog
+        open={newRequestOpen}
+        lesson={null}
+        today={businessDate}
+        viewerId={user?.id}
+        onClose={() => setNewRequestOpen(false)}
+        onSent={(out) => {
+          const toast = createToast(out);
+          setNewRequestOpen(false);
+          setDashboardNotice(toast.text);
+          setDashboardRefreshNonce((current) => current + 1);
+        }}
+      />
+
+      {/* LOGIC-B: two editors saved the same lesson (O7) / a running exam at the finish (O8): over the lesson panel */}
+      <AttendanceConflictDialog
+        aboveLessonPanel
+        conflict={marksOps.conflict}
+        names={Object.fromEntries(groupStudents.map((student) => [student.id, student.full_name || `${student.last_name} ${student.first_name}`.trim()]))}
+        busy={marksOps.conflictBusy}
+        error={marksOps.conflictError}
+        onTakeTheirs={() => marksOps.takeTheirs((theirs) => {
+          setAttendance(theirs as Record<string, AttendanceStatus>);
+          setIsAttendanceDirty(false);
+          setAttendanceError(null);
+        })}
+        // «Оставить мои»: my edits over theirs, then the action the person started (save / finish / cancel) is repeated with the new version
+        onKeepMine={() => void marksOps.keepMine(async (operation, merged) => {
+          const marks = merged as Record<string, AttendanceStatus>;
+          if (operation === "finish") await handleFinishLesson(false, marks);
+          else if (operation === "cancel") await handleCancelLesson();
+          else await handleSaveAttendance(marks);
+        })}
+      />
+      <LiveExamConfirmDialog
+        aboveLessonPanel
+        exams={marksOps.liveExams}
+        busy={savingAttendance}
+        onBack={marksOps.clearLiveExams}
+        onConfirm={() => void handleFinishLesson(true)}
+      />
     </div>
   );
 }

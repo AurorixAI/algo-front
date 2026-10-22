@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, UserPlus, Users,
+  ArrowLeft, UserPlus, Users, CalendarDays,
   GraduationCap, Loader2, Edit2, Check, X,
   Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
@@ -13,16 +13,21 @@ import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
+import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
 import { staffDisplayName } from "@/lib/staff-name";
+import { handoverTargets } from "@/lib/staff-lifecycle";
+import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
+import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
+import type { TeacherBusyDetail } from "@/lib/ops-b-types";
 import { LESSON_TYPES, lessonTypeLabel, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
 import { useToast } from "@/components/ui/toast";
 import { BookOpen } from "lucide-react";
 
-type Tab = "students" | "attendance" | "settings";
+type Tab = "students" | "schedule" | "attendance" | "settings";
 
 interface EditState {
   name: string;
@@ -47,7 +52,7 @@ export default function OwnerGroupDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const requestedTab = searchParams?.get("tab");
-  const tab: Tab = requestedTab === "attendance" || requestedTab === "settings" || requestedTab === "students"
+  const tab: Tab = requestedTab === "attendance" || requestedTab === "settings" || requestedTab === "students" || requestedTab === "schedule"
     ? requestedTab
     : "students";
   const setTab = (newTab: Tab) => {
@@ -62,6 +67,8 @@ export default function OwnerGroupDetailPage() {
   const [saving, setSaving] = useState(false);
   const { showToast, toastNode } = useToast();
   const [addOpen, setAddOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [restoreOpen, setRestoreOpen] = useState(false);
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -98,10 +105,8 @@ export default function OwnerGroupDetailPage() {
     showToast(toast.text, toast.type, toast.details);
   };
 
-  const teachers = members.filter((m: any) => m.org_role === "teacher").map((m: any) => ({
-    id: m.user_id || m.id,
-    name: staffDisplayName(m),
-  }));
+  // everybody who can teach: teachers, the owner and the administrators (the role is named next to the name)
+  const teachers = handoverTargets(members).map((t) => ({ id: t.id, name: t.label }));
 
   const handleSave = async () => {
     if (!editState.name.trim() || !group) return;
@@ -119,34 +124,28 @@ export default function OwnerGroupDetailPage() {
       setEditing(false);
       showToast("Группа обновлена");
     } catch (e: any) {
-      showToast(e.message || "Ошибка сохранения", "error");
+      if (opsErrorCode(e) === "TEACHER_BUSY") {
+        // O5: the new teacher has a lesson at the same time - say which, as details of the toast
+        showToast(e.message || "У преподавателя уже есть урок в это время", "error", teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(e), 5));
+      } else {
+        showToast(e.message || "Ошибка сохранения", "error");
+      }
     } finally {
       setSaving(false);
     }
   };
 
-  const handleArchive = async () => {
-    if (!group) return;
-    if (!confirm(`Архивировать группу «${group.name}»? Ученики останутся в системе.`)) return;
-    try {
-      await orgApi.archiveGroup(group.id);
-      setGroup((prev) => prev ? { ...prev, status: "archived" } : null);
-      showToast("Группа перемещена в архив");
-    } catch (e: any) {
-      showToast(e.message || "Ошибка архивации", "error");
-    }
+  /** O4: archiving asks the server what is in the way (the dialog), then archives; the group page reloads. */
+  const handleArchived = (message: string) => {
+    setArchiveOpen(false);
+    showToast(message);
+    void load(true);
   };
 
-  const handleUnarchive = async () => {
-    if (!group) return;
-    if (!confirm(`Восстановить группу «${group.name}» из архива?`)) return;
-    try {
-      await orgApi.unarchiveGroup(group.id);
-      setGroup((prev) => prev ? { ...prev, status: "active" } : null);
-      showToast("Группа восстановлена из архива");
-    } catch (e: any) {
-      showToast(e.message || "Ошибка восстановления", "error");
-    }
+  const handleRestored = (message: string) => {
+    setRestoreOpen(false);
+    showToast(message);
+    void load(true);
   };
 
   const handleRemoveStudent = async (studentId: string) => {
@@ -205,6 +204,10 @@ export default function OwnerGroupDetailPage() {
           <span className="px-2 py-0.5 rounded-full text-xs bg-slate-100 text-slate-500 border border-slate-200">Архив</span>
         )}
       </div>
+
+      {group.status === "archived" && (
+        <GroupArchivedBanner archivedAt={group.archivedAt} studentCount={group.student_count} onRestore={() => setRestoreOpen(true)} />
+      )}
 
       {/* Group header card */}
       <motion.div
@@ -381,12 +384,13 @@ export default function OwnerGroupDetailPage() {
                 <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                   {group.status === "archived" ? (
                     <button
-                      onClick={handleUnarchive}
+                      type="button"
+                      onClick={() => setRestoreOpen(true)}
                       className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all shadow-xs cursor-pointer"
-                      title="Восстановить группу из архива"
+                      title="Вернуть группу из архива"
                     >
                       <RotateCcw className="w-4 h-4 text-emerald-600" />
-                      Восстановить из архива
+                      Вернуть из архива
                     </button>
                   ) : (
                     <>
@@ -398,12 +402,13 @@ export default function OwnerGroupDetailPage() {
                         Изменить
                       </button>
                       <button
-                        onClick={handleArchive}
-                        className="shrink-0 p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors border border-slate-200 hover:border-red-200"
-                        aria-label="Архивировать группу"
+                        type="button"
+                        onClick={() => setArchiveOpen(true)}
+                        className="flex items-center gap-1.5 shrink-0 px-3.5 py-2 rounded-xl text-sm text-slate-600 border border-slate-200 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors"
                         title="Архивировать группу"
                       >
-                        <Archive className="w-4 h-4" />
+                        <Archive className="w-3.5 h-3.5" />
+                        В архив
                       </button>
                     </>
                   )}
@@ -418,6 +423,7 @@ export default function OwnerGroupDetailPage() {
       <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
         {([
           { key: "students",  label: "Ученики",   Icon: Users    },
+          { key: "schedule", label: "Расписание", Icon: CalendarDays },
           { key: "attendance", label: "Посещаемость", Icon: BookOpen },
         ] as const).map(({ key, label, Icon }) => (
           <button
@@ -466,12 +472,18 @@ export default function OwnerGroupDetailPage() {
           </motion.div>
         )}
 
+        {tab === "schedule" && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <GroupScheduleOverview groupId={groupId} viewerRole="owner" archived={group.status === "archived"} />
+          </motion.div>
+        )}
+
         {tab === "attendance" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupAttendanceJournal
               groupId={groupId}
               students={group.students || []}
-              canEdit
+              canEdit={group.status !== "archived"}
               adminMode
               groupName={group.name}
               studentProfileBasePath="/owner/students"
@@ -492,6 +504,21 @@ export default function OwnerGroupDetailPage() {
         existingStudentIds={existingIds}
         onClose={() => setAddOpen(false)}
         onAdded={handleStudentsAdded}
+      />
+
+      <GroupArchiveDialog
+        open={archiveOpen}
+        group={{ id: group.id, name: group.name, class_level: group.class_level }}
+        groupsBasePath="/owner/groups"
+        onClose={() => setArchiveOpen(false)}
+        onArchived={handleArchived}
+      />
+      <GroupRestoreDialog
+        open={restoreOpen}
+        group={{ id: group.id, name: group.name }}
+        teachers={teachers}
+        onClose={() => setRestoreOpen(false)}
+        onRestored={handleRestored}
       />
 
       {toastNode}

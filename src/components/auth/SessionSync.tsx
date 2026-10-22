@@ -6,6 +6,7 @@ import { useAuthStore } from "@/lib/store";
 import { loginUrlForPage } from "@/lib/safe-redirect";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { useExcuseBadge } from "@/lib/excuse-badge";
+import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import { useToast } from "@/components/ui/toast";
 import {
   AUTH_STORAGE_KEY,
@@ -70,6 +71,7 @@ export function SessionSync() {
       // Whatever was counted for the previous user is not the new user's.
       usePaymentsSummary.getState().reset();
       useExcuseBadge.getState().reset();
+      useSubstitutionBadge.getState().reset();
       try {
         if (verdict.notice) window.sessionStorage.setItem(SESSION_NOTICE_KEY, verdict.notice);
       } catch {

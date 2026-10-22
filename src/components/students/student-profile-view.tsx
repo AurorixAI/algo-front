@@ -30,6 +30,7 @@ import { formatMembershipPeriods } from "@/lib/membership-periods";
 import { DiagnosticStatusBadge, diagnosticActionClass } from "@/components/diagnostics/list-chrome";
 import { inviteCancelHint, isInviteDead, studentCardInviteLabel } from "@/lib/diagnostic-invite";
 import { MARK_CELL_LABEL } from "@/lib/attendance-marks";
+import { StudentLessonsList } from "@/components/students/student-lessons-list";
 import { formatGroupMonthLine } from "@/lib/attendance-summary";
 import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
@@ -742,6 +743,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                       Посещаемость: <span className="font-bold text-primary-700">{attendanceSummary.totals.attendance_rate ?? "—"}{attendanceSummary.totals.attendance_rate !== null ? "%" : ""}</span>
                       {attendanceSummary.totals.not_marked > 0 && <span className="ml-2 text-slate-500">· не отмечено: {attendanceSummary.totals.not_marked}</span>}
                     </div>
+                    <StudentLessonsList lessons={attendanceSummary.lessons} notices={attendanceSummary.notices} />
                     {attendanceSummary.groups.length > 0 && (
                       <div className="overflow-hidden rounded-xl border border-slate-100">
                         <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-2 text-xs font-semibold text-slate-500">
@@ -762,10 +764,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     )}
                   </>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-7 text-center">
-                    <p className="text-sm font-semibold text-slate-700">За этот месяц нет завершённых занятий с участием ученика</p>
-                    <p className="mt-1 text-xs text-slate-500">После старта и фиксации посещаемости данные появятся здесь автоматически.</p>
-                  </div>
+                  <>
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-7 text-center">
+                      <p className="text-sm font-semibold text-slate-700">За этот месяц нет завершённых занятий с участием ученика</p>
+                      <p className="mt-1 text-xs text-slate-500">После старта и фиксации посещаемости данные появятся здесь автоматически.</p>
+                    </div>
+                    {/* a cancelled or moved lesson is news even in a month without a held one */}
+                    <StudentLessonsList lessons={[]} notices={attendanceSummary?.notices} />
+                  </>
                 )}
               </div>
             )}

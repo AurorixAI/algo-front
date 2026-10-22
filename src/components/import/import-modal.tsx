@@ -9,8 +9,20 @@ import {
 import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
 } from "@/lib/api";
+import type { ImportSkipped } from "@/lib/ops-b-types";
 import { pluralRu } from "@/lib/payments";
 import { Modal } from "@/components/ui/modal";
+import { saveBlobAs } from "@/lib/download";
+import {
+  IMPORT_REPORT_BUTTON,
+  IMPORT_REPORT_FILENAME,
+  importDoneText,
+  importErrorText,
+  importReportCsv,
+  importReportView,
+  isInformational,
+  skipReasonText,
+} from "@/lib/import-report";
 
 interface ImportModalProps {
   open: boolean;
@@ -71,7 +83,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
       setPreview(pv);
       setStep("review");
     } catch (e: any) {
-      setError(e.message || "Ошибка проверки файла");
+      setError(importErrorText(e, "Ошибка проверки файла"));
     } finally {
       setBusy(false);
     }
@@ -88,11 +100,11 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
         onImported?.();
       } else {
         // Data changed between preview and commit — show the fresh issues.
-        setPreview((p) => (p ? { ...p, ok: false, issues: res.issues, counts: res.counts } : p));
+        setPreview((p) => (p ? { ...p, ok: false, issues: res.issues, counts: res.counts, skipped: res.skipped ?? p.skipped } : p));
         setError("Файл не прошёл повторную проверку — см. ошибки ниже.");
       }
     } catch (e: any) {
-      setError(e.message || "Ошибка импорта");
+      setError(importErrorText(e, "Ошибка импорта"));
     } finally {
       setBusy(false);
     }
@@ -280,8 +292,52 @@ function CountPill({ icon, label, created, existing }: { icon: React.ReactNode; 
   );
 }
 
-function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
+/** The report of what is not imported and why (LOGIC-B O9): a row per skipped line of the file, with the reason in the words of the spec. */
+export function SkippedTable({ rows }: { rows: ImportSkipped[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between gap-3">
+        <h4 className="text-[13px] font-semibold text-slate-600">Пропущено и почему</h4>
+        <button
+          type="button"
+          onClick={() => saveBlobAs(new Blob([importReportCsv(rows)], { type: "text/csv;charset=utf-8" }), IMPORT_REPORT_FILENAME)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:text-primary-700"
+        >
+          <Download className="h-3.5 w-3.5" /> {IMPORT_REPORT_BUTTON}
+        </button>
+      </div>
+      <div className="max-h-56 overflow-auto rounded-2xl border border-slate-100">
+        <table className="w-full min-w-[520px] text-left text-xs">
+          <thead>
+            <tr className="border-b border-slate-100 bg-slate-50 text-[13px] font-semibold text-slate-500">
+              <th scope="col" className="px-3 py-2">Лист</th>
+              <th scope="col" className="px-3 py-2 text-center">Строка</th>
+              <th scope="col" className="px-3 py-2">Ученик</th>
+              <th scope="col" className="px-3 py-2">Группа</th>
+              <th scope="col" className="px-3 py-2">Причина</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {rows.map((row, index) => (
+              <tr key={`${row.sheet}-${row.row}-${index}`} className={isInformational(row) ? "text-slate-500" : undefined}>
+                <td className="px-3 py-2 align-top text-slate-600">{row.sheet}</td>
+                <td className="px-3 py-2 text-center align-top tabular-nums text-slate-600">{row.row}</td>
+                <td className="px-3 py-2 align-top font-medium text-slate-800">{row.student || "—"}</td>
+                <td className="px-3 py-2 align-top text-slate-600">{row.group || "—"}</td>
+                <td className="px-3 py-2 align-top text-slate-700">{skipReasonText(row)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
   const c: ImportCounts = preview.counts;
+  const report = importReportView(c, preview.skipped);
   const errors = preview.issues.filter(i => i.level === "error");
   const warnings = preview.issues.filter(i => i.level === "warning");
   return (
@@ -291,6 +347,11 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
         <CountPill icon={<GraduationCap className="w-3.5 h-3.5" />} label="Группы" created={c.groups_new} existing={c.groups_existing} />
       </div>
 
+      <ul className="grid grid-cols-3 gap-2 text-center text-xs">
+        <li className="rounded-xl bg-emerald-50 px-2 py-2 font-semibold text-emerald-800">Будет добавлено: {report.willAdd}</li>
+        <li className="rounded-xl bg-slate-50 px-2 py-2 font-semibold text-slate-700">Уже в группах: {report.alreadyIn}</li>
+        <li className={`rounded-xl px-2 py-2 font-semibold ${report.skippedCount > 0 ? "bg-amber-50 text-amber-800" : "bg-slate-50 text-slate-700"}`}>Пропущено: {report.skippedCount}</li>
+      </ul>
       {importOpeningsReview(c.openings) && (
         <p className="text-sm text-slate-700" data-testid="import-openings">{importOpeningsReview(c.openings)}</p>
       )}
@@ -322,26 +383,36 @@ function ReviewStep({ preview }: { preview: ImportPreviewResult }) {
         </div>
       )}
 
+      <SkippedTable rows={[...report.skipped, ...report.info]} />
     </div>
   );
 }
 
 // ── Step 3: done ──────────────────────────────────────────────────────────────
-function DoneStep({ result }: { result: ImportCommitResult }) {
+export function DoneStep({ result }: { result: ImportCommitResult }) {
   const c = result.counts;
+  const report = importReportView(c, result.skipped);
+  const added = c.students_enrolled ?? c.students_new;
+  const created = result.created_groups ?? [];
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-3 p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
         <CheckCircle2 className="w-8 h-8 text-emerald-600 shrink-0" />
         <div>
-          <p className="text-sm font-bold text-emerald-800">Импорт выполнен</p>
+          <p className="text-sm font-bold text-emerald-800">{importDoneText(added, report.skippedCount)}</p>
           <p className="text-xs text-emerald-700 mt-0.5">
-            Добавлено: {c.students_new} {pluralRu(c.students_new, ["ученик", "ученика", "учеников"])}, {c.groups_new} {pluralRu(c.groups_new, ["группа", "группы", "групп"])}.
+            Новых учеников: {c.students_new} {pluralRu(c.students_new, ["ученик", "ученика", "учеников"])}, групп: {c.groups_new} {pluralRu(c.groups_new, ["группа", "группы", "групп"])}.
             {importOpeningsDone(c.openings) && <> {importOpeningsDone(c.openings)}.</>}
           </p>
         </div>
       </div>
+      {created.length > 0 && (
+        <p className="text-xs leading-5 text-slate-600">
+          Созданы группы: {created.map((group) => `«${group.name}»`).join(", ")}. Отката импорта нет: ошибочно добавленных учеников архивируйте вручную.
+        </p>
+      )}
+      <SkippedTable rows={[...report.skipped, ...report.info]} />
     </div>
   );
 }

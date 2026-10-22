@@ -7,8 +7,8 @@
  * right) is simply skipped and the next one by priority takes its place.
  *
  *  - owner: Панель, Группы, Ученики, Оплаты.  The home screen, the two lists everything starts from, and the money
- *    with its «требуют оплаты» counter.  «Посещаемость» (excuses have a deadline measured in days, not minutes) is in
- *    «Ещё» and its counter rides on that icon; «Зарплата» is monthly and «Сотрудники» rare.
+ *    with its «требуют оплаты» counter.  «Посещаемость» (excuses have a deadline measured in days, not minutes) and «Замены»
+ *    (LOGIC-B2) are in «Ещё» and their counters ride on that icon; «Зарплата» is monthly and «Сотрудники» rare.
  *  - admin: Диагностика (the administrator's home), Ученики, Группы, Оплаты.  Same idea as the owner's.  An administrator
  *    without the payments right gets «Посещаемость» in that slot instead (its counter then stays on the bar).
  *    «Экзамены» are made and run by teachers and wait in «Ещё».
@@ -20,8 +20,8 @@ export const BOTTOM_NAV_SLOTS = 4;
 
 /** Most important first. */
 export const BOTTOM_NAV_PRIORITY: Record<"owner" | "admin" | "teacher", readonly string[]> = {
-  owner: ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/payments", "/owner/attendance", "/owner/payroll", "/owner/teachers"],
-  admin: ["/admin/students", "/admin/groups", "/admin/payments", "/admin/diagnostics", "/admin/attendance", "/admin/exams"],
+  owner: ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/payments", "/owner/attendance", "/owner/substitutions", "/owner/payroll", "/owner/teachers"],
+  admin: ["/admin/students", "/admin/groups", "/admin/payments", "/admin/diagnostics", "/admin/attendance", "/admin/substitutions", "/admin/exams"],
   teacher: ["/teacher/dashboard", "/teacher/schedule", "/teacher/groups", "/teacher/exams"],
 };
 

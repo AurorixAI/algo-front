@@ -44,6 +44,21 @@ import {
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
+import {
+  ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, roomForSave, roomLabel, validFromBadge, validFromBounds, validFromError,
+} from "@/lib/schedule-slots";
+import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
+import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
+import { occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
+import type { SubstitutionRequestMark } from "@/lib/substitution-types";
+import type { LessonTeacherInfo } from "@/lib/ops-b-types";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { RequestControl } from "@/components/substitutions/request-control";
+import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
+import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
+import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
+import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
+import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 
 const COLOR_CLASSES = {
   blue: {
@@ -244,6 +259,18 @@ export default function TeacherSchedulePage() {
   const [lessonStatusMap, setLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
   const [weekLessonStatusMap, setWeekLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  // LOGIC-B: the version of the lesson record (O7), a running exam at the finish (O8), the teacher of the lesson (O5).
+  const marksOps = useLessonMarksOps();
+  const isManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
+  /** LOGIC-B2: a chip «Ждёт замены» leads the manager to the request. */
+  const requestHrefFor = (requestId: string) => substitutionsHref(substitutionsPathFor(user), requestId);
+  const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
+  /** LOGIC-B2: who teaches the open lesson, the request «Не смогу провести» for it, and where its roster comes from. */
+  const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
+  const [activeRequestMark, setActiveRequestMark] = useState<SubstitutionRequestMark | null>(null);
+  const [activeRosterSource, setActiveRosterSource] = useState<RosterSource>("group");
+  /** O11: non-blocking notes of a successful write (the room is busy at that time): shown on the page, not as an error. */
+  const [scheduleNotices, setScheduleNotices] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [weekLoadError, setWeekLoadError] = useState<string | null>(null);
   const [weekRefreshNonce, setWeekRefreshNonce] = useState(0);
@@ -350,7 +377,9 @@ export default function TeacherSchedulePage() {
   const [newDay, setNewDay] = useState(1);
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("11:30");
-  const [newRoom, setNewRoom] = useState("Кабинет 204");
+  const [newRoom, setNewRoom] = useState("");
+  /** O1: the date a new recurring slot starts acting («Действует с»); the journal has no lessons before it. */
+  const [newValidFrom, setNewValidFrom] = useState(formatBusinessDate());
   const [newFormat, setNewFormat] = useState<"offline" | "online">("offline");
   const [newTopic, setNewTopic] = useState("");
   const [newColor, setNewColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
@@ -361,7 +390,7 @@ export default function TeacherSchedulePage() {
   const [editDay, setEditDay] = useState(1);
   const [editStartTime, setEditStartTime] = useState("10:00");
   const [editEndTime, setEditEndTime] = useState("11:30");
-  const [editRoom, setEditRoom] = useState("Кабинет 204");
+  const [editRoom, setEditRoom] = useState("");
   const [editFormat, setEditFormat] = useState<"offline" | "online">("offline");
   const [editTopic, setEditTopic] = useState("");
   const [editColor, setEditColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
@@ -482,6 +511,8 @@ export default function TeacherSchedulePage() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        // a conflict of marks / a running exam is decided in a dialog over the panel: the panel stays
+        if (marksOps.conflict || marksOps.liveExams) return;
         if (isRecurringActionsOpen) {
           setIsRecurringActionsOpen(false);
           return;
@@ -501,7 +532,7 @@ export default function TeacherSchedulePage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen]);
+  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
 
   // Conflict detection helper
   const getConflictingLesson = useCallback(
@@ -665,6 +696,9 @@ export default function TeacherSchedulePage() {
       setAttendanceError(null);
       setActiveLessonStatus("scheduled");
       setActiveCancellationReason(null);
+      setActiveTeacherInfo(null);
+      setActiveRequestMark(null);
+      setActiveRosterSource("group");
       return;
     }
     setLoadingStudents(true);
@@ -679,21 +713,28 @@ export default function TeacherSchedulePage() {
     setExcuseReasonInvalidId(null);
     const occurrenceDate = activeLesson.occurrenceDate;
     const lessonKey = `${occurrenceDate}_${activeLesson.id}`;
-    Promise.all([
-      orgApi.getGroup(activeLesson.groupId),
-      orgApi.getGroupAttendance(activeLesson.groupId, {
-        dateFrom: occurrenceDate,
-        dateTo: occurrenceDate,
-      }),
-    ])
+    // LOGIC-B2: a substitute (or a former teacher) has no group page (403): the roster of his lesson comes with the journal.
+    const source = rosterSource({ isManager, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
+    setActiveRosterSource(source);
+    readLessonRoster({
+      source,
+      groupId: activeLesson.groupId,
+      getGroup: (id) => orgApi.getGroup(id),
+      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: occurrenceDate, dateTo: occurrenceDate }),
+    })
       .then(([g, att]) => {
-        if (g?.students) {
+        setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
+        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
+        if (source === "journal") {
+          setGroupStudents(rosterFromJournal(att?.lessonRoster));
+        } else if (g?.students) {
           setGroupStudents(g.students);
         } else {
           setGroupStudents([]);
         }
 
         const status = att?.statuses?.[lessonKey] || "scheduled";
+        marksOps.reset(att?.versions?.[lessonKey], att?.records?.[lessonKey] || {});
         setActiveLessonStatus(status);
         setActiveCancellationReason(att?.cancellationReasons?.[lessonKey] || null);
         if (occurrenceDate === formatBusinessDate()) {
@@ -792,14 +833,21 @@ export default function TeacherSchedulePage() {
       return;
     }
 
+    // O6: nobody to teach - the server refuses with NO_STUDENTS; the panel says it first
+    if (groupStudents.length === 0) {
+      setAttendanceError(NO_STUDENTS_START_TEXT);
+      return;
+    }
+
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
-      await orgApi.startGroupAttendance(activeLesson.groupId, {
+      const started = await orgApi.startGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
       });
+      marksOps.noteVersion(started);
       setActiveLessonStatus("in_progress");
       setWeekLessonStatusMap((previous) => ({
         ...previous,
@@ -811,11 +859,7 @@ export default function TeacherSchedulePage() {
       setIsMarkingAttendance(true);
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      setAttendanceError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Не удалось начать урок. Данные не изменены."
-      );
+      setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
     } finally {
       setSavingAttendance(false);
     }
@@ -832,22 +876,22 @@ export default function TeacherSchedulePage() {
   };
 
   /** Reasons to send with the save, or an error text when an "Уважительная" mark has no valid reason. */
-  const prepareExcuseReasons = (): { reasons: Record<string, string> } | { error: string } => {
-    const missing = firstMissingExcuseReason(attendance, excuseReasons, savedExcuses);
+  const prepareExcuseReasons = (marks: Record<string, AttendanceStatus> = attendance): { reasons: Record<string, string> } | { error: string } => {
+    const missing = firstMissingExcuseReason(marks, excuseReasons, savedExcuses);
     if (missing) {
       setExcuseReasonInvalidId(missing.studentId);
       const name = groupStudents.find((st) => st.id === missing.studentId)?.full_name;
       return { error: `${name ? `${name}: ` : ""}${missing.error}` };
     }
     setExcuseReasonInvalidId(null);
-    return { reasons: collectExcuseReasons(attendance, excuseReasons, savedExcuses) };
+    return { reasons: collectExcuseReasons(marks, excuseReasons, savedExcuses) };
   };
 
-  const rememberSavedExcuses = (sent: Record<string, string>) => {
+  const rememberSavedExcuses = (sent: Record<string, string>, marks: Record<string, AttendanceStatus> = attendance) => {
     setSavedExcuses((prev) => {
       const next: Record<string, { reason: string }> = {};
-      Object.keys(attendance).forEach((studentId) => {
-        if (attendance[studentId] !== "excused") return;
+      Object.keys(marks).forEach((studentId) => {
+        if (marks[studentId] !== "excused") return;
         const reason = sent[studentId] ?? prev[studentId]?.reason;
         if (reason) next[studentId] = { reason };
       });
@@ -856,8 +900,11 @@ export default function TeacherSchedulePage() {
     setExcuseReasons({});
   };
 
-  const handleSaveAttendance = async () => {
+  const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    // «Оставить мои» repeats this very action with the merged marks
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
 
     // Attendance represents a real lesson instance.  Do not let a stale modal
     // or an old client state bypass the explicit "start lesson" transition.
@@ -869,7 +916,7 @@ export default function TeacherSchedulePage() {
 
     setAttendanceError(null);
 
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       return;
@@ -877,15 +924,17 @@ export default function TeacherSchedulePage() {
 
     setSavingAttendance(true);
     try {
-      await orgApi.saveGroupAttendance(activeLesson.groupId, {
+      const saved = await orgApi.saveGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "in_progress",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
+        ...marksOps.versionBody(),
       });
-      rememberSavedExcuses(prepared.reasons);
+      marksOps.noteSaved(saved, marks);
+      rememberSavedExcuses(prepared.reasons, marks);
       setIsAttendanceSaved(true);
       setIsAttendanceDirty(false);
       setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
@@ -900,23 +949,28 @@ export default function TeacherSchedulePage() {
       setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to sync attendance:", err);
-      setAttendanceError(
-        excuseReasonHint(err)
-          ?? (err instanceof Error && err.message
-          ? err.message
-          : "Не удалось сохранить посещаемость. Данные не изменены.")
-      );
+      const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
+      // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
+      if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       setSavingAttendance(false);
     }
   };
 
-  const handleFinishLesson = async () => {
+  const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const marks = override ?? attendance;
+    if (override) setAttendance(override);
+
+    // O6: a lesson of an empty roster cannot be finished - «Урока не было» is the way out (the server says the same)
+    if (groupStudents.length === 0) {
+      setAttendanceError(NO_STUDENTS_FINISH_TEXT);
+      return;
+    }
 
     // Check attendance completeness: all students must be marked and attendance saved
     const hasSaved = isAttendanceSaved || !!lessonAttendanceMap[activeLesson.id];
-    const unmarked = groupStudents.filter((st) => !attendance[st.id]);
+    const unmarked = groupStudents.filter((st) => !marks[st.id]);
 
     if (!hasSaved || unmarked.length > 0) {
       setAttendanceError(
@@ -927,7 +981,7 @@ export default function TeacherSchedulePage() {
     }
 
     setAttendanceError(null);
-    const prepared = prepareExcuseReasons();
+    const prepared = prepareExcuseReasons(marks);
     if ("error" in prepared) {
       setAttendanceError(prepared.error);
       // Reopen the marking panel: the missing reason field is there.
@@ -937,15 +991,22 @@ export default function TeacherSchedulePage() {
 
     setSavingAttendance(true);
     try {
-      await orgApi.saveGroupAttendance(activeLesson.groupId, {
+      const finished = await orgApi.saveGroupAttendance(activeLesson.groupId, {
         lessonDate: activeLesson.occurrenceDate,
         lessonId: activeLesson.id,
         topic: activeLesson.topic,
         status: "completed",
-        records: attendance,
+        records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
+        ...marksOps.versionBody(),
+        ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
       });
-      rememberSavedExcuses(prepared.reasons);
+      marksOps.noteSaved(finished, marks);
+      marksOps.clearLiveExams();
+      // O8: the exam service could not be asked - the lesson is closed anyway; say so
+      const syncNotice = examSyncNotice(finished?.examSync);
+      if (syncNotice) setScheduleNotices([syncNotice]);
+      rememberSavedExcuses(prepared.reasons, marks);
       setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
       setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
       setWeekLessonStatusMap((previous) => ({
@@ -955,7 +1016,8 @@ export default function TeacherSchedulePage() {
       setActiveLesson(null);
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      setAttendanceError(excuseReasonHint(err) ?? serverErrorMessage(err, "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз."));
+      const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
+      if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
       setSavingAttendance(false);
     }
@@ -980,6 +1042,7 @@ export default function TeacherSchedulePage() {
         status: "cancelled",
         records: {},
         cancellationReason: reason,
+        ...marksOps.versionBody(),
       });
       setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
       setLessonAttendanceMap((previous) => ({ ...previous, [activeLesson.id]: false }));
@@ -998,7 +1061,8 @@ export default function TeacherSchedulePage() {
       setLessonExamBinding(null);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      setAttendanceError(serverErrorMessage(err, "Не удалось отменить урок. Данные не изменены."));
+      const failure = marksOps.refused(err, "cancel", "Не удалось отменить урок. Данные не изменены.", attendance);
+      if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
       setSavingAttendance(false);
     }
@@ -1061,7 +1125,7 @@ export default function TeacherSchedulePage() {
         lessonDate: activeLesson.occurrenceDate,
         startTime: rescheduleStartTime,
         endTime: rescheduleEndTime,
-        room: rescheduleRoom,
+        room: roomForSave(rescheduleRoom) ?? undefined,
         format: rescheduleFormat,
         topic: rescheduleTopic || undefined,
         reason,
@@ -1072,9 +1136,10 @@ export default function TeacherSchedulePage() {
       setWeekOccurrences((previous) => previous.map(replaceOccurrence));
       setActiveLesson(updated);
       setIsReschedulingLesson(false);
+      setScheduleNotices(warningTexts(updated));
     } catch (err) {
       console.error("Failed to reschedule lesson:", err);
-      setAttendanceError(serverErrorMessage(err, "Не удалось перенести урок. Расписание и посещаемость не изменены."));
+      setAttendanceError(scheduleErrorText(err, "Не удалось перенести урок. Расписание и посещаемость не изменены."));
     } finally {
       setSavingAttendance(false);
     }
@@ -1143,6 +1208,13 @@ export default function TeacherSchedulePage() {
       setScheduleError("Для разового занятия выберите будущую дату из открытой недели расписания.");
       return;
     }
+    if (newLessonScope === "recurring") {
+      const problem = validFromError(newValidFrom, formatBusinessDate());
+      if (problem) {
+        setScheduleError(problem);
+        return;
+      }
+    }
     const group = groups.find((g) => g.id === newGroupId);
     const groupName = group ? group.name : "Группа";
     const classLevel = group?.class_level || 5;
@@ -1163,7 +1235,7 @@ export default function TeacherSchedulePage() {
       dayOfWeek: oneOffDay,
       startTime: newStartTime,
       endTime: newEndTime,
-      room: newRoom,
+      room: roomForSave(newRoom),
       format: newFormat,
       color: newColor,
       topic: newTopic || undefined,
@@ -1171,6 +1243,7 @@ export default function TeacherSchedulePage() {
 
     try {
       setScheduleError(null);
+      setScheduleNotices([]);
       const created = newLessonScope === "one_off"
         ? await orgApi.createOneOffLesson({
             groupId: newLesson.groupId,
@@ -1192,8 +1265,10 @@ export default function TeacherSchedulePage() {
             format: newLesson.format,
             color: newLesson.color,
             topic: newLesson.topic,
+            validFrom: newValidFrom || formatBusinessDate(),
           });
       if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
+      setScheduleNotices(warningTexts(created));
 
       // Reload the canonical schedule after either operation. A one-off is
       // intentionally absent from the recurring template, so optimistic
@@ -1218,7 +1293,7 @@ export default function TeacherSchedulePage() {
       setNewTopic("");
     } catch (err) {
       console.error("Failed to persist lesson on backend:", err);
-      setScheduleError("Не удалось создать урок. Расписание не изменено — повторите попытку.");
+      setScheduleError(scheduleErrorText(err, "Не удалось создать урок. Расписание не изменено — повторите попытку."));
     }
   };
 
@@ -1249,6 +1324,9 @@ export default function TeacherSchedulePage() {
       setNewGroupId(groups[0].id);
     }
     setNewTopic("");
+    setNewRoom("");
+    setNewValidFrom(formatBusinessDate());
+    setScheduleError(null);
     setIsAddModalOpen(true);
   };
 
@@ -1300,7 +1378,7 @@ export default function TeacherSchedulePage() {
       day: Number(lesson.dayOfWeek),
       startTime: lesson.startTime,
       endTime: lesson.endTime,
-      room: lesson.room || "Кабинет 204",
+      room: lesson.room ?? "",
       format: lesson.format || "offline",
       topic: lesson.topic || "",
       color: lesson.color || "blue",
@@ -1389,17 +1467,18 @@ export default function TeacherSchedulePage() {
 
     try {
       setScheduleError(null);
-      await orgApi.reviseRecurringLesson(editingLesson.id, {
+      const revised = await orgApi.reviseRecurringLesson(editingLesson.id, {
         effectiveFrom: editEffectiveFrom,
         reason,
         dayOfWeek: Number(editDay),
         startTime: editStartTime,
         endTime: editEndTime,
-        room: editRoom,
+        room: roomForSave(editRoom),
         format: editFormat,
         color: editColor,
         topic: editTopic || undefined,
       });
+      setScheduleNotices(warningTexts(revised));
       // A recurring change has an effective date. Reload server-resolved data
       // instead of optimistically rewriting the old schedule template.
       const reloaded = await loadData();
@@ -1424,7 +1503,7 @@ export default function TeacherSchedulePage() {
       setEditSnapshot(null);
     } catch (err) {
       console.error("Failed to revise recurring lesson on backend:", err);
-      setScheduleError("Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку.");
+      setScheduleError(scheduleErrorText(err, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
     }
   };
 
@@ -1807,6 +1886,16 @@ export default function TeacherSchedulePage() {
         <div role="alert" className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-sm font-medium text-rose-700 flex items-center gap-2">
           <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
           <span>{scheduleError}</span>
+        </div>
+      )}
+
+      {scheduleNotices.length > 0 && (
+        <div role="status" className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-900">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <ul className="space-y-0.5">{scheduleNotices.map((note) => <li key={note}>{note}</li>)}</ul>
+          </div>
+          <button type="button" onClick={() => setScheduleNotices([])} aria-label="Скрыть" className="shrink-0 rounded p-0.5 text-amber-700 hover:bg-amber-100"><X className="h-4 w-4" /></button>
         </div>
       )}
 
@@ -2217,6 +2306,12 @@ export default function TeacherSchedulePage() {
                               Перенесён
                             </span>
                           )}
+                          {!l.isOneOff && validFromBadge(l.validFrom, businessDate) && (
+                            <span className="ml-1 inline-flex rounded-md bg-sky-50 px-1.5 py-0.5 text-xs font-semibold text-sky-800">
+                              {validFromBadge(l.validFrom, businessDate)}
+                            </span>
+                          )}
+                          <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="ml-1" />
 
                           <h4 className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
                             {l.groupName}
@@ -2229,7 +2324,7 @@ export default function TeacherSchedulePage() {
                               </span>
                             ) : (
                               <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-slate-400" /> {l.room}
+                                <MapPin className="w-3 h-3 text-slate-400" /> {roomLabel(l)}
                               </span>
                             )}
                           </div>
@@ -2403,6 +2498,7 @@ export default function TeacherSchedulePage() {
                         {l.groupName}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium">{l.subject}</p>
+                      <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="mt-1.5" />
                     </div>
 
                     {/* Bottom row */}
@@ -2414,7 +2510,7 @@ export default function TeacherSchedulePage() {
                           </>
                         ) : (
                           <>
-                            <MapPin className="w-4 h-4 text-slate-400" /> {l.room}
+                            <MapPin className="w-4 h-4 text-slate-400" /> {roomLabel(l)}
                           </>
                         )}
                       </span>
@@ -2525,7 +2621,7 @@ export default function TeacherSchedulePage() {
                             <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
                               <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>
                               <p className="mt-0.5 truncate text-xs text-slate-500">
-                                {row.lesson.classLevel} класс · {row.lesson.format === "online" ? "Онлайн" : row.lesson.room || "Аудитория не указана"}
+                                {row.lesson.classLevel} класс · {roomLabel(row.lesson)}
                               </p>
                             </div>
                             <span className={`inline-flex h-8 w-[132px] shrink-0 items-center justify-center rounded-full border px-3 text-xs font-medium ${statusClass}`}>
@@ -2588,6 +2684,9 @@ export default function TeacherSchedulePage() {
                     <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 border border-violet-200/60">
                       {activeLesson.classLevel} класс
                     </span>
+                    {activeTeacherInfo?.isSubstitution && activeTeacherInfo.teacherId === user?.id && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-600 text-white">{substituteGroupLabel(activeLesson.groupName)}</span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
                     {activeLesson.format === "online" ? (
@@ -2596,7 +2695,7 @@ export default function TeacherSchedulePage() {
                       </>
                     ) : (
                       <>
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> {activeLesson.room}
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> {roomLabel(activeLesson)}
                       </>
                     )}
                   </p>
@@ -2621,6 +2720,32 @@ export default function TeacherSchedulePage() {
                 </div>
               )}
 
+              {/* LOGIC-B2: the manager sees that a request waits and goes to it */}
+              {isManager && activeRequestMark?.status === "pending" && (
+                <p role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
+                  <span>Ждёт замены{activeRequestMark.teacherName ? `: ${activeRequestMark.teacherName}` : ""}</span>
+                  <Link href={requestHrefFor(activeRequestMark.id)} className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">Открыть запрос</Link>
+                </p>
+              )}
+
+              {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
+              {!loadingStudents && (
+                <RequestControl
+                  lesson={{
+                    groupId: activeLesson.groupId,
+                    groupName: activeLesson.groupName,
+                    lessonId: activeLesson.id,
+                    lessonDate: activeLesson.occurrenceDate,
+                    startTime: activeLesson.startTime,
+                    endTime: activeLesson.endTime,
+                  }}
+                  mark={activeRequestMark}
+                  lessonTeacherId={activeTeacherInfo?.teacherId}
+                  lessonStatus={activeLessonStatus}
+                  onChanged={() => { void loadData(); }}
+                />
+              )}
+
               {/* Attendance Section */}
               <div className="mb-6">
                 {loadingStudents ? (
@@ -2628,8 +2753,14 @@ export default function TeacherSchedulePage() {
                     Загрузка данных урока...
                   </div>
                 ) : groupStudents.length === 0 ? (
-                  <div className="p-4 bg-slate-50 rounded-2xl text-center text-xs text-slate-400 border border-slate-100">
-                    В этой группе пока нет добавленных учеников
+                  <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-600 sm:flex-row sm:items-center sm:justify-between">
+                    {/* O6: a lesson with nobody on its roster is not started and not finished - «Урока не было» closes it */}
+                    <p role="status" className="font-medium">{activeLessonStatus === "in_progress" ? NO_STUDENTS_FINISH_TEXT : NO_STUDENTS_START_TEXT}</p>
+                    {activeLessonStatus === "scheduled" && (
+                      <button type="button" disabled title={NO_STUDENTS_START_TEXT} className="inline-flex shrink-0 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-4 py-2.5 text-xs font-bold text-slate-500">
+                        <Play className="h-3.5 w-3.5" /> Начать урок
+                      </button>
+                    )}
                   </div>
                 ) : !isMarkingAttendance ? (
                   /* STEP 1: Overview & Status Banner */
@@ -2958,17 +3089,28 @@ export default function TeacherSchedulePage() {
                       })}
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-100">
                       <button
                         type="button"
                         onClick={() => setIsMarkingAttendance(false)}
-                        className="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                        className="mr-auto px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
                       >
                         Отметить позже
                       </button>
+                      {canFinishLesson && (
+                        <button
+                          type="button"
+                          onClick={() => void handleFinishLesson()}
+                          disabled={savingAttendance}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Завершить урок
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={handleSaveAttendance}
+                        onClick={() => void handleSaveAttendance()}
                         disabled={savingAttendance}
                         className="px-4 py-1.5 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-xl transition-colors shadow-xs"
                       >
@@ -3043,7 +3185,9 @@ export default function TeacherSchedulePage() {
               {/* The marking list shows its own copy of the error; every other step shows it here. */}
               {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
 
-              {/* Actions footer */}
+              {/* Actions footer.  While the marks are being entered the list has its own row of buttons (with «Завершить урок»):
+                  a second row under it, with a «Закрыть» that repeats the cross, is not shown (ROADMAP #114). */}
+              {!isMarkingAttendance && (
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2">
                   {canRescheduleToday ? (
@@ -3064,6 +3208,7 @@ export default function TeacherSchedulePage() {
                       <span className="truncate">Изменить постоянное расписание</span>
                     </button>
                   ) : (
+                    showsGroupLinks(activeRosterSource) ? (
                     <Link
                       href={`/teacher/groups/${activeLesson.groupId || ""}`}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
@@ -3071,6 +3216,7 @@ export default function TeacherSchedulePage() {
                       Перейти в группу
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
+                    ) : null
                   )}
 
                   {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson)) && (
@@ -3095,8 +3241,10 @@ export default function TeacherSchedulePage() {
                   {canFinishLesson ? (
                     <button
                       type="button"
-                      onClick={handleFinishLesson}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors shadow-2xs"
+                      onClick={() => void handleFinishLesson()}
+                      disabled={groupStudents.length === 0}
+                      title={groupStudents.length === 0 ? NO_STUDENTS_FINISH_TEXT : undefined}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-xl transition-colors shadow-2xs disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5 text-rose-600" />
                       Завершить урок
@@ -3109,17 +3257,10 @@ export default function TeacherSchedulePage() {
                     >
                       Готово
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setActiveLesson(null)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
-                    >
-                      Закрыть
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
+              )}
             </motion.div>
           </div>
         </AnimatePresence>,
@@ -3154,6 +3295,32 @@ export default function TeacherSchedulePage() {
                 <span>
                   <span className="block font-semibold">Отменить этот урок</span>
                   <span className="mt-0.5 block leading-relaxed text-rose-600/80">Только выбранная дата; потребуется причина.</span>
+                </span>
+              </button>
+            )}
+            {isManager && activeLesson && canReplaceTeacher(user?.org_role ?? null, activeLessonStatus) && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setIsRecurringActionsOpen(false);
+                  setTeacherTarget({
+                    groupId: activeLesson.groupId,
+                    lessonId: activeLesson.id,
+                    lessonDate: activeLesson.occurrenceDate,
+                    startTime: activeLesson.startTime,
+                    endTime: activeLesson.endTime,
+                    info: activeLesson,
+                  });
+                  // the lesson panel is a layer of its own above the dialogs: it gives way to the dialog
+                  setActiveLesson(null);
+                }}
+                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
+                <span>
+                  <span className="block font-semibold">{REPLACE_TEACHER_ACTION}</span>
+                  <span className="mt-0.5 block leading-relaxed text-slate-500">Только на выбранную дату.</span>
                 </span>
               </button>
             )}
@@ -3304,6 +3471,17 @@ export default function TeacherSchedulePage() {
                       ))}
                     </select>
                     <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
+                    <label htmlFor="sched-add-deystvuet-s" className="mt-3 block text-xs font-semibold text-slate-700 mb-1">Действует с</label>
+                    <input
+                      id="sched-add-deystvuet-s"
+                      type="date"
+                      value={newValidFrom}
+                      min={validFromBounds(formatBusinessDate()).min}
+                      max={validFromBounds(formatBusinessDate()).max}
+                      onChange={(e) => { setNewValidFrom(e.target.value); setScheduleError(null); }}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                    />
+                    <p className="mt-1 text-[11px] leading-4 text-slate-500">{VALID_FROM_HINT}</p>
                   </div>
                 )}
 
@@ -3355,15 +3533,14 @@ export default function TeacherSchedulePage() {
                   </div>
                   <div>
                     <label htmlFor="sched-add-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Аудитория
+                      {ROOM_LABEL}
                     </label>
                     <input
                       id="sched-add-auditoriya"
                       type="text"
                       value={newRoom}
                       onChange={(e) => setNewRoom(e.target.value)}
-                      placeholder="Кабинет 204"
-                      required
+                      placeholder={ROOM_PLACEHOLDER}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
                   </div>
@@ -3420,6 +3597,12 @@ export default function TeacherSchedulePage() {
                       )}
                     </div>
                   </div>
+                )}
+
+                {scheduleError && (
+                  <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{scheduleError}</span>
+                  </p>
                 )}
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
@@ -3724,15 +3907,14 @@ export default function TeacherSchedulePage() {
                   </div>
                   <div>
                     <label htmlFor="sched-edit-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Аудитория
+                      {ROOM_LABEL}
                     </label>
                     <input
                       id="sched-edit-auditoriya"
                       type="text"
                       value={editRoom}
                       onChange={(e) => setEditRoom(e.target.value)}
-                      placeholder="Кабинет 204"
-                      required
+                      placeholder={ROOM_PLACEHOLDER}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
                   </div>
@@ -3807,6 +3989,12 @@ export default function TeacherSchedulePage() {
                   </div>
                 )}
 
+                {scheduleError && (
+                  <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{scheduleError}</span>
+                  </p>
+                )}
+
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
                   {!hasEditChanges && (
                     <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>
@@ -3833,6 +4021,39 @@ export default function TeacherSchedulePage() {
       </AnimatePresence>,
       document.body
     )}
+
+      {/* LOGIC-B: two editors saved the same lesson (O7) / a running exam at the finish (O8) / the teacher of a lesson (O5): over the lesson panel */}
+      <AttendanceConflictDialog
+        aboveLessonPanel
+        conflict={marksOps.conflict}
+        names={Object.fromEntries(groupStudents.map((student) => [student.id, student.full_name || `${student.last_name} ${student.first_name}`.trim()]))}
+        busy={marksOps.conflictBusy}
+        error={marksOps.conflictError}
+        onTakeTheirs={() => marksOps.takeTheirs((theirs) => {
+          setAttendance(theirs as Record<string, AttendanceStatus>);
+          setIsAttendanceDirty(false);
+          setAttendanceError(null);
+        })}
+        // «Оставить мои»: my edits over theirs, then the action the person started (save / finish / cancel) is repeated with the new version
+        onKeepMine={() => void marksOps.keepMine(async (operation, merged) => {
+          const marks = merged as Record<string, AttendanceStatus>;
+          if (operation === "finish") await handleFinishLesson(false, marks);
+          else if (operation === "cancel") await handleCancelLesson();
+          else await handleSaveAttendance(marks);
+        })}
+      />
+      <LiveExamConfirmDialog
+        aboveLessonPanel
+        exams={marksOps.liveExams}
+        busy={savingAttendance}
+        onBack={marksOps.clearLiveExams}
+        onConfirm={() => void handleFinishLesson(true)}
+      />
+      <LessonTeacherDialog
+        target={teacherTarget}
+        onClose={() => setTeacherTarget(null)}
+        onChanged={() => { setTeacherTarget(null); setActiveLesson(null); void loadData(); }}
+      />
     </div>
   );
 }

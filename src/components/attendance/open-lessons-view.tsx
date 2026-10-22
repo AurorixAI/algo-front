@@ -22,6 +22,11 @@ import { EmptyState, TableHeader } from "@/components/attendance/table-chrome";
 import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/attendance/cancel-missed-lesson-modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
+import { useAuthStore } from "@/lib/store";
+import { formatBusinessDate } from "@/lib/business-time";
+import { openLessonAccess } from "@/lib/attendance-ops";
+import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
+import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 
 /** Calm chips (the palette and the size of the «Пропуски» tab): only a started-but-unfinished lesson gets a subtle amber. */
 const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
@@ -48,6 +53,8 @@ const FOCUS_REFETCH_GAP_MS = 1500;
 export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) {
   const router = useRouter();
   const { showToast, toastNode } = useToast();
+  const role = useAuthStore((state) => state.user?.org_role ?? null);
+  const today = formatBusinessDate();
   const [items, setItems] = useState<OpenAttendanceAction[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -202,17 +209,24 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                 <span className="font-medium text-slate-400">· {group.items.length}</span>
               </p>
               <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:border-t lg:border-slate-100">
-                {group.items.map((item) => (
+                {group.items.map((item) => {
+                  // decision 7: older than 7 days and the viewer is not a manager - grey, no buttons, «Обратитесь к администратору»
+                  const access = openLessonAccess(item, role, today);
+                  return (
                   <li
                     key={openLessonKey(item)}
-                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-14 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS}`}
+                    aria-disabled={access.locked || undefined}
+                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-14 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS} ${access.locked ? "bg-slate-50 text-slate-500" : ""}`}
                   >
                     <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:text-center">
                       <p className="text-sm font-semibold leading-5 text-slate-900">{formatLessonDate(item.lessonDate)}</p>
                       <p className="text-xs tabular-nums text-slate-500">{openLessonTime(item)}</p>
                     </div>
 
-                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900 lg:text-center">{item.groupName}</p>
+                    <p className="min-w-0 break-words text-sm font-medium leading-5 text-slate-900 lg:text-center">
+                      {item.groupName}
+                      {item.isSubstitution && <span className="ml-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUBSTITUTE_BADGE}</span>}
+                    </p>
 
                     <div className="flex min-w-0 lg:-my-px lg:justify-center">
                       <span
@@ -224,13 +238,18 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                     </div>
 
                     <div className="absolute right-2 top-2 lg:static lg:-my-1.5 lg:justify-self-end">
-                      <RowMenu
-                        items={menuItemsOf(item)}
-                        label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
-                      />
+                      {access.locked ? (
+                        <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={LESSON_TOO_OLD_TEXT}>{access.hint}</p>
+                      ) : (
+                        <RowMenu
+                          items={menuItemsOf(item)}
+                          label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
+                        />
+                      )}
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           ))}

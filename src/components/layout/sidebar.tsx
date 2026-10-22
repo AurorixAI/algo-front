@@ -18,6 +18,7 @@ import {
   ClipboardCheck,
   Wallet,
   Banknote,
+  Repeat2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -26,6 +27,8 @@ import { useState, useRef, useEffect } from "react";
 import { create } from "zustand";
 import { DEMO_MODE } from "@/lib/api";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
+import { useSubstitutionBadge } from "@/lib/substitution-badge";
+import { BADGE_LABEL } from "@/lib/substitutions";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -82,10 +85,14 @@ export function Sidebar() {
   const showExcuses = !DEMO_MODE && (rawRole === "owner" || role === "admin");
   const pendingExcuses = useExcuseBadge(selectBadgeTotal);
   const refreshExcuses = useExcuseBadge((state) => state.refresh);
+  // «Замены» (LOGIC-B2): the requests of teachers waiting for a decision; the same people see it, the same rhythm of refresh.
+  const pendingSubstitutions = useSubstitutionBadge((state) => state.pending);
+  const refreshSubstitutions = useSubstitutionBadge((state) => state.refresh);
   useEffect(() => {
     if (!showExcuses) return;
     void refreshExcuses();
-  }, [showExcuses, pathname, refreshExcuses]);
+    void refreshSubstitutions();
+  }, [showExcuses, pathname, refreshExcuses, refreshSubstitutions]);
   useEffect(() => {
     if (!showExcuses) return;
     // Returning to the tab fires both "focus" and "visibilitychange": one request is enough.
@@ -96,6 +103,7 @@ export function Sidebar() {
       if (now - lastRun < 1000) return;
       lastRun = now;
       void refreshExcuses();
+      void refreshSubstitutions();
     };
     window.addEventListener("focus", refreshIfVisible);
     document.addEventListener("visibilitychange", refreshIfVisible);
@@ -105,7 +113,7 @@ export function Sidebar() {
       document.removeEventListener("visibilitychange", refreshIfVisible);
       window.clearInterval(timer);
     };
-  }, [showExcuses, refreshExcuses]);
+  }, [showExcuses, refreshExcuses, refreshSubstitutions]);
 
   // Payments: the item exists only while the server lets this user see them (owner always,
   // administrator once the owner enabled it). The summary itself is kept fresh by the banner
@@ -128,6 +136,9 @@ export function Sidebar() {
     ...(showExcuses
       ? [{ href: "/admin/attendance", label: "Посещаемость", shortLabel: "Посещения", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),
+    ...(showExcuses
+      ? [{ href: "/admin/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL }]
+      : []),
     ...(showPayments
       ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
       : []),
@@ -139,6 +150,9 @@ export function Sidebar() {
     { href: "/owner/students", label: "Ученики", icon: GraduationCap },
     ...(showExcuses
       ? [{ href: "/owner/attendance", label: "Посещаемость", shortLabel: "Посещения", icon: ClipboardCheck, badge: pendingExcuses }]
+      : []),
+    ...(showExcuses
+      ? [{ href: "/owner/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL }]
       : []),
     ...(showPayments
       ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
@@ -182,6 +196,7 @@ export function Sidebar() {
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();
+    useSubstitutionBadge.getState().reset();
     logout();
     router.push("/login");
   };

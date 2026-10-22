@@ -18,6 +18,7 @@ import {
   Pencil,
   RotateCcw,
   Undo2,
+  UserRoundCheck,
   Users,
   X,
 } from "lucide-react";
@@ -68,6 +69,36 @@ import { AttendanceLegend } from "@/components/groups/attendance-legend";
 import { Modal } from "@/components/ui/modal";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
+import {
+  AttendanceConflictDialog,
+  LiveExamConfirmDialog,
+  type AttendanceConflictState,
+} from "@/components/attendance/attendance-ops-dialogs";
+import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { useAuthStore } from "@/lib/store";
+import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import {
+  conflictHeadline,
+  examSyncNotice,
+  expectedVersionFor,
+  lessonFailure,
+  mergeKeepMine,
+  mergeVersions,
+  withSavedVersion,
+  type VersionMap,
+} from "@/lib/attendance-ops";
+import {
+  ASSIGN_TEACHER_ACTION,
+  NO_LESSON_TEACHER_TEXT,
+  REPLACE_TEACHER_ACTION,
+  canReplaceTeacher,
+  lacksTeacher,
+  lessonBelongsToOther,
+  notYourLessonText,
+  substituteLabel,
+} from "@/lib/lesson-teacher";
+import type { LiveExamItem } from "@/lib/ops-b-types";
 
 interface GroupAttendanceJournalProps {
   groupId: string;
@@ -85,6 +116,8 @@ interface GroupAttendanceJournalProps {
   /** `?lesson=` / `?date=` of a deep link (open-lessons list): this lesson's column is highlighted. */
   highlightLessonId?: string | null;
   highlightDate?: string | null;
+  /** The signed-in user: a teacher marks only the lessons he teaches (a substitute: his own; O5). */
+  viewerId?: string | null;
 }
 
 type ViewMode = "week" | "month";
@@ -314,7 +347,9 @@ export function GroupAttendanceJournal({
   initialMonth = null,
   highlightLessonId = null,
   highlightDate = null,
+  viewerId = null,
 }: GroupAttendanceJournalProps) {
+  const { user } = useAuthStore();
   const highlightTarget = parseJournalHighlight(highlightLessonId, highlightDate);
   // A valid deep link decides the period by its date, so a disagreeing ?month= cannot hide the lesson.
   const requestedMonth = highlightTarget
@@ -340,6 +375,23 @@ export function GroupAttendanceJournal({
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [reasonEditor, setReasonEditor] = useState<{ student: StudentInGroup; lesson: Lesson; text: string; error: string | null } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
+  // O7: the version of each lesson record this screen last saw (the `expectedVersion` of the next save) and the open conflict.
+  const versionsRef = useRef<VersionMap>({});
+  const conflictKeysRef = useRef<Set<string>>(new Set());
+  const [conflict, setConflict] = useState<(AttendanceConflictState & {
+    lessonKey: string;
+    lesson: Lesson;
+    kind: "marks" | "correction" | "finish";
+    status: string;
+    reasons: Record<string, string>;
+  }) | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
+  // O8: a running exam of the lesson that is being finished: asked before, on a second click the finish carries the ack.
+  const [liveExam, setLiveExam] = useState<{ exams: LiveExamItem[]; lesson: Lesson } | null>(null);
+  const [liveExamBusy, setLiveExamBusy] = useState(false);
+  // O5: the dialog «Преподаватель урока».
+  const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   // «Подтвердить» / «Отклонить» ask first, like in the «Пропуски» list: the cell it came from rides along with the dialog.
   const [reviewDialog, setReviewDialog] = useState<
     (ExcuseDecisionTarget & { excuse: AttendanceExcuseInfo; lessonKey: string; studentId: string; error: string | null }) | null
@@ -381,7 +433,8 @@ export function GroupAttendanceJournal({
         dateTo: period.end,
       });
       if (!loadSequenceRef.current.isCurrent(token)) return;
-      const pendingKeys = pendingLessonKeys(pendingByLessonRef.current);
+      // a lesson with an open conflict keeps its local marks too (they are in the dialog until the choice is made)
+      const pendingKeys = [...pendingLessonKeys(pendingByLessonRef.current), ...Array.from(conflictKeysRef.current)];
       // A quiet reload must not overwrite marks that are still on their way to
       // the server, and its snapshot is older than the local state: drop it and
       // read again once the queue is empty (right away if it already is).
@@ -391,6 +444,7 @@ export function GroupAttendanceJournal({
         return;
       }
       setAttendanceData(data);
+      versionsRef.current = mergeVersions(versionsRef.current, data.versions, pendingKeys);
       // A period/group switch must not lose lessons that still have pending saves.
       const merged = mergeLoadedRecords(data.records, recordsRef.current, pendingKeys);
       recordsRef.current = merged;
@@ -603,6 +657,10 @@ export function GroupAttendanceJournal({
     [attendanceData?.excuses],
   );
 
+  /** O5: a teacher marks only the lessons he teaches; somebody else's (a substitute, the group's own teacher) is read-only for him. */
+  const lessonIsOthers = (key: string): boolean =>
+    !adminMode && lessonBelongsToOther(attendanceData?.lessonTeachers?.[key], viewerId);
+
   const handleSelectStatus = async (
     status: AttendanceStatus | "",
     student: StudentInGroup,
@@ -616,6 +674,7 @@ export function GroupAttendanceJournal({
     if (finishingKeyRef.current === lessonKey) return;
     if (
       !canEdit
+      || lessonIsOthers(lessonKey)
       || lesson.date > today
       || lessonStatus === "scheduled"
       || lessonStatus === "cancelled"
@@ -682,7 +741,10 @@ export function GroupAttendanceJournal({
     saveQueueRef.current = saveQueueRef.current.then(async () => {
       // The newest local marks of THIS lesson go out (a reload of another period
       // keeps pending lessons, see mergeLoadedRecords); never an invented object.
+      let sentReasons: Record<string, string> = {};
       try {
+        // O7: a conflict of this lesson is open - the marks wait for the choice, nothing more is sent over it.
+        if (conflictKeysRef.current.has(lessonKey)) return;
         const records = recordsForSave(recordsRef.current, lessonKey);
         if (!records) {
           // Unknown local state of the lesson: send nothing, read the server state instead.
@@ -690,18 +752,21 @@ export function GroupAttendanceJournal({
           return;
         }
         const reasons = pendingReasonsRef.current[lessonKey] || {};
-        const sentReasons = Object.fromEntries(
+        sentReasons = Object.fromEntries(
           Object.entries(reasons).filter(([studentId]) => records[studentId] === "excused"),
         );
         pendingReasonsRef.current[lessonKey] = {};
-        await orgApi.saveGroupAttendance(groupId, {
+        const expectedVersion = expectedVersionFor(versionsRef.current, lessonKey);
+        const saved = await orgApi.saveGroupAttendance(groupId, {
           lessonDate: lesson.date,
           lessonId: lesson.id,
           topic: lesson.topic,
           status: lessonStatus,
           records,
           ...(Object.keys(sentReasons).length ? { excuseReasons: sentReasons } : {}),
+          ...(expectedVersion !== undefined ? { expectedVersion } : {}),
         });
+        versionsRef.current = withSavedVersion(versionsRef.current, lessonKey, saved);
         confirmedRef.current = { ...confirmedRef.current, [lessonKey]: records };
         setAttendanceData((previous) => previous ? {
           ...previous,
@@ -726,6 +791,23 @@ export function GroupAttendanceJournal({
           });
         }
       } catch (error) {
+        const failure = lessonFailure(error, "save", "Не удалось сохранить отметку");
+        if (failure.kind === "conflict") {
+          // O7: somebody saved this lesson first. My marks stay on screen (and in the dialog) until a choice is made.
+          conflictKeysRef.current.add(lessonKey);
+          setConflictError(null);
+          setConflict({
+            detail: failure.detail,
+            base: { ...(confirmedRef.current[lessonKey] || {}) },
+            mine: { ...(recordsRef.current[lessonKey] || {}) },
+            lessonKey,
+            lesson,
+            kind: "marks",
+            status: lessonStatus,
+            reasons: sentReasons,
+          });
+          return;
+        }
         // Show exactly what the server holds: later queued marks of this lesson are dropped too.
         const confirmed = confirmedRef.current[lessonKey];
         if (confirmed) recordsRef.current = { ...recordsRef.current, [lessonKey]: confirmed };
@@ -736,7 +818,7 @@ export function GroupAttendanceJournal({
         setSaveError(
           /причин/i.test(message) && /ув|уважит/i.test(message)
             ? "Для уважительного пропуска нужна причина. Нажмите на отметку «Уважительная» у ученика и введите причину."
-            : message || "Не удалось сохранить отметку",
+            : failure.kind !== "other" ? failure.text : message || "Не удалось сохранить отметку",
         );
       } finally {
         inflightSavesRef.current -= 1;
@@ -900,13 +982,201 @@ export function GroupAttendanceJournal({
     );
   };
 
-  const runColumnAction = async (action: AdminLessonAction, lesson: Lesson) => {
+  /** O7: the choice in the conflict dialog.  «Принять чужие» takes what the journal holds; «Оставить мои» lays my edits over it and saves again. */
+  const resolveConflict = async (choice: "mine" | "theirs") => {
+    const current = conflict;
+    if (!current || conflictBusy) return;
+    const { lessonKey: key, lesson, detail } = current;
+    const theirs = (detail.records ?? {}) as Record<string, AttendanceStatus>;
+    const closeConflict = () => { conflictKeysRef.current.delete(key); setConflict(null); setConflictError(null); };
+    if (choice === "theirs") {
+      recordsRef.current = { ...recordsRef.current, [key]: theirs };
+      confirmedRef.current = { ...confirmedRef.current, [key]: theirs };
+      versionsRef.current = { ...versionsRef.current, [key]: detail.currentVersion };
+      setLocalRecords(recordsRef.current);
+      closeConflict();
+      if (current.kind === "correction") setCorrecting(null);
+      void loadAttendanceRef.current(true);
+      return;
+    }
+    setConflictBusy(true);
+    setConflictError(null);
+    const merged = mergeKeepMine(current.base, current.mine, theirs) as Record<string, AttendanceStatus>;
+    try {
+      if (current.kind === "finish") {
+        // the action the person started was «Завершить урок»: the merged marks become the screen's and the finish is repeated
+        recordsRef.current = { ...recordsRef.current, [key]: merged };
+        confirmedRef.current = { ...confirmedRef.current, [key]: theirs };
+        versionsRef.current = { ...versionsRef.current, [key]: detail.currentVersion };
+        setLocalRecords(recordsRef.current);
+        closeConflict();
+        setColumnBusyKey(key);
+        try {
+          await finishLesson(lesson, false);
+        } catch (finishError) {
+          setSaveError(lessonFailure(finishError, "finish", "Не удалось завершить урок").text);
+        } finally {
+          setColumnBusyKey(null);
+        }
+        return;
+      }
+      if (current.kind === "correction") {
+        const reason = correctionDialog?.reason.trim() ?? "";
+        const saved = await orgApi.saveGroupAttendance(groupId, {
+          lessonDate: lesson.date,
+          lessonId: lesson.id,
+          topic: lesson.topic,
+          status: "completed",
+          records: merged,
+          correctionReason: reason,
+          excuseReasons: collectExcuseReasons(merged, current.reasons, excusesOf(key)),
+          expectedVersion: detail.currentVersion,
+        });
+        versionsRef.current = withSavedVersion(versionsRef.current, key, saved);
+        closeConflict();
+        setCorrecting(null);
+        setCorrectionDialog(null);
+        await loadAttendanceRef.current(true);
+        void useExcuseBadge.getState().refresh(true);
+        showToast(`Урок ${formatDateRu(lesson.date)} исправлен`);
+        return;
+      }
+      const sentReasons = Object.fromEntries(Object.entries(current.reasons).filter(([studentId]) => merged[studentId] === "excused"));
+      const saved = await orgApi.saveGroupAttendance(groupId, {
+        lessonDate: lesson.date,
+        lessonId: lesson.id,
+        topic: lesson.topic,
+        status: current.status as Exclude<typeof lesson.status, undefined | "scheduled">,
+        records: merged,
+        ...(Object.keys(sentReasons).length ? { excuseReasons: sentReasons } : {}),
+        expectedVersion: detail.currentVersion,
+      });
+      versionsRef.current = withSavedVersion(versionsRef.current, key, saved);
+      recordsRef.current = { ...recordsRef.current, [key]: merged };
+      confirmedRef.current = { ...confirmedRef.current, [key]: merged };
+      setLocalRecords(recordsRef.current);
+      closeConflict();
+      void loadAttendanceRef.current(true);
+    } catch (error) {
+      const failure = lessonFailure(error, "save", "Не удалось сохранить отметки. Данные не изменены.");
+      if (failure.kind === "conflict") {
+        // changed again while the dialog was open: show the newest state, my edits stay
+        setConflict({ ...current, detail: failure.detail });
+      } else {
+        setConflictError(failure.text);
+      }
+    } finally {
+      setConflictBusy(false);
+    }
+  };
+
+  /** One finish of a lesson (the column menu): waits behind the queued marks, carries the version, asks before it ends a running exam. */
+  const finishLesson = async (lesson: Lesson, acknowledgeLiveExam: boolean): Promise<"done" | "stopped" | "ask"> => {
+    const key = instanceKey(lesson);
+    // Cells of this lesson stay locked while it is being closed, and the
+    // finish itself waits behind every mark already queued.
+    finishingKeyRef.current = key;
+    let asked: LiveExamItem[] | null = null;
+    let conflicted: Parameters<typeof setConflict>[0] = null;
+    const task = saveQueueRef.current.then(async () => {
+      const { rosterCount, markedCount } = markedInLesson(lesson);
+      const hint = finishBlockedHint(markedCount, rosterCount);
+      if (hint) {
+        showToast(hint, "warning");
+        return false;
+      }
+      const records = recordsForSave(recordsRef.current, key);
+      if (!records) throw new Error("Не удалось определить отметки урока. Обновите страницу и повторите.");
+      const expectedVersion = expectedVersionFor(versionsRef.current, key);
+      try {
+        const saved = await orgApi.saveGroupAttendance(groupId, {
+          lessonDate: lesson.date,
+          lessonId: lesson.id,
+          topic: lesson.topic,
+          status: "completed",
+          records,
+          ...(expectedVersion !== undefined ? { expectedVersion } : {}),
+          ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
+        });
+        versionsRef.current = withSavedVersion(versionsRef.current, key, saved);
+        const notice = examSyncNotice(saved?.examSync);
+        if (notice) showToast(notice, "warning");
+      } catch (error) {
+        const failure = lessonFailure(error, "finish", "Не удалось завершить урок");
+        if (failure.kind === "live_exam") { asked = failure.exams; return false; }
+        if (failure.kind === "conflict") {
+          // O7: somebody saved the lesson first - my marks go to the dialog; «Оставить мои» repeats the finish
+          conflicted = {
+            detail: failure.detail,
+            base: { ...(confirmedRef.current[key] || {}) },
+            mine: { ...records },
+            lessonKey: key,
+            lesson,
+            kind: "finish",
+            status: "completed",
+            reasons: {},
+          };
+          return false;
+        }
+        throw error;
+      }
+      return true;
+    });
+    saveQueueRef.current = task.then(() => undefined, () => undefined);
+    const finished = await task.finally(() => { finishingKeyRef.current = null; });
+    if (conflicted) {
+      conflictKeysRef.current.add(key);
+      setConflictError(null);
+      setLiveExam(null);
+      setConflict(conflicted);
+      return "stopped";
+    }
+    if (asked) {
+      setLiveExam({ exams: asked, lesson });
+      return "ask";
+    }
+    if (!finished) return "stopped";
+    await loadAttendanceRef.current(true);
+    void useExcuseBadge.getState().refresh(true);
+    showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
+    return "done";
+  };
+
+  const confirmLiveExamFinish = async () => {
+    const pending = liveExam;
+    if (!pending || liveExamBusy) return;
+    setLiveExamBusy(true);
+    try {
+      const outcome = await finishLesson(pending.lesson, true);
+      if (outcome !== "ask") setLiveExam(null);
+    } catch (error) {
+      const failure = lessonFailure(error, "finish", "Не удалось завершить урок");
+      setLiveExam(null);
+      if (failure.kind === "conflict") { setSaveError(failure.text); void loadAttendanceRef.current(true); }
+      else setSaveError(failure.text);
+    } finally {
+      setLiveExamBusy(false);
+    }
+  };
+
+  const runColumnAction = async (action: AdminLessonAction | "replace_teacher", lesson: Lesson) => {
     const key = instanceKey(lesson);
     setColumnMenu(null);
     setSaveError(null);
 
     if (action === "cancel_missed") {
       setCancelMissed({ groupId, lessonId: lesson.id, lessonDate: lesson.date });
+      return;
+    }
+    if (action === "replace_teacher") {
+      setTeacherTarget({
+        groupId,
+        lessonId: lesson.id,
+        lessonDate: lesson.date,
+        startTime: lesson.startTime || lesson.start_time || "",
+        endTime: lesson.endTime || "",
+        info: attendanceData?.lessonTeachers?.[key] ?? null,
+      });
       return;
     }
     if (action === "correct") {
@@ -925,36 +1195,13 @@ export function GroupAttendanceJournal({
         await loadAttendanceRef.current(true);
         showToast("Урок открыт: отметьте учеников в столбце");
       } else if (action === "finish") {
-        // Cells of this lesson stay locked while it is being closed, and the
-        // finish itself waits behind every mark already queued.
-        finishingKeyRef.current = key;
-        const task = saveQueueRef.current.then(async () => {
-          const { rosterCount, markedCount } = markedInLesson(lesson);
-          const hint = finishBlockedHint(markedCount, rosterCount);
-          if (hint) {
-            showToast(hint, "warning");
-            return false;
-          }
-          const records = recordsForSave(recordsRef.current, key);
-          if (!records) throw new Error("Не удалось определить отметки урока. Обновите страницу и повторите.");
-          await orgApi.saveGroupAttendance(groupId, {
-            lessonDate: lesson.date,
-            lessonId: lesson.id,
-            topic: lesson.topic,
-            status: "completed",
-            records,
-          });
-          return true;
-        });
-        saveQueueRef.current = task.then(() => undefined, () => undefined);
-        const finished = await task.finally(() => { finishingKeyRef.current = null; });
-        if (!finished) return;
-        await loadAttendanceRef.current(true);
-        void useExcuseBadge.getState().refresh(true);
-        showToast(`Урок ${formatDateRu(lesson.date)} завершён`);
+        await finishLesson(lesson, false);
       }
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : "Не удалось выполнить действие");
+      const failure = lessonFailure(error, action === "finish" ? "finish" : "reconcile", "Не удалось выполнить действие");
+      setSaveError(failure.text);
+      // somebody saved the lesson first: the journal is read again so the marks on screen are theirs
+      if (failure.kind === "conflict") void loadAttendanceRef.current(true);
     } finally {
       setColumnBusyKey(null);
     }
@@ -991,7 +1238,8 @@ export function GroupAttendanceJournal({
     }
     setCorrectionSaving(true);
     try {
-      await orgApi.saveGroupAttendance(groupId, {
+      const expectedVersion = expectedVersionFor(versionsRef.current, correcting.key);
+      const saved = await orgApi.saveGroupAttendance(groupId, {
         lessonDate: correctingLesson.date,
         lessonId: correctingLesson.id,
         topic: correctingLesson.topic,
@@ -999,7 +1247,9 @@ export function GroupAttendanceJournal({
         records: correcting.draft,
         correctionReason: correctionDialog.reason.trim(),
         excuseReasons: collectExcuseReasons(correcting.draft, correcting.reasons, excusesOf(correcting.key)),
+        ...(expectedVersion !== undefined ? { expectedVersion } : {}),
       });
+      versionsRef.current = withSavedVersion(versionsRef.current, correcting.key, saved);
       const date = formatDateRu(correctingLesson.date);
       setCorrecting(null);
       setCorrectionDialog(null);
@@ -1007,9 +1257,26 @@ export function GroupAttendanceJournal({
       void useExcuseBadge.getState().refresh(true);
       showToast(`Урок ${date} исправлен`);
     } catch (err) {
+      const failure = lessonFailure(err, "save", "Не удалось сохранить исправление. Данные не изменены.");
+      if (failure.kind === "conflict") {
+        // O7: the lesson was saved by somebody else meanwhile - my edits go to the conflict dialog
+        conflictKeysRef.current.add(correcting.key);
+        setConflictError(null);
+        setConflict({
+          detail: failure.detail,
+          base: { ...(localRecords[correcting.key] || {}) },
+          mine: { ...correcting.draft },
+          lessonKey: correcting.key,
+          lesson: correctingLesson,
+          kind: "correction",
+          status: "completed",
+          reasons: correcting.reasons,
+        });
+        return;
+      }
       setCorrectionDialog({
         ...correctionDialog,
-        error: err instanceof Error ? err.message : "Не удалось сохранить исправление. Данные не изменены.",
+        error: failure.text,
       });
     } finally {
       setCorrectionSaving(false);
@@ -1117,6 +1384,10 @@ export function GroupAttendanceJournal({
                     const adminActions = adminMode && canEdit && !correcting
                       ? lessonAdminActions(lessonStatus, lesson.date, today)
                       : [];
+                    const teacherInfo = attendanceData?.lessonTeachers?.[key];
+                    const teacherLabel = substituteLabel(teacherInfo);
+                    // O5: the owner and the administrator can replace the teacher of a lesson that is not cancelled
+                    const canReplace = adminMode && canEdit && !correcting && Boolean(teacherInfo) && canReplaceTeacher("admin", lessonStatus);
                     return (
                       <th
                         key={key}
@@ -1125,7 +1396,7 @@ export function GroupAttendanceJournal({
                         title={presentation.description}
                         className={`relative min-w-[132px] border-r border-slate-200 px-3 py-3 text-center transition-colors duration-500 ${inCorrection ? "bg-amber-50 ring-2 ring-inset ring-amber-300" : highlightedKey === key ? "bg-primary-100 ring-2 ring-inset ring-primary-300" : lesson.date === today ? "bg-primary-50" : ""}`}
                       >
-                        {adminActions.length > 0 && (
+                        {(adminActions.length > 0 || canReplace) && (
                           <button
                             type="button"
                             data-column-menu-trigger
@@ -1156,6 +1427,20 @@ export function GroupAttendanceJournal({
                           </div>
                           {lesson.isRescheduled && (
                             <div className="text-[10px] font-semibold text-amber-700">Перенесён</div>
+                          )}
+                          {teacherLabel && (
+                            <div className="mx-auto w-fit max-w-[120px] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800" title={teacherLabel}>{teacherLabel}</div>
+                          )}
+                          <LessonChips
+                            marks={lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode })}
+                            requestHref={adminMode ? (requestId) => substitutionsHref(substitutionsPathFor(user), requestId) : undefined}
+                            className="justify-center"
+                          />
+                          {lessonIsOthers(key) && (
+                            <div className="mx-auto max-w-[120px] text-[10px] font-medium leading-tight text-slate-500">{notYourLessonText(teacherInfo)}</div>
+                          )}
+                          {lacksTeacher(teacherInfo) && adminMode && (
+                            <div className="text-[10px] font-semibold text-amber-700">{NO_LESSON_TEACHER_TEXT}</div>
                           )}
                           <div className={`text-[10px] font-semibold ${presentation.className}`}>
                             {presentation.label}
@@ -1259,7 +1544,7 @@ export function GroupAttendanceJournal({
                         const isFutureLesson = lesson.date > today;
                         const wasInLesson = belongsToLesson(student, lesson);
                         const inCorrection = correcting?.key === key;
-                        const locked = !wasInLesson || !canEdit || columnBusyKey === key || isFutureLesson || lessonStatus === "scheduled" || (lessonStatus === "completed" && !inCorrection) || lessonStatus === "cancelled";
+                        const locked = !wasInLesson || !canEdit || lessonIsOthers(key) || columnBusyKey === key || isFutureLesson || lessonStatus === "scheduled" || (lessonStatus === "completed" && !inCorrection) || lessonStatus === "cancelled";
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         // The excuse record belongs to the saved mark, not to an unsaved correction.
                         const savedIsExcused = localRecords[key]?.[student.id] === "excused";
@@ -1470,7 +1755,7 @@ export function GroupAttendanceJournal({
                         const lessonStatus = attendanceData?.statuses?.[key] || lesson.status || "scheduled";
                         const inCorrection = correcting?.key === key;
                         // A student transferred out later is still on the roster frozen for this lesson.
-                        const editable = wasInLesson && canEdit && columnBusyKey !== key && lesson.date <= today
+                        const editable = wasInLesson && canEdit && !lessonIsOthers(key) && columnBusyKey !== key && lesson.date <= today
                           && (lessonStatus === "in_progress" || (lessonStatus === "completed" && inCorrection));
                         const isOpen = openCell?.studentId === student.id && openCell.lessonKey === key;
                         return (
@@ -1532,6 +1817,8 @@ export function GroupAttendanceJournal({
         if (!lesson) return null;
         const lessonStatus = attendanceData?.statuses?.[columnMenu.key] || lesson.status || "scheduled";
         const actions = lessonAdminActions(lessonStatus, lesson.date, today);
+        const menuTeacherInfo = attendanceData?.lessonTeachers?.[columnMenu.key];
+        const menuCanReplace = Boolean(menuTeacherInfo) && canReplaceTeacher("admin", lessonStatus);
         const { rosterCount, markedCount } = markedInLesson(lesson);
         const finishHint = finishBlockedHint(markedCount, rosterCount);
         return (
@@ -1570,6 +1857,12 @@ export function GroupAttendanceJournal({
                 {finishHint && <span className="pl-6 text-[11px] font-medium text-amber-700">{finishHint}</span>}
               </button>
             )}
+            {menuCanReplace && (
+              <button type="button" role="menuitem" onClick={() => void runColumnAction("replace_teacher", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
+                <UserRoundCheck className="h-4 w-4 text-violet-600" />
+                {lacksTeacher(menuTeacherInfo) ? ASSIGN_TEACHER_ACTION : REPLACE_TEACHER_ACTION}
+              </button>
+            )}
             {actions.includes("correct") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <Pencil className="h-4 w-4 text-amber-600" />
@@ -1579,6 +1872,30 @@ export function GroupAttendanceJournal({
           </FloatingMenu>
         );
       })()}
+
+      <AttendanceConflictDialog
+        conflict={conflict}
+        names={Object.fromEntries(studentNameById)}
+        busy={conflictBusy}
+        error={conflictError}
+        onKeepMine={() => void resolveConflict("mine")}
+        onTakeTheirs={() => void resolveConflict("theirs")}
+      />
+      <LiveExamConfirmDialog
+        exams={liveExam?.exams ?? null}
+        busy={liveExamBusy}
+        onConfirm={() => void confirmLiveExamFinish()}
+        onBack={() => setLiveExam(null)}
+      />
+      <LessonTeacherDialog
+        target={teacherTarget}
+        onClose={() => setTeacherTarget(null)}
+        onChanged={(result) => {
+          setTeacherTarget(null);
+          showToast(directAssignToast(result));
+          void loadAttendanceRef.current(true);
+        }}
+      />
 
       {/* Reason for an excused absence */}
       <Modal

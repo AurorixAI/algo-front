@@ -208,7 +208,7 @@ test("bottom bar, owner: Панель, Группы, Ученики, Оплат�
   const { splitBottomNav, BOTTOM_NAV_PRIORITY } = lib("bottom-nav.ts");
   const { bar, more } = splitBottomNav(items(MENU.owner), BOTTOM_NAV_PRIORITY.owner);
   assert.deepEqual(hrefsAfterSplit(bar), ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/payments"]);
-  assert.deepEqual(hrefsAfterSplit(more), ["/owner/attendance", "/owner/payroll", "/owner/teachers"]);
+  assert.deepEqual(hrefsAfterSplit(more), ["/owner/attendance", "/owner/substitutions", "/owner/payroll", "/owner/teachers"]);
   // the demo build has no attendance / payments / payroll: the next ones by priority fill the bar
   const demo = splitBottomNav(items(["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]), BOTTOM_NAV_PRIORITY.owner);
   assert.deepEqual(hrefsAfterSplit(demo.bar), ["/owner/dashboard", "/owner/groups", "/owner/students", "/owner/teachers"]);
@@ -219,10 +219,10 @@ test("bottom bar, admin: Диагностика, Ученики, Группы, �
   const { splitBottomNav, BOTTOM_NAV_PRIORITY } = lib("bottom-nav.ts");
   const full = splitBottomNav(items(MENU.admin), BOTTOM_NAV_PRIORITY.admin);
   assert.deepEqual(hrefsAfterSplit(full.bar), ["/admin/diagnostics", "/admin/students", "/admin/groups", "/admin/payments"], "menu order");
-  assert.deepEqual(hrefsAfterSplit(full.more), ["/admin/exams", "/admin/attendance"]);
+  assert.deepEqual(hrefsAfterSplit(full.more), ["/admin/exams", "/admin/attendance", "/admin/substitutions"]);
   const noPayments = splitBottomNav(items(MENU.admin.filter((href) => href !== "/admin/payments")), BOTTOM_NAV_PRIORITY.admin);
   assert.deepEqual(hrefsAfterSplit(noPayments.bar), ["/admin/diagnostics", "/admin/students", "/admin/groups", "/admin/attendance"]);
-  assert.deepEqual(hrefsAfterSplit(noPayments.more), ["/admin/exams"]);
+  assert.deepEqual(hrefsAfterSplit(noPayments.more), ["/admin/exams", "/admin/substitutions"]);
 });
 
 test("bottom bar, teacher: all four sections fit, in the order of the menu; «Ещё» has the profile and the quick action", () => {
