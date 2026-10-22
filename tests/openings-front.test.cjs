@@ -315,10 +315,10 @@ test("lessons: the server's conversion is shown as an arrow under the field (O06
 test("review: the sentence of the owner from the server's figures (O04)", () => {
   const preview = O.normalizePreview(fixture("O04_preview_ok"));
   const review = O.reviewParts(preview);
-  assert.equal(review.headline, "Изменится 2 ученика");
-  assert.deepEqual(review.parts.map(plain), ["1 — оплачено до 30.11", "1 — долг 550 000 сум"]);
+  assert.equal(review.headline, "Изменится 3 ученика");
+  assert.deepEqual(review.parts.map(plain), ["1 — долга на начало нет", "1 — оплачено до 30.11", "1 — долг 550 000 сум"]);
   assert.equal(plain(review.effect), "Должников станет 1, общий долг +550 000 сум");
-  assert.equal(plain(O.reviewSentence(preview)), "Изменится 2 ученика: 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Должников станет 1, общий долг +550 000 сум");
+  assert.equal(plain(O.reviewSentence(preview)), "Изменится 3 ученика: 1 — долга на начало нет · 1 — оплачено до 30.11 · 1 — долг 550 000 сум · Должников станет 1, общий долг +550 000 сум");
   assert.deepEqual(review.notes, []);
 });
 
@@ -365,7 +365,7 @@ test("review: errors per row (O05) are put in words, the reason is needed for th
   // the soft warnings of the preview that deserve a line (not «HAS_MONEY»: the reason field says it)
   assert.deepEqual(O.previewWarnings(preview), []);
   const warned = O.normalizePreview(fixture("O04_preview_ok"));
-  assert.match(O.previewWarnings(warned)[0].text, /ничего не должен на начало/);
+  assert.match(O.previewWarnings(warned)[0].text, /на начало учёта долга нет \(строка отмечена как проверенная\)/);
 });
 
 test("review: a row somebody else changed since the table was read (STALE_VERSION) is refreshed, not shown as an error", () => {
@@ -481,14 +481,14 @@ test("the one key of a request: kept while the body is the same, new when the it
 
 test("excel: the report of the file in words (O09): the counts, the missing students, the rows with the numbers and codes in plain Russian", () => {
   const report = O.normalizeImport(fixture("O09_import_preview"));
-  assert.equal(O.excelFileLine(report.file), "Прочитано 6 строк: изменится 2, без изменений 1, ошибок 3 (не найдено 1)");
+  assert.equal(O.excelFileLine(report.file), "Прочитано 6 строк: изменится 3, без изменений 0, ошибок 3 (не найдено 1)");
   assert.equal(O.excelMissingLine(report.file), "В файле нет 4 учеников — у них всё останется как было");
   assert.equal(O.excelMissingLine({ ...report.file, missing_in_file: 0 }), null);
   assert.equal(O.excelFileLine({ rows_read: 1, changed: 0, unchanged: 1, errors: 0, unknown: 0, missing_in_file: 0 }), "Прочитано 1 строку: изменится 0, без изменений 1, ошибок нет");
   const rows = O.excelReportRows(report.rows);
   assert.deepEqual(rows.errors.map((row) => row.row), [5, 6, 7]);
-  assert.deepEqual(rows.changes.map((row) => row.row), [2, 3]);
-  assert.equal(rows.unchanged, 1);
+  assert.deepEqual(rows.changes.map((row) => row.row), [2, 3, 4]);
+  assert.equal(rows.unchanged, 0);
   assert.deepEqual(rows.errors.map(O.excelRowText), [
     "строка 5: ученик не найден",
     "строка 6: ID не подходит ученику: проверьте, не сдвинулись ли колонки",
