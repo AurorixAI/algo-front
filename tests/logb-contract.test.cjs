@@ -63,6 +63,10 @@ test("every error code of the contract is handled by name in the front, or is sh
     LESSON_NOT_FOUND: "a lesson that is gone: the server text in the dialog",
     LESSON_OUTSIDE_WINDOW: "reconcile / cancel older than the window: the server text",
     STAFF_ROLE_REQUIRED: "no screen of a teacher creates a student; the server text if a call is forced",
+    GROUP_NOT_FOUND: "a group that is gone: the server text in the dialog",
+    MEMBER_NOT_FOUND: "a member that is gone: the server text in the dialog",
+    VALID_FROM_RANGE: "the date of «Действует с» is checked in the form first; the server text if a call is forced",
+    EMAIL_INVALID: "the invitation form: the server text under the e-mail field",
     STATUS_USE_ARCHIVE_ACTION: "the front never sends `status` to a group any more",
   };
   for (const code of Object.keys(contract["x-errors"])) {

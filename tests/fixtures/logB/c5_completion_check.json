@@ -2,7 +2,7 @@
   "exams": [
     {
       "deliveryMode": "online",
-      "endsAt": "2026-10-21T12:15:00",
+      "endsAt": "2026-10-21T12:30:00",
       "examId": "EX_123",
       "remainingSeconds": 900,
       "status": "active",

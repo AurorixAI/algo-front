@@ -8,15 +8,6 @@
       },
       "groups": [
         {
-          "id": "4235a098-e818-5a7f-a19f-bedec8ab5b39",
-          "name": "9-А",
-          "nextLesson": {
-            "date": "2026-10-21",
-            "startTime": "16:00"
-          },
-          "studentCount": 3
-        },
-        {
           "id": "e7a0b156-c39d-53e8-85e3-48880a13ea39",
           "name": "7-Б",
           "nextLesson": {
@@ -24,6 +15,15 @@
             "startTime": "10:00"
           },
           "studentCount": 2
+        },
+        {
+          "id": "4235a098-e818-5a7f-a19f-bedec8ab5b39",
+          "name": "9-А",
+          "nextLesson": {
+            "date": "2026-10-21",
+            "startTime": "16:00"
+          },
+          "studentCount": 3
         }
       ],
       "inProgressLessons": [],

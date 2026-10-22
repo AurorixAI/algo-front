@@ -23,16 +23,28 @@
             "title": "Email"
           },
           "first_name": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "First Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Name"
           },
           "last_name": {
-            "maxLength": 100,
-            "minLength": 1,
-            "title": "Last Name",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Name"
           },
           "password": {
             "maxLength": 128,
@@ -43,9 +55,7 @@
         },
         "required": [
           "code",
-          "password",
-          "first_name",
-          "last_name"
+          "password"
         ],
         "title": "AcceptInviteRequestB",
         "type": "object"
@@ -181,6 +191,11 @@
             ],
             "title": "Class Level"
           },
+          "closedSubstitutionRequests": {
+            "default": 0,
+            "title": "Closedsubstitutionrequests",
+            "type": "integer"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -202,6 +217,11 @@
               }
             ],
             "title": "Description"
+          },
+          "examReleasePending": {
+            "default": false,
+            "title": "Examreleasepending",
+            "type": "boolean"
           },
           "id": {
             "title": "Id",
@@ -1081,6 +1101,21 @@
             "title": "Historicalstudents",
             "type": "array"
           },
+          "lessonRoster": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lessonroster"
+          },
           "lessonTeachers": {
             "additionalProperties": {
               "$ref": "#/components/schemas/LessonTeacherInfo"
@@ -1140,6 +1175,14 @@
               "type": "string"
             },
             "title": "Statuses",
+            "type": "object"
+          },
+          "substitutionRequests": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Substitutionrequests",
             "type": "object"
           },
           "versions": {
@@ -1580,6 +1623,11 @@
       },
       "HandoverOut": {
         "properties": {
+          "closedSubstitutionRequests": {
+            "default": 0,
+            "title": "Closedsubstitutionrequests",
+            "type": "integer"
+          },
           "handedOver": {
             "items": {
               "$ref": "#/components/schemas/HandedOverGroup"
@@ -2144,6 +2192,49 @@
         "title": "LessonTeacherCandidatesOut",
         "type": "object"
       },
+      "LessonTeacherChangedDetail": {
+        "additionalProperties": true,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "currentTeacherId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Currentteacherid"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "teacher_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Teacher Name"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "LessonTeacherChangedDetail",
+        "type": "object"
+      },
       "LessonTeacherInfo": {
         "properties": {
           "defaultTeacherId": {
@@ -2251,6 +2342,18 @@
             },
             "title": "Payrollsheetsaffected",
             "type": "array"
+          },
+          "requestClosed": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestclosed"
           },
           "teacherId": {
             "anyOf": [
@@ -3091,6 +3194,9 @@
             "title": "Orgrole",
             "type": "string"
           },
+          "pendingSubstitutionRequests": {
+            "$ref": "#/components/schemas/CountOut"
+          },
           "userId": {
             "title": "Userid",
             "type": "string"
@@ -3135,6 +3241,11 @@
       },
       "RemoveMemberOut": {
         "properties": {
+          "closedSubstitutionRequests": {
+            "default": 0,
+            "title": "Closedsubstitutionrequests",
+            "type": "integer"
+          },
           "message": {
             "title": "Message",
             "type": "string"
@@ -3565,6 +3676,30 @@
             "default": "Математика",
             "title": "Subject",
             "type": "string"
+          },
+          "substitutionOutcome": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substitutionoutcome"
+          },
+          "substitutionRequest": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Substitutionrequest"
           },
           "teacherId": {
             "anyOf": [
@@ -6080,7 +6215,7 @@
     },
     "/org/students": {
       "post": {
-        "description": "Добавить ученика",
+        "description": "Добавить ученика (O12: только owner/admin - зачисление запускает начисления, решает администратор)",
         "requestBody": {
           "content": {
             "application/json": {
@@ -6309,6 +6444,11 @@
       "model": "OpsErrorResponse",
       "status": 409
     },
+    "EMAIL_INVALID": {
+      "message": "Проверьте email приглашаемого сотрудника",
+      "model": "OpsErrorResponse",
+      "status": 422
+    },
     "EMAIL_IN_OTHER_ORG": {
       "message": "Этот email уже зарегистрирован в другом центре. Пока один email работает только в одном центре.",
       "model": "OpsErrorResponse",
@@ -6338,6 +6478,11 @@
       "message": "Группу нельзя архивировать",
       "model": "GroupArchiveBlockedDetail",
       "status": 409
+    },
+    "GROUP_NOT_FOUND": {
+      "message": "Группа не найдена",
+      "model": "OpsErrorResponse",
+      "status": 404
     },
     "IMPORT_IN_PROGRESS": {
       "message": "Импорт уже выполняется. Подождите минуту",
@@ -6371,7 +6516,7 @@
     },
     "LESSON_TEACHER_CHANGED": {
       "message": "Преподаватель урока уже изменён",
-      "model": "OpsErrorResponse",
+      "model": "LessonTeacherChangedDetail",
       "status": 409
     },
     "LESSON_TOO_OLD": {
@@ -6383,6 +6528,11 @@
       "message": "У сотрудника есть группы или начатые уроки",
       "model": "MemberHasAssignmentsDetail",
       "status": 409
+    },
+    "MEMBER_NOT_FOUND": {
+      "message": "Сотрудник не найден",
+      "model": "OpsErrorResponse",
+      "status": 404
     },
     "NOT_ARCHIVED": {
       "message": "Группа не в архиве",
@@ -6451,6 +6601,11 @@
     },
     "VALID_FROM_PAST": {
       "message": "Дата начала не может быть в прошлом",
+      "model": "OpsErrorResponse",
+      "status": 422
+    },
+    "VALID_FROM_RANGE": {
+      "message": "Дата начала не может быть позже чем через 365 дней",
       "model": "OpsErrorResponse",
       "status": 422
     }

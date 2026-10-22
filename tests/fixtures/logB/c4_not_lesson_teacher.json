@@ -2,7 +2,7 @@
   "body": {
     "detail": {
       "code": "NOT_LESSON_TEACHER",
-      "message": "Этот урок ведёт другой преподаватель"
+      "message": "Этот урок ведёт Иванов И."
     }
   },
   "status": 403

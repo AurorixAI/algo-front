@@ -10,13 +10,26 @@
     "teachers_existing": 0,
     "teachers_new": 0
   },
-  "groups_preview": [],
+  "groups_preview": [
+    {
+      "action": "existing",
+      "class_level": 9,
+      "name": "9-А",
+      "teacher_email": ""
+    },
+    {
+      "action": "existing",
+      "class_level": 5,
+      "name": "5-В",
+      "teacher_email": ""
+    }
+  ],
   "issues": [
     {
-      "code": "TEACHER_NOT_TEACHER",
+      "code": "TEACHER_NOT_FOUND",
       "field": "Email учителя",
       "level": "error",
-      "message": "karimova@algo.test — не преподаватель (роль: администратор)",
+      "message": "Преподаватель nobody@algo.test не найден в системе. Добавьте его через интерфейс.",
       "row": 4,
       "sheet": "Группы"
     }

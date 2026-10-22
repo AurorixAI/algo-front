@@ -119,7 +119,7 @@ test("[O2.R1] MEMBER_HAS_ASSIGNMENTS (the DELETE refusal) is read as the removal
   const body = fixture("x_member_has_assignments");
   const read = S.impactFromRefusal(refusal(body.status, body.body), "member-1");
   assert.equal(read.canRemove, false);
-  assert.deepEqual(read.groups.map((g) => g.name), ["9-А", "7-Б"]);
+  assert.deepEqual(read.groups.map((g) => g.name), ["7-Б", "9-А"]);
   assert.equal(read.missedLessons.count, 1);
   assert.equal(S.impactFromRefusal(refusal(409, { detail: { code: "NOT_REMOVED", message: "x" } }), "m"), null);
   assert.equal(S.impactFromRefusal(new Error("boom"), "m"), null);

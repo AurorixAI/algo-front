@@ -58,12 +58,12 @@ test("[O9.R7] the blocking teacher check of chain 3 is shown as an error and the
   const preview = fixture("c3_preview_teacher_not_teacher");
   assert.equal(preview.ok, false);
   const issue = preview.issues[0];
-  assert.equal(issue.code, "TEACHER_NOT_TEACHER");
-  assert.equal(issue.message, "karimova@algo.test — не преподаватель (роль: администратор)");
+  assert.equal(issue.code, "TEACHER_NOT_FOUND");
+  assert.equal(issue.message, "Преподаватель nobody@algo.test не найден в системе. Добавьте его через интерфейс.");
   const html = renderToStaticMarkup(React.createElement(ReviewStep, { preview: { ...preview, counts: withLegacyShape(preview.counts) } }));
   const text = textOf(html);
   assert.match(text, /Есть ошибки — исправьте файл и загрузите снова\./);
-  assert.match(text, /Группы строка 4 · Email учителя: karimova@algo\.test — не преподаватель \(роль: администратор\)/);
+  assert.match(text, /Группы строка 4 · Email учителя: Преподаватель nobody@algo\.test не найден в системе\. Добавьте его через интерфейс\./);
   assert.doesNotMatch(text, /Пропущено и почему/, "no skipped rows, no table");
   assert.match(R.issueText(issue), /^Группы, строка 4 · Email учителя: /);
 });

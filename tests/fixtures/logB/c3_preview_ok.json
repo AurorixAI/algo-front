@@ -10,7 +10,26 @@
     "teachers_existing": 0,
     "teachers_new": 0
   },
-  "groups_preview": [],
+  "groups_preview": [
+    {
+      "action": "existing",
+      "class_level": 9,
+      "name": "9-А",
+      "teacher_email": ""
+    },
+    {
+      "action": "existing",
+      "class_level": 5,
+      "name": "5-В",
+      "teacher_email": ""
+    },
+    {
+      "action": "create",
+      "class_level": 6,
+      "name": "6-Д",
+      "teacher_email": "TEACHER_EMAIL"
+    }
+  ],
   "issues": [],
   "ok": true,
   "skipped": [
@@ -55,6 +74,21 @@
       "student": "Каримова Лола"
     }
   ],
-  "students_preview": [],
+  "students_preview": [
+    {
+      "action": "create",
+      "class_level": 6,
+      "group": "6-Д",
+      "name": "Каримова Лола",
+      "phone": "+998901112233"
+    },
+    {
+      "action": "create",
+      "class_level": 6,
+      "group": "6-Д",
+      "name": "Рахимов Жасур",
+      "phone": null
+    }
+  ],
   "teachers_preview": []
 }
