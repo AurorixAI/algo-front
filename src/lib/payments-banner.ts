@@ -1,3 +1,4 @@
+import { formatMoney } from "./payments";
 import { pluralRu } from "./plural";
 
 /** What the summary says about who is waiting.  The `students*` counts are distinct people; `due` / `expired` count memberships. */
@@ -78,5 +79,36 @@ export function bannerCopy(input: BannerCounts): BannerCopy {
     // cutting the sentence.  A non-breaking space keeps «2 просрочено» together when it wraps after the comma.
     compactSubject: subject,
     compactPredicate: chip ? `${waiting}, ${expired}\u00A0просрочено` : waiting,
+  };
+}
+
+/** What the summary says about debts: the same numbers as the cards of «Оплаты» (debtors, the total of their debts, how many of them are overdue). */
+export interface DebtBannerInput {
+  debtors: number | null | undefined;
+  debtTotal: number | null | undefined;
+  /** Distinct students whose payment has already ended (`students_expired`); null from an older server. */
+  overdue: number | null | undefined;
+}
+
+/**
+ * The banner in the words of the card «Долг учеников» (owner 22.10): «33 ученика с долгом — 21 395 000 сум» + the chip
+ * «из них просрочено: 19».  `count` is the number of debtors (the cross hides the notice until more people owe than at that moment).
+ */
+export function debtBannerCopy(input: DebtBannerInput): BannerCopy {
+  const total = isCount(input.debtors) ? count(input.debtors) : 0;
+  const overdue = Math.min(isCount(input.overdue) ? count(input.overdue) : 0, total);
+  const noun = pluralRu(total, "ученик", "ученика", "учеников");
+  const subject = `${total} ${noun}`;
+  const predicate = `с долгом — ${formatMoney(count(input.debtTotal))}`;
+  const chip = overdue > 0 ? `из них просрочено: ${overdue}` : null;
+  return {
+    count: total,
+    expired: overdue,
+    subject,
+    predicate,
+    chip,
+    text: chip ? `${subject} ${predicate} · ${chip}` : `${subject} ${predicate}`,
+    compactSubject: subject,
+    compactPredicate: chip ? `${predicate}, ${overdue}\u00A0просрочено` : predicate,
   };
 }

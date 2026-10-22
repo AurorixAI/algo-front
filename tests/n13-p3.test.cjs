@@ -634,11 +634,11 @@ test("the month page: latest answer wins, a month switch drops previews, leaving
   assert.match(month, /parseMonthParam\(searchParams\?\.get\("month"\), today\)/);
   assert.match(month, /Скачать Excel за месяц/);
   assert.match(month, /disabled=\{savedCount === 0 \|\| exporting\}/);
-  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutText\(month, teachers\)\} \/>/);
+  assert.match(month, /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutTail\(teachers\)\} \/>/);
   assert.match(month, /<PayrollPageMenu divisor=\{overview\.divisor\} \/>/);
   assert.match(month, /aria-label=\{`\$\{action\.label\}: \$\{teacher\.teacher_name\}`\}/);
   assert.doesNotMatch(month, /type="checkbox"|Процент для|sanitizePercentTyping/); // no selection, no percent field
-  assert.equal((month.match(/<RowMenu/g) || []).length, 1); // one button per row; the only «⋯» is «Отметить выплату» (LOGIC-A); Excel of a sheet is inside the sheet
+  assert.equal((month.match(/<RowMenu/g) || []).length, 0); // one button per row and no «⋯» (owner 22.10): «Отметить выплату» lives on the sheet card; Excel of a sheet is inside the sheet
   const sheetPage = read("src/components/payroll/payroll-sheet-page.tsx");
   assert.match(sheetPage, /useUnsavedGuard\(dirty, UNSAVED_TEXT\)/);
   assert.match(sheetPage, /История сохранений/);

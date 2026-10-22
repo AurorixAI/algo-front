@@ -754,7 +754,7 @@ test("the payroll warnings and tooltips are wired to the screens", () => {
   const controls = read("src/components/payroll/sheet-controls.tsx");
   assert.match(controls, /<StatusChip status=\{status\}|export function StatusChip\(\{ status, hint \}/);
   assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<StatusChip status=\{status\} hint=\{statusHint\(teacher\.sheet\)\} \/>/);
-  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutText\(month, teachers\)\} \/>/);
+  assert.match(read("src/components/payroll/payroll-month-page.tsx"), /<PayrollMonthSummary summary=\{summary\} month=\{month\} open=\{monthOpen\} payoutText=\{monthPayoutTail\(teachers\)\} \/>/);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /<PayrollPageMenu divisor=\{sheet\.divisor_default\} \/>/);
   assert.match(read("src/components/payroll/month-status.tsx"), /<PayrollHowItWorksDialog open=\{helpOpen\} divisor=\{divisor\}/);
   assert.match(controls, /<Hint text=\{views\.map\(\(item\) => `\$\{item\.text\}\\n\$\{item\.hint\}`\)/);

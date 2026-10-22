@@ -47,15 +47,15 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
-  await expect(row).toContainText(new RegExp(`Цена группы: ${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум/мес`));
-  await expect(row.getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
-  await expect(row.getByRole("textbox", { name: "Оплачено до" })).toHaveCount(0); // PAY-2: no period to pick
-  await expect(row.getByTestId("quick-due")).toContainText(new RegExp(`Всего к оплате\\s*${String(expectedAmount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")}\\s*сум`));
-  await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
+  await expect(row).toContainText(new RegExp(`${groupedDigits(fee).replace(/ /g, "\\s")}\\s*сум`));
+  await row.getByRole("button", { name: "Внести оплату" }).click();
+  const dialog = page.getByRole("dialog", { name: "Внести оплату" });
+  await expect(dialog.getByTestId("payment-due")).toContainText(new RegExp(`Всего к оплате\\s*${String(expectedAmount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s")}\\s*сум`));
+  await expect(dialog.getByLabel("Сумма")).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
 
   // --- save: the payment is what was due, the period is closed
-  await row.getByRole("combobox", { name: "Способ оплаты" }).selectOption("card");
-  await row.getByRole("button", { name: "Сохранить" }).click();
+  await dialog.getByRole("radio", { name: "Карта" }).click();
+  await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Оплата внесена")).toBeVisible();
   const membership = await org.membershipId(student.id);
   const [payment] = await org.owner.api.get(`/auth/org/memberships/${membership}/payments`);

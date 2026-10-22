@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Wallet, X } from "lucide-react";
-import { bannerDismissed } from "@/lib/payments";
-import { bannerCopy } from "@/lib/payments-banner";
+import { bannerDismissed, debtorsCount } from "@/lib/payments";
+import { debtBannerCopy } from "@/lib/payments-banner";
 import { usePaymentsSummary, usePaymentsSummarySync } from "@/lib/payments-summary";
 
 const DISMISS_KEY = "algo.payments-banner.dismissed-at";
@@ -31,14 +31,14 @@ function writeDismissedAt(count: number): void {
 }
 
 /**
- * Notice above the page of an owner / administrator: «13 учеников ждут оплаты» with a link to the list.
+ * Notice above the page of an owner / administrator: «33 ученика с долгом — 21 395 000 сум» (the words of the card on «Оплаты») with a link to «Должники».
  * It also keeps the shared payments summary fresh (mount, route change, tab visible, every
  * 5 minutes), which feeds the menu item and the badge.  Shown only while the server lets this
  * user see payments and somebody is due.  Rose appears only in the small chip for payments that have already
  * ended.  The cross hides it for this browser session; it comes back when more people wait than at that moment.
  *
  * One row everywhere: on a phone (under 640 px) it is a compact strip - the icon, the sentence at 14 px (it wraps to a
- * second line, and is never cut with an ellipsis: «5 учеников ждут оплаты, 2 просрочено» is the whole message), a small
+ * second line, and is never cut with an ellipsis: «5 учеников с долгом — 750 000 сум, 2 просрочено» is the whole message), a small
  * «Открыть» link and the cross.  The overdue chip folds into the sentence there.
  */
 export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: string }) {
@@ -46,17 +46,18 @@ export function PaymentsAlertBanner({ paymentsBasePath }: { paymentsBasePath: st
   const reduceMotion = useReducedMotion();
   usePaymentsSummarySync(true, pathname);
   const available = usePaymentsSummary((state) => state.available);
-  const due = usePaymentsSummary((state) => state.due);
-  const expired = usePaymentsSummary((state) => state.expired);
-  const studentsDue = usePaymentsSummary((state) => state.studentsDue);
+  const debtors = usePaymentsSummary((state) => state.debtors);
+  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
+  const debtTotal = usePaymentsSummary((state) => state.debtTotal);
   const studentsExpired = usePaymentsSummary((state) => state.studentsExpired);
 
   const [dismissedAt, setDismissedAt] = useState<number | null>(null);
   useEffect(() => setDismissedAt(readDismissedAt()), []);
 
-  const copy = bannerCopy({ due, expired, studentsDue, studentsExpired });
-  // On the payments page itself the list is already in front of the user.
-  const visible = available && due > 0 && !pathname?.startsWith(paymentsBasePath) && !bannerDismissed(dismissedAt, copy.count);
+  // The same numbers as the cards of «Оплаты»: the debtors, their debt, and how many of them are overdue.
+  const copy = debtBannerCopy({ debtors: debtorsCount({ debtors, students_with_debt: studentsWithDebt }), debtTotal, overdue: studentsExpired });
+  // On the payments page itself the cards are in front of the user.
+  const visible = available && copy.count > 0 && !pathname?.startsWith(paymentsBasePath) && !bannerDismissed(dismissedAt, copy.count);
 
   return (
     <AnimatePresence initial={false}>

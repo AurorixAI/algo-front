@@ -1,21 +1,18 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, UserRound, Undo2, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { formatBusinessDate } from "@/lib/business-time";
 import {
   bucketCount,
   bucketTabLabel,
   debtReasonText,
   formatDateRu,
   formatMoney,
-  formatMoneyInput,
   incomeHref,
   isCarryOver,
-  isFirstPaymentRow,
   lastPaymentLabel,
   paymentAmountLabel,
   visibleBuckets,
@@ -25,7 +22,6 @@ import {
   PAYMENT_SAVED_TEXT,
   positionCards,
   priceMissingText,
-  reformatMoneyTyping,
   statementHref,
   statusDetail,
   moneyChip,
@@ -34,27 +30,16 @@ import {
   type PaymentBucket,
   type PaymentOut,
   type PaymentSaveResult,
-  type PaymentWarning,
   type PeriodMode,
 } from "@/lib/payments";
 import {
-  buildPaymentPayload,
   canRefund,
   canWriteOff,
-  dueView,
-  METHODS,
-  newIdempotencyKey,
-  payError,
-  previewAmount,
-  previewView,
   savedPaymentDetails,
-  validatePaymentForm,
-  type EnterableMethod,
 } from "@/lib/payments-ledger";
-import { FREE_WORD, groupPriceHref, membershipPriceView, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
+import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
-import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -70,7 +55,6 @@ const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
 const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_156px] xl:items-center xl:gap-x-4";
-const GRID_NONE = "xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,2.6fr)] xl:items-center xl:gap-x-4";
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
@@ -83,163 +67,6 @@ interface FormState {
   kind: PaymentFormKind;
   row: MembershipPaymentRow;
   payment: PaymentOut | null;
-}
-
-function warningLines(warnings: PaymentWarning[] | undefined): string[] {
-  return (warnings || []).map((warning) => warning.message);
-}
-
-/** Runs `callback` once, when `ref` first comes into (or near) the viewport; at once where there is no observer. */
-function useOnceVisible(ref: React.RefObject<Element | null>, callback: () => void): void {
-  const done = useRef(false);
-  const latest = useRef(callback);
-  latest.current = callback;
-  useEffect(() => {
-    const node = ref.current;
-    if (!node || done.current) return;
-    const fire = () => { if (!done.current) { done.current = true; latest.current(); } };
-    if (typeof IntersectionObserver === "undefined") { fire(); return; }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) { fire(); observer.disconnect(); }
-    }, { rootMargin: "200px" });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [ref]);
-}
-
-/**
- * Quick entry of a first payment right in the row of the «Без оплат» tab: the amount and how it was paid, nothing else.
- * The server says what is due (the amount starts as that) and, as the amount is typed, where the money goes.  The
- * price is never typed here - where there is none, the row says so, links to the group and the amount is typed by hand.
- */
-function QuickEntry({
-  row, groupsBasePath, onDone,
-}: {
-  row: MembershipPaymentRow;
-  groupsBasePath: string;
-  onDone: (result: PaymentSaveResult) => void;
-}) {
-  const today = useMemo(() => formatBusinessDate(), []);
-  const price = priceOfRow(row);
-  const priceView = membershipPriceView(price, priceLabelOf(row.period_mode ?? "calendar"));
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<EnterableMethod | "">("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // The server is asked only for rows that have been in view: a long list does not fire a request per row.
-  const [seen, setSeen] = useState(false);
-  const formRef = useRef<HTMLFormElement | null>(null);
-  useOnceVisible(formRef, () => setSeen(true));
-  const touched = useRef(false);
-  const immediate = useRef(false);
-  const idempotencyKey = useRef(newIdempotencyKey());
-
-  const amountNow = previewAmount(amount);
-  const query = useMemo(() => (seen ? (amountNow !== null ? { amount: amountNow } : {}) : null), [seen, amountNow]);
-  const key = previewKey(query);
-  const state = usePaymentPreview({
-    enabled: seen,
-    membershipId: row.membership_id,
-    query,
-    immediate,
-    onPreview: (answer) => {
-      if (touched.current || answer.suggested_amount <= 0) return;
-      touched.current = true;
-      immediate.current = true;
-      setAmount((previous) => previous || formatMoneyInput(answer.suggested_amount));
-    },
-  });
-  const latest = state.preview;
-  const fresh = latest && state.previewKey === key ? latest : null;
-  const due = dueView(latest);
-  const view = amountNow !== null ? previewView(fresh) : null;
-
-  const save = async () => {
-    if (busy) return;
-    const values = { amount, paidOn: today, method: method || null, note: "", reason: "" };
-    const problem = validatePaymentForm(values, today);
-    if (problem) { setError(problem); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      onDone(await orgApi.createPayment(row.membership_id, buildPaymentPayload(values), idempotencyKey.current));
-    } catch (cause) {
-      const failure = payError(cause, "Не удалось сохранить оплату");
-      setError(failure.message);
-      setBusy(false);
-    }
-  };
-
-  const id = `quick-${row.membership_id}`;
-  const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
-  return (
-    <form
-      ref={formRef}
-      onSubmit={(event) => { event.preventDefault(); void save(); }}
-      className="space-y-1.5"
-      noValidate
-    >
-      <p className="text-xs" data-testid="quick-price">
-        {priceView.kind === "none" ? (
-          <>
-            <span className="font-medium text-amber-800">{priceView.title}</span>
-            {" · "}
-            <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="font-semibold text-primary-700 hover:underline">задать цену группы</Link>
-            <span className="text-slate-500"> — сумму оплаты введите вручную</span>
-          </>
-        ) : (
-          <span className="text-slate-600">{priceView.text}</span>
-        )}
-      </p>
-      {due && due.total > 0 && <p className="text-xs text-slate-600" data-testid="quick-due">{due.text}</p>}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-        <div>
-          <label htmlFor={`${id}-amount`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Сумма оплаты, сум</label>
-          <input
-            id={`${id}-amount`}
-            value={amount}
-            onChange={(event) => { setError(null); touched.current = true; setAmount(reformatMoneyTyping(event.target.value)); }}
-            inputMode="numeric"
-            autoComplete="off"
-            placeholder="450 000"
-            className={FIELD}
-          />
-        </div>
-        <div>
-          <label htmlFor={`${id}-method`} className="mb-0.5 block text-[11px] font-medium text-slate-500">Способ оплаты</label>
-          <select
-            id={`${id}-method`}
-            value={method}
-            onChange={(event) => { setError(null); setMethod(event.target.value as EnterableMethod | ""); }}
-            className={FIELD}
-          >
-            <option value="">Выберите…</option>
-            {METHODS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
-        </div>
-        <button
-          type="submit"
-          disabled={busy}
-          className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-xs font-semibold text-white hover:bg-primary-700 disabled:opacity-60 sm:col-span-1"
-        >
-          {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          Сохранить
-        </button>
-      </div>
-
-      <div aria-live="polite" className="min-h-[1rem] text-[11px] text-slate-500">
-        {state.error ? (
-          <span className="text-rose-700">{state.error}</span>
-        ) : view ? (
-          <>
-            <span>{view.headline}</span>
-            {view.priceAhead.length > 0 && <span className="mt-0.5 block text-amber-800">{view.priceAhead.join(" ")}</span>}
-          </>
-        ) : null}
-      </div>
-      {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
-    </form>
-  );
 }
 
 function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { studentProfileBasePath: string; groupsBasePath: string }) {
@@ -375,15 +202,6 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const onSaved = (result: PaymentSaveResult) => {
     showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], "success", savedPaymentDetails(result.allocation));
     afterChange();
-  };
-
-  const onQuickDone = (result: PaymentSaveResult) => {
-    // The row has a status now: it leaves the «Без оплат» tab without reloading the page.
-    setItems((previous) => previous.filter((item) => item.membership_id !== result.row.membership_id));
-    setTotal((value) => Math.max(0, value - 1));
-    const details = [...savedPaymentDetails(result.allocation), ...warningLines(result.warnings)];
-    showToast(PAYMENT_SAVED_TEXT.create, result.warnings.length > 0 ? "warning" : "success", details);
-    void refreshSummary(true);
   };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -537,7 +355,6 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
                 onPay={() => setForm({ kind: "create", row, payment: null })}
                 onCorrect={(payment) => setForm({ kind: "replace", row, payment })}
                 onVoid={(payment) => setVoidTarget({ payment, studentName: row.student_name })}
-                onQuickDone={onQuickDone}
               />
             ))}
           </ul>
@@ -595,7 +412,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 }
 
 function PaymentRow({
-  row, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund, onQuickDone,
+  row, bucket, periodMode, paymentsBase, studentProfileBasePath, groupsBasePath, onPay, onCorrect, onVoid, onWriteoff, onRefund,
 }: {
   row: MembershipPaymentRow;
   bucket: PaymentBucket;
@@ -609,11 +426,8 @@ function PaymentRow({
   onVoid: (payment: PaymentOut) => void;
   onWriteoff: () => void;
   onRefund: () => void;
-  onQuickDone: (result: PaymentSaveResult) => void;
 }) {
   const router = useRouter();
-  // A debtor who has never paid keeps the quick entry of the first payment (it was the tab «Без оплат»).
-  const quick = bucket === "debt" && isFirstPaymentRow(row);
   const chip = moneyChip(row);
   const tone = STATUS_TONE_CLASS[chip.tone];
   const detail = statusDetail(row);
@@ -653,16 +467,10 @@ function PaymentRow({
   );
 
   return (
-    <li className={`flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-5 xl:py-2.5 ${quick ? GRID_NONE : GRID_DEFAULT}`}>
+    <li className={`flex flex-col gap-1.5 rounded-xl border border-slate-200 bg-white p-3.5 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-5 xl:py-2.5 ${GRID_DEFAULT}`}>
       {student}
       {group}
 
-      {quick ? (
-        <div className="mt-1.5 xl:mt-0">
-          <QuickEntry row={row} groupsBasePath={groupsBasePath} onDone={onQuickDone} />
-        </div>
-      ) : (
-        <>
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
             <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
             {price.amount === null || price.amount === undefined ? (
@@ -679,7 +487,7 @@ function PaymentRow({
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{chip.label}</span>
-            {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
+            {bucket === "debt" && reason && reason !== chip.label && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />
           </div>
@@ -701,8 +509,6 @@ function PaymentRow({
             <PayButton row={row} onPay={onPay} />
             <RowMenu items={menu} label={`Действия: ${row.student_name}`} />
           </div>
-        </>
-      )}
     </li>
   );
 }

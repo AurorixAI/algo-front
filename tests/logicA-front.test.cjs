@@ -305,6 +305,8 @@ test("payouts: chips, parts, the form and the overpayment question (G-PAY)", () 
   assert.deepEqual(Y.sheetPayoutParts(over).map((part) => part.label), ["К выплате", "Выплачено", "Переплачено"]);
   assert.equal(plain(Y.monthPayoutText("2026-10", [{ payout: due }, { payout: null }])), "К выплате за октябрь: 600 000 сум · выплачено 475 000 сум · доплатить 125 000 сум");
   assert.equal(Y.monthPayoutText("2026-10", [{ payout: null }]), null);
+  assert.equal(plain(Y.monthPayoutTail([{ payout: due }, { payout: null }])), "выплачено 475 000 сум · доплатить 125 000 сум");
+  assert.equal(Y.monthPayoutTail([{ payout: null }]), null);
   // the form: the amount starts as what is left; more than that asks
   const values = Y.emptyPayoutValues("2026-11-12", due);
   assert.equal(values.amount, "125 000");
@@ -340,11 +342,11 @@ test("the sheet block and the month row draw the payout", () => {
   assert.equal(html(React.createElement(SheetPayoutBlock, { sheetId: "s1", month: "2026-10", teacherName: "К", payout: null, onChanged: () => undefined })), "");
   const { TeacherRow } = require(path.join(root, "src/components/payroll/payroll-month-page.tsx"));
   const teacher = { teacher_id: "t", teacher_name: "Каримова", lessons_count: 12, lesson_types: [], rates: { group: "50" }, missing_rates: [], sheet: { id: "s1", revision: 1, total_amount: 475000, stale: true, updated_at: null }, warnings: {}, payout: due };
-  const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined, onPayout: () => undefined }));
+  const row = text(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.ok(row.includes("Доплатить 125 000 сум"));
-  const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined, onPayout: () => undefined }));
+  const rowHtml = html(React.createElement(TeacherRow, { teacher, month: "2026-10", busy: false, onCalculate: () => undefined, onOpen: () => undefined }));
   assert.match(rowHtml, /data-testid="payout-chip"/);
-  assert.match(rowHtml, /Действия: Каримова/);
+  assert.doesNotMatch(rowHtml, /Действия: Каримова/); // owner 22.10: no «⋯» on the month row
 });
 
 // ── F7, F14: the divisor by month, the sheet split by type, the fingerprint ──────────────────
@@ -504,7 +506,6 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
   assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
   assert.equal(P.debtReasonText({ status: "none", last_payment: null, debt: 0 }), "Ещё не платил");
-  assert.equal(P.isFirstPaymentRow({ status: "none", last_payment: null, is_active: true }), true);
   assert.equal(P.priceMissingText(3), "У 3 учеников не задана цена");
   assert.equal(P.priceMissingText(0), null);
   const page = read("src/components/payments/payments-page.tsx");
@@ -513,7 +514,7 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.match(page, /priceMissingText\(priceMissing\)/);
   assert.match(page, /Задать<\/Link>/);
   assert.match(page, /debtReasonText\(row\)/);
-  assert.match(page, /isFirstPaymentRow\(row\)/);
+  assert.doesNotMatch(page, /QuickEntry|isFirstPaymentRow/, "no inline quick entry: every debtor row is a plain row with «Внести оплату»");
 });
 
 // ── the final contract (addenda 2-4) ─────────────────────────────────────────────────────────
@@ -624,4 +625,19 @@ test("pause on the group list: on_pause hides the student from a lesson of today
   assert.equal(P.pausedChipText({ on_pause: true }), "На паузе");
   assert.equal(P.pausedChipText(list[0]), null);
   assert.equal(P.pausedChipText(list[2]), null);
+});
+
+test("the banner speaks the language of the card «Долг учеников»: debtors, their debt, how many are overdue", () => {
+  const B = require(path.join(root, "src/lib/payments-banner.ts"));
+  const copy = B.debtBannerCopy({ debtors: 33, debtTotal: 21395000, overdue: 19 });
+  assert.equal(plain(copy.text), "33 ученика с долгом — 21 395 000 сум · из них просрочено: 19");
+  assert.equal(copy.count, 33);
+  assert.equal(copy.chip, "из них просрочено: 19");
+  assert.equal(plain(B.debtBannerCopy({ debtors: 1, debtTotal: 500000, overdue: 0 }).text), "1 ученик с долгом — 500 000 сум");
+  assert.equal(B.debtBannerCopy({ debtors: 1, debtTotal: 500000, overdue: 9 }).expired, 1, "never more overdue than debtors");
+  assert.equal(B.debtBannerCopy({ debtors: null, debtTotal: 0, overdue: null }).count, 0);
+  const banner = read("src/components/payments/payments-alert-banner.tsx");
+  assert.match(banner, /debtBannerCopy\(/);
+  assert.match(banner, /!pathname\?\.startsWith\(paymentsBasePath\)/, "no banner on the «Оплаты» page itself");
+  assert.match(banner, /bucket=debt/);
 });

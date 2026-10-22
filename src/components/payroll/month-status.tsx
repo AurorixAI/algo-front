@@ -21,9 +21,9 @@ export function PayrollMonthSummary({ summary, month, open, payoutText = null }:
         <span className="font-semibold tabular-nums text-slate-900">{summary.amount === null ? "—" : formatMoney(summary.amount)}</span>
         {" · "}
         <span className="whitespace-nowrap">{summary.saved}</span>
+        {/* LOGIC-A decision 6, ONE line: «К выплате за сентябрь: 5 006 248 сум · сохранено 2 из 3 · выплачено 0 сум» */}
+        {payoutText && <span data-testid="payroll-month-payout">{" · "}{payoutText}</span>}
       </p>
-      {/* LOGIC-A decision 6: «К выплате за октябрь: 600 000 сум · выплачено 475 000 · доплатить 125 000» */}
-      {payoutText && <p data-testid="payroll-month-payout" className="text-sm text-slate-600">{payoutText}</p>}
       {status && <p role="status" className="text-xs text-slate-500">{status}</p>}
     </div>
   );

@@ -48,9 +48,7 @@ import {
   type SheetEdits,
 } from "@/lib/payroll";
 import { savedRevisionLine, statusHint } from "@/lib/payroll-help";
-import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutText, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
-import { RowMenu } from "@/components/ui/row-menu";
-import { PayoutDialog } from "./payout-dialog";
+import { FINGERPRINT_REQUIRED_TEXT, isFingerprintRequired, isLineNotFound, LINE_NOT_FOUND_TEXT, monthPayoutTail, normalizePayoutState, PAYOUT_ACTION_LABEL, PAYOUT_CHIP_CLASS, payoutChip } from "@/lib/payroll-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { saveBlobAs } from "@/lib/download";
 import { confirmLeave, useUnsavedGuard } from "@/lib/use-unsaved-guard";
@@ -122,8 +120,6 @@ function PayrollMonthContent() {
   const [exporting, setExporting] = useState(false);
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
-  /** «Отметить выплату» of a row's «⋯». */
-  const [payoutFor, setPayoutFor] = useState<PayrollMonthTeacher | null>(null);
 
   const loads = useRef(createRequestSequence());
   const calcs = useRef(createRequestSequence());
@@ -376,7 +372,7 @@ function PayrollMonthContent() {
         </div>
 
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} payoutText={monthPayoutText(month, teachers)} />}
+          {overview && <PayrollMonthSummary summary={summary} month={month} open={monthOpen} payoutText={monthPayoutTail(teachers)} />}
           {overview && gate.text && (
             <p id="payroll-calculate-hint" className="text-xs text-slate-500 sm:ml-auto sm:text-right">
               {gate.text}
@@ -434,7 +430,6 @@ function PayrollMonthContent() {
                   busy={busy}
                   onCalculate={() => void calculate([teacher.teacher_id])}
                   onOpen={() => openSheet(teacher)}
-                  onPayout={() => setPayoutFor(teacher)}
                 />
               ))}
             </ul>
@@ -520,15 +515,6 @@ function PayrollMonthContent() {
           />
         </section>
       )}
-      <PayoutDialog
-        open={payoutFor !== null && payoutFor.sheet !== null}
-        sheetId={payoutFor?.sheet?.id ?? ""}
-        teacherName={payoutFor?.teacher_name ?? ""}
-        month={month}
-        state={normalizePayoutState(payoutFor?.payout)}
-        onClose={() => setPayoutFor(null)}
-        onDone={(text) => { showToast(text); void load(true); }}
-      />
       {toastNode}
     </div>
   );
@@ -589,7 +575,7 @@ function PreviewBody({
  * ONE status chip and ONE button by the status.  A phone gets the same as a card.
  */
 export function TeacherRow({
-  teacher, month, busy, onCalculate, onOpen, onPayout,
+  teacher, month, busy, onCalculate, onOpen,
 }: {
   teacher: PayrollMonthTeacher;
   /** The month of the page: «Указать» opens the rate dialog with it. */
@@ -598,7 +584,6 @@ export function TeacherRow({
   onCalculate: () => void;
   onOpen: () => void;
   /** «Отметить выплату» (the menu of the row); absent: no menu. */
-  onPayout?: () => void;
 }) {
   const status = sheetStatus(teacher.sheet);
   const chip = payoutChip(normalizePayoutState(teacher.payout));
@@ -663,16 +648,6 @@ export function TeacherRow({
         >
           {action.label}
         </button>
-        {onPayout && (
-          <RowMenu
-            label={`Действия: ${teacher.teacher_name}`}
-            items={[
-              ...(teacher.sheet ? [{ key: "payout", label: PAYOUT_ACTION_LABEL, icon: Banknote, onSelect: onPayout }] : []),
-              ...(teacher.sheet ? [{ key: "open", label: "Открыть ведомость", icon: FileText, onSelect: onOpen }] : []),
-              ...(!teacher.sheet ? [{ key: "calc", label: "Рассчитать", icon: Calculator, onSelect: onCalculate, disabled: busy || blocked }] : []),
-            ]}
-          />
-        )}
       </div>
     </li>
   );

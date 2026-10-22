@@ -962,11 +962,6 @@ export function debtReasonText(row: Pick<MembershipPaymentRow, "status" | "days_
   return "";
 }
 
-/** A debtor who has never paid: his row keeps the quick entry of a first payment. */
-export function isFirstPaymentRow(row: Pick<MembershipPaymentRow, "status" | "last_payment" | "is_active">): boolean {
-  return row.status === "none" && !row.last_payment && row.is_active;
-}
-
 /** «У 3 учеников не задана цена» above the list (the card links to «Цены групп»). */
 export function priceMissingText(count: number | null | undefined): string | null {
   const n = Math.floor(Number(count) || 0);

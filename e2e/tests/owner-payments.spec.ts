@@ -5,8 +5,8 @@ import { cardMenuItem, dmy, expectNoHorizontalScroll, money, moneyPattern, toast
 
 /**
  * Owner: «Оплаты» (PAY-2: a payment is money; the server distributes it).  A brand-new student of a group WITHOUT a price is
- * shown with «цена группы не задана» and a link to the group; once the price is set on the group the quick-pay row says what
- * is due and starts the amount with it.  The row has an amount and a method, no dates.  The payment lands in «Оплачено», the
+ * is not in the list (the page says «не задана цена»); once the price is set on the group the debtor row is a plain row
+ * (name, group, price, the chip «Ещё не платил» with the debt, «Внести оплату») and the dialog says what is due and starts the amount with it.  The payment lands in «Оплачено», the
  * history numbers it («№ N») and says where the money went, the receipt spells the amount in words and shows the snapshot,
  * the statement lists it with the running balance and «Сходится», and a cancelled payment stays in the history with its
  * reason (and the receipt is stamped).
@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   org = await Org.create("Оплаты");
 });
 
-test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words -> void with a reason", async ({ signIn }) => {
+test("pay from a debtor row -> «Оплачено» -> history «№ N» -> receipt in words -> void with a reason", async ({ signIn }) => {
   const today = businessNow().date;
   const teacher = await org.addStaff("teacher", "Оплатин");
   const group = await org.createGroup({ name: "Группа О1", teacherId: teacher.userId });
@@ -36,19 +36,20 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await page.reload();
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toContainText(student.displayId!);
-  await expect(row()).toContainText(new RegExp(`Цена группы: ${moneyPattern(450000)}\\s*сум/мес`));
-  await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0);
-  await expect(row().getByRole("textbox", { name: "Дата оплаты" })).toHaveCount(0); // PAY-2: no dates, the server distributes the money
-  await expect(row().getByRole("textbox", { name: "Оплачено до" })).toHaveCount(0);
-  await expect(row().getByTestId("quick-due")).toContainText("Всего к оплате"); // the server says what is due
-  const amount = row().getByRole("textbox", { name: "Сумма оплаты, сум" });
-  await expect(amount).not.toHaveValue(""); // the amount starts as everything that is due
-  await amount.fill("450000");
+  await expect(row()).toContainText(money(450000)); // «Оплата в месяц»
+  await expect(row()).toContainText("Ещё не платил");
+  await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(450000)}`));
+  await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
+  await row().getByRole("button", { name: "Внести оплату" }).click();
+  const payDialog = page.getByRole("dialog", { name: "Внести оплату" });
+  await expect(payDialog.getByTestId("payment-due")).toContainText("Всего к оплате"); // the server says what is due
+  await expect(payDialog.getByLabel("Сумма")).not.toHaveValue(""); // the amount starts as everything that is due
+  await payDialog.getByLabel("Сумма").fill("450000");
   // the method is chosen, not guessed
-  await row().getByRole("button", { name: "Сохранить" }).click();
-  await expect(row().getByRole("alert")).toContainText("Выберите способ оплаты");
-  await row().getByRole("combobox", { name: "Способ оплаты" }).selectOption("cash");
-  await row().getByRole("button", { name: "Сохранить" }).click();
+  await payDialog.getByRole("button", { name: "Сохранить" }).click();
+  await expect(payDialog.getByRole("alert")).toContainText("Выберите способ оплаты");
+  await payDialog.getByRole("radio", { name: "Наличные" }).click();
+  await payDialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Оплата внесена")).toBeVisible();
   await expect(row()).toHaveCount(0); // left «Должники» (Ещё не платил)
 
@@ -133,7 +134,7 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   await expect(row()).toHaveCount(0);
 });
 
-test("@mobile the payments list and the quick-pay row fit a phone", async ({ signIn }) => {
+test("@mobile the payments list and the debtor row fit a phone", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Мобилин");
   const group = await org.createGroup({ name: "Группа О2", teacherId: teacher.userId });
   await org.addStudent(group, "Мадина", "Телефонова");
@@ -146,8 +147,8 @@ test("@mobile the payments list and the quick-pay row fit a phone", async ({ sig
   await page.reload();
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
-  await expect(row.getByText(/Цена группы:/)).toBeVisible();
-  await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toBeVisible();
-  await expect(row.getByRole("combobox", { name: "Способ оплаты" })).toBeVisible();
+  await expect(row).toContainText("Ещё не платил");
+  await expect(row.getByRole("textbox")).toHaveCount(0);
+  await expect(row.getByRole("button", { name: "Внести оплату" })).toBeVisible();
   await expectNoHorizontalScroll(page);
 });

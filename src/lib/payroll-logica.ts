@@ -180,8 +180,7 @@ export const PAYOUT_CHIP_CLASS: Record<PayoutTone, string> = {
   over: "border-sky-200 bg-sky-50 text-sky-900",
 };
 
-/** The totals of the month under the heading: «К выплате за октябрь: 600 000 сум · выплачено 475 000 · доплатить 125 000». */
-export function monthPayoutText(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): string | null {
+function monthPayoutParts(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): { head: string; tail: string[] } | null {
   const states = teachers.map((teacher) => normalizePayoutState(teacher.payout)).filter((state): state is PayoutState => state !== null);
   if (states.length === 0) return null;
   const target = states.reduce((total, state) => total + state.target, 0);
@@ -189,10 +188,25 @@ export function monthPayoutText(month: string, teachers: ReadonlyArray<{ payout?
   const due = states.reduce((total, state) => total + Math.max(0, state.balance), 0);
   const over = states.reduce((total, state) => total + Math.max(0, -state.balance), 0);
   const stale = states.some((state) => state.basis === "fresh" && state.balance > 0);
-  const parts = [`К выплате за ${monthNameRu(month).toLowerCase()}: ${formatMoney(target)}`, `выплачено ${formatMoney(paid)}`];
-  if (due > 0 && paid > 0) parts.push(`${stale ? "доплатить" : "осталось выплатить"} ${formatMoney(due)}`);
-  if (over > 0) parts.push(`переплачено ${formatMoney(over)}`);
-  return parts.join(" · ");
+  const tail = [`выплачено ${formatMoney(paid)}`];
+  if (due > 0 && paid > 0) tail.push(`${stale ? "доплатить" : "осталось выплатить"} ${formatMoney(due)}`);
+  if (over > 0) tail.push(`переплачено ${formatMoney(over)}`);
+  return { head: `К выплате за ${monthNameRu(month).toLowerCase()}: ${formatMoney(target)}`, tail };
+}
+
+/** The totals of the month as one sentence: «К выплате за октябрь: 600 000 сум · выплачено 475 000 · доплатить 125 000». */
+export function monthPayoutText(month: string, teachers: ReadonlyArray<{ payout?: PayoutState | null }>): string | null {
+  const parts = monthPayoutParts(month, teachers);
+  return parts ? [parts.head, ...parts.tail].join(" · ") : null;
+}
+
+/**
+ * What the payouts add to the ONE summary line of the month («К выплате за сентябрь: 5 006 248 сум · сохранено 2 из 3 · выплачено 0 сум»):
+ * «выплачено 475 000 сум · доплатить 125 000»; null while no sheet has a payout state.
+ */
+export function monthPayoutTail(teachers: ReadonlyArray<{ payout?: PayoutState | null }>): string | null {
+  const parts = monthPayoutParts("2000-01", teachers);
+  return parts ? parts.tail.join(" · ") : null;
 }
 
 /** The block of a sheet: «К выплате 600 000 · Выплачено 475 000 · Доплатить 125 000» as parts, each with its tone. */
