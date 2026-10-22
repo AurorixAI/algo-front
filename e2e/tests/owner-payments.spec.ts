@@ -42,14 +42,16 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
   await row().getByRole("button", { name: "Внести оплату" }).click();
   const payDialog = page.getByRole("dialog", { name: "Внести оплату" });
-  await expect(payDialog.getByTestId("payment-due")).toContainText("Всего к оплате"); // the server says what is due
+  await expect(payDialog.getByTestId("payment-chips")).toContainText(new RegExp(moneyPattern(450000))); // the quick amount says what is due
   await expect(payDialog.getByLabel("Сумма")).not.toHaveValue(""); // the amount starts as everything that is due
   await payDialog.getByLabel("Сумма").fill("450000");
-  // the method is chosen, not guessed
-  await payDialog.getByRole("button", { name: "Сохранить" }).click();
-  await expect(payDialog.getByRole("alert")).toContainText("Выберите способ оплаты");
+  await expect(payDialog.getByTestId("payment-plan-sentence")).toContainText(/Закроет|Оплатит/); // what saving will do, in the future tense
+  // the method is chosen, not guessed: the button waits for it and says why
+  await expect(payDialog.getByRole("button", { name: /^Внести/ })).toBeDisabled();
+  await expect(payDialog.getByTestId("payment-blocker")).toContainText("Выберите способ оплаты");
+  await expect(payDialog.getByRole("radio", { name: "Другое" })).toHaveCount(0);
   await payDialog.getByRole("radio", { name: "Наличные" }).click();
-  await payDialog.getByRole("button", { name: "Сохранить" }).click();
+  await payDialog.getByRole("button", { name: new RegExp(`^Внести\\s*${moneyPattern(450000)}`) }).click(); // the amount is in the button
   await expect(toast(page, "Оплата внесена")).toBeVisible();
   await expect(row()).toHaveCount(0); // left «Должники» (Ещё не платил)
 

@@ -617,28 +617,30 @@ function renderer() {
   };
 }
 
-test("the dialog draws the due block and the calculation of E1 / E9 / E5 as the contract says", () => {
+test("the dialog draws the calculation of E1 / E9 / E5 as the contract says (future tense; the due block is now the quick amounts)", () => {
   const { React, text, html } = renderer();
-  const { DueBlock, PreviewBlock } = require(path.join(root, "src/components/payments/payment-dialog.tsx"));
-  const preview = L.normalizePreview(fixture("e1_preview_300000"));
-  const due = text(React.createElement(DueBlock, { due: L.dueView(preview), error: null, priceNote: null }));
-  for (const part of ["Долг", "15.09–14.10, оплачено 231 000 из 500 000", "269 000 сум", "Текущий период", "15.10–14.11", "500 000 сум", "Всего к оплате", "769 000 сум"]) assert.ok(due.includes(part), part);
-  const calc = text(React.createElement(PreviewBlock, { view: L.previewView(preview) }));
-  for (const part of ["Закроет долг 269 000 · на текущий период 31 000 → оплачено до 15.10 · останется 469 000", "Закрыла долг 15.09–14.10", "На текущий период 15.10–14.11", "31 000 сум", "Оплачено до: 27.09.2026 → 15.10.2026", "Баланс после оплаты: долг 469 000 сум"]) assert.ok(calc.includes(part), part);
+  const { PlanBlock } = require(path.join(root, "src/components/payments/payment-dialog.tsx"));
+  const X = require(path.join(root, "src/lib/payment-plan.ts"));
+  const plan = (name) => X.planView(L.normalizePreview(fixture(name)));
+  const calc = text(React.createElement(PlanBlock, { plan: plan("e1_preview_300000") }));
+  for (const part of ["Закроет долг за период 15.09–14.10, за период 15.10–14.11 останется 469 000 сум", "Долг за 15.09–14.10 (остаток)", "269 000 сум", "15.10–14.11 (часть)", "31 000 сум"]) assert.ok(calc.includes(part), part);
+  assert.ok(!/Закрыла|Баланс после оплаты|→/.test(calc));
+  // the due numbers of the old top block are the chips
+  assert.deepEqual(X.quickAmounts(L.normalizePreview(fixture("e1_preview_300000"))).map((chip) => plain(chip.label)), ["Закрыть долг · 269 000 сум", "Долг + текущий период · 769 000 сум"]);
   // E9: the price rise has its own amber note
-  const rise = html(React.createElement(PreviewBlock, { view: L.previewView(L.normalizePreview(fixture("e9_preview_price_ahead_1069000"))) }));
+  const rise = html(React.createElement(PlanBlock, { plan: plan("e9_preview_price_ahead_1069000") }));
   assert.match(rise, /role="note"/);
   assert.match(plain(rise), /Цена периода 15\.11–14\.12 — 600 000 сум \(сейчас 500 000 сум\)/);
-  assert.match(rise, /Аванс на 15\.11–14\.12/);
+  assert.match(plain(rise), /Аванс/);
   // E5: lessons
-  const lessons = text(React.createElement(PreviewBlock, { view: L.previewView(L.normalizePreview(fixture("e5_preview_630000_held12"))) }));
+  const lessons = text(React.createElement(PlanBlock, { plan: plan("e5_preview_630000_held12") }));
   assert.ok(lessons.includes("Уроков оплачено: 0 → 12, осталось 0"));
-  assert.ok(lessons.includes("Аванс на следующие уроки"));
+  assert.ok(lessons.includes("Аванс"));
   assert.ok(!lessons.includes("Оплачено до"));
   // nothing due: a calm sentence, with a way out when the group has no price
-  assert.ok(text(React.createElement(DueBlock, { due: L.dueView(L.normalizePreview({ as_of: "2026-10-21", due: {} })), error: null, priceNote: null })).includes("Долга нет"));
-  const noPrice = text(React.createElement(DueBlock, { due: L.dueView(L.normalizePreview({ as_of: "2026-10-21", due: {} })), error: null, priceNote: { text: L.PRICE_NOT_SET_TEXT, href: "/owner/payments/prices?group=g1" } }));
-  assert.ok(noPrice.includes("Цена группы не задана — введите сумму вручную") && noPrice.includes("задать цену группы"));
+  assert.equal(X.noChipsHint(L.normalizePreview({ as_of: "2026-10-21", due: {} })), "Долга нет. Всё, что внесёте, пойдёт вперёд.");
+  assert.ok(read("src/components/payments/payment-dialog.tsx").includes("PRICE_NOT_SET_TEXT") && L.PRICE_NOT_SET_TEXT === "Цена группы не задана — введите сумму вручную");
+  assert.match(read("src/components/payments/payment-dialog.tsx"), /задать цену группы/);
 });
 
 test("the statement draws E1 with the running balance after every row and the line «Сходится»", () => {
@@ -705,8 +707,8 @@ test("the dialog: amount first, due block, live calculation from the server, an 
   assert.match(dialog, /orgApi\.replacePayment\(payment\.id, \{ \.\.\.body, \.\.\.\(reason \? \{ reason \} : \{\}\) \}, idempotencyKey\.current\)/);
   assert.match(dialog, /replace_payment_id: payment\.id/);
   assert.match(dialog, /failure\.kind === "duplicate"/); // a repeated send is not an error: the payment is there
-  assert.match(dialog, /view\.headline/); // the server's sentence, not a local one
-  assert.match(dialog, /view\.priceAhead\.join/); // D8
+  assert.match(dialog, /planView\(fresh\)/); // the words come from the server's allocations
+  assert.match(dialog, /plan\.priceAhead\.join/); // D8
   assert.match(dialog, /role="radiogroup"/);
   assert.match(dialog, /Прежняя запись будет отменена и останется в истории серым/);
   assert.match(dialog, /Деньги всей группы распределятся заново/); // the correction explains the re-allocation

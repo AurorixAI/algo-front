@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
@@ -21,20 +21,32 @@ import {
 import {
   buildPaymentPayload,
   dueView,
-  METHODS,
   newIdempotencyKey,
   payError,
   paymentFormFrom,
   previewAmount,
   priceMissing,
   PRICE_NOT_SET_TEXT,
-  previewView,
   savedPaymentDetails,
   validatePaymentForm,
-  type DueView,
   type PaymentFormValues,
-  type PreviewView,
 } from "@/lib/payments-ledger";
+import {
+  chipSelected,
+  methodChoices,
+  noChipsHint,
+  payBlocker,
+  payButtonLabel,
+  planView,
+  PLAN_EMPTY_HINT,
+  PLAN_LOADING_TEXT,
+  PLAN_TITLE,
+  QUICK_AMOUNTS_LABEL,
+  quickAmounts,
+  readLastMethod,
+  rememberMethod,
+  type PlanView,
+} from "@/lib/payment-plan";
 import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/payments-logica";
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { groupPriceHref } from "@/lib/group-price";
@@ -78,17 +90,16 @@ const TITLE: Record<PaymentFormKind, string> = {
   replace: "Исправить оплату",
 };
 
-const LINE_TONE = { past_debt: "text-slate-800", current: "text-slate-800", advance: "text-emerald-800" } as const;
-
 function emptyValues(): PaymentFormValues {
   return { amount: "", paidOn: "", method: null, note: "", reason: "" };
 }
 
 /**
- * «Внести оплату»: the amount is the only thing to decide.  The top block says what is due (debt, the running period,
- * the total); under the amount a live calculation (the server's «что закроет») shows where the money goes - which past
- * debt it closes, how much goes to the running period, what becomes an advance, until when it is paid.  The server
- * writes the sentences; nothing here recomputes them.
+ * «Внести оплату»: the amount is the only thing to decide, so it comes first.  Under it the quick amounts carry what is
+ * due («Закрыть долг · 592 000 сум», «Долг + октябрь · 1 142 000 сум»); below, «Что будет после сохранения» says in the
+ * future tense where the money will go (nothing is saved yet): one plain sentence, then a quiet line per period.  The
+ * numbers are the server's live calculation (`payments/preview`); `lib/payment-plan.ts` only words them.  The method is
+ * required (the till by method must reconcile) and the last one used in this browser is preselected.
  */
 export function PaymentDialog({ open, kind, membership, payment, groupsBasePath, onClose, onSaved, onDuplicate }: PaymentDialogProps) {
   // The business date at the moment the dialog opens (Tashkent, never the browser's zone).
@@ -99,15 +110,20 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{ warnings: PaymentWarning[]; details: string[] } | null>(null);
+  const [commentOpen, setCommentOpen] = useState(false);
   const amountTouched = useRef(false);
+  const amountInput = useRef<HTMLInputElement | null>(null);
+  const noteInput = useRef<HTMLTextAreaElement | null>(null);
   const idempotencyKey = useRef(newIdempotencyKey());
   const immediate = useRef(false);
 
   useEffect(() => {
     if (!open || !membership) { setReady(false); return; }
-    setValues(kind === "replace" && payment
+    const start = kind === "replace" && payment
       ? paymentFormFrom(payment)
-      : { amount: "", paidOn: today, method: null, note: "", reason: "" });
+      : { amount: "", paidOn: today, method: readLastMethod(), note: "", reason: "" };
+    setValues(start);
+    setCommentOpen(start.note.trim().length > 0);
     amountTouched.current = kind === "replace";
     idempotencyKey.current = newIdempotencyKey();
     setBusy(false);
@@ -140,6 +156,8 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       amountTouched.current = true;
       immediate.current = true;
       setValues((previous) => (previous.amount ? previous : { ...previous, amount: formatMoneyInput(answer.suggested_amount) }));
+      // The first digit typed replaces the suggestion instead of being glued to it.
+      setTimeout(() => { if (amountInput.current && document.activeElement === amountInput.current) amountInput.current.select(); }, 0);
     },
   });
 
@@ -152,8 +170,13 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   const leftOnly = isLeftDebtOnly(latest);
   const leftDebt = due?.total ?? 0;
   const leftProblem = leftOnly && due !== null ? leftPaymentProblem(amountNow, leftDebt) : null;
-  const view = amountNow !== null ? previewView(fresh) : null;
+  const plan = amountNow !== null ? planView(fresh) : null;
   const calculating = amountNow !== null && !fresh && !state.error;
+  const chips = kind === "create" ? quickAmounts(latest, { leftOnly }) : [];
+  const priceNote = due !== null && due.rows.length === 0 && priceMissing(latest) ? PRICE_NOT_SET_TEXT : null;
+  const calmHint = kind === "create" && !priceNote ? noChipsHint(latest) : null;
+  const blocker = payBlocker(values, today, leftProblem);
+  const methods = methodChoices(kind === "replace" && payment ? paymentFormFrom(payment).method : null);
 
   const patch = (next: Partial<PaymentFormValues>) => {
     setError(null);
@@ -176,6 +199,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       const result = kind === "replace" && payment
         ? await orgApi.replacePayment(payment.id, { ...body, ...(reason ? { reason } : {}) }, idempotencyKey.current)
         : await orgApi.createPayment(membership.membership_id, body, idempotencyKey.current);
+      rememberMethod(values.method);
       onSaved(result);
       if (result.warnings.length > 0) setSaved({ warnings: result.warnings, details: savedPaymentDetails(result.allocation) });
       else onClose();
@@ -193,8 +217,6 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
     }
   };
 
-  const showQuick = kind === "create" && due !== null && due.pastDebt > 0 && due.currentDue > 0;
-
   return (
     <Modal
       open={open}
@@ -202,24 +224,32 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
       description={`${membership.student_name} · ${membership.group_name}`}
       onClose={onClose}
       busy={busy}
+      maxWidthClassName="max-w-[520px]"
+      footerClassName="flex flex-col gap-2 p-5 sm:p-6 pt-4 mt-3"
       footer={saved ? (
         <button type="button" onClick={onClose} className="rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">
           Готово
         </button>
       ) : (
         <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            Отмена
-          </button>
-          <button
-            type="submit"
-            form="payment-form"
-            disabled={busy}
-            className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {kind === "replace" ? "Сохранить исправление" : "Сохранить"}
-          </button>
+          {blocker && !busy && (
+            <p id="payment-blocker" data-testid="payment-blocker" className="text-xs text-slate-500 sm:text-right">{blocker}</p>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+            <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+              Отмена
+            </button>
+            <button
+              type="submit"
+              form="payment-form"
+              disabled={busy || blocker !== null}
+              aria-describedby={blocker ? "payment-blocker" : undefined}
+              className="flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {payButtonLabel(kind, amountNow)}
+            </button>
+          </div>
         </>
       )}
     >
@@ -245,93 +275,85 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
         <form
           id="payment-form"
           onSubmit={(event) => { event.preventDefault(); void submit(); }}
-          className="space-y-4 pb-2"
+          className="space-y-5 pb-2"
           noValidate
         >
-          {/* What is due now */}
-          <DueBlock
-            due={due}
-            error={state.error}
-            priceNote={due !== null && due.rows.length === 0 && priceMissing(latest)
-              ? { text: PRICE_NOT_SET_TEXT, href: groupsBasePath && membership.group_id ? groupPriceHref(groupsBasePath, membership.group_id) : null }
-              : null}
-          />
-
-          {leftOnly && (
-            <p role="note" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>{LEFT_DEBT_ONLY_TEXT}{leftDebt > 0 ? `: не больше ${formatMoney(leftDebt)}` : "; долга нет — принимать нечего"}</span>
-            </p>
-          )}
-
-          {/* The amount */}
+          {/* 1. The amount, and the quick amounts that say what is due */}
           <div>
             <label htmlFor="payment-amount" className={LABEL}>Сумма</label>
             <div className="relative">
               <input
                 id="payment-amount"
+                ref={amountInput}
                 value={values.amount}
                 onChange={(event) => { amountTouched.current = true; patch({ amount: reformatMoneyTyping(event.target.value) }); }}
                 inputMode="numeric"
                 autoComplete="off"
-                placeholder="450 000"
+                placeholder="0"
                 autoFocus
                 aria-describedby="payment-calc"
-                className={`${FIELD} pr-12`}
+                className="w-full rounded-xl border border-slate-200 bg-white py-3 pl-4 pr-16 text-2xl font-semibold tabular-nums text-slate-900 outline-none placeholder:text-slate-300 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">сум</span>
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-medium text-slate-400">сум</span>
             </div>
-            {showQuick && due && (
-              <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Быстрая сумма">
-                <button
-                  type="button"
-                  onClick={() => setAmount(due.pastDebt)}
-                  aria-pressed={amountNow === due.pastDebt}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${amountNow === due.pastDebt ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  Только долг · {formatMoney(due.pastDebt)}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAmount(due.total)}
-                  aria-pressed={amountNow === due.total}
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${amountNow === due.total ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  Долг и текущий период · {formatMoney(due.total)}
-                </button>
+            {chips.length > 0 && (
+              <div className="mt-2.5 flex flex-wrap gap-2" role="group" aria-label={QUICK_AMOUNTS_LABEL} data-testid="payment-chips">
+                {chips.map((chip) => {
+                  const on = chipSelected(chip, amountNow);
+                  return (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      onClick={() => setAmount(chip.amount)}
+                      aria-pressed={on}
+                      className={`rounded-full border px-3.5 py-1.5 text-left text-xs font-semibold transition-colors ${on ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {chip.label}
+                    </button>
+                  );
+                })}
               </div>
+            )}
+            {priceNote && (
+              <p className="mt-2.5 text-xs text-slate-600" data-testid="payment-price-note">
+                <span className="font-medium text-amber-800">{priceNote}</span>
+                {groupsBasePath && membership.group_id && (
+                  <>
+                    {" · "}
+                    <Link href={groupPriceHref(groupsBasePath, membership.group_id)} className="font-semibold text-primary-700 hover:underline">задать цену группы</Link>
+                  </>
+                )}
+              </p>
+            )}
+            {calmHint && <p className="mt-2.5 text-xs text-slate-500" data-testid="payment-nodebt">{calmHint}</p>}
+            {leftOnly && (
+              <p role="note" className="mt-2.5 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900" data-testid="left-debt-only">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{LEFT_DEBT_ONLY_TEXT}{leftDebt > 0 ? `: не больше ${formatMoney(leftDebt)}` : "; долга нет — принимать нечего"}</span>
+              </p>
             )}
           </div>
 
-          {/* Where the money goes: the server's live calculation */}
-          <div id="payment-calc" aria-live="polite" data-testid="payment-calc" className="min-h-[1.25rem] text-sm">
-            {amountNow === null ? (
-              <p className="text-xs text-slate-500">Введите сумму — покажем, куда она пойдёт.</p>
-            ) : state.error ? (
+          {/* 2. What saving will do: the server's live calculation, in the future tense */}
+          <section aria-labelledby="payment-plan-title" id="payment-calc" aria-live="polite" data-testid="payment-calc">
+            <h3 id="payment-plan-title" className={LABEL}>{PLAN_TITLE}</h3>
+            {state.error ? (
               <p role="alert" className="text-xs font-medium text-rose-700">{state.error}</p>
-            ) : view ? (
-              <PreviewBlock view={view} loading={state.loading} />
+            ) : amountNow === null ? (
+              <p className="text-sm text-slate-500" data-testid="payment-plan-hint">{PLAN_EMPTY_HINT}</p>
+            ) : plan ? (
+              <PlanBlock plan={plan} loading={state.loading} />
             ) : calculating || state.loading ? (
-              <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3 w-3 animate-spin" />Считаем, куда пойдут деньги…</p>
+              <p className="flex items-center gap-1.5 text-sm text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />{PLAN_LOADING_TEXT}</p>
             ) : null}
-          </div>
+          </section>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
-            <div>
-              <label htmlFor="payment-paid-on" className={LABEL}>Дата оплаты</label>
-              <input
-                id="payment-paid-on"
-                type="date"
-                value={values.paidOn}
-                max={today}
-                onChange={(event) => patch({ paidOn: event.target.value })}
-                className={FIELD}
-              />
-            </div>
+          {/* 3. Method and date */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
             <div>
               <span id="payment-method-label" className={LABEL}>Способ оплаты</span>
               <div role="radiogroup" aria-labelledby="payment-method-label" className="flex flex-wrap gap-1.5">
-                {METHODS.map((method) => (
+                {methods.map((method) => (
                   <button
                     key={method.key}
                     type="button"
@@ -345,18 +367,44 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
                 ))}
               </div>
             </div>
+            <div>
+              <label htmlFor="payment-paid-on" className={LABEL}>Дата оплаты</label>
+              <input
+                id="payment-paid-on"
+                type="date"
+                lang="ru"
+                value={values.paidOn}
+                max={today}
+                onChange={(event) => patch({ paidOn: event.target.value })}
+                className={FIELD}
+              />
+            </div>
           </div>
 
-          <div>
-            <label htmlFor="payment-note" className={LABEL}>Комментарий <span className="font-normal text-slate-400">(необязательно)</span></label>
-            <input
-              id="payment-note"
-              value={values.note}
-              onChange={(event) => patch({ note: event.target.value })}
-              maxLength={NOTE_MAX}
-              className={FIELD}
-            />
-          </div>
+          {/* 4. A comment, only when wanted */}
+          {commentOpen || values.note ? (
+            <div>
+              <label htmlFor="payment-note" className={LABEL}>Комментарий</label>
+              <textarea
+                id="payment-note"
+                ref={noteInput}
+                value={values.note}
+                onChange={(event) => patch({ note: event.target.value })}
+                maxLength={NOTE_MAX}
+                rows={2}
+                className={`${FIELD} resize-none`}
+              />
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { setCommentOpen(true); setTimeout(() => noteInput.current?.focus(), 0); }}
+              className="-mt-2 flex items-center gap-1 text-xs font-semibold text-primary-700 hover:underline"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden />
+              Комментарий
+            </button>
+          )}
 
           {kind === "replace" && (
             <div>
@@ -387,85 +435,31 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
   );
 }
 
-/** The block above the amount: what is due now (debt, the running period, the total); a quiet line when nothing is due. */
-export function DueBlock({ due, error, priceNote }: { due: DueView | null; error: string | null; priceNote: { text: string; href: string | null } | null }) {
+/** «Что будет после сохранения»: one plain sentence in the future tense, then a quiet line per period (never a «…» range). */
+export function PlanBlock({ plan, loading = false }: { plan: PlanView; loading?: boolean }) {
   return (
-    <section aria-label="К оплате" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm" data-testid="payment-due">
-      {due === null ? (
-        <p className="flex items-center gap-2 text-xs text-slate-400">
-          {error ? <span className="text-rose-700">{error}</span> : <><Loader2 className="h-3.5 w-3.5 animate-spin" />Считаем, сколько нужно оплатить…</>}
-        </p>
-      ) : due.rows.length === 0 ? (
-        priceNote ? (
-          <p className="text-slate-700">
-            <span className="font-medium text-amber-800">{priceNote.text}</span>
-            {priceNote.href && (
-              <>
-                {" · "}
-                <Link href={priceNote.href} className="font-semibold text-primary-700 hover:underline">задать цену группы</Link>
-              </>
-            )}
-          </p>
-        ) : (
-          <p className="text-slate-700">Долга нет. Всё, что внесёте, пойдёт на следующие периоды.</p>
-        )
-      ) : (
-        <dl className="space-y-1.5">
-          {due.rows.map((row) => (
-            <div key={row.key} className="flex items-baseline justify-between gap-3">
-              <dt className="min-w-0">
-                <span className={row.key === "debt" ? "font-medium text-rose-700" : row.key === "advance" ? "font-medium text-emerald-700" : "font-medium text-slate-800"}>{row.label}</span>
-                {row.note && <span className="ml-1.5 text-xs text-slate-500">{row.note}</span>}
-              </dt>
-              <dd className="shrink-0 tabular-nums text-slate-800">{formatMoney(row.amount)}</dd>
-            </div>
-          ))}
-          {due.total > 0 && (
-            <div className="flex items-baseline justify-between gap-3 border-t border-slate-200 pt-1.5">
-              <dt className="font-semibold text-slate-900">Всего к оплате</dt>
-              <dd className="shrink-0 font-semibold tabular-nums text-slate-900">{formatMoney(due.total)}</dd>
-            </div>
-          )}
-        </dl>
-      )}
-    </section>
-  );
-}
-
-/** The live calculation: the server's sentence, one line per period, until when it is paid, what is left, the price rise. */
-export function PreviewBlock({ view, loading = false }: { view: PreviewView; loading?: boolean }) {
-  return (
-    <div className={`space-y-2 rounded-xl border border-primary-100 bg-primary-50/50 px-3.5 py-3 transition-opacity ${loading ? "opacity-60" : ""}`}>
-      {view.headline && <p className="font-medium text-slate-900">{view.headline}</p>}
-      {view.lines.length > 0 && (
-        <ul className="space-y-1 text-xs">
-          {view.lines.map((line, index) => (
-            <li key={`${line.label}-${index}`} className="flex items-baseline justify-between gap-3">
-              <span className={`min-w-0 ${LINE_TONE[line.bucket]}`}>{line.label}</span>
-              <span className="shrink-0 text-right tabular-nums text-slate-700">
-                {formatMoney(line.amount)}
-                {!line.closes && line.remainingAfter !== null && line.remainingAfter > 0 && (
-                  <span className="block text-[11px] text-slate-500">по периоду осталось {formatMoney(line.remainingAfter)}</span>
-                )}
-              </span>
+    <div className={`space-y-2.5 rounded-xl bg-slate-50 px-3.5 py-3 transition-opacity ${loading ? "opacity-60" : ""}`} data-testid="payment-plan">
+      <p className="text-sm font-medium leading-snug text-slate-900" data-testid="payment-plan-sentence">{plan.sentence}</p>
+      {plan.lines.length > 0 && (
+        <ul className="space-y-1 border-t border-slate-200 pt-2 text-xs" aria-label="Разбивка" data-testid="payment-plan-lines">
+          {plan.lines.map((line) => (
+            <li key={line.key} className="flex items-baseline justify-between gap-3">
+              <span className={`min-w-0 ${line.bucket === "advance" ? "text-emerald-800" : "text-slate-600"}`}>{line.label}</span>
+              <span className="shrink-0 text-right tabular-nums text-slate-700">{formatMoney(line.amount)}</span>
             </li>
           ))}
         </ul>
       )}
-      <div className="space-y-0.5 text-xs text-slate-600">
-        {view.paidUntil && <p>{view.paidUntil}</p>}
-        {view.lessons && <p>{view.lessons}</p>}
-        <p className={view.remaining.kind === "debt" ? "font-medium text-rose-700" : view.remaining.kind === "advance" ? "font-medium text-emerald-700" : ""}>{view.remaining.text}</p>
-      </div>
-      {view.priceAhead.length > 0 && (
+      {plan.lessons && <p className="text-xs text-slate-500">{plan.lessons}</p>}
+      {plan.priceAhead.length > 0 && (
         <div role="note" className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-900">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          <p>{view.priceAhead.join(" ")}</p>
+          <p>{plan.priceAhead.join(" ")}</p>
         </div>
       )}
-      {view.warnings.length > 0 && (
+      {plan.warnings.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-4 text-xs text-amber-800">
-          {view.warnings.map((message) => <li key={message}>{message}</li>)}
+          {plan.warnings.map((message) => <li key={message}>{message}</li>)}
         </ul>
       )}
     </div>
