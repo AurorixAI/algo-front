@@ -8,6 +8,9 @@ import { orgApi } from "@/lib/api";
 import {
   bucketCount,
   bucketTabLabel,
+  filteredTabCounts,
+  narrowedTabSummary,
+  type TabCounts,
   debtReasonText,
   formatDateRu,
   formatMoney,
@@ -190,6 +193,33 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   useEffect(() => { void load(); }, [load]);
 
+  // The tab counts follow the group / teacher the list is narrowed to (the centre's summary has no filter); the banner and the menu badge stay the centre's.
+  const narrowed = Boolean(filter.groupId || filter.teacherId);
+  const [narrowedCounts, setNarrowedCounts] = useState<TabCounts | null>(null);
+  const countsRequests = useRef(createRequestSequence());
+  const loadNarrowedCounts = useCallback(async () => {
+    if (!narrowed) { countsRequests.current.next(); setNarrowedCounts(null); return; }
+    const token = countsRequests.current.next();
+    try {
+      const counts = await filteredTabCounts((query) => orgApi.getPaymentsStatus({
+        bucket: query.bucket,
+        groupId: filter.groupId || undefined,
+        teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
+        limit: query.limit,
+        offset: query.offset,
+      }));
+      if (countsRequests.current.isCurrent(token)) setNarrowedCounts(counts);
+    } catch {
+      // a failed count leaves the tabs without numbers (never the centre's): the list itself has its own error line
+      if (countsRequests.current.isCurrent(token)) setNarrowedCounts(null);
+    }
+  }, [narrowed, filter.groupId, filter.teacherId]);
+  useEffect(() => {
+    setNarrowedCounts(null);
+    void loadNarrowedCounts();
+    return () => { countsRequests.current.next(); };
+  }, [loadNarrowedCounts]);
+
   const switchBucket = (next: PaymentBucket) => {
     setPage(0);
     const params = new URLSearchParams({ bucket: next });
@@ -201,8 +231,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   /** A change of payments: the visible list and the shared numbers are re-read. */
   const afterChange = useCallback(() => {
     void load(true);
+    void loadNarrowedCounts();
     void refreshSummary(true);
-  }, [load, refreshSummary]);
+  }, [load, loadNarrowedCounts, refreshSummary]);
 
   const onSaved = (result: PaymentSaveResult) => {
     showToast(PAYMENT_SAVED_TEXT[form?.kind ?? "create"], "success", savedPaymentDetails(result.allocation));
@@ -223,7 +254,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }
 
   // Every tab carries its number; none is shown while the summary is not known yet.
-  const summaryForTabs = summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
+  const summaryForTabs = narrowed ? narrowedTabSummary(narrowedCounts) : summaryLoaded ? { buckets, debtors, students_with_debt: studentsWithDebt, expiring, active: activeCount, paused: pausedCount, students_paused: studentsPaused } : null;
   const cards = positionCards({ debt_total: debtTotal, advance_total: advanceTotal, debtors, students_with_debt: studentsWithDebt, students_with_advance: studentsWithAdvance });
   const noPrice = summaryLoaded ? priceMissingText(priceMissing) : null;
 

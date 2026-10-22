@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, Check, Wallet } from "lucide-react";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -9,6 +9,8 @@ import {
   advanceCard,
   checkView,
   chartBars,
+  chartFocusIndex,
+  chartScrollLeft,
   collectedCard,
   debtCard,
   debtorsHref,
@@ -95,13 +97,12 @@ export function IncomeCards({ overview, paymentsBase, scope }: { overview: Incom
       <StatCard label="Поступило" testId="card-received">
         <p className={`${ACCENT} text-slate-900`}>{received.amount}</p>
         {received.delta.text && (
-          <p className={`mt-1 text-sm font-medium ${DELTA_CLASS[received.delta.tone]}`} data-testid="received-delta" data-tone={received.delta.tone}>
+          <p className={`mt-1 text-sm font-medium ${DELTA_CLASS[received.delta.tone]}`} data-testid="received-delta" data-tone={received.delta.tone} title={received.hint || undefined}>
             {received.delta.arrow && <span aria-hidden className="mr-1">{received.delta.arrow}</span>}
             {received.delta.text}
           </p>
         )}
-        <p className="mt-0.5 text-sm text-slate-500">{received.countText}</p>
-        {received.hint && <p className="mt-0.5 text-xs text-slate-400" data-testid="compare-hint">{received.hint}</p>}
+        {received.countText && <p className="mt-0.5 text-sm text-slate-500" data-testid="received-count">{received.countText}</p>}
       </StatCard>
 
       {collected && (
@@ -184,23 +185,38 @@ export function FlowLine({ overview }: { overview: IncomeOverview }) {
 // ── The chart of income by day ─────────────────────────────────────────────
 
 /** Bars of income; the tooltip says the sum and the number of payments; a click narrows the journal to that day. */
-export function IncomeChart({ bars, title, activeBucket, onPick }: { bars: Bar[]; title: string; activeBucket: string | null; onPick: (bar: Bar) => void }) {
+export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars: Bar[]; title: string; activeBucket: string | null; onPick: (bar: Bar) => void; today: string }) {
   const count = bars.length;
+  const trackRef = useRef<HTMLDivElement | null>(null);
+  // A phone shows a part of the chart: it opens at the last day with money (else today), not at the 1st of the month.  Only the chart's own box
+  // is scrolled (never the page), and again only when the set of days changes (another period), not on every render.
+  const focusIndex = useMemo(() => chartFocusIndex(bars, today), [bars, today]);
+  const days = bars.map((bar) => bar.bucket).join("|");
+  useEffect(() => {
+    const track = trackRef.current;
+    const box = track?.parentElement;
+    const column = track?.children[focusIndex] as HTMLElement | undefined;
+    if (!track || !box || !column) return;
+    box.scrollLeft = chartScrollLeft({ barRight: column.offsetLeft + column.offsetWidth, viewWidth: box.clientWidth, contentWidth: box.scrollWidth });
+  }, [days, focusIndex]);
   return (
     <section aria-label={title} className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 pb-3 pt-3.5 md:px-5" data-testid="income-chart">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-        <p className="text-xs text-slate-400">Нажмите на столбик, и ниже появятся оплаты этого дня</p>
+        <p className="text-xs text-slate-400" data-testid="income-chart-hint">
+          <span className="md:hidden">Нажмите на день, чтобы увидеть оплаты</span>
+          <span className="hidden md:inline">Нажмите на столбик, и ниже появятся оплаты этого дня</span>
+        </p>
       </div>
       <ScrollHint className="mt-1 overflow-x-auto" data-testid="income-chart-scroll">
-        <div className="relative flex items-end gap-1.5 pt-14" style={{ minWidth: `${count * 26}px` }}>
+        <div ref={trackRef} className="relative flex items-end gap-1.5 pt-14" style={{ minWidth: `${count * 26}px` }}>
           {bars.map((bar, index) => {
             const active = activeBucket === bar.bucket;
             const dim = activeBucket !== null && !active;
             const edge = index < 2 ? "left-0" : index > count - 3 ? "right-0" : "left-1/2 -translate-x-1/2";
             return (
               <div key={bar.bucket} className="group flex min-w-0 flex-1 flex-col items-center">
-                <div className="relative flex h-36 w-full items-end justify-center border-b border-slate-200">
+                <div className="relative flex h-24 w-full items-end justify-center border-b border-slate-200 md:h-36">
                   {bar.range ? (
                     <button
                       type="button"
@@ -278,6 +294,7 @@ export function IncomeOverviewView({
   overview, today, paymentsBase, activeBucket, onPick, scope,
 }: { overview: IncomeOverview; today: string; paymentsBase: string; activeBucket: string | null; onPick: (bar: Bar) => void; scope?: IncomeScope }) {
   const chart = showChart(overview);
+  const bars = useMemo(() => chartBars(overview, today), [overview, today]);
   const methods = methodRows(overview, scope).length > 0;
   return (
     <div className="space-y-4">
@@ -286,7 +303,7 @@ export function IncomeOverviewView({
       <FlowLine overview={overview} />
       {(chart || methods) && (
         <div className={`grid grid-cols-1 gap-4 ${chart && methods ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]" : ""}`}>
-          {chart && <IncomeChart bars={chartBars(overview, today)} title={overview.series_by === "month" ? "Пришло по месяцам" : "Пришло по дням"} activeBucket={activeBucket} onPick={onPick} />}
+          {chart && <IncomeChart bars={bars} today={today} title={overview.series_by === "month" ? "Пришло по месяцам" : "Пришло по дням"} activeBucket={activeBucket} onPick={onPick} />}
           {methods && <MethodsBox overview={overview} scope={scope} />}
         </div>
       )}

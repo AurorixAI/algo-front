@@ -91,7 +91,7 @@ test("[O5.R7] a busy teacher at a schedule write: the server head and the first 
 
 test("the schedule page is wired: «Действует с», the optional room without «Кабинет 204», the errors inside the dialogs, the notices", () => {
   const page = read("src/app/teacher/schedule/page.tsx");
-  for (const needle of [/Действует с/, /VALID_FROM_HINT/, /ROOM_LABEL/, /ROOM_PLACEHOLDER/, /roomForSave\(newRoom\)/, /validFrom: newValidFrom/, /scheduleErrorText\(err/, /warningTexts\(created\)/, /validFromBadge\(l\.validFrom/, /roomLabel\(l\)/, /roomLabel\(activeLesson\)/]) {
+  for (const needle of [/Действует с/, /VALID_FROM_HINT/, /ROOM_LABEL/, /ROOM_PLACEHOLDER/, /roomForSave\(newRoom\)/, /validFrom: newValidFrom/, /scheduleErrorText\(err/, /warningTexts\(created\)/, /validFromBadge\(l\.validFrom/, /placeText\(l\)/, /placeText\(activeLesson\)/]) {
     assert.match(page, needle, String(needle));
   }
   assert.doesNotMatch(page, /Кабинет 204/);

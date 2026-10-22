@@ -6,7 +6,9 @@ import { Modal } from "@/components/ui/modal";
 import { receiptHref, statementHref } from "@/lib/payments";
 import {
   drawerView,
+  JOURNAL_QUIET_TEXT,
   journalEmptyText,
+  journalIsQuiet,
   journalPaging,
   journalRowView,
   journalSpansYears,
@@ -194,6 +196,14 @@ export function JournalSection(props: JournalSectionProps) {
   const withYear = journal ? journalSpansYears(journal.from, journal.to) : false;
   const totals = journal ? journalTotalsText(journal.totals) : "";
   const showAuthors = authors.length > 1;
+  // Nothing in the period and nothing narrowed: the sentence and the card above already said so; no search, no Excel, one quiet line.
+  if (!error && journalIsQuiet(journal, props.empty)) {
+    return (
+      <section aria-label="Журнал оплат" data-testid="income-journal">
+        <p className="px-1 text-sm text-slate-400" data-testid="journal-quiet">{JOURNAL_QUIET_TEXT}</p>
+      </section>
+    );
+  }
   return (
     <section aria-label="Журнал оплат" className="space-y-3" data-testid="income-journal">
       <div className="flex flex-col gap-2 md:flex-row md:items-center">

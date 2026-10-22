@@ -31,6 +31,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
+import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { assignActionLabel, lessonHasStarted, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
@@ -204,7 +205,20 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
       };
     }
 
-    const statuses = todayLessons.map((lesson) => attendance?.statuses?.[lessonKey(lesson)] || lesson.status || "scheduled");
+    // A lesson moved away or cancelled is not a lesson of the day: it is not counted and does not decide the title.
+    const plan = todayLessons
+      .map((lesson) => ({ lesson, status: attendance?.statuses?.[lessonKey(lesson)] || lesson.status || "scheduled" }))
+      .map((item) => ({ ...item, off: outOfPlan({ status: item.status, outcome: item.lesson.substitutionOutcome }) }));
+    const statuses = plan.filter((item) => !item.off).map((item) => item.status);
+    if (statuses.length === 0) {
+      const words = todayPlanLines(plan.map((item) => item.off));
+      return {
+        title: words.title,
+        description: words.description,
+        className: "bg-slate-50 border-slate-200 text-slate-700",
+        Icon: words.moved ? CalendarClock : XCircle,
+      };
+    }
     if (statuses.includes("in_progress")) {
       return {
         title: "Сейчас идёт урок",
@@ -216,17 +230,9 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
     if (statuses.includes("scheduled")) {
       return {
         title: "Урок сегодня по расписанию",
-        description: `${todayLessons.length === 1 ? "Занятие ожидает начала" : `Сегодня запланировано занятий: ${todayLessons.length}`}.`,
+        description: `${statuses.length === 1 ? "Занятие ожидает начала" : `Сегодня запланировано занятий: ${statuses.length}`}.`,
         className: "bg-primary-50 border-primary-200 text-primary-800",
         Icon: CalendarCheck2,
-      };
-    }
-    if (statuses.every((status) => status === "cancelled")) {
-      return {
-        title: "Занятие на сегодня отменено",
-        description: "Посещаемость по отменённому уроку недоступна.",
-        className: "bg-slate-50 border-slate-200 text-slate-700",
-        Icon: XCircle,
       };
     }
     return {
@@ -340,6 +346,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const lessonState = attendance?.statuses?.[key] || lesson.status || "scheduled";
                         const outcome = lesson.substitutionOutcome;
                         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
+                        const off = outOfPlan({ status: lessonState, outcome });
                         const state = presentationFor(lessonState, lesson.date, today, moved);
                         const StateIcon = state.icon;
                         const startTime = lesson.startTime || lesson.start_time || "—";
@@ -364,14 +371,15 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                               onClick: open,
                               onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } },
                             } : {})}
-                            className={`rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs ${interactive ? "cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40" : ""}`}
+                            data-out={off ?? undefined}
+                            className={`rounded-xl border border-slate-200 p-3 shadow-2xs ${off ? "bg-slate-50 opacity-75" : "bg-slate-50/70"} ${interactive ? "cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40" : ""}`}
                           >
                             <span title={state.description} className={`inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
                               <StateIcon className="h-3 w-3" />
                               {state.label}
                             </span>
                             <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lessonTitle(lesson, groupName)}</p>
-                            <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" />{startTime}–{lesson.endTime || "—"}</p>
+                            <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" /><span className={off ? "text-slate-400 line-through" : undefined}>{startTime}–{lesson.endTime || "—"}</span></p>
                             {room && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{room}</p>}
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
                             {movedFromText(lesson.movedFrom) && <p className="mt-1.5 text-xs font-semibold text-sky-800" data-testid="moved-from">{movedFromText(lesson.movedFrom)}</p>}

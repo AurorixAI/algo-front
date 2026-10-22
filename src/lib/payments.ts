@@ -973,6 +973,39 @@ export function bucketTabLabel(label: string, count: number | null): string {
   return count === null ? label : `${label} (${count})`;
 }
 
+// ── The tab counts of a narrowed list (a group / a teacher filter) ─────────
+
+export interface TabCounts { debt: number; expiring: number; active: number; paused: number }
+
+/** The most debtors read in one answer to count distinct students; a longer list falls back to the number of memberships. */
+export const DEBTORS_SAMPLE = 500;
+
+/**
+ * The counts of the four tabs for the group / teacher the list is narrowed to.  `/org/payments/summary` takes no filter (it is the
+ * centre's: the banner and the menu badge stay that), but `/org/payments/status` does and answers an exact `total`, so each tab asks
+ * for its own total with the same filter.  «Должники» counts students like the centre's number does (one student with a debt in
+ * two groups of the teacher is one): the debtors are read and counted by `student_id`; the other tabs count memberships.
+ */
+export async function filteredTabCounts(
+  fetchPage: (query: { bucket: PaymentBucket; limit: number; offset: number }) => Promise<{ total?: number | null; items?: Array<{ student_id?: string | null }> | null }>,
+): Promise<TabCounts> {
+  const total = (page: { total?: number | null }) => Math.max(0, Math.floor(Number(page?.total) || 0));
+  const [debtPage, expiring, active, paused] = await Promise.all([
+    fetchPage({ bucket: "debt", limit: DEBTORS_SAMPLE, offset: 0 }),
+    fetchPage({ bucket: "expiring", limit: 1, offset: 0 }),
+    fetchPage({ bucket: "active", limit: 1, offset: 0 }),
+    fetchPage({ bucket: "paused", limit: 1, offset: 0 }),
+  ]);
+  const items = debtPage?.items ?? [];
+  const debt = items.length > 0 && items.length === total(debtPage) ? new Set(items.map((item) => item.student_id)).size : total(debtPage);
+  return { debt, expiring: total(expiring), active: total(active), paused: total(paused) };
+}
+
+/** The `summary` the tab bar reads when the list is narrowed: the filtered counts (null while they are on their way: no number rather than the centre's). */
+export function narrowedTabSummary(counts: TabCounts | null) {
+  return counts ? { buckets: counts, debtors: counts.debt, students_with_debt: counts.debt, expiring: counts.expiring, active: counts.active, paused: counts.paused, students_paused: counts.paused } : null;
+}
+
 // ── Status wording ─────────────────────────────────────────────────────────
 
 export type StatusTone = "danger" | "warning" | "ok" | "muted" | "free";

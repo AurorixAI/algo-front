@@ -54,7 +54,12 @@ export interface IncomeCash {
   scope?: string | null;
   /** The server says the screen is narrowed (a group / teacher filter) while the till is the centre's (absent on an older server). */
   filtered_view?: boolean;
+  /** The server's words for a narrowed screen: «в кассе центра за сегодня (все группы)»; null / absent when the screen is not narrowed. */
+  scope_text?: string | null;
 }
+
+/** One part of «Куда ушли деньги» as the server sends it: its own kind («old_debt», «current», «forward», «advance», …) and its own label. */
+export interface IncomeFlowItem { kind: string; label: string; amount: number }
 
 export interface CollectionRow {
   group_id: string | null;
@@ -98,6 +103,8 @@ export interface IncomeOverview {
   previous_period: IncomePeriodOut;
   /** The human name of the comparison period, always present: «вчера», «1–21 сент.», «5–11 окт.», «сентябрь», «прошлая неделя». */
   previous_label: string;
+  /** What the comparison means when the period is still running: «тех же дней прошлой недели» (absent on an older server). */
+  previous_hint?: string | null;
   current: IncomeTotals;
   previous: IncomeTotals;
   delta_amount: number;
@@ -105,6 +112,8 @@ export interface IncomeOverview {
   delta_direction: "up" | "down" | "same" | null;
   delta_text: string | null;
   summary_text: string;
+  /** The parts of «Куда ушли деньги» with the server's kinds and labels (absent on an older server: the fixed fields of `current` are used). */
+  strip?: IncomeFlowItem[] | null;
   by_method: IncomeMethodRow[];
   series: IncomeDay[];
   series_by: "day" | "month";
@@ -225,6 +234,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     period: periodOut(raw?.period),
     previous_period: periodOut(raw?.previous_period),
     previous_label: text(raw?.previous_label) || text(raw?.previous_period?.label),
+    previous_hint: nullableText(raw?.previous_hint),
     current: totalsOf(raw?.current),
     previous: totalsOf(raw?.previous),
     delta_amount: sum(raw?.delta_amount),
@@ -232,10 +242,11 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     delta_direction: raw?.delta_direction === "up" || raw?.delta_direction === "down" || raw?.delta_direction === "same" ? raw.delta_direction : null,
     delta_text: nullableText(raw?.delta_text),
     summary_text: text(raw?.summary_text),
+    strip: Array.isArray(raw?.strip) ? raw.strip.map((item) => ({ kind: text(item?.kind), label: text(item?.label), amount: sum(item?.amount) })) : null,
     by_method: arr<IncomeMethodRow>(raw?.by_method).map((item) => ({ method: text(item.method), label: text(item.label), amount: sum(item.amount), count: sum(item.count) })),
     series: arr<IncomeDay>(raw?.series).map((item) => ({ bucket: text(item.bucket), received: sum(item.received), count: sum(item.count) })),
     series_by: raw?.series_by === "month" ? "month" : "day",
-    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true } : null,
+    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true, scope_text: nullableText(cash.scope_text) } : null,
     collection: collection ? {
       month: text(collection.month), month_label: text(collection.month_label), from: text(collection.from), to: text(collection.to), text: text(collection.text),
       total: collectionRow(collection.total), groups: arr<CollectionRow>(collection.groups).map(collectionRow),
@@ -431,16 +442,32 @@ export interface DeltaView {
   tone: Tone;
 }
 
-/** «▲ 12% к сентябрю» (green) / «▼ 30% к сентябрю» (red) / «0% к сентябрю» (grey); nothing to compare → a quiet word. */
+/**
+ * «▲ 12% к сентябрю» (green) / «▼ 30% к сентябрю» (red) / «0% к сентябрю» (grey); nothing to compare → a quiet word.
+ * A running period: when the server says what the comparison means (`previous_hint`: «тем же дням прошлой недели») it replaces the
+ * bare label at the end of the sentence («▲ 170% к тем же дням прошлой недели»).
+ */
 export function deltaView(overview: IncomeOverview): DeltaView {
   const direction = overview.delta_direction;
   if (overview.delta_text && direction) {
-    if (direction === "up") return { arrow: "▲", text: overview.delta_text, tone: "up" };
-    if (direction === "down") return { arrow: "▼", text: overview.delta_text, tone: "down" };
-    return { arrow: "", text: overview.delta_text, tone: "same" };
+    const text = foldPreviousHint(overview.delta_text, overview);
+    if (direction === "up") return { arrow: "▲", text, tone: "up" };
+    if (direction === "down") return { arrow: "▼", text, tone: "down" };
+    return { arrow: "", text, tone: "same" };
   }
   // No percent to show (the previous period took nothing): a quiet sentence instead.
   return { arrow: "", tone: "none", text: overview.previous.payments_count > 0 ? "" : noPaymentsBefore(overview.previous_label) };
+}
+
+/** «170% к 12–15 окт.» + the hint «тем же дням прошлой недели» → «170% к тем же дням прошлой недели»; no hint, or the label is not at the end: the sentence as it is. */
+export function foldPreviousHint(sentence: string, overview: Pick<IncomeOverview, "previous_hint" | "previous_label" | "previous_period">): string {
+  const hint = (overview.previous_hint ?? "").trim();
+  if (!hint) return sentence;
+  for (const label of [overview.previous_period.label, overview.previous_label]) {
+    const name = label.trim();
+    if (name && sentence.endsWith(` к ${name}`)) return `${sentence.slice(0, sentence.length - name.length)}${hint}`;
+  }
+  return sentence;
 }
 
 const MONTH_PREPOSITIONAL: Record<string, string> = {
@@ -462,9 +489,12 @@ export function noPaymentsBefore(label: string): string {
   return `${capitalizeFirst(name)}: оплат не было`;
 }
 
-/** A running period is compared like for like: «сравнение с 1–21 сент.» under the card. */
-export function compareHint(overview: Pick<IncomeOverview, "period" | "previous_label">): string {
-  return overview.period.in_progress && overview.previous_label ? `сравнение с ${overview.previous_label}` : "";
+/** The tooltip of the delta: a running period is compared like for like — the server's `previous_hint`, else «сравнение с 1–21 сент.»; a closed period says nothing. */
+export function compareHint(overview: Pick<IncomeOverview, "period" | "previous_label" | "previous_hint">): string {
+  if (!overview.period.in_progress) return "";
+  const hint = (overview.previous_hint ?? "").trim();
+  if (hint) return `Сравнение с ${hint}`;
+  return overview.previous_label ? `сравнение с ${overview.previous_label}` : "";
 }
 
 export const DELTA_CLASS: Record<Tone, string> = {
@@ -480,10 +510,29 @@ export function paymentsCountText(count: number): string {
   return n > 0 ? `${n} ${pluralRu(n, "оплата", "оплаты", "оплат")}` : "оплат не было";
 }
 
-export interface ReceivedCard { amount: string; delta: DeltaView; countText: string; hint: string }
+export interface ReceivedCard {
+  amount: string;
+  /** Line 1: «▲ 170% к 12–15 окт.» / «В сентябре оплат не было» / (nothing received) «Оплат не было». */
+  delta: DeltaView;
+  /** Line 2: «10 оплат»; when nothing was received: «22 авг.: 300 000 сум» (what the previous period took), or «» when it took nothing. */
+  countText: string;
+  /** Not a line of its own: the tooltip of line 1 («Сравнение с тем же дням прошлой недели»). */
+  hint: string;
+}
 
+/**
+ * The card «Поступило» says at most two quiet lines under the number, never the same thing twice:
+ * the delta (or the quiet «В сентябре оплат не было»), then the number of payments.  With nothing received the first line is
+ * «Оплат не было» and the second one appears only when the previous period took something.
+ */
 export function receivedCard(overview: IncomeOverview): ReceivedCard {
-  return { amount: formatMoney(overview.current.received), delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count), hint: compareHint(overview) };
+  const amount = formatMoney(overview.current.received);
+  if (overview.current.received === 0 && overview.current.payments_count === 0) {
+    const label = overview.previous_label.trim();
+    const before = overview.previous.received > 0 && label ? `${capitalizeFirst(label)}: ${formatMoney(overview.previous.received)}` : "";
+    return { amount, delta: { arrow: "", text: "Оплат не было", tone: "none" }, countText: before, hint: "" };
+  }
+  return { amount, delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count), hint: compareHint(overview) };
 }
 
 export interface CollectedCard {
@@ -535,7 +584,8 @@ export function debtorsHref(paymentsBase: string, scope: { groupId?: string | nu
 // ── «Куда ушли деньги»: one line ───────────────────────────────────────────
 
 export interface FlowPart {
-  key: "to_past_debt" | "to_current" | "to_advance" | "refunded" | "transferred";
+  /** The server's kind («old_debt», «current», «forward», «advance», …), or the legacy name of the field; any string. */
+  key: string;
   label: string;
   amount: number;
   /** Whole percent of the line; the parts add up to 100. */
@@ -544,13 +594,36 @@ export interface FlowPart {
   dot: string;
 }
 
-const FLOW_PARTS: Array<{ key: FlowPart["key"]; field: keyof IncomeTotals; label: string; dot: string }> = [
-  { key: "to_past_debt", field: "to_past_debt", label: "на старые долги", dot: "bg-slate-700" },
-  { key: "to_current", field: "to_current", label: "на текущие периоды", dot: "bg-primary-600" },
-  { key: "to_advance", field: "to_advance", label: "в аванс", dot: "bg-emerald-500" },
-  { key: "refunded", field: "refunded_from_received", label: "возвращено", dot: "bg-amber-400" },
-  { key: "transferred", field: "transferred", label: "переведено в другие группы", dot: "bg-slate-300" },
+/** The colour of a kind is fixed (a part keeps its colour whichever parts are present); a kind the front does not know is a neutral grey. */
+export const FLOW_DOT: Record<string, string> = {
+  old_debt: "bg-slate-700",
+  current: "bg-primary-600",
+  forward: "bg-teal-500",
+  advance: "bg-emerald-500",
+  refunded: "bg-amber-400",
+  transferred: "bg-slate-300",
+  // the older server's field names
+  to_past_debt: "bg-slate-700",
+  to_current: "bg-primary-600",
+  to_advance: "bg-emerald-500",
+};
+export const FLOW_DOT_UNKNOWN = "bg-slate-400";
+export const flowDot = (kind: string): string => FLOW_DOT[kind] ?? FLOW_DOT_UNKNOWN;
+
+/** The fixed fields of an older server, in the order of the line; the words are the front's. */
+const LEGACY_FLOW: Array<{ key: string; field: keyof IncomeTotals; label: string }> = [
+  { key: "to_past_debt", field: "to_past_debt", label: "на старые долги" },
+  { key: "to_current", field: "to_current", label: "на текущие периоды" },
+  { key: "to_advance", field: "to_advance", label: "в аванс" },
+  { key: "refunded", field: "refunded_from_received", label: "возвращено" },
+  { key: "transferred", field: "transferred", label: "переведено в другие группы" },
 ];
+
+/** The kinds and the words come from the server when it sends `strip`; otherwise the fixed fields of `current`. */
+function flowItems(overview: IncomeOverview): Array<{ key: string; label: string; amount: number }> {
+  if (overview.strip) return overview.strip.map((item) => ({ key: item.kind, label: item.label || item.kind, amount: item.amount }));
+  return LEGACY_FLOW.map((part) => ({ key: part.key, label: part.label, amount: sum(overview.current[part.field]) }));
+}
 
 /** Percent shares that add up to exactly 100 (largest remainder); the plain rounding gives 99 or 101 too often. */
 export function sharesOf(amounts: number[]): number[] {
@@ -567,11 +640,11 @@ export function sharesOf(amounts: number[]): number[] {
   return floors;
 }
 
-/** The parts of the received money that are not zero (a zero part is not shown, no «0%»). */
+/** The parts of the received money that are not zero (a zero part is not shown, no «0%»); the kinds and the labels are whatever the server sends. */
 export function flowParts(overview: IncomeOverview): FlowPart[] {
-  const present = FLOW_PARTS.map((part) => ({ part, amount: sum(overview.current[part.field]) })).filter((item) => item.amount > 0);
+  const present = flowItems(overview).filter((item) => item.amount > 0);
   const shares = sharesOf(present.map((item) => item.amount));
-  return present.map((item, index) => ({ key: item.part.key, label: item.part.label, amount: item.amount, percent: shares[index], dot: item.part.dot }));
+  return present.map((item, index) => ({ key: item.key, label: item.label, amount: item.amount, percent: shares[index], dot: flowDot(item.key) }));
 }
 
 /** «Прощено долгов: 100 000 сум», or «» when nobody was forgiven (nothing is said about zero). */
@@ -668,6 +741,22 @@ export function chartBars(overview: IncomeOverview, today: string): Bar[] {
   });
 }
 
+/**
+ * The bar a phone opens the chart at: the last day with money, else today, else the last bar.  The chart is wider than a phone
+ * (26 px a day) and must not open on the 1st of the month with every bar of the 13th–22nd behind the right edge.
+ */
+export function chartFocusIndex(bars: Array<Pick<Bar, "bucket" | "range">>, today: string): number {
+  for (let index = bars.length - 1; index >= 0; index -= 1) if (bars[index].range) return index;
+  const todayIndex = bars.findIndex((bar) => bar.bucket === today || bar.bucket === today.slice(0, 7));
+  return todayIndex >= 0 ? todayIndex : Math.max(0, bars.length - 1);
+}
+
+/** `scrollLeft` that brings the right edge of a bar to the right edge of the view (a little air after it); never negative, never past the end. */
+export function chartScrollLeft(input: { barRight: number; viewWidth: number; contentWidth: number; air?: number }): number {
+  const wanted = input.barRight + (input.air ?? 8) - input.viewWidth;
+  return Math.max(0, Math.min(Math.round(wanted), Math.max(0, input.contentWidth - input.viewWidth)));
+}
+
 /** The bar that is pressed: the one whose day (month) the journal is narrowed to. */
 export function focusBucket(range: JournalRange | null, overview: Pick<IncomeOverview, "series" | "series_by">): string | null {
   if (!range) return null;
@@ -698,11 +787,21 @@ export function cashIsCentreWide(cash: Pick<IncomeCash, "scope" | "filtered_view
   return cash.filtered_view === true || (filtersActive && !cash.scope);
 }
 
+/**
+ * «в кассе центра за сегодня (все группы): 150 000 сум».  The server's `scope_text` is used verbatim; without it (an older server) the
+ * front's own words for a narrowed screen, and «должно быть в кассе 150 000 сум» for an unnarrowed one.
+ */
+export function cashHint(cash: Pick<IncomeCash, "expected" | "scope_text">, centreWide: boolean): string {
+  const scope = (cash.scope_text ?? "").trim();
+  if (scope) return /сум/.test(scope) ? scope : `${scope}: ${formatMoney(cash.expected)}`;
+  return centreWide ? `${CENTRE_CASH_LABEL}: ${formatMoney(cash.expected)}` : `должно быть в кассе ${formatMoney(cash.expected)}`;
+}
+
 /** Only the methods that took money; the cash row of a day carries the hint «должно быть в кассе» (narrowed screen: «В кассе центра за сегодня (все группы)»). */
 export function methodRows(overview: IncomeOverview, scope: { groupId?: string | null; teacherId?: string | null } = {}): MethodRow[] {
   const cash = overview.cash;
   const centre = cashIsCentreWide(cash, Boolean(scope.groupId || scope.teacherId));
-  const hintOf = (method: string) => (method === "cash" && cash ? (centre ? `${CENTRE_CASH_LABEL}: ${formatMoney(cash.expected)}` : `должно быть в кассе ${formatMoney(cash.expected)}`) : null);
+  const hintOf = (method: string) => (method === "cash" && cash ? cashHint(cash, centre) : null);
   const noteOf = (method: string) => (method === "cash" && cash && cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null);
   const rows: MethodRow[] = overview.by_method
     .filter((item) => item.amount !== 0 || item.count > 0)
@@ -841,9 +940,20 @@ export interface DrawerView {
   links: DrawerLink[];
 }
 
-/** «за сентябрь — 200 000 · аванс — 50 000» → two lines; the sentence is the server's, the split is only the layout. */
+/**
+ * One line of «Куда пошли деньги» in words: the amount says «сум» and a bare period says «за период 22.10–21.11 — 450 000 сум».
+ * The server's lines are kept as they are when they already say it; an older server's «за 22.10–21.11 — 450 000» is completed.
+ */
+export function humanDestinationLine(line: string): string {
+  let out = line.trim();
+  out = out.replace(/^за (\d{1,2}\.\d{2}\s*[–-]\s*\d{1,2}\.\d{2})/, "за период $1");
+  out = out.replace(/(—|-)\s*(\d[\d\s\u00a0\u202f]*)$/, (_all, dash: string, amount: string) => `${dash} ${amount.trim()} сум`);
+  return out;
+}
+
+/** «за сентябрь — 200 000 сум · аванс — 50 000 сум» → two lines; the sentence is the server's, the split and the words «сум» / «период» are the layout. */
 export function destinationLines(row: Pick<JournalRow, "allocation_text" | "allocations">): string[] {
-  if (row.allocation_text) return row.allocation_text.split(" · ").map((part) => part.trim()).filter(Boolean);
+  if (row.allocation_text) return row.allocation_text.split(" · ").map(humanDestinationLine).filter(Boolean);
   return row.allocations.filter((line) => line.amount > 0).map((line) => `${line.label} — ${formatMoney(line.amount)}`);
 }
 
@@ -933,6 +1043,14 @@ export function journalEmptyText(context: EmptyContext): string {
   if (context.focusLabel) return focusEmptyText(context.focusLabel, context.kind, context.year);
   return `${periodWords(context.kind)} оплат не было`;
 }
+
+/** Zero rows and nothing narrowed (no search, no author, no filter, no bar): the journal has nothing to search or export, so it is one quiet line. */
+export function journalIsQuiet(journal: Pick<PaymentsJournal, "rows"> | null | undefined, context: Pick<EmptyContext, "narrowed" | "focusLabel">): boolean {
+  return Boolean(journal) && journal!.rows.length === 0 && !context.narrowed && !context.focusLabel;
+}
+
+/** The one line of a journal without rows: the sentence and the card above already say «оплат не было», so this one says only where the rows would be. */
+export const JOURNAL_QUIET_TEXT = "Журнал оплат пуст";
 
 export const LOAD_ERROR_FALLBACK = "Не удалось загрузить поступления";
 export const NO_ACCESS_TEXT = "Нет доступа к поступлениям. Доступ даёт владелец центра в настройках.";

@@ -14,6 +14,7 @@ import {
   hasUnknownMethod,
   focusBucket,
   incomeErrorText,
+  journalIsQuiet,
   journalQuery,
   NO_FILTERS,
   NO_JOURNAL_EXTRAS,
@@ -175,6 +176,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
   };
 
   const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || filters.groupId !== "" || filters.teacherId !== "";
+  const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
   const anyDenied = noRight || overview.denied || journal.denied;
@@ -230,7 +232,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
                   </button>
                 ))}
               </div>
-            ) : (
+            ) : quietJournal ? null : (
               <h2 className="text-sm font-semibold text-slate-800">Оплаты</h2>
             )}
             {tab === "groups" && collection ? (

@@ -334,11 +334,11 @@ test("the drawer: who entered it, where the money went, the receipt, the way to 
   assert.equal(view.title, "Оплата № 13");
   assert.equal(view.when, "21.10.2026 · 11:40");
   assert.deepEqual(view.facts, [{ label: "Ученик", value: "Алиев Тимур" }, { label: "Группа", value: "Английский 7Б · Мария Ким" }, { label: "Кто внёс", value: "Азиз Хакимов" }]);
-  assert.deepEqual(view.destination.map(plain), ["за октябрь — 150 000"]);
+  assert.deepEqual(view.destination.map(plain), ["за октябрь — 150 000 сум"]);
   assert.equal(view.note, "=SUM(A1)"); // shown as text, never as a formula
   assert.deepEqual(view.links.map((l) => [l.key, l.label]), [["receipt", "Квитанция № 13"], ["student", "Карточка ученика"], ["statement", "Выписка по группе"]]);
   // «за сентябрь — 200 000 · аванс — 50 000» is two lines
-  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [] }), ["за сентябрь — 200 000", "аванс — 50 000"]);
+  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [] }), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
   assert.deepEqual(V.destinationLines({ allocation_text: null, allocations: [{ label: "На текущий период 01.10–31.10", amount: 5000 }, { label: "ноль", amount: 0 }] }).map(plain), ["На текущий период 01.10–31.10 — 5 000 сум"]);
   // cancelled: the reason and who, and no «куда пошли деньги» (the money did not go anywhere)
   const voided = V.drawerView(rows[2]);
@@ -497,15 +497,15 @@ test("the journal section: search and filters, the focus chip, pages; empty and 
   assert.ok(!html(React.createElement(J.JournalSection, { ...base, authors: [data.authors[0]] })).includes("Кто внёс оплату"));
   assert.match(text(React.createElement(J.JournalSection, { ...base, focusLabel: "7 октября" })), /Оплаты: 7 октября/);
   const empty = { ...data, rows: [], total: 0, totals: { count: 0, sum: 0, voided_count: 0 } };
-  assert.ok(text(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: false } })).includes("За этот день оплат не было"));
+  assert.ok(text(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: false } })).includes("Журнал оплат пуст")); // nothing in the period and nothing narrowed: one quiet line, no toolbar (income3)
   const narrowed = text(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: true } }));
   assert.ok(narrowed.includes("По этому запросу оплат не нашлось") && narrowed.includes("Сбросить поиск и фильтры"));
   assert.match(html(React.createElement(J.JournalSection, { ...base, journal: null })), /data-testid="journal-skeleton"/);
   const error = html(React.createElement(J.JournalSection, { ...base, journal: null, error: "Не удалось загрузить поступления" }));
   assert.match(error, /role="alert"/);
   assert.ok(text(React.createElement(J.JournalSection, { ...base, journal: null, error: "Не удалось загрузить поступления" })).includes("Повторить"));
-  // nothing to export from an empty list
-  assert.match(html(React.createElement(J.JournalSection, { ...base, journal: empty })), /disabled=""[^>]*>[^<]*<[^>]*>[^<]*<\/svg>Скачать Excel|Скачать Excel/);
+  // nothing to export from an empty (narrowed) list
+  assert.match(html(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: true } })), /disabled=""[^>]*>[^<]*<[^>]*>[^<]*<\/svg>Скачать Excel|Скачать Excel/);
 });
 
 test("the groups' collection on screen: worst first, bars, a row is a link to «Должники» of the group; one table, not two", () => {
@@ -614,5 +614,5 @@ test("INCOME-2 addendum: «Способ не указан» as a filter, «Кт�
   assert.equal(V.exportErrorText(null), "Не удалось скачать Excel");
   assert.equal(V.DEBTORS_GROUP_NOTE, "Показаны все долги группы, не только за месяц");
   assert.match(read("src/components/payments/payments-page.tsx"), /bucket === "debt" && filter\.groupId && \(/);
-  assert.match(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/);
+  assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/); // income3: the hint is the tooltip of line 1, not a third line
 });

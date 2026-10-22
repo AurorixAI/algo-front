@@ -10,6 +10,7 @@ import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-loa
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
+import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
@@ -45,7 +46,7 @@ import {
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
 import {
-  ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, roomForSave, roomLabel, validFromBadge, validFromBounds, validFromError,
+  ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, roomForSave, validFromBadge, validFromBounds, validFromError,
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
@@ -1642,7 +1643,8 @@ export default function TeacherSchedulePage() {
     // temporary group filter. They are an operational summary for the teacher.
     for (const lesson of todayOccurrences) {
       const lessonStatus = lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled");
-      if (lessonStatus === "cancelled") {
+      // a lesson moved away is not in the plan of the day, whatever its status has reached the page
+      if (lessonStatus === "cancelled" || isMovedAway(lesson.substitutionOutcome)) {
         cancelled += 1;
         continue;
       }
@@ -1685,42 +1687,19 @@ export default function TeacherSchedulePage() {
   }, [todayOccurrences, lessonStatusMap, completedLessonsMap, lessonAttendanceMap, todayDayOfWeek, clockTick]);
 
   const weekKpi = useMemo(() => {
-    // A cancelled occurrence is still part of the weekly plan: it occupied a
-    // real calendar slot and must remain visible in reporting. It is resolved
-    // differently from a completed lesson, not silently removed from the
-    // denominator.
-    const planned = weekOccurrences.length;
-    let completed = 0;
-    let cancelled = 0;
-    let needsCompletion = 0;
-    let notStarted = 0;
-
-    for (const lesson of weekOccurrences) {
-      const key = `${lesson.occurrenceDate}_${lesson.id}`;
-      const status = weekLessonStatusMap[key]
-        || (lesson.occurrenceDate === businessDate ? lessonStatusMap[lesson.id] : undefined)
-        || "scheduled";
-      if (status === "cancelled") {
-        cancelled += 1;
-        continue;
-      }
-      if (status === "completed") {
-        completed += 1;
-      } else if (lesson.occurrenceDate < businessDate) {
-        if (status === "in_progress") needsCompletion += 1;
-        else notStarted += 1;
-      }
-    }
-
-    return {
-      planned,
-      completed,
-      cancelled,
-      completionTarget: Math.max(planned - cancelled, 0),
-      needsCompletion,
-      notStarted,
-      remaining: Math.max(planned - completed - cancelled, 0),
-    };
+    // Only the lessons of the plan count: a lesson moved away (the new one counts instead) and a cancelled one are shown muted on
+    // the grid, listed in the plan, and not in «План недели», «На неделю N» or «Завершено x из y».
+    const plan = weekPlan(
+      weekOccurrences.map((lesson) => ({
+        date: lesson.occurrenceDate,
+        status: weekLessonStatusMap[`${lesson.occurrenceDate}_${lesson.id}`]
+          || (lesson.occurrenceDate === businessDate ? lessonStatusMap[lesson.id] : undefined)
+          || "scheduled",
+        outcome: lesson.substitutionOutcome,
+      })),
+      businessDate,
+    );
+    return { ...plan, completionTarget: plan.planned };
   }, [weekOccurrences, weekLessonStatusMap, lessonStatusMap, businessDate]);
 
   const weekPlanRows = useMemo(() => {
@@ -1733,6 +1712,9 @@ export default function TeacherSchedulePage() {
 
         if (lifecycle === "completed") {
           return { lesson, lifecycle, label: "Проведён", tone: "emerald" as const };
+        }
+        if (isMovedAway(lesson.substitutionOutcome)) {
+          return { lesson, lifecycle, label: "Перенесён", tone: "slate" as const };
         }
         if (lifecycle === "cancelled") {
           return { lesson, lifecycle, label: "Отменён", tone: "slate" as const };
@@ -1804,13 +1786,7 @@ export default function TeacherSchedulePage() {
     [liveExams],
   );
 
-  const weekKpiDescription = weekKpi.planned === 0
-    ? "На эту неделю уроков нет"
-    : weekKpi.completionTarget === 0
-      ? "Все занятия недели отменены"
-      : weekKpi.completed === weekKpi.completionTarget
-        ? "План недели выполнен"
-        : completedLessonsProgressLabel(weekKpi.completed, weekKpi.completionTarget);
+  const weekKpiDescription = weekPlanDescription(weekKpi, completedLessonsProgressLabel);
   const todayKpiDescription = todayKpi.planned === 0
     ? "На сегодня занятий нет"
     : todayKpi.completed === todayKpi.planned
@@ -2289,6 +2265,30 @@ export default function TeacherSchedulePage() {
                   ) : (
                     dayLessons.map((l) => {
                       const colorStyle = COLOR_CLASSES[l.color] || COLOR_CLASSES.blue;
+                      const weekStatus = weekLessonStatusMap[`${l.occurrenceDate}_${l.id}`]
+                        || (l.occurrenceDate === businessDate ? lessonStatusMap[l.id] : undefined);
+                      const off = outOfPlan({ status: weekStatus, outcome: l.substitutionOutcome });
+                      if (off) {
+                        // moved away / cancelled: a muted card, the time struck through, one chip, nothing to press; not in the plan
+                        return (
+                          <div
+                            key={l.id}
+                            data-testid="week-card-muted"
+                            data-out={off}
+                            className="rounded-xl border border-slate-200 border-l-4 border-l-slate-300 bg-slate-50 p-2.5 text-left opacity-75"
+                          >
+                            <div className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-slate-400 line-through">
+                              <Clock className="h-3 w-3 shrink-0" />
+                              {timeRange(l.startTime, l.endTime)}
+                            </div>
+                            <span className="inline-flex rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-semibold text-slate-600">
+                              {off === "moved" ? movedAwayChip(l.substitutionOutcome?.movedTo) : "Отменён"}
+                            </span>
+                            <h4 className="mt-1 line-clamp-2 text-xs font-bold leading-snug text-slate-500">{l.groupName}</h4>
+                          </div>
+                        );
+                      }
+                      const place = placeText(l);
                       return (
                         <motion.div
                           key={l.id}
@@ -2301,11 +2301,11 @@ export default function TeacherSchedulePage() {
                               <Clock className="w-3 h-3 text-slate-400" />
                               {l.isRescheduled && l.originalStartTime ? (
                                 <>
-                                  <span className="text-slate-400 line-through">{l.originalStartTime} - {l.originalEndTime}</span>
-                                  <span>→ {l.startTime} - {l.endTime}</span>
+                                  <span className="text-slate-400 line-through">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
+                                  <span>→ {timeRange(l.startTime, l.endTime)}</span>
                                 </>
                               ) : (
-                                <>{l.startTime} - {l.endTime}</>
+                                <>{timeRange(l.startTime, l.endTime)}</>
                               )}
                             </span>
                           </div>
@@ -2326,17 +2326,19 @@ export default function TeacherSchedulePage() {
                             {l.groupName}
                           </h4>
 
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-2">
-                            {l.format === "online" ? (
-                              <span className="flex items-center gap-1 text-purple-700 font-medium">
-                                <Video className="w-3 h-3" /> Zoom
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <MapPin className="w-3 h-3 text-slate-400" /> {roomLabel(l)}
-                              </span>
-                            )}
-                          </div>
+                          {place && (
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-2">
+                              {l.format === "online" ? (
+                                <span className="flex items-center gap-1 text-purple-700 font-medium">
+                                  <Video className="w-3 h-3" /> Zoom
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3 text-slate-400" /> {place}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </motion.div>
                       );
                     })
@@ -2433,11 +2435,11 @@ export default function TeacherSchedulePage() {
                           <Clock className="w-3.5 h-3.5 text-primary-600" />
                           {l.isRescheduled && l.originalStartTime ? (
                             <>
-                              <span className="line-through text-slate-400">{l.originalStartTime} — {l.originalEndTime}</span>
-                              <span>→ {l.startTime} — {l.endTime}</span>
+                              <span className="line-through text-slate-400">{timeRange(l.originalStartTime, l.originalEndTime)}</span>
+                              <span>→ {timeRange(l.startTime, l.endTime)}</span>
                             </>
                           ) : (
-                            <>{l.startTime} — {l.endTime}</>
+                            <>{timeRange(l.startTime, l.endTime)}</>
                           )}
                         </span>
 
@@ -2448,7 +2450,7 @@ export default function TeacherSchedulePage() {
                         {/* Status Badge */}
                         <div>
                           {lessonStatus === "cancelled" ? (
-                            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200"><X className="w-3 h-3" />Отменён</span>
+                            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200"><X className="w-3 h-3" />{isMovedAway(l.substitutionOutcome) ? "Перенесён" : "Отменён"}</span>
                           ) : lessonStatus === "completed" ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-2xs"><CheckCircle2 className="w-3 h-3 text-slate-400" />Завершён</span>
                           ) : subsequentLesson ? (
@@ -2517,15 +2519,15 @@ export default function TeacherSchedulePage() {
                           <>
                             <Video className="w-4 h-4 text-purple-600" /> Zoom класс
                           </>
-                        ) : (
+                        ) : placeText(l) ? (
                           <>
-                            <MapPin className="w-4 h-4 text-slate-400" /> {roomLabel(l)}
+                            <MapPin className="w-4 h-4 text-slate-400" /> {placeText(l)}
                           </>
-                        )}
+                        ) : null}
                       </span>
                       <span className="text-primary-600 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
                         {lessonStatus === "cancelled"
-                          ? "Причина отмены"
+                          ? (isMovedAway(l.substitutionOutcome) ? "Детали" : "Причина отмены")
                           : subsequentLesson
                           ? "Отменить урок"
                           : lessonStatus === "in_progress" && !isAttSaved
@@ -2625,12 +2627,12 @@ export default function TeacherSchedulePage() {
                               <p className="text-xs font-bold text-slate-800">
                                 {capitalizeFirst(formatIsoDateLabel(row.lesson.occurrenceDate, { weekday: "long", day: "numeric", month: "short" }))}
                               </p>
-                              <p className="mt-0.5 text-xs text-slate-500">{row.lesson.startTime} — {row.lesson.endTime}</p>
+                              <p className={`mt-0.5 text-xs ${row.label === "Перенесён" || row.label === "Отменён" ? "text-slate-400 line-through" : "text-slate-500"}`}>{timeRange(row.lesson.startTime, row.lesson.endTime)}</p>
                             </div>
                             <div className="min-w-0 flex-1 border-l border-slate-100 pl-3">
                               <p className="truncate text-sm font-bold text-slate-900">{row.lesson.groupName}</p>
                               <p className="mt-0.5 truncate text-xs text-slate-500">
-                                {row.lesson.classLevel} класс · {roomLabel(row.lesson)}
+                                {[`${row.lesson.classLevel} класс`, placeText(row.lesson)].filter(Boolean).join(" · ")}
                               </p>
                             </div>
                             <span className={`inline-flex h-8 w-[132px] shrink-0 items-center justify-center rounded-full border px-3 text-xs font-medium ${statusClass}`}>
@@ -2683,7 +2685,7 @@ export default function TeacherSchedulePage() {
                   </span>
                   {activeLesson.isRescheduled && activeLesson.originalStartTime && (
                     <p className="mt-1 text-xs font-semibold text-amber-700">
-                      Перенесён: {activeLesson.originalStartTime} — {activeLesson.originalEndTime} → {activeLesson.startTime} — {activeLesson.endTime}
+                      Перенесён: {timeRange(activeLesson.originalStartTime, activeLesson.originalEndTime)} → {timeRange(activeLesson.startTime, activeLesson.endTime)}
                     </p>
                   )}
                   <div className="flex items-center gap-2.5 mt-1">
@@ -2702,11 +2704,11 @@ export default function TeacherSchedulePage() {
                       <>
                         <Video className="w-3.5 h-3.5 text-purple-600" /> Zoom класс
                       </>
-                    ) : (
+                    ) : placeText(activeLesson) ? (
                       <>
-                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> {roomLabel(activeLesson)}
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" /> {placeText(activeLesson)}
                       </>
-                    )}
+                    ) : null}
                   </p>
                 </div>
                 <button
