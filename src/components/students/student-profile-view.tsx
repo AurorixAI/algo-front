@@ -566,6 +566,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                             </Link>
                           ) : (
                             <DiagnosticStatusBadge
+                              testId="student-diagnostic-status"
                               tone={isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}
                               dot={isDead ? "bg-slate-400" : "bg-amber-400"}
                             >

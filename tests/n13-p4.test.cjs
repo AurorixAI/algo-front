@@ -117,7 +117,7 @@ test("#102: the diagnostics list and the student card use the shared badge and a
   assert.match(page, /<DiagnosticActionSpacer \/>/);
   assert.doesNotMatch(page, /w-\[110px\]|px-3 py-1\.5 text-xs font-medium bg-/);
   const card = read("src/components/students/student-profile-view.tsx");
-  assert.match(card, /<DiagnosticStatusBadge\s+tone=\{isDead \?/);
+  assert.match(card, /<DiagnosticStatusBadge\s+testId="student-diagnostic-status"\s+tone=\{isDead \?/);
   assert.match(card, /diagnosticActionClass\("solid"\)/);
   assert.doesNotMatch(card, /px-3 py-1\.5 rounded-full text-xs font-medium border/);
 });

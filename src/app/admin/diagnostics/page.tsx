@@ -202,7 +202,7 @@ export default function AdminDiagnosticsPage() {
 
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div data-testid="diagnostic-kpi-grid" className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         {[
           { label: "Всего", value: counts.all, icon: Brain, color: "text-blue-500", bg: "bg-blue-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(59,130,246,0.3)]", chartGlow: "from-blue-500 to-cyan-500", chart: [40, 70, 45, 90, 65, 85] },
           { label: "Ожидают старта", value: counts.awaiting_start, icon: Clock, color: "text-amber-500", bg: "bg-amber-500/10", glow: "group-hover:shadow-[0_0_30px_-5px_rgba(245,158,11,0.3)]", chartGlow: "from-amber-500 to-orange-500", chart: [20, 40, 35, 60, 80, 100] },
@@ -215,34 +215,35 @@ export default function AdminDiagnosticsPage() {
               setFilter(filterKey(stat.label));
               setAssignedOnly(false);
             }}
-            className={`relative overflow-hidden text-left p-5 rounded-[2rem] transition-all duration-300 ease-out group ${stat.glow} ${
+            data-testid="diagnostic-kpi-card"
+            className={`relative overflow-hidden text-left p-3 sm:p-5 rounded-2xl sm:rounded-[2rem] transition-all duration-300 ease-out group ${stat.glow} ${
               filter === filterKey(stat.label) && !assignedOnly
                 ? "bg-white ring-1 ring-slate-200/50 shadow-sm"
                 : "bg-white/60 hover:bg-white"
             }`}
           >
             {/* Giant watermark icon */}
-            <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.06] transition-all duration-300 ease-out transform group-hover:scale-110 group-hover:-rotate-6 pointer-events-none">
+            <div className="absolute -right-4 -bottom-4 hidden sm:block opacity-[0.03] group-hover:opacity-[0.06] transition-all duration-300 ease-out transform group-hover:scale-110 group-hover:-rotate-6 pointer-events-none">
               <stat.icon className={`w-28 h-28 ${stat.color}`} />
             </div>
 
-            <div className="relative z-10 flex flex-col h-full justify-between gap-4">
+            <div className="relative z-10 flex flex-col h-full justify-between gap-1.5 sm:gap-4">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
+                <div className={`hidden sm:flex w-10 h-10 rounded-xl items-center justify-center ${stat.bg} group-hover:scale-110 transition-transform duration-300`}>
                   <stat.icon className={`w-5 h-5 ${stat.color}`} />
                 </div>
-                <span className={`text-xs font-semibold ${filter === filterKey(stat.label) && !assignedOnly ? "text-primary-700" : "text-slate-500"}`}>
+                <span data-testid="diagnostic-kpi-label" className={`line-clamp-2 text-xs font-semibold leading-tight ${filter === filterKey(stat.label) && !assignedOnly ? "text-primary-700" : "text-slate-500"}`}>
                   {stat.label}
                 </span>
               </div>
               
               <div className="flex items-end justify-between">
-                <span className="text-4xl font-bold text-slate-800 tracking-tight tabular-nums">
+                <span className="text-2xl font-semibold sm:text-4xl sm:font-bold text-slate-800 tracking-tight tabular-nums">
                   {stat.value}
                 </span>
                 
                 {/* Mini chart visualizer */}
-                <div className="w-12 h-6 flex items-end gap-1 opacity-40 group-hover:opacity-80 transition-opacity duration-300">
+                <div className="hidden sm:flex w-12 h-6 items-end gap-1 opacity-40 group-hover:opacity-80 transition-opacity duration-300">
                   {stat.chart.map((h, j) => (
                     <motion.div 
                       key={j} 

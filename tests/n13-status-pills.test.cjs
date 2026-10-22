@@ -96,3 +96,27 @@ test("the student card reuses the same pill and action sizing (one component)", 
   assert.match(card, /<DiagnosticStatusBadge/);
   assert.match(card, /diagnosticActionClass\("solid"\)/);
 });
+
+test("phone (below sm): the four KPI cards are a compact 2x2 grid; desktop classes are kept", () => {
+  const grid = /data-testid="diagnostic-kpi-grid" className="([^"]*)"/.exec(page)[1].split(/\s+/);
+  for (const c of ["grid", "grid-cols-2", "gap-2", "sm:gap-4", "xl:grid-cols-4"]) assert.ok(grid.includes(c), c);
+  assert.ok(!grid.includes("grid-cols-1"), "no single full-width column on a phone");
+  const card = /data-testid="diagnostic-kpi-card"\s*className=\{`([^`]*)`/.exec(page)[1];
+  for (const c of ["p-3", "sm:p-5", "rounded-2xl", "sm:rounded-[2rem]"]) assert.ok(card.split(/\s+/).includes(c), c);
+  // the label: small, at most 2 lines
+  const label = /data-testid="diagnostic-kpi-label" className=\{`([^`]*)`/.exec(page)[1];
+  for (const c of ["text-xs", "line-clamp-2", "leading-tight"]) assert.ok(label.includes(c), c);
+  // the number: text-2xl font-semibold on a phone, the big one from sm up
+  assert.match(page, /text-2xl font-semibold sm:text-4xl sm:font-bold/);
+  // decorative bits (watermark, icon tile, mini chart) are hidden below sm and come back at sm
+  assert.match(page, /absolute -right-4 -bottom-4 hidden sm:block/);
+  assert.match(page, /hidden sm:flex w-10 h-10 rounded-xl items-center justify-center/);
+  assert.match(page, /hidden sm:flex w-12 h-6 items-end gap-1/);
+});
+
+test("D02: the invite pills on the student card carry a data-testid (tests do not rely on .h-8)", () => {
+  const card = read("src/components/students/student-profile-view.tsx");
+  assert.match(card, /<DiagnosticStatusBadge\s+testId="student-diagnostic-status"/);
+  const html = renderToStaticMarkup(React.createElement(chrome.DiagnosticStatusBadge, { tone: TONE, dot: "x", testId: "student-diagnostic-status" }, "Не начата"));
+  assert.match(html, /data-testid="student-diagnostic-status"/);
+});
