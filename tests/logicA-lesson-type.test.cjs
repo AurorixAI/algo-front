@@ -58,7 +58,7 @@ test("words: the line, the history and the impact", () => {
   const history = T.normalizeLessonTypes(fixture("A17_lesson_types")).history;
   assert.deepEqual(history.map(T.lessonTypeHistoryLine), ["С самого начала — Группа", "С 15.10.2026 — Парный · Арслан"]);
   assert.match(T.LESSON_TYPE_IMPACT_TEXT, /«Есть изменения»/);
-  assert.equal(T.LESSON_TYPE_CHANGE_LABEL, "Изменить…");
+  assert.equal(T.LESSON_TYPE_CHANGE_LABEL, undefined); // no action in the header: the change is made in the edit form
   assert.match(T.lessonTypeFutureNote("2026-10-01", "2026-10-21"), /с 01\.10\.2026/);
   assert.equal(T.lessonTypeFutureNote("2026-10-21", "2026-10-21"), null);
 });
@@ -69,17 +69,33 @@ test("the API: GET lesson-types and PUT lesson-type (dry_run in the query)", () 
   assert.match(api, /\/lesson-type\$\{options\?\.dryRun \? "\?dry_run=true" : ""\}`, \{ method: "PUT", body \}/);
 });
 
-test("the dialog is on the group card of the owner and of the administrator", () => {
+test("the header of the group has no «Изменить…»; the dialog opens from «Сохранить» of the edit form when the type changed (owner and administrator)", () => {
   for (const role of ["owner", "admin"]) {
     const page = read(`src/app/${role}/groups/[id]/page.tsx`);
     assert.match(page, /<GroupLessonTypeDialog/);
-    assert.match(page, /data-testid="group-lesson-type-change"/);
-    assert.match(page, /lessonTypeLine\(group\.lesson_type\)/);
-    assert.match(page, /group\.status !== "archived"/);
+    assert.match(page, /data-testid="group-lesson-type-line">\{lessonTypeLine\(group\.lesson_type\)\}<\/p>/, role);
+    assert.doesNotMatch(page, /group-lesson-type-change|LESSON_TYPE_CHANGE_LABEL|Изменить…/, role);
+    // the form: the field, the changed type goes to the dialog (preset), the unchanged one is saved as before
+    assert.match(page, /label="Тип занятий"/, role);
+    assert.match(page, /if \(lessonTypeChangedInEdit\(group\.lesson_type, editState\.lesson_type\)\) \{ setLessonTypeOpen\(true\); return; \}/, role);
+    assert.match(page, /await saveFields\(true\)/, role);
+    assert.match(page, /\.\.\.\(withType \? \{ lesson_type: editState\.lesson_type \} : \{\}\)/, role);
+    assert.match(page, /initialType=\{editing \? editState\.lesson_type : undefined\}/, role);
+    assert.match(page, /if \(editing\) void saveFields\(false, /, role);
+    assert.match(page, /group\.status !== "archived"/, role);
   }
   assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /GroupLessonTypeDialog/);
   const dialog = read("src/components/groups/group-lesson-type-dialog.tsx");
   assert.match(dialog, /dryRun: true/);
+  assert.match(dialog, /setLessonType\(initialType \?\? result\.current\)/);
   assert.match(dialog, /LESSON_TYPE_FROM_LABEL/);
   assert.match(dialog, /data-testid="lesson-type-history"/);
+});
+
+test("#126: the edit form: changed type -> the impact step (dialog), unchanged -> a plain save", () => {
+  assert.equal(T.lessonTypeChangedInEdit("group", "group"), false);
+  assert.equal(T.lessonTypeChangedInEdit("group", "pair"), true);
+  assert.equal(T.lessonTypeChangedInEdit(undefined, "group"), false); // an older server sends no type: «Группа»
+  assert.match(T.LESSON_TYPE_EDIT_NOTE, /с какой даты/);
+  assert.match(T.LESSON_TYPE_EDIT_NOTE, /зарплате/);
 });

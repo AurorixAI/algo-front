@@ -9,8 +9,11 @@ import {
   Archive, Settings2, UserCheck, FileText, Info, ChevronDown, RotateCcw
 } from "lucide-react";
 import Link from "next/link";
-import { orgApi, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
+import { orgApi, DEMO_MODE, GroupDetail, GroupStats, GroupInfo } from "@/lib/api";
 import { GroupStudentTable } from "@/components/groups/group-student-table";
+import { GroupPaymentsTab } from "@/components/groups/group-payments-tab";
+import { GROUP_PAYMENTS_LABEL, groupPaymentsAccess, parsePaymentsFilter, paymentsFilterQuery, resolveGroupTab, type PaymentsFilter } from "@/lib/group-payments";
+import { usePaymentsSummary } from "@/lib/payments-summary";
 import { GroupStatsPanel } from "@/components/groups/group-stats-panel";
 import { GroupAttendanceJournal } from "@/components/groups/group-attendance-journal";
 import { GroupScheduleOverview } from "@/components/groups/group-schedule-overview";
@@ -23,13 +26,12 @@ import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/c
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
 import { LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
-import { LESSON_TYPE_FROM_TODAY_TEXT } from "@/lib/payroll-logica";
 import { GroupLessonTypeDialog } from "@/components/groups/group-lesson-type-dialog";
-import { LESSON_TYPE_CHANGE_LABEL, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
+import { LESSON_TYPE_EDIT_NOTE, lessonTypeChangedInEdit, lessonTypeLine, type GroupLessonTypeChanged } from "@/lib/group-lesson-type";
 import { useToast } from "@/components/ui/toast";
-import { BookOpen } from "lucide-react";
+import { BookOpen, Wallet } from "lucide-react";
 
-type Tab = "students" | "schedule" | "attendance";
+type Tab = "students" | "schedule" | "attendance" | "settings" | "payments";
 
 interface EditState {
   name: string;
@@ -54,9 +56,15 @@ export default function AdminGroupDetailPage() {
   const [loading, setLoading] = useState(true);
 
   const requestedTab = searchParams?.get("tab");
-  const tab: Tab = requestedTab === "schedule" || requestedTab === "attendance" || requestedTab === "students"
-    ? requestedTab
-    : "students";
+  // #126: the tab «Оплаты» is for the owner and for an administrator with the money right; never on an archived group
+  const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const moneyLoaded = usePaymentsSummary((state) => state.loaded);
+  const refreshMoney = usePaymentsSummary((state) => state.refresh);
+  useEffect(() => { void refreshMoney(); }, [refreshMoney]);
+  const paymentsAccess = groupPaymentsAccess({ moneyAvailable, moneyLoaded, archived: group?.status === "archived", demo: DEMO_MODE });
+  const tab: Tab = resolveGroupTab(requestedTab, paymentsAccess);
+  const paymentsFilter = parsePaymentsFilter(searchParams?.get("filter"));
+  const setPaymentsFilter = (filter: PaymentsFilter) => router.replace(paymentsFilterQuery(filter), { scroll: false });
   const setTab = (newTab: Tab) => {
     router.replace(`?tab=${newTab}`, { scroll: false });
   };
@@ -111,7 +119,11 @@ export default function AdminGroupDetailPage() {
   // everybody who can teach: teachers, the owner and the administrators (the role is named next to the name)
   const teachers = handoverTargets(members).map((t) => ({ id: t.id, name: t.label }));
 
-  const handleSave = async () => {
+  /**
+   * Saves the fields of the form.  The type of the lessons is NOT among them when it was changed: that goes through the dialog
+   * «Тип занятий» (the date it takes effect, what changes in payroll, the history), see `handleSave` / `handleLessonTypeSaved`.
+   */
+  const saveFields = async (withType: boolean, text = "Группа обновлена") => {
     if (!editState.name.trim() || !group) return;
     setSaving(true);
     try {
@@ -121,11 +133,11 @@ export default function AdminGroupDetailPage() {
         teacher_id: editState.teacher_id || null,
         description: editState.description.trim() || undefined,
         max_students: Number(editState.max_students) || 30,
-        lesson_type: editState.lesson_type,
+        ...(withType ? { lesson_type: editState.lesson_type } : {}),
       });
       setGroup((prev) => prev ? { ...prev, ...updated } : null);
       setEditing(false);
-      showToast("Группа обновлена");
+      showToast(text);
     } catch (e: any) {
       if (opsErrorCode(e) === "TEACHER_BUSY") {
         // O5: the new teacher has a lesson at the same time - say which, as details of the toast
@@ -136,6 +148,13 @@ export default function AdminGroupDetailPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!editState.name.trim() || !group) return;
+    // A changed type first shows its consequences (the dialog); an unchanged one is saved as before.
+    if (lessonTypeChangedInEdit(group.lesson_type, editState.lesson_type)) { setLessonTypeOpen(true); return; }
+    await saveFields(true);
   };
 
   /** O4: archiving asks the server what is in the way (the dialog), then archives; the group page reloads. */
@@ -178,10 +197,12 @@ export default function AdminGroupDetailPage() {
     showToast("Ученик убран из группы", "success", settled);
   };
 
-  // LOGIC-A F14: the server took the new type; the card shows the current one at once.
+  // LOGIC-A F14: the server took the new type (the dialog opened by «Сохранить» of the edit form); the rest of the form is saved next.
   const handleLessonTypeSaved = (result: GroupLessonTypeChanged) => {
     setGroup((prev) => prev ? { ...prev, lesson_type: result.current } : null);
-    showToast("Тип занятий изменён");
+    setEditState((state) => ({ ...state, lesson_type: result.current }));
+    if (editing) void saveFields(false, "Группа обновлена, тип занятий изменён");
+    else showToast("Тип занятий изменён");
   };
 
   if (loading) {
@@ -321,7 +342,7 @@ export default function AdminGroupDetailPage() {
                     options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
                   />
                   {/* LOGIC-A B1: the server writes the type history from today */}
-                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-from-today">{LESSON_TYPE_FROM_TODAY_TEXT}</p>
+                  <p className="mt-1 text-xs text-slate-500" data-testid="lesson-type-edit-note">{LESSON_TYPE_EDIT_NOTE}</p>
                 </div>
 
                 {/* Description */}
@@ -383,20 +404,8 @@ export default function AdminGroupDetailPage() {
                       {group.teacher_name ? `Учитель: ${group.teacher_name}` : "Учитель не назначен"}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
-                    {/* LOGIC-A F14: the type of the lessons by date; «Изменить…» opens the dialog with the history */}
-                    <p className="mt-1 flex flex-wrap items-center gap-x-2 text-sm text-slate-600" data-testid="group-lesson-type-line">
-                      <span>{lessonTypeLine(group.lesson_type)}</span>
-                      {group.status !== "archived" && (
-                        <button
-                          type="button"
-                          onClick={() => setLessonTypeOpen(true)}
-                          data-testid="group-lesson-type-change"
-                          className="text-sm font-semibold text-primary-700 hover:underline"
-                        >
-                          {LESSON_TYPE_CHANGE_LABEL}
-                        </button>
-                      )}
-                    </p>
+                    {/* LOGIC-A F14: the type of the lessons (plain text: it is changed in the edit form, #126) */}
+                    <p className="mt-1 text-sm text-slate-600" data-testid="group-lesson-type-line">{lessonTypeLine(group.lesson_type)}</p>
                     {group.description && (
                       <p className="text-xs text-slate-400 mt-1 max-w-lg">{group.description}</p>
                     )}
@@ -447,12 +456,13 @@ export default function AdminGroupDetailPage() {
           { key: "students",  label: "Ученики",   Icon: Users    },
           { key: "schedule", label: "Расписание", Icon: CalendarDays },
           { key: "attendance", label: "Посещаемость", Icon: BookOpen },
+          ...(paymentsAccess === "show" ? [{ key: "payments", label: GROUP_PAYMENTS_LABEL, Icon: Wallet }] : []),
         ] as const).map(({ key, label, Icon }) => (
           <button
             key={key}
             role="tab"
             aria-selected={tab === key}
-            onClick={() => setTab(key)}
+            onClick={() => setTab(key as Tab)}
             className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 sm:px-4 rounded-lg text-sm font-medium transition-all ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
@@ -501,6 +511,26 @@ export default function AdminGroupDetailPage() {
           </motion.div>
         )}
 
+        {tab === "payments" && paymentsAccess === "pending" && (
+          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>
+        )}
+
+        {tab === "payments" && paymentsAccess === "show" && (
+          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
+            <GroupPaymentsTab
+              groupId={groupId}
+              groupName={group.name}
+              groupPrice={group.price_current}
+              groupsBasePath="/admin/groups"
+              studentsBasePath="/admin/students"
+              paymentsBasePath="/admin/payments"
+              joinedAt={Object.fromEntries(group.students.map((student) => [student.id, student.joined_at]))}
+              filter={paymentsFilter}
+              onFilterChange={setPaymentsFilter}
+            />
+          </motion.div>
+        )}
+
         {tab === "attendance" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             <GroupAttendanceJournal
@@ -533,6 +563,7 @@ export default function AdminGroupDetailPage() {
         open={lessonTypeOpen}
         groupId={group.id}
         groupName={group.name}
+        initialType={editing ? editState.lesson_type : undefined}
         onSaved={handleLessonTypeSaved}
         onClose={() => setLessonTypeOpen(false)}
       />

@@ -267,7 +267,7 @@ function OverrideImpactBlock({ impact, blocked, checking }: { impact: PriceImpac
 }
 
 /** «Назначить индивидуальную цену»: a sum, the day it starts and the reason (3..200 characters, required). */
-function AssignOverrideDialog({
+export function AssignOverrideDialog({
   open, row, studentName, label, onClose, onConflict, onSaved,
 }: {
   open: boolean;
@@ -379,7 +379,7 @@ function AssignOverrideDialog({
 }
 
 /** «Вернуть цену группы»: from a day the student pays the price of the group again (no sum, no reason). */
-function ReturnPriceDialog({
+export function ReturnPriceDialog({
   open, row, studentName, label, notBefore, onClose, onConflict, onSaved,
 }: {
   open: boolean;
@@ -486,7 +486,7 @@ function ReturnPriceDialog({
  * «Отменить запланированную индивидуальную цену»: the row of a day after today is taken back (DELETE); the server refuses a
  * price that is in force already (409) and one that is gone (404) - the section then reads the price again.
  */
-function CancelScheduledDialog({
+export function CancelScheduledDialog({
   target, row, studentName, label, onClose, onConflict, onSaved,
 }: {
   target: PriceOverrideRow | null;

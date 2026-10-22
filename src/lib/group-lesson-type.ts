@@ -1,4 +1,4 @@
-// LOGIC-A F14: the type of the lessons of a group by the day of the lesson («Тип занятий» → «Изменить…»).
+// LOGIC-A F14: the type of the lessons of a group by the day of the lesson (the field «Тип занятий» of the group edit form opens the dialog when it changed).
 // Contract: GET /org/groups/{id}/lesson-types and PUT /org/groups/{id}/lesson-type (tests/fixtures/logicA A17, A18).
 import { isIsoDate } from "./payments";
 import { formatDateRu } from "./attendance-excuses";
@@ -107,7 +107,13 @@ export function lessonTypeKey(request: LessonTypeRequest | null): string {
 
 // ── Words ──────────────────────────────────────────────────────────────────
 
-export const LESSON_TYPE_CHANGE_LABEL = "Изменить…";
+/** Under the field «Тип занятий» of the edit form: the header of the group has no «Изменить…», the change is made here. */
+export const LESSON_TYPE_EDIT_NOTE = "Если изменить тип, перед сохранением покажем, с какой даты он действует и что изменится в зарплате";
+
+/** The edit form changed the type of the lessons (it then goes through the dialog «Тип занятий», not through the plain save). */
+export function lessonTypeChangedInEdit(saved: unknown, edited: unknown): boolean {
+  return normalizeLessonType(saved) !== normalizeLessonType(edited);
+}
 export const LESSON_TYPE_DIALOG_TITLE = "Тип занятий";
 export const LESSON_TYPE_FROM_LABEL = "Тип занятий меняется с";
 export const LESSON_TYPE_IMPACT_TEXT = "Ведомости затронутых месяцев покажут «Есть изменения»: их нужно будет пересчитать. Внесённые оплаты и выплаты не меняются.";

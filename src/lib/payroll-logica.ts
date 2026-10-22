@@ -471,6 +471,3 @@ export function payrollLogicaErrorText(error: PayrollErrorLike | null | undefine
 export function payoutDateBounds(today: string): { min: string; max: string } {
   return { min: subtractYears(today, PAYOUT_MAX_AGE_YEARS), max: today };
 }
-
-/** B1: under «Тип занятий» of the group edit form. */
-export const LESSON_TYPE_FROM_TODAY_TEXT = "Тип меняется с сегодняшнего дня; прошлые месяцы зарплаты не меняются";

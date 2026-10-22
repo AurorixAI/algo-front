@@ -23,6 +23,7 @@ import {
   type GroupPrices,
   type HistoryItemView,
 } from "@/lib/group-price";
+import { individualPricesHref } from "@/lib/group-payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { TableHeader } from "@/components/attendance/table-chrome";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
@@ -322,7 +323,10 @@ function PriceRow({
 
       <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
         <span className="shrink-0 text-xs text-slate-400 xl:hidden">Индивидуальные цены</span>
-        {individual ? <span className="whitespace-nowrap text-slate-800">{individual}</span> : <span className="text-slate-400">—</span>}
+        {individual ? (
+          // #126: «кто эти ученики» - the tab «Оплаты» of the group, filtered to the individual prices
+          <Link href={individualPricesHref(groupsBasePath, item.group_id)} data-testid="group-individual-link" className="whitespace-nowrap font-medium text-primary-700 hover:underline" title="Показать, у кого индивидуальная цена">{individual}</Link>
+        ) : <span className="text-slate-400">—</span>}
       </div>
 
       <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">

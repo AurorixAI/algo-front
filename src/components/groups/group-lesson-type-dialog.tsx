@@ -34,17 +34,19 @@ interface GroupLessonTypeDialogProps {
   open: boolean;
   groupId: string;
   groupName: string;
+  /** The type picked in the group edit form: it is preset in «Новый тип занятий» (otherwise the current one). */
+  initialType?: LessonType;
   /** The saved type: the group page updates what it shows. */
   onSaved: (result: GroupLessonTypeChanged) => void;
   onClose: () => void;
 }
 
 /**
- * «Тип занятий → Изменить…» (LOGIC-A F14): the current type, the history, a new type «с» a day (today by default, from the
+ * «Тип занятий» (LOGIC-A F14; opened by «Сохранить» of the group edit form when the type was changed): the current type, the history, a new type «с» a day (today by default, from the
  * start of the last month to today).  Before saving the server is asked (`dry_run`) which saved payroll sheets will say
  * «Есть изменения»; the owner sees the list («октябрь 2026 — Каримова»), an administrator the count.
  */
-export function GroupLessonTypeDialog({ open, groupId, groupName, onSaved, onClose }: GroupLessonTypeDialogProps) {
+export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, onSaved, onClose }: GroupLessonTypeDialogProps) {
   const today = useMemo(() => formatBusinessDate(), [open]); // eslint-disable-line react-hooks/exhaustive-deps
   const [state, setState] = useState<GroupLessonTypes | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -75,13 +77,14 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, onSaved, onClo
       .then((result) => {
         if (!loadSequence.current.isCurrent(token)) return;
         setState(result);
-        setLessonType(result.current);
+        setLessonType(initialType ?? result.current);
       })
       .catch((cause) => {
         if (!loadSequence.current.isCurrent(token)) return;
         setLoadError(cause instanceof Error ? cause.message : "Не удалось загрузить тип занятий");
       });
     return () => { loadSequence.current.next(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, groupId, today, nonce]);
 
   const check = useMemo(() => checkLessonTypeForm({ lessonType, validFrom }, today), [lessonType, validFrom, today]);

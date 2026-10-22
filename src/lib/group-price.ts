@@ -34,6 +34,18 @@ export interface PriceInfo {
   /** The price of the group on that day: what the student would pay without the exception. */
   group_amount: number | null;
   reason: string | null;
+  /** Who set the individual price in force (the server may send it; absent on an older one - the group tab asks `price-override` instead). */
+  set_by_name?: string | null;
+  /** The next individual price of the membership from a day after today (the server may send it; `amount: null` - «цена группы снова»). */
+  scheduled?: PriceScheduledOverride | null;
+}
+
+/** An individual price that has not started yet. */
+export interface PriceScheduledOverride {
+  row_id?: string | null;
+  amount: number | null;
+  valid_from: string;
+  reason?: string | null;
 }
 
 /** `price_current` of `GET /org/groups` and `GET /org/groups/{id}` (money roles only; the key is absent otherwise). */

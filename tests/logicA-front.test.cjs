@@ -555,12 +555,12 @@ test("pause PATCH: REASON_REQUIRED opens the reason, PAUSE_RANGE is said inline;
   assert.equal(E.excuseCellView("confirmed").tone, "confirmed");
 });
 
-test("B1: the group edit form says the type changes from today", () => {
+test("B1: the payroll sheet line-not-found text; the edit form no longer promises «from today» (the dialog asks the date, #126)", () => {
   assert.equal(Y.LINE_NOT_FOUND_TEXT, "Строка ведомости изменилась — обновите страницу");
   assert.equal(Y.isLineNotFound({ code: "LINE_NOT_FOUND" }), true);
   assert.match(read("src/components/payroll/payroll-sheet-page.tsx"), /isLineNotFound\(error\)\) \{ setSaveError\(LINE_NOT_FOUND_TEXT\); void load\(true\)/);
-  assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, "Тип меняется с сегодняшнего дня; прошлые месяцы зарплаты не меняются");
-  for (const role of ["owner", "admin"]) assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), /\{LESSON_TYPE_FROM_TODAY_TEXT\}/, role);
+  assert.equal(Y.LESSON_TYPE_FROM_TODAY_TEXT, undefined);
+  for (const role of ["owner", "admin"]) assert.match(read(`src/app/${role}/groups/[id]/page.tsx`), /\{LESSON_TYPE_EDIT_NOTE\}/, role);
 });
 
 test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
