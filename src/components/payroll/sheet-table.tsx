@@ -40,7 +40,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 const CELL = "px-2 py-2 align-middle max-sm:px-1.5 print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1.5 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
 /**
- * Alignment (owner 21.10): the student is left; money (the price, «Начислено») is a ledger - right-aligned, and its header is
+ * Alignment (owner 21.10): the student is left; money (the price, «Заработано») is a ledger - right-aligned, and its header is
  * right-aligned over the same digits (same padding); dates, percent and counts are centred under centred headers.
  */
 /** The first column keeps its place while the dates scroll; on paper there is nothing to scroll. */
@@ -53,7 +53,7 @@ function PriceCell({ view, compact = false, freshPrice }: { view: LineView; comp
   // saved with no price, but the group has one today (the diff says so): the row says what the recalculation will use
   const after = price.missing && freshPrice !== undefined;
   return (
-    <div className={`flex flex-col gap-0.5 ${compact ? "items-start text-xs text-slate-500" : "items-center"}`}>
+    <div className={`flex flex-col gap-0.5 ${compact ? "items-start text-xs text-slate-500" : "items-end"}`}>
       {price.missing ? (
         // the column says only what to do: the link (a phone's line under the name keeps the words «нет цены»)
         after ? null : (
@@ -132,7 +132,7 @@ function SheetLegend() {
 
 /**
  * The sheet as blocks, one per group: the total of the group in its header, the students in rows
- * (Ученик | Цена в месяц | Засчитано | Без оплаты [начислить] | Начислено).  The dates of the month are behind «По датам» of
+ * (Ученик | Цена в месяц | Засчитано | Без оплаты [начислить] | Заработано).  The dates of the month are behind «По датам» of
  * a group (and on paper, when the page prints with them): a date grid is the proof of a sum, not the thing the owner reads first.
  *
  * The amounts are the server's; a line whose «начислить» the owner has changed is previewed with the same formula until saved.
@@ -222,7 +222,7 @@ export function PayrollSheetTable({
                 <thead className="print:table-header-group">
                   <tr className="border-b border-slate-200 bg-slate-50">
                     <th scope="col" className={`${HEAD} ${showDates ? STICKY : "min-w-[9rem] max-sm:min-w-[6.5rem]"} bg-slate-50`}>Ученик</th>
-                    <th scope="col" aria-label={priceColumn} className={`${HEAD} text-center max-sm:hidden`}>
+                    <th scope="col" aria-label={priceColumn} className={`${HEAD} text-right max-sm:hidden`}>
                       <Hint text={PRICE_HEADER_HINT}>{priceColumn}</Hint>
                     </th>
                     {showDates && block.columns.map((column) => (
@@ -236,7 +236,7 @@ export function PayrollSheetTable({
                     <th scope="col" aria-label="Без оплаты" className={`${HEAD} text-center`}>
                       <Hint text={UNPAID_HEADER_HINT}>Без оплаты</Hint>
                     </th>
-                    <th scope="col" className={`${HEAD} text-right`}>Начислено</th>
+                    <th scope="col" className={`${HEAD} text-right`}>Заработано</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -257,7 +257,7 @@ export function PayrollSheetTable({
                           {/* a phone has no room for the price column: the price is the second line of the name */}
                           <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>
                         </th>
-                        <td className={`${CELL} text-center max-sm:hidden`}>
+                        <td className={`${CELL} text-right max-sm:hidden`}>
                           <PriceCell view={view} freshPrice={freshPrices?.[id]} />
                         </td>
                         {showDates && block.columns.map((column) => {

@@ -307,7 +307,7 @@ export function LessonActionSheet({
                   )}
                 </div>
               )}
-              <p className="text-xs leading-relaxed text-slate-500">Урок будет отменён и не вернётся. Ученики на нём не отмечаются, преподавателю за него оплата не начисляется.</p>
+              <p className="text-xs leading-relaxed text-slate-500">Урок будет отменён и не вернётся. Ученики на нём не отмечаются, заработок преподавателя за него не засчитывается.</p>
             </div>
           )}
 

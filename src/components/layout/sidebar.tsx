@@ -451,7 +451,7 @@ export function Sidebar() {
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
               >
                 <Settings className="w-4 h-4 text-slate-400 shrink-0" />
-                <span>Настройки аккаунта</span>
+                <span>Настройки</span>
               </button>
               <div className="my-1 border-t border-slate-100" />
               <button

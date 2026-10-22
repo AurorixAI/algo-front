@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, UserRound, Undo2, Wallet, XCircle } from "lucide-react";
+import { AlertCircle, ChevronLeft, ChevronRight, FileText, Eraser, Loader2, Pencil, Search, Tags, TrendingUp, Undo2, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import {
   bucketCount,
@@ -41,7 +41,8 @@ import {
   savedPaymentDetails,
 } from "@/lib/payments-ledger";
 import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
-import { DEBTORS_GROUP_NOTE } from "@/lib/payments-income-v2";
+import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
+import { groupHref, studentHref } from "@/lib/ia-links";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -58,12 +59,12 @@ import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
 const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
-const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_156px] xl:items-center xl:gap-x-4";
+const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_196px] xl:items-center xl:gap-x-4";
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
   expiring: "Скоро платить пока никому",
-  active: "Оплаченных учеников пока нет",
+  active: "Учеников без долга пока нет",
   paused: "Сейчас никто не на паузе",
 };
 
@@ -283,13 +284,14 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       </div>
 
-      {/* The position of the centre: two cards before the tabs; a click opens «Поступления» with the breakdown (as before). */}
+      {/* The position of the centre: two cards before the tabs.  IA audit F26: «Долг учеников» leads to the debtors tab of THIS page (the list of
+          who owes), «Аванс» to its card on «Поступления» (the breakdown). */}
       {summaryLoaded && (
         <section aria-label="Долг и аванс учеников" data-testid="payments-position" className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {cards.map((card) => (
             <Link
               key={card.key}
-              href={`${incomeHref(paymentsBase)}#position`}
+              href={card.key === "debt" ? `${debtorsHref(paymentsBase)}#payments-list` : `${incomeHref(paymentsBase)}#advance`}
               data-testid={`position-${card.key}`}
               className="group rounded-2xl border border-slate-200 bg-white px-5 py-4 transition-colors hover:border-slate-300 hover:bg-slate-50/60"
             >
@@ -357,6 +359,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       )}
 
       {/* List */}
+      <div id="payments-list" className="scroll-mt-20" />
       {loading ? (
         <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
           <Loader2 className="h-7 w-7 animate-spin text-primary-600" />
@@ -375,9 +378,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
             <span>Ученик</span>
             <span className="text-center">Группа</span>
-            <span className="text-center">{priceLabelOf(periodMode)}</span>
+            <span className="text-right">{priceLabelOf(periodMode)}</span>
             <span className="text-center">Статус</span>
-            <span className="text-center">Последняя оплата</span>
+            <span className="text-right">Последняя оплата</span>
             <span className="text-right"><span className="sr-only">Действия</span></span>
           </div>
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
@@ -476,22 +479,22 @@ function PaymentRow({
   const price = priceOfRow(row);
   const tag = priceSourceTag(price);
 
+  // IA audit F4 / d3: at most three items - forgive the debt OR give the advance back, correct the last payment, cancel it (danger last).
+  // «Выписка» and the card of the student are links of the row (the statement icon, the name), never menu items.
   const menu: RowMenuItem[] = [];
+  if (canWriteOff(row)) menu.push({ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: onWriteoff });
+  if (canRefund(row)) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
   if (last) {
     // A carry-over cannot be corrected (correct the payment it came from); cancelling it stays possible.
     if (!isCarryOver(last)) menu.push({ key: "correct", label: "Исправить последнюю оплату", icon: Pencil, onSelect: () => onCorrect(last) });
     menu.push({ key: "void", label: "Отменить последнюю оплату", icon: XCircle, danger: true, onSelect: () => onVoid(last) });
   }
-
-  menu.push({ key: "statement", label: "Выписка", icon: FileText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBase, row.membership_id)); } });
-  if (canWriteOff(row)) menu.push({ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: onWriteoff });
-  if (canRefund(row)) menu.push({ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: onRefund });
-  const openProfile = () => router.push(`${studentProfileBasePath}/${row.student_id}`);
-  menu.push({ key: "profile", label: "Карточка ученика", icon: UserRound, onSelect: openProfile });
+  // IA audit F29: money screens lead to the «Оплаты» tab of the card (never the default one) and the group is a link
+  const studentLink = studentHref(studentProfileBasePath, row.student_id, "payments");
 
   const student = (
     <div className="min-w-0">
-      <Link href={`${studentProfileBasePath}/${row.student_id}`} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate" title="Открыть карточку ученика">
+      <Link href={studentLink} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700 xl:truncate" title="Открыть карточку ученика">
         {row.student_name}
       </Link>
       <p className="truncate text-xs text-slate-500">
@@ -501,7 +504,7 @@ function PaymentRow({
   );
   const group = (
     <div className="min-w-0 xl:text-center">
-      <p className="break-words text-sm text-slate-800 xl:truncate" title={row.group_name}>{row.group_name}</p>
+      <Link href={groupHref(groupsBasePath, row.group_id, "payments")} data-testid="payment-row-group" className="block break-words text-sm text-slate-800 hover:text-primary-700 xl:truncate" title={row.group_name}>{row.group_name}</Link>
       <p className="truncate text-xs text-slate-500">{row.teacher_name || "—"}</p>
     </div>
   );
@@ -511,14 +514,14 @@ function PaymentRow({
       {student}
       {group}
 
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
             <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
             {price.amount === null || price.amount === undefined ? (
               <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
                 цена группы не задана
               </Link>
             ) : (
-              <span className="text-right xl:text-center">
+              <span className="text-right">
                 <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
                 {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
               </span>
@@ -533,10 +536,10 @@ function PaymentRow({
           </div>
 
           {/* Последняя оплата: the amount reads like «Цена в месяц», the date is the quiet line under it (like «оплачено до») */}
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
             <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
             {last ? (
-              <span className="text-right tabular-nums xl:text-center" title={lastPaymentLabel(last)}>
+              <span className="text-right tabular-nums" title={lastPaymentLabel(last)}>
                 <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
                 <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
               </span>
@@ -547,6 +550,16 @@ function PaymentRow({
 
           <div className="mt-1 flex items-center justify-end gap-1.5 xl:mt-0">
             <PayButton row={row} onPay={onPay} />
+            <Link
+              href={statementHref(paymentsBase, row.membership_id)}
+              onClick={() => markReceiptNavigation(row.membership_id)}
+              aria-label={`Выписка: ${row.student_name}`}
+              title="Выписка"
+              data-testid="payment-row-statement"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            >
+              <FileText className="h-4 w-4" aria-hidden="true" />
+            </Link>
             <RowMenu items={menu} label={`Действия: ${row.student_name}`} />
           </div>
     </li>

@@ -37,7 +37,7 @@ type Invitation = InvitationRow;
 const roleConfig: Record<string, { label: string; pluralLabel: string; color: string; badge: string; icon: React.ElementType }> = {
   owner: { label: "Владелец", pluralLabel: "Владелец", color: "from-violet-500 to-purple-600", badge: "bg-violet-50 text-violet-700 border-violet-100", icon: ShieldCheck },
   admin: { label: "Администратор", pluralLabel: "Администраторы", color: "from-blue-500 to-indigo-600", badge: "bg-blue-50 text-blue-700 border-blue-100", icon: Shield },
-  teacher: { label: "Учитель", pluralLabel: "Учителя", color: "from-emerald-400 to-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
+  teacher: { label: "Преподаватель", pluralLabel: "Преподаватели", color: "from-emerald-400 to-emerald-600", badge: "bg-emerald-50 text-emerald-700 border-emerald-100", icon: Users },
 };
 
 export default function OwnerTeachersPage() {
@@ -212,7 +212,7 @@ function OwnerTeachersContent() {
     <div className="space-y-8 w-full max-w-[1400px] mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Сотрудники</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Сотрудники</h1>
           <p className="text-slate-500 mt-1 font-medium">Управление доступом и сотрудниками организации</p>
         </div>
         <button
@@ -599,7 +599,7 @@ function OwnerTeachersContent() {
                     onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
                   />
                   <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-400"}`} />
-                  <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Учитель</div>
+                  <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Преподаватель</div>
                   <div className="text-xs text-slate-500 mt-1">Доступ к группам и диагностикам</div>
                 </label>
                 <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${

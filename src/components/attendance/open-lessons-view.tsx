@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AlertCircle, Ban, ClipboardCheck, Loader2, NotebookPen } from "lucide-react";
+import Link from "next/link";
+import { AlertCircle, Ban, ClipboardCheck, Loader2 } from "lucide-react";
 import { orgApi, type OpenAttendanceAction } from "@/lib/api";
 import { CHIP_BASE_CLASS, CHIP_TONE_CLASS, type ChipTone } from "@/lib/chip-tone";
 import { formatDateRu } from "@/lib/attendance-excuses";
@@ -11,6 +11,7 @@ import {
   formatLessonDate,
   groupOpenLessonsByTeacher,
   journalHref,
+  openLessonActionLabel,
   openLessonKey,
   openLessonStatus,
   openLessonStatusHint,
@@ -39,7 +40,7 @@ const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
  * The header and every row share the template, the padding and the gap, so a header and its cells have
  * one left edge, and cells are top-aligned like in «Пропуски».  Below `lg` a row is a card.
  */
-const COLS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_40px]";
+const COLS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_152px]";
 
 /** Focus and visibility events fire together; one re-read is enough. */
 const FOCUS_REFETCH_GAP_MS = 1500;
@@ -51,7 +52,6 @@ const FOCUS_REFETCH_GAP_MS = 1500;
  * again, after every action, and when the menu badge disagrees with it.
  */
 export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) {
-  const router = useRouter();
   const { showToast, toastNode } = useToast();
   const role = useAuthStore((state) => state.user?.org_role ?? null);
   const today = formatBusinessDate();
@@ -147,14 +147,11 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
 
   const groups = useMemo(() => groupOpenLessonsByTeacher(items), [items]);
 
+  // IA audit F5: the main action of this screen is a BUTTON of the row («Отметить» / «Открыть»); the menu keeps the rare one - «Урока не было»
+  // (a lesson in progress has none: it is finished in the journal).
   const menuItemsOf = (item: OpenAttendanceAction): RowMenuItem[] => {
-    const href = journalHref(groupsBasePath, item);
-    if (item.actionType === "in_progress") {
-      // Finishing needs the roster: only the journal can do it.
-      return [{ key: "open", label: "Открыть в журнале", icon: NotebookPen, onSelect: () => router.push(href) }];
-    }
+    if (item.actionType === "in_progress") return [];
     return [
-      { key: "mark", label: "Отметить в журнале", icon: NotebookPen, onSelect: () => router.push(href) },
       {
         key: "cancel",
         label: "Урока не было",
@@ -216,7 +213,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                   <li
                     key={openLessonKey(item)}
                     aria-disabled={access.locked || undefined}
-                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-14 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS} ${access.locked ? "bg-slate-50 text-slate-500" : ""}`}
+                    className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-start lg:gap-x-3 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${COLS} ${access.locked ? "bg-slate-50 text-slate-500" : ""}`}
                   >
                     <div className="flex flex-wrap items-baseline gap-x-2 lg:block lg:text-center">
                       <p className="text-sm font-semibold leading-5 text-slate-900">{formatLessonDate(item.lessonDate)}</p>
@@ -237,14 +234,24 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                       </span>
                     </div>
 
-                    <div className="absolute right-2 top-2 lg:static lg:-my-1.5 lg:justify-self-end">
+                    <div className="flex items-center justify-end gap-2 lg:-my-1.5 lg:justify-self-end">
                       {access.locked ? (
                         <p className="max-w-[160px] text-right text-[11px] font-medium leading-4 text-slate-500" title={LESSON_TOO_OLD_TEXT}>{access.hint}</p>
                       ) : (
-                        <RowMenu
-                          items={menuItemsOf(item)}
-                          label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
-                        />
+                        <>
+                          <Link
+                            href={journalHref(groupsBasePath, item)}
+                            data-testid="open-lesson-action"
+                            aria-label={`${openLessonActionLabel(item)}: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
+                            className="inline-flex h-8 items-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-3.5 text-xs font-semibold text-white hover:bg-primary-700"
+                          >
+                            {openLessonActionLabel(item)}
+                          </Link>
+                          <RowMenu
+                            items={menuItemsOf(item)}
+                            label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
+                          />
+                        </>
                       )}
                     </div>
                   </li>

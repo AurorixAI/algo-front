@@ -216,7 +216,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
             show="xl"
             gridClass={GRID_COLS}
             labels={["Группа", priceColumnLabel(label), "Запланировано", "Индивидуальные цены", ""]}
-            aligns={["left", "center", "center", "center", "right"]}
+            aligns={["left", "right", "right", "center", "right"]}
           />
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">{shown.map(row)}</ul>
         </section>
@@ -294,10 +294,10 @@ function PriceRow({
         {second && <p className="truncate text-xs text-slate-500">{second}</p>}
       </div>
 
-      <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
+      <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
         <span className="text-xs text-slate-400 xl:hidden">{priceLabel}</span>
         {price ? (
-          <span className="text-right xl:block xl:text-center">
+          <span className="text-right xl:block">
             <span className="block font-medium tabular-nums text-slate-800" data-testid="group-price-current">{price}</span>
             <span className="block text-xs text-slate-500">{sinceText(item.current?.valid_from)}</span>
           </span>
@@ -306,10 +306,10 @@ function PriceRow({
         )}
       </div>
 
-      <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
+      <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
         <span className="shrink-0 text-xs text-slate-400 xl:hidden">Запланировано</span>
         {scheduled ? (
-          <span className="text-right xl:block xl:text-center">
+          <span className="text-right xl:block">
             <span className="block tabular-nums text-slate-800" data-testid="group-price-scheduled">{scheduled}</span>
             {item.scheduled_count > 1 && <span className="block text-xs text-slate-500">и ещё {item.scheduled_count - 1}</span>}
             <button type="button" onClick={onCancel} className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline">Отменить</button>

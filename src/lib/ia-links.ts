@@ -55,11 +55,6 @@ export function groupLessonHref(groupsBase: string, groupId: string, lessonId: s
   return `${trim(groupsBase)}/${encodeURIComponent(groupId)}?${params.toString()}`;
 }
 
-/** The debtors tab of the payments list (the debt card, the banner, the menu badge: F26). */
-export function debtorsHref(paymentsBase: string): string {
-  return `${trim(paymentsBase)}?bucket=debt`;
-}
-
 /** The payments list narrowed to one group (`?bucket=&group_id=`). */
 export function groupPaymentsListHref(paymentsBase: string, groupId: string, bucket: "debt" | "expiring" | "active" | "paused" = "debt"): string {
   return `${trim(paymentsBase)}?bucket=${bucket}&group_id=${encodeURIComponent(groupId)}`;

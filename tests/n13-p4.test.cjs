@@ -262,7 +262,8 @@ test("#103: every «Подтвердить» / «Отклонить» of the lis
   assert.match(page, /onClick=\{\(\) => openDialog\(item, "rejected", "optional"\)\}/); // the visible «Отклонить» of a waiting row (UX-1 B)
   assert.match(page, /key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: \(\) => openDialog\(item, "rejected", "optional"\)/);
   assert.match(page, /key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: \(\) => openDialog\(item, "confirmed", "required"\)/);
-  assert.match(page, /key: "confirm", label: "Подтвердить", icon: Check, onSelect: \(\) => openDialog\(item, "confirmed", "none"\)/);
+  // (the rejected tab has a visible «Подтвердить» button; the menu no longer repeats it - IA audit F6)
+  assert.match(page, /aria-label=\{`Подтвердить: \$\{item\.student\.full_name\}`\}/);
   // ...and `review` (the only caller of the API) is reached from the dialog's submit only
   assert.equal(page.match(/\breview\(/g).length, 1, "the only call of review() is in submitDialog");
   assert.match(page, /const error = await review\(item, dialog\.decision, note\);\s*if \(error\) \{ setDialogError\(error\); return; \}/);
@@ -306,7 +307,7 @@ test("#103: a header and its cells share the template, the padding and the gap; 
   assert.match(open, /<div className="flex min-w-0 lg:-my-px lg:justify-center">/);
   // the controls of a row are pulled onto the first line: 32 px buttons on a 20 px line
   assert.match(excuses, /flex items-center justify-end gap-1\.5 xl:-my-1\.5 /);
-  assert.match(open, /absolute right-2 top-2 lg:static lg:-my-1\.5 lg:justify-self-end/);
+  assert.match(open, /flex items-center justify-end gap-2 lg:-my-1\.5 lg:justify-self-end/);
   // empty states are one component
   assert.match(excuses, /<EmptyState icon=\{CheckCircle2\}/);
   assert.match(open, /<EmptyState icon=\{ClipboardCheck\} title="Все уроки закрыты"/);
@@ -425,7 +426,7 @@ test("nit: a badge cut by its slot still tells its full label (title)", () => {
 
 test("#102: a pending invite of an enrolled student shows «Ссылка» only; the student is reached by name and avatar, both visibly links", () => {
   const page = read("src/app/admin/diagnostics/page.tsx");
-  assert.match(page, /aria-label=\{`Профиль ученика: \$\{inv\.student_name\}`\}/);
+  assert.match(page, /aria-label=\{`Карточка ученика: \$\{inv\.student_name\}`\}/);
   assert.match(page, /hover:text-primary-600 hover:underline focus-visible:underline/);
   assert.match(page, /focus-visible:ring-2 focus-visible:ring-primary-500/);
 });

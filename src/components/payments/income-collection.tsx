@@ -54,7 +54,7 @@ function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row o
             <span className="w-11 shrink-0 text-right text-sm font-medium tabular-nums text-slate-700">{row.pctText}</span>
           </>
         ) : (
-          <span className="text-xs text-slate-400">ничего не начислено</span>
+          <span className="text-xs text-slate-400">нет стоимости</span>
         )}
       </div>
       <Cell label="Долг" col="debt" align="right" className="order-5 md:order-none">
@@ -80,7 +80,7 @@ export function CollectionTable({ collection, paymentsBase, debtToday, caption }
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" data-testid="collection-empty">
-        <p className="text-sm font-medium text-slate-600">В этом месяце в группах ничего не начислено</p>
+        <p className="text-sm font-medium text-slate-600">В этом месяце в группах нет стоимости обучения</p>
       </div>
     );
   }

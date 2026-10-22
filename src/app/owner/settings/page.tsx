@@ -753,7 +753,7 @@ function OwnerSettingsContent() {
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-12">
       <div className="mb-6 md:mb-8">
-        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900">Настройки рабочей области</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Настройки</h1>
         <p className="text-slate-500 mt-1 font-medium">Управляйте данными организации и вашим личным профилем</p>
       </div>
 
@@ -815,7 +815,7 @@ function OwnerSettingsContent() {
 
           {!waitingForPaymentSettings && section === "profile" && (
           <SettingsSection
-            title="Личный профиль"
+            title="Профиль"
             description="Ваши личные данные. Имя и фамилия будут видны другим сотрудникам организации."
             icon={Settings}
             onSave={handleSaveProfile}

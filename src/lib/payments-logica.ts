@@ -177,7 +177,7 @@ export interface OpeningFormValues {
 
 export const OPENING_TITLE = "Остаток на начало учёта";
 export const OPENING_PAID_UNTIL_LABEL = "Оплачено до";
-export const OPENING_PAID_UNTIL_HINT = "Ученик уже заплатил до этой даты — до запуска в ALGO. Эти дни не начисляются и не превращаются в аванс.";
+export const OPENING_PAID_UNTIL_HINT = "Ученик уже заплатил до этой даты — до запуска в ALGO. Эти дни не входят в стоимость и не превращаются в аванс.";
 export const OPENING_DEBT_LABEL = "Долг на начало, сум";
 export const OPENING_DEBT_ON_LABEL = "Долг на дату";
 export const OPENING_DEBT_HINT = "Сколько ученик был должен до запуска в ALGO.";
@@ -394,7 +394,7 @@ export function buildPauseBody(values: PauseFormValues): { first_day: string; la
 }
 
 /**
- * The calculation under the form (the server's dry run): «За паузу не начисляется 10 дней: −200 000 сум. Место в группе сохраняется.
+ * The calculation under the form (the server's dry run): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется.
  * Оплачено до станет 09.11.» — the money part only for a role that sees money (`impact` is null otherwise).
  */
 export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact"> | null | undefined): string[] {
@@ -402,8 +402,8 @@ export function pauseCalcLines(saved: Pick<PauseSaved, "pause" | "impact"> | nul
   const { pause, impact } = saved;
   const days = pause.days || pauseDays(pause.first_day, pause.last_day);
   const head = impact && impact.charged_delta !== 0
-    ? `За паузу не начисляется ${daysLabel(days)}: ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
-    : `За паузу не начисляется ${daysLabel(days)}.`;
+    ? `Дни паузы не входят в стоимость: ${daysLabel(days)}, ${impact.charged_delta < 0 ? "−" : "+"}${formatMoney(Math.abs(impact.charged_delta))}.`
+    : `Дни паузы не входят в стоимость: ${daysLabel(days)}.`;
   const lines = [`${head} Место в группе сохраняется.`];
   if (impact && impact.paid_until_after && impact.paid_until_after !== impact.paid_until_before) lines.push(`Оплачено до станет ${dm(impact.paid_until_after)}.`);
   const balance = impactBalanceLine(impact);

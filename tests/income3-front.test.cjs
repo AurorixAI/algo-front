@@ -161,9 +161,9 @@ test("tab counts under a group / teacher filter come from /payments/status with 
   assert.ok(calls.filter((query) => query.bucket !== "debt").every((query) => query.limit === 1), "only the total is wanted");
   // more debtors than one answer holds: the exact total instead of a guess
   assert.equal((await P.filteredTabCounts(async (query) => (query.bucket === "debt" ? { total: 900, items: rows(["a", "b"]) } : { total: 0, items: [] }))).debt, 900);
-  // the tab bar reads the narrowed numbers: «Должники (2) / Оплачено (7)»; none while they are on their way
+  // the tab bar reads the narrowed numbers: «Должники (2) / Без долга (7)»; none while they are on their way
   const summary = P.narrowedTabSummary(counts);
-  assert.deepEqual(P.visibleBuckets(summary, "debt").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(summary, tab.key))), ["Должники (2)", "Скоро платить (1)", "Оплачено (7)"]);
+  assert.deepEqual(P.visibleBuckets(summary, "debt").map((tab) => P.bucketTabLabel(tab.label, P.bucketCount(summary, tab.key))), ["Должники (2)", "Скоро платить (1)", "Без долга (7)"]);
   assert.equal(P.narrowedTabSummary(null), null);
   assert.equal(P.bucketCount(P.narrowedTabSummary(null), "debt"), null);
   const page = read("src/components/payments/payments-page.tsx");

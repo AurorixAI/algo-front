@@ -34,7 +34,7 @@ const CALC_DEBOUNCE_MS = 350;
 
 /**
  * «Пауза ученика» (group «⋯» → «Пауза…»): from / to / reason.  A pause is not charged, the place in the group stays.  Under the form
- * the server's calculation (a dry run): «За паузу не начисляется 10 дней: −200 000 сум. Место в группе сохраняется. Оплачено до
+ * the server's calculation (a dry run): «Дни паузы не входят в стоимость: 10 дней, −200 000 сум. Место в группе сохраняется. Оплачено до
  * станет 09.11.» (the sum only for a role that sees money) and the warnings: a backdated pause (lessons are not counted for anybody),
  * attended lessons (the pause cannot cover them), the payroll sheets that go «Есть изменения».  The pauses already there are listed
  * below: a running one is shortened to yesterday («Закончить паузу»), one that has not begun is cancelled.

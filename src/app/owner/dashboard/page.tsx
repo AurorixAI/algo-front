@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -12,6 +13,12 @@ import {
 import { businessGreeting, formatBusinessDateLabel } from "@/lib/business-time";
 import { isAtRisk } from "@/lib/diagnostic-level";
 import { centreTheta, splitDashboardGroups } from "@/lib/owner-overview";
+import { usePaymentsSummary } from "@/lib/payments-summary";
+import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
+import { useSubstitutionBadge } from "@/lib/substitution-badge";
+import { formatMoney } from "@/lib/payments";
+import { debtorsHref } from "@/lib/payments-income-v2";
+import { dashboardKpiHref, dashboardTiles } from "@/lib/owner-dashboard-links";
 
 interface OrgStats {
   total_students: number;
@@ -59,6 +66,12 @@ export default function OwnerDashboard() {
     load();
   }, []);
 
+  const moneyAvailable = usePaymentsSummary((state) => state.available);
+  const debtTotal = usePaymentsSummary((state) => state.debtTotal);
+  const studentsWithDebt = usePaymentsSummary((state) => state.studentsWithDebt);
+  const attention = useExcuseBadge(selectBadgeTotal);
+  const pendingSubstitutions = useSubstitutionBadge((state) => state.pending);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -74,6 +87,10 @@ export default function OwnerDashboard() {
 
   // The greeting and the date follow the centre's clock (Tashkent), not the browser's.
   const greeting = businessGreeting();
+  const tiles = dashboardTiles({
+    moneyAvailable, debtTotal, studentsWithDebt, attention, pendingSubstitutions,
+    format: formatMoney, debtorsHref: debtorsHref("/owner/payments"),
+  });
 
   // Average θ over the diagnosed students of all groups; null (shown as «—») when nobody is diagnosed.
   const globalTheta = centreTheta({ groups, avg_theta: serverTheta });
@@ -85,9 +102,11 @@ export default function OwnerDashboard() {
   // 4 Core KPIs — real values only. No trend/delta shown: there is no
   // historical snapshot to compute a real "+12%"-style change against, and
   // a fabricated one would misrepresent real business data.
-  const statCards = [
-    { label: "Всего учеников", value: stats?.total_students || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
-    { label: "Сотрудников", value: stats?.total_members || 0, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
+  // IA audit F27: a KPI that has a screen behind it is a link to it.  «Пройдено диагностик» and θ have none for the owner (diagnostics are the
+  // administrator's, owner decision 22.10); the money and the attention tiles below lead to the debtors and to the attendance.
+  const statCards: Array<{ label: string; href?: string; value: string | number; icon: any; color: string; bg: string; iconColor: string }> = [
+    { label: "Всего учеников", href: dashboardKpiHref("students"), value: stats?.total_students || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
+    { label: "Сотрудников", href: dashboardKpiHref("staff"), value: stats?.total_members || 0, icon: Shield, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
     { label: "Пройдено диагностик", value: stats?.completed_diagnostics || 0, icon: Brain, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600" },
     {
       label: "Средний уровень (θ)",
@@ -165,26 +184,52 @@ export default function OwnerDashboard() {
 
           {/* Integrated KPIs Grid (Glassmorphism) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {statCards.map((card, i) => (
-              <motion.div
-                key={card.label}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 + i * 0.05 }}
-                className="group relative bg-white/5 hover:bg-white/10 rounded-2xl p-5 border border-white/10 backdrop-blur-md transition-all duration-300 overflow-hidden"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <div className={`w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5`}>
-                    <card.icon className={`w-5 h-5 text-slate-200 group-hover:text-white transition-colors`} />
+            {statCards.map((card, i) => {
+              const body = (
+                <>
+                  <div className="flex justify-between items-start mb-3">
+                    <div className={`w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5`}>
+                      <card.icon className={`w-5 h-5 text-slate-200 group-hover:text-white transition-colors`} />
+                    </div>
                   </div>
-                </div>
-                <div>
-                  <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
-                  <p className="text-sm font-medium text-slate-400 mt-1">{card.label}</p>
-                </div>
-              </motion.div>
-            ))}
+                  <div>
+                    <p className="text-3xl font-semibold text-white tracking-tight">{card.value}</p>
+                    <p className="text-sm font-medium text-slate-400 mt-1">{card.label}</p>
+                  </div>
+                </>
+              );
+              const frame = "group relative block bg-white/5 hover:bg-white/10 rounded-2xl p-5 border border-white/10 backdrop-blur-md transition-all duration-300 overflow-hidden";
+              return (
+                <motion.div
+                  key={card.label}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 + i * 0.05 }}
+                >
+                  {card.href ? (
+                    <Link href={card.href} data-testid="dashboard-kpi-link" className={`${frame} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60`}>{body}</Link>
+                  ) : (
+                    <div className={frame}>{body}</div>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
+
+          {/* IA audit F27: what needs the owner today - the debt and the attention of the attendance, each one click from its list */}
+          {tiles.length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4" data-testid="dashboard-tiles">
+              {tiles.map((tile) => (
+                <Link key={tile.key} href={tile.href} data-testid={`dashboard-tile-${tile.key}`} className="group flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/5 p-5 backdrop-blur-md transition-all duration-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+                  <div className="min-w-0">
+                    <p className={`text-2xl font-semibold tracking-tight ${tile.tone === "alert" ? "text-rose-300" : "text-white"}`}>{tile.value}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-400">{tile.label}</p>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold text-slate-300 group-hover:text-white" aria-hidden>→</span>
+                </Link>
+              ))}
+            </div>
+          )}
 
         </div>
       </motion.div>
@@ -206,7 +251,7 @@ export default function OwnerDashboard() {
 
           <div className="space-y-4 flex-1">
             {topGroups.length > 0 ? topGroups.map((g, i) => (
-              <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/30 hover:border-emerald-100 transition-colors">
+              <Link key={g.group_id} href={`/owner/groups/${g.group_id}`} data-testid="dashboard-group-row" className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/30 hover:border-emerald-100 transition-colors">
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-bold text-slate-400">#{i + 1}</span>
@@ -221,7 +266,7 @@ export default function OwnerDashboard() {
                     θ = {g.avg_theta?.toFixed(2)}
                   </p>
                 </div>
-              </div>
+              </Link>
             )) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
                 <GraduationCap className="w-8 h-8 mb-2 opacity-50" />
@@ -245,7 +290,7 @@ export default function OwnerDashboard() {
 
           <div className="space-y-4 flex-1">
             {riskGroups.length > 0 ? riskGroups.map((g) => (
-              <div key={g.group_id} className="flex items-center justify-between p-4 rounded-2xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 hover:border-rose-200 transition-colors">
+              <Link key={g.group_id} href={`/owner/groups/${g.group_id}`} data-testid="dashboard-group-row" className="flex items-center justify-between p-4 rounded-2xl bg-rose-50/30 border border-rose-100/50 hover:bg-rose-50 hover:border-rose-200 transition-colors">
                 <div>
                   <p className="font-semibold text-slate-900 line-clamp-1">{g.name}</p>
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-3">
@@ -257,7 +302,7 @@ export default function OwnerDashboard() {
                     θ = {g.avg_theta?.toFixed(2)}
                   </p>
                 </div>
-              </div>
+              </Link>
             )) : (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
                 <Shield className="w-8 h-8 mb-2 opacity-50" />

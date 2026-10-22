@@ -84,8 +84,8 @@ test("the certificate picker offers photos only on a touch screen so Android sho
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /matchMedia\("\(pointer: coarse\)"\)/);
   assert.match(page, /accept=\{excusePickerAccept\(coarsePointer\)\}/);
-  assert.equal((page.match(/type="file"/g) || []).length, 1); // still one picker, one «Приложить справку»
-  assert.equal((page.match(/Приложить справку/g) || []).length, 1);
+  assert.equal((page.match(/type="file"/g) || []).length, 1); // still one picker, one «Прикрепить справку»
+  assert.equal((page.match(/Прикрепить справку/g) || []).length, 1);
 });
 
 test("journal deep link keeps tab, month, lesson and date from the lesson key", () => {
@@ -126,7 +126,9 @@ test("payment status chips use the same grey / amber / red as the deadline chips
 test("«Пропуски»: «Подтвердить» (primary) and «Отклонить» (secondary) side by side + «⋯», no note field in the row, no separate camera button", () => {
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /RowMenu/);
-  for (const label of ["Отклонить…", "Приложить справку", "Подтвердить с примечанием…", "Открыть журнал", "Карточка ученика", "Сбросить решение"]) {
+  // IA audit F6: the menu keeps the three rare actions; the journal and the card are links of the row
+  assert.doesNotMatch(page, /label: "Открыть журнал"|label: "Карточка ученика"/);
+  for (const label of ["Отклонить…", "Прикрепить справку", "Подтвердить с примечанием…", "Сбросить решение"]) {
     assert.ok(page.includes(label), label);
   }
   assert.match(page, /excuseJournalHref\(groupsBasePath, item\)/);

@@ -187,7 +187,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
           ) : teachers.length > 0 && (
             <div>
               <label htmlFor="group-create-uchitel" className="block text-sm font-semibold text-slate-700 mb-1.5">
-                Учитель
+                Преподаватель
               </label>
               <div className="relative">
                 <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />

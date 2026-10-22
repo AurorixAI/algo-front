@@ -32,7 +32,7 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   await expect(page.getByText(/Состав группы\s*\(2\)/)).toBeVisible();
   await expect(roster().filter({ hasText: "Уходящий Анвар" })).toHaveCount(1);
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: "Оплачено" }).click();
+  await page.getByRole("tab", { name: "Без долга" }).click();
   await expect(paymentRow("Уходящий Анвар")).toHaveCount(1);
 
   // --- archive from the student card
@@ -54,7 +54,7 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   await expect(roster().filter({ hasText: "Уходящий Анвар" })).toHaveCount(0);
   await expect(roster().filter({ hasText: "Остающаяся Мадина" })).toHaveCount(1);
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: "Оплачено" }).click();
+  await page.getByRole("tab", { name: "Без долга" }).click();
   await expect(paymentRow("Остающаяся Мадина")).toHaveCount(1);
   await expect(paymentRow("Уходящий Анвар")).toHaveCount(0);
 

@@ -41,6 +41,11 @@ export function openLessonStatus(action: Pick<OpenAttendanceAction, "actionType"
     : `${OPEN_LESSON_IN_PROGRESS_LABEL} · отмечено ${action.markedCount} из ${action.rosterCount}`;
 }
 
+/** IA audit F5: the main button of a row - «Отметить» a lesson nobody marked, «Открыть» one that is in progress. */
+export function openLessonActionLabel(action: Pick<OpenAttendanceAction, "actionType">): string {
+  return action.actionType === "in_progress" ? "Открыть" : "Отметить";
+}
+
 /** Tooltip of the chip. */
 export function openLessonStatusHint(action: Pick<OpenAttendanceAction, "actionType">): string {
   return action.actionType === "missed"

@@ -239,7 +239,7 @@ test("the statement is the one history: receipt + cheque in the «⋯» menu of 
   const statement = read("src/components/payments/statement-view.tsx");
   assert.match(statement, /label: "Квитанция"/);
   assert.match(statement, /const attach = cheques\.menuItem\(id\);\s*if \(attach\) items\.push\(attach\);/);
-  assert.match(statement, /router\.push\(receiptHref\(paymentsBase, id\)\)/);
+  assert.match(statement, /router\.push\(receiptHref\(paymentsBase, id, \{ membershipId, studentId: statement\?\.membership\.student_id, groupId: statement\?\.membership\.group_id \}\)\)/);
   // the existing actions stay in the same menu, with one wording (F11)
   assert.match(statement, /export const CORRECT_PAYMENT_LABEL = "Исправить оплату"/);
   assert.match(statement, /export const VOID_PAYMENT_LABEL = "Отменить оплату"/);

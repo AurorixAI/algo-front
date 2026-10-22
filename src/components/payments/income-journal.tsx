@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, Loader2, Search, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { receiptHref, statementHref } from "@/lib/payments";
+import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import {
   drawerView,
   JOURNAL_QUIET_TEXT,
@@ -94,8 +95,9 @@ export function JournalSkeleton() {
 export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }: { row: JournalRow; paymentsBase: string; studentProfileBasePath: string }) {
   const view = drawerView(row);
   const hrefs = {
-    receipt: receiptHref(paymentsBase, row.id),
-    student: `${studentProfileBasePath.replace(/\/+$/, "")}/${encodeURIComponent(row.student_id)}`,
+    receipt: receiptHref(paymentsBase, row.id, { membershipId: row.membership_id, studentId: row.student_id, groupId: row.group_id }),
+    // IA audit F29: a money screen leads to the «Оплаты» tab of the card, never to the default one
+    student: studentHref(studentProfileBasePath, row.student_id, "payments"),
     statement: statementHref(paymentsBase, row.membership_id),
   };
   return (
@@ -119,7 +121,11 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
         {view.facts.map((fact) => (
           <div key={fact.label} className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3">
             <dt className="text-slate-500">{fact.label}</dt>
-            <dd className="break-words font-medium text-slate-900">{fact.label === "Ученик" ? <Link href={hrefs.student} className="hover:text-primary-700 hover:underline">{fact.value}</Link> : fact.value}</dd>
+            <dd className="break-words font-medium text-slate-900">
+              {fact.label === "Ученик" ? <Link href={hrefs.student} className="hover:text-primary-700 hover:underline">{fact.value}</Link>
+                : fact.label === "Группа" && row.group_id ? <Link href={groupHref(basesOfPayments(paymentsBase).groups, row.group_id, "payments")} data-testid="drawer-group-link" className="hover:text-primary-700 hover:underline">{fact.value}</Link>
+                : fact.value}
+            </dd>
           </div>
         ))}
       </dl>

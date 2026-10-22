@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, Loader2, Printer, Wallet } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
@@ -10,6 +11,7 @@ import {
   formatMoney,
   paymentPeriodLabel,
   PARTIAL_PERIOD_TAG,
+  receiptContextOf,
   receiptErrorText,
   receiptReplacedNote,
   receiptReplacesNote,
@@ -18,6 +20,8 @@ import {
   type ReceiptOut,
 } from "@/lib/payments";
 import { receiptFacts } from "@/lib/payments-ledger";
+import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
+import { statementHref } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -69,7 +73,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
         </div>
         {facts.legacy ? (
           <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-x-3">
-            <dt className="text-slate-500">{receipt.lessons_count ? "Оплачено" : "Период"}</dt>
+            <dt className="text-slate-500">{receipt.lessons_count ? "Пакет" : "Период"}</dt>
             <dd className="font-medium">
               {paymentPeriodLabel(receipt)}
               {receipt.partial_period && (
@@ -162,10 +166,20 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
   );
 }
 
-/** The receipt of one payment: loads it, shows the sheet and the «Печать / Сохранить PDF» button. */
-export function ReceiptView({ paymentsHref }: { /** The payments page of this workspace: where «Назад» goes when there is no page of ours to go back to. */ paymentsHref: string }) {
+/** The receipt of one payment: loads it, shows the sheet, the links on and the «Печать / Сохранить PDF» button.  It reads `?m=&s=&g=` (where it was opened from). */
+export function ReceiptView(props: { /** The payments page of this workspace: where «Назад» goes when there is no page of ours to go back to. */ paymentsHref: string }) {
+  return (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}>
+      <ReceiptViewContent {...props} />
+    </Suspense>
+  );
+}
+
+function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
   const params = useParams();
   const router = useRouter();
+  const context = receiptContextOf(useSearchParams());
+  const bases = basesOfPayments(paymentsHref);
   const paymentId = String(params?.id ?? "");
 
   const available = usePaymentsSummary((state) => state.available);
@@ -241,6 +255,13 @@ export function ReceiptView({ paymentsHref }: { /** The payments page of this wo
           <ArrowLeft className="h-4 w-4" />
           Назад
         </button>
+        {receipt && (context.membershipId || context.studentId || context.groupId) && (
+          <nav aria-label="Перейти" className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-medium" data-testid="receipt-links">
+            {context.membershipId && <Link href={statementHref(bases.payments, context.membershipId)} data-testid="receipt-link-statement" className="text-primary-700 hover:underline">Выписка</Link>}
+            {context.studentId && <Link href={studentHref(bases.students, context.studentId, "payments")} data-testid="receipt-link-student" className="text-primary-700 hover:underline">Ученик</Link>}
+            {context.groupId && <Link href={groupHref(bases.groups, context.groupId, "payments")} data-testid="receipt-link-group" className="text-primary-700 hover:underline">Группа</Link>}
+          </nav>
+        )}
         {receipt && (
           <button
             type="button"

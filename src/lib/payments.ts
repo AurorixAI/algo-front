@@ -903,7 +903,7 @@ export { pluralRu };
 export const PAYMENT_BUCKETS: Array<{ key: PaymentBucket; label: string }> = [
   { key: "debt", label: "Должники" },
   { key: "expiring", label: "Скоро платить" },
-  { key: "active", label: "Оплачено" },
+  { key: "active", label: "Без долга" },
 ];
 
 /** «На паузе»: a fourth tab, shown while somebody is on a pause (or while it is the open one). */
@@ -1343,8 +1343,30 @@ export function receiptErrorText(status: number | undefined, message: string | u
 }
 
 /** `/owner/payments` + id -> `/owner/payments/receipt/<id>`. */
-export function receiptHref(paymentsBasePath: string, paymentId: string): string {
-  return `${paymentsBasePath.replace(/\/+$/, "")}/receipt/${encodeURIComponent(paymentId)}`;
+export function receiptHref(paymentsBasePath: string, paymentId: string, context?: ReceiptContext): string {
+  const base = `${paymentsBasePath.replace(/\/+$/, "")}/receipt/${encodeURIComponent(paymentId)}`;
+  const params = new URLSearchParams();
+  if (context?.membershipId) params.set("m", context.membershipId);
+  if (context?.studentId) params.set("s", context.studentId);
+  if (context?.groupId) params.set("g", context.groupId);
+  const query = params.toString();
+  return query ? `${base}?${query}` : base;
+}
+
+/**
+ * IA audit F28: the receipt does not carry the student, the membership or the group (the server's `ReceiptOut` has only their names), so the
+ * screen that links to it says where it came from: `?m=<membership>&s=<student>&g=<group>`.  The receipt then leads on to the statement, the
+ * student's «Оплаты» and the group; opened by a bare link it shows no such links.
+ */
+export interface ReceiptContext {
+  membershipId?: string | null;
+  studentId?: string | null;
+  groupId?: string | null;
+}
+
+export function receiptContextOf(params: { get(name: string): string | null } | null | undefined): ReceiptContext {
+  const clean = (value: string | null | undefined) => (value && /^[\w-]{1,64}$/.test(value) ? value : null);
+  return { membershipId: clean(params?.get("m")), studentId: clean(params?.get("s")), groupId: clean(params?.get("g")) };
 }
 
 /** `/owner/payments` + id -> `/owner/payments/statement/<membership>`: the account of a student in a group. */
@@ -1582,7 +1604,7 @@ export function positionCards(summary: {
   return [
     {
       key: "debt",
-      label: "Долг учеников",
+      label: "Долг",
       amount: formatMoney(debt),
       sub: debtors === null ? "" : `${debtors} ${pluralRu(debtors, "ученик с долгом", "ученика с долгом", "учеников с долгом")}`,
       tone: debt > 0 ? "debt" : "none",

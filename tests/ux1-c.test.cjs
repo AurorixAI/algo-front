@@ -191,7 +191,7 @@ test("the page «Цены групп»: the cells say the price, the scheduled p
 
 test("the page «Цены групп» is the one place of the group price: a table with the shared header, actions, empty state; the group header has no price line", () => {
   const page = read("src/components/payments/group-prices-page.tsx");
-  assert.match(page, /<TableHeader[\s\S]*labels=\{\["Группа", priceColumnLabel\(label\), "Запланировано", "Индивидуальные цены", ""\]\}[\s\S]*aligns=\{\["left", "center", "center", "center", "right"\]\}/);
+  assert.match(page, /<TableHeader[\s\S]*labels=\{\["Группа", priceColumnLabel\(label\), "Запланировано", "Индивидуальные цены", ""\]\}[\s\S]*aligns=\{\["left", "right", "right", "center", "right"\]\}/);
   assert.match(page, /\{item\.current \? "Изменить цену" : "Задать цену"\}/);
   assert.match(page, /aria-label=\{`История цены: \$\{item\.name\}`\}/); // IA audit F3: an icon, not a «⋯» with one item
   assert.doesNotMatch(page, /RowMenu/);

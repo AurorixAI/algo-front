@@ -240,7 +240,7 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   const decided = fx("b2c3_decide_cancel");
   assert.equal(S.decisionToast(decided), "Урок отменён");
   assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Урок отменён", tone: "gray" });
-  assert.equal(S.CANCEL_CONSEQUENCES, "Урок будет отменён и не вернётся. Ученики на нём не отмечаются. При помесячной оплате стоимость месяца не меняется. В пакете занятий урок не списывается. Преподавателю за этот урок оплата не начисляется.");
+  assert.equal(S.CANCEL_CONSEQUENCES, "Урок будет отменён и не вернётся. Ученики на нём не отмечаются. При помесячной оплате стоимость месяца не меняется. В пакете занятий урок не списывается. Заработок преподавателя за этот урок не засчитывается.");
   assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", expectedStatus: "pending" });
   assert.equal(S.decisionReasonError("cancel", "ок"), "Укажите причину — не менее 3 символов");
   assert.equal(S.decisionReasonError("cancel", "Болен"), null);
@@ -432,7 +432,7 @@ test("[M3] the decision dialog: the head, the four cards, and the substitute lis
   const owner = fx("b2c1_candidates_admin");
   owner.candidates = owner.candidates.map((c) => (c.name === "Сидоров С." ? { ...c, rateMissing: true } : c));
   const ownerText = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { role: "owner", candidates: owner }))));
-  assert.match(ownerText, /Ставка не задана — оплата урока не будет начислена, пока вы её не зададите/);
+  assert.match(ownerText, /Ставка не задана — заработок за урок не будет посчитан, пока вы её не зададите/);
   // nobody free
   const none = { ...fx("b2c1_candidates_admin"), candidates: fx("b2c1_candidates_admin").candidates.map((c) => ({ ...c, busy: true, busyWith: c.busyWith ?? { kind: "lesson", groupName: "8-В", startTime: "10:00", endTime: "11:30", pendingRequest: false } })) };
   assert.match(textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { candidates: none, pick: null })))), /Свободных преподавателей на это время нет\. Перенесите или отмените урок\./);

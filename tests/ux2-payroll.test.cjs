@@ -326,7 +326,7 @@ test("the group block: the total of the group is the last row of its table, not 
     assert.ok(textOf(header).includes("Алгебра") && textOf(header).includes("17:00"));
     const foot = html.slice(html.indexOf("<tfoot"), html.indexOf("</tfoot>"));
     assert.ok(textOf(foot).includes("Итого по группе"));
-    assert.ok(textOf(foot).includes("1 500 сум"), "the sum under «Начислено»");
+    assert.ok(textOf(foot).includes("1 500 сум"), "the sum under «Заработано»");
     assert.match(foot, /text-right[^>]*>1\s500/);
     assert.match(foot, /text-center[^>]*>3</); // counted
   }
@@ -337,7 +337,7 @@ test("the group block: the total of the group is the last row of its table, not 
   assert.equal((links.match(/<li/g) || []).length, 2);
 });
 
-test("«Цена в месяц» is centred (not a summed column) and a line with no price shows only «задать»; «Ставка» of the month has its «?»", () => {
+test("«Цена в месяц» is right-aligned like every money column (IA audit F25) and a line with no price shows only «задать»; «Ставка» of the month has its «?»", () => {
   const { PayrollSheetTable } = require(path.join(root, "src/components/payroll/sheet-table.tsx"));
   const { TableHeader } = require(path.join(root, "src/components/attendance/table-chrome.tsx"));
   const mark = { date: "2026-09-01", lesson_id: "l1", mark: 1, state: "counted", divisor: 12 };
@@ -350,14 +350,14 @@ test("«Цена в месяц» is centred (not a summed column) and a line wit
     source_fingerprint: "f", stale: false, note: null, created_by_name: null, created_at: null, updated_by_name: null, updated_at: null };
   const render = (props = {}) => renderToStaticMarkup(React.createElement(PayrollSheetTable, { sheet, edits: R.EMPTY_EDITS, editable: true, onEdits: () => {}, ...props }));
   const html = render();
-  assert.match(html, /<th scope="col" aria-label="Цена в месяц" class="[^"]*text-center/);
-  assert.match(html, /<td class="[^"]*text-center max-sm:hidden"><div class="flex flex-col gap-0\.5 items-center">/);
-  assert.match(html, /<th scope="col" class="[^"]*text-right[^"]*">Начислено/); // only the sum stays on the right
+  assert.match(html, /<th scope="col" aria-label="Цена в месяц" class="[^"]*text-right/);
+  assert.match(html, /<td class="[^"]*text-right max-sm:hidden"><div class="flex flex-col gap-0\.5 items-end">/);
+  assert.match(html, /<th scope="col" class="[^"]*text-right[^"]*">Заработано/); // the money columns are on the right
   // the desktop cell has the link alone; the phone line under the name keeps the words
-  const priceCell = (markup) => textOf(/<td class="[^"]*text-center max-sm:hidden">([\s\S]*?)<\/td>/.exec(markup)[1]);
+  const priceCell = (markup) => textOf(/<td class="[^"]*text-right max-sm:hidden">([\s\S]*?)<\/td>/.exec(markup)[1]);
   assert.equal(priceCell(html), "задать", "the desktop cell has the link alone");
   assert.ok(textOf(html).includes("нет цены · задать"));
-  // stale: the note stays, centred, without the link
+  // stale: the note stays, on the right, without the link
   const after = render({ freshPrices: { m1: 500000 } });
   assert.equal(priceCell(after), "после пересчёта: 500 000 сум");
   // the month table: «?» after «Ставка» with the words of the owner's question

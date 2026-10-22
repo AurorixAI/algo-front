@@ -132,7 +132,7 @@ test("cancellation reason is 3..500 characters", () => {
 test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter", () => {
   // owner 21.10: tabs by money; «Без оплат» is gone (its rows are debtors «Ещё не платил»)
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.key), ["debt", "expiring", "active"]);
-  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Оплачено"]);
+  assert.deepEqual(rules.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
   assert.equal(rules.parseBucket("none"), "debt"); // an old link opens the most urgent tab
   assert.equal(rules.parseBucket("due"), "debt");
   assert.equal(rules.parseBucket("active"), "active");
@@ -146,8 +146,8 @@ test("tabs: ?bucket= falls back to the most urgent one; every tab has a counter"
   assert.equal(rules.bucketCount(null, "debt"), null);
   assert.equal(rules.bucketCount({ debtors: 4 }, "active"), null); // a partial answer: no counter rather than a wrong one
   assert.equal(rules.bucketTabLabel("Должники", 7), "Должники (7)");
-  assert.equal(rules.bucketTabLabel("Оплачено", 0), "Оплачено (0)");
-  assert.equal(rules.bucketTabLabel("Оплачено", null), "Оплачено");
+  assert.equal(rules.bucketTabLabel("Без долга", 0), "Без долга (0)");
+  assert.equal(rules.bucketTabLabel("Без долга", null), "Без долга");
 });
 
 test("center settings: ranges and PATCH diff", () => {

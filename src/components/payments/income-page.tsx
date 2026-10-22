@@ -183,7 +183,9 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
   useEffect(() => {
     if (!overview.data || landed.current || typeof window === "undefined") return;
     landed.current = true;
-    if (window.location.hash === "#position") document.getElementById("position")?.scrollIntoView({ block: "center" });
+    // «Оплаты» leads here from its two cards: «Долг учеников» (#position) and «Аванс» (#advance)
+    const target = window.location.hash === "#position" ? "position" : window.location.hash === "#advance" ? "advance" : null;
+    if (target) document.getElementById(target)?.scrollIntoView({ block: "center" });
   }, [overview.data]);
 
   const [exporting, setExporting] = useState(false);

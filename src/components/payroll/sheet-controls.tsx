@@ -243,7 +243,7 @@ export function DiffDetails({ diff }: { diff: PayrollDiff }) {
                 <th scope="col" className="py-1.5 pr-3 text-left font-semibold">Ученик</th>
                 <th scope="col" className="px-3 py-1.5 text-center font-semibold">Засчитано</th>
                 <th scope="col" className="px-3 py-1.5 text-center font-semibold">Без оплаты</th>
-                <th scope="col" className="py-1.5 text-right font-semibold">Начислено</th>
+                <th scope="col" className="py-1.5 text-right font-semibold">Заработано</th>
               </tr>
             </thead>
             <tbody>

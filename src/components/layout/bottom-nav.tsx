@@ -310,7 +310,7 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                     className={cn(ROW, isNavActive(pathname, settingsPath) ? "bg-primary-50 font-bold text-primary-700" : "text-slate-700 active:bg-slate-100")}
                   >
                     <Settings className={cn("h-5 w-5 shrink-0", isNavActive(pathname, settingsPath) ? "text-primary-600" : "text-slate-400")} />
-                    <span className="min-w-0 flex-1 truncate">Настройки аккаунта</span>
+                    <span className="min-w-0 flex-1 truncate">Настройки</span>
                   </Link>
                 </li>
                 <li>

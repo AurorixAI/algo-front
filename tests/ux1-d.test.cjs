@@ -267,7 +267,7 @@ test("bottom bar: only on phones, labelled, current page announced, counters thr
   assert.match(nav, /moreBadgeTotal\(more\)/);
   assert.match(nav, /aria-haspopup="dialog"/);
   assert.match(nav, /Выйти из системы/);
-  assert.match(nav, /Настройки аккаунта/);
+  assert.match(nav, /Настройки<\/span>/); // IA audit F23: «Настройки» everywhere
   assert.match(nav, /role="dialog"\s+aria-modal="true"\s+aria-label="Ещё"/);
   assert.match(nav, /print:hidden/);
   // the sheet is above the dim, both are above the bar and under the toasts (z-120)

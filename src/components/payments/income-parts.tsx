@@ -125,7 +125,7 @@ export function IncomeCards({ overview, paymentsBase, scope }: { overview: Incom
         </StatCard>
       )}
 
-      <StatCard label="Долг на сегодня" id="position" testId="card-debt">
+      <StatCard label="Долг" id="position" testId="card-debt">
         <p className={`${ACCENT} ${debt.none ? "text-slate-600" : ACCENT_DEBT}`}>{debt.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{debt.caption}</p>
         {!debt.none && (
@@ -136,7 +136,7 @@ export function IncomeCards({ overview, paymentsBase, scope }: { overview: Incom
         )}
       </StatCard>
 
-      <StatCard label="Аванс" testId="card-advance">
+      <StatCard label="Аванс" id="advance" testId="card-advance">
         <p className={`${ACCENT} ${advance.none ? "text-slate-600" : ACCENT_ADVANCE}`}>{advance.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{advance.caption}</p>
       </StatCard>

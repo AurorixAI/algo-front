@@ -41,7 +41,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="space-y-6 w-full max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold text-slate-900">Настройки</h1>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Настройки</h1>
 
       {msg && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-primary-50 text-primary-700 text-sm">{msg}</motion.div>

@@ -187,7 +187,7 @@ export default function AdminDiagnosticsPage() {
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold text-slate-900">Диагностика</h1>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Диагностика</h1>
           <p className="text-slate-500 text-sm mt-0.5">
             Создавайте диагностики, отслеживайте результаты и зачисляйте учеников
           </p>
@@ -417,7 +417,7 @@ export default function AdminDiagnosticsPage() {
                           : "bg-gradient-to-br from-primary-100 to-primary-200 text-primary-700")
                       }
                       title="Открыть профиль ученика"
-                      aria-label={`Профиль ученика: ${inv.student_name}`}
+                      aria-label={`Карточка ученика: ${inv.student_name}`}
                     >
                       {inv.student_name.charAt(0).toUpperCase()}
                     </Link>

@@ -298,11 +298,12 @@ test("«Подтвердить» and «Отклонить» sit side by side in 
   assert.ok(confirmAt > 0 && rejectAt > confirmAt && menuAt > rejectAt, "Подтвердить, then Отклонить, then «⋯» in one row");
   assert.match(page, /aria-label=\{`Подтвердить: \$\{item\.student\.full_name\}`\}/);
   assert.match(page, /aria-label=\{`Отклонить: \$\{item\.student\.full_name\}`\}/);
-  assert.equal((page.match(/disabled=\{busy\}\s+aria-label=\{`(Подтвердить|Отклонить)/g) || []).length, 2, "a row that is being decided blocks both");
-  // the menu of a waiting row: note, certificate, journal, card - no second «Отклонить»
-  assert.match(page, /if \(item\.status === "pending"\) return \[confirmWithNote, attach, journal, card\];/);
+  assert.equal((page.match(/disabled=\{busy\}\s+aria-label=\{`(Подтвердить|Отклонить)/g) || []).length, 3, "a row that is being decided blocks its buttons (the two of a waiting row and the «Подтвердить» of a rejected one)");
+  // the menu of a waiting row: note, certificate - no second «Отклонить», no navigation (IA audit F6: the journal and the card are links of the row)
+  assert.match(page, /if \(item\.status === "pending"\) return \[confirmWithNote, attach\];/);
   // a decision that is already made can still be changed from the menu
-  assert.match(page, /if \(item\.status === "confirmed"\) return \[reject, reset, attach, journal, card\];/);
+  assert.match(page, /if \(item\.status === "confirmed"\) return \[reject, reset, attach\];/);
+  assert.match(page, /return \[confirmWithNote, reset, attach\];/);
   // the dialog keeps its protection and its texts
   const dialog = read("src/components/attendance/excuse-decision-dialog.tsx");
   assert.match(dialog, /if \(!target \|\| sending\.current \|\| !canSubmit\) return;/);

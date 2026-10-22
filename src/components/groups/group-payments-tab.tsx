@@ -42,6 +42,7 @@ import {
   type PaymentSaveResult,
 } from "@/lib/payments";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
+import { studentHref } from "@/lib/ia-links";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -357,7 +358,7 @@ function ChipView({ view }: { view: GroupPaymentRowView }) {
 function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; studentsBasePath: string }) {
   return (
     <div className="min-w-0">
-      <Link href={`${studentsBasePath.replace(/\/+$/, "")}/${encodeURIComponent(view.studentId)}`} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700">
+      <Link href={studentHref(studentsBasePath, view.studentId, "payments")} className="block break-words text-sm font-medium text-slate-900 hover:text-primary-700">
         {view.name}
       </Link>
       {view.displayId && <p className="truncate text-xs text-slate-400">{view.displayId}</p>}

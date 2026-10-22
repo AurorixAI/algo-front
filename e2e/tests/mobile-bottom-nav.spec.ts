@@ -34,7 +34,7 @@ test("@mobile owner: the bottom bar replaces the rail; «Ещё» opens the shee
   await bar.getByRole("button", { name: /^Ещё/ }).click();
   const sheet = page.getByRole("dialog", { name: "Ещё" });
   await expect(sheet).toBeVisible();
-  for (const name of ["Посещаемость", "Зарплата", "Сотрудники", "Настройки аккаунта"]) {
+  for (const name of ["Посещаемость", "Зарплата", "Сотрудники", "Настройки"]) {
     await expect(sheet.getByRole("link", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
   await expect(sheet.getByRole("button", { name: "Выйти из системы" })).toBeVisible();

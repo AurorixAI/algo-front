@@ -193,7 +193,7 @@ test("card «Собрано за месяц»: X из Y (Z%) with a bar, month m
   // a month with nothing charged says so in words and draws no bar
   const o = overview("I01_income_month_october");
   const empty = V.collectedCard({ ...o, collection: { ...o.collection, total: { ...o.collection.total, charged: 0, paid: 0, pct: null } } });
-  assert.deepEqual([empty.caption, empty.pct], ["За этот месяц ничего не начислено", null]);
+  assert.deepEqual([empty.caption, empty.pct], ["За этот месяц стоимости нет", null]);
 });
 
 test("cards «Долг на сегодня» and «Аванс»: the sum and the students; a quiet word when there is none; the link to «Должники»", () => {
@@ -548,7 +548,7 @@ test("the month on screen: the sentence of the server, four cards, one line, the
   for (const piece of [
     "Поступило", "3 450 000 сум", "▲ 130% к 1–21 сентября", "7 оплат",
     "Собрано за месяц", "1 900 000 сум", "из 2 500 000 сум · 76%",
-    "Долг на сегодня", "500 000 сум", "3 ученика", "Должники",
+    "Долг", "500 000 сум", "3 ученика", "Должники",
     "Аванс", "450 000 сум", "2 ученика оплатили вперёд",
     "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "на текущие периоды", "55%", "в аванс", "13%", "возвращено", "3%", "Сходится", "Прощено долгов: 100 000 сум",
     "Пришло по дням", "Чем платили", "Click", "1 250 000 сум", "Наличные", "Перевод", "Карта", "36%", "28%",
@@ -631,8 +631,8 @@ test("the drawer body: amount, method, who entered it, where the money went, lin
   const body = text(el);
   for (const piece of ["150 000 сум", "Наличные", "Алиев Тимур", "Английский 7Б · Мария Ким", "Кто внёс", "Азиз Хакимов", "Куда пошли деньги", "за октябрь — 150 000", "Комментарий", "=SUM(A1)", "Квитанция № 13", "Карточка ученика", "Выписка по группе"]) assert.ok(body.includes(piece), piece);
   const markup = html(el);
-  assert.match(markup, new RegExp(`href="/owner/payments/receipt/${encodeURIComponent(row.id)}"`));
-  assert.match(markup, new RegExp(`href="/owner/students/${encodeURIComponent(row.student_id)}"`));
+  assert.match(markup, new RegExp(`href="/owner/payments/receipt/${encodeURIComponent(row.id)}\\?m=${encodeURIComponent(row.membership_id)}&amp;s=${encodeURIComponent(row.student_id)}&amp;g=${encodeURIComponent(row.group_id)}"`)); // the receipt knows where it came from (IA audit F28)
+  assert.match(markup, new RegExp(`href="/owner/students/${encodeURIComponent(row.student_id)}\\?tab=payments"`)); // IA audit F29: the «Оплаты» tab, never the default one
   assert.match(markup, new RegExp(`href="/owner/payments/statement/${encodeURIComponent(row.membership_id)}"`));
   // a cancelled payment has its history in words and no destination block
   const voided = text(React.createElement(J.JournalDrawerBody, { row: journal("J04_journal_voided_and_replaced").rows[0], paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" }));
@@ -685,7 +685,7 @@ test("the groups' collection on screen: worst first, bars, a row is a link to «
   const quiet = text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/admin/payments" }));
   assert.ok(quiet.includes("✓ оплачено") && !/(^|\s)нет(\s|$)/.test(quiet) && !/(^|\s)—(\s|$)/.test(quiet));
   // a month without groups
-  assert.ok(text(React.createElement(C.CollectionTable, { collection: { ...o.collection, groups: [] }, paymentsBase: "/owner/payments" })).includes("В этом месяце в группах ничего не начислено"));
+  assert.ok(text(React.createElement(C.CollectionTable, { collection: { ...o.collection, groups: [] }, paymentsBase: "/owner/payments" })).includes("В этом месяце в группах нет стоимости обучения"));
 });
 
 test("collection table: one-line headers (no «за месяц»), the caption, alignment per column, ✓ оплачено and a muted 0, the ⓘ of «Стоимость»", () => {

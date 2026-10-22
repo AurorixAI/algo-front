@@ -56,12 +56,12 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(row()).toHaveCount(0); // left «Должники» (Ещё не платил)
 
   // --- it is now under «Оплачено»
-  await page.getByRole("tab", { name: "Оплачено" }).click();
+  await page.getByRole("tab", { name: "Без долга" }).click();
   await expect(row()).toContainText(money(450000));
   await expect(row()).toContainText("Оплачено"); // the grey chip ...
   await expect(row()).toContainText("оплачено до"); // ... and the date under it (the server worked it out from the money)
   await expect(row().getByRole("button", { name: "Внести оплату" })).toBeVisible(); // one verb, also for a running payment
-  await expect(page.getByRole("tab", { name: /^Оплачено \(\d+\)$/ })).toBeVisible(); // every tab carries its number
+  await expect(page.getByRole("tab", { name: /^Без долга \(\d+\)$/ })).toBeVisible(); // every tab carries its number
 
   // --- history: «№ N»
   const membership = await org.membershipId(student.id);
@@ -130,7 +130,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
 
   // the student has no live payment again: he is not under «Оплачено» any more
   await page.goto("/owner/payments");
-  await page.getByRole("tab", { name: "Оплачено" }).click();
+  await page.getByRole("tab", { name: "Без долга" }).click();
   await expect(row()).toHaveCount(0);
 });
 

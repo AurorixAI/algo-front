@@ -111,7 +111,7 @@ test("opening balance: the form, its live line and the body of the request (G-OP
   assert.deepEqual(G.buildOpeningPut({ ...empty, reason: " ошибка " }), { paid_until: null, debt_amount: null, debt_on: null, reason: "ошибка" });
   // the words of the owner on the form
   assert.equal(G.OPENING_TITLE, "Остаток на начало учёта");
-  assert.equal(G.OPENING_PAID_UNTIL_HINT, "Ученик уже заплатил до этой даты — до запуска в ALGO. Эти дни не начисляются и не превращаются в аванс.");
+  assert.equal(G.OPENING_PAID_UNTIL_HINT, "Ученик уже заплатил до этой даты — до запуска в ALGO. Эти дни не входят в стоимость и не превращаются в аванс.");
 });
 
 test("opening balance fixtures: the impact in words, the card line, the void", () => {
@@ -141,10 +141,10 @@ test("pause: the form, the server's calculation, the warnings, the chip and the 
   const saved = named("A06_");
   const calc = { pause: saved.pause, impact: G.normalizeImpact(saved.impact) };
   assert.deepEqual(G.pauseCalcLines(calc).map(plain), [
-    "За паузу не начисляется 5 дней: −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Баланс: долг 20 000 сум → аванс 80 000 сум",
+    "Дни паузы не входят в стоимость: 5 дней, −100 000 сум. Место в группе сохраняется.", "Оплачено до станет 03.11.", "Баланс: долг 20 000 сум → аванс 80 000 сум",
   ]);
   // a role without money sees no sum
-  assert.deepEqual(G.pauseCalcLines({ pause: saved.pause, impact: null }), ["За паузу не начисляется 5 дней. Место в группе сохраняется."]);
+  assert.deepEqual(G.pauseCalcLines({ pause: saved.pause, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
   const warnings = G.pauseWarnings(saved, today);
   assert.ok(warnings[0].startsWith("Пауза задним числом: уроки с 20.10 по 20.10 не будут засчитаны ни ученику, ни преподавателю"));
   assert.ok(warnings.some((line) => /Ведомость за октябрь покажет «Есть изменения»/.test(line)));
@@ -488,7 +488,7 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   const summary = { debt_total: 1250000, advance_total: 340000, debtors: 33, students_with_debt: 33, students_with_advance: 5, expiring: 4, active: 120 };
   const cards = P.positionCards(summary);
   assert.deepEqual(cards.map((card) => [card.label, plain(card.amount), card.sub, card.tone]), [
-    ["Долг учеников", "1 250 000 сум", "33 ученика с долгом", "debt"],
+    ["Долг", "1 250 000 сум", "33 ученика с долгом", "debt"],
     ["Аванс", "340 000 сум", "5 учеников оплатили вперёд", "advance"],
   ]);
   // one number for both
@@ -501,7 +501,7 @@ test("payments page: two cards before the tabs; the card count is the «Долж
   assert.equal(P.positionCards(old)[0].sub, "2 ученика с долгом");
   assert.equal(P.bucketCount(old, "debt"), 2);
   assert.equal(P.positionCards({ debt_total: 0, advance_total: 0, debtors: 0 })[0].tone, "none");
-  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Оплачено"]);
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => b.label), ["Должники", "Скоро платить", "Без долга"]);
   // the reason line of a debtor
   assert.equal(P.debtReasonText({ reason: "Не доплачено за октябрь: 150 000", status: "active" }), "Не доплачено за октябрь: 150 000");
   assert.equal(P.debtReasonText({ status: "expired", days_overdue: 12, debt: 5 }), "Просрочено на 12 дней");
@@ -565,14 +565,14 @@ test("B1: the payroll sheet line-not-found text; the edit form no longer promise
 
 test("payment tabs: the rows of each tab come from `buckets`, a tab «На паузе» appears with somebody on a pause; the statement keeps the new rows", () => {
   const summary = named("A30_");
-  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Оплачено (4)"]);
+  assert.deepEqual(P.PAYMENT_BUCKETS.map((b) => P.bucketTabLabel(b.label, P.bucketCount(summary, b.key))), ["Должники (3)", "Скоро платить (1)", "Без долга (4)"]);
   assert.equal(P.bucketCount(summary, "paused"), 1);
   // owner: the badge counts STUDENTS, like the card, even when a student owes in two groups (4 rows, 3 students)
   const twoGroups = { ...summary, debtors: 3, students_with_debt: 3, buckets: { ...summary.buckets, debt: 4, paused: 2 }, students_paused: 1 };
   assert.equal(P.bucketCount(twoGroups, "debt"), 3);
   assert.equal(P.positionCards(twoGroups)[0].sub.split(" ")[0], String(P.bucketCount(twoGroups, "debt"))); // card == tab badge
   assert.equal(P.bucketCount(twoGroups, "paused"), 1);
-  assert.deepEqual(P.visibleBuckets(summary, "debt").map((b) => b.label), ["Должники", "Скоро платить", "Оплачено", "На паузе"]);
+  assert.deepEqual(P.visibleBuckets(summary, "debt").map((b) => b.label), ["Должники", "Скоро платить", "Без долга", "На паузе"]);
   assert.deepEqual(P.visibleBuckets({ buckets: { paused: 0 } }, "debt").length, 3);
   assert.equal(P.parseBucket("paused"), "paused");
   // the card shows students, the tab rows: with one debt membership per student they are the same number

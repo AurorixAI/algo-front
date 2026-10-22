@@ -89,13 +89,15 @@ test("the open lessons view refreshes on focus, after actions and on badge chang
 
 // ---- row menu ---------------------------------------------------------------
 
-test("a row has ONE «⋯» menu: no «Открыть журнал» link, «Урока не было» only for a missed lesson", () => {
+test("a row has a BUTTON for the main action («Отметить» / «Открыть») and a «⋯» with «Урока не было» only for a missed lesson (IA audit F5)", () => {
   const view = read("src/components/attendance/open-lessons-view.tsx");
   assert.match(view, /RowMenu/);
-  assert.doesNotMatch(view, /Открыть журнал/);
-  assert.match(view, /label: "Отметить в журнале"/);
-  assert.match(view, /label: "Открыть в журнале"/);
+  assert.doesNotMatch(view, /Открыть журнал|label: "Отметить в журнале"|label: "Открыть в журнале"/);
+  assert.match(view, /data-testid="open-lesson-action"/);
+  assert.match(view, /openLessonActionLabel\(item\)/);
   assert.match(view, /label: "Урока не было"/);
+  assert.equal(openLessons.openLessonActionLabel({ actionType: "missed" }), "Отметить");
+  assert.equal(openLessons.openLessonActionLabel({ actionType: "in_progress" }), "Открыть");
   const inProgress = view.slice(view.indexOf('if (item.actionType === "in_progress")'), view.indexOf("return [", view.indexOf('if (item.actionType === "in_progress")')));
   assert.doesNotMatch(inProgress, /Урока не было/);
   // the journal and the list share one dialog (and so one API call)

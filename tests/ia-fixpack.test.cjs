@@ -412,3 +412,164 @@ test("F16 / F36: one «Копировать ID» (useCopy); no dead copy code on
   }
   assert.match(read("src/lib/use-copy.ts"), /export function useCopy\(/);
 });
+
+// ── F26-F29, F31, F34: paths and deep links ─────────────────────────────────────────────────────────────
+
+const L2 = require(path.join(root, "src/lib/ia-links.ts"));
+const PAY = require(path.join(root, "src/lib/payments.ts"));
+const INC = require(path.join(root, "src/lib/payments-income-v2.ts"));
+const OL = require(path.join(root, "src/lib/open-lessons.ts"));
+
+test("ia-links: every link is built from the workspace; money screens lead to the student's «Оплаты» tab, a lesson to its journal", () => {
+  assert.equal(L2.workspaceOfPath("/admin/payments"), "admin");
+  assert.equal(L2.workspaceOfPath("/owner/payments"), "owner");
+  assert.deepEqual(L2.basesOfPayments("/admin/payments/"), L2.workspaceBases("admin"));
+  assert.equal(L2.studentHref("/owner/students", "s 1"), "/owner/students/s%201?tab=payments");
+  assert.equal(L2.studentHref("/owner/students/", "s1", "learning"), "/owner/students/s1?tab=learning");
+  assert.equal(L2.studentHref("/owner/students", "s1", null), "/owner/students/s1");
+  assert.equal(L2.groupHref("/admin/groups", "g1"), "/admin/groups/g1");
+  assert.equal(L2.groupHref("/admin/groups", "g1", "payments"), "/admin/groups/g1?tab=payments");
+  assert.equal(L2.groupLessonHref("/owner/groups", "g1", "l1", "2026-10-22T10:00"), "/owner/groups/g1?tab=schedule&lesson=l1&date=2026-10-22");
+  assert.equal(L2.groupPaymentsListHref("/owner/payments", "g1"), "/owner/payments?bucket=debt&group_id=g1");
+  assert.equal(L2.teacherHref("t 1"), "/owner/teachers?teacher=t%201");
+  assert.equal(INC.debtorsHref("/owner/payments"), "/owner/payments?bucket=debt");
+});
+
+test("F26: the card «Долг» of «Оплаты» leads to the debtors tab of the same page; «Аванс» to its card on «Поступления» (#advance)", () => {
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.match(page, /card\.key === "debt" \? `\$\{debtorsHref\(paymentsBase\)\}#payments-list` : `\$\{incomeHref\(paymentsBase\)\}#advance`/);
+  assert.match(page, /id="payments-list"/);
+  assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Аванс" id="advance"/);
+  assert.match(read("src/components/payments/income-page.tsx"), /window\.location\.hash === "#advance"/);
+  const cards = PAY.positionCards({ debt_total: 500000, advance_total: 0, debtors: 2 });
+  assert.deepEqual(cards.map((card) => card.label), ["Долг", "Аванс"]);
+});
+
+test("F18: «Долг» is the name of the card here and in «Поступления»; the tabs are «Должники» / «Скоро платить» / «Без долга»; «Оплачено» stays an amount and a chip", () => {
+  assert.deepEqual(PAY.PAYMENT_BUCKETS.map((bucket) => bucket.label), ["Должники", "Скоро платить", "Без долга"]);
+  assert.match(read("src/components/payments/income-parts.tsx"), /<StatCard label="Долг" id="position"/);
+  assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /Долг на сегодня"/);
+  assert.equal(PAY.membershipChip({ status: "active", period_mode: "calendar", paid_until: "2026-11-15", debt: 0 }).label, "Оплачено до 15.11");
+  assert.match(read("src/components/payments/receipt-view.tsx"), /receipt\.lessons_count \? "Пакет" : "Период"/);
+});
+
+test("F29: money screens open the student on «Оплаты» and the group on its page (list, group tab, journal drawer, card)", () => {
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.match(page, /studentHref\(studentProfileBasePath, row\.student_id, "payments"\)/);
+  assert.match(page, /groupHref\(groupsBasePath, row\.group_id, "payments"\)/);
+  assert.match(read("src/components/groups/group-payments-tab.tsx"), /studentHref\(studentsBasePath, view\.studentId, "payments"\)/);
+  const journal = read("src/components/payments/income-journal.tsx");
+  assert.match(journal, /student: studentHref\(studentProfileBasePath, row\.student_id, "payments"\)/);
+  assert.match(journal, /data-testid="drawer-group-link"/);
+  assert.match(read("src/components/students/student-payments-block.tsx"), /data-testid="payments-group-link"/);
+  // no money screen builds a bare student URL by hand any more
+  for (const file of ["src/components/payments/payments-page.tsx", "src/components/payments/income-journal.tsx", "src/components/groups/group-payments-tab.tsx"]) {
+    assert.doesNotMatch(read(file), /`\$\{(studentProfileBasePath|studentsBasePath)[^`]*\}\/\$\{[^`]*student_?[iI]d\}`/, file);
+  }
+});
+
+test("F4 / d3: the menu of a row of «Оплаты» is «Простить долг» | «Вернуть аванс», «Исправить последнюю оплату», «Отменить последнюю оплату»; «Выписка» is an icon link, the card is the name", () => {
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.doesNotMatch(page, /key: "statement"|key: "profile"|Карточка ученика", icon/);
+  assert.match(page, /data-testid="payment-row-statement"/);
+  assert.match(page, /aria-label=\{`Выписка: \$\{row\.student_name\}`\}/);
+  const keys = [...page.matchAll(/menu\.push\(\{ key: "(\w+)"/g)].map((match) => match[1]);
+  assert.deepEqual(keys, ["writeoff", "refund", "correct", "void"]); // at most one of the first two is offered (debt XOR advance); never more than 3 items
+  assert.match(page, /label: "Исправить последнюю оплату"/);
+  assert.match(page, /label: "Отменить последнюю оплату", icon: XCircle, danger: true/);
+});
+
+test("F28: the statement leads to the student («Оплаты») and the group and offers «Внести оплату»; the receipt knows where it came from and leads back", () => {
+  const statement = read("src/components/payments/statement-view.tsx");
+  assert.match(statement, /data-testid="statement-student-link"/);
+  assert.match(statement, /data-testid="statement-group-link"/);
+  assert.match(statement, /data-testid="statement-pay"/);
+  assert.match(statement, /studentLink=\{studentHref\(bases\.students, m\.student_id, "payments"\)\}/);
+  assert.equal(PAY.receiptHref("/owner/payments", "p1"), "/owner/payments/receipt/p1");
+  assert.equal(PAY.receiptHref("/owner/payments", "p1", { membershipId: "m1", studentId: "s1", groupId: "g1" }), "/owner/payments/receipt/p1?m=m1&s=s1&g=g1");
+  assert.deepEqual(PAY.receiptContextOf(new URLSearchParams("m=m1&s=s1&g=g1")), { membershipId: "m1", studentId: "s1", groupId: "g1" });
+  assert.deepEqual(PAY.receiptContextOf(new URLSearchParams("m=../x&s=" + "a".repeat(80))), { membershipId: null, studentId: null, groupId: null }); // nothing odd goes into a link
+  const receipt = read("src/components/payments/receipt-view.tsx");
+  for (const id of ["receipt-link-statement", "receipt-link-student", "receipt-link-group"]) assert.ok(receipt.includes(id), id);
+  assert.match(receipt, /<Suspense/);
+  assert.match(read("src/components/payments/income-journal.tsx"), /receiptHref\(paymentsBase, row\.id, \{ membershipId: row\.membership_id, studentId: row\.student_id, groupId: row\.group_id \}\)/);
+});
+
+test("F27: the owner's dashboard - KPI cards are links (students, staff), the debt and attention tiles lead to their lists, the group rows to the group", () => {
+  const D2 = require(path.join(root, "src/lib/owner-dashboard-links.ts"));
+  assert.equal(D2.dashboardKpiHref("students"), "/owner/students");
+  assert.equal(D2.dashboardKpiHref("staff"), "/owner/teachers");
+  const fmt = (n) => `${n} сум`;
+  const input = { moneyAvailable: true, debtTotal: 1200000, studentsWithDebt: 3, attention: 4, pendingSubstitutions: 2, format: fmt, debtorsHref: "/owner/payments?bucket=debt" };
+  assert.deepEqual(D2.dashboardTiles(input).map((tile) => [tile.key, tile.href]), [["debt", "/owner/payments?bucket=debt"], ["attention", "/owner/attendance"], ["substitutions", "/owner/substitutions"]]);
+  assert.equal(D2.dashboardTiles(input)[0].label, "Долг · 3 ученика");
+  assert.deepEqual(D2.dashboardTiles({ ...input, moneyAvailable: false, attention: 0, pendingSubstitutions: 0 }), []);   // no money right, nothing to attend: no tiles
+  assert.equal(D2.dashboardTiles({ ...input, debtTotal: 0, attention: 0, pendingSubstitutions: 0 })[0].value, "Долга нет");
+  const page = read("src/app/owner/dashboard/page.tsx");
+  assert.match(page, /data-testid="dashboard-kpi-link"/);
+  assert.match(page, /data-testid="dashboard-group-row"/);
+  assert.equal((page.match(/href=\{`\/owner\/groups\/\$\{g\.group_id\}`\}/g) || []).length, 2); // leaders and risk groups
+  assert.match(page, /dashboardKpiHref\("students"\)/);
+  assert.doesNotMatch(page, /["'`]\/admin\//);
+});
+
+test("F31: a substitution row leads to the group, to its lesson in the journal and (owner) to the teacher's rate", () => {
+  const page = read("src/components/substitutions/substitutions-page.tsx");
+  assert.match(page, /groupHref\(bases\.groups, item\.group\.id\)/);
+  assert.match(page, /journalHref\(bases\.groups, \{ groupId: item\.group\.id, lessonDate: item\.lesson\.date, lessonId: item\.lesson\.lessonId \}\)/);
+  assert.match(page, /role === "owner" && item\.teacher\.id \?/);
+  assert.equal(OL.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-22", lessonId: "l1" }), "/owner/groups/g1?tab=attendance&month=2026-10&lesson=l1&date=2026-10-22");
+});
+
+test("F5 / F6 / d4: «Незакрытые уроки» has a button for the main action and «Урока не было» in «⋯»; «Пропуски» keeps at most three menu items", () => {
+  const open = read("src/components/attendance/open-lessons-view.tsx");
+  assert.match(open, /data-testid="open-lesson-action"/);
+  assert.equal(OL.openLessonActionLabel({ actionType: "missed" }), "Отметить");
+  assert.equal(OL.openLessonActionLabel({ actionType: "in_progress" }), "Открыть");
+  const excuses = read("src/components/attendance/excuses-page.tsx");
+  const menus = [...excuses.matchAll(/return \[([^\]]+)\];/g)].map((match) => match[1].split(",").length);
+  assert.ok(menus.length >= 3 && menus.every((count) => count <= 3), JSON.stringify(menus));
+  assert.doesNotMatch(excuses, /key: "journal"|key: "card"/);
+  assert.match(excuses, /data-testid="excuse-journal-link"/);
+});
+
+// ── F19 / F20-F25: vocabulary, headers, alignment ──────────────────────────────────────────────────────
+
+test("F19 / Q4: no «Начисл…» on the money screens of the student; the payroll columns say «Заработано»", () => {
+  const files = [
+    "src/components/payments/income-collection.tsx", "src/components/payments/income-parts.tsx", "src/components/payments/payments-page.tsx", "src/components/payments/statement-view.tsx",
+    "src/components/payments/membership-payments.tsx", "src/components/payments/membership-price.tsx", "src/components/payments/pause-dialog.tsx", "src/components/groups/group-payments-tab.tsx",
+    "src/lib/payments-income-v2.ts", "src/lib/payments-logica.ts", "src/lib/payments.ts", "src/lib/payments-ledger.ts", "src/lib/group-price.ts", "src/lib/membership-actions.ts",
+  ];
+  for (const file of files) assert.doesNotMatch(read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""), /[Нн]ачисл/, file);
+  assert.match(read("src/components/payroll/sheet-table.tsx"), /<th scope="col" className=\{`\$\{HEAD\} text-right`\}>Заработано<\/th>/);
+  assert.match(read("src/components/payroll/sheet-controls.tsx"), />Заработано<\/th>/);
+  assert.doesNotMatch(read("src/components/payroll/sheet-table.tsx").replace(/\/\*[\s\S]*?\*\//g, ""), /<th[^>]*>Начислено/);
+  const L3 = require(path.join(root, "src/lib/payments-logica.ts"));
+  assert.deepEqual(L3.pauseCalcLines({ pause: { first_day: "2026-10-20", last_day: "2026-10-24", days: 5 }, impact: null }), ["Дни паузы не входят в стоимость: 5 дней. Место в группе сохраняется."]);
+});
+
+test("F22 / F23 / F24: «Прикрепить» + object, «Настройки» everywhere, one H1 size on the owner / admin screens", () => {
+  assert.match(read("src/components/attendance/excuses-page.tsx"), /label: "Прикрепить справку"/);
+  assert.doesNotMatch(read("src/components/attendance/excuses-page.tsx"), /Приложить справку/);
+  assert.match(read("src/components/payments/payment-cheques.tsx"), /label: "Прикрепить чек"/);
+  assert.match(read("src/app/admin/diagnostics/page.tsx"), /Карточка ученика: /);
+  assert.doesNotMatch(read("src/app/admin/diagnostics/page.tsx"), /Профиль ученика/);
+  for (const file of ["src/components/layout/sidebar.tsx", "src/components/layout/bottom-nav.tsx"]) assert.doesNotMatch(read(file), /Настройки аккаунта/, file);
+  assert.doesNotMatch(read("src/app/owner/settings/page.tsx"), /Настройки рабочей области/);
+  const h1 = /<h1 className="[^"]*text-xl font-bold [^"]*md:text-2xl/;
+  for (const file of ["src/app/owner/teachers/page.tsx", "src/app/owner/settings/page.tsx", "src/app/admin/settings/page.tsx", "src/app/admin/diagnostics/page.tsx", "src/app/teacher/settings/page.tsx", "src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx", "src/components/payments/payments-page.tsx", "src/components/students/students-list-view.tsx"]) {
+    assert.match(read(file), h1, file);
+  }
+  for (const file of ["src/app/owner/teachers/page.tsx", "src/components/groups/group-create-modal.tsx", "src/app/invite/[code]/page.tsx"]) assert.doesNotMatch(read(file), />\s*Учител[ьяе]\s*</, file);
+});
+
+test("F25: money is right-aligned, dates and counts are centred - the list of «Оплаты», «Цены групп», the payroll sheet", () => {
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.match(page, /<span className="text-right">\{priceLabelOf\(periodMode\)\}<\/span>/);
+  assert.match(page, /<span className="text-right">Последняя оплата<\/span>/);
+  assert.match(page, /<span className="text-center">Статус<\/span>/);
+  assert.match(read("src/components/payments/group-prices-page.tsx"), /aligns=\{\["left", "right", "right", "center", "right"\]\}/);
+  assert.match(read("src/components/payroll/sheet-table.tsx"), /aria-label=\{priceColumn\} className=\{`\$\{HEAD\} text-right/);
+  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<span className="text-right">\{label\}<\/span>/);
+});

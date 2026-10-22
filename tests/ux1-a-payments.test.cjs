@@ -98,14 +98,14 @@ test("status: the chip says the state, the second line says «оплачено �
   assert.match(rules.STATUS_TONE_CLASS[rules.statusTone("active")], /slate/);
 });
 
-test("tabs by money: «Должники», «Скоро платить», «Оплачено» and a counter on every tab", () => {
+test("tabs by money: «Должники», «Скоро платить», «Без долга» and a counter on every tab", () => {
   assert.equal(rules.PAYMENT_BUCKETS.find((bucket) => bucket.key === "none"), undefined);
   const summary = { debtors: 12, expiring: 3, active: 48 };
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(summary, bucket.key))), [
-    "Должники (12)", "Скоро платить (3)", "Оплачено (48)",
+    "Должники (12)", "Скоро платить (3)", "Без долга (48)",
   ]);
   assert.deepEqual(rules.PAYMENT_BUCKETS.map((bucket) => rules.bucketTabLabel(bucket.label, rules.bucketCount(null, bucket.key))), [
-    "Должники", "Скоро платить", "Оплачено",
+    "Должники", "Скоро платить", "Без долга",
   ]);
 });
 

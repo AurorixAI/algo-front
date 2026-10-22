@@ -551,7 +551,7 @@ export interface CollectedCard {
 export function collectedCard(overview: IncomeOverview): CollectedCard | null {
   const total = overview.collection?.total;
   if (!total) return null;
-  if (total.charged <= 0) return { amount: formatMoney(0), caption: "За этот месяц ничего не начислено", pct: null };
+  if (total.charged <= 0) return { amount: formatMoney(0), caption: "За этот месяц стоимости нет", pct: null };
   const pct = Math.max(0, Math.min(100, sum(total.pct)));
   return { amount: formatMoney(total.paid), caption: `из ${formatMoney(total.charged)} · ${pct}%`, pct };
 }

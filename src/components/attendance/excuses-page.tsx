@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  BookOpen,
-  Check,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -15,7 +13,6 @@ import {
   Paperclip,
   Trash2,
   Undo2,
-  UserRound,
   XCircle,
 } from "lucide-react";
 import {
@@ -579,24 +576,16 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
     const atLimit = item.files.length >= EXCUSE_FILE_MAX_COUNT;
     const attach: RowMenuItem = atLimit
       ? { key: "attach", label: `Максимум файлов: ${EXCUSE_FILE_MAX_COUNT}`, icon: Paperclip, disabled: true, onSelect: () => undefined }
-      : { key: "attach", label: "Приложить справку", icon: Paperclip, onSelect: () => pickFile(item) };
+      : { key: "attach", label: "Прикрепить справку", icon: Paperclip, onSelect: () => pickFile(item) };
     const reject: RowMenuItem = { key: "reject", label: "Отклонить…", icon: XCircle, danger: true, onSelect: () => openDialog(item, "rejected", "optional") };
     const confirmWithNote: RowMenuItem = { key: "confirm-note", label: "Подтвердить с примечанием…", icon: MessageSquare, onSelect: () => openDialog(item, "confirmed", "required") };
-    const journal: RowMenuItem = { key: "journal", label: "Открыть журнал", icon: BookOpen, onSelect: () => router.push(excuseJournalHref(groupsBasePath, item)) };
-    const card: RowMenuItem = { key: "card", label: "Карточка ученика", icon: UserRound, onSelect: () => router.push(`${studentProfileBasePath}/${item.student.id}`) };
     const reset: RowMenuItem = { key: "reset", label: "Сбросить решение", icon: Undo2, onSelect: () => void resetDecision(item) };
 
-    // A waiting excuse has «Подтвердить» and «Отклонить» in the row itself: the menu keeps the rare actions.
-    if (item.status === "pending") return [confirmWithNote, attach, journal, card];
-    if (item.status === "confirmed") return [reject, reset, attach, journal, card];
-    return [
-      { key: "confirm", label: "Подтвердить", icon: Check, onSelect: () => openDialog(item, "confirmed", "none") },
-      confirmWithNote,
-      reset,
-      attach,
-      journal,
-      card,
-    ];
+    // IA audit F6 / d4: the menu has at most three items - the decision with a note, the certificate, the reset.  «Подтвердить» and
+    // «Отклонить» are buttons of the row; the journal and the card of the student are links of the row, not menu items.
+    if (item.status === "pending") return [confirmWithNote, attach];
+    if (item.status === "confirmed") return [reject, reset, attach];
+    return [confirmWithNote, reset, attach];
   };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -702,7 +691,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                     className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 ${cols}`}
                   >
                     {/* Ученик: the name leads, id and group are secondary */}
-                    <div className={`min-w-0 ${pendingTab ? "" : "pr-8 xl:pr-0"}`}>
+                    <div className={`min-w-0 ${pendingTab || tab === "rejected" ? "" : "pr-8 xl:pr-0"}`}>
                       <Link
                         href={`${studentProfileBasePath}/${item.student.id}`}
                         className="block min-w-0 break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 xl:line-clamp-2"
@@ -722,6 +711,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                         <span className="xl:hidden"> · {teacherShort}</span>
                       </p>
                       <p className="hidden truncate text-xs text-slate-500 xl:block" title={item.teacher?.name || undefined}>{teacherShort}</p>
+                      <Link href={excuseJournalHref(groupsBasePath, item)} data-testid="excuse-journal-link" className="text-xs font-semibold text-primary-700 hover:underline">Журнал</Link>
                     </div>
 
                     {/* Причина */}
@@ -771,7 +761,7 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
 
                     {/* Действия */}
                     {/* On a phone the decided cards keep the «⋯» in the corner instead of a row of its own */}
-                    <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
+                    <div className={`flex items-center justify-end gap-1.5 xl:-my-1.5 ${pendingTab || tab === "rejected" ? "mt-1" : "absolute right-2 top-2 xl:static"}`}>
                       {pendingTab && (
                         <>
                           <button
@@ -794,6 +784,17 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
                             Отклонить
                           </button>
                         </>
+                      )}
+                      {tab === "rejected" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          aria-label={`Подтвердить: ${item.student.full_name}`}
+                          onClick={() => openDialog(item, "confirmed", "none")}
+                          className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-white px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 xl:flex-none"
+                        >
+                          Подтвердить
+                        </button>
                       )}
                       <RowMenu items={menuFor(item)} label={`Действия: ${item.student.full_name}`} busy={busy || uploading} width={264} />
                     </div>

@@ -351,12 +351,12 @@ export default function TeacherGroupDetailPage() {
                 {group.teacher_name ? (
                   <span className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium">
                     <Users className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Учитель: {group.teacher_name}</span>
+                    <span>Преподаватель: {group.teacher_name}</span>
                   </span>
                 ) : (
                   <span className="flex items-center gap-1 text-slate-400 italic px-2 py-1">
                     <Users className="w-3.5 h-3.5" />
-                    Учитель не назначен
+                    Преподаватель не назначен
                   </span>
                 )}
               </div>

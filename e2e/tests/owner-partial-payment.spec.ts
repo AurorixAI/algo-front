@@ -59,6 +59,6 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toHaveCount(0);
-  await page.getByRole("tab", { name: /^Оплачено/ }).click();
+  await page.getByRole("tab", { name: /^Без долга/ }).click();
   await expect(row()).toContainText("Оплачено");
 });

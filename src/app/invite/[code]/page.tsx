@@ -132,7 +132,7 @@ export default function InviteAcceptPage() {
               <div>
                 <p className="font-medium text-slate-900">{inviteInfo.org_name}</p>
                 <p className="text-sm text-primary-600">
-                  Роль: {inviteInfo.org_role === "admin" ? "Администратор" : "Учитель"}
+                  Роль: {inviteInfo.org_role === "admin" ? "Администратор" : "Преподаватель"}
                 </p>
               </div>
             </div>

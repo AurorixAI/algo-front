@@ -152,13 +152,13 @@ export default function TeacherSettingsPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] pb-12">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Настройки</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">Настройки</h1>
         <p className="mt-1 font-medium text-slate-500">Управляйте данными профиля и безопасностью учётной записи</p>
       </header>
 
       <div className="rounded-3xl border border-slate-200/50 bg-white/50 p-2 shadow-sm sm:p-6 lg:p-8">
         <SettingsSection
-          title="Личный профиль"
+          title="Профиль"
           description="Имя, фамилия и почта используются для вашей учётной записи и видны в рабочем пространстве."
           icon={User}
           onSave={handleProfile}

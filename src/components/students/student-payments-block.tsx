@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { AlertCircle, Loader2, Wallet } from "lucide-react";
+import { groupHref } from "@/lib/ia-links";
 import { DEMO_MODE, orgApi, type StudentProfile } from "@/lib/api";
 import { utcNaiveToBusinessIsoDate } from "@/lib/business-time";
 import { type MembershipPaymentRow } from "@/lib/payments";
@@ -83,7 +85,8 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
         heading={(
           <div className="min-w-0 space-y-0.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`break-words font-bold ${muted ? "text-sm text-slate-700" : "text-base text-slate-900"}`}>{row.group_name}</span>
+              {/* IA audit F29: the name of the group is a link to its page */}
+              <Link href={groupHref(groupsBasePath, row.group_id)} data-testid="payments-group-link" className={`break-words font-bold hover:text-primary-700 hover:underline ${muted ? "text-sm text-slate-700" : "text-base text-slate-900"}`}>{row.group_name}</Link>
               {/* No class chip here: `class_level` of the row is the STUDENT's class (it is in the card header), next to a group
                   name it read as the group's class («Геометрия 9 · 8 класс»). */}
               {!muted && row.is_primary && active.length > 1 && (

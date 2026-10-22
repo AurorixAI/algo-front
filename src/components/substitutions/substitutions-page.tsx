@@ -1,7 +1,10 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { groupHref, teacherHref, workspaceBases } from "@/lib/ia-links";
+import { journalHref } from "@/lib/open-lessons";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
 import { CHIP_BASE_CLASS } from "@/lib/chip-tone";
@@ -55,6 +58,7 @@ const CHIP_TONE: Record<DeadlineChip["tone"], string> = {
  * is re-read after every action.
  */
 function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
+  const bases = workspaceBases(role);
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedId = searchParams?.get("request") ?? null;
@@ -328,8 +332,17 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         />
                       )}
                       <div className="min-w-0">
-                        <p className="break-words text-sm font-semibold leading-5 text-slate-900">{item.group.name}</p>
-                        <p className="text-xs text-slate-500">{lessonWhen(item.lesson.date, item.lesson.startTime, item.lesson.endTime)}</p>
+                        {/* IA audit F31: the group and the lesson are links (the journal of the group on that lesson), the teacher leads to his rate (owner) */}
+                        <Link href={groupHref(bases.groups, item.group.id)} data-testid="substitution-group-link" className="block break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 hover:underline">{item.group.name}</Link>
+                        <p className="text-xs text-slate-500">
+                          {lessonWhen(item.lesson.date, item.lesson.startTime, item.lesson.endTime)}
+                          {item.lesson.lessonId && (
+                            <>
+                              <span aria-hidden> · </span>
+                              <Link href={journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId })} data-testid="substitution-lesson-link" className="font-semibold text-primary-700 hover:underline">Открыть урок</Link>
+                            </>
+                          )}
+                        </p>
                         {siblings.length > 0 && (
                           <p className="mt-0.5 text-xs text-slate-500">
                             {moreLessonsText(siblings.length)}{" "}
@@ -341,7 +354,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
                     {/* Преподаватель */}
                     <div className="min-w-0 text-xs text-slate-500 xl:text-center xl:text-sm">
-                      <p className="break-words font-medium text-slate-800">{item.teacher.name}</p>
+                      {role === "owner" && item.teacher.id ? (
+                        <Link href={teacherHref(item.teacher.id)} data-testid="substitution-teacher-link" className="block break-words font-medium text-slate-800 hover:text-primary-700 hover:underline">{item.teacher.name}</Link>
+                      ) : (
+                        <p className="break-words font-medium text-slate-800">{item.teacher.name}</p>
+                      )}
                       {item.origin === "system" && <p className="text-xs text-slate-500">Запрос создан системой</p>}
                     </div>
 

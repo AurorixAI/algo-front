@@ -175,7 +175,7 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
       if (item.details.receipt_no) {
         items.push({
           key: "receipt", label: "Квитанция", icon: Receipt,
-          onSelect: () => { markReceiptNavigation(id); router.push(receiptHref(paymentsBase, id)); },
+          onSelect: () => { markReceiptNavigation(id); router.push(receiptHref(paymentsBase, id, { membershipId, studentId: statement?.membership.student_id, groupId: statement?.membership.group_id })); },
         });
       }
       const attach = cheques.menuItem(id);

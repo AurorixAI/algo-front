@@ -13,7 +13,7 @@ export const SETTINGS_SECTIONS: Array<{ key: SettingsSection; label: string }> =
   { key: "payments", label: "Оплаты" },
   { key: "attendance", label: "Посещаемость" },
   { key: "payroll", label: "Зарплата" },
-  { key: "profile", label: "Личный профиль" },
+  { key: "profile", label: "Профиль" },
   { key: "security", label: "Безопасность" },
 ];
 
