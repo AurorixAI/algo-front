@@ -66,7 +66,7 @@ import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendanc
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
-import { createToast, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import { createToast, narrowToFrozenRoster, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { RequestControl } from "@/components/substitutions/request-control";
@@ -682,6 +682,13 @@ export default function TeacherDashboardPage() {
         topic: activeLesson.topic,
       });
       marksOps.noteVersion(started);
+      // the roster is frozen by the start: a student on a pause that day is not in it
+      {
+        const startedDate = activeLesson.occurrenceDate || businessDate;
+        const att = await orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: startedDate, dateTo: startedDate }).catch(() => null);
+        const frozen = att?.rosterStudentIds?.[`${startedDate}_${activeLesson.id}`];
+        if (frozen) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
+      }
       setActiveInstanceStatus("in_progress");
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));

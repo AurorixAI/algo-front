@@ -535,6 +535,17 @@ export function showsGroupLinks(source: RosterSource): boolean {
   return source === "group";
 }
 
+/**
+ * The roster the server froze when the lesson was started (`rosterStudentIds[<date>_<lessonId>]`): the group's list is read before
+ * the start and still holds a student who is on a pause that day (he is not in the class and is not marked).  No frozen roster yet:
+ * the list stays as it is.
+ */
+export function narrowToFrozenRoster<T extends { id: string }>(students: T[], frozenIds: string[] | null | undefined): T[] {
+  if (!Array.isArray(frozenIds)) return students;
+  const frozen = new Set(frozenIds);
+  return students.filter((student) => frozen.has(student.id));
+}
+
 /** `lessonRoster` of the journal as the students of the panel: the shape of a group member, without a phone and without a level. */
 export function rosterFromJournal(roster: LessonRosterStudent[] | null | undefined): StudentInGroup[] {
   return (roster ?? []).map((student) => ({

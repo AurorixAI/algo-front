@@ -49,7 +49,7 @@ import {
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
-import { occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
+import { narrowToFrozenRoster, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
@@ -848,6 +848,12 @@ export default function TeacherSchedulePage() {
         topic: activeLesson.topic,
       });
       marksOps.noteVersion(started);
+      // the roster is frozen by the start: a student on a pause that day is not in it
+      {
+        const att = await orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: activeLesson.occurrenceDate, dateTo: activeLesson.occurrenceDate }).catch(() => null);
+        const frozen = att?.rosterStudentIds?.[`${activeLesson.occurrenceDate}_${activeLesson.id}`];
+        if (frozen) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
+      }
       setActiveLessonStatus("in_progress");
       setWeekLessonStatusMap((previous) => ({
         ...previous,

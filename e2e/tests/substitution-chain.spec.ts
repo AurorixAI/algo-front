@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { ApiError, Org, clockReaches, runLesson } from "../support/api";
 import { businessNow, payrollLine } from "../support/time";
-import { money } from "../support/ui";
+import { groupedDigits } from "../support/ui";
 
 /**
  * LOGIC-B2, the chain of a substitution: the teacher says «Не смогу провести» on a lesson that has not begun -> the
@@ -90,11 +90,17 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   // and his own lesson elsewhere is still his
   await runLesson(asker, elsewhere, { records: { [otherPupil.id]: "present" }, complete: true });
 
-  // --- 4. the payroll of the month: one lesson for the substitute (50 % of 600 000 / 12), the asker has only his own
+  // --- 4. the payroll of the month: the lesson is counted for the substitute (50 % of 600 000 / 12), the asker has only his own
   await ownerPage.goto(`/owner/payroll?month=${month}`);
-  const payrollRow = (name: string) => ownerPage.getByRole("row").filter({ hasText: name });
-  await expect(payrollRow("Заменяющий")).toContainText("1 урок");
-  await payrollRow("Заменяющий").getByRole("button", { name: "Рассчитать" }).click();
-  await expect(payrollRow("Заменяющий")).toContainText(money(payrollLine(600000, "50", 1)));
-  await expect(payrollRow("Просящий")).toContainText("1 урок");
+  await ownerPage.getByRole("button", { name: "Рассчитать всех" }).click();
+  const preview = ownerPage.getByRole("region", { name: "Предпросмотр расчёта" });
+  await expect(preview).toBeVisible();
+  const own = payrollLine(600000, "50", 1);
+  await preview.getByRole("tab", { name: /Заменяющий/ }).click();
+  await expect(preview.getByTestId("payroll-total")).toContainText(groupedDigits(own));
+  await expect(preview.getByRole("row", { name: /Ученик Анвар/ })).toContainText(`${groupedDigits(own)} сум`);
+  await preview.getByRole("tab", { name: /Просящий/ }).click();
+  await expect(preview.getByTestId("payroll-total")).toContainText(groupedDigits(own));
+  await expect(preview.getByRole("row", { name: /Другая Мадина/ })).toBeVisible();
+  await expect(preview.getByRole("row", { name: /Ученик Анвар/ })).toHaveCount(0); // the replaced lesson is not his
 });

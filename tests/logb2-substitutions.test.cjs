@@ -728,3 +728,10 @@ test("[int] the journal and the schedule mark a moved / cancelled original by su
   const importFixture = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/logB/c3_commit_ok.json"), "utf8"));
   assert.equal(importFixture.counts.openings, 0);
 });
+
+test("narrowToFrozenRoster: the list read before the start loses the student who is on a pause (the frozen roster decides)", () => {
+  const list = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  assert.deepEqual(S.narrowToFrozenRoster(list, ["a", "c"]).map((s) => s.id), ["a", "c"]);
+  assert.equal(S.narrowToFrozenRoster(list, undefined), list, "no frozen roster yet: the list stays");
+  assert.deepEqual(S.narrowToFrozenRoster(list, []), [], "an empty frozen roster is a roster");
+});
