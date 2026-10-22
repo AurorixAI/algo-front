@@ -210,7 +210,7 @@ test("student card header on a phone: the group badge is one truncated line (ful
   assert.match(badge, /Users className="[^"]*\bshrink-0\b/);
   // tabs: a scrollable strip of whole tabs, short labels below sm, the active tab scrolled into the strip's own box
   assert.match(view, /data-testid="student-tabs"[^>]*overflow-x-auto|overflow-x-auto[^>]*data-testid="student-tabs"/);
-  assert.match(view, /\bshrink-0 items-center gap-2 whitespace-nowrap\b/);
+  assert.match(view, /\bflex-1 sm:flex-none shrink-0 justify-center items-center gap-1\.5 sm:gap-2 whitespace-nowrap px-1\.5 sm:px-4 py-3 text-\[13px\] sm:text-sm\b/); // the 4 short tabs share the phone width evenly, whole
   assert.match(view, /<span className="sm:hidden">\{PROFILE_TAB_SHORT_LABEL\[id\]\}<\/span>/);
   assert.match(view, /<span className="hidden sm:inline">\{PROFILE_TAB_LABEL\[id\]\}<\/span>/);
   assert.match(view, /strip\.scrollTo\(\{ left:/, "scrolls the strip, not the page (no scrollIntoView)");

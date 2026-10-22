@@ -463,7 +463,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 aria-selected={isActive}
                 aria-controls="student-tab-panel"
                 onClick={() => selectTab(id)}
-                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                className={`flex flex-1 sm:flex-none shrink-0 justify-center items-center gap-1.5 sm:gap-2 whitespace-nowrap px-1.5 sm:px-4 py-3 text-[13px] sm:text-sm font-semibold border-b-2 transition-all cursor-pointer ${
                   isActive
                     ? "border-primary-600 text-primary-600"
                     : "border-transparent text-slate-500 hover:text-slate-800"
