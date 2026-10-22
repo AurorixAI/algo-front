@@ -93,7 +93,9 @@ export async function openPaymentCardMenu(page: Page) {
 /** Open the card's «⋯» menu and choose an item (its dialog / panel opens). */
 export async function cardMenuItem(page: Page, name: string | RegExp) {
   await openPaymentCardMenu(page);
-  await page.getByRole("menuitem", { name, exact: typeof name === "string" }).click();
+  // A scroll closes the menu by design, and a real click scrolls a menu that is clipped by a phone's viewport into view first:
+  // the click event is sent to the item itself.
+  await page.getByRole("menuitem", { name, exact: typeof name === "string" }).dispatchEvent("click");
 }
 
 /** The labels of the card's «⋯» menu (it is closed again). */
