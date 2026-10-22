@@ -343,7 +343,8 @@ test("Hint replaces hover-only title tooltips of the badges whose detail was onl
   assert.match(journal, /<Hint text=\{formatMembershipEvent\(membershipEvent\)\}/);
   assert.match(journal, /<Hint\s+text=\{\[\s*`Исправлено:/);
   assert.match(journal, /\{excuse && \(\s*<div className="mb-1 rounded-xl bg-slate-50 px-3 py-2">\s*<p className="whitespace-pre-line[^"]*">\{excuseTooltip\(excuse, \{ withLate: false \}\)\}<\/p>/, "the absence reason is also in the opened cell menu");
-  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /<Hint text=\{state\.description\}/);
+  // income2 §1: a schedule card is information only - its chip is plain text with the detail in the title, not a focusable Hint
+  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /title=\{state\.description\}/);
 
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
