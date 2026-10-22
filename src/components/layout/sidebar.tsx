@@ -33,7 +33,7 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { effectiveRole } from "@/lib/role-home";
 import { staffDisplayName } from "@/lib/staff-name";
 import { navBadgeText } from "@/lib/nav-badge";
-import { waitingPeopleCount } from "@/lib/payments-banner";
+import { debtorsCount } from "@/lib/payments";
 import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomNav } from "@/lib/bottom-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
 
@@ -120,10 +120,8 @@ export function Sidebar() {
   // in the layout; a teacher never reads it.
   const paymentsAvailable = usePaymentsSummary((state) => state.available);
   const paymentsKnown = usePaymentsSummary((state) => state.loaded);
-  // The badge counts the same people as the banner («5 учеников ждут оплаты»), not memberships (waitingPeopleCount).
-  const paymentsDue = usePaymentsSummary((state) =>
-    waitingPeopleCount({ due: state.due, expired: state.expired, studentsDue: state.studentsDue, studentsExpired: state.studentsExpired }),
-  );
+  // One number for the owner everywhere: the badge, the banner and the card «Долг учеников» count the DEBTORS (students with a debt).
+  const paymentsDue = usePaymentsSummary((state) => debtorsCount({ debtors: state.debtors, students_with_debt: state.studentsWithDebt }) ?? 0);
   // The owner always has access, so the item is there from the first paint (no jump when the
   // summary arrives); an administrator sees it once the server confirms the access.
   const showPayments = !DEMO_MODE && (rawRole === "owner" || (role === "admin" && paymentsAvailable));
@@ -140,7 +138,7 @@ export function Sidebar() {
       ? [{ href: "/admin/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL }]
       : []),
     ...(showPayments
-      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
+      ? [{ href: "/admin/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Должники" }]
       : []),
   ];
 
@@ -155,7 +153,7 @@ export function Sidebar() {
       ? [{ href: "/owner/substitutions", label: "Замены", icon: Repeat2, badge: pendingSubstitutions, badgeLabel: BADGE_LABEL }]
       : []),
     ...(showPayments
-      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Ждут оплаты" }]
+      ? [{ href: "/owner/payments", label: "Оплаты", icon: Wallet, badge: paymentsDue, badgeLabel: "Должники" }]
       : []),
     // Payroll is the owner's alone (N13 P3): no item for an administrator or a teacher, and none in the demo.
     ...(!DEMO_MODE && rawRole === "owner"

@@ -184,18 +184,17 @@ test("payments banner on a phone: the whole sentence, 14 px, wraps, no ellipsis;
   assert.match(banner, /aria-label="Скрыть напоминание"/);
 });
 
-test("the badge of «Оплаты» counts the same people as the banner: students_due, the old membership count when it is absent", () => {
-  const { bannerCopy, waitingPeopleCount } = lib("payments-banner.ts");
-  const summary = { due: 7, expired: 3, studentsDue: 5, studentsExpired: 2 };
-  assert.equal(waitingPeopleCount(summary), 5);
-  assert.equal(waitingPeopleCount(summary), bannerCopy(summary).count, "banner and badge say one number");
-  assert.equal(waitingPeopleCount({ due: 7, expired: 3 }), 7, "an older server: memberships");
-  assert.equal(waitingPeopleCount({ due: 7, expired: 3, studentsDue: null, studentsExpired: null }), 7);
-  assert.equal(waitingPeopleCount({ due: 7, expired: 3, studentsDue: 5 }), 7, "a pair, never one by one");
-  assert.equal(waitingPeopleCount({ due: 7, expired: 3, studentsDue: 0, studentsExpired: 0 }), 0, "zero is an answer");
+test("the badge of «Оплаты» counts the debtors - the number of the banner and of the card «Долг учеников» (owner 22.10)", () => {
+  const { debtBannerCopy } = lib("payments-banner.ts");
+  const { debtorsCount } = lib("payments.ts");
+  assert.equal(debtorsCount({ debtors: 33, students_with_debt: 30 }), 33);
+  assert.equal(debtorsCount({ students_with_debt: 4 }), 4, "an older server");
+  assert.equal(debtorsCount({}), null);
+  assert.equal(debtBannerCopy({ debtors: debtorsCount({ debtors: 33 }), debtTotal: 1, overdue: 19 }).count, 33, "banner and badge say one number");
   const sidebar = read("src/components/layout/sidebar.tsx");
-  assert.match(sidebar, /waitingPeopleCount\(\{ due: state\.due, expired: state\.expired, studentsDue: state\.studentsDue, studentsExpired: state\.studentsExpired \}\)/);
-  assert.equal((sidebar.match(/badge: paymentsDue, badgeLabel: "Ждут оплаты"/g) || []).length, 2, "owner and administrator");
+  assert.match(sidebar, /debtorsCount\(\{ debtors: state\.debtors, students_with_debt: state\.studentsWithDebt \}\)/);
+  assert.doesNotMatch(sidebar, /waitingPeopleCount/);
+  assert.equal((sidebar.match(/badge: paymentsDue, badgeLabel: "Должники"/g) || []).length, 2, "owner and administrator");
   // the «Должники» tab of the payments page and the card «Долг учеников» read the one count (owner 21.10)
   assert.match(read("src/components/payments/payments-page.tsx"), /usePaymentsSummary\(\(state\) => state\.debtors\)/);
 });
