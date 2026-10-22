@@ -30,8 +30,6 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
     await teacher.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek, startTime: "23:00", endTime: "23:30" });
   }
   await org.setGroupPrice(group.id, fee); // #105: the price lives on the group, valid from today = the day the student joins (PAY-2 prices a period on its first billable day)
-  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
-
   // PAY-2: money is counted from the start of the accounting (a new centre has none yet, so nothing is due before it is set)
   await org.setPaymentSettings({ accounting_start_date: now.date });
   const page = await signIn(org.owner);
@@ -45,6 +43,10 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
   await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible(); // the button itself confirms
   const saved = await org.owner.api.get("/auth/org/settings/payments");
   expect(saved).toMatchObject({ billing_anchor: "fixed_day", billing_day: billingDay });
+
+  // LOGIC-A (F12): a change of the regime takes effect from the next border for the students who already pay; a student who joins
+  // AFTER the change starts in the new regime - so he joins now, when the setting is saved
+  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
 
   // --- expected, from the seeded schedule
   const period = billingPeriod(now.date, billingDay);

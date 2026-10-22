@@ -24,19 +24,18 @@ test("quick pay -> «Оплачено» -> history «№ N» -> receipt in words
   const page = await signIn(org.owner);
   const row = () => page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Платёжкин Анвар", exact: true }) });
 
-  // --- a student without data waits in «Должники» (Ещё не платил); the group has no price: the row says so and links to the group
+  // --- the group has no price: nobody is owed yet, the list says so above itself and leads to «Цены групп»
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
-  await expect(row()).toContainText(student.displayId!);
-  await expect(row()).toContainText("Цена группы не задана");
-  await expect(row().getByRole("link", { name: "задать цену группы" })).toHaveAttribute("href", new RegExp(`/owner/payments/prices\\?group=${group.id}$`));
-  await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0); // no per-student fee field
-  await expect(row().getByRole("textbox", { name: "Сумма оплаты, сум" })).toBeVisible(); // the sum is typed by hand
+  await expect(page.getByText("У 1 ученика не задана цена")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Задать", exact: true })).toHaveAttribute("href", /\/owner\/payments\/prices$/);
+  await expect(row()).toHaveCount(0);
 
   // --- the price is set ON THE GROUP (its own spec covers the screen); the row now suggests the sum from it
   await org.setGroupPrice(group.id, 450000);
   await page.reload();
   await page.getByRole("tab", { name: /Должники/ }).click();
+  await expect(row()).toContainText(student.displayId!);
   await expect(row()).toContainText(new RegExp(`Цена группы: ${moneyPattern(450000)}\\s*сум/мес`));
   await expect(row().getByRole("textbox", { name: "Оплата в месяц, сум" })).toHaveCount(0);
   await expect(row().getByRole("textbox", { name: "Дата оплаты" })).toHaveCount(0); // PAY-2: no dates, the server distributes the money
@@ -141,8 +140,13 @@ test("@mobile the payments list and the quick-pay row fit a phone", async ({ sig
   const page = await signIn(org.owner);
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
+  await expect(page.getByText(/не задана цена/)).toBeVisible(); // the group has no price yet: the warning above the list, no row
+  await expectNoHorizontalScroll(page);
+  await org.setGroupPrice(group.id, 450000);
+  await page.reload();
+  await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Телефонова Мадина", exact: true }) });
-  await expect(row.getByText("Цена группы не задана")).toBeVisible();
+  await expect(row.getByText(/Цена группы:/)).toBeVisible();
   await expect(row.getByRole("textbox", { name: "Сумма оплаты, сум" })).toBeVisible();
   await expect(row.getByRole("combobox", { name: "Способ оплаты" })).toBeVisible();
   await expectNoHorizontalScroll(page);

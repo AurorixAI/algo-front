@@ -18,6 +18,7 @@ test("@mobile open -> expand a teacher -> pick a group -> list filtered; teacher
   const g1 = await org.createGroup({ name: "Алгебра-7", teacherId: ivanov.userId });
   const g2 = await org.createGroup({ name: "Геометрия-8", teacherId: petrov.userId });
   const g3 = await org.createGroup({ name: "Физика-9", teacherId: petrov.userId });
+  for (const g of [g1, g2, g3]) await org.setGroupPrice(g.id, 400000); // a group without a price has no debtors to list (LOGIC-A: «У N учеников не задана цена»)
   await org.addStudent(g1, "Анвар", "Ивановский");
   await org.addStudent(g2, "Мадина", "Геометрова");
   await org.addStudent(g3, "Булат", "Физиков");

@@ -45,7 +45,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
   await dialog.getByLabel("Оплата в месяц").fill("500000");
   await expect(dialog).toContainText("Цену получат 2 ученика");
-  await expect(dialog).toContainText("Уже внесённые оплаты не меняются никогда.");
+  await expect(dialog).toContainText("Внесённые оплаты не меняются, но долг и аванс пересчитываются");
   await expect(dialog.getByLabel("Действует с")).toHaveValue(today);
 
   // a past day: an explicit warning (the calculations change, the recorded payments never do)
