@@ -722,11 +722,11 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   assert.match(markup, /data-col="charged" class="text-right" title="Сколько ученики группы/);
   assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
   assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
-  // debt 0 → ✓ оплачено (emerald-600, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
+  // debt 0 → ✓ оплачено (emerald-700 for AA at small size, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
   const clean = { ...o.collection, groups: [{ ...o.collection.groups[0], debt: 0, students_with_debt: 0, pct: 100, paid: 1500000 }], total: { ...o.collection.total, debt: 0, students_with_debt: 0 } };
   const cleanMarkup = html(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" }));
   assert.equal((cleanMarkup.match(/data-testid="collection-paid"/g) || []).length, 2, "the row and the total follow the same rule");
-  assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-600" data-testid="collection-paid">✓ оплачено<\/span>/);
+  assert.match(cleanMarkup, /<span class="text-xs font-medium text-emerald-700" data-testid="collection-paid">✓ оплачено<\/span>/);
   assert.match(cleanMarkup, /data-col="debtors"[^>]*><span class="text-xs text-slate-400 md:hidden">Должников<\/span><span class="tabular-nums"><span class="text-slate-400">0<\/span>/);
   assert.ok(!text(React.createElement(C.CollectionTable, { collection: clean, paymentsBase: "/owner/payments" })).includes(" нет"));
   // nothing charged: no «оплачено» for a debt that never existed
