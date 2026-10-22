@@ -48,7 +48,12 @@ import {
   ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, roomForSave, roomLabel, validFromBadge, validFromBounds, validFromError,
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
-import { REPLACE_TEACHER_ACTION, canReplaceTeacher, occurrenceTeacherChip } from "@/lib/lesson-teacher";
+import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
+import { occurrenceChips, rosterFromJournal, rosterSource, showsGroupLinks, SUBSTITUTIONS_PATH, substituteGroupLabel, substitutionsHref, type RosterSource } from "@/lib/substitutions";
+import type { SubstitutionRequestMark } from "@/lib/substitution-types";
+import type { LessonTeacherInfo } from "@/lib/ops-b-types";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { RequestControl } from "@/components/substitutions/request-control";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
@@ -257,7 +262,14 @@ export default function TeacherSchedulePage() {
   // LOGIC-B: the version of the lesson record (O7), a running exam at the finish (O8), the teacher of the lesson (O5).
   const marksOps = useLessonMarksOps();
   const isManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
+  /** LOGIC-B2: a chip «Ждёт замены» leads the manager to the request. */
+  const requestHrefFor = (requestId: string) =>
+    substitutionsHref(user?.org_role === "owner" || user?.role === "owner" ? SUBSTITUTIONS_PATH.owner : SUBSTITUTIONS_PATH.admin, requestId);
   const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
+  /** LOGIC-B2: who teaches the open lesson, the request «Не смогу провести» for it, and where its roster comes from. */
+  const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
+  const [activeRequestMark, setActiveRequestMark] = useState<SubstitutionRequestMark | null>(null);
+  const [activeRosterSource, setActiveRosterSource] = useState<RosterSource>("group");
   /** O11: non-blocking notes of a successful write (the room is busy at that time): shown on the page, not as an error. */
   const [scheduleNotices, setScheduleNotices] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -685,6 +697,9 @@ export default function TeacherSchedulePage() {
       setAttendanceError(null);
       setActiveLessonStatus("scheduled");
       setActiveCancellationReason(null);
+      setActiveTeacherInfo(null);
+      setActiveRequestMark(null);
+      setActiveRosterSource("group");
       return;
     }
     setLoadingStudents(true);
@@ -699,15 +714,22 @@ export default function TeacherSchedulePage() {
     setExcuseReasonInvalidId(null);
     const occurrenceDate = activeLesson.occurrenceDate;
     const lessonKey = `${occurrenceDate}_${activeLesson.id}`;
+    // LOGIC-B2: a substitute (or a former teacher) has no group page (403): the roster of his lesson comes with the journal.
+    const source = rosterSource({ isManager, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
+    setActiveRosterSource(source);
     Promise.all([
-      orgApi.getGroup(activeLesson.groupId),
+      source === "group" ? orgApi.getGroup(activeLesson.groupId) : Promise.resolve(null),
       orgApi.getGroupAttendance(activeLesson.groupId, {
         dateFrom: occurrenceDate,
         dateTo: occurrenceDate,
       }),
     ])
       .then(([g, att]) => {
-        if (g?.students) {
+        setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
+        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
+        if (source === "journal") {
+          setGroupStudents(rosterFromJournal(att?.lessonRoster));
+        } else if (g?.students) {
           setGroupStudents(g.students);
         } else {
           setGroupStudents([]);
@@ -2291,11 +2313,7 @@ export default function TeacherSchedulePage() {
                               {validFromBadge(l.validFrom, businessDate)}
                             </span>
                           )}
-                          {occurrenceTeacherChip(l, user?.id) && (
-                            <span className="ml-1 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-semibold text-violet-800">
-                              {occurrenceTeacherChip(l, user?.id)}
-                            </span>
-                          )}
+                          <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="ml-1" />
 
                           <h4 className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
                             {l.groupName}
@@ -2482,11 +2500,7 @@ export default function TeacherSchedulePage() {
                         {l.groupName}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium">{l.subject}</p>
-                      {occurrenceTeacherChip(l, user?.id) && (
-                        <span className="mt-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-semibold text-violet-800">
-                          {occurrenceTeacherChip(l, user?.id)}
-                        </span>
-                      )}
+                      <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="mt-1.5" />
                     </div>
 
                     {/* Bottom row */}
@@ -2672,6 +2686,9 @@ export default function TeacherSchedulePage() {
                     <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-50 text-violet-700 border border-violet-200/60">
                       {activeLesson.classLevel} класс
                     </span>
+                    {activeTeacherInfo?.isSubstitution && activeTeacherInfo.teacherId === user?.id && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-600 text-white">{substituteGroupLabel(activeLesson.groupName)}</span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
                     {activeLesson.format === "online" ? (
@@ -2703,6 +2720,24 @@ export default function TeacherSchedulePage() {
                     {activeLesson.topic}
                   </p>
                 </div>
+              )}
+
+              {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
+              {!loadingStudents && (
+                <RequestControl
+                  lesson={{
+                    groupId: activeLesson.groupId,
+                    groupName: activeLesson.groupName,
+                    lessonId: activeLesson.id,
+                    lessonDate: activeLesson.occurrenceDate,
+                    startTime: activeLesson.startTime,
+                    endTime: activeLesson.endTime,
+                  }}
+                  mark={activeRequestMark}
+                  lessonTeacherId={activeTeacherInfo?.teacherId}
+                  lessonStatus={activeLessonStatus}
+                  onChanged={() => { void loadData(); }}
+                />
               )}
 
               {/* Attendance Section */}
@@ -3167,6 +3202,7 @@ export default function TeacherSchedulePage() {
                       <span className="truncate">Изменить постоянное расписание</span>
                     </button>
                   ) : (
+                    showsGroupLinks(activeRosterSource) ? (
                     <Link
                       href={`/teacher/groups/${activeLesson.groupId || ""}`}
                       className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
@@ -3174,6 +3210,7 @@ export default function TeacherSchedulePage() {
                       Перейти в группу
                       <ArrowRight className="w-3.5 h-3.5" />
                     </Link>
+                    ) : null
                   )}
 
                   {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson)) && (

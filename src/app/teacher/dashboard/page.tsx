@@ -66,6 +66,12 @@ import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendanc
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
+import { createToast, occurrenceChips, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { RequestControl } from "@/components/substitutions/request-control";
+import { RequestDialog } from "@/components/substitutions/request-dialog";
+import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
 
 const DAYS = [
   { id: 1, name: "Понедельник", short: "ПН" },
@@ -91,6 +97,13 @@ interface LessonSummary {
   topic?: string;
   /** The actual date for an unresolved historical lesson instance. */
   occurrenceDate?: string;
+  /** LOGIC-B (O5) / B2: who teaches this lesson, and the request «Не смогу провести» (sent by the dashboard summary). */
+  isSubstitution?: boolean;
+  teacherId?: string | null;
+  teacherName?: string | null;
+  defaultTeacherId?: string | null;
+  substitutionRequest?: SubstitutionRequestMark | null;
+  substitutionOutcome?: SubstitutionOutcome | null;
 }
 
 type LessonAction = {
@@ -282,6 +295,12 @@ export default function TeacherDashboardPage() {
   // LOGIC-B: the version of the lesson record, the conflict of two editors, the exam a finish waits for.
   const marksOps = useLessonMarksOps();
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
+  /** LOGIC-B2: the request «Не смогу провести» for the open lesson, and where its roster comes from (the group page or only the journal). */
+  const [newRequestOpen, setNewRequestOpen] = useState(false);
+  /** Only a teacher asks for a substitute; an owner / administrator assigns one himself («Заменить преподавателя»). */
+  const canAskForSubstitute = (user?.org_role ?? user?.role) === "teacher";
+  const [activeRequestMark, setActiveRequestMark] = useState<SubstitutionRequestMark | null>(null);
+  const [activeRosterSource, setActiveRosterSource] = useState<RosterSource>("group");
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
@@ -447,6 +466,8 @@ export default function TeacherDashboardPage() {
       setCancellationReason("");
       setLessonExamBinding(null);
       setActiveTeacherInfo(null);
+      setActiveRequestMark(null);
+      setActiveRosterSource("group");
       return;
     }
     setLoadingStudents(true);
@@ -466,15 +487,22 @@ export default function TeacherDashboardPage() {
     const isTodayLesson = lessonDate === businessDate;
     const lessonKey = `${lessonDate}_${activeLesson.id}`;
 
+    // LOGIC-B2: the lesson of a substitute (or of a former teacher) is not in «his» groups and he has no group page (it answers 403):
+    // the roster of the lesson comes with the journal (`lessonRoster`), and no call goes to the group.
+    const source = rosterSource({ isManager: false, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
+    setActiveRosterSource(source);
     Promise.all([
-      orgApi.getGroup(activeLesson.groupId),
+      source === "group" ? orgApi.getGroup(activeLesson.groupId) : Promise.resolve(null),
       orgApi.getGroupAttendance(activeLesson.groupId, {
         dateFrom: lessonDate,
         dateTo: lessonDate,
       }),
     ])
       .then(([g, att]) => {
-        if (g?.students) {
+        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
+        if (source === "journal") {
+          setGroupStudents(rosterFromJournal(att?.lessonRoster));
+        } else if (g?.students) {
           // Attendance belongs to the roster frozen when the lesson was
           // started. In the rare case of a later transfer, do not let the
           // current group roster add/remove people from this open lesson.
@@ -1332,6 +1360,13 @@ export default function TeacherDashboardPage() {
         ))}
       </div>
 
+      {/* LOGIC-B2: my requests «Не смогу провести» and the lessons I take over */}
+      {canAskForSubstitute && <TeacherRequestsBlock
+        refreshKey={dashboardRefreshNonce}
+        onNewRequest={() => setNewRequestOpen(true)}
+        onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+      />}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column (Main content) */}
@@ -1684,6 +1719,7 @@ export default function TeacherDashboardPage() {
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <p className="font-bold text-sm text-slate-900 truncate group-hover:text-primary-600 transition-colors">
                           {l.groupName}
+                          <LessonChips marks={occurrenceChips(l, user?.id)} className="ml-2 align-middle" />
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {attendanceStatusUnknown ? (
@@ -1790,6 +1826,15 @@ export default function TeacherDashboardPage() {
               <Plus className="w-3.5 h-3.5" />
               Добавить занятие в календарь
             </Link>
+            {canAskForSubstitute && (
+              <button
+                type="button"
+                onClick={() => setNewRequestOpen(true)}
+                className="mt-2 w-full rounded-xl py-2 text-xs font-semibold text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-800"
+              >
+                Не смогу провести несколько уроков
+              </button>
+            )}
           </div>
         </div>
 
@@ -2203,7 +2248,7 @@ export default function TeacherDashboardPage() {
                         </span>
                       )}
                       {activeTeacherInfo?.isSubstitution && activeTeacherInfo.teacherId === user?.id && (
-                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-600 text-white">Замена</span>
+                        <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-violet-600 text-white">{substituteGroupLabel(activeLesson.groupName)}</span>
                       )}
                     </div>
                     {lessonBelongsToOther(activeTeacherInfo, user?.id) && (
@@ -2228,6 +2273,24 @@ export default function TeacherDashboardPage() {
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+
+                {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
+                {!loadingStudents && (
+                  <RequestControl
+                    lesson={{
+                      groupId: activeLesson.groupId,
+                      groupName: activeLesson.groupName,
+                      lessonId: activeLesson.id,
+                      lessonDate: activeLesson.occurrenceDate || businessDate,
+                      startTime: activeLesson.startTime,
+                      endTime: activeLesson.endTime,
+                    }}
+                    mark={activeRequestMark}
+                    lessonTeacherId={activeTeacherInfo?.teacherId}
+                    lessonStatus={activeInstanceStatus}
+                    onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+                  />
+                )}
 
                 {/* Attendance Section */}
                 <div className="mb-6">
@@ -2674,6 +2737,7 @@ export default function TeacherDashboardPage() {
                     a second row under it, with a «Закрыть» that repeats the cross, is not shown (ROADMAP #114). */}
                 {!isMarkingAttendance && (
                 <div className="flex items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                  {showsGroupLinks(activeRosterSource) ? (
                   <Link
                     href={`/teacher/groups/${activeLesson.groupId || ""}`}
                     className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
@@ -2681,6 +2745,7 @@ export default function TeacherDashboardPage() {
                     Перейти в группу
                     <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
+                  ) : <span />}
 
                   <div className="flex items-center gap-2">
                     {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && (
@@ -2721,6 +2786,21 @@ export default function TeacherDashboardPage() {
           </AnimatePresence>,
           document.body
         )}
+
+      {/* LOGIC-B2: «Новый запрос» - the lessons are picked from the list of the teacher's own */}
+      <RequestDialog
+        open={newRequestOpen}
+        lesson={null}
+        today={businessDate}
+        viewerId={user?.id}
+        onClose={() => setNewRequestOpen(false)}
+        onSent={(out) => {
+          const toast = createToast(out);
+          setNewRequestOpen(false);
+          setDashboardNotice(toast.text);
+          setDashboardRefreshNonce((current) => current + 1);
+        }}
+      />
 
       {/* LOGIC-B: two editors saved the same lesson (O7) / a running exam at the finish (O8): over the lesson panel */}
       <AttendanceConflictDialog
