@@ -11,7 +11,7 @@ export const MODAL_FOOTER_DEFAULT = "flex flex-col-reverse sm:flex-row sm:items-
 export const MODAL_FOOTER_DIVIDER = "shrink-0 border-t border-slate-100";
 
 export interface ModalLayoutInput {
-  placement?: "center" | "right";
+  placement?: "center" | "right" | "sheet";
   maxWidthClassName?: string;
   bodyClassName?: string;
   footerClassName?: string;
@@ -27,10 +27,14 @@ export interface ModalLayout {
 }
 
 export function modalLayout(input: ModalLayoutInput = {}): ModalLayout {
-  const side = input.placement === "right";
+  const sheet = input.placement === "sheet";
+  const side = input.placement === "right" || sheet;
   const width = input.maxWidthClassName ?? MODAL_DEFAULT_MAX_WIDTH;
   return {
-    card: side
+    card: sheet
+      // A bottom sheet on a phone (rounded top, at most 88% of the screen), the right drawer from md up.
+      ? `bg-white shadow-2xl w-full max-h-[88vh] supports-[height:100dvh]:max-h-[88dvh] rounded-t-3xl md:rounded-none md:h-full md:max-h-none ${width} pointer-events-auto flex flex-col outline-none pb-[env(safe-area-inset-bottom)] md:pt-[env(safe-area-inset-top)] md:pr-[env(safe-area-inset-right)]`
+      : side
       ? `bg-white shadow-2xl w-full ${width} h-full pointer-events-auto flex flex-col outline-none pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pr-[env(safe-area-inset-right)]`
       : `bg-white rounded-[24px] shadow-2xl border border-slate-100 w-full ${width} max-h-full pointer-events-auto overflow-hidden flex flex-col outline-none`,
     header: side

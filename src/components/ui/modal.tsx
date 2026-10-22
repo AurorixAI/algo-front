@@ -67,8 +67,11 @@ interface ModalProps {
   bodyClassName?: string;
   /** Replaces the layout and padding of the footer row (the divider stays). */
   footerClassName?: string;
-  /** `center` (default): a card in the middle; `right`: a side sheet from the right edge, full height. */
-  placement?: "center" | "right";
+  /**
+   * `center` (default): a card in the middle; `right`: a side sheet from the right edge, full height;
+   * `sheet`: the same side sheet from md up and a bottom sheet on a phone (a row of a list that opens its details).
+   */
+  placement?: "center" | "right" | "sheet";
   /** Over a panel that has its own full-screen layer above the usual dialogs (the lesson panels of the teacher's cabinet, z 99999). */
   aboveLessonPanel?: boolean;
 }
@@ -139,7 +142,9 @@ export function Modal({
     };
   }, [open, mounted]);
 
-  const side = placement === "right";
+  const side = placement === "right" || placement === "sheet";
+  // A bottom sheet slides up, a side sheet slides in; the choice is made when the dialog opens (the viewport is known by then).
+  const slideUp = placement === "sheet" && mounted && typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
   const layout = modalLayout({ placement, maxWidthClassName, bodyClassName, footerClassName });
 
   const header = (
@@ -184,16 +189,16 @@ export function Modal({
             onClick={() => { if (!busy && Date.now() - openedAtRef.current >= BACKDROP_GRACE_MS) onClose(); }}
           />
           {side ? (
-            <div className={aboveLessonPanel ? "fixed inset-0 z-[100010] flex justify-end pointer-events-none" : "fixed inset-0 z-[110] flex justify-end pointer-events-none"}>
+            <div className={`${aboveLessonPanel ? "fixed inset-0 z-[100010] flex justify-end pointer-events-none" : "fixed inset-0 z-[110] flex justify-end pointer-events-none"}${placement === "sheet" ? " items-end md:items-stretch" : ""}`}>
               <motion.div
                 ref={dialogRef}
                 tabIndex={-1}
                 role="dialog"
                 aria-modal="true"
                 aria-label={title}
-                initial={{ x: "100%" }}
-                animate={{ x: 0 }}
-                exit={{ x: "100%" }}
+                initial={slideUp ? { y: "100%" } : { x: "100%" }}
+                animate={slideUp ? { y: 0 } : { x: 0 }}
+                exit={slideUp ? { y: "100%" } : { x: "100%" }}
                 transition={{ type: "spring", stiffness: 400, damping: 35 }}
                 className={layout.card}
               >
