@@ -24,6 +24,9 @@ import {
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { Hint } from "@/components/ui/hint";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { ASSIGN_TEACHER_ACTION, NO_LESSON_TEACHER_TEXT, REPLACE_TEACHER_ACTION, canReplaceTeacher, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 
@@ -131,6 +134,7 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
   archived?: boolean;
 }) {
   const today = formatBusinessDate();
+  const { user } = useAuthStore();
   const { showToast, toastNode } = useToast();
   const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   const [anchorDate, setAnchorDate] = useState(today);
@@ -335,6 +339,12 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
                             {cancellationReason && <p className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
+                            {/* LOGIC-B2: a request waiting for a decision, and where a moved original went */}
+                            <LessonChips
+                              marks={lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome)}
+                              requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
+                              className="mt-2"
+                            />
                             {teacherInfo && (
                               <div className="mt-2 border-t border-slate-200/70 pt-2 text-[11px] leading-snug">
                                 {lacksTeacher(teacherInfo) ? (

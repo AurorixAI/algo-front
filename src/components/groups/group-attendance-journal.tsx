@@ -75,6 +75,9 @@ import {
   type AttendanceConflictState,
 } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
+import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { useAuthStore } from "@/lib/store";
+import { lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -346,6 +349,7 @@ export function GroupAttendanceJournal({
   highlightDate = null,
   viewerId = null,
 }: GroupAttendanceJournalProps) {
+  const { user } = useAuthStore();
   const highlightTarget = parseJournalHighlight(highlightLessonId, highlightDate);
   // A valid deep link decides the period by its date, so a disagreeing ?month= cannot hide the lesson.
   const requestedMonth = highlightTarget
@@ -1427,6 +1431,11 @@ export function GroupAttendanceJournal({
                           {teacherLabel && (
                             <div className="mx-auto w-fit max-w-[120px] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800" title={teacherLabel}>{teacherLabel}</div>
                           )}
+                          <LessonChips
+                            marks={lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode })}
+                            requestHref={adminMode ? (requestId) => substitutionsHref(substitutionsPathFor(user), requestId) : undefined}
+                            className="justify-center"
+                          />
                           {lessonIsOthers(key) && (
                             <div className="mx-auto max-w-[120px] text-[10px] font-medium leading-tight text-slate-500">{notYourLessonText(teacherInfo)}</div>
                           )}

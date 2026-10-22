@@ -892,6 +892,8 @@ export interface Lesson {
   originalEndTime?: string | null;
   originalRoom?: string | null;
   rescheduleReason?: string | null;
+  /** LOGIC-B2: a cancelled original says where it went (optional in the journal). */
+  substitutionOutcome?: SubstitutionOutcome | null;
 }
 
 export interface AttendanceRecord {

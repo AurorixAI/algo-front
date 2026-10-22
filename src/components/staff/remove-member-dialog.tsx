@@ -7,6 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail } from "@/lib/ops-errors";
 import type { OrgMemberRow, RemovalImpact, TeacherBusyDetail } from "@/lib/ops-b-types";
 import { staffDisplayName } from "@/lib/staff-name";
+import { removalRequestsText } from "@/lib/substitutions";
 import {
   KEEP_UNASSIGNED_LABEL,
   UNASSIGNED,
@@ -245,6 +246,7 @@ export function RemovalDialogBody({
   const hasGroups = groups.length > 0;
   const futureCount = impact?.futureSubstitutions?.count ?? 0;
   const missedCount = impact?.missedLessons?.count ?? 0;
+  const requestsCount = impact?.pendingSubstitutionRequests?.count ?? 0;
   const plainConfirm = impact !== null && !hasGroups && inProgress.length === 0;
   return (
       <div className="space-y-4 pb-1">
@@ -349,19 +351,21 @@ export function RemovalDialogBody({
               </div>
             )}
 
-            {(futureCount > 0 || missedCount > 0) && (
+            {(futureCount > 0 || missedCount > 0 || requestsCount > 0) && (
               <div className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
                 {futureCount > 0 && <p>{futureSubstitutionsText(futureCount)}</p>}
                 {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
+                {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
               </div>
             )}
           </>
         )}
 
-        {impact && plainConfirm && (futureCount > 0 || missedCount > 0) && (
+        {impact && plainConfirm && (futureCount > 0 || missedCount > 0 || requestsCount > 0) && (
           <div className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
             {futureCount > 0 && <p>{futureSubstitutionsText(futureCount)}</p>}
             {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
+            {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
           </div>
         )}
 

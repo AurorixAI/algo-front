@@ -6,6 +6,7 @@ import { formatUtcNaiveAsBusinessDate } from "./business-time";
 import { opsErrorCode, opsErrorDetail } from "./ops-errors";
 import type { ArchiveBlocker, ArchiveBlockerCode, ArchiveImpact, TeacherInactiveDetail } from "./ops-b-types";
 import { pluralRu } from "./plural";
+import { archiveRequestsText } from "./substitutions";
 
 export const ARCHIVE_BUTTON = "В архив";
 export const RESTORE_BUTTON = "Вернуть из архива";
@@ -103,6 +104,8 @@ export function archiveDialogView(impact: ArchiveImpact, cancelMissed: boolean):
   }
   for (const warning of impact.warnings ?? []) {
     if (warning.code === "PENDING_EXCUSES" && warning.count) notes.push(pendingExcusesText(warning.count));
+    // LOGIC-B2: the waiting «Не смогу провести» requests of the group are closed by the archive
+    if (warning.code === "PENDING_SUBSTITUTIONS" && warning.count) notes.push(archiveRequestsText(warning.count));
   }
 
   return {

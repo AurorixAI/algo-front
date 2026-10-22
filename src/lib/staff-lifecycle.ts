@@ -93,6 +93,7 @@ export function impactFromRefusal(error: unknown, memberId: string): RemovalImpa
     inProgressLessons: source.inProgressLessons ?? [],
     futureSubstitutions: source.futureSubstitutions ?? { count: 0 },
     missedLessons: source.missedLessons ?? { count: 0 },
+    pendingSubstitutionRequests: source.pendingSubstitutionRequests ?? { count: 0 },
   };
 }
 
