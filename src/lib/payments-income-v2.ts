@@ -570,7 +570,7 @@ export function debtCard(overview: IncomeOverview): PositionCard {
 
 export function advanceCard(overview: IncomeOverview): PositionCard {
   const { advance_total: advance, students_with_advance: students } = overview.position;
-  return advance > 0 ? { amount: formatMoney(advance), caption: `${studentsText(students)} оплатили вперёд`, none: false } : { amount: "Авансов нет", caption: "Никто не платил вперёд", none: true };
+  return advance > 0 ? { amount: formatMoney(advance), caption: `${studentsText(students)} ${pluralRu(students, "оплатил", "оплатили", "оплатили")} вперёд`, none: false } : { amount: "Авансов нет", caption: "Никто не платил вперёд", none: true };
 }
 
 /** The «Должники» tab of «Оплаты», narrowed to a group / a teacher when the screen is. */

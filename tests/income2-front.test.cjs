@@ -205,6 +205,10 @@ test("cards «Долг на сегодня» and «Аванс»: the sum and the
   assert.deepEqual([plain(debt.amount), debt.caption, debt.none], ["500 000 сум", "3 ученика", false]);
   const advance = V.advanceCard(o);
   assert.deepEqual([plain(advance.amount), advance.caption], ["450 000 сум", "2 ученика оплатили вперёд"]);
+  // the verb agrees with the number: «1 ученик оплатил вперёд», «21 ученик оплатил», «5 учеников оплатили»
+  for (const [n, caption] of [[1, "1 ученик оплатил вперёд"], [21, "21 ученик оплатил вперёд"], [3, "3 ученика оплатили вперёд"], [5, "5 учеников оплатили вперёд"]]) {
+    assert.equal(V.advanceCard({ ...o, position: { ...o.position, advance_total: 100000, students_with_advance: n } }).caption, caption);
+  }
   const clean = { ...o, position: { ...o.position, debt_total: 0, students_with_debt: 0, advance_total: 0, students_with_advance: 0 } };
   assert.deepEqual([V.debtCard(clean).amount, V.debtCard(clean).none, V.advanceCard(clean).amount], ["Долгов нет", true, "Авансов нет"]);
   assert.equal(V.debtorsHref("/owner/payments/"), "/owner/payments?bucket=debt");
