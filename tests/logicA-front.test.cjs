@@ -588,3 +588,30 @@ test("an individual price asks the server what it changes (dry run) and shows th
   assert.match(code, /orgApi\.setMembershipPrice\(membershipId, request, \{ dryRun: true \}\)/);
   assert.equal((code.match(/<OverrideImpactBlock/g) || []).length, 2); // «Назначить» and «Вернуть цену группы»
 });
+
+test("moneyChip: the status chip comes from the money, never contradicts the debt next to it (owner 22.10)", () => {
+  const chip = (row) => { const c = P.moneyChip(row); return `${c.label}|${c.tone}`; };
+  // a part is paid, the paid period still runs: not «Оплачено», but «Не доплачено»
+  assert.equal(chip({ status: "active", debt: 300000, last_payment: { id: "p" }, paid_until: "2026-11-02" }), "Не доплачено|warning");
+  assert.equal(chip({ status: "expiring", debt: 100000, last_payment: { id: "p" }, days_left: 3 }), "Не доплачено|warning");
+  // the period has ended with a debt: red, with the days
+  assert.equal(chip({ status: "expired", debt: 750000, days_overdue: 20, last_payment: null }), "Просрочено на 20 дней|danger");
+  assert.equal(chip({ status: "active", debt: 5000, debt_reason: "overdue", days_overdue: 2, last_payment: { id: "p" } }), "Просрочено на 2 дня|danger");
+  assert.equal(chip({ status: "expired", period_mode: "lessons", debt: 1, last_payment: { id: "p" } }), "Уроки закончились|danger");
+  // never paid, not overdue yet
+  assert.equal(chip({ status: "none", debt: 500000, last_payment: null }), "Ещё не платил|warning");
+  assert.equal(chip({ status: "active", debt: 500000, debt_reason: "never_paid", last_payment: null }), "Ещё не платил|warning");
+  // paused stays paused
+  assert.equal(chip({ status: "paused", debt: 0, paused: { from: "2026-10-20", to: "2026-11-01" } }), "На паузе до 01.11|muted");
+  // no debt: the date status as before
+  assert.equal(chip({ status: "active", debt: 0, last_payment: { id: "p" } }), "Оплачено|ok");
+  assert.equal(chip({ status: "active", last_payment: null }), "Оплачено|ok");
+  assert.equal(chip({ status: "expiring", debt: 0, days_left: 5 }), "Осталось 5 дней|warning");
+  assert.equal(chip({ status: "ends_today", debt: 0 }), "Сегодня последний день|warning");
+  assert.equal(chip({ status: "none", debt: 0 }), "Без оплат|muted");
+  assert.equal(chip({ status: "free", debt: 0 }), "Бесплатно|free");
+  // the invariant: «Оплачено» never stands next to a debt
+  for (const status of ["none", "free", "expired", "ends_today", "expiring", "active"]) {
+    assert.notEqual(P.moneyChip({ status, debt: 1, last_payment: { id: "p" } }).label, "Оплачено");
+  }
+});

@@ -1017,6 +1017,30 @@ export function statusLabel(
   return "";
 }
 
+/**
+ * The status chip that sits next to money.  It comes from the MONEY (the debt), not from the date status, so a chip never
+ * contradicts the debt line beside it (owner 22.10):
+ *  - paused: «На паузе до …» (grey);
+ *  - debt and the period has ended: «Просрочено на N дней» (red; by lessons «Уроки закончились»);
+ *  - debt, never paid, not overdue yet: «Ещё не платил» (amber);
+ *  - debt, but the paid period still runs (a part is paid): «Не доплачено» (amber);
+ *  - no debt: the date status as before - «Оплачено» (grey) / «Осталось 5 дней» / «Сегодня последний день» (amber) / «Без оплат» / «Бесплатно».
+ */
+export type MoneyChipRow = Parameters<typeof statusLabel>[0]
+  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason">>
+  & { status: PaymentStatus };
+
+export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone } {
+  if (row.status === "paused") return { label: statusLabel(row), tone: statusTone(row.status) };
+  if ((row.debt ?? 0) > 0) {
+    if (row.status === "expired" || row.debt_reason === "overdue") return { label: statusLabel({ ...row, status: "expired" }), tone: "danger" };
+    const neverPaid = row.debt_reason === "never_paid" || (!row.last_payment && (row.status === "none" || row.status === "ends_today" || row.status === "expiring"));
+    if (neverPaid) return { label: "Ещё не платил", tone: "warning" };
+    return { label: "Не доплачено", tone: "warning" };
+  }
+  return { label: statusLabel(row), tone: statusTone(row.status) };
+}
+
 /** «Осталось 3 урока из 12» / «Остался 1 урок из 12» / «Осталось 3 урока»; "" when the count is not known. */
 function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "lessons_left">): string {
   if (row.lessons_left === null || row.lessons_left === undefined) return "";

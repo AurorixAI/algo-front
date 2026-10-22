@@ -26,8 +26,7 @@ import {
   receiptNumberLabel,
   statementHref,
   statusDetail,
-  statusLabel,
-  statusTone,
+  moneyChip,
   STATUS_TONE_CLASS,
   type MembershipPaymentRow,
   type PaymentFileOut,
@@ -204,7 +203,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
     }
   };
 
-  const tone = STATUS_TONE_CLASS[statusTone(row.status)];
+  const chip = moneyChip(row);
+  const tone = STATUS_TONE_CLASS[chip.tone];
   const detail = statusDetail(row);
   const visible = history ? (showAll ? history : history.slice(0, HISTORY_PREVIEW)) : [];
   const due = payIsDue(row);
@@ -237,7 +237,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] lg:flex-col lg:flex-nowrap lg:items-center lg:gap-y-1 lg:pt-1 lg:text-center">
-            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{statusLabel(row)}</span>
+            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{chip.label}</span>
             {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
             <BalanceNote row={row} />
             {row.paused && <button type="button" onClick={() => setPauseOpen(true)} className="text-[11px] font-semibold text-primary-700 hover:underline">Закончить паузу</button>}
