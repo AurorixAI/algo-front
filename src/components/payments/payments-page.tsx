@@ -101,7 +101,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
+  // A link from «Поступления» («Группы — собираемость», «Долг на сегодня») opens the tab narrowed to a group or a teacher.
+  const [filter, setFilter] = useState(() => ({ teacherId: searchParams?.get("teacher_id") ?? "", groupId: searchParams?.get("group_id") ?? "" }));
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; teacher_id: string }>>([]);
 
@@ -190,7 +191,10 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const switchBucket = (next: PaymentBucket) => {
     setPage(0);
-    router.replace(`?bucket=${next}`, { scroll: false });
+    const params = new URLSearchParams({ bucket: next });
+    if (filter.groupId) params.set("group_id", filter.groupId);
+    else if (filter.teacherId) params.set("teacher_id", filter.teacherId);
+    router.replace(`?${params.toString()}`, { scroll: false });
   };
 
   /** A change of payments: the visible list and the shared numbers are re-read. */
