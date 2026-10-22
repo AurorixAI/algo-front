@@ -25,8 +25,7 @@ import {
   receiptHref,
   receiptNumberLabel,
   statementHref,
-  statusDetail,
-  moneyChip,
+  membershipChip,
   STATUS_TONE_CLASS,
   type MembershipPaymentRow,
   type PaymentFileOut,
@@ -203,9 +202,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
     }
   };
 
-  const chip = moneyChip(row);
-  const tone = STATUS_TONE_CLASS[chip.tone];
-  const detail = statusDetail(row);
+  const chip = membershipChip(row);
+  const tone = chip.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : STATUS_TONE_CLASS[chip.tone];
   const visible = history ? (showAll ? history : history.slice(0, HISTORY_PREVIEW)) : [];
   const due = payIsDue(row);
 
@@ -214,7 +212,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
   });
   // Rare actions: the price first, the histories last.
   const menu: RowMenuItem[] = [
-    { key: "statement", label: "Выписка", icon: ScrollText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBasePath, row.membership_id)); } },
+    // «Выписка» is a button of the row; the menu keeps it only where there is no such button (a group the student has left)
+    ...(!editable ? [{ key: "statement", label: "Выписка", icon: ScrollText, onSelect: () => { markReceiptNavigation(row.membership_id); router.push(statementHref(paymentsBasePath, row.membership_id)); } }] : []),
     ...(!archived && canWriteOff(row) ? [{ key: "writeoff", label: WRITEOFF_ACTION_LABEL, icon: Eraser, onSelect: () => setWriteoffOpen(true) }] : []),
     ...(!archived && canRefund(row) ? [{ key: "refund", label: REFUND_ACTION_LABEL, icon: Undo2, onSelect: () => setRefundOpen(true) }] : []),
     // LOGIC-A: a pause (the place stays, the days are not charged) and what the student had before ALGO
@@ -226,40 +225,50 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
 
   return (
     <div className="space-y-2.5">
-      {/* Row 1: the group, the status, the one main button, «⋯».  A phone or a narrow column (the card next to the sidebar below 1024 px): the group and «⋯», under them the status, then the button. */}
+      {/* Row 1: the group; one chip with the key fact (one line); the actions in one row: «Внести оплату», «Выписка», «⋯».  A phone or a narrow column: the group, under it the chip, then the actions in one row. */}
       <div
         className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 lg:items-start ${
           editable
-            ? "lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] [grid-template-areas:'heading_menu'_'status_status'_'button_button'] lg:[grid-template-areas:'heading_status_button_menu']"
+            ? "lg:grid-cols-[minmax(0,1fr)_auto_auto] [grid-template-areas:'heading_heading'_'status_status'_'actions_actions'] lg:[grid-template-areas:'heading_status_actions']"
             : "[grid-template-areas:'heading_menu']"
         }`}
       >
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 [grid-area:status] lg:flex-col lg:flex-nowrap lg:items-center lg:gap-y-1 lg:pt-1 lg:text-center">
-            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 ${tone}`}>{chip.label}</span>
-            {detail && <p className="text-[11px] text-slate-500">{detail}</p>}
-            <BalanceNote row={row} />
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [grid-area:status] lg:pt-1">
+            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 tabular-nums ${tone}`} title={chip.title ?? undefined} data-testid="membership-chip">{chip.label}</span>
             {row.paused && <button type="button" onClick={() => setPauseOpen(true)} className="text-[11px] font-semibold text-primary-700 hover:underline">Закончить паузу</button>}
-            <Link href={statementHref(paymentsBasePath, row.membership_id)} onClick={() => markReceiptNavigation(row.membership_id)} className="text-[11px] font-medium text-primary-700 hover:underline">Выписка</Link>
           </div>
         )}
         {editable && (
-          <button
-            type="button"
-            onClick={() => setForm({ kind: "create", payment: null })}
-            className={`whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold [grid-area:button] lg:justify-self-end lg:py-1.5 ${
-              due
-                ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
-                : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
-            }`}
-          >
-            {PAY_ACTION_LABEL}
-          </button>
+          <div className="flex items-center gap-2 [grid-area:actions] lg:justify-self-end">
+            <button
+              type="button"
+              onClick={() => setForm({ kind: "create", payment: null })}
+              className={`min-w-0 flex-1 whitespace-nowrap rounded-lg border px-3.5 py-2 text-center text-xs font-semibold lg:flex-none lg:py-1.5 ${
+                due
+                  ? "border-primary-600 bg-primary-600 text-white hover:bg-primary-700"
+                  : "border-primary-200 bg-white text-primary-700 hover:bg-primary-50"
+              }`}
+            >
+              {PAY_ACTION_LABEL}
+            </button>
+            <Link
+              href={statementHref(paymentsBasePath, row.membership_id)}
+              onClick={() => markReceiptNavigation(row.membership_id)}
+              data-testid="membership-statement"
+              className="whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50 lg:py-1.5"
+            >
+              Выписка
+            </Link>
+            <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
+          </div>
         )}
-        <div className="justify-self-end [grid-area:menu] lg:pt-px">
-          <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
-        </div>
+        {!editable && (
+          <div className="justify-self-end [grid-area:menu] lg:pt-px">
+            <RowMenu items={menu} label={`Действия по оплате: ${row.group_name}`} width={300} />
+          </div>
+        )}
       </div>
 
       {/* A group the student has left (or an archived student): no status, but the debt or the advance and the statement stay */}

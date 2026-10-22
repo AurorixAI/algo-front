@@ -541,10 +541,10 @@ test("the student card shows the price in one line with no field to type it; the
   assert.match(readOnly, /Индивидуальная цена 400 000 сум\/мес · Сестра/);
   assert.doesNotMatch(readOnly, /Внести оплату|Оплачено/);
   // status chip + one main button by the situation of the row
-  assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/);
-  assert.match(textOf(html(priceRow())), /Оплачено .*оплачено до 31\.10\.2026 .*Внести оплату/); // never paid or running: the same «Внести оплату»
+  assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено до 31\.10 Внести оплату Выписка/);
+  assert.match(textOf(html(priceRow())), /Оплачено до 31\.10 Внести оплату Выписка/); // never paid or running: the same «Внести оплату»
   const overdue = textOf(html(priceRow({ status: "expired", days_overdue: 31, days_left: null, last_payment: { id: "p" } })));
-  assert.match(overdue, /Просрочено на 31 день .*оплачено до 31\.10\.2026 .*Внести оплату/);
+  assert.match(overdue, /Просрочено на 31 день Внести оплату Выписка/);
   assert.doesNotMatch(overdue, /дн\./);
 });
 

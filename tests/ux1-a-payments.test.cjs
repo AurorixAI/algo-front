@@ -159,3 +159,53 @@ test("student card: row 1 = group + status + main button + «⋯»; row 2 = the 
   // money rules are untouched: nothing for a teacher
   assert.match(read("src/components/students/student-payments-block.tsx"), /if \(!moneyEnabled\) return null;/);
 });
+
+// ── the money chip of a membership on the student's card: ONE chip, one line (owner 22.10) ──────
+
+test("membershipChip: one line per state - «Оплачено до 30.11», «Долг …», «Ещё не платил», «На паузе до …»; the state logic is moneyChip's", () => {
+  const base = { status: "active", period_mode: "calendar", paid_until: "2026-11-30", debt: 0, advance: 0, last_payment: { id: "p" }, days_left: 20 };
+  const chip = (patch) => { const c = rules.membershipChip({ ...base, ...patch }); return { ...c, label: plain(c.label), title: c.title && plain(c.title) }; };
+  // paid: green, the date in dd.mm, the full date is the tooltip; an advance is NOT said
+  assert.deepEqual(chip({}), { label: "Оплачено до 30.11", tone: "ok", title: "оплачено до 30.11.2026" });
+  assert.equal(chip({ advance: 450000 }).label, "Оплачено до 30.11");
+  // overdue debt: red «Долг N сум», the tooltip says how overdue
+  assert.deepEqual(chip({ status: "expired", debt: 592000, days_overdue: 12 }), { label: "Долг 592 000 сум", tone: "danger", title: "Просрочено на 12 дней" });
+  assert.deepEqual(chip({ status: "active", debt: 592000, debt_reason: "overdue", days_overdue: 3 }).label, "Долг 592 000 сум");
+  // a part is paid and the period still runs («Не доплачено») -> «Долг 92 000 сум», still amber (not overdue), the tooltip keeps the old word
+  assert.deepEqual(chip({ status: "active", debt: 92000 }), { label: "Долг 92 000 сум", tone: "warning", title: "Не доплачено" });
+  // never paid: stays «Ещё не платил» (amber), the debt is the tooltip
+  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 450000, debt_reason: "never_paid" }), { label: "Ещё не платил", tone: "warning", title: "Долг 450 000 сум" });
+  // pause stays «На паузе до 12.11»
+  assert.equal(chip({ status: "paused", paused: { from: "2026-11-01", to: "2026-11-12" } }).label, "На паузе до 12.11");
+  // the rest of the date states keep their words, the date joins the one line
+  assert.equal(chip({ status: "expiring", days_left: 5 }).label, "Осталось 5 дней · до 30.11");
+  assert.equal(chip({ status: "ends_today" }).label, "Сегодня последний день");
+  assert.equal(chip({ status: "none", paid_until: null, last_payment: null }).label, "Без оплат");
+  assert.equal(chip({ status: "free", paid_until: null }).label, "Бесплатно");
+  assert.equal(chip({ period_mode: "lessons", lessons_total: 12, lessons_left: 9, paid_until: null }).label, "Оплачено · осталось 9 уроков из 12");
+  // every label is one line: no line breaks
+  for (const patch of [{}, { status: "expired", debt: 5, days_overdue: 2 }, { status: "paused" }]) assert.ok(!/\n/.test(chip(patch).label));
+  // the shared moneyChip (the tabs of «Оплаты») is unchanged
+  assert.equal(rules.moneyChip({ ...base, status: "active", debt: 92000 }).label, "Не доплачено");
+});
+
+test("the card of a membership: one chip, the actions in one row «Внести оплату» · «Выписка» · «⋯»; no «оплачено до» / «Аванс» / «Выписка» lines", () => {
+  const src = read("src/components/payments/membership-payments.tsx");
+  const head = src.slice(src.indexOf("{/* Row 1: the group"), src.indexOf("{/* A group the student has left"));
+  assert.match(head, /membershipChip|chip\.label/);
+  assert.match(head, /data-testid="membership-chip"/);
+  assert.doesNotMatch(head, /statusDetail|BalanceNote|detail &&/, "no second line under the chip");
+  assert.match(head, /\[grid-template-areas:'heading_heading'_'status_status'_'actions_actions'\]/, "phone: the chip on its own line, the actions under it");
+  assert.match(head, /lg:\[grid-template-areas:'heading_status_actions'\]/);
+  // the three actions live in one flex row
+  const actions = head.slice(head.indexOf("[grid-area:actions]"));
+  assert.ok(actions.indexOf("PAY_ACTION_LABEL") < actions.indexOf(">\n              Выписка") && actions.indexOf("Выписка") < actions.indexOf("<RowMenu"));
+  assert.match(head, /data-testid="membership-statement"/);
+  assert.doesNotMatch(src, /\bstatusDetail\b|moneyChip/, "the card does not use the old two-line pieces");
+  // «Выписка» is not repeated in «⋯» of an editable card
+  assert.match(src, /\.\.\.\(!editable \? \[\{ key: "statement"/);
+  // the rows of the «Оплаты» tabs keep their layout and their chip
+  const page = read("src/components/payments/payments-page.tsx");
+  assert.match(page, /const chip = moneyChip\(row\);/);
+  assert.match(page, /\{detail && <p className="text-xs text-slate-500">\{detail\}<\/p>\}/);
+});

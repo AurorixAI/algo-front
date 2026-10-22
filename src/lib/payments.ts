@@ -1069,6 +1069,36 @@ export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone 
   return { label: statusLabel(row), tone: statusTone(row.status) };
 }
 
+/**
+ * The ONE chip of a membership on the student's card (owner 22.10: the block was multi-storey): the key fact in one line, the rest lives in the statement.
+ * The state logic is `moneyChip`'s, only the words change:
+ *  - paused: «На паузе до 12.11» (grey);
+ *  - debt, the period has ended: «Долг 592 000 сум» (red; the title says «Просрочено на N дней»);
+ *  - debt, never paid: «Ещё не платил» (amber; the title says the debt);
+ *  - debt, a part is paid: «Долг 92 000 сум» (amber; the title says «Не доплачено»);
+ *  - no debt: «Оплачено до 30.11» (green) / «Осталось 5 дней · до 30.11» / «Сегодня последний день» (amber) / «Оплачено · осталось 9 уроков из 12» / «Без оплат» / «Бесплатно».
+ * An advance is not said here (it is in the statement).
+ */
+export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until">>): { label: string; tone: StatusTone; title: string | null } {
+  const base = moneyChip(row);
+  const debt = row.debt ?? 0;
+  const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+  const until = row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) ? row.paid_until : null;
+  if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
+  if (debt > 0) {
+    if (base.tone === "danger") return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
+    if (base.label === "Ещё не платил") return { ...base, title: `Долг ${formatMoney(debt)}` };
+    return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
+  }
+  if (row.period_mode === "lessons") {
+    const left = statusDetail(row);
+    return { ...base, label: base.tone === "ok" && left ? `${base.label} · ${left}` : base.label, title: null };
+  }
+  if (row.status === "active" && until) return { label: `Оплачено до ${dayMonth(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
+  if (row.status === "expiring" && until) return { label: `${base.label} · до ${dayMonth(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };
+  return { ...base, title: until && row.status === "ends_today" ? `оплачено до ${formatDateRu(until)}` : null };
+}
+
 /** «На паузе до 01.11» for a student of the group list (`paused_until` = the last day of the live pause, ISO); «На паузе» without the day. */
 export function pausedChipText(student: { on_pause?: boolean | null; paused_until?: string | null }): string | null {
   if (!student.on_pause) return null;
