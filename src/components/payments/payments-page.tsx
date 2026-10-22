@@ -58,6 +58,7 @@ import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
 import { RefundDialog, REFUND_ACTION_LABEL } from "./refund-dialog";
 import { WriteoffDialog, WRITEOFF_ACTION_LABEL } from "./writeoff-dialog";
+import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 
 const PAGE_SIZE = 50;
 
@@ -296,6 +297,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             <Tags className="h-4 w-4 text-slate-400" aria-hidden="true" />
             Цены групп
           </Link>
+          <OpeningsHeaderLink paymentsBase={paymentsBase} />
         </div>
       </div>
 
@@ -363,6 +365,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
         </div>
       </div>
 
+      {bucket === "debt" && <OpeningsBanner paymentsBase={paymentsBase} />}
       {bucket === "debt" && filter.groupId && (
         <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
       )}

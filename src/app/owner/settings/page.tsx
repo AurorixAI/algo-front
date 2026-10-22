@@ -39,6 +39,7 @@ import {
 } from "@/lib/payroll";
 import { ACCOUNTING_START_MIN, accountingStartImpactLines, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { OpeningsChecklist } from "@/components/payments/openings-widgets";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -361,6 +362,8 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           </ul>
         )}
       </fieldset>
+
+      <OpeningsChecklist paymentsBase="/owner/payments" onChangeDate={() => document.getElementById("payments-accounting-start")?.focus()} />
 
       <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
         <label htmlFor="payments-accounting-start" className={labelClasses}>Начало учёта оплат</label>
