@@ -667,3 +667,42 @@ test("schedule cards of the group (owner/admin): information only; the actions b
   assert.match(card, /<LessonActionSheet/);
   assert.match(card, /data-testid="schedule-card"/);
 });
+
+test("schedule cards v2 (owner review 22.10): titles, room, teacher line, moved lesson, 24 h time", () => {
+  const C = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  assert.equal(C.lessonTitle({ topic: "  Алгебра  " }, "Группа"), "Алгебра");
+  assert.equal(C.lessonTitle({ topic: "" }, "Алгебра 7А"), "Алгебра 7А", "the group name, never «Занятие»");
+  assert.equal(C.lessonTitle({}, null), "Урок");
+  assert.equal(C.roomLabel({ room: null }), null, "no room: nothing is shown");
+  assert.equal(C.roomLabel({ room: " 12 " }), "12");
+  assert.equal(C.roomLabel({ format: "online", room: "12" }), "Онлайн");
+  const no = "Преподаватель не назначен";
+  assert.equal(C.teacherLine({ teacherId: "a", teacherName: "Основной У." }, no), "Ведёт: Основной У.");
+  assert.equal(C.teacherLine({ teacherId: "b", teacherName: "Коллега У.", isSubstitution: true, defaultTeacherName: "Основной У." }, no), "Ведёт: Коллега У. — замена за Основной У.");
+  assert.equal(C.teacherLine({ teacherId: "b", teacherName: "Коллега У.", isSubstitution: true }, no), "Ведёт: Коллега У. — замена");
+  assert.equal(C.teacherLine({ teacherId: null }, no), no);
+  assert.equal(C.teacherLine(undefined, no), null);
+  assert.equal(C.movedReasonOf("Перенесён на 29.10, 16:00–17:30: Личные обстоятельства"), "Личные обстоятельства");
+  assert.equal(C.movedReasonOf("Каникулы"), null);
+  assert.deepEqual(C.sheetNotes({ moved: true, movedToText: "пн, 26.10, 10:00", reason: "Перенесён на 26.10, 10:00–11:00: Перенос по просьбе преподавателя", cancelled: true }),
+    ["Перенесён на пн, 26.10, 10:00", "Причина: Перенос по просьбе преподавателя"]);
+  assert.deepEqual(C.sheetNotes({ moved: false, reason: "Каникулы центра", cancelled: true }), ["Причина: Каникулы центра"]);
+  assert.deepEqual(C.sheetNotes({ moved: false, reason: null, cancelled: false }), []);
+  assert.equal(C.normalizeTime("930"), "09:30");
+  assert.equal(C.normalizeTime("9:30"), "09:30");
+  assert.equal(C.normalizeTime("16.45"), "16:45");
+  assert.equal(C.normalizeTime("2460"), null);
+  assert.equal(C.normalizeTime("abc"), null);
+  const card = read("src/components/groups/group-schedule-overview.tsx");
+  assert.doesNotMatch(card, /По расписанию"|Кабинет не указан/, "one word for not-yet-held lessons; no «Кабинет не указан»");
+  assert.match(card, /label: "Запланирован"/);
+  assert.match(card, /label: "Перенесён"/);
+  assert.match(card, /нет занятий/, "an empty day is one line on a phone");
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.doesNotMatch(sheet, /type="time"/, "24 h whatever the browser's locale");
+  for (const role of ["owner", "admin"]) {
+    const page = read(`src/app/${role}/groups/[id]/page.tsx`);
+    assert.match(page, /max-w-full[^"]*overflow-x-auto/, `${role}: the tab row scrolls inside itself`);
+    assert.match(page, /groupName=\{group\.name\}/);
+  }
+});

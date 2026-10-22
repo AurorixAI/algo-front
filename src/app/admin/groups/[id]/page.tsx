@@ -442,7 +442,7 @@ export default function AdminGroupDetailPage() {
       </motion.div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1 w-fit">
+      <div className="flex max-w-full items-center gap-1 overflow-x-auto bg-slate-100 rounded-xl p-1 w-fit [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Разделы группы">
         {([
           { key: "students",  label: "Ученики",   Icon: Users    },
           { key: "schedule", label: "Расписание", Icon: CalendarDays },
@@ -450,8 +450,10 @@ export default function AdminGroupDetailPage() {
         ] as const).map(({ key, label, Icon }) => (
           <button
             key={key}
+            role="tab"
+            aria-selected={tab === key}
             onClick={() => setTab(key)}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap px-3 py-2 sm:px-4 rounded-lg text-sm font-medium transition-all ${
               tab === key
                 ? "bg-white text-slate-900 shadow-sm"
                 : "text-slate-500 hover:text-slate-700"
@@ -495,7 +497,7 @@ export default function AdminGroupDetailPage() {
 
         {tab === "schedule" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            <GroupScheduleOverview groupId={groupId} viewerRole="admin" archived={group.status === "archived"} />
+            <GroupScheduleOverview groupId={groupId} groupName={group.name} viewerRole="admin" archived={group.status === "archived"} />
           </motion.div>
         )}
 

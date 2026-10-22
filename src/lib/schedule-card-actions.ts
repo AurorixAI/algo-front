@@ -54,3 +54,64 @@ export function assignActionLabel(input: { past: boolean; lacksTeacher: boolean;
   if (input.past) return ASSIGN_WHO_HELD_ACTION;
   return input.isSubstitution ? REPLACE_TEACHER_ACTION : ASSIGN_SUBSTITUTE_ACTION;
 }
+
+// ── what the card and the sheet say (income2 §1, owner review 22.10) ─────────────────────────────────────────────
+
+/** The title of a lesson: its topic, else the name of the group (never the bare word «Занятие»). */
+export function lessonTitle(lesson: { topic?: string | null }, groupName: string | null | undefined): string {
+  return (lesson.topic ?? "").trim() || (groupName ?? "").trim() || "Урок";
+}
+
+/** The room of a lesson, only when it is set («Онлайн» for an online one); null: nothing to show. */
+export function roomLabel(lesson: { room?: string | null; format?: string | null }): string | null {
+  if (lesson.format === "online") return "Онлайн";
+  const room = (lesson.room ?? "").trim();
+  return room || null;
+}
+
+/**
+ * «Ведёт: Коллега У. — замена за Основной У.» / «Ведёт: Основной У.» / «Преподаватель не назначен»; null without the server's answer.
+ * `noTeacherText` is the sentence for a lesson without a teacher.
+ */
+export function teacherLine(
+  info: { teacherId?: string | null; teacherName?: string | null; isSubstitution?: boolean; defaultTeacherName?: string | null } | null | undefined,
+  noTeacherText: string,
+): string | null {
+  if (!info) return null;
+  if (!info.teacherId) return noTeacherText;
+  const name = (info.teacherName ?? "").trim();
+  if (!name) return null;
+  const regular = (info.defaultTeacherName ?? "").trim();
+  if (info.isSubstitution) return regular ? `Ведёт: ${name} — замена за ${regular}` : `Ведёт: ${name} — замена`;
+  return `Ведёт: ${name}`;
+}
+
+/** The server writes the reason of a move as «Перенесён на 29.10, 16:00–17:30: Личные обстоятельства»: the reason alone. */
+export function movedReasonOf(text: string | null | undefined): string | null {
+  const match = /^Перенесён на [^:]*\d{2}:\d{2}(?:–\d{2}:\d{2})?:\s*([\s\S]+)$/.exec((text ?? "").trim());
+  return match ? match[1].trim() || null : null;
+}
+
+/** The lines of the sheet of a cancelled / moved lesson: where it went and the reason in full; [] for an ordinary lesson. */
+export function sheetNotes(input: { moved: boolean; movedToText?: string | null; reason: string | null | undefined; cancelled: boolean }): string[] {
+  const lines: string[] = [];
+  if (input.moved) {
+    if (input.movedToText) lines.push(`Перенесён на ${input.movedToText}`);
+    const reason = movedReasonOf(input.reason) ?? ((input.reason ?? "").trim() || null);
+    if (reason && !/^Перенесён на /.test(reason)) lines.push(`Причина: ${reason}`);
+  } else if (input.cancelled && (input.reason ?? "").trim()) {
+    lines.push(`Причина: ${(input.reason ?? "").trim()}`);
+  }
+  return lines;
+}
+
+/** Free typing of a time → «HH:MM» (24 h, whatever the browser's locale): «930», «9:30», «09.30» → «09:30»; null when it is not a time. */
+export function normalizeTime(text: string): string | null {
+  const digits = text.trim().replace(/[^0-9]/g, "");
+  const match = /^(\d{1,2})(\d{2})$/.exec(digits);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return `${String(hours).padStart(2, "0")}:${match[2]}`;
+}

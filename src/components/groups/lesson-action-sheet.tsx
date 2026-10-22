@@ -7,7 +7,7 @@ import { Modal } from "@/components/ui/modal";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { scheduleErrorText } from "@/lib/ops-errors";
 import { roomForSave } from "@/lib/schedule-slots";
-import { SCHEDULE_ACTION_LABEL, type ScheduleCardAction } from "@/lib/schedule-card-actions";
+import { SCHEDULE_ACTION_LABEL, normalizeTime, type ScheduleCardAction } from "@/lib/schedule-card-actions";
 import type { LessonMark } from "@/lib/substitutions";
 
 const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20";
@@ -23,14 +23,18 @@ type Mode = "menu" | "reschedule" | "cancel";
  * bottom of the screen (the dialog of the project).  The assignment itself is the dialog of LOGIC-B (`LessonTeacherDialog`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, summary, teacherLine, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onChanged,
+  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onChanged,
 }: {
   lesson: Lesson | null;
   groupId: string;
+  /** The topic of the lesson, else the group. */
   title: string;
-  /** Status, time, room as plain lines. */
-  summary: string[];
+  /** «сб, 24 октября · 10:00–11:00 · Запланирован» (+ the room when it is set). */
+  subtitle: string;
+  /** «Ведёт: Коллега У. — замена за Основной У.» */
   teacherLine: string | null;
+  /** Where a moved lesson went, the reason of a move / a cancellation in full. */
+  notes: string[];
   marks: LessonMark[];
   actions: ScheduleCardAction[];
   assignLabel: string;
@@ -72,8 +76,10 @@ export function LessonActionSheet({
     setError(null);
     try {
       if (mode === "reschedule") {
-        if (!start || !end || end <= start) { setError("Укажите время начала и окончания: конец позже начала"); setBusy(false); return; }
-        await orgApi.rescheduleLessonOccurrence(lesson.id, { lessonDate: lesson.date, startTime: start, endTime: end, room: roomForSave(room) ?? undefined, reason: trimmed });
+        const from = normalizeTime(start);
+        const to = normalizeTime(end);
+        if (!from || !to || to <= from) { setError("Укажите время как 15:00: начало и окончание, конец позже начала"); setBusy(false); return; }
+        await orgApi.rescheduleLessonOccurrence(lesson.id, { lessonDate: lesson.date, startTime: from, endTime: to, room: roomForSave(room) ?? undefined, reason: trimmed });
         setMode("menu");
         onChanged("Урок перенесён");
       } else {
@@ -118,14 +124,15 @@ export function LessonActionSheet({
       {lesson && (
         <div className="space-y-4 pb-1">
           <div className="space-y-1 text-sm text-slate-600">
-            {summary.map((line) => <p key={line}>{line}</p>)}
+            <p>{subtitle}</p>
             {teacherLine && <p className="font-medium text-slate-800">{teacherLine}</p>}
+            {notes.map((line) => <p key={line} className="break-words text-slate-700">{line}</p>)}
             <LessonChips marks={marks} requestHref={requestHref} className="pt-1" />
           </div>
 
           {mode === "menu" && (
             actions.length === 0 ? (
-              <p className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-500">С этим уроком ничего сделать нельзя.</p>
+              notes.length > 0 ? null : <p className="rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-500">С этим уроком ничего сделать нельзя.</p>
             ) : (
               <div className="space-y-2" role="group" aria-label="Действия с уроком">
                 {actions.map((action) => {
@@ -151,11 +158,11 @@ export function LessonActionSheet({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="sheet-start" className={LABEL}>Начало</label>
-                  <input id="sheet-start" type="time" value={start} onChange={(event) => { setError(null); setStart(event.target.value); }} className={FIELD} />
+                  <input id="sheet-start" inputMode="numeric" autoComplete="off" placeholder="15:00" maxLength={5} value={start} onChange={(event) => { setError(null); setStart(event.target.value); }} onBlur={() => setStart((value) => normalizeTime(value) ?? value)} className={FIELD} />
                 </div>
                 <div>
                   <label htmlFor="sheet-end" className={LABEL}>Окончание</label>
-                  <input id="sheet-end" type="time" value={end} onChange={(event) => { setError(null); setEnd(event.target.value); }} className={FIELD} />
+                  <input id="sheet-end" inputMode="numeric" autoComplete="off" placeholder="16:30" maxLength={5} value={end} onChange={(event) => { setError(null); setEnd(event.target.value); }} onBlur={() => setEnd((value) => normalizeTime(value) ?? value)} className={FIELD} />
                 </div>
               </div>
               <div>

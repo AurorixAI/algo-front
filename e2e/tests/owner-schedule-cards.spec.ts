@@ -23,6 +23,12 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await org.addStudent(group, "Анвар", "Карточкин");
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "15:00", endTime: "16:00", topic: "Квадратные уравнения и неравенства" });
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "17:00", endTime: "18:00", topic: "Вторая" });
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(day), startTime: "19:00", endTime: "20:00", topic: "Для переноса" });
+  // a lesson of the teacher moved to the next day on his request (the original stays as «Перенесён»)
+  const mine = await teacher.api.get("/auth/org/substitutions/my-lessons", { dateFrom: day, dateTo: day });
+  const toMove = mine.lessons.find((l: any) => l.startTime === "19:00");
+  const request = await teacher.api.post("/auth/org/substitutions", { lessons: [{ groupId: group.id, lessonDate: day, lessonId: toMove.lessonId }], reasonCode: "other", comment: "Курсы повышения" });
+  await org.owner.api.post(`/auth/org/substitutions/${request.created[0].id}/decide`, { decision: "reschedule", newDate: addDays(day, 1), startTime: "19:00", endTime: "20:00", reason: "Перенос по просьбе преподавателя", expectedStatus: "pending" });
 
   const page = await signIn(org.owner);
   await page.goto(`/owner/groups/${group.id}?tab=schedule`);
@@ -34,15 +40,18 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
 
   // --- information only: the status, the whole topic, the time, the teacher - and nothing to press inside
   await expect(card).toContainText("Запланирован");
-  await expect(card).toContainText("15:00 — 16:00");
-  await expect(card).toContainText("Основной");
+  await expect(card).toContainText("15:00–16:00");
+  await expect(card).not.toContainText("Кабинет не указан"); // the room only when it is set
+  await expect(card).not.toContainText("Основной"); // the group's own teacher is in the header, not on every card
   await expect(card.getByRole("button")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Заменить преподавателя" })).toHaveCount(0);
   await expectNoHorizontalScroll(page);
 
   // --- a click opens the sheet with the actions of a future lesson
   await card.click();
-  const sheet = page.getByRole("dialog", { name: /^Урок / });
+  const sheet = page.getByRole("dialog", { name: "Квадратные уравнения и неравенства" });
+  await expect(sheet).toContainText(/Запланирован/);
+  await expect(sheet).toContainText("Ведёт: Основной");
   await expect(sheet.getByRole("button", { name: "Назначить замену" })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Перенести урок" })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Отменить урок" })).toBeVisible();
@@ -58,17 +67,37 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   await expect(card).toContainText("Замена: ");
   await expect(card).toContainText("Коллега");
   await expect(card.getByRole("button")).toHaveCount(0);
+  await card.click();
+  await expect(page.getByRole("dialog", { name: "Квадратные уравнения и неравенства" })).toContainText(/Ведёт: Коллега .* — замена за Основной/);
+  await page.keyboard.press("Escape");
 
-  // --- the cancellation asks for a reason and leaves a card with nothing to do
+  // --- the cancellation asks for a reason; the card keeps its topic and opens a sheet with the reason in full
   const second = cards.filter({ hasText: "Вторая" });
   await second.click();
-  await page.getByRole("dialog", { name: /^Урок / }).getByRole("button", { name: "Отменить урок" }).click();
-  const cancelSheet = page.getByRole("dialog", { name: /^Урок / });
+  await page.getByRole("dialog", { name: "Вторая" }).getByRole("button", { name: "Отменить урок" }).click();
+  const cancelSheet = page.getByRole("dialog", { name: "Вторая" });
   await cancelSheet.getByRole("button", { name: "Отменить урок" }).click(); // without a reason
   await expect(cancelSheet.getByRole("alert")).toContainText("Укажите причину");
   await cancelSheet.getByLabel("Причина отмены").fill("Каникулы центра");
   await cancelSheet.getByRole("button", { name: "Отменить урок" }).click();
   await expect(toast(page, "Урок отменён")).toBeVisible();
   await expect(second).toContainText("Отменён");
-  await expect(second).not.toHaveAttribute("role", "button");
+  await expect(second).toContainText("Вторая"); // the server keeps the topic the dialog sends
+  await expect(second).toContainText("Каникулы центра");
+  await second.click();
+  const cancelled = page.getByRole("dialog", { name: "Вторая" });
+  await expect(cancelled).toContainText("Причина: Каникулы центра");
+  await expect(cancelled.getByRole("button", { name: "Отменить урок" })).toHaveCount(0); // nothing left to do
+  await page.keyboard.press("Escape");
+
+  // --- a moved lesson: «Перенесён», where it went in one line, no reason block on the card; the sheet has the reason
+  const moved = cards.filter({ hasText: "Для переноса" }).first(); // the original of Friday; its new lesson stands on the next day
+  await expect(moved).toContainText("Перенесён");
+  await expect(moved).toContainText(/на \S+, \d\d\.\d\d, 19:00/);
+  await expect(moved).not.toContainText("Причина");
+  await expect(moved).not.toContainText("Отменён");
+  await moved.click();
+  const movedSheet = page.getByRole("dialog", { name: "Для переноса" });
+  await expect(movedSheet).toContainText(/Перенесён на \S+, \d\d\.\d\d, 19:00/);
+  await expect(movedSheet).toContainText("Причина: Перенос по просьбе преподавателя");
 });

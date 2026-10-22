@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CalendarCheck2,
+  CalendarClock,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -25,12 +26,12 @@ import {
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { directAssignToast, lessonMarks, movedToLabel, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
-import { assignActionLabel, scheduleCardActions } from "@/lib/schedule-card-actions";
+import { assignActionLabel, lessonTitle, roomLabel, scheduleCardActions, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
   label: string;
@@ -59,7 +60,16 @@ function presentationFor(
   status: LessonAttendanceStatus | "scheduled",
   lessonDate: string,
   today: string,
+  moved = false,
 ): ScheduleStatus {
+  if (moved) {
+    return {
+      label: "Перенесён",
+      description: "Урок перенесён на другой день",
+      badgeClassName: "bg-sky-50 text-sky-800 border-sky-200",
+      icon: CalendarClock,
+    };
+  }
   if (status === "completed") {
     return {
       label: "Завершён",
@@ -99,19 +109,12 @@ function presentationFor(
       icon: AlertCircle,
     };
   }
-  if (lessonDate === today) {
-    return {
-      label: "По расписанию",
-      description: "Урок ожидает начала по расписанию",
-      badgeClassName: "bg-primary-50 text-primary-700 border-primary-200",
-      icon: CalendarCheck2,
-    };
-  }
+  // one word for every lesson that has not been held yet: today's not started and the future ones
   return {
     label: "Запланирован",
-    description: "Будущее занятие по утверждённому расписанию",
-    badgeClassName: "bg-slate-50 text-slate-600 border-slate-200",
-    icon: CalendarDays,
+    description: lessonDate === today ? "Урок ожидает начала по расписанию" : "Будущее занятие по утверждённому расписанию",
+    badgeClassName: lessonDate === today ? "bg-primary-50 text-primary-700 border-primary-200" : "bg-slate-50 text-slate-600 border-slate-200",
+    icon: lessonDate === today ? CalendarCheck2 : CalendarDays,
   };
 }
 
@@ -128,8 +131,10 @@ function periodLabel(start: string, end: string): string {
  * recurring slots, one-off transfers, cancellations and factual states are
  * therefore represented once and never reconstructed in the frontend.
  */
-export function GroupScheduleOverview({ groupId, viewerRole = null, archived = false }: {
+export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = null, archived = false }: {
   groupId: string;
+  /** The title of a lesson without a topic. */
+  groupName?: string | null;
   /** `owner` / `admin` get the lesson sheet (replace the teacher, move, cancel, open the journal); nobody else can act on a card. */
   viewerRole?: string | null;
   /** The group is in the archive: nothing changes there. */
@@ -307,32 +312,47 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
             {weekDates.map((date) => {
               const dateLessons = lessonsByDate.get(date) || [];
               const isToday = date === today;
+              const empty = dateLessons.length === 0;
+              const weekday = formatIsoDateLabel(date, { weekday: "short" }).replace(".", "");
               return (
-                <div key={date} className={`min-h-[220px] p-4 ${isToday ? "bg-primary-50/45" : "bg-white"}`}>
-                  <div className="mb-3 flex items-start justify-between gap-2">
+                // a phone: an empty day is one quiet line, not a tall dashed box (the desktop grid keeps its seven columns)
+                <div key={date} className={`p-4 md:min-h-[220px] ${empty ? "max-md:px-4 max-md:py-2.5" : ""} ${isToday ? "bg-primary-50/45" : "bg-white"}`}>
+                  {empty && (
+                    <p className="text-xs text-slate-400 md:hidden">
+                      <span className="capitalize">{weekday}</span>, {formatIsoDateLabel(date, { day: "numeric", month: "short" })} — нет занятий
+                      {isToday && <span className="ml-2 rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-semibold text-white">Сегодня</span>}
+                    </p>
+                  )}
+                  <div className={`mb-3 flex items-start justify-between gap-2 ${empty ? "max-md:hidden" : ""}`}>
                     <div>
-                      <p className="text-sm font-semibold capitalize text-slate-900">{formatIsoDateLabel(date, { weekday: "short" }).replace(".", "")}</p>
+                      <p className="text-sm font-semibold capitalize text-slate-900">{weekday}</p>
                       <p className="mt-0.5 text-xs text-slate-500">{formatIsoDateLabel(date, { day: "numeric", month: "short" })}</p>
                     </div>
                     {isToday && <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-semibold text-white">Сегодня</span>}
                   </div>
 
-                  {dateLessons.length === 0 ? (
-                    <div className="flex min-h-[130px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center text-xs text-slate-400">Нет занятий</div>
+                  {empty ? (
+                    <div className="hidden min-h-[130px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center text-xs text-slate-400 md:flex">Нет занятий</div>
                   ) : (
                     <div className="space-y-2.5">
                       {dateLessons.map((lesson) => {
                         const key = lessonKey(lesson);
-                        const state = presentationFor(attendance?.statuses?.[key] || lesson.status || "scheduled", lesson.date, today);
+                        const lessonState = attendance?.statuses?.[key] || lesson.status || "scheduled";
+                        const outcome = lesson.substitutionOutcome;
+                        const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
+                        const state = presentationFor(lessonState, lesson.date, today, moved);
                         const StateIcon = state.icon;
                         const startTime = lesson.startTime || lesson.start_time || "—";
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
-                        const lessonState = attendance?.statuses?.[key] || lesson.status || "scheduled";
+                        const room = roomLabel(lesson);
                         const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo) });
-                        const marks = lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome);
-                        const interactive = actions.length > 0;
+                        // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
+                        const marks = lessonMarks(attendance?.substitutionRequests?.[key], null);
+                        const manager = viewerRole === "owner" || viewerRole === "admin";
+                        const interactive = manager && (actions.length > 0 || lessonState === "cancelled");
                         const open = () => setSheetLesson(lesson);
+                        const showTeacher = teacherInfo && (lacksTeacher(teacherInfo) || substituteLabel(teacherInfo));
                         return (
                           <article
                             key={key}
@@ -340,36 +360,30 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
                             {...(interactive ? {
                               role: "button" as const,
                               tabIndex: 0,
-                              "aria-label": `Урок ${formatIsoDateLabel(lesson.date, { day: "numeric", month: "long" })}, ${startTime}: действия`,
+                              "aria-label": `Урок ${formatIsoDateLabel(lesson.date, { day: "numeric", month: "long" })}, ${startTime}: подробности`,
                               onClick: open,
                               onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } },
                             } : {})}
                             className={`rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs ${interactive ? "cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40" : ""}`}
                           >
-                            {/* the status first and the topic under it, whole: a long topic wraps instead of being cut to a letter */}
                             <span title={state.description} className={`inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
                               <StateIcon className="h-3 w-3" />
                               {state.label}
                             </span>
-                            <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lesson.topic || "Занятие"}</p>
-                            <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{startTime} — {lesson.endTime || "—"}</p>
-                            <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>
+                            <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lessonTitle(lesson, groupName)}</p>
+                            <p className="mt-2 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 shrink-0 text-slate-400" />{startTime}–{lesson.endTime || "—"}</p>
+                            {room && <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{room}</p>}
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
-                            {cancellationReason && <p className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
-                            {/* LOGIC-B2: a request waiting for a decision, and where a moved original went */}
+                            {moved && outcome?.movedTo && <p className="mt-1.5 text-xs font-semibold text-sky-800">на {movedToLabel(outcome.movedTo)}</p>}
+                            {!moved && cancellationReason && <p className="mt-2 break-words rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
+                            {/* LOGIC-B2: a request waiting for a decision */}
                             <LessonChips marks={marks} className="mt-2" />
-                            {teacherInfo && (
+                            {showTeacher && (
                               <div className="mt-2 border-t border-slate-200/70 pt-2 text-[11px] leading-snug">
                                 {lacksTeacher(teacherInfo) ? (
                                   <p className="font-semibold text-amber-800">{NO_LESSON_TEACHER_TEXT}</p>
                                 ) : (
-                                  <p className="text-slate-600">
-                                    {substituteLabel(teacherInfo) ? (
-                                      <span className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">{substituteLabel(teacherInfo)}</span>
-                                    ) : (
-                                      <span className="font-medium text-slate-800">{teacherInfo.teacherName}</span>
-                                    )}
-                                  </p>
+                                  <p><span className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">{substituteLabel(teacherInfo)}</span></p>
                                 )}
                               </div>
                             )}
@@ -390,18 +404,27 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
         const key = lesson ? lessonKey(lesson) : "";
         const lessonState = lesson ? attendance?.statuses?.[key] || lesson.status || "scheduled" : "scheduled";
         const info = lesson ? attendance?.lessonTeachers?.[key || lessonKeyOf(lesson.date, lesson.id)] : undefined;
-        const presentation = lesson ? presentationFor(lessonState, lesson.date, today) : null;
+        const outcome = lesson?.substitutionOutcome;
+        const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
+        const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
         const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info) }) : [];
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
+        const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
+        const notes = lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [];
+        const room = lesson ? roomLabel(lesson) : null;
+        const subtitle = lesson && presentation
+          ? [`${formatIsoDateLabel(lesson.date, { weekday: "short", day: "numeric", month: "long" }).replace(".", "")}`, `${startTime}–${lesson.endTime || "—"}`, presentation.label, ...(room ? [room] : [])].join(" · ")
+          : "";
         return (
           <LessonActionSheet
             lesson={lesson}
             groupId={groupId}
-            title={lesson ? `Урок ${formatIsoDateLabel(lesson.date, { weekday: "long", day: "numeric", month: "long" })}` : "Урок"}
-            summary={lesson && presentation ? [`${presentation.label} · ${startTime} — ${lesson.endTime || "—"}`, lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"] : []}
-            teacherLine={info ? (lacksTeacher(info) ? NO_LESSON_TEACHER_TEXT : [info.teacherName, substituteLabel(info)].filter(Boolean).join(" · ")) : null}
-            marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome) : []}
+            title={lesson ? lessonTitle(lesson, groupName) : "Урок"}
+            subtitle={subtitle}
+            teacherLine={teacherLine(info, NO_LESSON_TEACHER_TEXT)}
+            notes={notes}
+            marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], null) : []}
             requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
             actions={actions}
             assignLabel={assignActionLabel({ past: Boolean(lesson && lesson.date < today), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}

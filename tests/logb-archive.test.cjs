@@ -139,7 +139,7 @@ test("the group pages are wired: «В архив» opens the dialog, the archive
     assert.doesNotMatch(page, /confirm\(`Архивировать/);
   }
   const api = read("src/lib/api.ts");
-  assert.match(read("src/app/owner/groups/[id]/page.tsx"), /GroupScheduleOverview groupId=\{groupId\} viewerRole="owner"/, "the owner replaces a lesson's teacher from the schedule tab too");
+  assert.match(read("src/app/owner/groups/[id]/page.tsx"), /GroupScheduleOverview groupId=\{groupId\} groupName=\{group\.name\} viewerRole="owner"/, "the owner replaces a lesson's teacher from the schedule tab too");
   assert.match(api, /groups\/\$\{id\}\/archive`, \{ method: "POST"/);
   assert.match(api, /groups\/\$\{id\}\/restore`/);
   assert.match(api, /archive-impact/);
