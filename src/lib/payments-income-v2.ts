@@ -163,6 +163,8 @@ export interface JournalRow {
   note: string | null;
   allocation_text: string | null;
   allocations: JournalAllocation[];
+  /** The parts of THIS payment by kind (old_debt / current / forward / advance / …) with the server's labels; absent on an older server. */
+  split?: IncomeFlowItem[];
   refunded: number;
   transferred: number;
   status: JournalStatus;
@@ -270,6 +272,7 @@ function journalRow(raw: JournalRow): JournalRow {
     amount: sum(raw.amount), method: text(raw.method), method_label: text(raw.method_label),
     created_by_id: nullableText(raw.created_by_id), created_by_name: nullableText(raw.created_by_name), note: nullableText(raw.note),
     allocation_text: nullableText(raw.allocation_text), allocations: arr<JournalAllocation>(raw.allocations),
+    split: arr<IncomeFlowItem>(raw.split).map((part) => ({ kind: text(part?.kind), label: text(part?.label), amount: sum(part?.amount) })),
     refunded: sum(raw.refunded), transferred: sum(raw.transferred), status,
     replaces_receipt_no: raw.replaces_receipt_no ?? null, replaces_amount: raw.replaces_amount ?? null, replaced_by_receipt_no: raw.replaced_by_receipt_no ?? null,
     void_reason: nullableText(raw.void_reason), voided_at: nullableText(raw.voided_at), voided_by_name: nullableText(raw.voided_by_name),
@@ -291,11 +294,12 @@ export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
 
 export interface Period { kind: PeriodKind; from: string; to: string }
 
-export const PERIOD_TABS: Array<{ key: PeriodKind; label: string }> = [
-  { key: "day", label: "День" },
-  { key: "week", label: "Неделя" },
-  { key: "month", label: "Месяц" },
-  { key: "custom", label: "Свой период" },
+/** `short` is the label below `sm` (a 360 px phone must hold all four tabs without scrolling); `label` from `sm` up. */
+export const PERIOD_TABS: Array<{ key: PeriodKind; label: string; short: string }> = [
+  { key: "day", label: "День", short: "День" },
+  { key: "week", label: "Неделя", short: "Неделя" },
+  { key: "month", label: "Месяц", short: "Месяц" },
+  { key: "custom", label: "Свой период", short: "Период" },
 ];
 
 /** The server accepts a range of at most 366 days; longer than 92 days it answers month by month. */
@@ -598,14 +602,14 @@ export interface FlowPart {
 export const FLOW_DOT: Record<string, string> = {
   old_debt: "bg-slate-700",
   current: "bg-primary-600",
-  forward: "bg-teal-500",
-  advance: "bg-emerald-500",
+  forward: "bg-violet-500",
+  advance: "bg-emerald-600",
   refunded: "bg-amber-400",
   transferred: "bg-slate-300",
   // the older server's field names
   to_past_debt: "bg-slate-700",
   to_current: "bg-primary-600",
-  to_advance: "bg-emerald-500",
+  to_advance: "bg-emerald-600",
 };
 export const FLOW_DOT_UNKNOWN = "bg-slate-400";
 export const flowDot = (kind: string): string => FLOW_DOT[kind] ?? FLOW_DOT_UNKNOWN;
@@ -857,6 +861,18 @@ export function collectionRows(collection: MonthCollection | null | undefined): 
     .map((item) => item.view);
 }
 
+/**
+ * Under the total row: the month's debt is not the card «Долг на сегодня» (that one counts the previous months too).
+ * «Долг за октябрь — 1 800 000 сум. Всего долг на сегодня — 1 950 000 сум (с прошлыми месяцами).»; null when the two are the same.
+ */
+export function collectionDebtNote(collection: MonthCollection | null | undefined, debtToday: number | null | undefined): string | null {
+  if (!collection || debtToday === null || debtToday === undefined) return null;
+  const month = collection.total.debt;
+  if (month === debtToday) return null;
+  const name = (collection.month_label || "").trim().split(/\s+/)[0].toLowerCase();
+  return `Долг ${name ? `за ${name}` : "за месяц"} — ${formatMoney(month)}. Всего долг на сегодня — ${formatMoney(debtToday)} (с прошлыми месяцами).`;
+}
+
 export function collectionTotalView(collection: MonthCollection | null | undefined): CollectionRowView | null {
   return collection ? { ...collectionView(collection.total, 0), key: "total", title: "Всего" } : null;
 }
@@ -934,6 +950,8 @@ export interface DrawerView {
   facts: DrawerFact[];
   /** «Куда пошли деньги»: «за сентябрь — 200 000», «аванс — 50 000»; the server's lines. */
   destination: string[];
+  /** The same lines with the colour of the kind (the strip's); the drawer shows a dot. */
+  destinationItems: DestinationLine[];
   /** The history of a cancelled or corrected payment, in words. */
   notes: string[];
   note: string | null;
@@ -951,10 +969,73 @@ export function humanDestinationLine(line: string): string {
   return out;
 }
 
+const MONTHS_NOMINATIVE = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
+const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+
+/** A whole calendar month is «сентябрь», any other period is «20.09–19.10». */
+function allocationPeriodName(allocation: Pick<JournalAllocation, "period_from" | "period_to">): string {
+  const { period_from: from, period_to: to } = allocation;
+  if (isIsoDate(from) && isIsoDate(to) && from.slice(8) === "01" && monthEnd(from) === to) return MONTHS_NOMINATIVE[Number(from.slice(5, 7)) - 1] ?? "";
+  return isIsoDate(from) && isIsoDate(to) ? `${dayMonth(from)}–${dayMonth(to)}` : "";
+}
+
+/** «за сентябрь» / «за период 20.10–19.11» / «за периоды 20.09–19.10, 20.10–19.11»; «» when the periods are not known. */
+function allocationPeriodsText(allocations: Array<Pick<JournalAllocation, "period_from" | "period_to">>): string {
+  const names = allocations.map(allocationPeriodName).filter(Boolean);
+  if (names.length === 0) return "";
+  if (names.length === 1) return /^\d/.test(names[0]) ? `за период ${names[0]}` : `за ${names[0]}`;
+  return `за периоды ${names.join(", ")}`;
+}
+
+/** The periods of a kind: the allocations of the kind's bucket (the earliest first) whose amounts add up exactly to the kind's amount; «» when they do not. */
+function kindPeriods(kind: string, amount: number, row: Pick<JournalRow, "allocations"> & Partial<Pick<JournalRow, "paid_on">>): string {
+  const bucket = kind === "old_debt" ? "past_debt" : kind === "current" ? "current" : kind === "forward" ? "advance" : "";
+  if (!bucket) return "";
+  const candidates = row.allocations
+    .filter((line) => line.bucket === bucket && line.amount > 0 && (kind !== "forward" || !row.paid_on || line.period_from > row.paid_on))
+    .sort((a, b) => a.period_from.localeCompare(b.period_from));
+  const taken: JournalAllocation[] = [];
+  let total = 0;
+  for (const line of candidates) {
+    taken.push(line);
+    total += line.amount;
+    if (total >= amount) break;
+  }
+  return total === amount ? allocationPeriodsText(taken) : "";
+}
+
+export interface DestinationLine {
+  text: string;
+  /** The colour of the kind (the same as in the strip and its legend); null for a line without a kind. */
+  dot: string | null;
+}
+
+/**
+ * One line of «Куда пошли деньги» by the row's `split`: the kind named in words of the strip, the periods from the allocations, then the amount.
+ * «Вперёд — за период 20.10–19.11 (начался после оплаты) · 100 000 сум», «Аванс (пока не потрачен) · 200 000 сум», «Старый долг за сентябрь · 300 000 сум».
+ */
+export function splitLine(part: IncomeFlowItem, row: Pick<JournalRow, "allocations"> & Partial<Pick<JournalRow, "paid_on">>): DestinationLine {
+  const periods = kindPeriods(part.kind, part.amount, row);
+  let head: string;
+  if (part.kind === "old_debt") head = periods ? `Старый долг ${periods}` : "Старый долг";
+  else if (part.kind === "current") head = periods ? `Текущий период — ${periods}` : "Текущий период";
+  else if (part.kind === "forward") head = periods ? `Вперёд — ${periods} (начался после оплаты)` : "Вперёд — за будущие периоды (начались после оплаты)";
+  else if (part.kind === "advance") head = "Аванс (пока не потрачен)";
+  else head = capitalizeFirst(part.label || part.kind);
+  return { text: `${head} · ${formatMoney(part.amount)}`, dot: flowDot(part.kind) };
+}
+
 /** «за сентябрь — 200 000 сум · аванс — 50 000 сум» → two lines; the sentence is the server's, the split and the words «сум» / «период» are the layout. */
-export function destinationLines(row: Pick<JournalRow, "allocation_text" | "allocations">): string[] {
-  if (row.allocation_text) return row.allocation_text.split(" · ").map(humanDestinationLine).filter(Boolean);
-  return row.allocations.filter((line) => line.amount > 0).map((line) => `${line.label} — ${formatMoney(line.amount)}`);
+export function destinationLines(row: Pick<JournalRow, "allocation_text" | "allocations"> & Partial<Pick<JournalRow, "split" | "paid_on">>): string[] {
+  return destinationItems(row).map((line) => line.text);
+}
+
+/** The lines of «Куда пошли деньги» with the colour of each kind: the row's `split` when the server sends it, else the sentence `allocation_text`, else the allocations. */
+export function destinationItems(row: Pick<JournalRow, "allocation_text" | "allocations"> & Partial<Pick<JournalRow, "split" | "paid_on">>): DestinationLine[] {
+  const parts = (row.split ?? []).filter((part) => part.amount > 0);
+  if (parts.length > 0) return parts.map((part) => splitLine(part, row));
+  if (row.allocation_text) return row.allocation_text.split(" · ").map(humanDestinationLine).filter(Boolean).map((text) => ({ text, dot: null }));
+  return row.allocations.filter((line) => line.amount > 0).map((line) => ({ text: `${line.label} — ${formatMoney(line.amount)}`, dot: null }));
 }
 
 export function drawerView(row: JournalRow): DrawerView {
@@ -978,6 +1059,7 @@ export function drawerView(row: JournalRow): DrawerView {
     tag: statusTag(row),
     facts,
     destination: row.status === "active" ? destinationLines(row) : [],
+    destinationItems: row.status === "active" ? destinationItems(row) : [],
     notes,
     note: row.note,
     links: [

@@ -236,7 +236,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
               <h2 className="text-sm font-semibold text-slate-800">Оплаты</h2>
             )}
             {tab === "groups" && collection ? (
-              <CollectionTable collection={collection} paymentsBase={paymentsBase} />
+              <CollectionTable collection={collection} paymentsBase={paymentsBase} debtToday={overview.data?.position.debt_total ?? null} />
             ) : (
               <JournalSection
                 journal={journal.data}
@@ -277,7 +277,7 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
   return (
     <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center" data-testid="income-period">
       <div role="tablist" aria-label="Период" data-testid="period-tabs" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 md:w-fit">
-        {PERIOD_TABS.map(({ key, label }) => (
+        {PERIOD_TABS.map(({ key, label, short }) => (
           <button
             key={key}
             type="button"
@@ -286,7 +286,8 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
             onClick={() => onChange(switchKind(key, period, today))}
             className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-medium transition-all sm:px-3.5 sm:text-sm md:flex-none ${period.kind === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
-            {label}
+            <span className="sm:hidden">{short}</span>
+            <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </div>

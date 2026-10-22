@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatMoney } from "@/lib/payments";
-import { collectionRows, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
+import { collectionDebtNote, collectionRows, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
 
 const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr)_7rem_7.5rem] md:items-center md:gap-x-4";
@@ -38,7 +38,7 @@ function RowBody({ row }: { row: CollectionRowView }) {
           <span className="text-xs text-slate-400">ничего не начислено</span>
         )}
       </div>
-      <Cell label="Долг" className={`order-5 ${row.debt > 0 ? "font-medium text-rose-700" : ""} md:order-none`}>{row.debt > 0 ? formatMoney(row.debt) : quiet}</Cell>
+      <Cell label="Долг за месяц" className={`order-5 ${row.debt > 0 ? "font-medium text-rose-700" : ""} md:order-none`}>{row.debt > 0 ? formatMoney(row.debt) : quiet}</Cell>
       <Cell label="С долгом за месяц" className="order-6 text-slate-700 md:order-none">{row.debtors > 0 ? row.debtors : quiet}</Cell>
     </>
   );
@@ -48,9 +48,10 @@ function RowBody({ row }: { row: CollectionRowView }) {
  * «Группы — собираемость» (month mode): the group (teacher) | cost of the month | paid | a bar with the percent | debt |
  * students with a debt.  The worst collection is on top; a row opens «Должники» of that group.  A card on a phone.
  */
-export function CollectionTable({ collection, paymentsBase }: { collection: MonthCollection; paymentsBase: string }) {
+export function CollectionTable({ collection, paymentsBase, debtToday }: { collection: MonthCollection; paymentsBase: string; /** The card «Долг на сегодня» (all months): when it differs from the month's debt, one quiet line says why. */ debtToday?: number | null }) {
   const rows = collectionRows(collection);
   const total = collectionTotalView(collection);
+  const debtNote = collectionDebtNote(collection, debtToday);
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" data-testid="collection-empty">
@@ -65,7 +66,7 @@ export function CollectionTable({ collection, paymentsBase }: { collection: Mont
         <span className="text-right">Стоимость за месяц</span>
         <span className="text-right">Оплачено</span>
         <span>Собрано</span>
-        <span className="text-right">Долг</span>
+        <span className="text-right">Долг за месяц</span>
         <span className="text-right">С долгом за месяц</span>
       </div>
       <ul className="flex flex-col gap-2.5 md:gap-0 md:divide-y md:divide-slate-100">
@@ -87,6 +88,7 @@ export function CollectionTable({ collection, paymentsBase }: { collection: Mont
           <RowBody row={total} />
         </div>
       )}
+      {debtNote && <p className="mt-2.5 px-1 text-xs leading-relaxed text-slate-600 md:mt-0 md:border-t md:border-slate-100 md:px-4 md:py-2.5" data-testid="collection-debt-note">{debtNote}</p>}
     </section>
   );
 }

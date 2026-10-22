@@ -127,7 +127,12 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
         <section aria-label="Куда пошли деньги">
           <h3 className="text-sm font-semibold text-slate-800">Куда пошли деньги</h3>
           <ul className="mt-1.5 space-y-1 border-l-2 border-slate-100 pl-3 text-sm text-slate-700" data-testid="drawer-destination">
-            {view.destination.map((line) => <li key={line}>{line}</li>)}
+            {view.destinationItems.map((line) => (
+              <li key={line.text} className="flex items-start gap-2" data-kind-dot={line.dot ?? undefined}>
+                {line.dot && <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-sm ${line.dot}`} aria-hidden />}
+                <span className="min-w-0 break-words">{line.text}</span>
+              </li>
+            ))}
           </ul>
         </section>
       )}
@@ -200,7 +205,7 @@ export function JournalSection(props: JournalSectionProps) {
   if (!error && journalIsQuiet(journal, props.empty)) {
     return (
       <section aria-label="Журнал оплат" data-testid="income-journal">
-        <p className="px-1 text-sm text-slate-400" data-testid="journal-quiet">{JOURNAL_QUIET_TEXT}</p>
+        <p className="px-1 text-sm text-slate-600" data-testid="journal-quiet">{JOURNAL_QUIET_TEXT}</p>
       </section>
     );
   }

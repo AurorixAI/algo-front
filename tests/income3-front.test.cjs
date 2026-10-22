@@ -302,3 +302,97 @@ test("the group's card of a lesson moved away is muted and does not count in «t
 test("income3 is part of test:display", () => {
   assert.match(read("package.json"), /tests\/income3-front\.test\.cjs/);
 });
+
+// ── 9. INCOME-4 (inc4 review): the drawer names the kind, the debt numbers explain each other, contrast, phone tabs, strip colours ──
+
+const hexLum = (hex) => {
+  const channel = (i) => { const v = parseInt(hex.slice(1 + 2 * i, 3 + 2 * i), 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+  return 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+};
+const contrast = (a, b) => { const [hi, lo] = [hexLum(a), hexLum(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05); };
+
+const alloc = (bucket, from, to, amount) => ({ segment_id: `s:${from}`, period_from: from, period_to: to, amount, days: 1, bucket, closes: false, label: "", price: 0, segment_remaining_after: 0 });
+const splitRow = (split, allocations, extra = {}) => ({ allocation_text: "за что-то — 1 сум", allocations, split, paid_on: "2026-10-15", ...extra });
+
+test("I03: «Куда пошли деньги» names the kind from the row's split (forward / advance / old debt / current), the server's allocation_text only as the fallback", () => {
+  const forward = splitRow([{ kind: "forward", label: "вперёд (за будущие периоды)", amount: 100000 }], [alloc("advance", "2026-10-20", "2026-11-19", 100000)]);
+  assert.deepEqual(V.destinationLines(forward).map(plain), ["Вперёд — за период 20.10–19.11 (начался после оплаты) · 100 000 сум"]);
+  const advance = splitRow([{ kind: "advance", label: "пока не потрачено (аванс)", amount: 200000 }], [alloc("advance", "2026-11-01", "2026-11-30", 200000)]);
+  assert.deepEqual(V.destinationLines(advance).map(plain), ["Аванс (пока не потрачен) · 200 000 сум"]);
+  const old = splitRow([{ kind: "old_debt", label: "на старые долги", amount: 300000 }], [alloc("past_debt", "2026-09-01", "2026-09-30", 300000)]);
+  assert.deepEqual(V.destinationLines(old).map(plain), ["Старый долг за сентябрь · 300 000 сум"]);
+  const oldOdd = splitRow([{ kind: "old_debt", label: "на старые долги", amount: 300000 }], [alloc("past_debt", "2026-09-20", "2026-10-19", 300000)]);
+  assert.deepEqual(V.destinationLines(oldOdd).map(plain), ["Старый долг за период 20.09–19.10 · 300 000 сум"]);
+  const mixed = splitRow([{ kind: "current", label: "за текущий период", amount: 600000 }, { kind: "forward", label: "x", amount: 100000 }, { kind: "advance", label: "y", amount: 200000 }],
+    [alloc("current", "2026-10-01", "2026-10-31", 600000), alloc("advance", "2026-11-01", "2026-11-30", 100000), alloc("advance", "2026-12-01", "2026-12-31", 200000)]);
+  assert.deepEqual(V.destinationLines(mixed).map(plain), ["Текущий период — за октябрь · 600 000 сум", "Вперёд — за ноябрь (начался после оплаты) · 100 000 сум", "Аванс (пока не потрачен) · 200 000 сум"]);
+  // allocations that do not add up to the part: the kind and the amount are still said, no guessed period
+  assert.deepEqual(V.destinationLines(splitRow([{ kind: "old_debt", label: "", amount: 5 }], [])).map(plain), ["Старый долг · 5 сум"]);
+  // an unknown kind uses the server's label; a zero part is not shown
+  assert.deepEqual(V.destinationLines(splitRow([{ kind: "refunded", label: "возвращено", amount: 7000 }, { kind: "advance", label: "", amount: 0 }], [])).map(plain), ["Возвращено · 7 000 сум"]);
+  // no split (an older server) -> the sentence of the server, as before
+  assert.deepEqual(V.destinationLines({ allocation_text: "за сентябрь — 200 000 · аванс — 50 000", allocations: [], split: [] }), ["за сентябрь — 200 000 сум", "аванс — 50 000 сум"]);
+  assert.deepEqual(V.normalizeJournal({ ...fixture("J01_journal_page1"), rows: [{ ...fixture("J01_journal_page1").rows[0], split: undefined }] }).rows[0].split, []);
+});
+
+test("I03: the drawer lines carry the colour dot of the kind, the same as the strip legend", () => {
+  const { React, html, text, J } = parts();
+  const row = { ...V.normalizeJournal(fixture("J01_journal_page1")).rows[0], status: "active", ...splitRow([{ kind: "forward", label: "", amount: 100000 }, { kind: "advance", label: "", amount: 200000 }],
+    [alloc("advance", "2026-10-20", "2026-11-19", 100000), alloc("advance", "2026-12-01", "2026-12-31", 200000)]) };
+  const drawer = React.createElement(J.JournalDrawerBody, { row, paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" });
+  const markup = html(drawer);
+  const list = markup.slice(markup.indexOf('data-testid="drawer-destination"'));
+  assert.ok(list.includes(`rounded-sm ${V.flowDot("forward")}`) && list.includes(`rounded-sm ${V.flowDot("advance")}`));
+  assert.ok(text(drawer).includes("Вперёд — за период 20.10–19.11 (начался после оплаты) · 100 000 сум"));
+});
+
+test("strip colours: «вперёд» is violet, clearly apart from «аванс» (green) and «за текущий период» (blue); each segment has ≥3:1 against white", () => {
+  assert.equal(V.flowDot("forward"), "bg-violet-500");
+  assert.equal(V.flowDot("advance"), "bg-emerald-600");
+  assert.notEqual(V.flowDot("forward"), V.flowDot("current"));
+  // tailwind 3 hexes
+  const hex = { forward: "#8b5cf6", advance: "#059669", current: "#2563eb", old_debt: "#334155", refunded: "#fbbf24", transferred: "#cbd5e1" };
+  for (const kind of ["forward", "advance", "current", "old_debt"]) assert.ok(contrast(hex[kind], "#ffffff") >= 3, `${kind} against white`);
+  const unit = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r1, g1, b1] = unit(hex.forward), [r2, g2, b2] = unit(hex.advance), [r3, g3, b3] = unit(hex.current);
+  assert.ok(Math.hypot(r1 - r2, g1 - g2, b1 - b2) > 120, "forward vs advance");
+  assert.ok(Math.hypot(r1 - r3, g1 - g3, b1 - b3) > 100, "forward vs current");
+  assert.ok(!/teal/.test(read("src/lib/payments-income-v2.ts").slice(read("src/lib/payments-income-v2.ts").indexOf("FLOW_DOT"), read("src/lib/payments-income-v2.ts").indexOf("FLOW_DOT_UNKNOWN"))));
+});
+
+test("debt numbers: «Долг за месяц» header, and one quiet line under the total when the month's debt differs from «Долг на сегодня»", () => {
+  const { React, text, html } = parts();
+  const C = require(path.join(root, "src/components/payments/income-collection.tsx"));
+  const o = overview("I01_income_month_october");
+  const total = o.collection.total.debt;
+  assert.equal(V.collectionDebtNote(o.collection, total), null, "the same number: nothing is said");
+  assert.equal(V.collectionDebtNote(o.collection, null), null);
+  const note = V.collectionDebtNote({ ...o.collection, month_label: "октябрь 2026", total: { ...o.collection.total, debt: 1800000 } }, 1950000);
+  assert.equal(plain(note), "Долг за октябрь — 1 800 000 сум. Всего долг на сегодня — 1 950 000 сум (с прошлыми месяцами).");
+  const el = (debtToday) => React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", debtToday });
+  assert.match(html(el(total + 150000)), /data-testid="collection-debt-note"/);
+  assert.ok(text(el(total + 150000)).includes("(с прошлыми месяцами)"));
+  assert.ok(!html(el(total)).includes("collection-debt-note") && !html(el(undefined)).includes("collection-debt-note"));
+  assert.ok(text(el(total)).includes("Долг за месяц") && !/ Долг С долгом/.test(text(el(total))), "the column is «Долг за месяц»");
+  const src = read("src/components/payments/income-collection.tsx");
+  assert.match(src, /<span className="text-right">Долг за месяц<\/span>/);
+  assert.match(read("src/components/payments/income-page.tsx"), /debtToday=\{overview\.data\?\.position\.debt_total \?\? null\}/);
+});
+
+test("I07: «Журнал оплат пуст» is the normal secondary grey (slate-600 ≥ 4.5:1), not slate-400", () => {
+  const src = read("src/components/payments/income-journal.tsx");
+  assert.match(src, /className="px-1 text-sm text-slate-600" data-testid="journal-quiet"/);
+  assert.ok(contrast("#475569", "#ffffff") >= 4.5);
+  assert.ok(contrast("#94a3b8", "#ffffff") < 4.5, "slate-400 was the defect");
+});
+
+test("phone tabs: «День / Неделя / Месяц / Период» below sm, the full «Свой период» from sm, the overflow container stays as a safety net", () => {
+  assert.deepEqual(V.PERIOD_TABS.map((t) => t.short), ["День", "Неделя", "Месяц", "Период"]);
+  assert.deepEqual(V.PERIOD_TABS.map((t) => t.label), ["День", "Неделя", "Месяц", "Свой период"]);
+  // 360 px: 4 tabs at text-xs in (360 - 2 × 16 gutter - 8 padding - 3 × 4 gap) / 4 = 77 px each; the widest short label at 12 px is ≈ 6 letters × 7 px + 2 × 6 px padding
+  const widest = Math.max(...V.PERIOD_TABS.map((t) => t.short.length));
+  assert.ok(widest * 7 + 12 <= (360 - 32 - 8 - 12) / 4, "fits at 360 px");
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /<span className="sm:hidden">\{short\}<\/span>\s*<span className="hidden sm:inline">\{label\}<\/span>/);
+  assert.match(page, /data-testid="period-tabs" className="flex max-w-full gap-1 overflow-x-auto/, "the safety net stays");
+});
