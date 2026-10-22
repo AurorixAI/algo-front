@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   CalendarCheck2,
@@ -28,7 +29,9 @@ import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
-import { ASSIGN_TEACHER_ACTION, NO_LESSON_TEACHER_TEXT, REPLACE_TEACHER_ACTION, canReplaceTeacher, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
+import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
+import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
+import { assignActionLabel, scheduleCardActions } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
   label: string;
@@ -128,7 +131,7 @@ function periodLabel(start: string, end: string): string {
  */
 export function GroupScheduleOverview({ groupId, viewerRole = null, archived = false }: {
   groupId: string;
-  /** `owner` / `admin` may replace the teacher of one lesson (O5); nobody else sees the button. */
+  /** `owner` / `admin` get the lesson sheet (replace the teacher, move, cancel, open the journal); nobody else can act on a card. */
   viewerRole?: string | null;
   /** The group is in the archive: nothing changes there. */
   archived?: boolean;
@@ -136,7 +139,9 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
   const today = formatBusinessDate();
   const { user } = useAuthStore();
   const { showToast, toastNode } = useToast();
+  const router = useRouter();
   const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
+  const [sheetLesson, setSheetLesson] = useState<Lesson | null>(null);
   const [anchorDate, setAnchorDate] = useState(today);
   const [attendance, setAttendance] = useState<GroupAttendance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -325,46 +330,47 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
                         const lessonState = attendance?.statuses?.[key] || lesson.status || "scheduled";
-                        const canReplace = !archived && Boolean(teacherInfo) && canReplaceTeacher(viewerRole, lessonState);
+                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo) });
+                        const marks = lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome);
+                        const interactive = actions.length > 0;
+                        const open = () => setSheetLesson(lesson);
                         return (
-                          <article key={key} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs">
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={lesson.topic || "Занятие"}>{lesson.topic || "Занятие"}</p>
-                              <Hint text={state.description} className={`inline-flex shrink-0 items-center gap-1 border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
-                                <StateIcon className="h-3 w-3" />
-                                {state.label}
-                              </Hint>
-                            </div>
+                          <article
+                            key={key}
+                            data-testid="schedule-card"
+                            {...(interactive ? {
+                              role: "button" as const,
+                              tabIndex: 0,
+                              "aria-label": `Урок ${formatIsoDateLabel(lesson.date, { day: "numeric", month: "long" })}, ${startTime}: действия`,
+                              onClick: open,
+                              onKeyDown: (event: React.KeyboardEvent) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } },
+                            } : {})}
+                            className={`rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs ${interactive ? "cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40" : ""}`}
+                          >
+                            {/* the status first and the topic under it, whole: a long topic wraps instead of being cut to a letter */}
+                            <Hint text={state.description} className={`inline-flex max-w-full items-center gap-1 border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
+                              <StateIcon className="h-3 w-3" />
+                              {state.label}
+                            </Hint>
+                            <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lesson.topic || "Занятие"}</p>
                             <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{startTime} — {lesson.endTime || "—"}</p>
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>
                             {lesson.isRescheduled && lesson.originalStartTime && <p className="mt-1 text-[11px] text-amber-700">Было: <span className="line-through">{lesson.originalStartTime}</span></p>}
                             {cancellationReason && <p className="mt-2 rounded-lg bg-white px-2 py-1.5 text-[11px] leading-relaxed text-slate-500">Причина: {cancellationReason}</p>}
                             {/* LOGIC-B2: a request waiting for a decision, and where a moved original went */}
-                            <LessonChips
-                              marks={lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome)}
-                              requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
-                              className="mt-2"
-                            />
+                            <LessonChips marks={marks} className="mt-2" />
                             {teacherInfo && (
                               <div className="mt-2 border-t border-slate-200/70 pt-2 text-[11px] leading-snug">
                                 {lacksTeacher(teacherInfo) ? (
                                   <p className="font-semibold text-amber-800">{NO_LESSON_TEACHER_TEXT}</p>
                                 ) : (
                                   <p className="text-slate-600">
-                                    <span className="font-medium text-slate-800">{teacherInfo.teacherName}</span>
-                                    {substituteLabel(teacherInfo) && (
-                                      <span className="ml-1.5 inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">{substituteLabel(teacherInfo)}</span>
+                                    {substituteLabel(teacherInfo) ? (
+                                      <span className="inline-flex rounded-md bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-800">{substituteLabel(teacherInfo)}</span>
+                                    ) : (
+                                      <span className="font-medium text-slate-800">{teacherInfo.teacherName}</span>
                                     )}
                                   </p>
-                                )}
-                                {canReplace && (
-                                  <button
-                                    type="button"
-                                    onClick={() => setTeacherTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, startTime, endTime: lesson.endTime || "", info: teacherInfo })}
-                                    className="mt-1.5 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-700 hover:border-primary-200 hover:text-primary-700"
-                                  >
-                                    {lacksTeacher(teacherInfo) ? ASSIGN_TEACHER_ACTION : REPLACE_TEACHER_ACTION}
-                                  </button>
                                 )}
                               </div>
                             )}
@@ -379,6 +385,41 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
           </div>
         )}
       </section>
+
+      {(() => {
+        const lesson = sheetLesson;
+        const key = lesson ? lessonKey(lesson) : "";
+        const lessonState = lesson ? attendance?.statuses?.[key] || lesson.status || "scheduled" : "scheduled";
+        const info = lesson ? attendance?.lessonTeachers?.[key || lessonKeyOf(lesson.date, lesson.id)] : undefined;
+        const presentation = lesson ? presentationFor(lessonState, lesson.date, today) : null;
+        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info) }) : [];
+        const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
+        const base = viewerRole === "admin" ? "/admin" : "/owner";
+        return (
+          <LessonActionSheet
+            lesson={lesson}
+            groupId={groupId}
+            title={lesson ? `Урок ${formatIsoDateLabel(lesson.date, { weekday: "long", day: "numeric", month: "long" })}` : "Урок"}
+            summary={lesson && presentation ? [`${presentation.label} · ${startTime} — ${lesson.endTime || "—"}`, lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"] : []}
+            teacherLine={info ? (lacksTeacher(info) ? NO_LESSON_TEACHER_TEXT : [info.teacherName, substituteLabel(info)].filter(Boolean).join(" · ")) : null}
+            marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], lesson.substitutionOutcome) : []}
+            requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
+            actions={actions}
+            assignLabel={assignActionLabel({ past: Boolean(lesson && lesson.date < today), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}
+            onClose={() => setSheetLesson(null)}
+            onAssign={() => {
+              if (!lesson || !info) return;
+              setSheetLesson(null);
+              setTeacherTarget({ groupId, lessonId: lesson.id, lessonDate: lesson.date, startTime, endTime: lesson.endTime || "", info });
+            }}
+            onJournal={() => {
+              if (!lesson) return;
+              router.push(`${base}/groups/${groupId}?tab=attendance&month=${lesson.date.slice(0, 7)}&lesson=${encodeURIComponent(lesson.id)}&date=${lesson.date}`);
+            }}
+            onChanged={(text) => { setSheetLesson(null); showToast(text); void loadSchedule(); }}
+          />
+        );
+      })()}
 
       <LessonTeacherDialog
         target={teacherTarget}

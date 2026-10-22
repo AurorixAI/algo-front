@@ -641,3 +641,29 @@ test("the banner speaks the language of the card «Долг учеников»: 
   assert.match(banner, /!pathname\?\.startsWith\(paymentsBasePath\)/, "no banner on the «Оплаты» page itself");
   assert.match(banner, /bucket=debt/);
 });
+
+test("schedule cards of the group (owner/admin): information only; the actions by situation live in the lesson sheet (income2 §1)", () => {
+  const C = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const base = { role: "owner", archived: false, today: "2026-10-22", hasTeacherInfo: true };
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-24" }), ["assign", "reschedule", "cancel"]);
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-22" }), ["assign", "reschedule", "cancel"]);
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-20" }), ["mark", "assign"], "past, nobody marked");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "completed", date: "2026-10-20" }), ["journal"]);
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "in_progress", date: "2026-10-22" }), ["journal"]);
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", date: "2026-10-24" }), []);
+  assert.deepEqual(C.scheduleCardActions({ ...base, role: "admin", state: "scheduled", date: "2026-10-24" }), ["assign", "reschedule", "cancel"]);
+  assert.deepEqual(C.scheduleCardActions({ ...base, role: "teacher", state: "scheduled", date: "2026-10-24" }), []);
+  assert.deepEqual(C.scheduleCardActions({ ...base, archived: true, state: "scheduled", date: "2026-10-24" }), []);
+  assert.deepEqual(C.scheduleCardActions({ ...base, hasTeacherInfo: false, state: "scheduled", date: "2026-10-24" }), ["reschedule", "cancel"], "an older server: no assignment");
+  assert.equal(C.assignActionLabel({ past: false, lacksTeacher: false, isSubstitution: false }), "Назначить замену");
+  assert.equal(C.assignActionLabel({ past: false, lacksTeacher: false, isSubstitution: true }), "Заменить преподавателя");
+  assert.equal(C.assignActionLabel({ past: true, lacksTeacher: false, isSubstitution: false }), "Назначить того, кто провёл");
+  assert.equal(C.assignActionLabel({ past: false, lacksTeacher: true, isSubstitution: false }), "Назначить");
+  const card = read("src/components/groups/group-schedule-overview.tsx");
+  const articles = card.slice(card.indexOf("<article"), card.indexOf("</article>"));
+  assert.ok(articles.length > 100);
+  assert.doesNotMatch(articles, /<button/, "no buttons on the cards");
+  assert.doesNotMatch(card, /REPLACE_TEACHER_ACTION|ASSIGN_TEACHER_ACTION/);
+  assert.match(card, /<LessonActionSheet/);
+  assert.match(card, /data-testid="schedule-card"/);
+});
