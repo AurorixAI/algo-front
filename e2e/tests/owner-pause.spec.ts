@@ -6,7 +6,7 @@ import { dm, expectNoHorizontalScroll } from "../support/ui";
 /**
  * LOGIC-A «Пауза»: «Пауза…» in the menu of a group of the «Обучение» tab (IA audit 22.10: a pause is a property of the enrolment, not of the
  * money) puts a student on pause «с … по …».  He moves to the tab
- * «На паузе», the paused days cost nothing (the statement says «Пауза … — начислений нет» and shows no charge, while the same
+ * «На паузе», the paused days cost nothing (the statement says «Пауза … — стоимость не считается» and shows no charge, while the same
  * group's other student is charged the whole period), and a lesson inside the pause does not have him on its list.
  */
 let org: Org;
@@ -62,7 +62,7 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
 
   // --- no charge for the paused days: the statement names the pause and the other student is charged 500 000, he is not charged
   await page.goto(`/owner/payments/statement/${awayMembership}`);
-  await expect(page.getByText(new RegExp(`Пауза ${dm(today)}–${dm(last)} — начислений нет`))).toBeVisible();
+  await expect(page.getByText(new RegExp(`Пауза ${dm(today)}–${dm(last)} — стоимость не считается`))).toBeVisible();
   await expectNoHorizontalScroll(page);
   const paused = await costOf(page, awayMembership);
   const full = await costOf(page, staysMembership);
