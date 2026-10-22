@@ -49,7 +49,7 @@ import {
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
-import { occurrenceChips, rosterFromJournal, rosterSource, showsGroupLinks, SUBSTITUTIONS_PATH, substituteGroupLabel, substitutionsHref, type RosterSource } from "@/lib/substitutions";
+import { occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
@@ -263,8 +263,7 @@ export default function TeacherSchedulePage() {
   const marksOps = useLessonMarksOps();
   const isManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
   /** LOGIC-B2: a chip «Ждёт замены» leads the manager to the request. */
-  const requestHrefFor = (requestId: string) =>
-    substitutionsHref(user?.org_role === "owner" || user?.role === "owner" ? SUBSTITUTIONS_PATH.owner : SUBSTITUTIONS_PATH.admin, requestId);
+  const requestHrefFor = (requestId: string) => substitutionsHref(substitutionsPathFor(user), requestId);
   const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   /** LOGIC-B2: who teaches the open lesson, the request «Не смогу провести» for it, and where its roster comes from. */
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
@@ -717,13 +716,12 @@ export default function TeacherSchedulePage() {
     // LOGIC-B2: a substitute (or a former teacher) has no group page (403): the roster of his lesson comes with the journal.
     const source = rosterSource({ isManager, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
     setActiveRosterSource(source);
-    Promise.all([
-      source === "group" ? orgApi.getGroup(activeLesson.groupId) : Promise.resolve(null),
-      orgApi.getGroupAttendance(activeLesson.groupId, {
-        dateFrom: occurrenceDate,
-        dateTo: occurrenceDate,
-      }),
-    ])
+    readLessonRoster({
+      source,
+      groupId: activeLesson.groupId,
+      getGroup: (id) => orgApi.getGroup(id),
+      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: occurrenceDate, dateTo: occurrenceDate }),
+    })
       .then(([g, att]) => {
         setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
         setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);

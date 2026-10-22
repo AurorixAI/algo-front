@@ -3,7 +3,7 @@
  * requests, the reading of a refusal, who may ask for a substitute, whose roster comes from where.  No React and no network,
  * so node:test loads this file directly.
  */
-import type { StudentInGroup } from "./api";
+import type { GroupDetail, StudentInGroup } from "./api";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
@@ -461,15 +461,29 @@ export const ASSIGNED_TITLE = "Вам назначена замена";
 export const MY_REQUESTS_TITLE = "Запросы на замену";
 export const NEW_REQUEST_LINK = "Новый запрос";
 
-/** «Иванов А.» -> «Иванова А.»: the genitive of a short name for «вместо …»; null when the surname is not a plain -ов/-ев/-ин/-ова/-ева/-ина one. */
-export function genitiveShortName(name: string | null | undefined): string | null {
+/** The case of a short name «Фамилия И.» for a sentence («вместо Иванова А.», «за Ивановым А.»). */
+export type NameCase = "genitive" | "instrumental";
+
+const MASCULINE = /(ов|ев|ёв|ин|ын)$/i;
+const FEMININE = /(ова|ева|ёва|ина|ына)$/i;
+
+/**
+ * «Иванов А.» -> «Иванова А.» / «Ивановым А.»; «Каримова Н.» -> «Каримовой Н.» (both cases end in «ой»).  Only the plain -ов/-ев/-ин and
+ * -ова/-ева/-ина surnames are declined; any other surname is returned as null, so the caller words the sentence without a case.
+ */
+export function declineShortName(name: string | null | undefined, grammarCase: NameCase): string | null {
   const text = (name ?? "").trim();
   const match = /^(\S+)(\s.+)?$/.exec(text);
   if (!match) return null;
   const [, surname, rest = ""] = match;
-  if (/(ов|ев|ёв|ин|ын)$/i.test(surname)) return `${surname}а${rest}`;
-  if (/(ова|ева|ёва|ина|ына)$/i.test(surname)) return `${surname.slice(0, -1)}ой${rest}`;
+  if (FEMININE.test(surname)) return `${surname.slice(0, -1)}ой${rest}`;
+  if (MASCULINE.test(surname)) return `${surname}${grammarCase === "genitive" ? "а" : "ым"}${rest}`;
   return null;
+}
+
+/** For «вместо …». */
+export function genitiveShortName(name: string | null | undefined): string | null {
+  return declineShortName(name, "genitive");
 }
 
 /** «Замена: 9-А — пн, 26.10, 10:00–11:30 (вместо Иванова А.)»; an indeclinable surname: «(вместо: Ким А.)». */
@@ -498,6 +512,22 @@ export function rosterSource(input: {
 }): RosterSource {
   if (input.isManager) return "group";
   return input.ownGroupIds.includes(input.groupId) ? "group" : "journal";
+}
+
+/**
+ * Reads what a lesson panel needs: the group page (members) for those who may read it, the journal of the day for everybody.  A substitute's
+ * source is the journal alone - `getGroup` is never called for him (the server would answer 403), and `lessonRoster` of the journal is his roster.
+ */
+export function readLessonRoster<Journal>(input: {
+  source: RosterSource;
+  groupId: string;
+  getGroup: (groupId: string) => Promise<GroupDetail>;
+  getJournal: () => Promise<Journal>;
+}): Promise<[GroupDetail | null, Journal]> {
+  return Promise.all([
+    input.source === "group" ? input.getGroup(input.groupId) : Promise.resolve(null),
+    input.getJournal(),
+  ]);
 }
 
 /** The group link and the student cards are for those who read the group page. */
@@ -616,7 +646,15 @@ export function moveExplain(groupTeacherName: string | null | undefined): string
   return `${MOVE_EXPLAIN_TEXT} Новый урок проведёт преподаватель группы${name ? ` (${name})` : ""}. Замена, назначенная на исходный урок, на новый не переходит. Отменённый урок вернуть нельзя.`;
 }
 
-export const rejectConsequence = (teacherName: string): string => `Урок остаётся за ${teacherName}. Если он не придёт, урок попадёт в «Незакрытые».`;
+/** «Урок остаётся за Ивановым И. Если он не придёт, урок попадёт в «Незакрытые».» - a surname that cannot be declined by rule gets the neutral wording. */
+export function rejectConsequence(teacherName: string): string {
+  const instrumental = declineShortName(teacherName, "instrumental");
+  // a short name already ends with the full stop of the initial
+  const stop = (text: string) => (text.endsWith(".") ? text : `${text}.`);
+  if (!instrumental) return `Урок остаётся за преподавателем: ${stop(teacherName.trim())} Если урок не будет проведён, он попадёт в «Незакрытые».`;
+  const she = FEMININE.test(teacherName.trim().split(/\s+/)[0]);
+  return `Урок остаётся за ${stop(instrumental)} Если ${she ? "она" : "он"} не придёт, урок попадёт в «Незакрытые».`;
+}
 export const examDraftText = (title: string): string => `Экзамен «${title}» вернётся в черновик — привяжите его к новому уроку.`;
 export const examDraftCancelText = (title: string): string => `Экзамен «${title}» вернётся в черновик, код доступа будет закрыт.`;
 export const examRunningText = (title: string): string => `Экзамен «${title}» уже идёт — отменить урок нельзя`;
@@ -795,6 +833,16 @@ export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number;
 
 // ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────
 
+/** The archive dialog of a group: its waiting requests are closed by the archive. */
+export function archiveRequestsText(count: number): string {
+  return `Запросов на замену: ${count} — они будут закрыты.`;
+}
+
+/** The removal dialog of a member: his waiting requests are closed with the removal. */
+export function removalRequestsText(count: number): string {
+  return `Запросов на замену этого сотрудника (${count}) будут закрыты.`;
+}
+
 export const WAITING_MARK = "Ждёт замены";
 
 export interface LessonMark {
@@ -804,10 +852,18 @@ export interface LessonMark {
   requestId?: string;
 }
 
-/** «Ждёт замены» on a lesson with a waiting request; «Урок перенесён на …» / «Урок отменён» on the original. */
-export function lessonMarks(mark: SubstitutionRequestMark | null | undefined, outcome: SubstitutionOutcome | null | undefined): LessonMark[] {
+/**
+ * «Ждёт замены» (a link to the request) on a lesson with a waiting request for the manager, «Вы запросили замену» for the teacher who asked;
+ * «Урок перенесён на …» / «Урок отменён» on the original.
+ */
+export function lessonMarks(
+  mark: SubstitutionRequestMark | null | undefined,
+  outcome: SubstitutionOutcome | null | undefined,
+  options: { manager?: boolean } = {},
+): LessonMark[] {
+  const manager = options.manager !== false;
   const marks: LessonMark[] = [];
-  if (mark?.status === "pending") marks.push({ text: WAITING_MARK, tone: "amber", requestId: mark.id });
+  if (mark?.status === "pending") marks.push(manager ? { text: WAITING_MARK, tone: "amber", requestId: mark.id } : { text: REQUESTED_LABEL, tone: "amber" });
   if (outcome?.kind === "rescheduled") marks.push({ text: outcome.movedTo ? movedText(outcome.movedTo) : "Урок перенесён", tone: "blue" });
   else if (outcome?.kind === "cancelled") marks.push({ text: LESSON_CANCELLED_LABEL, tone: "gray" });
   return marks;
@@ -864,6 +920,11 @@ export function substitutionsHref(basePath: string, requestId?: string | null): 
 
 export const SUBSTITUTIONS_PATH: Record<"owner" | "admin", string> = { owner: "/owner/substitutions", admin: "/admin/substitutions" };
 
+/** The page of the requests for the signed-in manager: the owner's own, else the administrator's. */
+export function substitutionsPathFor(user: { org_role?: string | null; role?: string | null } | null | undefined): string {
+  return user?.org_role === "owner" || user?.role === "owner" ? SUBSTITUTIONS_PATH.owner : SUBSTITUTIONS_PATH.admin;
+}
+
 // ── the card of a student ────────────────────────────────────────────────────────────────────────
 
 /** The labels under a lesson in the student's attendance: «Замена: Рахимов Т.»; never a reason. */
@@ -877,6 +938,44 @@ export function studentLessonLabel(lesson: { isSubstitution?: boolean | null; te
 export function studentNoticeLabel(notice: Pick<StudentNotice, "kind" | "movedTo">): string {
   if (notice.kind === "rescheduled") return notice.movedTo ? movedText(notice.movedTo) : "Урок перенесён";
   return LESSON_CANCELLED_LABEL;
+}
+
+export interface StudentLessonRow {
+  key: string;
+  date: string;
+  groupName: string;
+  /** The mark of the lesson («Был», «Не был»…) - none for a cancelled / moved one. */
+  markText: string | null;
+  /** «Замена: Рахимов Т.» on a lesson a substitute held. */
+  substituteText: string | null;
+  /** «Урок отменён» / «Урок перенесён на …» - the row of a lesson that did not take place. */
+  noticeText: string | null;
+}
+
+/**
+ * The month of a student as a list of days: the lessons he had (with the mark and the teacher if it was a substitute) and the lessons that
+ * did not take place (cancelled / moved, without a reason), by date.  `markLabel` turns a status into its words.
+ */
+export function studentLessonRows(
+  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean }> | null | undefined,
+  notices: StudentNotice[] | null | undefined,
+  markLabel: (status: string) => string | null,
+): StudentLessonRow[] {
+  const rows: StudentLessonRow[] = [];
+  for (const lesson of lessons ?? []) {
+    rows.push({
+      key: `lesson:${lesson.lesson_id ?? ""}:${lesson.date}:${lesson.group_name}`,
+      date: lesson.date,
+      groupName: lesson.group_name,
+      markText: lesson.status ? markLabel(lesson.status) : null,
+      substituteText: studentLessonLabel(lesson),
+      noticeText: null,
+    });
+  }
+  for (const notice of sortedNotices(notices)) {
+    rows.push({ key: `notice:${notice.lessonId}:${notice.date}`, date: notice.date, groupName: notice.groupName, markText: null, substituteText: null, noticeText: studentNoticeLabel(notice) });
+  }
+  return rows.sort((a, b) => a.date.localeCompare(b.date) || a.groupName.localeCompare(b.groupName, "ru"));
 }
 
 export const STUDENT_NOTICE_FOOTNOTE = "Отменённые и перенесённые уроки в посещаемость не входят.";

@@ -66,7 +66,7 @@ import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendanc
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
-import { createToast, occurrenceChips, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import { createToast, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { RequestControl } from "@/components/substitutions/request-control";
@@ -489,15 +489,14 @@ export default function TeacherDashboardPage() {
 
     // LOGIC-B2: the lesson of a substitute (or of a former teacher) is not in «his» groups and he has no group page (it answers 403):
     // the roster of the lesson comes with the journal (`lessonRoster`), and no call goes to the group.
-    const source = rosterSource({ isManager: false, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
+    const source = rosterSource({ isManager: user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner", groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
     setActiveRosterSource(source);
-    Promise.all([
-      source === "group" ? orgApi.getGroup(activeLesson.groupId) : Promise.resolve(null),
-      orgApi.getGroupAttendance(activeLesson.groupId, {
-        dateFrom: lessonDate,
-        dateTo: lessonDate,
-      }),
-    ])
+    readLessonRoster({
+      source,
+      groupId: activeLesson.groupId,
+      getGroup: (id) => orgApi.getGroup(id),
+      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: lessonDate, dateTo: lessonDate }),
+    })
       .then(([g, att]) => {
         setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
         if (source === "journal") {
