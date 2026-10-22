@@ -1,35 +1,29 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { billingPeriod, businessNow, countWeeklyLessons, round1000 } from "../support/time";
+import { businessNow } from "../support/time";
 import { dmy, groupedDigits, money, toast } from "../support/ui";
 
 /**
- * Owner: settings «Оплаты» -> «Единый день оплаты». A student who joined today owes an INCOMPLETE month (PAY-2: the
- * server charges the part of the period since he joined): the quick-pay row says «Всего к оплате» with the price of the group
- * prorated by its lessons - round_1000( price * lessons_in_part / lessons_in_period ) - and the amount starts as that sum.
- * Paying it closes the period (no debt); the statement shows one charge of the same sum.
- * The expected numbers are computed here from the seeded weekly schedule and the calendar, not read from the API.
+ * Owner: settings «Оплаты» -> «Единый день оплаты». LOGIC-A (F12): a change of the mode never touches a running period - the new mode
+ * starts for each student at the beginning of his NEXT period (the screen says so before and after saving).  A student who already
+ * pays keeps his current period (here the price of the whole period is due, not a part of it); paying it closes the period (no
+ * debt) and the statement shows one charge of the same sum.
  */
 let org: Org;
 test.beforeAll(async () => {
   org = await Org.create("День");
 });
 
-test("fixed payment day: a student who joined today owes a prorated amount, and paying it closes the period", async ({ signIn }) => {
+test("fixed payment day: the new mode waits for the next period; the running one is not touched, and paying it closes it", async ({ signIn }) => {
   const now = businessNow();
   const fee = 900000;
-  const billingDay = now.day === 1 ? 2 : 1; // never the day the student joins: the month is then really incomplete
+  const billingDay = now.day === 1 ? 2 : 1;
 
-  // seeded schedule: three lessons a week, starting with today's weekday (tonight at 23:00, still ahead of the clock;
-  // when the run happens at 22:56+ today's slot cannot be created any more, so the pattern shifts by a day)
-  const shift = now.minutes <= 22 * 60 + 55 ? 0 : 1;
-  const weekdays = [0, 2, 4].map((k) => ((now.isoWeekday - 1 + k + shift) % 7) + 1);
   const teacher = await org.addStaff("teacher", "Расписанин");
   const group = await org.createGroup({ name: "Группа Д1", teacherId: teacher.userId });
-  for (const dayOfWeek of weekdays) {
-    await teacher.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek, startTime: "23:00", endTime: "23:30" });
-  }
   await org.setGroupPrice(group.id, fee); // #105: the price lives on the group, valid from today = the day the student joins (PAY-2 prices a period on its first billable day)
+  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
+
   // PAY-2: money is counted from the start of the accounting (a new centre has none yet, so nothing is due before it is set)
   await org.setPaymentSettings({ accounting_start_date: now.date });
   const page = await signIn(org.owner);
@@ -44,18 +38,12 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
   const saved = await org.owner.api.get("/auth/org/settings/payments");
   expect(saved).toMatchObject({ billing_anchor: "fixed_day", billing_day: billingDay });
 
-  // LOGIC-A (F12): a change of the regime takes effect from the next border for the students who already pay; a student who joins
-  // AFTER the change starts in the new regime - so he joins now, when the setting is saved
-  const student = await org.addStudent(group, "Анвар", "Новичков"); // joined today, follows the price of the group
+  // --- the screen says when the new mode starts: not for the running periods
+  await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();
 
-  // --- expected, from the seeded schedule
-  const period = billingPeriod(now.date, billingDay);
-  const inPart = countWeeklyLessons(weekdays, now.date, period.end);
-  const inPeriod = countWeeklyLessons(weekdays, period.start, period.end);
-  expect(inPart, "seeded schedule has lessons in the covered part").toBeGreaterThan(0);
-  const expectedAmount = round1000(fee * inPart, inPeriod);
+  // --- the running period is not touched: the whole price of the period is due, the amount starts as that
+  const expectedAmount = fee;
 
-  // --- the quick-pay row: the server says what is due, the amount starts as that
   await page.goto("/owner/payments");
   await page.getByRole("tab", { name: /Должники/ }).click();
   const row = page.getByRole("listitem").filter({ has: page.getByRole("link", { name: "Новичков Анвар", exact: true }) });
@@ -82,5 +70,4 @@ test("fixed payment day: a student who joined today owes a prorated amount, and 
   await expect(receipt).toContainText("Куда пошли деньги");
   await expect(receipt).toContainText(money(expectedAmount));
   await expect(receipt).toContainText(`${dmy(now.date)}`);
-  expect(period.end >= now.date).toBe(true);
 });
