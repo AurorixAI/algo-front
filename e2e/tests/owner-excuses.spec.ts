@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org, runLesson } from "../support/api";
 import { addMonthMinusDay, addDays, businessNow, daysBetween, monthEnd } from "../support/time";
-import { deadlineWords, dm, toast } from "../support/ui";
+import { deadlineWords, dm, settledBox, toast } from "../support/ui";
 
 /**
  * Owner: «Посещаемость» -> «Пропуски» -> «Ожидают»: an excuse the teacher marked is waiting, with the
@@ -57,6 +57,8 @@ test("pending excuse shows its deadline and disappears after «Подтверд�
   await expect(item("Оплативший Анвар")).not.toContainText("дн.");
 
   // both decisions are visible in the row, side by side (owner decision 20.10): «Подтвердить» left of «Отклонить»
+  // (the page can still be settling: the payments notice slides in above the list)
+  await settledBox(item("Оплативший Анвар"));
   const confirmBox = await item("Оплативший Анвар").getByRole("button", { name: "Подтвердить" }).boundingBox();
   const rejectBox = await item("Оплативший Анвар").getByRole("button", { name: "Отклонить" }).boundingBox();
   expect(confirmBox && rejectBox, "both buttons are on the screen").toBeTruthy();
