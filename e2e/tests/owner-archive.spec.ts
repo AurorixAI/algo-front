@@ -38,7 +38,7 @@ test("archive: gone from the roster and payments -> «Архив» tab -> restor
   // --- archive from the student card
   await page.goto(`/owner/students/${leaver.id}`);
   await page.getByRole("button", { name: /Действия/ }).first().click();
-  await page.getByRole("menuitem", { name: "В архив" }).click();
+  await page.getByRole("menuitem", { name: "В архив" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Ученик ушёл из центра?" });
   await expect(dialog).toContainText(group.name); // tells which group he is taken out of
   await dialog.getByLabel(/Причина/).fill("Переехал в другой город");

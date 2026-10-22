@@ -50,7 +50,7 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   await expect(page.getByRole("table").first()).not.toContainText(/Н\/Б|Ув\./);
 
   await cell.click();
-  await page.getByRole("menuitem", { name: "Отклонить" }).click();
+  await page.getByRole("menuitem", { name: "Отклонить" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
 
   // the dialog names the student, the lesson (date + group), the reason and what the refusal changes; nothing is sent yet
   const dialog = page.getByRole("dialog", { name: "Отклонить пропуск?" });

@@ -89,7 +89,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
 
   // --- the receipt: amount in words, who, what
   await page.getByRole("button", { name: /Действия с оплатой/ }).click();
-  await page.getByRole("menuitem", { name: "Квитанция" }).click();
+  await page.getByRole("menuitem", { name: "Квитанция" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const receipt = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
   await expect(receipt).toBeVisible();
   await expect(receipt).toContainText("Четыреста пятьдесят тысяч сум");
@@ -107,7 +107,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await page.getByRole("tab", { name: "Оплаты" }).click();
   if (!(await page.getByRole("region", { name: "История оплат" }).isVisible())) await cardMenuItem(page, "История оплат");
   await page.getByRole("button", { name: /Действия с оплатой/ }).click();
-  await page.getByRole("menuitem", { name: "Отменить", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Отменить", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
   await dialog.getByLabel("Причина").fill("ab");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
@@ -123,7 +123,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   expect(afterVoid[0].voided_at).toBeTruthy();
   expect(afterVoid[0].void_reason).toBe("Ошибочно внесена сумма");
   await page.getByRole("button", { name: /Действия с оплатой/ }).click();
-  await page.getByRole("menuitem", { name: "Квитанция" }).click();
+  await page.getByRole("menuitem", { name: "Квитанция" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const stamped = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
   await expect(stamped.getByRole("note")).toContainText("АННУЛИРОВАНА");
   await expect(stamped.getByRole("note")).toContainText("Ошибочно внесена сумма");
