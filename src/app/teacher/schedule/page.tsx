@@ -1168,8 +1168,10 @@ export default function TeacherSchedulePage() {
 
   // Week mode never rewrites the displayed occurrence. It opens a versioned
   // recurring change whose effect starts on a future date selected by teacher.
+  // A substitute holds this one lesson: the recurring schedule of the group is not his to change.
   const canReviseRecurringSchedule = Boolean(
-    activeLesson && activeLessonView === "week" && !activeLesson.isOneOff,
+    activeLesson && activeLessonView === "week" && !activeLesson.isOneOff
+      && !(activeTeacherInfo?.isSubstitution && activeTeacherInfo.teacherId === user?.id),
   );
 
   const canFinishLesson = useMemo(() => {
@@ -2676,7 +2678,7 @@ export default function TeacherSchedulePage() {
               <div className="flex items-start justify-between gap-3 mb-5">
                 <div>
                   <span className="text-xs font-semibold text-primary-600">
-                    {activeLesson.occurrenceDate} · {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name} · {activeLesson.startTime} — {activeLesson.endTime}
+                    {activeLesson.occurrenceDate.split("-").reverse().join(".")} · {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name} · {activeLesson.startTime} — {activeLesson.endTime}
                   </span>
                   {activeLesson.isRescheduled && activeLesson.originalStartTime && (
                     <p className="mt-1 text-xs font-semibold text-amber-700">
