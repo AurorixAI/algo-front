@@ -51,7 +51,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Внести оплату" });
   await expect(dialog.getByTestId("payment-chips")).toContainText(new RegExp(`${groupedDigits(expectedAmount).replace(/ /g, "\\s")}\\s*сум`));
-  await expect(dialog.getByLabel("Сумма")).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
+  await expect(dialog.getByLabel("Сумма", { exact: true })).toHaveValue(new RegExp(`^${groupedDigits(expectedAmount).replace(/ /g, "\\s")}$`));
 
   // --- save: the payment is what was due, the period is closed
   await dialog.getByRole("radio", { name: "Карта" }).click();
