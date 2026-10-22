@@ -68,7 +68,8 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   await expect(block.getByTestId("openings-row")).toHaveCount(3);
   await expect(block.getByTestId("openings-now").first()).toHaveText("Не заполнено");
   // the student is a link to the payments tab of the card
-  await expect(block.getByTestId("openings-student-link").first()).toHaveAttribute("href", new RegExp(`/owner/students/${students[0].id}\\?tab=payments$`));
+  await expect(block.getByTestId("openings-student-link").first()).toHaveAttribute("href", new RegExp(`/owner/students/[0-9a-f-]+\\?tab=payments$`));
+  await expect(rowOf(block, memberships[0]).getByTestId("openings-student-link")).toHaveAttribute("href", new RegExp(`/owner/students/${students[0].id}\\?tab=payments$`));
 
   // --- the whole group, «Оплачено до» a date (the quick dates say what they are)
   await block.getByTestId("openings-group-select").check();

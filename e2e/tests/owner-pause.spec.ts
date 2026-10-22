@@ -39,6 +39,7 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
 
   // --- the dialog «Пауза ученика»: from today to the 10th day
   await page.goto(`/owner/students/${away.id}?tab=learning`);
+  await page.waitForLoadState("networkidle"); // the card still loads the pauses: a menu opened meanwhile is closed by the re-render
   await page.getByRole("button", { name: /^Действия по группе:/ }).click();
   await page.getByRole("menuitem", { name: /^Пауза/ }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Пауза ученика" });
