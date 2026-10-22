@@ -103,6 +103,12 @@ test("phone (below sm): the four KPI cards are a compact 2x2 grid; desktop class
   assert.ok(!grid.includes("grid-cols-1"), "no single full-width column on a phone");
   const card = /data-testid="diagnostic-kpi-card"\s*className=\{`([^`]*)`/.exec(page)[1];
   for (const c of ["p-3", "sm:p-5", "rounded-2xl", "sm:rounded-[2rem]"]) assert.ok(card.split(/\s+/).includes(c), c);
+  // all four tiles are the same white card below sm: a border and a subtle shadow (the active one keeps its ring); desktop keeps its look
+  const whole = card.replace(/\$\{[^}]*\}/g, "");
+  assert.match(whole, /border border-slate-200 sm:border-transparent/);
+  assert.match(page, /: "bg-white shadow-sm sm:bg-white\/60 sm:shadow-none sm:hover:bg-white"/, "the inactive tiles are white cards on a phone");
+  assert.match(page, /\? "bg-white ring-1 ring-slate-200\/50 shadow-sm"/);
+  assert.doesNotMatch(page, /: "bg-white\/60 hover:bg-white"/, "no borderless 60%-white tile on a phone");
   // the label: small, at most 2 lines
   const label = /data-testid="diagnostic-kpi-label" className=\{`([^`]*)`/.exec(page)[1];
   for (const c of ["text-xs", "line-clamp-2", "leading-tight"]) assert.ok(label.includes(c), c);

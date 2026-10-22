@@ -18,12 +18,18 @@ export function Hint({
   text,
   children,
   className = "",
+  side = "above",
+  width = 256,
 }: {
   /** The detail; line breaks are kept. */
   text: string;
   children: ReactNode;
   /** Classes of the label itself. */
   className?: string;
+  /** Where the bubble opens: above the label (default) or below it (when what is above must stay visible). */
+  side?: "above" | "below";
+  /** Wanted width of the bubble, px. */
+  width?: number;
 }) {
   const [reveal, dispatch] = useReducer(reduceReveal, INITIAL_REVEAL);
   const open = isRevealed(reveal);
@@ -35,9 +41,9 @@ export function Hint({
 
   const { fixedStyle } = useFloatingPlacement(triggerRef, bubbleRef, {
     open,
-    width: 256,
+    width,
     align: "center",
-    preferSide: "above",
+    preferSide: side,
     gap: 6,
     onAnchorHidden: hide,
   });

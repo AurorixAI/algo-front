@@ -216,10 +216,10 @@ export default function AdminDiagnosticsPage() {
               setAssignedOnly(false);
             }}
             data-testid="diagnostic-kpi-card"
-            className={`relative overflow-hidden text-left p-3 sm:p-5 rounded-2xl sm:rounded-[2rem] transition-all duration-300 ease-out group ${stat.glow} ${
+            className={`relative overflow-hidden text-left p-3 sm:p-5 rounded-2xl sm:rounded-[2rem] transition-all duration-300 ease-out group ${stat.glow} border border-slate-200 sm:border-transparent ${
               filter === filterKey(stat.label) && !assignedOnly
                 ? "bg-white ring-1 ring-slate-200/50 shadow-sm"
-                : "bg-white/60 hover:bg-white"
+                : "bg-white shadow-sm sm:bg-white/60 sm:shadow-none sm:hover:bg-white"
             }`}
           >
             {/* Giant watermark icon */}

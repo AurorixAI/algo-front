@@ -306,7 +306,7 @@ test("donut geometry: the angles add up to 360 and are contiguous; a single meth
   // the colours: every known method has its own, «Способ не указан» is slate-300
   const colors = ["cash", "card", "bank_transfer", "click", "payme", "other", "unknown"].map((key) => V.METHOD_COLOR[key].dot);
   assert.equal(new Set(colors).size, 7);
-  assert.deepEqual(colors, ["bg-emerald-500", "bg-blue-500", "bg-violet-500", "bg-sky-400", "bg-cyan-600", "bg-amber-500", "bg-slate-300"]);
+  assert.deepEqual(colors, ["bg-emerald-500", "bg-blue-600", "bg-violet-500", "bg-amber-400", "bg-cyan-600", "bg-pink-400", "bg-slate-300"]);
 });
 
 test("legend: the biggest sum first, shares add up to 100, the centre says the total and the number of payments, the tooltip has the four facts", () => {
@@ -376,7 +376,7 @@ test("the donut on screen: buttons with aria-labels, the total in the centre, th
   assert.equal((markup.match(/aria-pressed="true"/g) || []).length, 0);
   assert.equal((markup.match(/aria-pressed="true"/g) || plain(html(view({ selected: "cash" }))).match(/aria-pressed="true"/g)).length, 2, "the chosen method is pressed in the ring and in the legend");
   // ordering of the legend dots
-  assert.ok(markup.indexOf("bg-blue-500") < markup.indexOf("bg-emerald-500"));
+  assert.ok(markup.indexOf("bg-blue-600") < markup.indexOf("bg-emerald-500"));
   // a single method: a whole ring (a circle), no arcs
   const one = html(React.createElement(P.MethodsDonut, { overview: { ...o, by_method: [SPEC_METHODS[0]] } }));
   assert.equal((one.match(/data-testid="method-segment"/g) || []).length, 1);
@@ -719,7 +719,7 @@ test("collection table: one-line headers (no «за месяц»), the caption, 
   // the ⓘ is the shared Hint (hover, focus, a tap, Escape) with the same text for a screen reader; the header cell has it as a title too
   assert.match(markup, /data-testid="collection-cost-info"[^>]*><span[^>]*role="button"[^>]*aria-describedby=[^>]*>.*?<span class="sr-only">Что значит «Стоимость»<\/span>/);
   assert.ok((markup.match(/<span id="[^"]*" class="sr-only">Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца<\/span>/g) || []).length >= 1);
-  assert.match(markup, /data-col="charged" class="text-right" title="Сколько ученики группы/);
+  assert.match(markup, /data-col="charged" class="text-right">Стоимость /, "the bubble is the Hint's: no second native title");
   assert.match(read("src/components/payments/income-collection.tsx"), /import \{ Hint \} from "@\/components\/ui\/hint"/);
   assert.equal(V.COLLECTION_COST_HINT, "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
   // debt 0 → ✓ оплачено (emerald-700 for AA at small size, font-medium, small, right in the debt column); debtors 0 → a muted 0 in the centred column
@@ -761,7 +761,7 @@ test("the page: «Поступления» v2 has the period bar, one table at a
   // the drawer is the shared Modal as a side sheet / bottom sheet
   assert.match(read("src/components/payments/income-journal.tsx"), /placement="sheet"/);
   // the chart scrolls inside its own box
-  assert.match(read("src/components/payments/income-parts.tsx"), /ScrollHint className="mt-1 overflow-x-auto"/);
+  assert.match(read("src/components/payments/income-parts.tsx"), /ScrollHint className="mt-1 flex flex-1 flex-col overflow-x-auto"/);
   // cards stack in a column on a phone
   assert.match(read("src/components/payments/income-parts.tsx"), /grid grid-cols-1 gap-3 sm:grid-cols-2/);
   // the old conventions: no shouting captions
@@ -840,4 +840,121 @@ test("phone polish (stage walk 22.10): the status chip leaves the name line and 
   const collection = read("src/components/payments/income-collection.tsx");
   assert.match(collection, /debtorsHint=\{totalHint\}/);
   assert.match(collection, /title=\{debtorsHint\?\.title\}/);
+});
+
+// ── inc8 review of the lead (22.10) ───────────────────────────────────────────────────────────
+
+test("inc8-1: the chart fills the card from md (flexible columns, no inner scroll for 31 days), a phone keeps its sideways scroll", () => {
+  const src = read("src/components/payments/income-parts.tsx");
+  const chart = src.slice(src.indexOf("export function IncomeChart"), src.indexOf("// ── «Чем платили»"));
+  assert.match(chart, /<section aria-label=\{title\} className="flex min-w-0 flex-col /, "the card is a column the chart can fill");
+  assert.match(chart, /<ScrollHint className="mt-1 flex flex-1 flex-col overflow-x-auto"/);
+  assert.match(chart, /className="relative flex flex-1 items-end gap-1\.5 pt-14 min-w-\[var\(--chart-min\)\] md:min-w-0 md:gap-1"/, "26 px a day on a phone, none from md");
+  assert.match(chart, /"--chart-min": `\$\{count \* 26\}px`/);
+  assert.match(chart, /flex min-w-0 flex-1 flex-col items-center md:self-stretch/, "every column is as tall as the card");
+  assert.match(chart, /md:h-auto md:min-h-\[9rem\] md:flex-1/, "the plot takes what is left under the labels");
+  assert.match(chart, /absolute bottom-0 left-1\/2 w-full max-w-\[28px\] -translate-x-1\/2 [^`]*md:max-w-\[36px\]/, "bars are a share of the plot's height whatever it is");
+  assert.doesNotMatch(chart, /md:h-36/);
+  assert.match(chart, /box\.scrollLeft = chartScrollLeft\(/, "the phone still opens at the last day with money");
+  // 31 days: every column is there, labelled 1–31, and the phone's min width is 31 × 26
+  const { React, html, P } = parts();
+  const o = overview("I01_income_month_october");
+  const bars = V.chartBars(o, TODAY);
+  assert.equal(bars.length, 31);
+  const markup = html(React.createElement(P.IncomeChart, { bars, today: TODAY, title: "Пришло по дням", activeBucket: null, onPick() {} }));
+  assert.match(markup, /--chart-min:806px/);
+  assert.equal((markup.match(/md:self-stretch/g) || []).length, 31);
+  for (const label of ["1", "28", "29", "30", "31"]) assert.ok(markup.includes(`tabular-nums text-slate-500">${label}</span>`) || markup.includes(`tabular-nums text-slate-300">${label}</span>`), `label ${label}`);
+});
+
+test("inc8-2: the donut centre — a compact sum from 10 000 000, the exact one in the title, ≥ 8 px from the ring for any amount", () => {
+  assert.equal(plain(V.donutCenterAmount(7885000).text), "7 885 000 сум");
+  assert.equal(plain(V.donutCenterAmount(9999999).text), "9 999 999 сум");
+  assert.equal(plain(V.donutCenterAmount(10000000).text), "10 млн сум", "«,0» is dropped");
+  assert.equal(plain(V.donutCenterAmount(21400000).text), "21,4 млн сум");
+  assert.equal(plain(V.donutCenterAmount(21449999).text), "21,4 млн сум");
+  assert.equal(plain(V.donutCenterAmount(21450000).text), "21,5 млн сум");
+  assert.equal(plain(V.donutCenterAmount(999940000).text), "999,9 млн сум");
+  assert.equal(plain(V.donutCenterAmount(999960000).text), "1 млрд сум");
+  assert.equal(plain(V.donutCenterAmount(1234000000).text), "1,2 млрд сум");
+  assert.equal(plain(V.donutCenterAmount(21400000).title), "21 400 000 сум", "the exact sum is the tooltip");
+  // clearance: the farthest corner of the centre block stays ≥ 8 px inside the inner edge of the thickest (highlighted) ring
+  const inner = V.DONUT.radius - V.DONUT.widthActive / 2;
+  for (const amount of [0, 5, 235000, 7885000, 9999999, 21400000, 999900000, 1234000000, 98765000000]) {
+    for (const cap of [16, 18]) {
+      const chars = V.donutCenterAmount(amount).text.length;
+      const font = V.donutCenterFont(chars, cap);
+      assert.ok(font <= cap && font >= 9, `${amount}@${cap}: font ${font}`);
+      assert.ok(inner - V.donutCenterReach(chars, font) >= V.DONUT.clearance, `${amount}@${cap}: clearance ${inner - V.donutCenterReach(chars, font)}`);
+    }
+  }
+  assert.ok(V.donutCenterFont(8, 18) > V.donutCenterFont(14, 18), "a longer sum gets a smaller font");
+  assert.equal(V.donutCenterFont(3, 16), 16, "a short one keeps the cap");
+  // on screen: «21,4 млн сум» + «7 оплат», the exact sum in the title, the font from the fit
+  const { React, text, html, P } = parts();
+  const o = { ...overview("I01_income_month_october"), by_method: [{ method: "cash", label: "Наличные", amount: 21400000, count: 7 }] };
+  const view = React.createElement(P.MethodsDonut, { overview: o });
+  const body = text(view);
+  assert.ok(body.includes("21,4 млн сум") && body.includes("7 оплат"));
+  const markup = plain(html(view));
+  assert.match(markup, /title="21 400 000 сум"/);
+  assert.match(markup, /font-semibold tabular-nums tracking-tight text-slate-800 \[font-size:var\(--fs\)\] md:\[font-size:var\(--fs-md\)\]/);
+  assert.match(markup, /--fs:[\d.]+px;--fs-md:[\d.]+px/);
+});
+
+test("inc8-3: the palette of the donut and the tooltip dot of the same colour", () => {
+  assert.deepEqual(Object.fromEntries(Object.entries(V.METHOD_COLOR).map(([key, value]) => [key, value.dot])), {
+    cash: "bg-emerald-500", card: "bg-blue-600", bank_transfer: "bg-violet-500", click: "bg-amber-400", payme: "bg-cyan-600", other: "bg-pink-400", unknown: "bg-slate-300",
+  });
+  assert.deepEqual(Object.fromEntries(Object.entries(V.METHOD_COLOR).map(([key, value]) => [key, value.stroke])), {
+    cash: "stroke-emerald-500", card: "stroke-blue-600", bank_transfer: "stroke-violet-500", click: "stroke-amber-400", payme: "stroke-cyan-600", other: "stroke-pink-400", unknown: "stroke-slate-300",
+  });
+  // the segments, the legend dots and the tooltip dot all come from the same `segment.dot` / `segment.stroke`
+  const seg = V.methodSegments([{ method: "other", label: "Другое", amount: 5, count: 1 }])[0];
+  assert.equal(seg.dot, "bg-pink-400");
+  assert.equal(seg.stroke, "stroke-pink-400");
+  const src = read("src/components/payments/income-parts.tsx");
+  assert.match(src, /\$\{tip\.dot\}`\} data-testid="method-tooltip-dot"/);
+  assert.match(src, /\$\{segment\.dot\}`\} aria-hidden/);
+  assert.match(src, /className: `\$\{segment\.stroke\} /);
+});
+
+test("inc8-4: the ⓘ of «Стоимость» opens below the header on desktop; a phone has one quiet line instead of a popover", () => {
+  const { React, html, C } = parts();
+  const o = overview("I01_income_month_october");
+  const markup = plain(html(React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments", caption: "Октябрь 2026 · по группам" })));
+  // phone: always visible, text-xs slate-500, hidden from md
+  assert.match(markup, /<p class="mt-0\.5 text-xs leading-snug text-slate-500 md:hidden" data-testid="collection-cost-line">Стоимость — сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца<\/p>/);
+  assert.equal(V.COLLECTION_COST_LINE, "Стоимость — сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца");
+  // no ⓘ outside the header (it is inside the md-only header row)
+  assert.equal((markup.match(/data-testid="collection-cost-info"/g) || []).length, 1);
+  assert.match(markup, /data-testid="collection-head"/);
+  assert.ok(markup.indexOf("collection-cost-info") > markup.indexOf("collection-head"));
+  const src = read("src/components/payments/income-collection.tsx");
+  assert.match(src, /<Hint text=\{text\} side="below" width=\{320\}/);
+  assert.doesNotMatch(src, /label="Что значит «Стоимость»" className="md:hidden"/, "no ⓘ on a phone");
+  // the shared Hint: above by default, below on request, with its own width
+  const hint = read("src/components/ui/hint.tsx");
+  assert.match(hint, /side = "above"/);
+  assert.match(hint, /width = 256/);
+  assert.match(hint, /preferSide: side/);
+});
+
+test("inc8-5: the quiet delta line is one line: «Сентябрь: оплат не было» for a running month, «9–15 окт.: оплат не было» for a range; the long words are the title", () => {
+  const base = overview("I01_income_month_october");
+  const nothing = (extra) => ({ ...base, delta_text: null, delta_direction: null, delta_pct: null, previous: { ...base.previous, payments_count: 0, received: 0 }, previous_label: "те же дни сентября", ...extra });
+  const running = V.receivedCard(nothing({}));
+  assert.equal(running.delta.text, "Сентябрь: оплат не было");
+  assert.equal(running.hint, "Те же дни сентября: оплат не было", "the full words are the tooltip");
+  const custom = V.receivedCard(nothing({ period: { ...base.period, kind: "custom", in_progress: false }, previous_period: { ...base.previous_period, from: "2026-10-05", to: "2026-10-11", label: "5–11 окт." }, previous_label: "5–11 окт." }));
+  assert.equal(custom.delta.text, "5–11 окт.: оплат не было");
+  // a closed month keeps the usual words («В августе оплат не было»)
+  assert.equal(V.receivedCard(nothing({ period: { ...base.period, in_progress: false }, previous_label: "август", previous_period: { ...base.previous_period, from: "2026-08-01", label: "август" } })).delta.text, "В августе оплат не было");
+  assert.ok(V.shortNoPaymentsBefore(nothing({})).length <= 24, "short enough for a 1440 px card");
+  // on screen: truncate, never wrap; the title says the whole thing
+  const { React, html, P } = parts();
+  const markup = html(React.createElement(P.IncomeCards, { overview: nothing({}), paymentsBase: "/owner/payments" }));
+  assert.match(markup, /class="mt-1 truncate text-sm font-medium [^"]*" data-testid="received-delta" data-tone="none" title="Те же дни сентября: оплат не было">Сентябрь: оплат не было</);
+  // a delta with a percent also truncates and carries the comparison as its title
+  assert.match(html(React.createElement(P.IncomeCards, { overview: base, paymentsBase: "/owner/payments" })), /class="mt-1 truncate text-sm font-medium [^"]*" data-testid="received-delta" data-tone="up" title="сравнение с 1–21 сент\."/);
 });

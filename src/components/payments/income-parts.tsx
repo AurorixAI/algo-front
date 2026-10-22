@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { AlertCircle, ArrowRight, Check, Wallet } from "lucide-react";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -17,6 +17,9 @@ import {
   debtCard,
   debtorsHref,
   DELTA_CLASS,
+  DONUT,
+  donutCenterAmount,
+  donutCenterFont,
   flowParts,
   isFullRing,
   methodSegments,
@@ -106,7 +109,7 @@ export function IncomeCards({ overview, paymentsBase, scope }: { overview: Incom
       <StatCard label="Поступило" testId="card-received">
         <p className={`${ACCENT} ${ACCENT_NEUTRAL}`}>{received.amount}</p>
         {received.delta.text && (
-          <p className={`mt-1 text-sm font-medium ${DELTA_CLASS[received.delta.tone]}`} data-testid="received-delta" data-tone={received.delta.tone} title={received.hint || undefined}>
+          <p className={`mt-1 truncate text-sm font-medium ${DELTA_CLASS[received.delta.tone]}`} data-testid="received-delta" data-tone={received.delta.tone} title={received.hint || received.delta.text}>
             {received.delta.arrow && <span aria-hidden className="mr-1">{received.delta.arrow}</span>}
             {received.delta.text}
           </p>
@@ -209,7 +212,7 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars
     box.scrollLeft = chartScrollLeft({ barRight: column.offsetLeft + column.offsetWidth, viewWidth: box.clientWidth, contentWidth: box.scrollWidth });
   }, [days, focusIndex]);
   return (
-    <section aria-label={title} className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 pb-3 pt-3.5 md:px-5" data-testid="income-chart">
+    <section aria-label={title} className="flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white px-4 pb-3 pt-3.5 md:px-5" data-testid="income-chart">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
         <p className="text-xs text-slate-400" data-testid="income-chart-hint">
@@ -217,15 +220,16 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars
           <span className="hidden md:inline">Нажмите на столбик, и ниже появятся оплаты этого дня</span>
         </p>
       </div>
-      <ScrollHint className="mt-1 overflow-x-auto" data-testid="income-chart-scroll">
-        <div ref={trackRef} className="relative flex items-end gap-1.5 pt-14" style={{ minWidth: `${count * 26}px` }}>
+      {/* A phone scrolls the chart sideways (26 px a day); from md every day fits the card: flexible columns, the bars fill the card's height. */}
+      <ScrollHint className="mt-1 flex flex-1 flex-col overflow-x-auto" data-testid="income-chart-scroll">
+        <div ref={trackRef} className="relative flex flex-1 items-end gap-1.5 pt-14 min-w-[var(--chart-min)] md:min-w-0 md:gap-1" style={{ "--chart-min": `${count * 26}px` } as CSSProperties}>
           {bars.map((bar, index) => {
             const active = activeBucket === bar.bucket;
             const dim = activeBucket !== null && !active;
             const edge = index < 2 ? "left-0" : index > count - 3 ? "right-0" : "left-1/2 -translate-x-1/2";
             return (
-              <div key={bar.bucket} className="group flex min-w-0 flex-1 flex-col items-center">
-                <div className="relative flex h-24 w-full items-end justify-center border-b border-slate-200 md:h-36">
+              <div key={bar.bucket} className="group flex min-w-0 flex-1 flex-col items-center md:self-stretch">
+                <div className="relative flex h-24 w-full items-end justify-center border-b border-slate-200 md:h-auto md:min-h-[9rem] md:flex-1">
                   {bar.range ? (
                     <button
                       type="button"
@@ -234,7 +238,7 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars
                       data-testid="income-bar"
                       data-bucket={bar.bucket}
                       onClick={() => onPick(bar)}
-                      className={`w-full max-w-[28px] rounded-t-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${active ? "bg-primary-700" : dim ? "bg-primary-200 hover:bg-primary-400" : "bg-primary-500 hover:bg-primary-600"}`}
+                      className={`absolute bottom-0 left-1/2 w-full max-w-[28px] -translate-x-1/2 rounded-t-md transition-colors md:max-w-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/50 ${active ? "bg-primary-700" : dim ? "bg-primary-200 hover:bg-primary-400" : "bg-primary-500 hover:bg-primary-600"}`}
                       style={{ height: `${bar.height}%` }}
                     />
                   ) : (
@@ -260,10 +264,10 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars
 
 // ── «Чем платили» ──────────────────────────────────────────────────────────
 
-const DONUT_SIZE = 180;
-const DONUT_R = 70;
-const DONUT_WIDTH = 22;
-const DONUT_WIDTH_ACTIVE = 27;
+const DONUT_SIZE = DONUT.size;
+const DONUT_R = DONUT.radius;
+const DONUT_WIDTH = DONUT.width;
+const DONUT_WIDTH_ACTIVE = DONUT.widthActive;
 /** A hair of white between the segments (degrees on each side), only where a segment is wide enough to lose it. */
 const DONUT_GAP = 0.9;
 
@@ -278,6 +282,10 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
   const [hover, setHover] = useState<string | null>(null);
   if (segments.length === 0) return null;
   const total = methodsTotal(segments);
+  const centre = donutCenterAmount(total.amount);
+  // The centre text is fitted to the inner edge of the ring: ≥ 8 px of clearance for any amount (text-base cap on a phone, text-lg from md).
+  const fontPhone = donutCenterFont(centre.text.length, 16);
+  const fontDesk = donutCenterFont(centre.text.length, 18);
   const cash = cashTodayLine(cashToday);
   const lit = hover ?? (selected || null);
   const tip = hover ? segments.find((segment) => segment.method === hover) ?? null : null;
@@ -300,7 +308,10 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
 
       <div className="mt-1 flex h-8 items-center justify-center" aria-hidden>
         {tip ? (
-          <p className="max-w-full rounded-lg bg-slate-800 px-2.5 py-1 text-center text-xs leading-snug tabular-nums text-white shadow-sm" data-testid="method-tooltip">{methodTooltip(tip)}</p>
+          <p className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-slate-800 px-2.5 py-1 text-center text-xs leading-snug tabular-nums text-white shadow-sm" data-testid="method-tooltip">
+            <span className={`h-2 w-2 shrink-0 rounded-full ${tip.dot}`} data-testid="method-tooltip-dot" aria-hidden />
+            {methodTooltip(tip)}
+          </p>
         ) : (
           <p className="text-xs text-slate-400">Нажмите на способ, чтобы увидеть его оплаты</p>
         )}
@@ -331,8 +342,15 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
             return <path key={segment.method} d={arcPath(center, center, DONUT_R, segment.start + gap, segment.end - gap)} {...common} />;
           })}
         </svg>
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-9 text-center">
-          <p className={`whitespace-nowrap font-medium tabular-nums tracking-tight text-slate-800 ${total.amountText.length > 14 ? "text-sm" : "text-base"}`} data-testid="method-total">{total.amountText}</p>
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center" title={centre.title}>
+          <p
+            className="whitespace-nowrap font-semibold tabular-nums tracking-tight text-slate-800 [font-size:var(--fs)] md:[font-size:var(--fs-md)]"
+            style={{ "--fs": `${fontPhone}px`, "--fs-md": `${fontDesk}px` } as CSSProperties}
+            data-testid="method-total"
+            data-chars={centre.text.length}
+          >
+            {centre.text}
+          </p>
           <p className="text-xs text-slate-500" data-testid="method-total-count">{total.countText}</p>
         </div>
       </div>

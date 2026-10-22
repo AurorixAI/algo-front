@@ -142,7 +142,7 @@ test("the chart opens at the last day with money (else today, else the end) and 
   assert.match(chartSrc, /box\.scrollLeft = chartScrollLeft\(/);
   assert.doesNotMatch(chartSrc, /scrollIntoView/, "the page never jumps");
   assert.match(chartSrc, /\[days, focusIndex\]/); // again only for another set of days
-  assert.match(chartSrc, /h-24[^"]*md:h-36/); // lower on a phone
+  assert.match(chartSrc, /h-24[^"]*md:h-auto md:min-h-\[9rem\] md:flex-1/); // lower on a phone, fills the card from md
   assert.match(chartSrc, /md:hidden">Нажмите на день, чтобы увидеть оплаты/); // a short hint on a phone
   const { React, html, P } = parts();
   const markup = html(React.createElement(P.IncomeChart, { bars, today: TODAY, title: "Пришло по дням", activeBucket: null, onPick() {} }));

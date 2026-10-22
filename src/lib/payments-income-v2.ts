@@ -425,6 +425,8 @@ export interface DeltaView {
   arrow: string;
   text: string;
   tone: Tone;
+  /** The long words of a shortened line (the tooltip of line 1); absent when the line is already whole. */
+  full?: string;
 }
 
 /**
@@ -441,7 +443,22 @@ export function deltaView(overview: IncomeOverview): DeltaView {
     return { arrow: "", text, tone: "same" };
   }
   // No percent to show (the previous period took nothing): a quiet sentence instead.
-  return { arrow: "", tone: "none", text: overview.previous.payments_count > 0 ? "" : noPaymentsBefore(overview.previous_label) };
+  if (overview.previous.payments_count > 0) return { arrow: "", tone: "none", text: "" };
+  const full = noPaymentsBefore(overview.previous_label);
+  const text = shortNoPaymentsBefore(overview);
+  return { arrow: "", tone: "none", text, ...(text !== full ? { full } : {}) };
+}
+
+/**
+ * The quiet line of «nothing to compare with» in ONE line: a running month is «Сентябрь: оплат не было» (the same days of September
+ * are the tooltip's words), a custom range «9–15 окт.: оплат не было»; anything else the usual words of `noPaymentsBefore`.
+ */
+export function shortNoPaymentsBefore(overview: Pick<IncomeOverview, "period" | "previous_period" | "previous_label">): string {
+  const from = overview.previous_period.from;
+  if (overview.period.kind === "month" && overview.period.in_progress && isIsoDate(from)) {
+    return `${capitalizeFirst(MONTHS_NOMINATIVE[Number(from.slice(5, 7)) - 1] ?? "")}: оплат не было`;
+  }
+  return noPaymentsBefore(overview.period.kind === "custom" && overview.previous_period.label.trim() ? overview.previous_period.label : overview.previous_label);
 }
 
 /** «170% к 12–15 окт.» + the hint «тем же дням прошлой недели» → «170% к тем же дням прошлой недели»; no hint, or the label is not at the end: the sentence as it is. */
@@ -517,7 +534,8 @@ export function receivedCard(overview: IncomeOverview): ReceivedCard {
     const before = overview.previous.received > 0 && label ? `${capitalizeFirst(label)}: ${formatMoney(overview.previous.received)}` : "";
     return { amount, delta: { arrow: "", text: "Оплат не было", tone: "none" }, countText: before, hint: "" };
   }
-  return { amount, delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count), hint: compareHint(overview) };
+  const delta = deltaView(overview);
+  return { amount, delta, countText: paymentsCountText(overview.current.payments_count), hint: delta.full ?? compareHint(overview) };
 }
 
 export interface CollectedCard {
@@ -755,11 +773,11 @@ export function focusBucket(range: JournalRange | null, overview: Pick<IncomeOve
 /** Calm, distinct colours of the methods: a Tailwind class for the dot and one for the ring (the classes are written out so they are generated). */
 export const METHOD_COLOR: Record<string, { dot: string; stroke: string }> = {
   cash: { dot: "bg-emerald-500", stroke: "stroke-emerald-500" },
-  card: { dot: "bg-blue-500", stroke: "stroke-blue-500" },
+  card: { dot: "bg-blue-600", stroke: "stroke-blue-600" },
   bank_transfer: { dot: "bg-violet-500", stroke: "stroke-violet-500" },
-  click: { dot: "bg-sky-400", stroke: "stroke-sky-400" },
+  click: { dot: "bg-amber-400", stroke: "stroke-amber-400" },
   payme: { dot: "bg-cyan-600", stroke: "stroke-cyan-600" },
-  other: { dot: "bg-amber-500", stroke: "stroke-amber-500" },
+  other: { dot: "bg-pink-400", stroke: "stroke-pink-400" },
   unknown: { dot: "bg-slate-300", stroke: "stroke-slate-300" },
 };
 const METHOD_COLOR_FALLBACK = METHOD_COLOR.unknown;
@@ -821,6 +839,38 @@ export function methodsTotal(segments: Array<Pick<MethodSegment, "amount" | "cou
   const amount = segments.reduce((acc, item) => acc + item.amount, 0);
   const count = segments.reduce((acc, item) => acc + item.count, 0);
   return { amount, count, amountText: formatMoney(amount), countText: paymentsCountText(count) };
+}
+
+/** The ring of the donut (px of the 180 × 180 box); the centre text is fitted to its inner edge. */
+export const DONUT = { size: 180, radius: 74, width: 18, widthActive: 22, clearance: 8 } as const;
+
+/**
+ * The sum in the centre: the exact money below 10 000 000 («7 885 000 сум»), compact from there («21,4 млн сум», one decimal,
+ * the ru comma, «,0» dropped; «1,2 млрд сум»).  `title` is always the exact sum.
+ */
+export function donutCenterAmount(amount: number): { text: string; title: string } {
+  const title = formatMoney(amount);
+  if (amount < 10_000_000) return { text: title, title };
+  // whole tenths (integer arithmetic: 21 450 000 is exactly 21,5, not a float's 21,4)
+  const tenthsText = (tenths: number, unit: string) => `${Math.floor(tenths / 10)}${tenths % 10 ? `,${tenths % 10}` : ""} ${unit} сум`;
+  const millionTenths = Math.round(amount / 100_000);
+  if (millionTenths >= 10_000) return { text: tenthsText(Math.round(amount / 100_000_000), "млрд"), title };
+  return { text: tenthsText(millionTenths, "млн"), title };
+}
+
+/** The farthest corner of the centre block (the amount line at `fontPx`, the count line below it) from the centre of the ring, px.  An average glyph is taken 0.6 em wide: wider than a digit or a Cyrillic letter, so the real text only has more room. */
+export function donutCenterReach(chars: number, fontPx: number): number {
+  const width = chars * fontPx * 0.6;
+  const height = fontPx * 1.3 + 16;
+  return Math.hypot(width / 2, height / 2);
+}
+
+/** The biggest font ≤ `cap` whose centre block keeps `DONUT.clearance` px from the inner edge of the (highlighted, thickest) ring. */
+export function donutCenterFont(chars: number, cap: number): number {
+  const room = DONUT.radius - DONUT.widthActive / 2 - DONUT.clearance;
+  let font = cap;
+  while (font > 9 && donutCenterReach(chars, font) > room) font -= 0.25;
+  return font;
 }
 
 /** «Наличные · 235 000 сум · 1 оплата · 3%»: the tooltip of a segment and the line of the screen reader. */
@@ -935,6 +985,9 @@ export function collectionCaption(period: Pick<Period, "kind" | "from" | "to">, 
 
 /** The tooltip of the column «Стоимость» (and of its ⓘ). */
 export const COLLECTION_COST_HINT = "Сколько ученики группы должны заплатить за этот месяц: цена × ученики, с учётом индивидуальных цен, пауз и прихода в середине месяца";
+
+/** The same words as one quiet line under the caption of a phone (no popover there). */
+export const COLLECTION_COST_LINE = `Стоимость — ${COLLECTION_COST_HINT.charAt(0).toLowerCase()}${COLLECTION_COST_HINT.slice(1)}`;
 
 export const COLLECTION_DEBTORS_TOTAL_TITLE = "учеников без повторов: кто учится в двух группах, считается один раз";
 

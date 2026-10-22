@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Info } from "lucide-react";
 import { Hint } from "@/components/ui/hint";
 import { formatMoney } from "@/lib/payments";
-import { COLLECTION_COST_HINT, collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
+import { COLLECTION_COST_HINT, COLLECTION_COST_LINE, collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
 
 const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr)_7rem_6.5rem] md:items-center md:gap-x-4";
@@ -26,7 +26,7 @@ function Cell({ label, col, align, className = "", title, children }: { label: s
 function InfoTip({ text, label, className = "" }: { text: string; label: string; className?: string }) {
   return (
     <span className={`inline-flex align-middle ${className}`} data-testid="collection-cost-info">
-      <Hint text={text} className="inline-flex p-0.5 text-slate-400 hover:text-slate-600">
+      <Hint text={text} side="below" width={320} className="inline-flex p-0.5 text-slate-400 hover:text-slate-600">
         <Info className="h-3.5 w-3.5" aria-hidden />
         <span className="sr-only">{label}</span>
       </Hint>
@@ -87,15 +87,16 @@ export function CollectionTable({ collection, paymentsBase, debtToday, caption }
   return (
     <section aria-label="Группы — собираемость" data-testid="income-collection">
       {caption && (
-        <p className="mb-2 flex items-center gap-1 px-1 text-xs text-slate-500" data-testid="collection-caption">
-          {caption}
-          <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" className="md:hidden" />
-        </p>
+        <div className="mb-2 px-1" data-testid="collection-caption-box">
+          <p className="text-xs text-slate-500" data-testid="collection-caption">{caption}</p>
+          {/* A phone has no hover and the bubble would cover the cards: the explanation is one quiet line, always visible. */}
+          <p className="mt-0.5 text-xs leading-snug text-slate-500 md:hidden" data-testid="collection-cost-line">{COLLECTION_COST_LINE}</p>
+        </div>
       )}
       <div className="md:overflow-hidden md:rounded-2xl md:border md:border-slate-200 md:bg-white">
         <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 [&>span]:whitespace-nowrap ${GRID}`} data-testid="collection-head">
           <span data-col="group">Группа</span>
-          <span data-col="charged" className="text-right" title={COLLECTION_COST_HINT}>Стоимость <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></span>
+          <span data-col="charged" className="text-right">Стоимость <InfoTip text={COLLECTION_COST_HINT} label="Что значит «Стоимость»" /></span>
           <span data-col="paid" className="text-right">Оплачено</span>
           <span data-col="pct">Собрано</span>
           <span data-col="debt" className="text-right">Долг</span>
