@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, UserMinus } from "lucide-react";
-import { orgApi, substitutionsApi } from "@/lib/api";
+import { substitutionsApi } from "@/lib/api";
 import { addIsoDays } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
-import { staffDisplayName } from "@/lib/staff-name";
 import {
   COMMENT_MAX,
   COMMENT_REQUIRED_TEXT,
@@ -125,19 +124,17 @@ export function RequestDialog({
     // keyed by the lesson's identity, not by the object: the parent builds a new one on every render and a half-typed form must survive that
   }, [open, primaryKey, today, loadOthers]);
 
-  // The colleagues a teacher may name.  A teacher has no list of staff of his own (the server refuses `/org/members` to him): the
-  // choice then simply is not offered, the request goes without a suggestion.
+  // The colleagues a teacher may name: `GET /org/substitutions/colleagues` (a teacher may read it; no e-mail, no phone).  When it
+  // fails the choice is simply not offered and the request goes without a suggestion.
   useEffect(() => {
     if (!open || colleagues !== null) return;
     let cancelled = false;
-    orgApi.listMembers()
-      .then((members) => {
+    substitutionsApi.colleagues()
+      .then((rows) => {
         if (cancelled) return;
-        const rows = (Array.isArray(members) ? members : []) as Array<Record<string, any>>;
-        setColleagues(rows
-          .filter((member) => member.is_active !== false && (member.user_id || member.id) !== viewerId)
-          .filter((member) => ["teacher", "admin", "owner"].includes(String(member.org_role)))
-          .map((member) => ({ id: String(member.user_id || member.id), name: staffDisplayName(member, "Сотрудник") }))
+        setColleagues((Array.isArray(rows) ? rows : [])
+          .filter((member) => member.id !== viewerId)
+          .map((member) => ({ id: String(member.id), name: member.name || "Сотрудник" }))
           .sort((a, b) => a.name.localeCompare(b.name, "ru")));
       })
       .catch(() => { if (!cancelled) setColleagues([]); });

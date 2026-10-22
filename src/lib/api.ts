@@ -2982,6 +2982,10 @@ export const substitutionsApi = {
   withdrawMany: (ids: string[]) =>
     api<WithdrawBatchOut>("/auth/org/substitutions/withdraw", { method: "POST", body: { ids } }),
 
+  /** «Предложить коллегу»: the active staff who can teach, except the caller (id, name, role; any member of the centre may read it). */
+  colleagues: () =>
+    api<Array<{ id: string; name: string; role: "teacher" | "owner" | "admin" }>>("/auth/org/substitutions/colleagues"),
+
   // owner / administrator
   summary: () => api<SubstitutionSummary>("/auth/org/substitutions/summary"),
   list: (params: SubstitutionListParams) =>

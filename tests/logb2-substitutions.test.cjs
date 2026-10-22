@@ -46,9 +46,9 @@ const sources = walk(path.join(root, "src")).filter((file) => /\.(ts|tsx)$/.test
 
 // ── the contract ────────────────────────────────────────────────────────────────────────────────
 
-test("the contract has 12 routes, every fixture of the index is there and names a schema of the contract", () => {
+test("the contract has 14 routes, every fixture of the index is there and names a schema of the contract", () => {
   const operations = Object.entries(contract.paths).flatMap(([route, methods]) => Object.keys(methods).map((method) => `${method.toUpperCase()} ${route}`));
-  assert.equal(operations.length, 13);
+  assert.equal(operations.length, 14);
   for (const [file, model] of Object.entries(index)) {
     assert.ok(fs.existsSync(path.join(dir, file)), file);
     if (model !== "-") assert.ok(contract.components.schemas[model], `${file}: ${model}`);
@@ -707,4 +707,24 @@ test("[T1] the lesson panels carry the control and the teacher's dashboard carri
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /lessonMarks\(attendanceData\?\.substitutionRequests\?\.\[key\]/);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /lessonMarks\(attendance\?\.substitutionRequests\?\.\[key\]/);
   assert.match(read("src/components/students/student-profile-view.tsx"), /<StudentLessonsList lessons=\{attendanceSummary\.lessons\} notices=\{attendanceSummary\.notices\}/);
+});
+
+// ── integration into n13-int: «Предложить коллегу» reads GET /org/substitutions/colleagues ─────────────────────
+
+test("[int] the request dialog names colleagues from /org/substitutions/colleagues (a teacher may read it), not from /org/members", () => {
+  const dialog = fs.readFileSync(path.join(root, "src/components/substitutions/request-dialog.tsx"), "utf8");
+  assert.match(dialog, /substitutionsApi\.colleagues\(\)/);
+  assert.doesNotMatch(dialog, /listMembers/);
+  const api = fs.readFileSync(path.join(root, "src/lib/api.ts"), "utf8");
+  assert.match(api, /\/auth\/org\/substitutions\/colleagues/);
+  assert.ok(contract.paths["/org/substitutions/colleagues"].get, "the route is in the contract");
+  assert.ok(contract.components.schemas.ColleagueOut.properties.role);
+});
+
+test("[int] the journal and the schedule mark a moved / cancelled original by substitutionOutcome; the import counts carry openings", () => {
+  const journal = fs.readFileSync(path.join(root, "src/components/groups/group-attendance-journal.tsx"), "utf8");
+  assert.match(journal, /lesson\.substitutionOutcome/);
+  assert.equal(contract.paths["/org/substitutions/colleagues"].get.responses["200"].content["application/json"].schema.items.$ref, "#/components/schemas/ColleagueOut");
+  const importFixture = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/logB/c3_commit_ok.json"), "utf8"));
+  assert.equal(importFixture.counts.openings, 0);
 });

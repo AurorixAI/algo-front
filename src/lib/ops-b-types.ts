@@ -295,6 +295,8 @@ export interface ImportIssueB {
 export interface ImportCountsB {
   groups_existing?: number;
   groups_new?: number;
+  /** LOGIC-A: students whose row carried an opening balance (columns G-I); 0 without the columns. */
+  openings?: number;
   students_enrolled?: number;
   students_existing?: number;
   students_new?: number;
