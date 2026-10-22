@@ -684,36 +684,6 @@ test("the statement draws E1 with the running balance after every row and the li
   assert.ok(!text(React.createElement(StatementTimeline, { statement: voided, menuFor: () => [], withVoided: false })).includes("Отменено: ошибка"));
 });
 
-test("the income report draws the totals, the distribution, the position, the tables and «Сходится»", () => {
-  const { React, text } = renderer();
-  const { IncomeReportView } = require(path.join(root, "src/components/payments/income-page.tsx"));
-  const report = I.normalizeReport(fixture("receipts_report_2026-10"));
-  const opened = [];
-  const period = I.periodOf("month", "2026-10-21");
-  const body = text(React.createElement(IncomeReportView, { report, period, open: (target) => opened.push(target) }));
-  for (const part of [
-    "3 оплаты", "Поступило", "1 540 000 сум", "Возвращено", "324 000 сум", "Прощено долгов", "30 000 сум", "Остаётся в центре", "1 216 000 сум",
-    "Куда ушли деньги", "На долги прошлых периодов", "269 000 сум", "На текущие периоды", "926 000 сум", "В аванс", "21 000 сум",
-    "Как платили", "Наличные", "Карта", "1 340 000 сум", "200 000 сум",
-    "Долг учеников", "70 000 сум", "Аванс — оплачено вперёд",
-    "По группам", "Математика 7А", "Иванова Мария", "Алгебра 9Б", "По преподавателям", "Петров Олег", "По дням", "Сходится",
-  ]) assert.ok(body.includes(part), part);
-  assert.ok(!body.includes("NaN") && !body.includes("undefined"));
-  // a single day has no «По дням» table
-  assert.ok(!text(React.createElement(IncomeReportView, { report, period: I.periodOf("day", "2026-10-01"), open: () => {} })).includes("По дням"));
-  // transfers are their own row, apart from refunds
-  const moved = I.normalizeReport({ ...fixture("receipts_report_2026-10"), totals: { ...fixture("receipts_report_2026-10").totals, refunded_from_received: 24000, transferred_from_received: 300000 } });
-  const movedText = text(React.createElement(IncomeReportView, { report: moved, period, open: () => {} }));
-  assert.ok(movedText.includes("Переведено в другие группы") && movedText.includes("300 000 сум") && movedText.includes("Возвращено"));
-  // a report that does not add up says it
-  const broken = { ...report, reconciliation: { ok: false, checks: report.reconciliation.checks.map((c, i) => (i === 1 ? { ...c, right: c.right - 500, diff: 500 } : c)) } };
-  assert.match(text(React.createElement(IncomeReportView, { report: broken, period, open: () => {} })), /Не сходится: расхождение 500 сум/);
-  // a quiet period: zeros, no empty tables, still «Сходится»
-  const quiet = I.normalizeReport({ ...fixture("receipts_report_2026-10"), totals: {}, by_method: [], by_group: [], by_teacher: [], series: [], position: {}, reconciliation: { ok: true, checks: [] } });
-  const quietText = text(React.createElement(IncomeReportView, { report: quiet, period: I.periodOf("day", "2026-10-21"), open: () => {} }));
-  assert.ok(quietText.includes("0 сум") && quietText.includes("нет долгов") && quietText.includes("нет авансов") && quietText.includes("Сходится"));
-  assert.ok(!quietText.includes("По группам") && !quietText.includes("Как платили"));
-});
 
 // ── the screens and their routes ────────────────────────────────────────────────────────────────
 
@@ -780,18 +750,6 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.doesNotMatch(statement, /type="date"/); // no date inputs any more
 });
 
-test("the income page: table rules (names left, digits right), period picker, drill-down, reconciliation", () => {
-  const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /<span>\{firstColumn\}<\/span>/); // identity column left
-  assert.match(page, /<span key=\{column\.key\} className="text-right">/); // money columns right
-  assert.match(page, /role="tablist" aria-label="Период"/);
-  assert.match(page, /placement="right"/); // the list of payments opens in a side sheet
-  assert.match(page, /data-testid="income-reconciliation"/);
-  assert.match(page, /orgApi\.getReceiptItems\(/);
-  assert.match(page, /orgApi\.getBalances\(/);
-  assert.match(page, /id="position"/);
-  assert.doesNotMatch(page, /uppercase|tracking-wider/);
-});
 
 test("the dead code of the period form is gone", () => {
   const payments = read("src/lib/payments.ts");

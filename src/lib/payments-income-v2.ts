@@ -429,11 +429,10 @@ export function deltaView(overview: IncomeOverview): DeltaView {
     if (direction === "down") return { arrow: "▼", text: overview.delta_text, tone: "down" };
     return { arrow: "", text: overview.delta_text, tone: "same" };
   }
+  // No percent to show (the previous period took nothing): a quiet word instead, «Вчера оплат не было» / «Август: оплат не было».
   const before = overview.previous_period.label;
-  return {
-    arrow: "", tone: "none",
-    text: overview.previous.payments_count === 0 && before ? `Для сравнения (${before}): оплат не было` : "",
-  };
+  const text = overview.previous.payments_count > 0 || !before ? "" : before === "вчера" ? "Вчера оплат не было" : `${capitalizeFirst(before)}: оплат не было`;
+  return { arrow: "", tone: "none", text };
 }
 
 export const DELTA_CLASS: Record<Tone, string> = {
@@ -635,6 +634,14 @@ export function chartBars(overview: IncomeOverview, today: string): Bar[] {
       detail: active ? `${formatMoney(point.received)} · ${paymentsCountText(point.count)}` : "оплат не было",
     };
   });
+}
+
+/** The bar that is pressed: the one whose day (month) the journal is narrowed to. */
+export function focusBucket(range: JournalRange | null, overview: Pick<IncomeOverview, "series" | "series_by">): string | null {
+  if (!range) return null;
+  const key = overview.series_by === "month" ? range.from.slice(0, 7) : range.from;
+  const bucket = overview.series.find((point) => point.bucket === key)?.bucket ?? null;
+  return overview.series_by === "day" && range.to !== range.from ? null : bucket;
 }
 
 // ── «Касса по способам» ────────────────────────────────────────────────────
