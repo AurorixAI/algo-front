@@ -23,6 +23,9 @@ import {
   type IncomeOverview,
 } from "@/lib/payments-income-v2";
 
+/** The group / teacher the screen is narrowed to: carried to «Должники» and to the label of the till. */
+export interface IncomeScope { groupId?: string | null; teacherId?: string | null }
+
 // ── Small shared pieces ────────────────────────────────────────────────────
 
 /** A bar of progress: neutral blue (the colour says «debt» and «growth» elsewhere, never «a bar»). */
@@ -81,7 +84,7 @@ function StatCard({ label, id, children, testId }: { label: string; id?: string;
 const ACCENT = "mt-1 text-2xl font-bold tabular-nums md:text-[28px] md:leading-9";
 
 /** «Поступило» / «Собрано за месяц» / «Долг на сегодня» / «Аванс»: one accent number each, the rest is quiet. */
-export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOverview; paymentsBase: string }) {
+export function IncomeCards({ overview, paymentsBase, scope }: { overview: IncomeOverview; paymentsBase: string; scope?: IncomeScope }) {
   const received = receivedCard(overview);
   const collected = collectedCard(overview);
   const debt = debtCard(overview);
@@ -113,7 +116,7 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
         <p className={`${ACCENT} ${debt.none ? "text-slate-700" : "text-rose-700"}`}>{debt.amount}</p>
         <p className="mt-1 text-sm text-slate-500">{debt.caption}</p>
         {!debt.none && (
-          <Link href={debtorsHref(paymentsBase)} className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40">
+          <Link href={debtorsHref(paymentsBase, scope)} data-testid="debtors-link" className="mt-2 inline-flex w-fit items-center gap-1 rounded-lg text-sm font-medium text-primary-700 hover:text-primary-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40">
             Должники
             <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
@@ -232,8 +235,8 @@ export function IncomeChart({ bars, title, activeBucket, onPick }: { bars: Bar[]
 
 // ── «Касса по способам» ────────────────────────────────────────────────────
 
-export function MethodsBox({ overview }: { overview: IncomeOverview }) {
-  const rows = methodRows(overview);
+export function MethodsBox({ overview, scope }: { overview: IncomeOverview; scope?: IncomeScope }) {
+  const rows = methodRows(overview, scope);
   if (rows.length === 0) return null;
   return (
     <section aria-label="Касса по способам" className="min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-3.5 md:px-5" data-testid="income-methods">
@@ -272,19 +275,19 @@ export function MethodsBox({ overview }: { overview: IncomeOverview }) {
  * chart and the till.  Presentational: a click on a bar is reported with `onPick`.
  */
 export function IncomeOverviewView({
-  overview, today, paymentsBase, activeBucket, onPick,
-}: { overview: IncomeOverview; today: string; paymentsBase: string; activeBucket: string | null; onPick: (bar: Bar) => void }) {
+  overview, today, paymentsBase, activeBucket, onPick, scope,
+}: { overview: IncomeOverview; today: string; paymentsBase: string; activeBucket: string | null; onPick: (bar: Bar) => void; scope?: IncomeScope }) {
   const chart = showChart(overview);
-  const methods = methodRows(overview).length > 0;
+  const methods = methodRows(overview, scope).length > 0;
   return (
     <div className="space-y-4">
       {overview.summary_text && <p className="text-base font-medium leading-snug text-slate-800 md:text-lg" data-testid="income-summary">{overview.summary_text}</p>}
-      <IncomeCards overview={overview} paymentsBase={paymentsBase} />
+      <IncomeCards overview={overview} paymentsBase={paymentsBase} scope={scope} />
       <FlowLine overview={overview} />
       {(chart || methods) && (
         <div className={`grid grid-cols-1 gap-4 ${chart && methods ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]" : ""}`}>
           {chart && <IncomeChart bars={chartBars(overview, today)} title={overview.series_by === "month" ? "Пришло по месяцам" : "Пришло по дням"} activeBucket={activeBucket} onPick={onPick} />}
-          {methods && <MethodsBox overview={overview} />}
+          {methods && <MethodsBox overview={overview} scope={scope} />}
         </div>
       )}
     </div>

@@ -50,6 +50,10 @@ export interface IncomeCash {
   expected: number;
   payments_count: number;
   text: string;
+  /** `"centre"`: the till is the whole centre's, whatever group / teacher the screen is narrowed to (absent on an older server). */
+  scope?: string | null;
+  /** The server says the screen is narrowed (a group / teacher filter) while the till is the centre's (absent on an older server). */
+  filtered_view?: boolean;
 }
 
 export interface CollectionRow {
@@ -130,8 +134,11 @@ export interface JournalRow {
   id: string;
   receipt_no: number | null;
   paid_on: string;
+  /** «11:40»; null for a back-dated payment (absent / null on an older server too): no time is shown then. */
   paid_time: string | null;
   created_at: string | null;
+  /** «внесена 21.10 в 11:40»: when the payment was entered, said by the server (absent on an older server). */
+  entered_at_text?: string | null;
   student_id: string;
   student_name: string;
   display_id: string | null;
@@ -228,7 +235,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     by_method: arr<IncomeMethodRow>(raw?.by_method).map((item) => ({ method: text(item.method), label: text(item.label), amount: sum(item.amount), count: sum(item.count) })),
     series: arr<IncomeDay>(raw?.series).map((item) => ({ bucket: text(item.bucket), received: sum(item.received), count: sum(item.count) })),
     series_by: raw?.series_by === "month" ? "month" : "day",
-    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text) } : null,
+    cash: cash ? { date: text(cash.date), label: text(cash.label), cash_received: sum(cash.cash_received), cash_refunded: sum(cash.cash_refunded), expected: sum(cash.expected), payments_count: sum(cash.payments_count), text: text(cash.text), scope: nullableText(cash.scope), filtered_view: cash.filtered_view === true } : null,
     collection: collection ? {
       month: text(collection.month), month_label: text(collection.month_label), from: text(collection.from), to: text(collection.to), text: text(collection.text),
       total: collectionRow(collection.total), groups: arr<CollectionRow>(collection.groups).map(collectionRow),
@@ -246,7 +253,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
 function journalRow(raw: JournalRow): JournalRow {
   const status: JournalStatus = raw.status === "voided" || raw.status === "replaced" ? raw.status : "active";
   return {
-    id: text(raw.id), receipt_no: raw.receipt_no ?? null, paid_on: text(raw.paid_on), paid_time: nullableText(raw.paid_time), created_at: nullableText(raw.created_at),
+    id: text(raw.id), receipt_no: raw.receipt_no ?? null, paid_on: text(raw.paid_on), paid_time: nullableText(raw.paid_time), created_at: nullableText(raw.created_at), entered_at_text: nullableText(raw.entered_at_text),
     student_id: text(raw.student_id), student_name: text(raw.student_name), display_id: nullableText(raw.display_id), membership_id: text(raw.membership_id),
     group_id: text(raw.group_id), group_name: text(raw.group_name), teacher_name: nullableText(raw.teacher_name),
     amount: sum(raw.amount), method: text(raw.method), method_label: text(raw.method_label),
@@ -682,10 +689,20 @@ export interface MethodRow {
   hintNote: string | null;
 }
 
-/** Only the methods that took money; the cash row of a day carries the hint «должно быть в кассе». */
-export function methodRows(overview: IncomeOverview): MethodRow[] {
+/** The till is the centre's, not the group's: a screen narrowed to a group / teacher must say so next to the sum. */
+export const CENTRE_CASH_LABEL = "В кассе центра за сегодня (все группы)";
+
+/** `cash.filtered_view`, or (an older server sent no scope) a group / teacher filter on the screen. */
+export function cashIsCentreWide(cash: Pick<IncomeCash, "scope" | "filtered_view"> | null, filtersActive: boolean): boolean {
+  if (!cash) return false;
+  return cash.filtered_view === true || (filtersActive && !cash.scope);
+}
+
+/** Only the methods that took money; the cash row of a day carries the hint «должно быть в кассе» (narrowed screen: «В кассе центра за сегодня (все группы)»). */
+export function methodRows(overview: IncomeOverview, scope: { groupId?: string | null; teacherId?: string | null } = {}): MethodRow[] {
   const cash = overview.cash;
-  const hintOf = (method: string) => (method === "cash" && cash ? `должно быть в кассе ${formatMoney(cash.expected)}` : null);
+  const centre = cashIsCentreWide(cash, Boolean(scope.groupId || scope.teacherId));
+  const hintOf = (method: string) => (method === "cash" && cash ? (centre ? `${CENTRE_CASH_LABEL}: ${formatMoney(cash.expected)}` : `должно быть в кассе ${formatMoney(cash.expected)}`) : null);
   const noteOf = (method: string) => (method === "cash" && cash && cash.cash_refunded > 0 ? `принято ${formatMoney(cash.cash_received)}, возвращено ${formatMoney(cash.cash_refunded)}` : null);
   const rows: MethodRow[] = overview.by_method
     .filter((item) => item.amount !== 0 || item.count > 0)
@@ -768,6 +785,14 @@ export interface JournalRowView {
   /** «отменена» / «исправлена → № N»; null for a live payment. */
   tag: string | null;
   muted: boolean;
+  /** «внесена 21.10 в 11:40»: a quiet second line of the phone card; null when the server did not send it. */
+  enteredAt: string | null;
+}
+
+/** The server's «внесена 21.10 в 11:40» (trimmed); null when it is absent. */
+export function enteredAtText(row: Pick<JournalRow, "entered_at_text">): string | null {
+  const value = typeof row.entered_at_text === "string" ? row.entered_at_text.trim() : "";
+  return value || null;
 }
 
 export function journalRowView(row: JournalRow, withYear = false): JournalRowView {
@@ -785,6 +810,7 @@ export function journalRowView(row: JournalRow, withYear = false): JournalRowVie
     method: row.method_label,
     tag,
     muted: tag !== null,
+    enteredAt: enteredAtText(row),
   };
 }
 
@@ -799,8 +825,10 @@ export interface DrawerLink { key: "receipt" | "student" | "statement"; label: s
 
 export interface DrawerView {
   title: string;
-  /** «21.10.2026 · 11:40». */
+  /** «21.10.2026 · 11:40» (the date alone for a back-dated payment). */
   when: string;
+  /** «внесена 21.10 в 11:40», quietly under the amount; null when the server did not send it. */
+  entered: string | null;
   amount: string;
   method: string;
   tag: string | null;
@@ -834,6 +862,7 @@ export function drawerView(row: JournalRow): DrawerView {
   return {
     title: row.receipt_no ? `Оплата № ${row.receipt_no}` : "Оплата",
     when: `${formatDateRu(row.paid_on)}${row.paid_time ? ` · ${row.paid_time}` : ""}`,
+    entered: enteredAtText(row),
     amount: formatMoney(row.amount),
     method: row.method_label,
     tag: statusTag(row),
@@ -881,12 +910,27 @@ export interface EmptyContext {
   focusLabel: string | null;
   /** The search, the author or a method / group / teacher is set. */
   narrowed: boolean;
+  /** The year of today («2026»): a month of another year is named with it. */
+  year?: string;
+}
+
+/**
+ * The empty text of a journal narrowed by a click on the chart.  A month bar («Октябрь 2026 г.»): «В октябре оплат не было»
+ * (the year only when it is not `year`); a day bar («21 октября»): «В этот день оплат не было»; any other label: the words of the period.
+ */
+export function focusEmptyText(label: string, kind: PeriodKind, year?: string): string {
+  const name = label.trim();
+  const month = /^([а-яё]+)(?: (\d{4}))?(?: г\.)?$/i.exec(name);
+  const declined = month ? MONTH_PREPOSITIONAL[month[1].toLowerCase()] : undefined;
+  if (month && declined) return `В ${declined}${month[2] && month[2] !== year ? ` ${month[2]}` : ""} оплат не было`;
+  if (/^\d/.test(name)) return "В этот день оплат не было";
+  return `${periodWords(kind)} оплат не было`;
 }
 
 /** The human sentence of an empty journal: never a bare table. */
 export function journalEmptyText(context: EmptyContext): string {
   if (context.narrowed) return "По этому запросу оплат не нашлось";
-  if (context.focusLabel) return `В этот день оплат не было`;
+  if (context.focusLabel) return focusEmptyText(context.focusLabel, context.kind, context.year);
   return `${periodWords(context.kind)} оплат не было`;
 }
 

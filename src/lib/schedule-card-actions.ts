@@ -1,5 +1,6 @@
 import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from "./lesson-teacher";
-import { dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
+import { businessWallTimeToInstant } from "./business-time";
+import { GROUP_ARCHIVED_SCHEDULE_TEXT, dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
 import { examDraftCancelText, examRunningText, movedFromLabel, substitutionErrorText } from "./substitutions";
 import type { ExamBinding, MoveCheckOut } from "./substitution-types";
 import type { TeacherBusyDetail } from "./ops-b-types";
@@ -31,6 +32,22 @@ export interface ScheduleCardInput {
   today: string;
   /** The server sent who teaches the lesson (an older one does not: no assignment then). */
   hasTeacherInfo: boolean;
+  /** «HH:MM» of the start: with it a lesson of today that has begun is treated as a past one. */
+  startTime?: string | null;
+  /** The moment of the decision (business clock is applied to it); the real now by default, a test passes its own. */
+  now?: Date;
+}
+
+/**
+ * A lesson of TODAY whose start time has passed (business time, Tashkent) is no longer a future one: it can be neither moved nor
+ * cancelled (the server answers LESSON_ALREADY_STARTED), it can be marked.  A past day is past; a later day never is.
+ * Without a readable start time a lesson of today stays a future one (the server has the last word).
+ */
+export function lessonHasStarted(input: { date: string; today: string; startTime?: string | null; now?: Date }): boolean {
+  if (input.date < input.today) return true;
+  if (input.date > input.today) return false;
+  const start = businessWallTimeToInstant(input.date, input.startTime);
+  return start !== null && start.getTime() <= (input.now ?? new Date()).getTime();
 }
 
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
@@ -42,7 +59,7 @@ export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardActio
   if (state === "in_progress") return ["journal"];
   const out: ScheduleCardAction[] = [];
   const canAssign = input.hasTeacherInfo && canReplaceTeacher(input.role, state);
-  if (date >= today) {
+  if (!lessonHasStarted({ date, today, startTime: input.startTime, now: input.now })) {
     if (canAssign) out.push("assign");
     out.push("reschedule", "cancel");
   } else {
@@ -127,10 +144,23 @@ export const movedFromText = movedFromLabel;
 
 export const LESSON_CHANGED_TEXT = "Урок уже изменили — обновите";
 
-/** A refusal that means «somebody changed this lesson first»: the sheet offers «Обновить» instead of a retry. */
+/** The codes that mean «the lesson is not what the sheet shows any more»: the sheet offers «Обновить» (re-reads the schedule, closes) instead of a retry. */
+export const STALE_LESSON_CODES: readonly string[] = [
+  "LESSON_CHANGED",
+  "SUBSTITUTION_ALREADY_DECIDED",
+  "LESSON_CANCELLED",
+  "LESSON_NOT_FOUND",
+  "GROUP_ARCHIVED",
+  "LESSON_ALREADY_STARTED",
+];
+
+export function isStaleLessonCode(code: string | null | undefined): boolean {
+  return Boolean(code) && STALE_LESSON_CODES.includes(code as string);
+}
+
+/** A refusal that means «somebody changed this lesson first» (or it is gone / started / its group archived): the sheet offers «Обновить». */
 export function isLessonChanged(error: unknown): boolean {
-  const code = opsErrorCode(error);
-  return code === "LESSON_CHANGED" || code === "SUBSTITUTION_ALREADY_DECIDED";
+  return isStaleLessonCode(opsErrorCode(error));
 }
 
 /** The refusals of `lesson-move` in the words of the sheet; the shared texts of the substitutions for the rest. */
@@ -141,6 +171,9 @@ export function lessonMoveErrorText(error: unknown, fallback = "Не удало�
     case "LESSON_HAS_NO_TEACHER": return "У урока нет преподавателя: сначала назначьте его, потом переносите урок";
     case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
     case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл: перенести его нельзя";
+    case "LESSON_CANCELLED": return "Урок уже отменён — обновите расписание";
+    case "LESSON_NOT_FOUND": return "Этого урока больше нет в расписании — обновите";
+    case "GROUP_ARCHIVED": return GROUP_ARCHIVED_SCHEDULE_TEXT;
     case "TEACHER_BUSY": {
       const first = opsErrorDetail<TeacherBusyDetail>(error)?.conflicts?.[0];
       return first ? `Преподаватель занят в это время: «${first.withGroupName}», ${dayAndDateLabel(first.date)} ${first.startTime}–${first.endTime}` : "Преподаватель занят в это время";
@@ -151,20 +184,47 @@ export function lessonMoveErrorText(error: unknown, fallback = "Не удало�
 }
 
 /** The live check under the move form: «Время свободно» or what is in the way («Преподаватель занят в это время», «У группы уже есть урок»). */
-export function lessonMoveCheckLines(check: MoveCheckOut, teacherLabel?: string | null): { ok: boolean; lines: string[]; warnings: string[] } {
+export function lessonMoveCheckLines(check: MoveCheckOut, teacherLabel?: string | null): { ok: boolean; lines: string[]; warnings: string[]; code: string | null; stale: boolean } {
   const lines: string[] = [];
+  const warnings = (check.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
+  // a refusal of the ORIGIN lesson (ok:false with a code): LESSON_ALREADY_STARTED, LESSON_CANCELLED, GROUP_ARCHIVED, LESSON_NOT_FOUND
+  const code = check.ok ? null : (check.code ?? "").trim() || null;
+  if (code) {
+    const known = lessonMoveErrorText({ code }, "");
+    const text = known || (check.message ?? "").trim() || "Этот урок перенести нельзя";
+    return { ok: false, lines: [text], warnings, code, stale: isStaleLessonCode(code) };
+  }
   for (const conflict of check.teacherConflicts ?? []) {
     lines.push(`Преподаватель занят в это время: «${conflict.withGroupName}», ${dayAndDateLabel(conflict.date)} ${conflict.startTime}–${conflict.endTime}`);
   }
   for (const conflict of check.groupConflicts ?? []) {
     lines.push(`У группы уже есть урок ${dayAndDateLabel(conflict.date)} ${conflict.startTime}–${conflict.endTime}`);
   }
-  const warnings = (check.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
   if (lines.length === 0 && check.ok) {
     const name = (teacherLabel ?? check.teacherName ?? "").trim();
-    return { ok: true, lines: [name ? `Время свободно: у ${name} и у группы пересечений нет` : "Время свободно"], warnings };
+    return { ok: true, lines: [name ? `Время свободно: у ${name} и у группы пересечений нет` : "Время свободно"], warnings, code: null, stale: false };
   }
-  return { ok: false, lines: lines.length ? lines : ["Это время недоступно"], warnings };
+  return { ok: false, lines: lines.length ? lines : [(check.message ?? "").trim() || "Это время недоступно"], warnings, code: null, stale: false };
+}
+
+/** The state of the live check of the move form, as the sheet holds it. */
+export interface MoveCheckState {
+  /** The request is on its way. */
+  checking: boolean;
+  /** The request failed (network, 5xx, a refusal thrown as an error). */
+  failed: boolean;
+  /** The answer, or null while there is none. */
+  check: Pick<MoveCheckOut, "ok"> | null;
+}
+
+/**
+ * «Перенести урок» is enabled only on a live answer «ok»: not while the check is loading, not after it failed, not when it has not
+ * run yet (the date or time is not valid / not changed), and not when the answer is `!ok`.
+ */
+export function moveConfirmDisabled(state: MoveCheckState & { busy?: boolean }): boolean {
+  if (state.busy) return true;
+  if (state.checking || state.failed) return true;
+  return state.check === null || state.check.ok !== true;
 }
 
 export interface ExamCancelState {
@@ -187,9 +247,10 @@ export function examCancelState(binding: ExamBinding | null | undefined): ExamCa
   if (binding.state === "unavailable") {
     return { loading: false, blocked: true, message: message || "Не удалось проверить экзамены группы. Повторите попытку.", tone: "error", retry: true };
   }
-  if (binding.state === "none") return { loading: false, blocked: false, message: null, tone: "info", retry: false };
+  // `canCancel:false` wins over `state:"none"`: the server may refuse without naming an exam
   if (binding.canCancel === false) {
     return { loading: false, blocked: true, message: message || (title ? examRunningText(title) : "Нельзя отменить урок с активным экзаменом"), tone: "error", retry: false };
   }
+  if (binding.state === "none") return { loading: false, blocked: false, message: null, tone: "info", retry: false };
   return { loading: false, blocked: false, message: title ? examDraftCancelText(title) : null, tone: "warn", retry: false };
 }

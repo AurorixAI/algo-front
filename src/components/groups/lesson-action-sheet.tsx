@@ -6,7 +6,7 @@ import { orgApi, substitutionsApi, type Lesson } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { scheduleErrorText } from "@/lib/ops-errors";
+import { opsErrorCode, scheduleErrorText } from "@/lib/ops-errors";
 import { roomForSave } from "@/lib/schedule-slots";
 import {
   SCHEDULE_ACTION_LABEL,
@@ -14,6 +14,7 @@ import {
   isLessonChanged,
   lessonMoveCheckLines,
   lessonMoveErrorText,
+  moveConfirmDisabled,
   normalizeTime,
   type ScheduleCardAction,
 } from "@/lib/schedule-card-actions";
@@ -70,9 +71,10 @@ export function LessonActionSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
-  const [check, setCheck] = useState<MoveCheckOut | null>(null);
+  // the answer of the live check, tagged with the date and time it was asked for: an answer for other values is no answer
+  const [result, setResult] = useState<{ key: string; out: MoveCheckOut | null; error: { text: string; stale: boolean } | null } | null>(null);
   const [checking, setChecking] = useState(false);
-  const [checkError, setCheckError] = useState<string | null>(null);
+  const [checkNonce, setCheckNonce] = useState(0);
   const [binding, setBinding] = useState<ExamBinding | null>(null);
   const today = useMemo(() => formatBusinessDate(), []);
   const checkToken = useRef(0);
@@ -94,8 +96,7 @@ export function LessonActionSheet({
     setError(null);
     setStale(false);
     setReason("");
-    setCheck(null);
-    setCheckError(null);
+    setResult(null);
     if (next === "reschedule" && lesson) {
       setNewDate(lesson.date);
       setStart(lessonStart);
@@ -111,25 +112,39 @@ export function LessonActionSheet({
   const to = normalizeTime(end);
   const validNew = /^\d{4}-\d{2}-\d{2}$/.test(newDate) && newDate >= today && from !== null && to !== null && to > from;
   const sameSlot = Boolean(lesson && newDate === lesson.date && from === lessonStart && to === lessonEnd);
+  const checkKey = `${newDate}|${from ?? ""}|${to ?? ""}`;
   useEffect(() => {
-    if (mode !== "reschedule" || !lesson || !validNew || sameSlot || !from || !to) { setCheck(null); setCheckError(null); setChecking(false); return undefined; }
+    if (mode !== "reschedule" || !lesson || !validNew || sameSlot || !from || !to) { setResult(null); setChecking(false); return undefined; }
     const token = ++checkToken.current;
+    const key = `${newDate}|${from}|${to}`;
     setChecking(true);
-    setCheck(null);
+    setResult(null);
     const timer = window.setTimeout(() => {
       substitutionsApi.lessonMoveCheck(groupId, { lessonId: lesson.id, lessonDate: lesson.date, newDate, startTime: from, endTime: to })
-        .then((out) => { if (token === checkToken.current) { setCheck(out); setCheckError(null); } })
-        .catch((failure) => { if (token === checkToken.current) { setCheck(null); setCheckError(lessonMoveErrorText(failure, "Не удалось проверить время")); } })
+        .then((out) => { if (token === checkToken.current) setResult({ key, out, error: null }); })
+        .catch((failure) => {
+          if (token !== checkToken.current) return;
+          // a refusal with a known code says it in words; any other failure (network, 5xx) is «Не удалось проверить время» + «Повторить»
+          const code = opsErrorCode(failure);
+          setResult({ key, out: null, error: { text: code ? lessonMoveErrorText(failure, "Не удалось проверить время") : "Не удалось проверить время", stale: isLessonChanged(failure) } });
+        })
         .finally(() => { if (token === checkToken.current) setChecking(false); });
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [mode, lesson, groupId, newDate, from, to, validNew, sameSlot]);
+  }, [mode, lesson, groupId, newDate, from, to, validNew, sameSlot, checkNonce]);
+
+  const fresh = result && result.key === checkKey ? result : null;
+  const check = fresh?.out ?? null;
+  const checkError = fresh?.error ?? null;
+  // «asked, no answer yet» includes the moment between a keystroke and the effect that starts the request
+  const pending = checking || (validNew && !sameSlot && fresh === null);
 
   const trimmed = reason.trim();
   const reasonProblem = trimmed.length < REASON_MIN ? `Укажите причину (не короче ${REASON_MIN} символов)` : trimmed.length > REASON_MAX ? `Причина — не более ${REASON_MAX} символов` : null;
   const examState = examCancelState(mode === "cancel" ? binding : { state: "none" });
   const checkLines = check ? lessonMoveCheckLines(check) : null;
-  const blockedByCheck = check !== null && !check.ok;
+  const confirmDisabled = moveConfirmDisabled({ checking: pending, failed: checkError !== null, check });
+  const notRunHint = !pending && !check && !checkError ? (sameSlot ? "Выберите другую дату или время" : !validNew ? "Укажите новую дату и время: начало и окончание, конец позже начала" : null) : null;
 
   const submit = async () => {
     if (!lesson || busy) return;
@@ -158,8 +173,8 @@ export function LessonActionSheet({
       }
       setReason("");
     } catch (cause) {
+      setStale(isLessonChanged(cause));
       if (mode === "reschedule") {
-        setStale(isLessonChanged(cause));
         setError(lessonMoveErrorText(cause));
       } else {
         setError(scheduleErrorText(cause, "Не удалось отменить урок. Данные не изменены."));
@@ -169,6 +184,11 @@ export function LessonActionSheet({
     }
   };
 
+  const SMALL_BUTTON = "inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50";
+  // «Обновить»: the lesson is not what the sheet shows (changed, cancelled, gone, started, its group archived): re-read the schedule, close
+  const refreshButton = (
+    <button type="button" data-testid="sheet-refresh" onClick={() => { setStale(false); setError(null); setResult(null); setMode("menu"); onRefresh?.(); }} className={SMALL_BUTTON}><RefreshCw className="h-3 w-3" />Обновить</button>
+  );
   const ACTION_BUTTON = "flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-left text-sm font-semibold text-slate-800 transition-colors hover:border-primary-200 hover:bg-primary-50/50";
 
   return (
@@ -186,7 +206,7 @@ export function LessonActionSheet({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || (mode === "cancel" && examState.blocked) || (mode === "reschedule" && blockedByCheck)}
+            disabled={busy || (mode === "cancel" && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -247,12 +267,21 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-room" className={LABEL}>Кабинет (необязательно)</label>
                 <input id="sheet-room" value={room} onChange={(event) => setRoom(event.target.value)} className={FIELD} />
               </div>
-              {checking && <p role="status" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Проверяем время…</p>}
-              {checkError && <p role="alert" className="text-xs font-medium text-rose-700">{checkError}</p>}
+              {pending && <p role="status" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Проверяем время…</p>}
+              {notRunHint && <p data-testid="move-hint" className="text-xs text-slate-500">{notRunHint}</p>}
+              {checkError && (
+                <div role="alert" data-testid="move-check-error" className="space-y-1.5">
+                  <p className="text-xs font-medium text-rose-700">{checkError.text}</p>
+                  {checkError.stale && onRefresh ? refreshButton : !checkError.stale && (
+                    <button type="button" onClick={() => setCheckNonce((value) => value + 1)} className={SMALL_BUTTON}><RefreshCw className="h-3 w-3" />Повторить</button>
+                  )}
+                </div>
+              )}
               {checkLines && (
-                <div role="status" aria-live="polite" data-testid="move-check" className="space-y-1">
+                <div role="status" aria-live="polite" data-testid="move-check" data-code={checkLines.code ?? undefined} className="space-y-1">
                   {checkLines.lines.map((line) => <p key={line} className={`text-xs font-medium ${checkLines.ok ? "text-emerald-700" : "text-rose-700"}`}>{line}</p>)}
                   {checkLines.warnings.map((line) => <p key={line} className="text-xs font-medium text-amber-800">{line}</p>)}
+                  {checkLines.stale && onRefresh && refreshButton}
                 </div>
               )}
               <div>
@@ -285,9 +314,7 @@ export function LessonActionSheet({
           {error && (
             <div role="alert" className="space-y-1.5">
               <p className="text-sm font-medium text-rose-700">{error}</p>
-              {stale && onRefresh && (
-                <button type="button" onClick={() => { setStale(false); setError(null); setMode("menu"); onRefresh(); }} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3 w-3" />Обновить</button>
-              )}
+              {stale && onRefresh && refreshButton}
             </div>
           )}
         </div>

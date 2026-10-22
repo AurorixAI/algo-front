@@ -31,7 +31,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
-import { assignActionLabel, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
+import { assignActionLabel, lessonHasStarted, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
   label: string;
@@ -346,7 +346,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
                         const room = roomLabel(lesson);
-                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo) });
+                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time });
                         // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
                         const marks = lessonMarks(attendance?.substitutionRequests?.[key], null);
                         const manager = viewerRole === "owner" || viewerRole === "admin";
@@ -408,7 +408,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
         const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
-        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info) }) : [];
+        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time }) : [];
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
@@ -429,7 +429,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], null) : []}
             requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
             actions={actions}
-            assignLabel={assignActionLabel({ past: Boolean(lesson && lesson.date < today), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}
+            assignLabel={assignActionLabel({ past: Boolean(lesson && lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time })), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}
             onClose={() => setSheetLesson(null)}
             onAssign={() => {
               if (!lesson || !info) return;

@@ -207,6 +207,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
                 overview={overview.data}
                 today={today}
                 paymentsBase={paymentsBase}
+                scope={{ groupId: filters.groupId, teacherId: filters.teacherId }}
                 activeBucket={focusBucket(focus, overview.data)}
                 onPick={pickBar}
               />
@@ -247,7 +248,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
                 authors={journal.data?.authors ?? []}
                 focusLabel={focus?.label ?? null}
                 onClearFocus={() => { setFocus(null); setPage(1); }}
-                empty={{ kind: period.kind, focusLabel: focus?.label ?? null, narrowed }}
+                empty={{ kind: period.kind, focusLabel: focus?.label ?? null, narrowed, year: today.slice(0, 4) }}
                 onResetNarrowing={() => { setSearch(""); setDebouncedSearch(""); setCreatedBy(""); setPage(1); setFilters(NO_FILTERS); }}
                 onPage={setPage}
                 onExport={() => void download()}
@@ -273,7 +274,7 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
   const next = { day: "Следующий день", week: "Следующая неделя", month: "Следующий месяц", custom: "Следующий период" }[period.kind];
   return (
     <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center" data-testid="income-period">
-      <div role="tablist" aria-label="Период" className="flex gap-1 rounded-xl bg-slate-100 p-1 md:w-fit">
+      <div role="tablist" aria-label="Период" data-testid="period-tabs" className="flex max-w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 md:w-fit">
         {PERIOD_TABS.map(({ key, label }) => (
           <button
             key={key}
@@ -281,7 +282,7 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
             role="tab"
             aria-selected={period.kind === key}
             onClick={() => onChange(switchKind(key, period, today))}
-            className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-2 py-2 text-[13px] font-medium transition-all sm:px-3.5 sm:text-sm md:flex-none ${period.kind === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`min-w-0 flex-1 whitespace-nowrap rounded-lg px-1.5 py-2 text-xs font-medium transition-all sm:px-3.5 sm:text-sm md:flex-none ${period.kind === key ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
           >
             {label}
           </button>

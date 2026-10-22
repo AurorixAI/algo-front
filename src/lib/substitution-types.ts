@@ -277,6 +277,9 @@ export interface MoveCheckOut {
   teacherConflicts: TeacherConflict[];
   groupConflicts: TeacherConflict[];
   warnings: Array<{ code: string; message: string }>;
+  /** A refusal of the origin lesson (`ok:false`): LESSON_ALREADY_STARTED, LESSON_CANCELLED, GROUP_ARCHIVED, LESSON_NOT_FOUND; absent on an older server. */
+  code?: string | null;
+  message?: string | null;
 }
 
 export interface MoveCheckParams {

@@ -54,6 +54,7 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                 <span className={`col-span-2 row-start-3 text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-500"}`}>
                   {view.time ? `${view.date} · ${view.time}` : view.date}
                 </span>
+                {view.enteredAt && <span data-testid="journal-entered" className="col-span-2 row-start-4 text-[11px] leading-tight text-slate-400 md:hidden">{view.enteredAt}</span>}
                 <span className={`col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-sm font-medium md:col-start-2 ${view.muted ? "text-slate-400" : "text-slate-900"}`}>
                   <span className="truncate">{view.student}</span>
                   {view.tag && <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
@@ -102,6 +103,7 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
           {view.method}
           {view.tag && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
         </p>
+        {view.entered && <p className="mt-1 text-xs text-slate-400" data-testid="drawer-entered">{view.entered}</p>}
       </div>
 
       {view.notes.length > 0 && (
