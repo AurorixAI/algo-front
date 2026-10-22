@@ -23,7 +23,6 @@ import {
   type LessonAttendanceStatus,
 } from "@/lib/api";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
-import { Hint } from "@/components/ui/hint";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
@@ -348,10 +347,10 @@ export function GroupScheduleOverview({ groupId, viewerRole = null, archived = f
                             className={`rounded-xl border border-slate-200 bg-slate-50/70 p-3 shadow-2xs ${interactive ? "cursor-pointer transition-colors hover:border-primary-200 hover:bg-primary-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40" : ""}`}
                           >
                             {/* the status first and the topic under it, whole: a long topic wraps instead of being cut to a letter */}
-                            <Hint text={state.description} className={`inline-flex max-w-full items-center gap-1 border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
+                            <span title={state.description} className={`inline-flex max-w-full items-center gap-1 rounded-md border px-1.5 py-1 text-[10px] font-semibold ${state.badgeClassName}`}>
                               <StateIcon className="h-3 w-3" />
                               {state.label}
-                            </Hint>
+                            </span>
                             <p className="mt-1.5 break-words text-sm font-semibold text-slate-900">{lesson.topic || "Занятие"}</p>
                             <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-slate-700"><Clock3 className="h-3.5 w-3.5 text-slate-400" />{startTime} — {lesson.endTime || "—"}</p>
                             <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500"><span className="shrink-0">{lesson.isRescheduled ? <CalendarDays className="h-3.5 w-3.5 text-amber-600" /> : lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}</span>{lesson.isRescheduled ? "Перенесён" : lesson.format === "online" ? "Онлайн" : lesson.room || "Кабинет не указан"}</p>
