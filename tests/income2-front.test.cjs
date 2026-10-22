@@ -162,8 +162,23 @@ test("card «Поступило»: the sum, ▲/▼ with the server's words, gre
   assert.equal(V.DELTA_CLASS.down, "text-rose-700");
   // nothing to compare with: a quiet word, no arrow, no invented percent
   const none = V.receivedCard(overview("I04_income_september_closed"));
-  assert.deepEqual([none.delta.arrow, none.delta.text, none.delta.tone], ["", "Август: оплат не было", "none"]);
+  assert.deepEqual([none.delta.arrow, none.delta.text, none.delta.tone], ["", "В августе оплат не было", "none"]);
   assert.equal(V.receivedCard(overview("I02_income_day_today_cash")).delta.text, "Вчера оплат не было");
+  // the label of the comparison: declined only where it is safe, never guessed
+  assert.equal(V.noPaymentsBefore("вчера"), "Вчера оплат не было");
+  assert.equal(V.noPaymentsBefore("прошлая неделя"), "На прошлой неделе оплат не было");
+  assert.equal(V.noPaymentsBefore("сентябрь"), "В сентябре оплат не было");
+  assert.equal(V.noPaymentsBefore("декабрь 2025"), "В декабре 2025 оплат не было");
+  assert.equal(V.noPaymentsBefore("март"), "В марте оплат не было");
+  assert.equal(V.noPaymentsBefore("5–11 окт."), "5–11 окт.: оплат не было");
+  assert.equal(V.noPaymentsBefore("1–21 сент."), "1–21 сент.: оплат не было");
+  assert.equal(V.noPaymentsBefore("14 окт."), "14 окт.: оплат не было");
+  assert.equal(V.noPaymentsBefore(""), "");
+  // a running period is compared like for like and says so quietly; a closed one does not
+  assert.equal(V.receivedCard(overview("I01_income_month_october")).hint, "сравнение с 1–21 сент.");
+  assert.equal(V.receivedCard(overview("I03_income_week")).hint, "");
+  assert.equal(V.receivedCard(overview("I02_income_day_today_cash")).hint, "");
+  assert.equal(overview("I03_income_week").previous_label, "5–11 окт.");
   // the same sum: grey, no arrow
   const same = { ...overview("I01_income_month_october"), delta_direction: "same", delta_text: "0% к 1–21 сентября" };
   assert.deepEqual([V.deltaView(same).arrow, V.deltaView(same).tone], ["", "same"]);
@@ -280,7 +295,7 @@ test("«Группы — собираемость»: worst first, a group with n
   const rows = V.collectionRows(overview("I01_income_month_october").collection);
   assert.deepEqual(rows.map((r) => [r.title, r.pct, r.debt, r.debtors]), [["Математика 9А", 73, 300000, 1], ["Английский 7Б", 75, 150000, 1], ["Физика 10В", 87, 50000, 1]]);
   assert.equal(rows[0].teacher, "Пётр Иванов");
-  assert.equal(rows[0].debtorsText, "1 ученик с долгом");
+  assert.equal(rows[0].debtorsText, "1 ученик с долгом за месяц");
   const total = V.collectionTotalView(overview("I01_income_month_october").collection);
   assert.deepEqual([total.title, total.charged, total.paid, total.pct], ["Всего", 2500000, 1900000, 76]);
   // ties go by the bigger debt; no percent goes last
@@ -292,7 +307,7 @@ test("«Группы — собираемость»: worst first, a group with n
   assert.equal(V.collectionRows(null).length, 0);
   assert.equal(V.collectionTotalView(null), null);
   // «долгов нет» in words
-  assert.equal(V.collectionRows({ ...base, groups: [make("z", 100, 0)] })[0].debtorsText, "долгов нет");
+  assert.equal(V.collectionRows({ ...base, groups: [make("z", 100, 0)] })[0].debtorsText, "долгов за месяц нет");
 });
 
 // ── the journal ─────────────────────────────────────────────────────────────────────────────────
@@ -304,7 +319,10 @@ test("journal rows: date · time | student | group | amount | method; a cancelle
   const voided = V.journalRowView(rows[2]);
   assert.deepEqual([voided.tag, voided.muted], ["отменена", true]);
   const replaced = V.journalRowView(rows[4]);
-  assert.deepEqual([replaced.tag, replaced.muted], ["отменена", true]);
+  assert.deepEqual([replaced.tag, replaced.muted], ["исправлена → № 11", true]);
+  assert.equal(V.statusTag({ status: "replaced", replaced_by_receipt_no: null }), "исправлена");
+  // the time is paid_on + paid_time; without a time only the date
+  assert.equal(V.journalRowView({ ...rows[0], paid_time: null }).time, "");
   assert.equal(V.journalRowView(rows[0], true).date, "21.10.2026");
   assert.equal(V.journalSpansYears("2026-12-01", "2027-01-31"), true);
   assert.equal(V.journalSpansYears("2026-10-01", "2026-10-31"), false);
@@ -495,7 +513,7 @@ test("the groups' collection on screen: worst first, bars, a row is a link to «
   const o = overview("I01_income_month_october");
   const el = React.createElement(C.CollectionTable, { collection: o.collection, paymentsBase: "/owner/payments" });
   const body = text(el);
-  for (const piece of ["Группа (преподаватель)", "Стоимость за месяц", "Оплачено", "Собрано", "Долг", "Учеников с долгом", "Математика 9А", "Пётр Иванов", "73%", "1 100 000 сум", "300 000 сум", "Всего", "76%"]) assert.ok(body.includes(piece), piece);
+  for (const piece of ["Группа (преподаватель)", "Стоимость за месяц", "Оплачено", "Собрано", "Долг", "С долгом за месяц", "Математика 9А", "Пётр Иванов", "73%", "1 100 000 сум", "300 000 сум", "Всего", "76%"]) assert.ok(body.includes(piece), piece);
   assert.ok(body.indexOf("Математика 9А") < body.indexOf("Английский 7Б") && body.indexOf("Английский 7Б") < body.indexOf("Физика 10В"));
   const markup = html(el);
   assert.match(markup, /href="\/owner\/payments\?bucket=debt&amp;group_id=group%3AA"/);
@@ -576,4 +594,25 @@ test("no hover-only reveal: the tooltip of a bar appears by hover and by focus (
   const parts_ = read("src/components/payments/income-parts.tsx");
   assert.doesNotMatch(parts_, /onMouseEnter|onMouseOver|onPointerEnter/);
   assert.match(parts_, /opacity-0[^"`]*group-hover:opacity-100 group-focus-within:opacity-100/);
+});
+
+test("INCOME-2 addendum: «Способ не указан» as a filter, «Кто внёс» from two authors, the Excel limit, the note of «Должники» of a group", () => {
+  const o = overview("I01_income_month_october");
+  assert.equal(V.hasUnknownMethod(o), false);
+  assert.equal(V.hasUnknownMethod({ by_method: [...o.by_method, { method: "unknown", label: "Способ не указан", amount: 1, count: 1 }] }), true);
+  assert.equal(V.hasUnknownMethod(null), false);
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /unknownMethod && <option value="unknown">Способ не указан<\/option>/);
+  assert.match(read("src/components/payments/income-journal.tsx"), /const showAuthors = authors\.length > 1;/);
+  const { React, text, J } = parts();
+  const data = journal("J03_journal_cash");
+  const base = { journal: data, loading: false, error: null, onRetry: () => {}, search: "", onSearch: () => {}, createdBy: "user:admin", onCreatedBy: () => {}, authors: data.authors, focusLabel: null, onClearFocus: () => {}, empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing: () => {}, onPage: () => {}, onExport: () => {}, exporting: false, activeId: null, onOpen: () => {} };
+  assert.ok(text(React.createElement(J.JournalSection, base)).includes("Кто внёс: все")); // an author is chosen, the options stay
+  const e = Object.assign(new Error("Слишком много оплат для файла — сузьте период или фильтры"), { code: "EXPORT_TOO_LONG", status: 422 });
+  assert.equal(V.exportErrorText(e), "Слишком много строк — сузьте период или фильтры");
+  assert.equal(V.exportErrorText(new Error("Нет сети")), "Нет сети");
+  assert.equal(V.exportErrorText(null), "Не удалось скачать Excel");
+  assert.equal(V.DEBTORS_GROUP_NOTE, "Показаны все долги группы, не только за месяц");
+  assert.match(read("src/components/payments/payments-page.tsx"), /bucket === "debt" && filter\.groupId && \(/);
+  assert.match(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/);
 });

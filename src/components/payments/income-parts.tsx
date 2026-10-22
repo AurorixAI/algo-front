@@ -98,6 +98,7 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
           </p>
         )}
         <p className="mt-0.5 text-sm text-slate-500">{received.countText}</p>
+        {received.hint && <p className="mt-0.5 text-xs text-slate-400" data-testid="compare-hint">{received.hint}</p>}
       </StatCard>
 
       {collected && (

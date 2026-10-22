@@ -38,6 +38,7 @@ import {
   savedPaymentDetails,
 } from "@/lib/payments-ledger";
 import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
+import { DEBTORS_GROUP_NOTE } from "@/lib/payments-income-v2";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -313,6 +314,10 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           />
         </div>
       </div>
+
+      {bucket === "debt" && filter.groupId && (
+        <p role="note" className="-mt-2 text-sm text-slate-500" data-testid="debt-group-note">{DEBTORS_GROUP_NOTE}</p>
+      )}
 
       {noPrice && (
         <p role="status" className="-mt-2 text-sm text-amber-800" data-testid="payments-price-missing">

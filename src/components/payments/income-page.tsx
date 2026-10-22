@@ -9,7 +9,9 @@ import { saveBlobAs } from "@/lib/download";
 import { METHODS } from "@/lib/payments-ledger";
 import {
   canStepForward,
+  exportErrorText,
   exportQuery,
+  hasUnknownMethod,
   focusBucket,
   incomeErrorText,
   journalQuery,
@@ -166,7 +168,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
       const file = await orgApi.exportPaymentsJournal(exportQuery(query), `Оплаты ${query.from}–${query.to}.xlsx`);
       saveBlobAs(file.blob, file.filename);
     } catch (cause) {
-      showToast(cause instanceof Error && cause.message ? cause.message : "Не удалось скачать Excel", "error");
+      showToast(exportErrorText(cause), "error");
     } finally {
       setExporting(false);
     }
@@ -188,7 +190,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
       </div>
 
       <PeriodBar period={period} today={today} onChange={changePeriod} />
-      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} />
+      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} unknownMethod={hasUnknownMethod(overview.data) || filters.method === "unknown"} />
       {periodProblem && <p role="alert" className="text-sm font-medium text-rose-700">{periodProblem}</p>}
 
       {anyDenied ? (
@@ -305,12 +307,13 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
   );
 }
 
-function FiltersBar({ filters, onChange, teachers, groups }: { filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
+function FiltersBar({ filters, onChange, teachers, groups, unknownMethod }: { unknownMethod: boolean; filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select aria-label="Способ оплаты" value={filters.method} onChange={(event) => onChange({ ...filters, method: event.target.value })} className={FIELD}>
         <option value="">Все способы</option>
         {METHODS.map((method) => <option key={method.key} value={method.key}>{method.label}</option>)}
+        {unknownMethod && <option value="unknown">Способ не указан</option>}
       </select>
       <CascadingFilter
         teachers={teachers}

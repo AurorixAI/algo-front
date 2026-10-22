@@ -39,6 +39,29 @@ export interface SubstitutionMovedTo {
   lessonId?: string | null;
 }
 
+/** `movedFrom` of the new lesson that a move created (#124): the slot of the original - no reason, no comment. */
+export interface MovedFrom {
+  lessonId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+}
+
+/** `POST /org/groups/{id}/lesson-move` (#124): the administrator moves a lesson straight from the lesson sheet. */
+export interface LessonMoveBody {
+  lessonId: string;
+  lessonDate: string;
+  newDate: string;
+  startTime: string;
+  endTime: string;
+  room?: string | null;
+  format?: "offline" | "online" | null;
+  reason: string;
+  /** What the sheet showed: another time on the server answers 409 LESSON_CHANGED. */
+  expectedStartTime?: string | null;
+  expectedEndTime?: string | null;
+}
+
 export interface SubstitutionLessonInfo {
   lessonId: string;
   /** YYYY-MM-DD (the business calendar). */
@@ -209,6 +232,8 @@ export interface ExamBinding {
   state: "ok" | "none" | "unavailable";
   title?: string | null;
   canCancel?: boolean;
+  /** The server's sentence when it refuses (`lesson-exam-binding`, #124). */
+  message?: string | null;
 }
 
 export interface SubstitutionDetailOut {

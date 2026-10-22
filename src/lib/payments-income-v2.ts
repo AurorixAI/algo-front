@@ -92,6 +92,8 @@ export interface IncomeOverview {
   as_of: string;
   period: IncomePeriodOut;
   previous_period: IncomePeriodOut;
+  /** The human name of the comparison period, always present: «вчера», «1–21 сент.», «5–11 окт.», «сентябрь», «прошлая неделя». */
+  previous_label: string;
   current: IncomeTotals;
   previous: IncomeTotals;
   delta_amount: number;
@@ -215,6 +217,7 @@ export function normalizeOverview(raw: IncomeOverview): IncomeOverview {
     as_of: text(raw?.as_of),
     period: periodOut(raw?.period),
     previous_period: periodOut(raw?.previous_period),
+    previous_label: text(raw?.previous_label) || text(raw?.previous_period?.label),
     current: totalsOf(raw?.current),
     previous: totalsOf(raw?.previous),
     delta_amount: sum(raw?.delta_amount),
@@ -429,10 +432,32 @@ export function deltaView(overview: IncomeOverview): DeltaView {
     if (direction === "down") return { arrow: "▼", text: overview.delta_text, tone: "down" };
     return { arrow: "", text: overview.delta_text, tone: "same" };
   }
-  // No percent to show (the previous period took nothing): a quiet word instead, «Вчера оплат не было» / «Август: оплат не было».
-  const before = overview.previous_period.label;
-  const text = overview.previous.payments_count > 0 || !before ? "" : before === "вчера" ? "Вчера оплат не было" : `${capitalizeFirst(before)}: оплат не было`;
-  return { arrow: "", tone: "none", text };
+  // No percent to show (the previous period took nothing): a quiet sentence instead.
+  return { arrow: "", tone: "none", text: overview.previous.payments_count > 0 ? "" : noPaymentsBefore(overview.previous_label) };
+}
+
+const MONTH_PREPOSITIONAL: Record<string, string> = {
+  январь: "январе", февраль: "феврале", март: "марте", апрель: "апреле", май: "мае", июнь: "июне",
+  июль: "июле", август: "августе", сентябрь: "сентябре", октябрь: "октябре", ноябрь: "ноябре", декабрь: "декабре",
+};
+
+/**
+ * «Вчера оплат не было» / «На прошлой неделе оплат не было» / «В августе оплат не было» / «В декабре 2025 оплат не было»;
+ * any other label («5–11 окт.», «1–21 сент.») is not declined: «5–11 окт.: оплат не было».
+ */
+export function noPaymentsBefore(label: string): string {
+  const name = label.trim();
+  if (!name) return "";
+  if (name === "вчера") return "Вчера оплат не было";
+  if (name === "прошлая неделя") return "На прошлой неделе оплат не было";
+  const month = /^([а-яё]+)(?: (\d{4}))?$/i.exec(name);
+  if (month && MONTH_PREPOSITIONAL[month[1].toLowerCase()]) return `В ${MONTH_PREPOSITIONAL[month[1].toLowerCase()]}${month[2] ? ` ${month[2]}` : ""} оплат не было`;
+  return `${capitalizeFirst(name)}: оплат не было`;
+}
+
+/** A running period is compared like for like: «сравнение с 1–21 сент.» under the card. */
+export function compareHint(overview: Pick<IncomeOverview, "period" | "previous_label">): string {
+  return overview.period.in_progress && overview.previous_label ? `сравнение с ${overview.previous_label}` : "";
 }
 
 export const DELTA_CLASS: Record<Tone, string> = {
@@ -448,10 +473,10 @@ export function paymentsCountText(count: number): string {
   return n > 0 ? `${n} ${pluralRu(n, "оплата", "оплаты", "оплат")}` : "оплат не было";
 }
 
-export interface ReceivedCard { amount: string; delta: DeltaView; countText: string }
+export interface ReceivedCard { amount: string; delta: DeltaView; countText: string; hint: string }
 
 export function receivedCard(overview: IncomeOverview): ReceivedCard {
-  return { amount: formatMoney(overview.current.received), delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count) };
+  return { amount: formatMoney(overview.current.received), delta: deltaView(overview), countText: paymentsCountText(overview.current.payments_count), hint: compareHint(overview) };
 }
 
 export interface CollectedCard {
@@ -699,7 +724,7 @@ function collectionView(row: CollectionRow, index: number): CollectionRowView {
     charged: row.charged, paid: row.paid, debt: row.debt, debtors: row.students_with_debt,
     pct: row.pct === null ? null : Math.max(0, Math.min(100, row.pct)),
     pctText: row.pct === null ? "" : `${row.pct}%`,
-    debtorsText: row.students_with_debt > 0 ? `${row.students_with_debt} ${pluralRu(row.students_with_debt, "ученик", "ученика", "учеников")} с долгом` : "долгов нет",
+    debtorsText: row.students_with_debt > 0 ? `${row.students_with_debt} ${pluralRu(row.students_with_debt, "ученик", "ученика", "учеников")} с долгом за месяц` : "долгов за месяц нет",
   };
 }
 
@@ -722,7 +747,12 @@ export function collectionTotalView(collection: MonthCollection | null | undefin
 
 // ── The journal ────────────────────────────────────────────────────────────
 
-export const STATUS_TAG: Record<JournalStatus, string | null> = { active: null, voided: "отменена", replaced: "отменена" };
+/** «отменена» for a cancelled payment, «исправлена → № 11» for one that a correction replaced. */
+export function statusTag(row: Pick<JournalRow, "status" | "replaced_by_receipt_no">): string | null {
+  if (row.status === "voided") return "отменена";
+  if (row.status === "replaced") return row.replaced_by_receipt_no ? `исправлена → № ${row.replaced_by_receipt_no}` : "исправлена";
+  return null;
+}
 
 export interface JournalRowView {
   id: string;
@@ -735,14 +765,14 @@ export interface JournalRowView {
   teacher: string | null;
   amount: string;
   method: string;
-  /** «отменена» for a cancelled and for a corrected (replaced) payment; null for a live one. */
+  /** «отменена» / «исправлена → № N»; null for a live payment. */
   tag: string | null;
   muted: boolean;
 }
 
 export function journalRowView(row: JournalRow, withYear = false): JournalRowView {
   const date = formatDateRu(row.paid_on);
-  const tag = STATUS_TAG[row.status];
+  const tag = statusTag(row);
   return {
     id: row.id,
     date: withYear ? date : date.slice(0, 5),
@@ -806,7 +836,7 @@ export function drawerView(row: JournalRow): DrawerView {
     when: `${formatDateRu(row.paid_on)}${row.paid_time ? ` · ${row.paid_time}` : ""}`,
     amount: formatMoney(row.amount),
     method: row.method_label,
-    tag: STATUS_TAG[row.status],
+    tag: statusTag(row),
     facts,
     destination: row.status === "active" ? destinationLines(row) : [],
     notes,
@@ -870,3 +900,20 @@ export function incomeErrorText(cause: unknown): { text: string; denied: boolean
   const message = cause instanceof Error && cause.message ? cause.message : "";
   return { text: message || LOAD_ERROR_FALLBACK, denied: false };
 }
+
+export const EXPORT_TOO_LONG_TEXT = "Слишком много строк — сузьте период или фильтры";
+
+/** The Excel of the journal holds at most 20 000 rows: the server's 422 `EXPORT_TOO_LONG` becomes one human sentence. */
+export function exportErrorText(cause: unknown): string {
+  const code = (cause as { code?: string } | null)?.code;
+  if (code === "EXPORT_TOO_LONG") return EXPORT_TOO_LONG_TEXT;
+  return cause instanceof Error && cause.message ? cause.message : "Не удалось скачать Excel";
+}
+
+/** «Способ не указан» is a filter only when some payment of the period has no method. */
+export function hasUnknownMethod(overview: Pick<IncomeOverview, "by_method"> | null | undefined): boolean {
+  return Boolean(overview?.by_method.some((item) => item.method === "unknown"));
+}
+
+/** The note of «Должники» opened from a group's row: the tab counts the debt of all months, the row only of the month. */
+export const DEBTORS_GROUP_NOTE = "Показаны все долги группы, не только за месяц";

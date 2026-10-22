@@ -191,7 +191,7 @@ export function JournalSection(props: JournalSectionProps) {
   const paging = journal ? journalPaging(journal) : null;
   const withYear = journal ? journalSpansYears(journal.from, journal.to) : false;
   const totals = journal ? journalTotalsText(journal.totals) : "";
-  const showAuthors = authors.length > 1 || props.createdBy !== "";
+  const showAuthors = authors.length > 1;
   return (
     <section aria-label="Журнал оплат" className="space-y-3" data-testid="income-journal">
       <div className="flex flex-col gap-2 md:flex-row md:items-center">

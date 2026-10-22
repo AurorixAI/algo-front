@@ -39,7 +39,7 @@ function RowBody({ row }: { row: CollectionRowView }) {
         )}
       </div>
       <Cell label="Долг" className={`order-5 ${row.debt > 0 ? "font-medium text-rose-700" : ""} md:order-none`}>{row.debt > 0 ? formatMoney(row.debt) : quiet}</Cell>
-      <Cell label="Учеников с долгом" className="order-6 text-slate-700 md:order-none">{row.debtors > 0 ? row.debtors : quiet}</Cell>
+      <Cell label="С долгом за месяц" className="order-6 text-slate-700 md:order-none">{row.debtors > 0 ? row.debtors : quiet}</Cell>
     </>
   );
 }
@@ -66,7 +66,7 @@ export function CollectionTable({ collection, paymentsBase }: { collection: Mont
         <span className="text-right">Оплачено</span>
         <span>Собрано</span>
         <span className="text-right">Долг</span>
-        <span className="text-right">Учеников с долгом</span>
+        <span className="text-right">С долгом за месяц</span>
       </div>
       <ul className="flex flex-col gap-2.5 md:gap-0 md:divide-y md:divide-slate-100">
         {rows.map((row) => (

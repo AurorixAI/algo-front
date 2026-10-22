@@ -8,6 +8,9 @@ import type {
   DecideBulkBody,
   DecideBulkOut,
   DecideOut,
+  ExamBinding,
+  LessonMoveBody,
+  MovedFrom,
   LessonRosterStudent,
   MineOut,
   MoveCheckOut,
@@ -746,6 +749,8 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   substitutionRequest?: SubstitutionRequestMark | null;
   /** LOGIC-B2: a cancelled original says where it went («Урок перенесён на …») or that it is cancelled. */
   substitutionOutcome?: SubstitutionOutcome | null;
+  /** #124: the new lesson of a move says where it came from («Перенесён с 25.10, 10:00»). */
+  movedFrom?: MovedFrom | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -931,6 +936,8 @@ export interface Lesson {
   rescheduleReason?: string | null;
   /** LOGIC-B2: a cancelled original says where it went (optional in the journal). */
   substitutionOutcome?: SubstitutionOutcome | null;
+  /** #124: the new lesson of a move says where it came from. */
+  movedFrom?: MovedFrom | null;
 }
 
 export interface AttendanceRecord {
@@ -1217,6 +1224,8 @@ export interface StudentAttendanceSummary {
     /** LOGIC-B2: who taught it and whether it was a substitute (never the reason). */
     teacherName?: string | null;
     isSubstitution?: boolean;
+    /** #124: a lesson that a move created says where it came from. */
+    movedFrom?: MovedFrom | null;
   }>;
   /** LOGIC-B2: cancelled / moved lessons of the month, without a reason. */
   notices?: StudentNotice[];
@@ -3038,6 +3047,14 @@ export const substitutionsApi = {
     api<MoveCheckOut>(`/auth/org/substitutions/${encodePathId(requestId)}/move-check?${new URLSearchParams({ newDate: params.newDate, startTime: params.startTime, endTime: params.endTime }).toString()}`),
   decide: (requestId: string, body: DecideBody) =>
     api<DecideOut>(`/auth/org/substitutions/${encodePathId(requestId)}/decide`, { method: "POST", body }),
+
+  // #124: the lesson sheet moves / cancels a lesson without a request of a teacher (owner / administrator)
+  lessonMoveCheck: (groupId: string, params: { lessonId: string; lessonDate: string; newDate: string; startTime: string; endTime: string }) =>
+    api<MoveCheckOut>(`/auth/org/groups/${encodePathId(groupId)}/lesson-move-check?${new URLSearchParams(params).toString()}`),
+  lessonMove: (groupId: string, body: LessonMoveBody) =>
+    api<DecideOut>(`/auth/org/groups/${encodePathId(groupId)}/lesson-move`, { method: "POST", body }),
+  lessonExamBinding: (groupId: string, lessonId: string, lessonDate: string) =>
+    api<ExamBinding>(`/auth/org/groups/${encodePathId(groupId)}/lesson-exam-binding?${new URLSearchParams({ lessonId, lessonDate }).toString()}`),
   decideBulk: (body: DecideBulkBody) =>
     api<DecideBulkOut>("/auth/org/substitutions/decide-bulk", { method: "POST", body }),
 };
