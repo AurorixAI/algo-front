@@ -220,6 +220,11 @@ export interface EnrolPriceOverride {
 export const PRICE_LABEL_CALENDAR = "Цена в месяц";
 export const PRICE_LABEL_LESSONS = "Цена пакета";
 
+/** The label of a package centre: «Цена пакета» as the front says it, or the older wording of the server (it names a package too) - one wording on screen (F20). */
+export function isLessonsPriceLabel(label: string | null | undefined): boolean {
+  return typeof label === "string" && /пакет/i.test(label);
+}
+
 /** What the sum means in the centre: «Цена в месяц» for calendar periods, «Цена пакета» for lesson packages. */
 export function priceLabelOf(mode: PeriodMode | null | undefined): string {
   return mode === "lessons" ? PRICE_LABEL_LESSONS : PRICE_LABEL_CALENDAR;
@@ -232,7 +237,7 @@ export function priceLabelOf(mode: PeriodMode | null | undefined): string {
 export function formatPrice(amount: number | null | undefined, label: string): string {
   if (amount === null || amount === undefined) return "не задана";
   if (amount === 0) return FREE_WORD;
-  return `${formatMoney(amount)}${label === PRICE_LABEL_LESSONS ? " за пакет" : "/мес"}`;
+  return `${formatMoney(amount)}${isLessonsPriceLabel(label) ? " за пакет" : "/мес"}`;
 }
 
 export const FREE_WORD = "бесплатно";
@@ -833,7 +838,7 @@ export const GROUP_PRICES_SEARCH_FROM = 9;
 
 /** Header of the price column: «Цена в месяц» for calendar periods, «Цена пакета» for lesson packages. */
 export function priceColumnLabel(label: string): string {
-  return label === PRICE_LABEL_LESSONS ? PRICE_LABEL_LESSONS : "Цена в месяц";
+  return isLessonsPriceLabel(label) ? PRICE_LABEL_LESSONS : PRICE_LABEL_CALENDAR;
 }
 
 /** «500 000 сум» | «бесплатно»; null when the price is not set. */

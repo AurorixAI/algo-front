@@ -184,6 +184,12 @@ test("F12: one vocabulary of enrolment - «Зачислить в группу» 
 test("F20: «Цена в месяц» / «Цена пакета» name the price; «Стоимость» stays the total of the statement", () => {
   assert.equal(GP.priceLabelOf("calendar"), "Цена в месяц");
   assert.equal(GP.priceLabelOf("lessons"), "Цена пакета");
+  // the server may still send its older wording: the screen says «Цена в месяц» / «Цена пакета» all the same, the unit follows the package
+  assert.equal(GP.priceColumnLabel("Оплата в месяц"), "Цена в месяц");
+  assert.equal(GP.priceColumnLabel("Стоимость пакета"), "Цена пакета");
+  assert.equal(GP.formatPrice(800000, "Стоимость пакета"), GP.formatPrice(800000, "Цена пакета"));
+  assert.match(GP.formatPrice(800000, "Стоимость пакета"), /за пакет$/);
+  assert.match(read("src/components/groups/group-price-dialog.tsx"), /label=\{priceColumnLabel\(label\)\}/);
   const files = ["src/lib/group-price.ts", "src/lib/payroll.ts", "src/lib/payroll-help.ts", "src/components/groups/group-price-dialog.tsx", "src/components/groups/group-payments-tab.tsx"];
   for (const file of files) assert.doesNotMatch(read(file), /["'`>]Оплата в месяц|["'`>]Стоимость пакета/, file);
   assert.match(read("src/lib/payments-ledger.ts"), /Стоимость обучения/); // the statement's total keeps its word

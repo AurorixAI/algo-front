@@ -13,6 +13,7 @@ import {
   isNoopPriceChange,
   CHANGE_GROUP_PRICE_LABEL,
   isPriceConflict,
+  priceColumnLabel,
   PAID_NEVER_CHANGE_TEXT,
   pastDateWarning,
   PRICE_CONFLICT_TEXT,
@@ -169,7 +170,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
     <Modal
       open={open}
       title={current ? CHANGE_GROUP_PRICE_LABEL : SET_GROUP_PRICE_LABEL}
-      description={`${groupName} · ${label}`}
+      description={`${groupName} · ${priceColumnLabel(label)}`}
       onClose={onClose}
       busy={saving}
       footer={(
@@ -194,7 +195,7 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
         <div>
           <MoneyField
             id="group-price-amount"
-            label={label}
+            label={priceColumnLabel(label)}
             value={amount}
             onChange={(text) => { setError(null); setAmount(text); }}
             autoFocus
