@@ -192,10 +192,11 @@ export class Org {
   /** Invite and register a teacher / an admin of this organisation. */
   async addStaff(role: "admin" | "teacher", lastName?: string): Promise<Staff> {
     const n = ++this.seq;
-    const invite = await this.owner.api.post("/auth/org/invitations", { org_role: role });
+    const email = `${role}-${this.tag}-${n}@e2e.algo.test`;
+    // LOGIC-B (O7): an invitation is addressed to an e-mail and can be accepted only with it
+    const invite = await this.owner.api.post("/auth/org/invitations", { org_role: role, email });
     const firstName = role === "teacher" ? "Учитель" : "Админ";
     const last = lastName ?? `${role === "teacher" ? "Преподавателев" : "Администраторов"}${this.tag}${n}`;
-    const email = `${role}-${this.tag}-${n}@e2e.algo.test`;
     const password = `Pw-${rand(12)}`;
     const { data, res } = await new Api().raw("POST", "/auth/invite/accept", {
       body: { code: invite.code, email, password, first_name: firstName, last_name: last },
