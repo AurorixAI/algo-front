@@ -264,7 +264,7 @@ export function MethodsBox({ overview, scope }: { overview: IncomeOverview; scop
               <div className="flex items-baseline justify-between gap-3 text-sm">
                 <span className="min-w-0 text-slate-800">
                   {row.label}
-                  <span className="ml-1.5 text-xs text-slate-400">{paymentsCountText(row.count)}</span>
+                  <span className="ml-1 whitespace-nowrap text-xs text-slate-400">{paymentsCountText(row.count)}</span>
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums text-slate-900">{formatMoney(row.amount)}</span>
               </div>

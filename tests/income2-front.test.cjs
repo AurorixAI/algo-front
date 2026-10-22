@@ -309,6 +309,12 @@ test("«Группы — собираемость»: worst first, a group with n
   assert.deepEqual(sorted.map((r) => r.title), ["c", "b", "a", "e"]);
   assert.equal(sorted[3].pctText, "");
   assert.equal(V.collectionRows(null).length, 0);
+  // the total counts distinct students: the tooltip is always there, the «*» only when total != sum of the rows
+  assert.equal(V.collectionTotalDebtorsHint(null), null);
+  assert.match(V.collectionTotalDebtorsHint(base).title, /без повторов/);
+  const rowsSum = base.groups.reduce((a, g) => a + g.students_with_debt, 0);
+  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, students_with_debt: rowsSum } }).marker, false);
+  assert.equal(V.collectionTotalDebtorsHint({ ...base, total: { ...base.total, students_with_debt: rowsSum - 1 } }).marker, true);
   assert.equal(V.collectionTotalView(null), null);
   // «долгов нет» in words
   assert.equal(V.collectionRows({ ...base, groups: [make("z", 100, 0)] })[0].debtorsText, "долгов за месяц нет");
@@ -606,7 +612,17 @@ test("INCOME-2 addendum: «Способ не указан» as a filter, «Кт�
   assert.equal(V.hasUnknownMethod({ by_method: [...o.by_method, { method: "unknown", label: "Способ не указан", amount: 1, count: 1 }] }), true);
   assert.equal(V.hasUnknownMethod(null), false);
   const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /unknownMethod && <option value="unknown">Способ не указан<\/option>/);
+  assert.match(page, /methodOptions\.map\(\(method\) => <option key=\{method\.key\} value=\{method\.key\}>/);
+  // the method filter lists only the methods of the period, the chosen one, and «Способ не указан» only when present
+  const keys = (rows, selected) => V.methodFilterOptions(rows, selected).map((m) => m.key);
+  const by = (method, amount, count) => ({ method, label: method, amount, count });
+  assert.deepEqual(keys([by("card", 50000, 2), by("cash", 100000, 3), by("payme", 0, 0)], ""), ["cash", "card"]); // METHODS order, a zero method dropped, no «Другое»
+  assert.deepEqual(keys([by("cash", 100000, 3)], "payme"), ["cash", "payme"]); // the chosen one never disappears
+  assert.deepEqual(keys([by("cash", 1, 1), by("unknown", 5, 1)], ""), ["cash", "unknown"]);
+  assert.deepEqual(keys([by("cash", 1, 1)], "unknown"), ["cash", "unknown"]);
+  assert.deepEqual(keys([by("other", 10, 1)], ""), ["other"]); // «Другое» only when it took money
+  assert.deepEqual(keys([], ""), []);
+  assert.deepEqual(keys(null, ""), []);
   assert.match(read("src/components/payments/income-journal.tsx"), /const showAuthors = authors\.length > 1;/);
   const { React, text, J } = parts();
   const data = journal("J03_journal_cash");
@@ -619,4 +635,18 @@ test("INCOME-2 addendum: «Способ не указан» as a filter, «Кт�
   assert.equal(V.DEBTORS_GROUP_NOTE, "Показаны все долги группы, не только за месяц");
   assert.match(read("src/components/payments/payments-page.tsx"), /bucket === "debt" && filter\.groupId && \(/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /data-testid="compare-hint"/); // income3: the hint is the tooltip of line 1, not a third line
+});
+
+test("phone polish (stage walk 22.10): the status chip leaves the name line, the till count and the total tooltip", () => {
+  const journal = read("src/components/payments/income-journal.tsx");
+  // the name has the whole first line of a card; the chip goes to row 3 under the amount on a phone and stays beside the name from md
+  assert.match(journal, /col-start-1 row-start-1 min-w-0 truncate">\{view\.student\}/);
+  assert.match(journal, /data-testid="journal-tag" className="col-start-2 row-start-3 [^"]*whitespace-nowrap[^"]*md:justify-self-auto"/);
+  assert.match(journal, /contents text-sm font-medium md:col-start-2 md:flex/);
+  // «18 оплат» is one unit
+  assert.match(read("src/components/payments/income-parts.tsx"), /whitespace-nowrap text-xs text-slate-400">\{paymentsCountText\(row\.count\)\}/);
+  // the total row says why its number is smaller than the sum of the rows
+  const collection = read("src/components/payments/income-collection.tsx");
+  assert.match(collection, /debtorsHint=\{totalHint\}/);
+  assert.match(collection, /title=\{debtorsHint\?\.title\}/);
 });

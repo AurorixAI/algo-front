@@ -68,12 +68,12 @@ export function periodName(from: string, to: string, kind: PeriodKind = "period"
   return { bare: dates, sentence: `период ${dates}`, isMonth: false, kind };
 }
 
-/** «31 октября» (the year only when it is not the year of `asOf`). */
+/** «31 октября» with a NON-BREAKING space between the day and the month (the dialog sentence never wraps there) (the year only when it is not the year of `asOf`). */
 export function longDate(iso: string | null | undefined, asOf?: string | null): string | null {
   const p = parts(iso);
   if (!p) return null;
   const year = parts(asOf)?.year;
-  return `${p.day} ${MONTH_GENITIVE[p.month - 1]}${year !== undefined && year !== p.year ? ` ${p.year}` : ""}`;
+  return `${p.day}\u00A0${MONTH_GENITIVE[p.month - 1]}${year !== undefined && year !== p.year ? ` ${p.year}` : ""}`;
 }
 
 function capital(text: string): string {

@@ -53,13 +53,14 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                 onClick={() => onOpen(row)}
                 className={`grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-0.5 px-4 py-3 text-left transition-colors hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/40 md:items-center md:py-2.5 ${ROW_GRID} ${activeId === row.id ? "bg-primary-50/60" : ""}`}
               >
-                <span className={`col-span-2 row-start-3 text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-500"}`}>
+                <span className={`col-start-1 row-start-3 self-center text-xs tabular-nums md:col-span-1 md:col-start-1 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-500"}`}>
                   {view.time ? `${view.date} · ${view.time}` : view.date}
                 </span>
                 {view.enteredAt && <span data-testid="journal-entered" className="col-span-2 row-start-4 text-[11px] leading-tight text-slate-400 md:hidden">{view.enteredAt}</span>}
-                <span className={`col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-sm font-medium md:col-start-2 ${view.muted ? "text-slate-400" : "text-slate-900"}`}>
-                  <span className="truncate">{view.student}</span>
-                  {view.tag && <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
+                {/* A phone: the name has the whole first line and the chip sits under the amount (row 3); md and up: one line, the chip next to the name. */}
+                <span className={`contents text-sm font-medium md:col-start-2 md:flex md:min-w-0 md:items-center md:gap-2 ${view.muted ? "text-slate-400" : "text-slate-900"}`}>
+                  <span className="col-start-1 row-start-1 min-w-0 truncate">{view.student}</span>
+                  {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
                 </span>
                 <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
                 <span className={`col-start-2 row-start-1 text-right text-sm font-semibold tabular-nums md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-900"}`}>{view.amount}</span>

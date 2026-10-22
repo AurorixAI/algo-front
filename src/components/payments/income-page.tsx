@@ -6,12 +6,11 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { saveBlobAs } from "@/lib/download";
-import { METHODS } from "@/lib/payments-ledger";
 import {
   canStepForward,
   exportErrorText,
   exportQuery,
-  hasUnknownMethod,
+  methodFilterOptions,
   focusBucket,
   incomeErrorText,
   journalIsQuiet,
@@ -27,6 +26,7 @@ import {
   validatePeriod,
   type Bar,
   type IncomeFilters,
+  type IncomeMethodRow,
   type IncomeOverview,
   type JournalExtras,
   type JournalRange,
@@ -177,6 +177,15 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
 
   const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || filters.groupId !== "" || filters.teacherId !== "";
   const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
+  // The methods of the period.  With a method chosen the server narrows `by_method` to it, so the list of the last unfiltered answer of the same period / group / teacher is kept: another method stays one click away.
+  const seenMethods = useRef<{ key: string; rows: IncomeMethodRow[] } | null>(null);
+  const methodOptions = useMemo(() => {
+    const data = overview.data;
+    const key = data ? `${data.period.from}|${data.period.to}|${filters.groupId}|${filters.teacherId}` : "";
+    if (data && filters.method === "") seenMethods.current = { key, rows: data.by_method };
+    const rows = filters.method !== "" && seenMethods.current && seenMethods.current.key === key ? [...seenMethods.current.rows, ...(data?.by_method ?? [])] : (data?.by_method ?? []);
+    return methodFilterOptions(rows, filters.method);
+  }, [overview.data, filters.method, filters.groupId, filters.teacherId]);
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
   const anyDenied = noRight || overview.denied || journal.denied;
@@ -192,7 +201,7 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
       </div>
 
       <PeriodBar period={period} today={today} onChange={changePeriod} />
-      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} unknownMethod={hasUnknownMethod(overview.data) || filters.method === "unknown"} />
+      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} methodOptions={methodOptions} />
       {periodProblem && <p role="alert" className="text-sm font-medium text-rose-700">{periodProblem}</p>}
 
       {anyDenied ? (
@@ -311,13 +320,12 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
   );
 }
 
-function FiltersBar({ filters, onChange, teachers, groups, unknownMethod }: { unknownMethod: boolean; filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
+function FiltersBar({ filters, onChange, teachers, groups, methodOptions }: { methodOptions: Array<{ key: string; label: string }>; filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
       <select aria-label="Способ оплаты" value={filters.method} onChange={(event) => onChange({ ...filters, method: event.target.value })} className={FIELD}>
         <option value="">Все способы</option>
-        {METHODS.map((method) => <option key={method.key} value={method.key}>{method.label}</option>)}
-        {unknownMethod && <option value="unknown">Способ не указан</option>}
+        {methodOptions.map((method) => <option key={method.key} value={method.key}>{method.label}</option>)}
       </select>
       <CascadingFilter
         teachers={teachers}

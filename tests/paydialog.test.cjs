@@ -110,6 +110,7 @@ test("= exact debt: closes August and September, October stays unpaid", () => {
 test("= debt + current: pays October too, until 31 October, no debt left", () => {
   const p = plan(1142000, { paidUntil: "2026-10-31" });
   assert.equal(said(p), "Закроет долг за август и сентябрь и оплатит октябрь. Оплачено до 31 октября, долга не останется.");
+  assert.ok(p.sentence.includes("Оплачено до 31\u00a0октября"), "no line break between the day and the month");
   assert.deepEqual(lines(p), [["Долг за август (остаток)", 42000], ["Долг за сентябрь", 550000], ["Октябрь", 550000]]);
   assert.equal(lines(p).reduce((a, [, n]) => a + n, 0), 1142000); // the lines add up to the amount
 });
@@ -363,8 +364,11 @@ test("naming: a calendar month by its name, otherwise dates; a package by dates"
   assert.equal(X.periodName("2026-10-01", "2026-10-31", "period", "2025-12-01").bare, "октябрь 2026");
   assert.equal(X.periodName("2026-10-01", "2026-10-15").sentence, "период 01.10–15.10");
   assert.equal(X.periodName("2026-10-01", "2026-10-31", "package").bare, "пакет 01.10–31.10");
-  assert.equal(X.longDate("2026-10-31", "2026-10-22"), "31 октября");
-  assert.equal(X.longDate("2027-01-05", "2026-10-22"), "5 января 2027");
+  assert.equal(X.longDate("2026-10-31", "2026-10-22"), "31\u00a0октября"); // a non-breaking space: the day never stays alone at the end of a line
+  assert.equal(X.longDate("2027-01-05", "2026-10-22"), "5\u00a0января 2027");
+  // every date phrase of the dialog sentence is glued the same way
+  const glued = X.longDate("2026-11-12", "2026-10-22");
+  assert.ok(/^\d+\u00a0[а-я]+$/.test(glued) && !/ /.test(glued));
   assert.equal(X.longDate(null), null);
   assert.equal(X.joinNames(["июль", "август", "сентябрь"]), "июль, август и сентябрь");
   assert.equal(X.joinNames(["август"]), "август");

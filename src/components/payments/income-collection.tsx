@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatMoney } from "@/lib/payments";
-import { collectionDebtNote, collectionRows, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
+import { collectionDebtNote, collectionRows, collectionTotalDebtorsHint, collectionTotalView, debtorsHref, type CollectionRowView, type MonthCollection } from "@/lib/payments-income-v2";
 import { ProgressBar } from "./income-parts";
 
 const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr)_7rem_7.5rem] md:items-center md:gap-x-4";
@@ -10,16 +10,16 @@ const GRID = "md:grid md:grid-cols-[minmax(0,1.6fr)_7.5rem_7.5rem_minmax(0,1.3fr
 const quiet = <span className="text-slate-400">нет</span>;
 
 /** A cell of the row: its name on a phone (the card), only the figure from md (the table). */
-function Cell({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
+function Cell({ label, className = "", title, children }: { label: string; className?: string; title?: string; children: React.ReactNode }) {
   return (
-    <div className={`flex items-baseline justify-between gap-3 text-sm md:block md:text-right ${className}`}>
+    <div title={title} className={`flex items-baseline justify-between gap-3 text-sm md:block md:text-right ${className}`}>
       <span className="text-xs text-slate-400 md:hidden">{label}</span>
       <span className="tabular-nums">{children}</span>
     </div>
   );
 }
 
-function RowBody({ row }: { row: CollectionRowView }) {
+function RowBody({ row, debtorsHint }: { row: CollectionRowView; /** Total row only: the tooltip of the distinct-students cell and the «*» when it differs from the sum of the rows. */ debtorsHint?: { title: string; marker: boolean } | null }) {
   return (
     <>
       <div className="order-1 min-w-0 md:order-none">
@@ -39,7 +39,10 @@ function RowBody({ row }: { row: CollectionRowView }) {
         )}
       </div>
       <Cell label="Долг за месяц" className={`order-5 ${row.debt > 0 ? "font-medium text-rose-700" : ""} md:order-none`}>{row.debt > 0 ? formatMoney(row.debt) : quiet}</Cell>
-      <Cell label="С долгом за месяц" className="order-6 text-slate-700 md:order-none">{row.debtors > 0 ? row.debtors : quiet}</Cell>
+      <Cell label="С долгом за месяц" className="order-6 text-slate-700 md:order-none" title={debtorsHint?.title}>
+        {row.debtors > 0 ? row.debtors : quiet}
+        {debtorsHint?.marker && <span data-testid="collection-total-marker" aria-hidden className="ml-0.5 text-slate-400">*</span>}
+      </Cell>
     </>
   );
 }
@@ -51,6 +54,7 @@ function RowBody({ row }: { row: CollectionRowView }) {
 export function CollectionTable({ collection, paymentsBase, debtToday }: { collection: MonthCollection; paymentsBase: string; /** The card «Долг на сегодня» (all months): when it differs from the month's debt, one quiet line says why. */ debtToday?: number | null }) {
   const rows = collectionRows(collection);
   const total = collectionTotalView(collection);
+  const totalHint = collectionTotalDebtorsHint(collection);
   const debtNote = collectionDebtNote(collection, debtToday);
   if (rows.length === 0) {
     return (
@@ -85,7 +89,7 @@ export function CollectionTable({ collection, paymentsBase, debtToday }: { colle
       </ul>
       {total && (
         <div className={`mt-2.5 flex flex-col rounded-xl bg-slate-50 p-3.5 md:mt-0 md:rounded-none md:border-t md:border-slate-200 md:px-4 md:py-3 ${GRID}`} data-testid="collection-total">
-          <RowBody row={total} />
+          <RowBody row={total} debtorsHint={totalHint} />
         </div>
       )}
       {debtNote && <p className="mt-2.5 px-1 text-xs leading-relaxed text-slate-600 md:mt-0 md:border-t md:border-slate-100 md:px-4 md:py-2.5" data-testid="collection-debt-note">{debtNote}</p>}

@@ -10,7 +10,7 @@
  */
 import { addDays, daysBetween, formatDateRu, formatMoney, isIsoDate, pluralRu } from "./payments";
 import { monthEnd, monthStart, shiftMonth } from "./payments-income";
-import { sum } from "./payments-ledger";
+import { METHODS, sum } from "./payments-ledger";
 import { capitalizeFirst, monthYearLabelRu } from "./business-time";
 
 // ── Contract (income2_contract.json) ───────────────────────────────────────
@@ -877,6 +877,18 @@ export function collectionTotalView(collection: MonthCollection | null | undefin
   return collection ? { ...collectionView(collection.total, 0), key: "total", title: "Всего" } : null;
 }
 
+export const COLLECTION_DEBTORS_TOTAL_TITLE = "учеников без повторов: кто учится в двух группах, считается один раз";
+
+/**
+ * The «С долгом за месяц» cell of the total row counts DISTINCT students, the rows above count a student once per group.
+ * The tooltip always says so; the «*» marker only when the total really differs from the sum of the rows.
+ */
+export function collectionTotalDebtorsHint(collection: MonthCollection | null | undefined): { title: string; marker: boolean } | null {
+  if (!collection) return null;
+  const rowsSum = collection.groups.reduce((acc, row) => acc + sum(row.students_with_debt), 0);
+  return { title: COLLECTION_DEBTORS_TOTAL_TITLE, marker: sum(collection.total.students_with_debt) !== rowsSum };
+}
+
 // ── The journal ────────────────────────────────────────────────────────────
 
 /** «отменена» for a cancelled payment, «исправлена → № 11» for one that a correction replaced. */
@@ -1157,6 +1169,19 @@ export function exportErrorText(cause: unknown): string {
 /** «Способ не указан» is a filter only when some payment of the period has no method. */
 export function hasUnknownMethod(overview: Pick<IncomeOverview, "by_method"> | null | undefined): boolean {
   return Boolean(overview?.by_method.some((item) => item.method === "unknown"));
+}
+
+/**
+ * The «Все способы» select: only the methods that took money in the period (`by_method`), the chosen one even when it took none
+ * (it never disappears while chosen), and «Способ не указан» only when some payment has no method (or it is chosen).
+ */
+export function methodFilterOptions(byMethod: Array<Pick<IncomeMethodRow, "method" | "amount" | "count">> | null | undefined, selected: string): Array<{ key: string; label: string }> {
+  const present = new Set((byMethod ?? []).filter((item) => item.amount !== 0 || item.count > 0).map((item) => item.method));
+  const options: Array<{ key: string; label: string }> = METHODS
+    .filter((method) => present.has(method.key) || method.key === selected)
+    .map((method) => ({ key: method.key, label: method.label }));
+  if (present.has("unknown") || selected === "unknown") options.push({ key: "unknown", label: "Способ не указан" });
+  return options;
 }
 
 /** The note of «Должники» opened from a group's row: the tab counts the debt of all months, the row only of the month. */

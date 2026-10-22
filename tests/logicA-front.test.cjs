@@ -602,6 +602,12 @@ test("moneyChip: the status chip comes from the money, never contradicts the deb
   // never paid, not overdue yet
   assert.equal(chip({ status: "none", debt: 500000, last_payment: null }), "Ещё не платил|warning");
   assert.equal(chip({ status: "active", debt: 500000, debt_reason: "never_paid", last_payment: null }), "Ещё не платил|warning");
+  // never paid AND an earlier period has already ended (past_debt > 0): red, like «Долг N сум» on the student's card
+  assert.equal(chip({ status: "none", debt: 1500000, past_debt: 1000000, debt_reason: "never_paid", last_payment: null }), "Ещё не платил · просрочено|danger");
+  assert.equal(chip({ status: "none", debt: 1500000, past_debt: 1000000, last_payment: null }), "Ещё не платил · просрочено|danger");
+  assert.equal(chip({ status: "none", debt: 500000, past_debt: 0, debt_reason: "never_paid", last_payment: null }), "Ещё не платил|warning");
+  // a part is paid, past_debt does not turn «Не доплачено» into «never paid»
+  assert.equal(chip({ status: "active", debt: 300000, past_debt: 100000, last_payment: { id: "p" } }), "Не доплачено|warning");
   // paused stays paused
   assert.equal(chip({ status: "paused", debt: 0, paused: { from: "2026-10-20", to: "2026-11-01" } }), "На паузе до 01.11|muted");
   // no debt: the date status as before

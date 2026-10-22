@@ -1055,15 +1055,19 @@ export function statusLabel(
  *  - no debt: the date status as before - «Оплачено» (grey) / «Осталось 5 дней» / «Сегодня последний день» (amber) / «Без оплат» / «Бесплатно».
  */
 export type MoneyChipRow = Parameters<typeof statusLabel>[0]
-  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason">>
+  & Partial<Pick<MembershipPaymentRow, "debt" | "last_payment" | "debt_reason" | "past_debt">>
   & { status: PaymentStatus };
+
+const NEVER_PAID = "Ещё не платил";
+const NEVER_PAID_OVERDUE = "Ещё не платил · просрочено";
 
 export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone } {
   if (row.status === "paused") return { label: statusLabel(row), tone: statusTone(row.status) };
   if ((row.debt ?? 0) > 0) {
     if (row.status === "expired" || row.debt_reason === "overdue") return { label: statusLabel({ ...row, status: "expired" }), tone: "danger" };
     const neverPaid = row.debt_reason === "never_paid" || (!row.last_payment && (row.status === "none" || row.status === "ends_today" || row.status === "expiring"));
-    if (neverPaid) return { label: "Ещё не платил", tone: "warning" };
+    // Never paid, but a period has already ended unpaid (past_debt > 0): the same red the student's card shows, not the calm amber.
+    if (neverPaid) return (row.past_debt ?? 0) > 0 ? { label: NEVER_PAID_OVERDUE, tone: "danger" } : { label: NEVER_PAID, tone: "warning" };
     return { label: "Не доплачено", tone: "warning" };
   }
   return { label: statusLabel(row), tone: statusTone(row.status) };
@@ -1087,10 +1091,10 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
   const until = row.paid_until && /^\d{4}-\d{2}-\d{2}/.test(row.paid_until) ? row.paid_until : null;
   if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
   if (debt > 0) {
+    if (base.label === NEVER_PAID_OVERDUE) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: NEVER_PAID };
     if (base.tone === "danger") return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
-    if (base.label === "Ещё не платил") {
+    if (base.label === NEVER_PAID) {
       // Never paid, but a period has already ended unpaid: that is a real overdue debt, so red «Долг N сум» (the tooltip keeps «Ещё не платил»).
-      if ((row.past_debt ?? 0) > 0) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
       return { ...base, title: `Долг ${formatMoney(debt)}` };
     }
     return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
