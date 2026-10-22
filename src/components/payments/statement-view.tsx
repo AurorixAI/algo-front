@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, FileSpreadsheet, HelpCircle, Loader2, Pencil, Printer, Receipt, ScrollText, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { saveBlobAs } from "@/lib/download";
@@ -14,7 +14,7 @@ import {
   receiptHref,
   type StatementOut,
 } from "@/lib/payments";
-import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
+import { basesOfPayments, groupHref, queryWith, studentHref } from "@/lib/ia-links";
 import {
   BALANCE_TEXT_CLASS,
   buildStatementItems,
@@ -67,9 +67,20 @@ const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5
  * tag.  A light row per month sums it up; the switcher shows one month (with the balance carried in) or all of them.
  * Print and Excel (built by the server).  Shared by /owner/payments/statement/[id] and /admin/….
  */
-export function StatementView({ paymentsHref }: { /** The payments page of this workspace: where «Назад» goes when there is no page of ours to go back to. */ paymentsHref: string }) {
+export function StatementView(props: { /** The payments page of this workspace: where «Назад» goes when there is no page of ours to go back to. */ paymentsHref: string }) {
+  // The statement reads `?month=` (IA audit F34), so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary-500" /></div>}>
+      <StatementViewContent {...props} />
+    </Suspense>
+  );
+}
+
+function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const membershipId = String(params?.id ?? "");
   const paymentsBase = paymentsHref.replace(/\/+$/, "");
 
@@ -83,7 +94,16 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
   const [failure, setFailure] = useState<{ message: string; retry: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   /** `YYYY-MM` of the month on screen; null = every month. */
-  const [month, setMonth] = useState<string | null>(null);
+  const [month, setMonthState] = useState<string | null>(() => {
+    const requested = searchParams?.get("month") ?? "";
+    return /^\d{4}-(0[1-9]|1[0-2])$/.test(requested) ? requested : null;
+  });
+  // the month on screen is in the address (`?month=2026-10`; «Все месяцы» is the plain path)
+  const setMonth = (next: string | null | ((current: string | null) => string | null)) => {
+    const value = typeof next === "function" ? next(month) : next;
+    setMonthState(value);
+    router.replace(`${pathname}${queryWith(searchParams?.toString(), { month: value })}`.replace(/\?$/, ""), { scroll: false });
+  };
   const [withVoided, setWithVoided] = useState(false);
   const [exporting, setExporting] = useState(false);
   const requests = useRef(createRequestSequence());

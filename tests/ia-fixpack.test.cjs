@@ -573,3 +573,77 @@ test("F25: money is right-aligned, dates and counts are centred - the list of «
   assert.match(read("src/components/payroll/sheet-table.tsx"), /aria-label=\{priceColumn\} className=\{`\$\{HEAD\} text-right/);
   assert.match(read("src/components/groups/group-payments-tab.tsx"), /<span className="text-right">\{label\}<\/span>/);
 });
+
+// ── F14 / F17 / F34 / F36 ─────────────────────────────────────────────────────────────────────────────
+
+test("F14: one <Chip> and one registry of statuses (exam, diagnostic, money) instead of copies typed by hand", () => {
+  const T = require(path.join(root, "src/lib/chip-tone.ts"));
+  const R = require(path.join(root, "src/lib/status-registry.ts"));
+  for (const tone of ["neutral", "warn", "danger", "ok", "info", "violet", "muted"]) assert.ok(T.CHIP_TONE_CLASS[tone], tone);
+  assert.match(T.chipClass({ tone: "ok", size: "md" }), /rounded-md border border-emerald-200 bg-emerald-50 text-emerald-800 px-2 py-0\.5 text-xs/);
+  assert.match(T.chipClass({ tone: "danger", pill: true }), /rounded-full/);
+  const { Chip } = require(path.join(root, "src/components/ui/chip.tsx"));
+  const html = renderToStaticMarkup(React.createElement(Chip, { tone: "warn", testId: "c", title: "t" }, "Ожидает"));
+  assert.match(html, /<span class="[^"]*border-amber-200[^"]*" title="t" data-testid="c">Ожидает<\/span>/);
+  // exams: three copies became one
+  assert.deepEqual(Object.keys(R.EXAM_STATUS), ["draft", "variants_ready", "lobby", "active", "closed", "archived"]);
+  assert.equal(R.examStatusView("nonsense").label, "Черновик");
+  for (const file of ["src/app/admin/exams/page.tsx", "src/app/admin/exams/[id]/page.tsx"]) {
+    assert.doesNotMatch(read(file), /const statusConfig/, file);
+    assert.match(read(file), /examStatusView\(exam\.status\)/, file);
+  }
+  assert.match(read("src/app/admin/diagnostics/page.tsx"), /DIAGNOSTIC_STATUS/);
+  // money: the card, the group tab and the list map the same tones
+  assert.equal(R.moneyChipTone("ok", true), "ok");
+  assert.equal(R.moneyChipTone("ok"), "neutral");
+  assert.equal(R.moneyChipTone("warning"), "warn");
+  assert.equal(R.moneyChipTone("danger"), "danger");
+  for (const file of ["src/components/payments/membership-payments.tsx", "src/components/groups/group-payments-tab.tsx", "src/components/payments/payments-page.tsx"]) assert.match(read(file), /<Chip\b/, file);
+});
+
+test("F17: one wording of the lesson actions by the date of the lesson, in the sheet, the journal and «Незакрытые уроки»", () => {
+  const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  assert.equal(A.cancelLessonLabel(false), "Отменить урок");
+  assert.equal(A.cancelLessonLabel(true), "Урока не было");
+  assert.equal(A.MARK_LESSON_LABEL, "Отметить посещаемость");
+  assert.equal(A.assignActionLabel({ past: false, lacksTeacher: false, isSubstitution: false }), "Назначить замену");
+  assert.equal(A.assignActionLabel({ past: true, lacksTeacher: false, isSubstitution: false }), "Назначить того, кто провёл");
+  assert.equal(A.assignActionLabel({ past: false, lacksTeacher: false, isSubstitution: true }), "Заменить преподавателя");
+  const journal = read("src/components/groups/group-attendance-journal.tsx");
+  assert.match(journal, /assignActionLabel\(\{ past: lesson\.date <= today/);
+  assert.match(journal, /cancelLessonLabel\(true\)/);
+  assert.doesNotMatch(journal, /ASSIGN_TEACHER_ACTION|REPLACE_TEACHER_ACTION/);
+  assert.match(read("src/components/attendance/open-lessons-view.tsx"), /cancelLessonLabel\(true\)/);
+});
+
+test("F34: the filters and sub-tabs are in the address - payments list, income period, statement month, excuses / substitutions status, staff tab", () => {
+  const url = (state) => PAY.paymentsListQueryString({ bucket: "debt", groupId: "", teacherId: "", q: "", page: 0, ...state });
+  assert.equal(url({}), "?bucket=debt");
+  assert.equal(url({ bucket: "active", groupId: "g1", q: "али", page: 2 }), "?bucket=active&group_id=g1&q=%D0%B0%D0%BB%D0%B8&page=3");
+  assert.equal(url({ teacherId: "t1" }), "?bucket=debt&teacher_id=t1");
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("bucket=paused&group_id=g1&teacher_id=t9&q=x&page=4")), { bucket: "paused", groupId: "g1", teacherId: "", q: "x", page: 3 });
+  assert.deepEqual(PAY.parsePaymentsListQuery(new URLSearchParams("")), { bucket: "debt", groupId: "", teacherId: "", q: "", page: 0 });
+  const today = "2026-10-22";
+  const period = (kind, from, to) => ({ kind, from, to });
+  assert.equal(INC.incomeQueryString(INC.periodOf("month", today), "journal", today), "?");
+  assert.equal(INC.incomeQueryString(INC.periodOf("month", "2026-09-10"), "groups", today), "?month=2026-09&tab=groups");
+  assert.equal(INC.incomeQueryString(period("custom", "2026-10-05", "2026-10-20"), "journal", today), "?from=2026-10-05&to=2026-10-20");
+  assert.deepEqual(INC.parseIncomeQuery(new URLSearchParams("month=2026-09&tab=groups"), today), { period: INC.periodOf("month", "2026-09-01"), tab: "groups" });
+  assert.deepEqual(INC.parseIncomeQuery(new URLSearchParams("from=2026-10-05&to=2026-10-20"), today).period, period("custom", "2026-10-05", "2026-10-20"));
+  assert.deepEqual(INC.parseIncomeQuery(new URLSearchParams("month=2026-13&from=x"), today).period, INC.periodOf("month", today));
+  assert.equal(L2.queryWith("?tab=excuses&status=confirmed", { status: null }), "?tab=excuses");
+  assert.equal(L2.queryWith("tab=excuses", { status: "rejected" }), "?tab=excuses&status=rejected");
+  assert.equal(L2.queryWith("", { status: null }), "?");
+  assert.match(read("src/components/attendance/excuses-page.tsx"), /queryWith\(searchParams\?\.toString\(\), \{ status: next === "pending" \? null : next \}\)/);
+  assert.match(read("src/components/substitutions/substitutions-page.tsx"), /queryWith\(searchParams\?\.toString\(\), \{ status: next === "decided" \? "decided" : null \}\)/);
+  assert.match(read("src/app/owner/teachers/page.tsx"), /queryWith\(searchParams\?\.toString\(\), \{ tab: next === "members" \? null : next \}\)/);
+  assert.match(read("src/components/payments/statement-view.tsx"), /queryWith\(searchParams\?\.toString\(\), \{ month: value \}\)/);
+  assert.match(read("src/components/payments/income-page.tsx"), /incomeQueryString\(period, tab, today\)/);
+  assert.match(read("src/components/payments/payments-page.tsx"), /paymentsListQueryString\(\{ bucket, groupId: filter\.groupId/);
+});
+
+test("F36: the orphan administrator analytics page is gone; nothing links to it", () => {
+  assert.equal(fs.existsSync(path.join(root, "src/app/admin/analytics/page.tsx")), false);
+  const walk = (dir, out = []) => { for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) { const rel = `${dir}/${entry.name}`; if (entry.isDirectory()) walk(rel, out); else if (/\.tsx?$/.test(entry.name)) out.push(rel); } return out; };
+  for (const file of walk("src/components")) assert.doesNotMatch(read(file), /\/admin\/analytics/, file);
+});

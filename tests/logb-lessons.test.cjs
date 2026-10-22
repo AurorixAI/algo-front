@@ -339,7 +339,7 @@ test("the lesson panels, the journal and the lists are wired for the pack", () =
     assert.doesNotMatch(page, /\n\s+Закрыть\n\s+<\/button>\n\s+\)\}\n\s+<\/div>\n\s+<\/div>\n\s+<\/motion\.div>/, file);
   }
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  for (const needle of [/expectedVersion/, /AttendanceConflictDialog/, /LiveExamConfirmDialog/, /LessonTeacherDialog/, /REPLACE_TEACHER_ACTION/, /lessonIsOthers/, /mergeKeepMine/]) assert.match(journal, needle, String(needle));
+  for (const needle of [/expectedVersion/, /AttendanceConflictDialog/, /LiveExamConfirmDialog/, /LessonTeacherDialog/, /assignActionLabel\(/, /lessonIsOthers/, /mergeKeepMine/]) assert.match(journal, needle, String(needle));
   // «Оставить мои» repeats the ORIGINAL action (save / finish / cancel), not a plain save
   for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
     const page = read(file);

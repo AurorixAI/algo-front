@@ -914,6 +914,39 @@ export function parseBucket(value: string | null | undefined): PaymentBucket {
   return [...PAYMENT_BUCKETS, PAUSED_BUCKET].find((bucket) => bucket.key === value)?.key ?? "debt";
 }
 
+/**
+ * IA audit F34: the whole list of «Оплаты» is in the address - `?bucket=debt&group_id=…&teacher_id=…&q=иван&page=3` (`page` is 1-based there):
+ * a return from a card, a reload and a shared link keep the tab, the filter, the search and the page.  Defaults are not written.
+ */
+export interface PaymentsListState {
+  bucket: PaymentBucket;
+  groupId: string;
+  teacherId: string;
+  q: string;
+  /** 0-based. */
+  page: number;
+}
+
+export function parsePaymentsListQuery(params: { get(name: string): string | null } | null | undefined): PaymentsListState {
+  const page = Math.floor(Number(params?.get("page")));
+  return {
+    bucket: parseBucket(params?.get("bucket")),
+    groupId: params?.get("group_id") ?? "",
+    teacherId: params?.get("group_id") ? "" : params?.get("teacher_id") ?? "",
+    q: (params?.get("q") ?? "").slice(0, 80),
+    page: Number.isFinite(page) && page >= 2 ? page - 1 : 0,
+  };
+}
+
+export function paymentsListQueryString(state: PaymentsListState): string {
+  const params = new URLSearchParams({ bucket: state.bucket });
+  if (state.groupId) params.set("group_id", state.groupId);
+  else if (state.teacherId) params.set("teacher_id", state.teacherId);
+  if (state.q.trim()) params.set("q", state.q.trim());
+  if (state.page > 0) params.set("page", String(state.page + 1));
+  return `?${params.toString()}`;
+}
+
 /** The tabs on screen: the three of the owner, and «На паузе» when it has somebody or is the open one. */
 export function visibleBuckets(summary: { buckets?: { paused?: number | null } | null; paused?: number | null } | null | undefined, open: PaymentBucket): Array<{ key: PaymentBucket; label: string }> {
   const paused = Number(summary?.buckets?.paused ?? summary?.paused ?? 0);

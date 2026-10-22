@@ -20,6 +20,19 @@ export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">
   journal: "Открыть в журнале",
 };
 
+/**
+ * IA audit F17: ONE wording of what is done with a lesson, whichever screen does it (the sheet of the schedule, the column menu of the journal,
+ * «Незакрытые уроки»): the same words for the same action, chosen by the DATE of the lesson - a lesson to come is «Отменить урок», one that has
+ * passed «Урока не было»; a past lesson is marked with «Отметить посещаемость».
+ */
+export const CANCEL_PAST_LESSON_LABEL = "Урока не было";
+export function cancelLessonLabel(past: boolean): string {
+  return past ? CANCEL_PAST_LESSON_LABEL : SCHEDULE_ACTION_LABEL.cancel;
+}
+export const MARK_LESSON_LABEL = SCHEDULE_ACTION_LABEL.mark;
+export const FINISH_LESSON_LABEL = "Завершить урок";
+export const CORRECT_MARKS_LABEL = "Исправить отметки";
+
 export const ASSIGN_SUBSTITUTE_ACTION = "Назначить замену";
 export const ASSIGN_WHO_HELD_ACTION = "Назначить того, кто провёл";
 

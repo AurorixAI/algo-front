@@ -28,7 +28,9 @@ const invite = require(path.join(root, "src/lib/diagnostic-invite.ts"));
 const page = read("src/app/admin/diagnostics/page.tsx");
 // every label the list can show: the statusConfig of the page, «Зачислен», and the student card badge
 const statusBlock = page.slice(page.indexOf("const statusConfig"), page.indexOf("const typeLabels"));
-const listLabels = [...statusBlock.matchAll(/label: ("[^"]+"|INVITE_CANCELLED_LABEL)/g)].map((m) => (m[1] === "INVITE_CANCELLED_LABEL" ? invite.INVITE_CANCELLED_LABEL : JSON.parse(m[1])));
+const registry = fs.readFileSync(path.join(root, "src/lib/status-registry.ts"), "utf8"); // IA audit F14: the statuses live in one registry
+const listLabels = [...registry.slice(registry.indexOf("export const DIAGNOSTIC_STATUS")).matchAll(/label: ("[^"]+")/g)].map((m) => JSON.parse(m[1]))
+  .concat([...statusBlock.matchAll(/label: (INVITE_CANCELLED_LABEL)/g)].map(() => invite.INVITE_CANCELLED_LABEL));
 const cardLabels = ["pending", "confirmed", "in_progress", "expired", "cancelled"].map(invite.studentCardInviteLabel);
 const LABELS = [...new Set([...listLabels, ...cardLabels])];
 const TONE = "bg-slate-100 text-slate-600 border-slate-200";
@@ -37,7 +39,8 @@ test("pills: the status set is complete (admin list + «Зачислен» + stu
   for (const label of ["Ожидает", "Готов к началу", "Проходит тест", "Завершён", "Истёк", "Отменён", "Зачислен", "Не начата", "В процессе"]) {
     assert.ok(LABELS.includes(label) || label === "Зачислен", label);
   }
-  assert.match(page, /label: "Зачислен"/);
+  assert.match(page, /DIAGNOSTIC_ENROLLED\.label|label: "Зачислен"/);
+  assert.match(require("fs").readFileSync(require("path").join(__dirname, "../src/lib/status-registry.ts"), "utf8"), /label: "Зачислен"/); // the label lives in the one registry (IA audit F14)
 });
 
 test("pills: one width class for every status, text centred, h-8, text-sm font-medium, rounded-full", () => {

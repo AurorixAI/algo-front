@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { groupHref, teacherHref, workspaceBases } from "@/lib/ia-links";
+import { groupHref, queryWith, teacherHref, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
@@ -64,7 +64,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const requestedId = searchParams?.get("request") ?? null;
   const { showToast, toastNode } = useToast();
 
-  const [tab, setTab] = useState<Tab>("pending");
+  // IA audit F34: «Решённые» is `?status=decided` (a link, a reload and «Назад» keep it)
+  const [tab, setTab] = useState<Tab>(searchParams?.get("status") === "decided" ? "decided" : "pending");
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
   const [urgentOnly, setUrgentOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
@@ -183,6 +184,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   const switchTab = (next: Tab) => {
     setTab(next);
+    router.replace(queryWith(searchParams?.toString(), { status: next === "decided" ? "decided" : null }), { scroll: false });
     setPage(0);
     setSelected(new Set());
     if (next === "decided") setUrgentOnly(false);

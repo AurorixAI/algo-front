@@ -116,8 +116,9 @@ test("payment status chips use the same grey / amber / red as the deadline chips
   assert.match(chipTone.CHIP_TONE_CLASS.danger, /rose/);
   assert.match(chipTone.CHIP_TONE_CLASS.warn, /amber/);
   assert.match(chipTone.CHIP_TONE_CLASS.neutral, /slate/);
-  // no loud colours left in the chip palette
-  assert.doesNotMatch(JSON.stringify(chipTone.CHIP_TONE_CLASS), /emerald|green|sky/);
+  // the quiet palette (neutral / warn / danger) has no loud colours; «ok» (paid, running) is the one green, added with the shared <Chip> (IA audit F14)
+  const quiet3 = JSON.stringify({ neutral: chipTone.CHIP_TONE_CLASS.neutral, warn: chipTone.CHIP_TONE_CLASS.warn, danger: chipTone.CHIP_TONE_CLASS.danger });
+  assert.doesNotMatch(quiet3, /emerald|green|sky/);
   assert.equal(payments.statusTone("active"), "ok");
 });
 

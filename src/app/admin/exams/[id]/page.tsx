@@ -1,5 +1,7 @@
 "use client";
 
+import { Chip } from "@/components/ui/chip";
+import { examStatusView } from "@/lib/status-registry";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -20,15 +22,6 @@ type LobbyState = Awaited<ReturnType<typeof examsApi.getLobbyStatus>>;
 type SessionRow = {
   session_id: string; student_name: string; status: string; score?: number;
   max_score?: number; percentage?: number; started_at?: string | null; submitted_at?: string | null;
-};
-
-const statusConfig: Record<string, { label: string; className: string }> = {
-  draft: { label: "Черновик", className: "border-slate-200 bg-slate-50 text-slate-600" },
-  variants_ready: { label: "Готов к назначению", className: "border-blue-200 bg-blue-50 text-blue-700" },
-  lobby: { label: "Ожидает запуска", className: "border-amber-200 bg-amber-50 text-amber-800" },
-  active: { label: "Идёт экзамен", className: "border-emerald-200 bg-emerald-50 text-emerald-700" },
-  closed: { label: "Завершён", className: "border-violet-200 bg-violet-50 text-violet-700" },
-  archived: { label: "В архиве", className: "border-slate-200 bg-slate-50 text-slate-500" },
 };
 
 const asDate = (value?: string | null) => formatBusinessCalendarDate(value, { day: "numeric", month: "long", year: "numeric" }) || "не назначено";
@@ -143,7 +136,7 @@ export default function AdminExamViewPage() {
   if (loading) return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" /></div>;
   if (error || !exam) return <section className="mx-auto mt-16 max-w-xl rounded-2xl border border-rose-100 bg-white p-8 text-center shadow-sm"><AlertTriangle className="mx-auto mb-3 h-10 w-10 text-rose-500" /><h1 className="text-lg font-bold text-slate-900">Экзамен недоступен</h1><p className="mt-2 text-sm text-slate-500">{error || "Экзамен не найден или недоступен организации."}</p><Link href="/admin/exams" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white"><ArrowLeft className="h-4 w-4" /> К контролю экзаменов</Link></section>;
 
-  const status = statusConfig[exam.status] || statusConfig.draft;
+  const status = examStatusView(exam.status);
   const cancellation = latestEvent(exam, ["lesson_cancelled"]);
   const reschedule = latestEvent(exam, ["lesson_rescheduled", "exam_rescheduled"]);
   const scheduleLabel = cancellation
@@ -159,7 +152,7 @@ export default function AdminExamViewPage() {
   return <div className="space-y-6">
     <Link href="/admin/exams" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition-colors hover:text-primary-700"><ArrowLeft className="h-4 w-4" /> К экзаменам организации</Link>
 
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex min-w-0 items-start gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><FileText className="h-6 w-6" /></span><div className="min-w-0"><h1 className="truncate text-2xl font-bold text-slate-900">{exam.title}</h1><div className="mt-3 space-y-1 text-sm text-slate-500"><p>{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p><p>Преподаватель: <span className="font-medium text-slate-700">{exam.teacher_name || "не назначен"}</span></p></div></div></div><span className={`w-fit shrink-0 rounded-full border px-3 py-1.5 text-sm font-semibold ${status.className}`}>{status.label}</span></div></section>
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="flex min-w-0 items-start gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-primary-50 text-primary-600"><FileText className="h-6 w-6" /></span><div className="min-w-0"><h1 className="truncate text-2xl font-bold text-slate-900">{exam.title}</h1><div className="mt-3 space-y-1 text-sm text-slate-500"><p>{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p><p>Преподаватель: <span className="font-medium text-slate-700">{exam.teacher_name || "не назначен"}</span></p></div></div></div><Chip tone={status.tone} size="lg" pill className="w-fit shrink-0">{status.label}</Chip></div></section>
 
     {(cancellation || reschedule) && <section className={`flex gap-3 rounded-2xl border p-4 text-sm ${cancellation ? "border-amber-200 bg-amber-50 text-amber-900" : "border-violet-200 bg-violet-50 text-violet-900"}`}><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0" /><div><p className="font-bold">{scheduleLabel}</p><p className="mt-1 text-xs opacity-80">Событие сохранено в истории экзамена. Эта страница не меняет лобби или расписание.</p></div></section>}
 

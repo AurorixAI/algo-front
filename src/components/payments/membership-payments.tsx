@@ -9,7 +9,6 @@ import {
   PAYMENT_SAVED_TEXT,
   statementHref,
   membershipChip,
-  STATUS_TONE_CLASS,
   type MembershipPaymentRow,
   type PaymentSaveResult,
   type PeriodMode,
@@ -19,6 +18,8 @@ import { canPayLeftDebt, INDIVIDUAL_PRICE_ENDS_TEXT, openingSummary } from "@/li
 import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
+import { Chip } from "@/components/ui/chip";
+import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
 import { MembershipPriceLine } from "./membership-price";
 import { MembershipRowActions } from "./membership-row-actions";
@@ -73,7 +74,6 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
   };
 
   const chip = membershipChip(row);
-  const tone = chip.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : STATUS_TONE_CLASS[chip.tone];
   const due = payIsDue(row);
   const lastLine = lastPaymentLine(row);
   const statement = statementHref(paymentsBasePath, row.membership_id);
@@ -102,7 +102,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [grid-area:status] lg:pt-1">
-            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 tabular-nums ${tone}`} title={chip.title ?? undefined} data-testid="membership-chip">{chip.label}</span>
+            <Chip tone={moneyChipTone(chip.tone, true)} title={chip.title ?? undefined} testId="membership-chip" className="tabular-nums">{chip.label}</Chip>
             {/* IA audit F2: a pause is managed in «Обучение»; here it is only the chip «На паузе до …» and the way there */}
             {row.paused && (
               <Link href={`${pathname ?? ""}?tab=learning`} data-testid="membership-pause-link" className="text-[11px] font-semibold text-primary-700 hover:underline">Пауза — в «Обучении»</Link>

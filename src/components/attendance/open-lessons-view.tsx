@@ -27,6 +27,7 @@ import { useAuthStore } from "@/lib/store";
 import { formatBusinessDate } from "@/lib/business-time";
 import { openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_TEXT } from "@/lib/ops-errors";
+import { cancelLessonLabel } from "@/lib/schedule-card-actions";
 import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 
 /** Calm chips (the palette and the size of the «Пропуски» tab): only a started-but-unfinished lesson gets a subtle amber. */
@@ -154,7 +155,7 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     return [
       {
         key: "cancel",
-        label: "Урока не было",
+        label: cancelLessonLabel(true),
         icon: Ban,
         onSelect: () => setCancelTarget({ groupId: item.groupId, lessonId: item.lessonId, lessonDate: item.lessonDate }),
       },

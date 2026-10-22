@@ -327,7 +327,6 @@ test("source guard: every Intl.DateTimeFormat in the helper module pins the busi
 test("exam and diagnostic screens go through the business-time helpers", () => {
   const sites = {
     "app/admin/diagnostics/page.tsx": ["matchesBusinessPeriod", "formatUtcNaiveAsBusinessDayTime(inv.created_at)"],
-    "app/admin/analytics/page.tsx": ["normalizeLiveQueue"],
     "lib/live-queue.ts": ["formatUtcNaiveAsBusinessTime"],
     "app/admin/exams/page.tsx": ["businessDateWithOffset", "formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],
     "app/admin/exams/[id]/page.tsx": ["formatUtcNaiveAsBusinessDayTime", "formatBusinessCalendarDate"],

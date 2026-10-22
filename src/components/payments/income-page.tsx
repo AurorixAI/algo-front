@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CalendarRange, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -26,6 +27,8 @@ import {
   stepPeriod,
   toggleMethod,
   validatePeriod,
+  incomeQueryString,
+  parseIncomeQuery,
   type Bar,
   type IncomeCash,
   type IncomeFilters,
@@ -63,14 +66,27 @@ const idle = <T,>(): Loaded<T> => ({ data: null, loading: true, error: null, den
  * day, the donut «Чем платили» — and one table at a time below: the journal of payments or the groups' collection.  Every number
  * comes from the server (`/org/payments/income`, `/journal`).  Shared by /owner/payments/income and /admin/payments/income.
  */
-export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsHref: string; studentProfileBasePath: string }) {
+export function IncomePage(props: { paymentsHref: string; studentProfileBasePath: string }) {
+  // The page reads `?month=` / `?from=` / `?tab=` (IA audit F34), so it needs a Suspense boundary above it.
+  return (
+    <Suspense fallback={<div className="flex h-64 items-center justify-center"><div className="h-6 w-6 animate-spin rounded-full border-b-2 border-primary-600" /></div>}>
+      <IncomePageContent {...props} />
+    </Suspense>
+  );
+}
+
+function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsHref: string; studentProfileBasePath: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const available = usePaymentsSummary((state) => state.available);
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
   const noRight = summaryLoaded && !available;
   const paymentsBase = paymentsHref.replace(/\/+$/, "");
 
   const today = useMemo(() => formatBusinessDate(), []);
-  const [period, setPeriod] = useState<Period>(() => periodOf("month", formatBusinessDate()));
+  const initial = useMemo(() => parseIncomeQuery(searchParams, formatBusinessDate()), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [period, setPeriod] = useState<Period>(initial.period);
   const [filters, setFilters] = useState<IncomeFilters>(NO_FILTERS);
   const { teachers, groups } = usePaymentsDirectory();
   const periodProblem = validatePeriod(period);
@@ -142,9 +158,17 @@ export function IncomePage({ paymentsHref, studentProfileBasePath }: { paymentsH
   const changePeriod = (next: Period) => { setPeriod(next); setFilters((state) => ({ ...state, method: "" })); resetNarrowing(); };
 
   // ── tabs, the drawer, the chart ──
-  const [requestedTab, setTab] = useState<Tab>("journal");
+  const [requestedTab, setTab] = useState<Tab>(initial.tab);
   const collection = overview.data?.collection ?? null;
   const tab: Tab = requestedTab === "groups" && collection ? "groups" : "journal";
+  // IA audit F34: the period and the tab are written to the address
+  const currentQuery = searchParams?.toString() ?? "";
+  useEffect(() => {
+    const next = incomeQueryString(period, tab, today);
+    if (next.replace(/^\?/, "") !== currentQuery.replace(/^\?/, "")) router.replace(`${pathname}${next === "?" ? "" : next}`, { scroll: false });
+    // only a change of the page's own state writes; `currentQuery` follows from it
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, tab]);
   const [opened, setOpened] = useState<JournalRow | null>(null);
   const journalRef = useRef<HTMLDivElement | null>(null);
 

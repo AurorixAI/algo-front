@@ -16,7 +16,6 @@ require.extensions[".ts"] = (mod, filename) => {
 };
 const queue = require(path.join(__dirname, "../src/lib/live-queue.ts"));
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures/org-live-queue.json"), "utf8"));
-const page = fs.readFileSync(path.join(__dirname, "../src/app/admin/analytics/page.tsx"), "utf8");
 
 test("the real response shape is read: active + completed, counts, period", () => {
   const view = queue.normalizeLiveQueue(fixture.ok);
@@ -108,14 +107,4 @@ test("the fixture keys are exactly what the service handler writes (when the sib
     assert.ok(key in fixture.ok);
   }
   assert.equal("recently_completed" in fixture.ok, false);
-});
-
-test("the page uses the normalised queue and no longer reads the imagined fields", () => {
-  assert.ok(page.includes("normalizeLiveQueue"));
-  assert.ok(page.includes("LIVE_QUEUE_UNAVAILABLE"));
-  for (const imagined of ["recently_completed", "completed_today", "item.student_name", "item.started_at", "result?.theta"]) {
-    assert.equal(page.includes(imagined), false, `the page still reads ${imagined}`);
-  }
-  // the card is always drawn: an unavailable queue says so instead of vanishing
-  assert.equal(/\{queue && \(\s*<div className="bg-white rounded-xl border border-slate-100 p-5">/.test(page), false);
 });

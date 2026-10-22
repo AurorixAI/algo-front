@@ -1292,3 +1292,29 @@ export function exportErrorText(cause: unknown): string {
 
 /** The note of «Должники» opened from a group's row: the tab counts the debt of all months, the row only of the month. */
 export const DEBTORS_GROUP_NOTE = "Показаны все долги группы, не только за месяц";
+
+// ── «Поступления» in the address (IA audit F34) ─────────────────────────────
+
+/**
+ * `?month=2026-09` (a whole month other than this one), `?from=2026-09-05&to=2026-09-20` (a custom range) and `?tab=groups` («Группы —
+ * собираемость»): a reload, a link and «Назад» from a payment keep the period and the tab.  This month and the journal are the defaults and
+ * are not written.
+ */
+export function incomeQueryString(period: Period, tab: "journal" | "groups", today: string): string {
+  const params = new URLSearchParams();
+  if (period.kind === "custom") { params.set("from", period.from); params.set("to", period.to); }
+  else if (period.kind === "month" && period.from !== monthStart(today)) params.set("month", period.from.slice(0, 7));
+  if (tab === "groups") params.set("tab", "groups");
+  const text = params.toString();
+  return text ? `?${text}` : "?";
+}
+
+export function parseIncomeQuery(params: { get(name: string): string | null } | null | undefined, today: string): { period: Period; tab: "journal" | "groups" } {
+  const tab = params?.get("tab") === "groups" ? "groups" : "journal";
+  const from = params?.get("from") ?? "";
+  const to = params?.get("to") ?? "";
+  if (isIsoDate(from) && isIsoDate(to) && to >= from) return { period: { kind: "custom", from, to }, tab };
+  const month = params?.get("month") ?? "";
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return { period: periodOf("month", `${month}-01`), tab };
+  return { period: periodOf("month", today), tab };
+}

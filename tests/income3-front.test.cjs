@@ -390,7 +390,8 @@ test("the period bar: the month navigator and one «Свой период» butt
   assert.match(bar, /aria-label="По какой день"/);
   assert.match(bar, /rangeChipText\(period, today\)/);
   assert.match(bar, /monthOfPeriod\(period, today\)/);
-  assert.match(page, /useState<Period>\(\(\) => periodOf\("month", formatBusinessDate\(\)\)\)/, "the page opens on the current month");
+  assert.match(page, /useState<Period>\(initial\.period\)/, "the page opens on the period of the address, the current month without one (IA audit F34)");
+  assert.equal(require(path.join(root, "src/lib/payments-income-v2.ts")).parseIncomeQuery(new URLSearchParams(""), "2026-10-22").period.from, "2026-10-01");
   const { React, html } = parts();
   const P = require(path.join(root, "src/components/payments/income-page.tsx"));
   const month = html(React.createElement(P.PeriodBar, { period: V.periodOf("month", TODAY), today: TODAY, onChange() {} }));

@@ -34,7 +34,6 @@ import { overviewQuery, periodOf } from "@/lib/payments-income-v2";
 import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
-  STATUS_TONE_CLASS,
   payIsDue,
   statementHref,
   type MembershipPaymentRow,
@@ -48,6 +47,8 @@ import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
+import { Chip } from "@/components/ui/chip";
+import { moneyChipTone } from "@/lib/status-registry";
 import { MembershipRowActions } from "@/components/payments/membership-row-actions";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 
@@ -347,12 +348,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 }
 
 function ChipView({ view }: { view: GroupPaymentRowView }) {
-  const tone = view.chip.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : STATUS_TONE_CLASS[view.chip.tone];
-  return (
-    <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-semibold leading-4 tabular-nums ${tone}`} title={view.chip.title ?? undefined} data-testid="membership-chip">
-      {view.chip.label}
-    </span>
-  );
+  return <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="tabular-nums">{view.chip.label}</Chip>;
 }
 
 function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; studentsBasePath: string }) {

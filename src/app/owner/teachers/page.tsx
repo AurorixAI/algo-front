@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { queryWith } from "@/lib/ia-links";
 import { motion, AnimatePresence } from "framer-motion";
 import { orgApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
@@ -72,7 +73,16 @@ function OwnerTeachersContent() {
   const monthParam = searchParams?.get("month") ?? null;
   
   // UI State
-  const [activeTab, setActiveTab] = useState<"members" | "invites" | "former">("members");
+  // IA audit F34: the tab is in the address (`?tab=invites`, `?tab=former`); `?teacher=` (the rate dialog) stays next to it
+  type StaffTab = "members" | "invites" | "former";
+  const [activeTab, setActiveTab] = useState<StaffTab>(() => {
+    const requested = searchParams?.get("tab");
+    return requested === "invites" || requested === "former" ? requested : "members";
+  });
+  const selectTab = (next: StaffTab) => {
+    setActiveTab(next);
+    router.replace(queryWith(searchParams?.toString(), { tab: next === "members" ? null : next }), { scroll: false });
+  };
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", org_role: "teacher" });
@@ -226,7 +236,7 @@ function OwnerTeachersContent() {
       {/* Custom Tabs */}
       <div className="flex gap-2 p-1 bg-slate-100/80 rounded-2xl w-full max-w-2xl">
         <button
-          onClick={() => setActiveTab("members")}
+          onClick={() => selectTab("members")}
           className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "members" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
@@ -234,7 +244,7 @@ function OwnerTeachersContent() {
           Сотрудники ({members.length})
         </button>
         <button
-          onClick={() => setActiveTab("invites")}
+          onClick={() => selectTab("invites")}
           className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "invites" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}
@@ -247,7 +257,7 @@ function OwnerTeachersContent() {
           )}
         </button>
         <button
-          onClick={() => setActiveTab("former")}
+          onClick={() => selectTab("former")}
           className={`flex-1 py-2 text-sm font-semibold rounded-xl transition-all ${
             activeTab === "former" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
           }`}

@@ -198,7 +198,7 @@ test("the card of a membership: one chip, the actions in one row «Внести 
   const src = read("src/components/payments/membership-payments.tsx");
   const head = src.slice(src.indexOf("{/* Row 1: the group"), src.indexOf("{/* A group the student has left"));
   assert.match(head, /membershipChip|chip\.label/);
-  assert.match(head, /data-testid="membership-chip"/);
+  assert.match(head, /testId="membership-chip"/); // <Chip> (IA audit F14)
   assert.doesNotMatch(head, /statusDetail|BalanceNote|detail &&/, "no second line under the chip");
   assert.match(head, /\[grid-template-areas:'heading_heading'_'status_status'_'actions_actions'\]/, "phone: the chip on its own line, the actions under it");
   assert.match(head, /lg:\[grid-template-areas:'heading_status_actions'\]/);
@@ -206,7 +206,7 @@ test("the card of a membership: one chip, the actions in one row «Внести 
   const actions = head.slice(head.indexOf("[grid-area:actions]"));
   assert.ok(actions.indexOf("PAY_ACTION_LABEL") < actions.indexOf(">\n              Выписка") && actions.indexOf("Выписка") < actions.indexOf("{menu}"));
   assert.match(head, /data-testid="membership-statement"/);
-  assert.doesNotMatch(src, /\bstatusDetail\b|moneyChip/, "the card does not use the old two-line pieces");
+  assert.doesNotMatch(src, /\bstatusDetail\b|\bmoneyChip\(/, "the card does not use the old two-line pieces"); // `moneyChipTone` is the palette mapping
   // «Выписка» is never in «⋯»: it is a link of the row for every state (the menu keeps money, price and the opening balance only)
   assert.doesNotMatch(read("src/lib/membership-actions.ts"), /statement/i);
   // the rows of the «Оплаты» tabs keep their layout and their chip

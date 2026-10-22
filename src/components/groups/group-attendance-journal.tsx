@@ -89,15 +89,14 @@ import {
   type VersionMap,
 } from "@/lib/attendance-ops";
 import {
-  ASSIGN_TEACHER_ACTION,
   NO_LESSON_TEACHER_TEXT,
-  REPLACE_TEACHER_ACTION,
   canReplaceTeacher,
   lacksTeacher,
   lessonBelongsToOther,
   notYourLessonText,
   substituteLabel,
 } from "@/lib/lesson-teacher";
+import { assignActionLabel, cancelLessonLabel, CORRECT_MARKS_LABEL, FINISH_LESSON_LABEL, MARK_LESSON_LABEL } from "@/lib/schedule-card-actions";
 import type { LiveExamItem } from "@/lib/ops-b-types";
 
 interface GroupAttendanceJournalProps {
@@ -1829,13 +1828,13 @@ export function GroupAttendanceJournal({
             {actions.includes("reconcile") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("reconcile", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <ClipboardCheck className="h-4 w-4 text-primary-600" />
-                Отметить посещаемость
+                {MARK_LESSON_LABEL}
               </button>
             )}
             {actions.includes("cancel_missed") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("cancel_missed", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <Ban className="h-4 w-4 text-slate-500" />
-                Урока не было
+                {cancelLessonLabel(true)}
               </button>
             )}
             {actions.includes("finish") && (
@@ -1853,20 +1852,20 @@ export function GroupAttendanceJournal({
                 }}
                 className={`flex w-full flex-col items-start gap-0.5 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-slate-50 ${finishHint ? "text-slate-400" : "text-slate-700"}`}
               >
-                <span className="flex items-center gap-2"><CheckCheck className={`h-4 w-4 ${finishHint ? "text-slate-300" : "text-emerald-600"}`} />Завершить урок</span>
+                <span className="flex items-center gap-2"><CheckCheck className={`h-4 w-4 ${finishHint ? "text-slate-300" : "text-emerald-600"}`} />{FINISH_LESSON_LABEL}</span>
                 {finishHint && <span className="pl-6 text-[11px] font-medium text-amber-700">{finishHint}</span>}
               </button>
             )}
             {menuCanReplace && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("replace_teacher", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <UserRoundCheck className="h-4 w-4 text-violet-600" />
-                {lacksTeacher(menuTeacherInfo) ? ASSIGN_TEACHER_ACTION : REPLACE_TEACHER_ACTION}
+                {assignActionLabel({ past: lesson.date <= today, lacksTeacher: lacksTeacher(menuTeacherInfo), isSubstitution: Boolean(menuTeacherInfo?.isSubstitution) })}
               </button>
             )}
             {actions.includes("correct") && (
               <button type="button" role="menuitem" onClick={() => void runColumnAction("correct", lesson)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50">
                 <Pencil className="h-4 w-4 text-amber-600" />
-                Исправить
+                {CORRECT_MARKS_LABEL}
               </button>
             )}
           </FloatingMenu>

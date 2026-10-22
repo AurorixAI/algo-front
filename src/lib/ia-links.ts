@@ -69,3 +69,17 @@ export function teacherHref(teacherId: string): string {
 export function pointsIntoAdmin(href: string): boolean {
   return /^\/admin(\/|\?|$)/.test(href);
 }
+
+/**
+ * IA audit F34: `?status=confirmed` and the like - the current query with some keys set (`null` / "" removes one); the other keys (`tab`,
+ * `request`...) stay.  Returns "?" when nothing is left, so `router.replace` keeps the path.
+ */
+export function queryWith(current: string | null | undefined, patch: Record<string, string | null | undefined>): string {
+  const params = new URLSearchParams((current ?? "").replace(/^\?/, ""));
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null || value === undefined || value === "") params.delete(key);
+    else params.set(key, value);
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "?";
+}

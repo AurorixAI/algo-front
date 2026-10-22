@@ -746,7 +746,7 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(statement, /<span>Дата<\/span>\s*<span className="text-left">Операция<\/span>\s*<span className="text-right">Стоимость<\/span>\s*<span className="text-right">Оплачено<\/span>\s*<span className="text-right">Баланс<\/span>/);
   assert.match(statement, /md:text-right/);
   // the month switcher: ‹ Октябрь 2026 › and «Все месяцы» (the default)
-  assert.match(statement, /useState<string \| null>\(null\)/);
+  assert.match(statement, /useState<string \| null>\(\(\) => \{/); // «Все месяцы» (null) unless `?month=` names one (IA audit F34)
   assert.match(statement, />\s*Все месяцы\s*</);
   assert.match(statement, /aria-label="Предыдущий месяц"/);
   assert.doesNotMatch(statement, /type="date"/); // no date inputs any more

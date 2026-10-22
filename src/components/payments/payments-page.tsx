@@ -21,6 +21,8 @@ import {
   visibleBuckets,
   parseBucket,
   paymentsBaseOf,
+  parsePaymentsListQuery,
+  paymentsListQueryString,
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
   positionCards,
@@ -28,7 +30,6 @@ import {
   statementHref,
   statusDetail,
   moneyChip,
-  STATUS_TONE_CLASS,
   type MembershipPaymentRow,
   type PaymentBucket,
   type PaymentOut,
@@ -50,6 +51,8 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
+import { Chip } from "@/components/ui/chip";
+import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
 import { PaymentDialog, type PaymentFormKind } from "./payment-dialog";
 import { PaymentVoidModal } from "./payment-void-modal";
@@ -99,13 +102,14 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
 
   const [items, setItems] = useState<MembershipPaymentRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
+  const urlState = parsePaymentsListQuery(searchParams);
+  const [page, setPage] = useState(urlState.page);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
 
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [search, setSearch] = useState(urlState.q);
+  const [debouncedSearch, setDebouncedSearch] = useState(urlState.q.trim());
   // A link from «Поступления» («Группы — собираемость», «Долг на сегодня») opens the tab narrowed to a group or a teacher.
   const [filter, setFilter] = useState(() => ({ teacherId: searchParams?.get("teacher_id") ?? "", groupId: searchParams?.get("group_id") ?? "" }));
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
@@ -133,9 +137,20 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   // The summary is also read by the layout; this keeps the page's own numbers fresh on entry.
   useEffect(() => { void refreshSummary(true); }, [refreshSummary]);
 
+  // IA audit F34: the tab, the filter, the search and the page are written to the address (the tab itself comes from it)
+  const currentQuery = searchParams?.toString() ?? "";
   useEffect(() => {
+    const next = paymentsListQueryString({ bucket, groupId: filter.groupId, teacherId: filter.teacherId, q: debouncedSearch, page });
+    if (next.slice(1) !== currentQuery) router.replace(next, { scroll: false });
+    // `currentQuery` follows from this write; only a change of the page's own state writes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bucket, filter.groupId, filter.teacherId, debouncedSearch, page]);
+
+  useEffect(() => {
+    if (search.trim() === debouncedSearch) return undefined;
     const timer = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(0); }, 300);
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   // Teacher -> group directory for the cascading filter; without it the list still works.
@@ -472,7 +487,6 @@ function PaymentRow({
 }) {
   const router = useRouter();
   const chip = moneyChip(row);
-  const tone = STATUS_TONE_CLASS[chip.tone];
   const detail = statusDetail(row);
   const reason = bucket === "debt" ? debtReasonLine(row, chip.label) : "";
   const last = row.last_payment && !row.last_payment.voided_at ? row.last_payment : null;
@@ -529,7 +543,7 @@ function PaymentRow({
           </div>
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
-            <span className={`inline-block max-w-full rounded-md border px-2 py-0.5 text-xs font-medium leading-4 ${tone}`}>{chip.label}</span>
+            <Chip tone={moneyChipTone(chip.tone)}>{chip.label}</Chip>
             {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
             {detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />

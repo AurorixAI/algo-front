@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { queryWith } from "@/lib/ia-links";
 import {
   AlertCircle,
   CheckCircle2,
@@ -217,7 +218,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   const currentMonth = useMemo(() => monthOf(formatBusinessDate()), []);
   const businessToday = formatBusinessDate();
 
-  const [tab, setTab] = useState<Tab>("pending");
+  // IA audit F34: the status tab is in the address (`?status=confirmed`), next to the section's own `?tab=excuses`
+  const searchParams = useSearchParams();
+  const requestedStatus = searchParams?.get("status");
+  const [tab, setTab] = useState<Tab>(requestedStatus === "confirmed" || requestedStatus === "rejected" ? requestedStatus : "pending");
   const [month, setMonth] = useState(currentMonth);
   const { from: dateFrom, to: dateTo } = useMemo(() => monthRangeOf(`${month}-01`), [month]);
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
@@ -369,7 +373,11 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
   useEffect(() => () => { if (viewer?.url) URL.revokeObjectURL(viewer.url); }, [viewer?.url]);
 
   const resetPaging = () => setPage(0);
-  const switchTab = (next: Tab) => { setTab(next); resetPaging(); };
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    resetPaging();
+    router.replace(queryWith(searchParams?.toString(), { status: next === "pending" ? null : next }), { scroll: false });
+  };
 
   const markBusy = (id: string, on: boolean) =>
     setBusyIds((previous) => {

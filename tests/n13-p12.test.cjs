@@ -95,7 +95,7 @@ test("a row has a BUTTON for the main action («Отметить» / «Откр�
   assert.doesNotMatch(view, /Открыть журнал|label: "Отметить в журнале"|label: "Открыть в журнале"/);
   assert.match(view, /data-testid="open-lesson-action"/);
   assert.match(view, /openLessonActionLabel\(item\)/);
-  assert.match(view, /label: "Урока не было"/);
+  assert.match(view, /label: cancelLessonLabel\(true\)/); // IA audit F17: one wording, chosen by the date of the lesson
   assert.equal(openLessons.openLessonActionLabel({ actionType: "missed" }), "Отметить");
   assert.equal(openLessons.openLessonActionLabel({ actionType: "in_progress" }), "Открыть");
   const inProgress = view.slice(view.indexOf('if (item.actionType === "in_progress")'), view.indexOf("return [", view.indexOf('if (item.actionType === "in_progress")')));
