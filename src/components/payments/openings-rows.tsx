@@ -67,7 +67,7 @@ export interface OpeningsListProps {
 export function OpeningsTableHead({ lessons }: { lessons: boolean }) {
   const cell = "min-w-0 text-[13px] font-semibold text-slate-500";
   return (
-    <div role="presentation" data-testid="openings-head" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 ${gridOf(lessons)} xl:items-center`}>
+    <div role="presentation" data-testid="openings-head" className={`hidden border-b border-l-[3px] border-slate-100 border-l-transparent bg-slate-50 px-4 py-2.5 ${gridOf(lessons)} xl:items-center`}>
       <span className={cell}><span className="sr-only">Выбор</span></span>
       <span className={cell}>Ученик</span>
       <span className={cell}>{lessons ? "Цена пакета" : "Цена в месяц"}</span>
