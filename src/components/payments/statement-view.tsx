@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AlertCircle, ArrowLeft, Check, ChevronLeft, ChevronRight, FileSpreadsheet, HelpCircle, Loader2, Pencil, Printer, Receipt, ScrollText, Wallet, XCircle } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -8,9 +9,12 @@ import { saveBlobAs } from "@/lib/download";
 import {
   formatDateRu,
   formatMoney,
+  PAY_ACTION_LABEL,
+  PAYMENT_SAVED_TEXT,
   receiptHref,
   type StatementOut,
 } from "@/lib/payments";
+import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import {
   BALANCE_TEXT_CLASS,
   buildStatementItems,
@@ -33,9 +37,11 @@ import { canGoBack, clearReceiptNavigationMark, markReceiptNavigation, receiptNa
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { useToast } from "@/components/ui/toast";
 import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
+import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
 
 /** Date · operation · charged · paid · balance: a bank statement.  The date is centred, the operation left, the money right over its digits. */
@@ -47,6 +53,10 @@ const TOTAL_TONE = {
   none: "text-slate-900",
   plain: "text-slate-900",
 } as const;
+
+/** One wording of the two actions on a payment, here and in the list of «Оплаты» (IA audit F11). */
+export const CORRECT_PAYMENT_LABEL = "Исправить оплату";
+export const VOID_PAYMENT_LABEL = "Отменить оплату";
 
 const BUTTON = "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm font-medium";
 
@@ -79,6 +89,7 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
   const requests = useRef(createRequestSequence());
 
   const [correct, setCorrect] = useState<EditablePayment | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
   const [voidPayment, setVoidPayment] = useState<VoidablePayment | null>(null);
   const [voidRecord, setVoidRecord] = useState<VoidTarget | null>(null);
 
@@ -152,6 +163,9 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
   };
 
   const months = useMemo(() => (statement ? statementMonths(statement) : []), [statement]);
+  // IA audit F10: the cheques of the payments (attach / open / delete) live here now: this statement is the one history of the payments.
+  const cheques = usePaymentCheques({ membershipId, enabled: Boolean(membershipId) && !noRight, onNotify: showToast });
+  const bases = basesOfPayments(paymentsBase);
 
   const rowMenu = (entry: StatementEntry): RowMenuItem[] => {
     const item = entry.raw;
@@ -164,12 +178,17 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
           onSelect: () => { markReceiptNavigation(id); router.push(receiptHref(paymentsBase, id)); },
         });
       }
+      const attach = cheques.menuItem(id);
+      if (attach) items.push(attach);
+      // «Исправить» needs a running membership (a group the student has left keeps its payments, they can only be cancelled)
+      if (statement?.membership.is_active) {
+        items.push({
+          key: "correct", label: CORRECT_PAYMENT_LABEL, icon: Pencil,
+          onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined }),
+        });
+      }
       items.push({
-        key: "correct", label: "Исправить", icon: Pencil,
-        onSelect: () => setCorrect({ id, amount: item.credit, paid_on: item.date, note: item.details.note, method: item.details.method ?? undefined }),
-      });
-      items.push({
-        key: "void", label: "Отменить", icon: XCircle, danger: true,
+        key: "void", label: VOID_PAYMENT_LABEL, icon: XCircle, danger: true,
         onSelect: () => setVoidPayment({ id, paid_on: item.date, amount: item.credit }),
       });
     }
@@ -218,6 +237,12 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
         </button>
         {statement && (
           <div className="flex flex-wrap items-center gap-2">
+            {statement.membership.is_active && (
+              <button type="button" onClick={() => setPayOpen(true)} data-testid="statement-pay" className="inline-flex items-center gap-2 rounded-xl border border-primary-200 bg-white px-4 py-2 text-sm font-semibold text-primary-700 hover:bg-primary-50">
+                <Wallet className="h-4 w-4" />
+                {PAY_ACTION_LABEL}
+              </button>
+            )}
             <button type="button" onClick={() => void exportExcel()} disabled={exporting} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60">
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 text-slate-400" />}
               Excel
@@ -245,7 +270,7 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
         </div>
       ) : statement && m ? (
         <>
-          <StatementHeader statement={statement} />
+          <StatementHeader statement={statement} studentLink={studentHref(bases.students, m.student_id, "payments")} groupLink={groupHref(bases.groups, m.group_id)} />
 
           {/* Month switcher */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 print:hidden" data-testid="statement-months">
@@ -284,7 +309,7 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
             </label>
           </div>
 
-          <StatementTimeline statement={statement} menuFor={rowMenu} withVoided={withVoided} month={month} />
+          <StatementTimeline statement={statement} menuFor={rowMenu} extraFor={(entry) => (entry.type === "payment" ? cheques.filesOf(entry.raw.details.payment_id) : null)} withVoided={withVoided} month={month} />
         </>
       ) : null}
 
@@ -294,16 +319,27 @@ export function StatementView({ paymentsHref }: { /** The payments page of this 
         membership={correct && m ? { membership_id: m.membership_id, student_name: m.student_name, group_name: m.group_name } : null}
         payment={correct}
         onClose={() => setCorrect(null)}
-        onSaved={() => { showToast("Оплата исправлена"); changed(); }}
+        onSaved={() => { showToast("Оплата исправлена"); changed(); void cheques.reload(); }}
         onDuplicate={() => { showToast("Эта оплата уже внесена"); changed(); }}
       />
       <PaymentVoidModal
         payment={voidPayment}
         studentName={m?.student_name}
         onClose={() => setVoidPayment(null)}
-        onVoided={() => { showToast("Оплата отменена"); changed(); }}
+        onVoided={() => { showToast("Оплата отменена"); changed(); void cheques.reload(); }}
       />
       <RecordVoidModal target={voidRecord} onClose={() => setVoidRecord(null)} />
+      <PaymentDialog
+        open={payOpen}
+        kind="create"
+        membership={m ? { membership_id: m.membership_id, group_id: m.group_id, student_name: m.student_name, group_name: m.group_name } : null}
+        payment={null}
+        groupsBasePath={bases.groups}
+        onClose={() => setPayOpen(false)}
+        onSaved={(result) => { showToast(PAYMENT_SAVED_TEXT.create, "success", savedPaymentDetails(result.allocation)); changed(); void cheques.reload(); }}
+        onDuplicate={() => { showToast("Эта оплата уже внесена"); changed(); }}
+      />
+      {cheques.dialogs}
       {toastNode}
     </div>
   );
@@ -319,7 +355,12 @@ function Help({ text, label }: { text: string; label: string }) {
 }
 
 /** The title, who and which group, and the tiles: Стоимость обучения · Оплачено · Баланс (+ Прощено / Возвращено when there are some). */
-export function StatementHeader({ statement }: { statement: StatementOut }) {
+export function StatementHeader({ statement, studentLink, groupLink }: {
+  statement: StatementOut;
+  /** The card of the student on its «Оплаты» tab and the page of the group: the statement is no dead end (IA audit F28). */
+  studentLink?: string;
+  groupLink?: string;
+}) {
   const m = statement.membership;
   const totals = statementTotals(statement.summary);
   const reconciles = statementReconciles(statement.summary);
@@ -328,10 +369,16 @@ export function StatementHeader({ statement }: { statement: StatementOut }) {
       <header>
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Выписка</h1>
         <p className="mt-0.5 text-sm text-slate-600">
-          <span className="font-semibold text-slate-900">{m.student_name}</span>
+          {studentLink ? (
+            <Link href={studentLink} data-testid="statement-student-link" className="font-semibold text-slate-900 hover:text-primary-700 hover:underline print:no-underline">{m.student_name}</Link>
+          ) : (
+            <span className="font-semibold text-slate-900">{m.student_name}</span>
+          )}
           {m.display_id && <span className="ml-1.5 font-mono text-xs text-slate-500">ID {m.display_id}</span>}
           <span className="text-slate-300"> · </span>
-          {m.group_name}
+          {groupLink ? (
+            <Link href={groupLink} data-testid="statement-group-link" className="hover:text-primary-700 hover:underline print:no-underline">{m.group_name}</Link>
+          ) : m.group_name}
           {m.teacher_name && <span className="text-slate-500"> · {m.teacher_name}</span>}
         </p>
         <p className="text-xs text-slate-500">
@@ -364,10 +411,12 @@ export function StatementHeader({ statement }: { statement: StatementOut }) {
 
 /** The bank statement: a light row per month, then the rows of the month; the periods to come and the cancelled records below. */
 export function StatementTimeline({
-  statement, menuFor, withVoided, month = null,
+  statement, menuFor, extraFor, withVoided, month = null,
 }: {
   statement: StatementOut;
   menuFor: (entry: StatementEntry) => RowMenuItem[];
+  /** Under the operation of a row: the cheques attached to a payment. */
+  extraFor?: (entry: StatementEntry) => ReactNode;
   withVoided: boolean;
   month?: string | null;
 }) {
@@ -393,7 +442,7 @@ export function StatementTimeline({
             <span className="sr-only">Действия</span>
           </div>
           <ol className="space-y-2.5 md:space-y-0 md:divide-y md:divide-slate-100">
-            {items.map((item, index) => <StatementItemRow key={`${item.kind}-${index}-${"seq" in item ? item.seq : ""}`} item={item} menuFor={menuFor} />)}
+            {items.map((item, index) => <StatementItemRow key={`${item.kind}-${index}-${"seq" in item ? item.seq : ""}`} item={item} menuFor={menuFor} extraFor={extraFor} />)}
           </ol>
         </section>
       )}
@@ -433,7 +482,7 @@ export function StatementTimeline({
   );
 }
 
-function StatementItemRow({ item, menuFor }: { item: StatementItem; menuFor: (entry: StatementEntry) => RowMenuItem[] }) {
+function StatementItemRow({ item, menuFor, extraFor }: { item: StatementItem; menuFor: (entry: StatementEntry) => RowMenuItem[]; extraFor?: (entry: StatementEntry) => ReactNode }) {
   if (item.kind === "month") {
     return (
       <li className="rounded-xl bg-slate-100 px-3.5 py-2 text-sm md:rounded-none md:bg-slate-50 md:px-4" data-testid="statement-month">
@@ -455,12 +504,12 @@ function StatementItemRow({ item, menuFor }: { item: StatementItem; menuFor: (en
       </li>
     );
   }
-  return <StatementRowItem entry={item} menu={menuFor(item)} />;
+  return <StatementRowItem entry={item} menu={menuFor(item)} extra={extraFor?.(item) ?? null} />;
 }
 
 const PAID_TONE = "text-emerald-700";
 
-function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMenuItem[] }) {
+function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu: RowMenuItem[]; extra: ReactNode }) {
   const paidText = entry.paid === null ? "" : entry.paid < 0 ? `−${formatMoney(-entry.paid).replace(/ сум$/, "")}` : formatMoney(entry.paid).replace(/ сум$/, "");
   const chargedText = entry.charged === null ? "" : formatMoney(entry.charged).replace(/ сум$/, "");
   return (
@@ -479,6 +528,7 @@ function StatementRowItem({ entry, menu }: { entry: StatementEntry; menu: RowMen
             {entry.allocations.map((line, index) => <li key={`${line}-${index}`}>{line}</li>)}
           </ul>
         )}
+        {extra}
       </div>
 
       <div className={`mt-2 items-baseline justify-between gap-3 md:mt-0 md:block md:text-right ${chargedText ? "flex" : "hidden md:block"}`}>

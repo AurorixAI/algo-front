@@ -72,7 +72,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   await page.getByRole("button", { name: /^Ещё: как считается/ }).click();
   await page.getByRole("menuitem", { name: "Как считается" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const how = page.getByRole("dialog", { name: "Как считается зарплата" });
-  await expect(how).toContainText("Оплата в месяц × % ÷ 12 × засчитанные уроки");
+  await expect(how).toContainText("Цена в месяц × % ÷ 12 × засчитанные уроки");
   await how.getByRole("button", { name: "Понятно" }).click();
   await expect(how).toHaveCount(0);
 

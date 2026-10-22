@@ -31,15 +31,15 @@ const plain = (text) => text.replace(/ /g, " ");
 
 // ---- 1. what the amount is called (ROADMAP №68) ----------------------------------------------
 
-test("the price is «Оплата в месяц» for months and «Стоимость пакета» for a package (#105: the centre's mode names it)", () => {
+test("the price is «Цена в месяц» for months and «Цена пакета» for a package (#105: the centre's mode names it)", () => {
   const G = require(path.join(root, "src/lib/group-price.ts"));
-  assert.equal(G.priceLabelOf("calendar"), "Оплата в месяц");
-  assert.equal(G.priceLabelOf("lessons"), "Стоимость пакета");
-  assert.equal(G.priceLabelOf(undefined), "Оплата в месяц");
+  assert.equal(G.priceLabelOf("calendar"), "Цена в месяц");
+  assert.equal(G.priceLabelOf("lessons"), "Цена пакета");
+  assert.equal(G.priceLabelOf(undefined), "Цена в месяц");
   // no phrase of the package mentions a month
-  assert.equal(plain(G.formatPrice(600000, "Стоимость пакета")), "600 000 сум за пакет");
-  assert.doesNotMatch(G.formatPrice(600000, "Стоимость пакета"), /мес/);
-  assert.equal(plain(G.formatPrice(600000, "Оплата в месяц")), "600 000 сум/мес");
+  assert.equal(plain(G.formatPrice(600000, "Цена пакета")), "600 000 сум за пакет");
+  assert.doesNotMatch(G.formatPrice(600000, "Цена пакета"), /мес/);
+  assert.equal(plain(G.formatPrice(600000, "Цена в месяц")), "600 000 сум/мес");
 });
 
 test("screens take the price wording from the helper, not from literals", () => {
@@ -47,7 +47,7 @@ test("screens take the price wording from the helper, not from literals", () => 
     assert.match(read(`src/${file}`), /priceLabelOf\(/, file);
   }
   for (const file of ["components/payments/payments-page.tsx", "components/payments/membership-payments.tsx", "components/payments/membership-price.tsx", "components/payments/group-prices-page.tsx"]) {
-    assert.doesNotMatch(read(`src/${file}`), /["'>]Оплата в месяц[<"',]/, file);
+    assert.doesNotMatch(read(`src/${file}`), /["'>]Цена в месяц[<"',]/, file);
   }
   assert.match(read("src/components/groups/add-student-drawer.tsx"), /priceLabelOf\(usePaymentsSummary/);
 });
@@ -235,23 +235,24 @@ test("a cheque: JPEG, PNG or PDF, up to 2 МБ, up to 3 per payment", () => {
   assert.equal(P.PAYMENT_FILE_ACCEPT, "image/jpeg,image/png,application/pdf");
 });
 
-test("the history row: number, «неполный месяц», receipt + cheque in the «⋯» menu, files with open and delete", () => {
-  const history = read("src/components/payments/membership-payments.tsx");
-  assert.match(history, /receiptNumberLabel\(payment\)/);
-  assert.match(history, /payment\.partial_period && !carried/);
-  assert.match(history, /label: "Квитанция"/);
-  assert.match(history, /label: "Прикрепить чек"/);
-  assert.match(history, /if \(hasReceipt\(payment\)\) items\.push/);
-  assert.match(history, /if \(canAttachFile\(payment\)\) \{/);
-  assert.match(history, /label=\{`Действия с оплатой от \$\{formatDateRu\(payment\.paid_on\)\}`\}/);
-  assert.match(history, /accept=\{PAYMENT_FILE_ACCEPT\}/);
-  assert.match(history, /checkPaymentFile\(picked, payment\.files\?\.length \?\? 0\)/);
-  assert.match(history, /Удалить файл\?/); // a confirmation before the delete
-  assert.match(history, /window\.open\(""/); // the tab opens inside the click
-  assert.match(history, /router\.push\(receiptHref\(paymentsBasePath, payment\.id\)\)/);
-  // the existing actions stay in the same menu
-  assert.match(history, /label: "Исправить"/);
-  assert.match(history, /label: "Отменить"/);
+test("the statement is the one history: receipt + cheque in the «⋯» menu of a payment, files with open and delete (IA audit F10)", () => {
+  const statement = read("src/components/payments/statement-view.tsx");
+  assert.match(statement, /label: "Квитанция"/);
+  assert.match(statement, /const attach = cheques\.menuItem\(id\);\s*if \(attach\) items\.push\(attach\);/);
+  assert.match(statement, /router\.push\(receiptHref\(paymentsBase, id\)\)/);
+  // the existing actions stay in the same menu, with one wording (F11)
+  assert.match(statement, /export const CORRECT_PAYMENT_LABEL = "Исправить оплату"/);
+  assert.match(statement, /export const VOID_PAYMENT_LABEL = "Отменить оплату"/);
+  const cheques = read("src/components/payments/payment-cheques.tsx");
+  assert.match(cheques, /label: "Прикрепить чек"/);
+  assert.match(cheques, /canAttachFile\(payment\)/);
+  assert.match(cheques, /accept=\{PAYMENT_FILE_ACCEPT\}/);
+  assert.match(cheques, /checkPaymentFile\(picked, payment\.files\?\.length \?\? 0\)/);
+  assert.match(cheques, /Удалить файл\?/); // a confirmation before the delete
+  assert.match(cheques, /window\.open\(""/); // the tab opens inside the click
+  // the embedded history of the card is gone: nothing was lost, the actions moved
+  const card = read("src/components/payments/membership-payments.tsx");
+  assert.doesNotMatch(card, /История оплат|HistoryItem|Прикрепить чек/);
 });
 
 test("receipt pages exist for the owner and the administrator and share one component", () => {
@@ -387,15 +388,14 @@ test("«Назад» of the receipt: back only inside the app, otherwise the pay
   assert.equal(nav.receiptNavigationMarked("p", broken), false);
   const view = read("src/components/payments/receipt-view.tsx");
   assert.match(view, /if \(inApp\) router\.back\(\);\s*else router\.push\(paymentsHref\);/);
-  assert.match(read("src/components/payments/membership-payments.tsx"), /markReceiptNavigation\(payment\.id\)/);
+  assert.match(read("src/components/payments/statement-view.tsx"), /markReceiptNavigation\(id\); router\.push\(receiptHref/);
 });
 
 test("cheque uploads run one at a time and count files from the latest history", () => {
-  const history = read("src/components/payments/membership-payments.tsx");
+  const history = read("src/components/payments/payment-cheques.tsx");
   assert.match(history, /uploadBusy\.current/);
-  assert.match(history, /historyNow\.current\?\.find/);
-  assert.match(history, /uploadRunning=\{uploadingId !== null\}/);
-  assert.match(history, /label: "Идёт загрузка файла…"/);
+  assert.match(history, /paymentsNow\.current\[paymentId\]/);
+  assert.match(history, /uploadingId !== null\) return \{ key: "attach", label: "Идёт загрузка файла…"/);
   assert.match(history, /uploadBusy\.current = false;/);
 });
 

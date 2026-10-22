@@ -171,8 +171,10 @@ test("the drawer shows the quiet «Все классы» switch only for a group
   assert.match(drawer, /Все классы\n/);
   assert.match(drawer, /setAllClasses\(false\);/); // the default is restored on every opening
   // transfer / add-more behaviour and the picked students survive a class switch
-  assert.match(drawer, /\["transfer", "Перевести сюда"\]/);
-  assert.match(drawer, /\["add", "Добавить ещё и в эту группу"\]/);
+  assert.match(drawer, /\["transfer", ENROL_HERE_TRANSFER_LABEL\]/);
+  assert.match(drawer, /\["add", ENROL_HERE_ADD_LABEL\]/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_TRANSFER_LABEL = "Перевести в эту группу"/);
+  assert.match(read("lib/enrol-labels.ts"), /ENROL_HERE_ADD_LABEL = "Зачислить и в эту группу"/);
   assert.match(drawer, /Array\.from\(selected\.values\(\)\)\s*\.filter\(\(s\) => \{ const current = studentGroupId\(s\); return current && current !== groupId; \}\)/);
   assert.match(drawer, /bulkAddStudents\(groupId, Array\.from\(selected\.keys\(\)\)/);
 });

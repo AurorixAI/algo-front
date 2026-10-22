@@ -323,17 +323,21 @@ test("an archived card hides «Добавить в группу / Перевес
   assert.match(pay, /filter\(\(row\) => !row\.is_active \|\| readOnly\)/);
   assert.match(pay, /Вносить, продлевать и исправлять оплату нельзя — только отменить ошибочную\./);
 
-  // the server refuses create / replace / an individual price for an archived student (409); «Отменить» is still allowed
+  // the server refuses create / replace / an individual price for an archived student (409); IA audit F10: the history, with «Отменить»
+  // of a mistaken payment, is «Выписка» (a link of the row for every state of the membership)
   const row = read("src/components/payments/membership-payments.tsx");
   assert.match(row, /archived = false/);
   assert.match(row, /const editable = row\.is_active && !archived;/);
-  assert.match(row, /const voidable = row\.is_active \|\| archived;/);
-  assert.match(row, /editable=\{editable\}\s*voidable=\{voidable\}/);
-  assert.match(row, /if \(!voided && editable\) \{\s*\/\/[^\n]*\s*if \(!carried\) items\.push\(\{ key: "correct"/);
-  assert.match(row, /if \(!voided && voidable\) items\.push\(\{ key: "void"/);
-  // «Внести оплату / Продлить» and the status stay behind `editable` (UX-1 A: one block, the price items get the flag as a prop)
+  assert.doesNotMatch(row, /voidable|HistoryItem|История оплат/);
+  assert.equal((row.match(/href=\{statement\}/g) || []).length, 2); // «Выписка» for a running group and for one the student has left
+  const actions = read("src/lib/membership-actions.ts");
+  assert.match(actions, /const editable = row\.is_active && !archived;/);
+  assert.match(actions, /if \(!archived && canWriteOff\(row\)\) out\.push\("writeoff"\);/);
+  assert.match(actions, /if \(editable\) out\.push\("price"\);/);
+  assert.match(actions, /if \(!archived && row\.is_active\) out\.push\("opening"\);/);
+  // «Внести оплату / Продлить» and the status stay behind `editable`
   assert.equal((row.match(/\{editable && \(/g) || []).length, 2); // the status chip, the main button
-  assert.match(row, /useMembershipPriceControls\(\{[\s\S]*?editable,/);
+  assert.match(row, /<MembershipRowActions\b[\s\S]*?archived=\{archived\}/);
   assert.match(read("src/lib/group-price.ts"), /if \(!editable\) return \[\];/); // nothing to change for an archived student / a closed membership
 });
 

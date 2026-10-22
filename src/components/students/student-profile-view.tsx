@@ -701,6 +701,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
               groupsBasePath={groupsBasePath}
               isTeacher={isTeacher}
               onAssign={openAssign}
+              onNotify={showToast}
+              onChanged={(kind) => { void usePaymentsSummary.getState().refresh(true); if (kind === "left") void loadProfile(); }}
             />
 
             {/* Attendance of the month */}

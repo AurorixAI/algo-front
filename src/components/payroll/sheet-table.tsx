@@ -147,7 +147,7 @@ export function PayrollSheetTable({
   onEdits?: (update: (previous: SheetEdits) => SheetEdits) => void;
   /** Every group shows its dates (the print of a sheet). */
   forceDates?: boolean;
-  /** What the price is called in the centre («Оплата в месяц» / «Стоимость пакета»); by default the centre's mode, as everywhere. */
+  /** What the price is called in the centre («Цена в месяц» / «Цена пакета»); by default the centre's mode, as everywhere. */
   priceLabel?: string;
   /** Membership id -> the price the recalculation would use, for a line saved with none (from the diff of the saved sheet). */
   freshPrices?: Record<string, number>;

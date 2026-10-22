@@ -47,9 +47,9 @@ export const COUNTED_HEADER_HINT =
 export const PRICE_HEADER_HINT =
   "Цена ученика на день каждого урока: цена его группы или индивидуальная. Здесь она не меняется — её задают в «Оплаты → Цены групп» и в карточке ученика.";
 
-/** The header of the price column: «Цена в месяц», or «Стоимость пакета» in a centre that sells packages of lessons. */
+/** The header of the price column: «Цена в месяц», or «Цена пакета» in a centre that sells packages of lessons. */
 export function priceColumnLabel(centreLabel: string): string {
-  return centreLabel === "Стоимость пакета" ? centreLabel : "Цена в месяц";
+  return centreLabel === "Цена пакета" ? centreLabel : "Цена в месяц";
 }
 
 /** The legend above the table: the mark, what it means. `dashed`: the dashed «1» (its own look and tooltip). */

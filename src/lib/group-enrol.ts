@@ -23,14 +23,14 @@ export interface EnrolToast {
 export function enrolToast(result: EnrolSummary): EnrolToast {
   const infos = result.infos ?? [];
   if (result.added > 0 && result.skipped === 0) {
-    const text = `Добавлено учеников: ${result.added}`;
+    const text = `Зачислено учеников: ${result.added}`;
     if (result.warnings.length > 0) return { text, type: "warning", details: [...result.warnings, ...infos] };
     if (infos.length > 0) return { text, type: "success", details: infos };
     return { text, type: "success" };
   }
   const notes = [...result.skippedLines, ...result.warnings];
   if (result.added > 0) {
-    return { text: `Добавлено: ${result.added}, не добавлено: ${result.skipped}`, type: "warning", details: [...notes, ...infos] };
+    return { text: `Зачислено: ${result.added}, не зачислено: ${result.skipped}`, type: "warning", details: [...notes, ...infos] };
   }
-  return { text: "Ни одного ученика не добавлено", type: "error", details: notes };
+  return { text: "Ни одного ученика не зачислено", type: "error", details: notes };
 }

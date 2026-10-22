@@ -156,11 +156,11 @@ export function parseDivisor(text: string | number | null | undefined): { value:
   return { value, error: null };
 }
 
-export const PAYROLL_FORMULA_TEXT = "Оплата в месяц × % ÷ 12 × засчитанные уроки";
+export const PAYROLL_FORMULA_TEXT = "Цена в месяц × % ÷ 12 × засчитанные уроки";
 export const PAYROLL_PACKAGE_TEXT = "Для оплаты пакетом уроков делитель — размер пакета, который покрывает урок: преподаватель получает свой процент от цены одного урока пакета.";
 
-/** `label`: what the price is called in the centre («Оплата в месяц» / «Стоимость пакета»). */
-export function payrollFormulaText(divisor: number, label: string = "Оплата в месяц"): string {
+/** `label`: what the price is called in the centre («Цена в месяц» / «Цена пакета»). */
+export function payrollFormulaText(divisor: number, label: string = "Цена в месяц"): string {
   return `${label} × % ÷ ${divisor} × засчитанные уроки`;
 }
 

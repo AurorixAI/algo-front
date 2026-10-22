@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { businessNow } from "../support/time";
-import { cardMenuItem, dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
+import { dmy, expectNoHorizontalScroll, money, moneyPattern, toast } from "../support/ui";
 
 /**
  * Owner: «Оплаты» (PAY-2: a payment is money; the server distributes it).  A brand-new student of a group WITHOUT a price is
@@ -36,7 +36,7 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await page.reload();
   await page.getByRole("tab", { name: /Должники/ }).click();
   await expect(row()).toContainText(student.displayId!);
-  await expect(row()).toContainText(money(450000)); // «Оплата в месяц»
+  await expect(row()).toContainText(money(450000)); // «Цена в месяц»
   await expect(row()).toContainText("Ещё не платил");
   await expect(row()).toContainText(new RegExp(`Долг ${moneyPattern(450000)}`));
   await expect(row().getByRole("textbox")).toHaveCount(0); // no inline form: every debtor row is a plain row
@@ -72,25 +72,25 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   expect(payment.allocation.items.length).toBeGreaterThan(0);
   await page.goto(`/owner/students/${student.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
-  await cardMenuItem(page, "История оплат");
-  await expect(page.getByText(new RegExp(`№\\s*${payment.receipt_no}\\b`))).toBeVisible();
-  await expect(page.getByText(new RegExp(`оплачено ${dmy(today).replace(/\./g, "\\.")}`))).toBeVisible();
-  await expect(page.getByText("Наличные").first()).toBeVisible(); // the method
-  await expect(page.getByRole("list", { name: "Куда пошли деньги" }).first()).toBeVisible(); // where the money went
+  // IA audit F10: the card keeps ONE line of the history; the history itself is the statement
+  await expect(page.getByTestId("membership-last-payment")).toContainText(new RegExp(`Последняя оплата: ${moneyPattern(450000)}`));
+  await expect(page.getByTestId("membership-last-payment")).toContainText(dmy(today));
 
-  // --- the statement: the payment on the timeline, the balance after it, «Сходится»
+  // --- the statement: the payment on the timeline («№ N», the method, where the money went), the balance after it, «Сходится»
   await page.getByRole("link", { name: "Выписка" }).click();
   await expect(page).toHaveURL(new RegExp(`/owner/payments/statement/${membership}$`));
   await expect(page.getByRole("heading", { name: "Выписка" })).toBeVisible();
-  await expect(page.getByTestId("statement-row-payment")).toContainText(`№ ${payment.receipt_no}`);
+  const paymentRow = page.getByTestId("statement-row-payment");
+  await expect(paymentRow).toContainText(`№ ${payment.receipt_no}`);
+  await expect(paymentRow).toContainText("Наличные"); // the method
+  await expect(paymentRow.getByRole("list", { name: "Куда пошли деньги" })).toBeVisible(); // where the money went
   await expect(page.getByTestId("statement-reconciles")).toContainText("Сходится");
-  await page.getByRole("button", { name: "Назад" }).click();
-  await expect(page).toHaveURL(new RegExp(`/owner/students/${student.id}`));
-  await page.getByRole("tab", { name: "Оплаты" }).click();
-  if (!(await page.getByRole("region", { name: "История оплат" }).isVisible())) await cardMenuItem(page, "История оплат");
+  // the statement leads on: the student's «Оплаты» tab and the group
+  await expect(page.getByTestId("statement-student-link")).toHaveAttribute("href", new RegExp(`/owner/students/${student.id}\\?tab=payments$`));
+  await expect(page.getByTestId("statement-group-link")).toHaveAttribute("href", new RegExp(`/owner/groups/${group.id}$`));
 
   // --- the receipt: amount in words, who, what
-  await page.getByRole("button", { name: /Действия с оплатой/ }).click();
+  await paymentRow.getByRole("button", { name: /^Действия:/ }).click();
   await page.getByRole("menuitem", { name: "Квитанция" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const receipt = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
   await expect(receipt).toBeVisible();
@@ -103,13 +103,11 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await expect(receipt.getByRole("region", { name: "Куда пошли деньги" })).toBeVisible(); // the snapshot at the moment of payment
   await expect(receipt.getByRole("note")).toHaveCount(0); // not voided yet: no stamp
 
-  // --- void: a reason of 3+ characters is mandatory
+  // --- void (from the statement): a reason of 3+ characters is mandatory
   await page.getByRole("button", { name: "Назад" }).click();
-  await expect(page).toHaveURL(new RegExp(`/owner/students/${student.id}`));
-  await page.getByRole("tab", { name: "Оплаты" }).click();
-  if (!(await page.getByRole("region", { name: "История оплат" }).isVisible())) await cardMenuItem(page, "История оплат");
-  await page.getByRole("button", { name: /Действия с оплатой/ }).click();
-  await page.getByRole("menuitem", { name: "Отменить", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  await expect(page).toHaveURL(new RegExp(`/owner/payments/statement/${membership}$`));
+  await page.getByTestId("statement-row-payment").getByRole("button", { name: /^Действия:/ }).click();
+  await page.getByRole("menuitem", { name: "Отменить оплату", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Отменить оплату?" });
   await dialog.getByLabel("Причина").fill("ab");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
@@ -117,15 +115,15 @@ test("pay from a debtor row -> «Оплачено» -> history «№ N» -> rece
   await dialog.getByLabel("Причина").fill("Ошибочно внесена сумма");
   await dialog.getByRole("button", { name: "Отменить оплату" }).click();
   await expect(toast(page, "Оплата отменена")).toBeVisible();
-  await expect(page.getByText(`Причина отмены: Ошибочно внесена сумма · ${org.ownerName}`)).toBeVisible();
+  await page.getByLabel("Показать отменённые").check();
+  await expect(page.getByText(`Отменено: Ошибочно внесена сумма · ${org.ownerName}`)).toBeVisible();
 
   // the record is kept (grey) and the receipt of a cancelled payment is stamped
   const afterVoid = await org.owner.api.get(`/auth/org/memberships/${membership}/payments`);
   expect(afterVoid).toHaveLength(1);
   expect(afterVoid[0].voided_at).toBeTruthy();
   expect(afterVoid[0].void_reason).toBe("Ошибочно внесена сумма");
-  await page.getByRole("button", { name: /Действия с оплатой/ }).click();
-  await page.getByRole("menuitem", { name: "Квитанция" }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  await page.goto(`/owner/payments/receipt/${payment.id}`);
   const stamped = page.getByRole("article", { name: `Квитанция № ${payment.receipt_no}` });
   await expect(stamped.getByRole("note")).toContainText("АННУЛИРОВАНА");
   await expect(stamped.getByRole("note")).toContainText("Ошибочно внесена сумма");

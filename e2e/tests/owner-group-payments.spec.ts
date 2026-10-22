@@ -1,10 +1,10 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { expectNoHorizontalScroll, moneyPattern, toast } from "../support/ui";
+import { expectNoHorizontalScroll, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
  * ROADMAP #126: the tab «Оплаты» of the group page - who pays what, who has an individual price (and why).
- *   group -> «Оплаты» -> filter «Индивидуальная цена» -> «⋯» «Назначить индивидуальную цену» -> the badge «индивидуальная» appears
+ *   group -> «Оплаты» -> filter «Индивидуальная цена» -> «⋯» «Индивидуальная цена…» -> the badge «индивидуальная» appears
  *   -> «Цены групп»: «N учеников» is a link that opens the tab with the filter (?tab=payments&filter=individual).
  * An administrator without the money right gets no tab; a teacher's group page has none.
  * Also (owner feedback): the header of the group has no «Изменить…»; a changed «Тип занятий» in the edit form shows the impact dialog.
@@ -48,10 +48,9 @@ test("group -> «Оплаты» -> filter -> individual price via «⋯» -> bad
   await expect(page.getByTestId("group-payment-row")).toHaveCount(3);
   const row = page.locator(`[data-membership-id="${await org.membershipId(timur.id, group.id)}"]`);
   await expect(row.getByTestId("individual-badge")).toHaveCount(0);
-  await row.getByRole("button", { name: /^Действия по оплате:/ }).click();
-  await page.getByRole("menuitem", { name: "Назначить индивидуальную цену", exact: true }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
+  await openPriceMode(page, "assign", row); // «⋯» -> «Индивидуальная цена…» -> «Назначить индивидуальную цену» (the same menu as on the student card)
   const dialog = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
-  await dialog.getByLabel(/Оплата в месяц ученика/).fill("350000");
+  await dialog.getByLabel(/Индивидуальная цена в месяц/).fill("350000");
   await dialog.getByLabel("Причина").fill("ab");
   await dialog.getByRole("button", { name: "Сохранить" }).click();
   await expect(dialog.getByRole("alert")).toContainText("Укажите причину");
@@ -80,8 +79,7 @@ test("group -> «Оплаты» -> filter -> individual price via «⋯» -> bad
 
   // --- «Вернуть цену группы» takes the badge back
   const back = page.locator(`[data-membership-id="${await org.membershipId(madina.id, group.id)}"]`);
-  await back.getByRole("button", { name: /^Действия по оплате:/ }).click();
-  await page.getByRole("menuitem", { name: "Вернуть цену группы", exact: true }).dispatchEvent("click");
+  await openPriceMode(page, "return", back);
   await page.getByRole("dialog", { name: "Вернуть цену группы" }).getByRole("button", { name: "Вернуть" }).click();
   await expect(toast(page, "Ученик снова платит по цене группы")).toBeVisible();
   await expect(page.getByTestId("payments-filter-individual")).toContainText("(1)");

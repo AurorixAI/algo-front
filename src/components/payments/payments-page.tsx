@@ -532,7 +532,7 @@ function PaymentRow({
             <BalanceNote row={row} className="w-full" />
           </div>
 
-          {/* Последняя оплата: the amount reads like «Оплата в месяц», the date is the quiet line under it (like «оплачено до») */}
+          {/* Последняя оплата: the amount reads like «Цена в месяц», the date is the quiet line under it (like «оплачено до») */}
           <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
             <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
             {last ? (

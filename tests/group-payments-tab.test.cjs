@@ -110,7 +110,7 @@ test("rows: the price is the server's price.amount (what the statement charges);
   for (const r of ROWS) {
     const v = G.paymentRowViews([r], { periodMode: "calendar", today: TODAY })[0];
     const p = GP.priceOfRow(r);
-    assert.equal(v.priceText, p.amount === null ? "Не задана" : GP.formatPrice(p.amount, "Оплата в месяц"), r.student_name);
+    assert.equal(v.priceText, p.amount === null ? "Не задана" : GP.formatPrice(p.amount, "Цена в месяц"), r.student_name);
   }
   assert.equal(plain(view(1).priceText), "500 000 сум/мес");
   assert.equal(view(8).priceText, "бесплатно");
@@ -118,12 +118,12 @@ test("rows: the price is the server's price.amount (what the statement charges);
   assert.equal(view(7).priceMissing, true);
 });
 
-test("lessons mode: «Стоимость пакета», the price is «за пакет», the chip says the lessons left", () => {
+test("lessons mode: «Цена пакета», the price is «за пакет», the chip says the lessons left", () => {
   const r = row(1, "Алиев", { period_mode: "lessons", lessons_total: 12, lessons_left: 9, lessons_used: 3, paid_until: null });
   const v = G.paymentRowViews([r], { periodMode: "lessons", today: TODAY })[0];
   assert.equal(plain(v.priceText), "500 000 сум за пакет");
   assert.match(v.chip.label, /осталось 9 уроков из 12/);
-  assert.equal(plain(G.scheduledLine({ amount: 400000, valid_from: "2026-12-01" }, TODAY, "Стоимость пакета")), "с 01.12 — 400 000 сум за пакет");
+  assert.equal(plain(G.scheduledLine({ amount: 400000, valid_from: "2026-12-01" }, TODAY, "Цена пакета")), "с 01.12 — 400 000 сум за пакет");
 });
 
 test("invariant: the chip of a row is the chip of the student card (membershipChip of the same row)", () => {
@@ -258,10 +258,14 @@ test("top line: price · N with an individual price · month: collected %, debt 
 
 test("the tab: columns, actions and the shared dialogs (payment, individual price, opening balance), cards on a phone", () => {
   const src = read("src/components/groups/group-payments-tab.tsx");
-  for (const word of ["Ученик", "Цена в месяц", "Оплата", "PAY_ACTION_LABEL", "Выписка", "индивидуальная", "Оплатить долг"]) assert.ok(src.includes(word), word);
-  for (const dialog of ["<PaymentDialog", "<AssignOverrideDialog", "<ReturnPriceDialog", "<CancelScheduledDialog", "<OpeningBalanceDialog"]) assert.ok(src.includes(dialog), dialog);
-  assert.match(src, /priceMenuActions\(true, price, /);                  // the menu is the student card's own rules
-  assert.match(src, /Остаток на начало…/);
+  for (const word of ["Ученик", "Оплата", "PAY_ACTION_LABEL", "Выписка", "индивидуальная", "Оплатить долг"]) assert.ok(src.includes(word), word);
+  assert.ok(src.includes("<PaymentDialog"));
+  assert.match(src, /<span className="text-right">\{label\}<\/span>/); // the column is named by the centre's mode (priceLabelOf), never hard-coded
+  // IA audit F1 / F13: the «⋯» of a row is the student card's own component (the dialogs and the rules live there)
+  assert.match(src, /<MembershipRowActions\b/);
+  const shared = read("src/components/payments/membership-row-actions.tsx");
+  for (const dialog of ["<WriteoffDialog", "<RefundDialog", "<IndividualPriceDialog", "<OpeningBalanceDialog"]) assert.ok(shared.includes(dialog), dialog);
+  assert.match(read("src/lib/membership-actions.ts"), /Остаток на начало…/);
   assert.match(src, /onFilterChange\(key\)/);
   assert.match(src, /data-testid=\{`payments-filter-\$\{key\}`\}/);
   assert.match(src, /flex flex-col gap-2 rounded-xl border[^`]*lg:grid/);   // a card below lg, a table row from lg

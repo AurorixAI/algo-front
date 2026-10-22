@@ -118,7 +118,7 @@ export function scheduledLine(scheduled: PriceScheduledOverride | null | undefin
   const match = DIGITS_DATE.exec(scheduled.valid_from ?? "");
   if (!match) return null;
   const day = `${match[3]}.${match[2]}${match[1] !== today.slice(0, 4) ? `.${match[1]}` : ""}`;
-  const what = scheduled.amount === null || scheduled.amount === undefined ? "цена группы" : scheduled.amount === 0 ? "бесплатно" : formatMoney(scheduled.amount) + (label === "Стоимость пакета" ? " за пакет" : "");
+  const what = scheduled.amount === null || scheduled.amount === undefined ? "цена группы" : scheduled.amount === 0 ? "бесплатно" : formatMoney(scheduled.amount) + (label === "Цена пакета" ? " за пакет" : "");
   return `с ${day} — ${what}`;
 }
 

@@ -1,15 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { AlertCircle, Loader2, PiggyBank, Search, Users, Wallet } from "lucide-react";
+import { AlertCircle, Loader2, Search, Users, Wallet } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import {
   groupPriceHref,
-  priceMenuActions,
-  priceOfRow,
-  activeOverrideFrom,
   priceLabelOf,
   type GroupPriceBrief,
 } from "@/lib/group-price";
@@ -26,7 +23,6 @@ import {
   paymentsCounts,
   PAYMENTS_LOAD_ERROR,
   PAYMENTS_SEARCH_FROM,
-  scheduledAsOverrideRow,
   summaryParts,
   type GroupPaymentRowView,
   type MonthCollectionBrief,
@@ -50,19 +46,15 @@ import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
-import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
-import { OpeningBalanceDialog } from "@/components/payments/opening-balance-dialog";
+import { MembershipRowActions } from "@/components/payments/membership-row-actions";
 import { PaymentDialog } from "@/components/payments/payment-dialog";
-import { AssignOverrideDialog, CancelScheduledDialog, ReturnPriceDialog } from "@/components/payments/membership-price";
 
 const GRID_COLS = "lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.3fr)_272px]";
 const PAGE = 500;
 const MAX_PAGES = 5;
 /** At most this many `price-override` calls at once (an older server: the author of an individual price is not in the list). */
 const EXTRAS_POOL = 4;
-
-type Action = "pay" | "assign" | "return" | "cancel" | "opening";
 
 /** Every membership of the group the bucket lists, page after page (the group holds at most 200 students: one page in practice). */
 async function fetchAll(bucket: PaymentBucket | "all" | "debt", groupId: string): Promise<MembershipPaymentRow[]> {
@@ -117,9 +109,9 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
   const [denied, setDenied] = useState(false);
   const [search, setSearch] = useState("");
   const [showLeft, setShowLeft] = useState(false);
-  const [target, setTarget] = useState<{ id: string; action: Action } | null>(null);
-  /** The row of the last opened dialog stays while the dialog closes. */
-  const lastTarget = useRef<string | null>(null);
+  /** The row whose «Внести оплату» is open; it stays while the dialog closes. */
+  const [payTarget, setPayTarget] = useState<string | null>(null);
+  const [payOpen, setPayOpen] = useState(false);
   const requests = useRef(createRequestSequence());
   const incomeRequests = useRef(createRequestSequence());
   const extrasAsked = useRef<Set<string>>(new Set());
@@ -203,28 +195,23 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
     loadIncome();
   };
 
-  const open = (view: GroupPaymentRowView, action: Action) => {
-    lastTarget.current = view.membershipId;
-    setTarget({ id: view.membershipId, action });
-  };
-  const close = () => setTarget(null);
+  const openPay = (view: GroupPaymentRowView) => { setPayTarget(view.membershipId); setPayOpen(true); };
 
   const everyRow = [...(rows ?? []), ...leftRows];
-  const targetRow = everyRow.find((row) => row.membership_id === (target?.id ?? lastTarget.current)) ?? null;
-  const targetView = targetRow ? [...views, ...leftViews].find((view) => view.membershipId === targetRow.membership_id) ?? null : null;
-  const action = target?.action ?? null;
+  const payRow = everyRow.find((row) => row.membership_id === payTarget) ?? null;
 
-  const menuFor = (view: GroupPaymentRowView): RowMenuItem[] => {
-    const price = priceOfRow(view.row);
-    const scheduledRow = view.scheduled ? scheduledAsOverrideRow(view.scheduled) : null;
-    const items: RowMenuItem[] = priceMenuActions(true, price, scheduledRow ? [scheduledRow] : []).map((entry) => ({
-      key: entry.kind === "cancel" ? `cancel-${entry.row.id}` : entry.kind,
-      label: entry.label,
-      onSelect: () => open(view, entry.kind === "cancel" ? "cancel" : entry.kind),
-    }));
-    items.push({ key: "opening", label: view.row.opening ? "Остаток на начало…" : "Внести остаток на начало…", icon: PiggyBank, onSelect: () => open(view, "opening") });
-    return items;
-  };
+  /** IA audit F1 / F13: the «⋯» of a row is the student card's own (`MembershipRowActions`), so the two menus never diverge. */
+  const actionsFor = (view: GroupPaymentRowView) => (
+    <MembershipRowActions
+      row={view.row}
+      studentName={view.row.student_name}
+      periodMode={periodMode}
+      joinedAt={joinedAt[view.row.student_id] ?? null}
+      label={`Действия по оплате: ${view.name}`}
+      onRowChange={(next, kind) => changed(next, kind === "price")}
+      onNotify={showToast}
+    />
+  );
 
   if (denied) {
     return (
@@ -306,7 +293,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
         <section aria-label="Оплаты учеников группы" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
           <div role="presentation" className={`hidden items-center gap-x-4 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>
             <span>Ученик</span>
-            <span className="text-right">{label === "Стоимость пакета" ? label : "Цена в месяц"}</span>
+            <span className="text-right">{label}</span>
             <span>Оплата</span>
             <span className="sr-only">Действия</span>
           </div>
@@ -318,8 +305,8 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
                 label={label}
                 studentsBasePath={studentsBasePath}
                 paymentsBasePath={paymentsBasePath}
-                menu={menuFor(view)}
-                onPay={() => open(view, "pay")}
+                actions={actionsFor(view)}
+                onPay={() => openPay(view)}
               />
             ))}
           </ul>
@@ -334,67 +321,24 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
           {showLeft && (
             <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100 lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white" aria-label="Ушедшие с долгом">
               {leftViews.map((view) => (
-                <LeftRow key={view.key} view={view} studentsBasePath={studentsBasePath} paymentsBasePath={paymentsBasePath} onPay={() => open(view, "pay")} />
+                <LeftRow key={view.key} view={view} studentsBasePath={studentsBasePath} paymentsBasePath={paymentsBasePath} onPay={() => openPay(view)} />
               ))}
             </ul>
           )}
         </div>
       )}
 
-      {targetRow && targetView && (
-        <>
-          <PaymentDialog
-            open={action === "pay"}
-            kind="create"
-            membership={{ membership_id: targetRow.membership_id, group_id: groupId, student_name: targetRow.student_name, group_name: groupName }}
-            payment={null}
-            groupsBasePath={groupsBasePath}
-            onClose={close}
-            onSaved={(result: PaymentSaveResult) => { changed(result.row); showToast(PAYMENT_SAVED_TEXT.create, "success", savedPaymentDetails(result.allocation)); }}
-            onDuplicate={() => { showToast("Эта оплата уже внесена"); void load(true); }}
-          />
-          <AssignOverrideDialog
-            open={action === "assign"}
-            row={targetRow}
-            studentName={targetRow.student_name}
-            label={label}
-            onClose={close}
-            onConflict={() => void load(true)}
-            onSaved={(next, since) => { changed(next, true); showToast(since ? `Индивидуальная цена назначена, действует ${since}` : "Индивидуальная цена назначена"); }}
-          />
-          <ReturnPriceDialog
-            open={action === "return"}
-            row={targetRow}
-            studentName={targetRow.student_name}
-            label={label}
-            notBefore={activeOverrideFrom(priceOfRow(targetRow))}
-            onClose={close}
-            onConflict={() => void load(true)}
-            onSaved={(next) => { changed(next, true); showToast("Ученик снова платит по цене группы"); }}
-          />
-          <CancelScheduledDialog
-            target={action === "cancel" && targetView.scheduled ? scheduledAsOverrideRow(targetView.scheduled) : null}
-            row={targetRow}
-            studentName={targetRow.student_name}
-            label={label}
-            onClose={close}
-            onConflict={() => void load(true)}
-            onSaved={(next) => { changed(next, true); showToast("Запланированная индивидуальная цена отменена"); }}
-          />
-          <OpeningBalanceDialog
-            open={action === "opening"}
-            membershipId={targetRow.membership_id}
-            studentName={targetRow.student_name}
-            groupName={groupName}
-            opening={targetRow.opening ?? null}
-            enrolDate={joinedAt[targetRow.student_id] ?? null}
-            onClose={close}
-            onSaved={(next, removed) => {
-              if (next) changed(next);
-              showToast(removed ? "Остаток на начало убран" : "Остаток на начало сохранён", "success");
-            }}
-          />
-        </>
+      {payRow && (
+        <PaymentDialog
+          open={payOpen}
+          kind="create"
+          membership={{ membership_id: payRow.membership_id, group_id: groupId, student_name: payRow.student_name, group_name: groupName }}
+          payment={null}
+          groupsBasePath={groupsBasePath}
+          onClose={() => setPayOpen(false)}
+          onSaved={(result: PaymentSaveResult) => { changed(result.row); showToast(PAYMENT_SAVED_TEXT.create, "success", savedPaymentDetails(result.allocation)); }}
+          onDuplicate={() => { showToast("Эта оплата уже внесена"); void load(true); }}
+        />
       )}
       {toastNode}
     </div>
@@ -423,12 +367,12 @@ function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; st
 
 const ROW = `flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-center lg:gap-x-4 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${GRID_COLS}`;
 
-function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, menu, onPay }: {
+function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, onPay }: {
   view: GroupPaymentRowView;
   label: string;
   studentsBasePath: string;
   paymentsBasePath: string;
-  menu: RowMenuItem[];
+  actions: ReactNode;
   onPay: () => void;
 }) {
   const due = payIsDue(view.row);
@@ -437,7 +381,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, menu, onP
       <StudentCell view={view} studentsBasePath={studentsBasePath} />
 
       <div className="flex items-start justify-between gap-3 lg:block lg:text-right">
-        <span className="shrink-0 text-xs text-slate-400 lg:hidden">{label === "Стоимость пакета" ? label : "Цена в месяц"}</span>
+        <span className="shrink-0 text-xs text-slate-400 lg:hidden">{label}</span>
         <div className="min-w-0 text-right">
           <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
             <span className={`text-sm font-semibold tabular-nums ${view.priceMissing ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
@@ -470,7 +414,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, menu, onP
         >
           Выписка
         </Link>
-        <RowMenu items={menu} label={`Действия по оплате: ${view.name}`} width={300} />
+        {actions}
       </div>
     </li>
   );

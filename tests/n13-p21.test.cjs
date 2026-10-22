@@ -79,20 +79,20 @@ test("bulk notes are prefixed with the student", () => {
 
 test("enrolment toast: info alone keeps a success toast, warnings turn it amber", () => {
   const base = { added: 2, skipped: 0, skippedLines: [], warnings: [], infos: [] };
-  assert.deepEqual(enrolToast(base), { text: "Добавлено учеников: 2", type: "success" });
+  assert.deepEqual(enrolToast(base), { text: "Зачислено учеников: 2", type: "success" });
   assert.deepEqual(enrolToast({ ...base, infos: ["Оплата перенесена"] }), {
-    text: "Добавлено учеников: 2", type: "success", details: ["Оплата перенесена"],
+    text: "Зачислено учеников: 2", type: "success", details: ["Оплата перенесена"],
   });
   assert.deepEqual(enrolToast({ ...base, warnings: ["Ученик состоит в 3 группах"], infos: ["Оплата перенесена"] }), {
-    text: "Добавлено учеников: 2", type: "warning", details: ["Ученик состоит в 3 группах", "Оплата перенесена"],
+    text: "Зачислено учеников: 2", type: "warning", details: ["Ученик состоит в 3 группах", "Оплата перенесена"],
   });
 });
 
 test("enrolment toast: partial and failed batches", () => {
   const partial = enrolToast({ added: 1, skipped: 1, skippedLines: ["Иванов — группа полна"], warnings: [], infos: ["Оплата перенесена"] });
-  assert.deepEqual(partial, { text: "Добавлено: 1, не добавлено: 1", type: "warning", details: ["Иванов — группа полна", "Оплата перенесена"] });
+  assert.deepEqual(partial, { text: "Зачислено: 1, не зачислено: 1", type: "warning", details: ["Иванов — группа полна", "Оплата перенесена"] });
   const none = enrolToast({ added: 0, skipped: 2, skippedLines: ["a", "b"], warnings: [], infos: [] });
-  assert.deepEqual(none, { text: "Ни одного ученика не добавлено", type: "error", details: ["a", "b"] });
+  assert.deepEqual(none, { text: "Ни одного ученика не зачислено", type: "error", details: ["a", "b"] });
   // an older caller without `infos` still works
   assert.equal(enrolToast({ added: 1, skipped: 0, skippedLines: [], warnings: [] }).type, "success");
 });
@@ -100,13 +100,12 @@ test("enrolment toast: partial and failed batches", () => {
 // ---- the screens use the helpers ----------------------------------------------------
 
 test("payment history, payments page and the void dialog never print «0 сум» for a carry-over", () => {
-  const history = read("src/components/payments/membership-payments.tsx");
-  assert.match(history, /paymentAmountLabel\(payment\)/);
-  assert.doesNotMatch(history, /formatMoney\(payment\.amount\)/);
-  assert.match(history, /payment\.note && !carried/);
-  assert.match(history, /carriedOutLabel\(payment\)/);
-  // a carry-over can only be cancelled: no «Исправить» for it, neither in the history nor on the payments page
-  assert.match(history, /if \(!carried\) items\.push\(\{ key: "correct"/);
+  // IA audit F10: the card keeps one line of the history («Последняя оплата»); it names a carry-over by words, never «0 сум»
+  const history = read("src/lib/membership-actions.ts");
+  assert.match(history, /paymentAmountLabel\(last\)/);
+  assert.doesNotMatch(history, /formatMoney\(last\.amount\)/);
+  assert.match(history, /isCarryOver\(last\) \? "перенесено "/);
+  // a carry-over can only be cancelled: no «Исправить» for it on the payments page
   assert.match(read("src/components/payments/payments-page.tsx"), /if \(!isCarryOver\(last\)\) menu\.push\(\{ key: "correct"/);
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /paymentAmountLabel\(last\)/);
@@ -132,6 +131,6 @@ test("both group pages build the add-students toast with enrolToast", () => {
   for (const file of ["src/app/owner/groups/[id]/page.tsx", "src/app/admin/groups/[id]/page.tsx"]) {
     const page = read(file);
     assert.match(page, /enrolToast\(result\)/, file);
-    assert.doesNotMatch(page, /Ни одного ученика не добавлено/, file);
+    assert.doesNotMatch(page, /Ни одного ученика не зачислено/, file);
   }
 });

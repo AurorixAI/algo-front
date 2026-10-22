@@ -169,7 +169,7 @@ test("divisor of the center: a whole number 1…31, 12 by default", () => {
   for (const bad of ["", "0", "32", "-1", "1.5", "1,5", "abc", "012x", "1000"]) assert.equal(R.parseDivisor(bad).value, null, bad);
   assert.match(R.parseDivisor("0").error, /от 1 до 31/);
   assert.deepEqual(R.DEFAULT_PAYROLL_SETTINGS, { divisor: 12 });
-  assert.equal(R.payrollFormulaText(12), "Оплата в месяц × % ÷ 12 × засчитанные уроки");
+  assert.equal(R.payrollFormulaText(12), "Цена в месяц × % ÷ 12 × засчитанные уроки");
   assert.match(R.PAYROLL_PACKAGE_TEXT, /размер пакета/);
 });
 
@@ -531,7 +531,7 @@ test("the sheet table: a block per group with its total, the price as text, the 
   // the only inputs are the «начислить» checkboxes; the price is not typed any more
   const inputs = markup.match(/<input[^>]*>/g) || [];
   assert.ok(inputs.length > 0 && inputs.every((tag) => /type="checkbox"/.test(tag)), "only checkboxes");
-  assert.doesNotMatch(markup, /placeholder=|изменена|aria-label="Оплата в месяц/);
+  assert.doesNotMatch(markup, /placeholder=|изменена|<input[^>]*aria-label="Цена в месяц/);
   assert.match(markup, /aria-label="Начислить за неоплаченные уроки \(1\): Каримова Дилноза, Алгебра 8А"/);
   // «нет цены» leads to the price page of that group
   assert.match(markup, /href="\/owner\/payments\/prices\?group=g1"/);

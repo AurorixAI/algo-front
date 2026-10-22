@@ -112,10 +112,10 @@ test("tabs by money: «Должники», «Скоро платить», «Оп
 // ── the price line of the student card ───────────────────────────────────────
 
 test("price line: «Цена 500 000 сум/мес · цена группы» / «Индивидуальная цена 400 000 сум/мес · причина» / not set", () => {
-  const line = (price, label = "Оплата в месяц") => G.membershipPriceLine(price, label);
+  const line = (price, label = "Цена в месяц") => G.membershipPriceLine(price, label);
   const group = { amount: 500000, source: "group", valid_from: null, group_amount: 500000, reason: null };
   assert.equal(plain(line(group).text), "Цена 500 000 сум/мес · цена группы");
-  assert.equal(plain(line(group, "Стоимость пакета").text), "Цена 500 000 сум за пакет · цена группы");
+  assert.equal(plain(line(group, "Цена пакета").text), "Цена 500 000 сум за пакет · цена группы");
   const own = { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: " Сестра ученика " };
   assert.equal(plain(line(own).text), "Индивидуальная цена 400 000 сум/мес · Сестра ученика");
   assert.equal(plain(line(own).title), "Цена группы 500 000 сум");
@@ -145,15 +145,16 @@ test("the payments table: sentence-case headers, a tab bar that scrolls with a f
 test("student card: row 1 = group + status + main button + «⋯»; row 2 = the price; the rare actions are in the menu", () => {
   const block = read("src/components/payments/membership-payments.tsx");
   assert.match(block, /heading: ReactNode;/);
-  assert.match(block, /<RowMenu items=\{menu\} label=\{`Действия по оплате: \$\{row\.group_name\}`\} width=\{300\} \/>/);
-  assert.match(block, /\.\.\.price\.items,\s*\{ key: "payments-history", label: historyOpen \? "Скрыть историю оплат" : "История оплат"/);
+  // IA audit F1: the «⋯» is the shared component (the same one the group's «Оплаты» tab renders); the two histories are gone from it
+  assert.match(block, /<MembershipRowActions\b/);
+  assert.doesNotMatch(block, /payments-history|История оплат/);
   const row1 = block.indexOf("Row 1:");
   const row2 = block.indexOf("Row 2:");
   assert.ok(row1 > 0 && row2 > row1);
-  assert.ok(block.indexOf("{price.line}") > row2); // the price line comes after the first row
+  assert.ok(block.indexOf("<MembershipPriceLine") > row2); // the price line comes after the first row
   // those actions are no longer loose buttons on the card
   const price = read("src/components/payments/membership-price.tsx");
-  assert.match(price, /label: historyOpen \? "Скрыть историю цены" : "История цены"/);
+  assert.doesNotMatch(price, /Скрыть историю цены/);
   assert.doesNotMatch(price + block, /ChevronDown/);
   assert.doesNotMatch(price, />\s*Назначить индивидуальную цену\s*</);
   // money rules are untouched: nothing for a teacher
@@ -203,11 +204,11 @@ test("the card of a membership: one chip, the actions in one row «Внести 
   assert.match(head, /lg:\[grid-template-areas:'heading_status_actions'\]/);
   // the three actions live in one flex row
   const actions = head.slice(head.indexOf("[grid-area:actions]"));
-  assert.ok(actions.indexOf("PAY_ACTION_LABEL") < actions.indexOf(">\n              Выписка") && actions.indexOf("Выписка") < actions.indexOf("<RowMenu"));
+  assert.ok(actions.indexOf("PAY_ACTION_LABEL") < actions.indexOf(">\n              Выписка") && actions.indexOf("Выписка") < actions.indexOf("{menu}"));
   assert.match(head, /data-testid="membership-statement"/);
   assert.doesNotMatch(src, /\bstatusDetail\b|moneyChip/, "the card does not use the old two-line pieces");
-  // «Выписка» is not repeated in «⋯» of an editable card
-  assert.match(src, /\.\.\.\(!editable \? \[\{ key: "statement"/);
+  // «Выписка» is never in «⋯»: it is a link of the row for every state (the menu keeps money, price and the opening balance only)
+  assert.doesNotMatch(read("src/lib/membership-actions.ts"), /statement/i);
   // the rows of the «Оплаты» tabs keep their layout and their chip
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /const chip = moneyChip\(row\);/);

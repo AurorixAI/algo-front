@@ -82,8 +82,8 @@ export function toast(page: Page, text: string | RegExp) {
 }
 
 /**
- * The «⋯» menu of a group block on the «Оплаты» tab of the student card (UX-1 A): the rare actions live there -
- * «Назначить индивидуальную цену», «Вернуть цену группы», «Отменить запланированную…», «История цены», «История оплат».
+ * The «⋯» menu of a group block on the «Оплаты» tab of the student card, and of a row of the group's «Оплаты» tab (IA audit 22.10: the same
+ * component, at most three items): «Простить долг» | «Вернуть аванс», «Индивидуальная цена…», «Остаток на начало…».
  */
 export async function openPaymentCardMenu(page: Page) {
   await page.getByRole("button", { name: /^Действия по оплате:/ }).first().click();
@@ -115,4 +115,27 @@ export async function cardMenuLabels(page: Page): Promise<string[]> {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("menu")).toHaveCount(0);
   return labels;
+}
+
+/**
+ * «⋯» -> «Индивидуальная цена…» -> the window «Индивидуальная цена» -> one of its modes (the dialog of the mode opens over it):
+ * `assign` «Назначить индивидуальную цену», `return` «Вернуть цену группы», `cancel` «Отменить запланированную…».  `scope` narrows the
+ * menu button to one row (the group's «Оплаты» tab has one per student).
+ */
+export async function openPriceMode(page: Page, mode: "assign" | "return" | "cancel", scope?: Locator) {
+  const root = scope ?? page;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await root.getByRole("button", { name: /^Действия по оплате:/ }).first().click();
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 2000 });
+      await page.getByRole("menuitem", { name: "Индивидуальная цена…", exact: true }).dispatchEvent("click", undefined, { timeout: 3000 });
+      const hub = page.getByRole("dialog", { name: "Индивидуальная цена", exact: true });
+      await expect(hub).toBeVisible({ timeout: 3000 });
+      await hub.getByTestId(`price-mode-${mode}`).first().click();
+      return;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+      await page.waitForTimeout(400);
+    }
+  }
 }

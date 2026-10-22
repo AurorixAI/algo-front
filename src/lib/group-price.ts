@@ -122,7 +122,7 @@ export interface GroupPrices {
   group_name: string;
   as_of: string;
   period_mode: PeriodMode;
-  /** «Оплата в месяц» | «Стоимость пакета». */
+  /** «Цена в месяц» | «Цена пакета». */
   price_label: string;
   current: GroupPriceCurrent | null;
   history: GroupPriceRow[];
@@ -217,10 +217,10 @@ export interface EnrolPriceOverride {
 
 // ── Labels ──────────────────────────────────────────────────────────────────
 
-export const PRICE_LABEL_CALENDAR = "Оплата в месяц";
-export const PRICE_LABEL_LESSONS = "Стоимость пакета";
+export const PRICE_LABEL_CALENDAR = "Цена в месяц";
+export const PRICE_LABEL_LESSONS = "Цена пакета";
 
-/** What the sum means in the centre: «Оплата в месяц» for calendar periods, «Стоимость пакета» for lesson packages. */
+/** What the sum means in the centre: «Цена в месяц» for calendar periods, «Цена пакета» for lesson packages. */
 export function priceLabelOf(mode: PeriodMode | null | undefined): string {
   return mode === "lessons" ? PRICE_LABEL_LESSONS : PRICE_LABEL_CALENDAR;
 }
@@ -531,6 +531,16 @@ export function overrideActions(price: PriceInfo | null | undefined, history: Re
 
 export const ASSIGN_OVERRIDE_LABEL = "Назначить индивидуальную цену";
 
+/** IA audit F1: the one window of the individual price (opened by «Индивидуальная цена…» of the row menu) and what each mode says about itself. */
+export const INDIVIDUAL_PRICE_TITLE = "Индивидуальная цена";
+export function priceModeHint(kind: "assign" | "return" | "cancel"): string {
+  switch (kind) {
+    case "assign": return "Своя цена только для этого ученика, причина обязательна";
+    case "return": return "С выбранного дня ученик снова платит по цене группы";
+    case "cancel": return "Цена ещё не начала действовать: её можно отменить";
+  }
+}
+
 /**
  * The dialog of the group price repeats the verb of the button that opened it («Задать цену» / «Изменить цену») and the
  * toast says the result («Цена группы задана» / «Цена группы изменена»).
@@ -813,7 +823,7 @@ export interface GroupPriceListItem {
 export interface GroupPriceList {
   as_of: string;
   period_mode: PeriodMode;
-  /** «Оплата в месяц» | «Стоимость пакета». */
+  /** «Цена в месяц» | «Цена пакета». */
   price_label: string;
   items: GroupPriceListItem[];
 }
@@ -821,7 +831,7 @@ export interface GroupPriceList {
 /** The search box appears from this many groups (more than 8). */
 export const GROUP_PRICES_SEARCH_FROM = 9;
 
-/** Header of the price column: «Цена в месяц» for calendar periods, «Стоимость пакета» for lesson packages. */
+/** Header of the price column: «Цена в месяц» for calendar periods, «Цена пакета» for lesson packages. */
 export function priceColumnLabel(label: string): string {
   return label === PRICE_LABEL_LESSONS ? PRICE_LABEL_LESSONS : "Цена в месяц";
 }

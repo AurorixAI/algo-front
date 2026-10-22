@@ -38,7 +38,7 @@ interface GroupPriceDialogProps {
   open: boolean;
   groupId: string;
   groupName: string;
-  /** «Оплата в месяц» | «Стоимость пакета»: names the amount. */
+  /** «Цена в месяц» | «Цена пакета»: names the amount. */
   label: string;
   current: GroupPriceCurrent | null;
   /** The saved rows: a request that equals one of them writes nothing new. */

@@ -20,6 +20,7 @@ import { GroupScheduleOverview } from "@/components/groups/group-schedule-overvi
 import { Select } from "@/components/ui/select";
 import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/add-student-drawer";
 import { enrolToast } from "@/lib/group-enrol";
+import { ENROL_STUDENTS_BUTTON_LABEL } from "@/lib/enrol-labels";
 import { staffDisplayName } from "@/lib/staff-name";
 import { handoverTargets } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
@@ -491,7 +492,7 @@ export default function AdminGroupDetailPage() {
                   className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
                 >
                   <UserPlus className="h-4 w-4" />
-                  Добавить ученика
+                  {ENROL_STUDENTS_BUTTON_LABEL}
                 </button>
               )}
             </div>

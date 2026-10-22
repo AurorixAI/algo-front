@@ -35,6 +35,7 @@ import { EnrolPriceToggle } from "@/components/payments/price-fields";
 import { OpeningToggle } from "@/components/payments/opening-balance-fields";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
+import { enrolDialogTitle, enrolSubmitLabel } from "@/lib/enrol-labels";
 import { Modal } from "@/components/ui/modal";
 
 export interface GroupInfo {
@@ -245,7 +246,7 @@ export function AssignGroupModal({
     } catch (e: any) {
       const failure = logicaError(e);
       if (isReasonRequired(failure) && openingOn) setOpeningNeedsReason(true);
-      setAssignmentError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message || (isAdd ? "Не удалось добавить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
+      setAssignmentError(isReasonRequired(failure) && openingOn ? `${failure.message}. Укажите причину ниже.` : failure.message || (isAdd ? "Не удалось зачислить ученика в группу" : isTransfer ? "Не удалось перевести ученика в группу" : "Не удалось зачислить ученика в группу"));
     } finally {
       setAssigning(false);
     }
@@ -260,8 +261,8 @@ export function AssignGroupModal({
     onClose();
   };
 
-  const successTitle = isAdd ? "Ученик добавлен в группу" : isTransfer ? "Ученик переведён" : "Ученик зачислен";
-  const formTitle = isAdd ? "Добавить в ещё одну группу" : isTransfer ? "Перевести в другую группу" : "Зачисление в группу";
+  const successTitle = isAdd ? "Ученик зачислен в группу" : isTransfer ? "Ученик переведён" : "Ученик зачислен";
+  const formTitle = enrolDialogTitle(isAdd ? "add" : "transfer", isTransfer);
 
   return (
     <Modal
@@ -322,12 +323,12 @@ export function AssignGroupModal({
         {assigning ? (
           <>
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span>{isAdd ? "Добавляем..." : isTransfer ? "Переводим..." : "Зачисление..."}</span>
+            <span>{isTransfer ? "Переводим..." : "Зачисление..."}</span>
           </>
         ) : (
           <>
             <UserCheck className="w-4 h-4" />
-            <span>{isAdd ? "Добавить в группу" : isTransfer ? "Перевести в группу" : "Зачислить в группу"}</span>
+            <span>{enrolSubmitLabel(isAdd ? "add" : "transfer", isTransfer)}</span>
           </>
         )}
       </button>
@@ -354,7 +355,7 @@ export function AssignGroupModal({
         transition={{ delay: 0.1 }}
         className="text-xl font-bold text-slate-900"
       >
-        {isAdd ? "Добавление подтверждено!" : isTransfer ? "Перевод подтверждён!" : "Зачисление подтверждено!"}
+        {isTransfer ? "Перевод подтверждён!" : "Зачисление подтверждено!"}
       </motion.h3>
       <motion.p
         initial={{ opacity: 0, y: 6 }}
@@ -557,7 +558,7 @@ export function AssignGroupModal({
 
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-xs text-slate-500">
                       <span>
-                        {g.teacher_name ? `Учитель: ${g.teacher_name}` : "Преподаватель не назначен"}
+                        {g.teacher_name ? `Преподаватель: ${g.teacher_name}` : "Преподаватель не назначен"}
                       </span>
                       {moneyAvailable && g.price_current !== undefined && (
                         <span className={g.price_current ? "font-medium text-slate-700" : "font-medium text-amber-700"}>

@@ -1,10 +1,11 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { cardMenuItem, dm, expectNoHorizontalScroll } from "../support/ui";
+import { dm, expectNoHorizontalScroll } from "../support/ui";
 
 /**
- * LOGIC-A «Пауза»: «Пауза…» in the menu of the payment block puts a student on pause «с … по …».  He moves to the tab
+ * LOGIC-A «Пауза»: «Пауза…» in the menu of a group of the «Обучение» tab (IA audit 22.10: a pause is a property of the enrolment, not of the
+ * money) puts a student on pause «с … по …».  He moves to the tab
  * «На паузе», the paused days cost nothing (the statement says «Пауза … — начислений нет» and shows no charge, while the same
  * group's other student is charged the whole period), and a lesson inside the pause does not have him on its list.
  */
@@ -37,8 +38,9 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   const page = await signIn(org.owner);
 
   // --- the dialog «Пауза ученика»: from today to the 10th day
-  await page.goto(`/owner/students/${away.id}?tab=payments`);
-  await cardMenuItem(page, /^Пауза/);
+  await page.goto(`/owner/students/${away.id}?tab=learning`);
+  await page.getByRole("button", { name: /^Действия по группе:/ }).click();
+  await page.getByRole("menuitem", { name: /^Пауза/ }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Пауза ученика" });
   await expect(dialog).toBeVisible();
   const dates = dialog.locator('input[type="date"]');
@@ -81,8 +83,12 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await expect(teacherPage.getByText("Оставшаяся Малика", { exact: true })).toBeVisible();
   await expect(teacherPage.getByText("Уехавший Достон", { exact: true })).toHaveCount(0);
 
-  // --- the card says it too, and offers to end the pause
+  // --- the card says it too: «Оплаты» shows the chip and points to «Обучение», where the pause is ended
   await page.goto(`/owner/students/${away.id}?tab=payments`);
-  await expect(page.getByText(`На паузе до ${dm(last)}`)).toBeVisible();
-  await expect(page.getByRole("button", { name: "Закончить паузу" })).toBeVisible();
+  await expect(page.getByTestId("membership-chip")).toContainText(`На паузе до ${dm(last)}`);
+  await expect(page.getByTestId("membership-pause-link")).toBeVisible();
+  await page.getByTestId("membership-pause-link").click();
+  await expect(page.getByTestId("learning-pause-chip")).toContainText(`На паузе до ${dm(last)}`);
+  await page.getByRole("button", { name: /^Действия по группе:/ }).click();
+  await expect(page.getByRole("menuitem", { name: "Закончить паузу" })).toBeVisible();
 });

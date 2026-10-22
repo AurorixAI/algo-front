@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { cardMenuItem, cardMenuLabels, dmy, expectNoHorizontalScroll, expectWithinViewportWidth, moneyPattern, toast } from "../support/ui";
+import { cardMenuItem, cardMenuLabels, dmy, expectNoHorizontalScroll, expectWithinViewportWidth, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
  * #105 «цена группы»: the price is set on the GROUP (owner), the students of the group take it from there; the student
@@ -43,7 +43,7 @@ test("price of the group -> consequences before saving -> student card shows it 
 
   // --- the dialog: the consequences are on screen before «Сохранить»
   const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
-  await dialog.getByLabel("Оплата в месяц").fill("500000");
+  await dialog.getByLabel("Цена в месяц").fill("500000");
   await expect(dialog).toContainText("Цену получат 2 ученика");
   await expect(dialog).toContainText("Внесённые оплаты не меняются, но долг и аванс пересчитываются");
   await expect(dialog.getByLabel("Действует с")).toHaveValue(today);
@@ -74,7 +74,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   // --- a SCHEDULED group price shows only from its day and can be taken back (the row is gone, the cancellation stays in the history)
   await block.getByRole("button", { name: "Изменить цену" }).click();
   const plan = page.getByRole("dialog", { name: "Изменить цену группы" });
-  await plan.getByLabel("Оплата в месяц").fill("550000");
+  await plan.getByLabel("Цена в месяц").fill("550000");
   await plan.getByLabel("Действует с").fill(addDays(today, 30));
   await expect(plan).toContainText("Новая цена начнёт действовать с");
   await plan.getByRole("button", { name: "Сохранить" }).click();
@@ -102,13 +102,17 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(price).toContainText(/^Цена\s/);
   await expect(price).toContainText("· цена группы");
   await expect(price).toContainText(priceText(500000));
-  await expect(page.getByRole("textbox", { name: /Оплата в месяц/ })).toHaveCount(0);
-  expect(await cardMenuLabels(page)).not.toContain("Вернуть цену группы"); // no individual price in force
+  await expect(page.getByRole("textbox", { name: /Цена в месяц/ })).toHaveCount(0);
+  // IA audit F1: the menu has ONE item for the price; the history of the prices and of the payments are not in it
+  const menuLabels = await cardMenuLabels(page);
+  expect(menuLabels).toContain("Индивидуальная цена…");
+  for (const gone of ["Вернуть цену группы", "Назначить индивидуальную цену", "История цены", "История оплат", "Пауза…"]) expect(menuLabels).not.toContain(gone);
+  expect(menuLabels.length).toBeLessThanOrEqual(3);
 
   // --- an individual price: a reason is required
-  await cardMenuItem(page, "Назначить индивидуальную цену");
+  await openPriceMode(page, "assign");
   const own = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
-  await own.getByLabel(/Оплата в месяц ученика/).fill("400000");
+  await own.getByLabel(/Индивидуальная цена в месяц/).fill("400000");
   await own.getByLabel("Причина").fill("ab");
   await own.getByRole("button", { name: "Сохранить" }).click();
   await expect(own.getByRole("alert")).toContainText("Укажите причину");
@@ -123,7 +127,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   expect(mine.price).toMatchObject({ amount: 400000, source: "override", group_amount: 500000, reason: "Сестра ученика" });
 
   // --- and back to the price of the group
-  await cardMenuItem(page, "Вернуть цену группы");
+  await openPriceMode(page, "return");
   await page.getByRole("dialog", { name: "Вернуть цену группы" }).getByRole("button", { name: "Вернуть" }).click();
   await expect(toast(page, "Ученик снова платит по цене группы")).toBeVisible();
   await expect(page.getByTestId("membership-price")).toContainText("· цена группы");
@@ -131,18 +135,23 @@ test("price of the group -> consequences before saving -> student card shows it 
   expect((await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`)).price).toMatchObject({ amount: 500000, source: "group" });
 
   // --- a SCHEDULED individual price shows only from its day and can be taken back
-  await cardMenuItem(page, "Назначить индивидуальную цену");
+  await openPriceMode(page, "assign");
   const planned = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
-  await planned.getByLabel(/Оплата в месяц ученика/).fill("350000");
+  await planned.getByLabel(/Индивидуальная цена в месяц/).fill("350000");
   await planned.getByLabel("Действует с").fill(addDays(today, 30));
   await planned.getByLabel("Причина").fill("С нового месяца");
   await planned.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, /действует с/)).toBeVisible();
   await expect(page.getByTestId("membership-price")).toContainText("· цена группы"); // today it is still the price of the group
-  await cardMenuItem(page, "Отменить запланированную индивидуальную цену");
+  await openPriceMode(page, "cancel");
   await page.getByRole("dialog", { name: "Отменить запланированную цену?" }).getByRole("button", { name: "Отменить цену" }).click();
   await expect(toast(page, "Запланированная индивидуальная цена отменена")).toBeVisible();
-  expect((await cardMenuLabels(page)).filter((label) => /Отменить запланированную/.test(label))).toHaveLength(0);
+  // the window of the individual price offers no «Отменить запланированную…» any more, and keeps the history inside
+  await cardMenuItem(page, "Индивидуальная цена…");
+  const hub = page.getByRole("dialog", { name: "Индивидуальная цена", exact: true });
+  await expect(hub.getByTestId("price-mode-cancel")).toHaveCount(0);
+  await expect(hub.getByRole("region", { name: "История цены" })).toContainText("Отменённые");
+  await page.keyboard.press("Escape");
   const afterCancel = await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`);
   expect(afterCancel.price).toMatchObject({ amount: 500000, source: "group" });
   expect(afterCancel.history.some((r: any) => r.valid_from === addDays(today, 30))).toBe(false); // the row is gone
@@ -177,7 +186,7 @@ test("@mobile the page «Цены групп» and its dialog fit a phone; the g
   await expectNoHorizontalScroll(page);
   await block.getByRole("button", { name: "Задать цену" }).click();
   const dialog = page.getByRole("dialog", { name: "Задать цену группы" });
-  await dialog.getByLabel("Оплата в месяц").fill("350000");
+  await dialog.getByLabel("Цена в месяц").fill("350000");
   await expect(dialog).toContainText("Цену получит 1 ученик");
   await expectWithinViewportWidth(page, dialog);
   await expectNoHorizontalScroll(page);

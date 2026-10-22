@@ -15,6 +15,7 @@ import {
 import { splitTransferNotes, transferPaymentHint } from "@/lib/payments";
 import { buildOpeningIn, emptyOpeningValues, isReasonRequired, logicaError, validateOpening, validateOpeningReason, type OpeningFormValues } from "@/lib/payments-logica";
 import { formatBusinessDate } from "@/lib/business-time";
+import { ENROL_HERE_ADD_LABEL, ENROL_HERE_TRANSFER_LABEL, ENROL_STUDENTS_TITLE } from "@/lib/enrol-labels";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { availableStudents, poolSearchTerm, studentPoolQuery } from "@/lib/student-pool";
@@ -84,7 +85,7 @@ export function AddStudentDrawer({
   const [mode, setMode] = useState<GroupJoinMode>("transfer");
   // Money is offered only to users the server lets see it (owner; administrator when allowed).
   const moneyAvailable = usePaymentsSummary((state) => state.available);
-  // The center's mode names the price («Оплата в месяц» / «Стоимость пакета»).
+  // The center's mode names the price («Цена в месяц» / «Цена пакета»).
   const priceLabel = priceLabelOf(usePaymentsSummary((state) => state.periodMode));
   // An individual price is an exception: off by default, a sum and a reason when on (one for everybody added now).
   const [exceptionOn, setExceptionOn] = useState(false);
@@ -186,7 +187,7 @@ export function AddStudentDrawer({
       from: groupNames[studentGroupId(s) as string] || "другой группы",
     }));
 
-  // Shown only to users who see money, and only for "Перевести сюда".
+  // Shown only to users who see money, and only for «Перевести в эту группу».
   const paymentHint = transferPaymentHint({ transfer: mode === "transfer", moneyAvailable });
   const priceHint = enrolPriceHint({ transfer: mode === "transfer", moneyAvailable });
   // The price of this group, shown to money roles only (the key is absent for the others).
@@ -269,8 +270,8 @@ export function AddStudentDrawer({
     <Modal
       open={open}
       placement="right"
-      title="Добавить учеников"
-      description={selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для добавления"}
+      title={ENROL_STUDENTS_TITLE}
+      description={selected.size > 0 ? `Выбрано: ${selected.size}` : "Выберите учеников для зачисления"}
       onClose={onClose}
       maxWidthClassName="max-w-md"
       bodyClassName="flex-1 min-h-0 flex flex-col"
@@ -284,8 +285,8 @@ export function AddStudentDrawer({
             </legend>
             <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="radiogroup">
               {([
-                ["transfer", "Перевести сюда"],
-                ["add", "Добавить ещё и в эту группу"],
+                ["transfer", ENROL_HERE_TRANSFER_LABEL],
+                ["add", ENROL_HERE_ADD_LABEL],
               ] as const).map(([value, title]) => (
                 <button
                   key={value}
@@ -365,7 +366,7 @@ export function AddStudentDrawer({
           ) : (
             <UserPlus className="w-4 h-4" />
           )}
-          {adding ? "Добавление…" : `Добавить${selected.size > 0 ? ` (${selected.size})` : ""}`}
+          {adding ? "Зачисление…" : `Зачислить${selected.size > 0 ? ` (${selected.size})` : ""}`}
         </button>
         </>
       }

@@ -731,12 +731,11 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(page, /usePaymentsSummary\(\(state\) => state\.debtTotal\)/);
   const card = read("src/components/payments/membership-payments.tsx");
   assert.match(card, /<BalanceNote row=\{row\} \/>/);
-  assert.match(card, /label: "Выписка"/);
-  assert.match(card, /canWriteOff\(row\)/);
-  assert.match(card, /aria-label="Куда пошли деньги"/); // every payment of the history says where it went
-  assert.match(card, /Переведено в другую группу: /); // money of a payment that travelled with the student
-  assert.match(card, /payment\.legacy_period/); // and an old one still shows its period
+  assert.match(card, /href=\{statement\}/);
+  assert.match(read("src/lib/membership-actions.ts"), /canWriteOff\(row\)/);
+  assert.match(read("src/lib/membership-actions.ts"), /canRefund\(row\)/);
   const statement = read("src/components/payments/statement-view.tsx");
+  assert.match(statement, /aria-label="Куда пошли деньги"/); // every payment of the one history says where it went
   assert.match(statement, /window\.print\(\)/);
   assert.match(statement, /orgApi\.exportStatement\(/);
   assert.match(statement, /orgApi\.voidWriteoff\(/);

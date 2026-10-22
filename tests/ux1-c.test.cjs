@@ -75,11 +75,11 @@ test("PayrollMonthSummary: one line - «К выплате за …: N сум · 
 
 test("«Как считается»: the formula (with the centre's name of the price), the rules and the example in one dialog body", () => {
   const { PayrollHowItWorksBody } = require(path.join(root, "src/components/payroll/how-it-works.tsx"));
-  const body = textOf(renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 12, priceLabel: "Оплата в месяц" })));
-  assert.ok(body.includes("Оплата в месяц × % ÷ 12 × засчитанные уроки"));
+  const body = textOf(renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 12, priceLabel: "Цена в месяц" })));
+  assert.ok(body.includes("Цена в месяц × % ÷ 12 × засчитанные уроки"));
   assert.ok(body.includes("600 000 сум × 50 % ÷ 12 × 3 урока = 75 000 сум"));
-  const pack = textOf(renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 8, priceLabel: "Стоимость пакета" })));
-  assert.ok(pack.includes("Стоимость пакета × % ÷ 8 × засчитанные уроки"));
+  const pack = textOf(renderToStaticMarkup(React.createElement(PayrollHowItWorksBody, { divisor: 8, priceLabel: "Цена пакета" })));
+  assert.ok(pack.includes("Цена пакета × % ÷ 8 × засчитанные уроки"));
   const dialog = read("src/components/payroll/how-it-works.tsx");
   assert.match(dialog, /import \{ Modal \} from "@\/components\/ui\/modal"/); // the common dialog
   assert.doesNotMatch(dialog, /<details/);
@@ -169,8 +169,8 @@ test("the page «Цены групп»: the cells say the price, the scheduled p
   assert.equal(G.individualPricesText(5), "5 учеников");
   assert.equal(G.individualPricesText(11), "11 учеников");
   assert.equal(G.individualPricesText(21), "21 ученик");
-  assert.equal(G.priceColumnLabel("Оплата в месяц"), "Цена в месяц");
-  assert.equal(G.priceColumnLabel("Стоимость пакета"), "Стоимость пакета");
+  assert.equal(G.priceColumnLabel("Цена в месяц"), "Цена в месяц");
+  assert.equal(G.priceColumnLabel("Цена пакета"), "Цена пакета");
   const item = (name) => ({ group_id: name, name, teacher_id: null, teacher_name: null, kind: "group", current: null, scheduled: null, scheduled_count: 0, students_with_override: 0 });
   assert.deepEqual(G.filterGroupPrices([item("Алгебра 8А"), item("Геометрия")], "  АЛГЕ ").map((i) => i.name), ["Алгебра 8А"]);
   assert.equal(G.filterGroupPrices([item("a"), item("b")], "").length, 2);

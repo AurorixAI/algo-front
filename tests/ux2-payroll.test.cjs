@@ -485,7 +485,7 @@ test("the sheet page and the month page have no price field, no percent field, n
     const text = read(`src/components/payroll/${file}`);
     assert.doesNotMatch(text, /PercentEditor|MissingPercentBanner|FeeCell|setFeeEdit|setPercentEdit|percentFieldText|buildPercentsPayload|extraPercents/, file);
     assert.doesNotMatch(text, /редакци/i, file); // «версия N» lives in the history only; the tab is «История сохранений»
-    assert.doesNotMatch(text, /изменена · было|Оплата в месяц: \$\{/, file);
+    assert.doesNotMatch(text, /изменена · было|Цена в месяц: \$\{/, file);
   }
   assert.doesNotMatch(read("src/lib/payroll.ts"), /setFeeEdit|setPercentEdit|buildCalculateBody|percentFieldState|checkMissingPercents|missingTypesOf|suggested_percent|PERCENT_HINT_TEXT/);
   assert.doesNotMatch(read("src/lib/payroll-help.ts"), /priceFieldHint|priceStepsLines|priceSourceNote/);

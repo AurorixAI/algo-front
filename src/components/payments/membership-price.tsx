@@ -2,7 +2,7 @@
 
 import { logicaError, type LogicaError } from "@/lib/payments-logica";
 import { PriceBlockedBanner, PriceImpactMoneyBlock } from "./price-impact";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -18,6 +18,8 @@ import {
   membershipPriceLine,
   overrideCancelledLine,
   ASSIGN_OVERRIDE_LABEL,
+  INDIVIDUAL_PRICE_TITLE,
+  priceModeHint,
   overrideChangeLine,
   overrideRowText,
   pastDateWarning,
@@ -36,94 +38,20 @@ import {
 import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
-import { type RowMenuItem } from "@/components/ui/row-menu";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
 
 type Dialog = "assign" | "return" | { cancel: PriceOverrideRow } | null;
 
-interface MembershipPriceControlsProps {
+/** Row 2 of the group block: «Цена 500 000 сум/мес · цена группы», or «Цена группы не задана» with the link (the price is never typed per student). */
+export function MembershipPriceLine({ row, periodMode, groupsBasePath }: {
   row: MembershipPaymentRow;
-  studentName: string;
-  /** The centre's billing mode: it names the sum («Оплата в месяц» / «Стоимость пакета»). */
+  /** The centre's billing mode: it names the sum («Цена в месяц» / «Цена пакета»). */
   periodMode: PeriodMode;
   /** `/owner/groups` or `/admin/groups`: «Задать цену группы» leads to the group. */
   groupsBasePath: string;
-  /** An active membership of a student who is not in the archive (the server refuses the rest with 409). */
-  editable: boolean;
-  /** The server accepted a change: the parent replaces the row it holds. */
-  onRowChange: (row: MembershipPaymentRow) => void;
-  onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
-}
-
-export interface MembershipPriceControls {
-  /** Row 2 of the group block: «Цена 500 000 сум/мес · цена группы», or «Цена группы не задана» with the link. */
-  line: ReactNode;
-  /** For the «⋯» menu: «Назначить индивидуальную цену», «Вернуть цену группы», «Отменить запланированную…», «История цены». */
-  items: RowMenuItem[];
-  /** The history of the price, while it is open. */
-  panel: ReactNode;
-  /** The dialogs those items open. */
-  dialogs: ReactNode;
-}
-
-/**
- * The price of one membership on the student card: the price of the group the student follows, or the individual price
- * with its reason.  The card never types a number "per student": the price is set on the group; an individual price is
- * an explicit exception («Назначить индивидуальную цену», a reason is required) that «Вернуть цену группы» takes back.
- * The block of the group owns one «⋯» menu; this hook gives it the price's items, the line, the history and the dialogs.
- */
-export function useMembershipPriceControls({
-  row, studentName, periodMode, groupsBasePath, editable, onRowChange, onNotify,
-}: MembershipPriceControlsProps): MembershipPriceControls {
-  const label = priceLabelOf(periodMode);
-  const price = priceOfRow(row);
-  const view = membershipPriceLine(price, label);
-  const [dialog, setDialog] = useState<Dialog>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [history, setHistory] = useState<MembershipPrice | null>(null);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  /** Bumped after a write: the history is read again (a scheduled price does not change `price`). */
-  const [reloads, setReloads] = useState(0);
-  const requests = useMemo(() => createRequestSequence(), []);
-
-  // The history is read when it is opened - and, for an editable membership, at once: it says whether an individual
-  // price is scheduled (it can be cancelled) - and again after every write.
-  const priceKey = `${price.source}|${price.amount ?? ""}|${price.valid_from ?? ""}`;
-  useEffect(() => {
-    if (!historyOpen && !editable) return undefined;
-    const token = requests.next();
-    setHistoryError(null);
-    orgApi.getMembershipPrice(row.membership_id)
-      .then((result) => { if (requests.isCurrent(token)) setHistory(result); })
-      .catch((cause) => { if (requests.isCurrent(token)) setHistoryError(cause instanceof Error ? cause.message : "Не удалось загрузить историю цены"); });
-    return () => { requests.next(); };
-  }, [historyOpen, editable, row.membership_id, priceKey, reloads, requests]);
-
-  // The individual price in force starts on `activeFrom`; the scheduled ones can be cancelled.
-  const activeFrom = activeOverrideFrom(price);
-  const actions = priceMenuActions(editable, price, history?.history);
-
-  /** Somebody else wrote meanwhile: the price of the row and the history are read again. */
-  const refreshAfterConflict = useCallback(async () => {
-    try {
-      const fresh = await orgApi.getMembershipPrice(row.membership_id);
-      onRowChange({ ...row, price: fresh.price, monthly_fee: fresh.price.amount });
-    } catch {
-      // the next opening of the dialog shows what the server holds
-    }
-    setReloads((value) => value + 1);
-    // `row` is the parent's: a new one arrives with the answer
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.membership_id, onRowChange]);
-
-  const items: RowMenuItem[] = actions.map((action) => ({
-    key: action.kind === "cancel" ? `cancel-${action.row.id}` : action.kind,
-    label: action.label,
-    onSelect: () => setDialog(action.kind === "cancel" ? { cancel: action.row } : action.kind),
-  }));
-  items.push({ key: "price-history", label: historyOpen ? "Скрыть историю цены" : "История цены", onSelect: () => setHistoryOpen((value) => !value) });
-
-  const line = view.kind === "none" ? (
+}) {
+  const view = membershipPriceLine(priceOfRow(row), priceLabelOf(periodMode));
+  return view.kind === "none" ? (
     <p className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
       <span className="font-medium text-amber-800" data-testid="membership-price">{view.text}</span>
       <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-semibold text-primary-700 hover:underline">
@@ -137,46 +65,147 @@ export function useMembershipPriceControls({
       {view.tail ? <span className="text-slate-500"> · {view.tail}</span> : null}
     </p>
   );
+}
 
-  const panel = historyOpen ? (
-    <section aria-label="История цены" className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs text-slate-600">
-      <div className="mb-1.5 flex items-center justify-between gap-3">
-        <h3 className="text-xs font-semibold text-slate-700">История цены</h3>
-        <button type="button" onClick={() => setHistoryOpen(false)} className="text-xs font-semibold text-slate-500 hover:text-slate-800 hover:underline">Скрыть</button>
-      </div>
-      {historyError ? (
-        <p role="alert" className="text-rose-700">{historyError}</p>
-      ) : history === null ? (
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
-      ) : history.history.length === 0 ? (
-        <p className="text-slate-400">Индивидуальных цен не было: ученик платит по цене группы.</p>
-      ) : (
-        <ul className="space-y-0.5">
-          {history.history.map((item) => (
-            <li key={item.id} className={item.is_current ? "font-medium text-slate-800" : ""}>
-              {overrideRowText(item, history.price_label)}
-              {item.is_future && <span className="ml-1.5 text-amber-700">· ожидает даты</span>}
-              {item.created_by_name && <span className="text-slate-400"> · {item.created_by_name}</span>}
-              {(item.changes ?? []).map((change, index) => (
-                <span key={index} className="block text-[11px] font-normal text-slate-400">{overrideChangeLine(change)}</span>
-              ))}
-            </li>
-          ))}
-        </ul>
-      )}
-      {history && (history.cancelled ?? []).length > 0 && (
-        <div className="mt-1.5">
-          <p className="text-[11px] font-semibold text-slate-400">Отменённые</p>
-          <ul className="space-y-0.5">
-            {history.cancelled.map((item, index) => <li key={index} className="text-[11px] text-slate-400">{overrideCancelledLine(item)}</li>)}
-          </ul>
-        </div>
-      )}
-    </section>
-  ) : null;
+interface IndividualPriceDialogProps {
+  open: boolean;
+  row: MembershipPaymentRow;
+  studentName: string;
+  /** The centre's billing mode: it names the sum («Цена в месяц» / «Цена пакета»). */
+  periodMode: PeriodMode;
+  onClose: () => void;
+  /** The server accepted a change: the parent replaces the row it holds. */
+  onRowChange: (row: MembershipPaymentRow) => void;
+  onNotify: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
+}
 
-  const dialogs = (
+/**
+ * IA audit F1: «Индивидуальная цена…» - ONE window for everything about the individual price of a student in a group.  It shows
+ * what he pays now, offers the modes the rules allow (`priceMenuActions`: assign / return to the price of the group / cancel a
+ * scheduled one) and keeps the history inside.  Each mode is the dialog that already existed (the rules are untouched); it opens
+ * over this window, and after a saved change the window closes.
+ */
+export function IndividualPriceDialog({ open, row, studentName, periodMode, onClose, onRowChange, onNotify }: IndividualPriceDialogProps) {
+  const label = priceLabelOf(periodMode);
+  const price = priceOfRow(row);
+  const view = membershipPriceLine(price, label);
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [history, setHistory] = useState<MembershipPrice | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  /** Bumped after a write: the history is read again (a scheduled price does not change `price`). */
+  const [reloads, setReloads] = useState(0);
+  const requests = useMemo(() => createRequestSequence(), []);
+
+  // The history is read when the window opens (it says whether an individual price is scheduled and can be cancelled) and after every write.
+  const priceKey = `${price.source}|${price.amount ?? ""}|${price.valid_from ?? ""}`;
+  useEffect(() => {
+    if (!open) { setDialog(null); return undefined; }
+    const token = requests.next();
+    setHistoryError(null);
+    orgApi.getMembershipPrice(row.membership_id)
+      .then((result) => { if (requests.isCurrent(token)) setHistory(result); })
+      .catch((cause) => { if (requests.isCurrent(token)) setHistoryError(cause instanceof Error ? cause.message : "Не удалось загрузить историю цены"); });
+    return () => { requests.next(); };
+  }, [open, row.membership_id, priceKey, reloads, requests]);
+
+  // The individual price in force starts on `activeFrom`; the scheduled ones can be cancelled.
+  const activeFrom = activeOverrideFrom(price);
+  const actions = priceMenuActions(true, price, history?.history);
+
+  /** Somebody else wrote meanwhile: the price of the row and the history are read again. */
+  const refreshAfterConflict = useCallback(async () => {
+    try {
+      const fresh = await orgApi.getMembershipPrice(row.membership_id);
+      onRowChange({ ...row, price: fresh.price, monthly_fee: fresh.price.amount });
+    } catch {
+      // the next opening of the window shows what the server holds
+    }
+    setReloads((value) => value + 1);
+    // `row` is the parent's: a new one arrives with the answer
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.membership_id, onRowChange]);
+
+  /** A saved change: the row goes up, this window closes (the toast says what happened). */
+  const saved = (next: MembershipPaymentRow, text: string) => {
+    onRowChange(next);
+    setReloads((value) => value + 1);
+    onNotify(text);
+    onClose();
+  };
+
+  return (
     <>
+      <Modal
+        open={open}
+        title={INDIVIDUAL_PRICE_TITLE}
+        description={`${studentName} · ${row.group_name}`}
+        onClose={onClose}
+        maxWidthClassName="max-w-lg"
+        footer={<button type="button" onClick={onClose} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Закрыть</button>}
+      >
+        <div className="space-y-4 pb-2" data-testid="individual-price-dialog">
+          <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-700">
+            <span className="text-xs text-slate-500">Сейчас: </span>
+            {view.kind === "none" ? (
+              <span className="font-medium text-amber-800">{view.text}</span>
+            ) : (
+              <>
+                {view.lead ? `${view.lead} ` : null}
+                <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{view.value}</span>
+                {view.tail ? <span className="text-slate-500"> · {view.tail}</span> : null}
+              </>
+            )}
+          </p>
+
+          <div role="group" aria-label="Что сделать" className="space-y-2">
+            {actions.map((action) => (
+              <button
+                key={action.kind === "cancel" ? `cancel-${action.row.id}` : action.kind}
+                type="button"
+                data-testid={`price-mode-${action.kind}`}
+                onClick={() => setDialog(action.kind === "cancel" ? { cancel: action.row } : action.kind)}
+                className="block w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-left hover:border-primary-300 hover:bg-primary-50/40"
+              >
+                <span className="block text-sm font-semibold text-slate-900">{action.label}</span>
+                <span className="block text-xs text-slate-500">{priceModeHint(action.kind)}</span>
+              </button>
+            ))}
+          </div>
+
+          <section aria-label="История цены" className="rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-xs text-slate-600">
+            <h3 className="mb-1.5 text-xs font-semibold text-slate-700">История цены</h3>
+            {historyError ? (
+              <p role="alert" className="text-rose-700">{historyError}</p>
+            ) : history === null ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+            ) : history.history.length === 0 ? (
+              <p className="text-slate-400">Индивидуальных цен не было: ученик платит по цене группы.</p>
+            ) : (
+              <ul className="space-y-0.5">
+                {history.history.map((item) => (
+                  <li key={item.id} className={item.is_current ? "font-medium text-slate-800" : ""}>
+                    {overrideRowText(item, history.price_label)}
+                    {item.is_future && <span className="ml-1.5 text-amber-700">· ожидает даты</span>}
+                    {item.created_by_name && <span className="text-slate-400"> · {item.created_by_name}</span>}
+                    {(item.changes ?? []).map((change, index) => (
+                      <span key={index} className="block text-[11px] font-normal text-slate-400">{overrideChangeLine(change)}</span>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {history && (history.cancelled ?? []).length > 0 && (
+              <div className="mt-1.5">
+                <p className="text-[11px] font-semibold text-slate-400">Отменённые</p>
+                <ul className="space-y-0.5">
+                  {history.cancelled.map((item, index) => <li key={index} className="text-[11px] text-slate-400">{overrideCancelledLine(item)}</li>)}
+                </ul>
+              </div>
+            )}
+          </section>
+        </div>
+      </Modal>
+
       <AssignOverrideDialog
         open={dialog === "assign"}
         row={row}
@@ -184,11 +213,7 @@ export function useMembershipPriceControls({
         label={label}
         onClose={() => setDialog(null)}
         onConflict={() => void refreshAfterConflict()}
-        onSaved={(next, since) => {
-          onRowChange(next);
-          setReloads((value) => value + 1);
-          onNotify(since ? `Индивидуальная цена назначена, действует ${since}` : "Индивидуальная цена назначена");
-        }}
+        onSaved={(next, since) => saved(next, since ? `Индивидуальная цена назначена, действует ${since}` : "Индивидуальная цена назначена")}
       />
       <ReturnPriceDialog
         open={dialog === "return"}
@@ -198,7 +223,7 @@ export function useMembershipPriceControls({
         notBefore={activeFrom}
         onClose={() => setDialog(null)}
         onConflict={() => void refreshAfterConflict()}
-        onSaved={(next) => { onRowChange(next); setReloads((value) => value + 1); onNotify("Ученик снова платит по цене группы"); }}
+        onSaved={(next) => saved(next, "Ученик снова платит по цене группы")}
       />
       <CancelScheduledDialog
         target={typeof dialog === "object" && dialog !== null ? dialog.cancel : null}
@@ -207,12 +232,10 @@ export function useMembershipPriceControls({
         label={label}
         onClose={() => setDialog(null)}
         onConflict={() => void refreshAfterConflict()}
-        onSaved={(next) => { onRowChange(next); setReloads((value) => value + 1); onNotify("Запланированная индивидуальная цена отменена"); }}
+        onSaved={(next) => saved(next, "Запланированная индивидуальная цена отменена")}
       />
     </>
   );
-
-  return { line, items, panel, dialogs };
 }
 
 /**
@@ -355,7 +378,7 @@ export function AssignOverrideDialog({
             ? `Остальные платят по цене группы: ${formatPrice(price.group_amount, label)}.`
             : "Цена группы не задана."}
         </p>
-        <MoneyField id="membership-price-amount" label={`${label} ученика`} value={amount} onChange={(text) => { setError(null); setAmount(text); }} autoFocus />
+        <MoneyField id="membership-price-amount" label={`Индивидуальная ${label.charAt(0).toLowerCase()}${label.slice(1)}`} value={amount} onChange={(text) => { setError(null); setAmount(text); }} autoFocus />
         <div>
           <label htmlFor="membership-price-from" className={PRICE_LABEL}>Действует с</label>
           <input
