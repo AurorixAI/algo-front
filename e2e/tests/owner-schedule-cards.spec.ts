@@ -104,6 +104,10 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   const movedSheet = page.getByRole("dialog", { name: "Для переноса" });
   await expect(movedSheet).toContainText(/Перенесён на \S+, \d\d\.\d\d, 19:00/);
   await expect(movedSheet).toContainText("Причина: Перенос по просьбе преподавателя");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 
   // --- #124: «Перенести урок» moves to ANY date, with a live check; the old card says «Перенесён», the new one «Перенесён с …»
   const shift = cards.filter({ hasText: "Для сдвига" });
