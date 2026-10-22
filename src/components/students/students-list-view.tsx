@@ -4,19 +4,19 @@ import { Suspense, useEffect, useState, useMemo, useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { DEMO_MODE, orgApi } from "@/lib/api";
-import { Users, Search, Brain, GraduationCap, Folder, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
+import { Users, Search, Brain, GraduationCap, Check, Copy, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
-import { GroupCard } from "@/components/groups/group-card";
 import { ImportButton } from "@/components/import/import-button";
 import { createRequestSequence } from "@/lib/request-sequence";
 import {
-  STUDENT_TABS, availableStudentTabs, parseStudentTab, studentTabCounts, studentTabHref, studentTabQuery, studentTabLabel, studentsSubtitle, extraGroupsLabel, studentCardMeta,
-  type StudentTab, type StudentTabCounts,
+  availableStudentTabs, mergeTeacherStudents, parseStudentsListQuery, studentTabCounts, studentTabQuery, studentTabLabel, studentsListHref, studentsSubtitle, extraGroupsLabel, studentCardMeta,
+  type StudentTab, type StudentTabCounts, type StudentsListState,
 } from "@/lib/students-tabs";
 import { displayPhone, telHref } from "@/lib/phone";
 import { studentGroupId, studentHasGroup } from "@/lib/student-status";
 import { isArchivedStatus } from "@/lib/student-archive";
+import { useCopy } from "@/lib/use-copy";
 
 interface StudentInfo {
   id: string;
@@ -61,26 +61,24 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
   const searchParams = useSearchParams();
   const [students, setStudents] = useState<StudentInfo[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   // A tab / search / page change: the old rows are hidden at once, never shown under the new tab.
   const [refreshing, setRefreshing] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [filterTeacher, setFilterTeacher] = useState<string>("");
-  const [filterGroup, setFilterGroup] = useState<string>("");
   const [teachers, setTeachers] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet;
-  // «Архив» lists the students who left the center. The tab lives in the address (`?tab=`), so a
-  // reload, a link and "Back" from a student's card keep it.
-  const tab: StudentTab = parseStudentTab(searchParams?.get("tab"), OFFERED_TABS);
-  const setTab = (next: StudentTab) => {
-    if (next === tab) return;
-    router.replace(studentTabHref(pathname || `${base}/students`, next), { scroll: false });
+  const { copied: copiedId, copy } = useCopy();
+  // «В группах» is the default; «Без группы» lists the students nobody has put into a group yet; «Архив» lists the students who left
+  // the center.  IA audit F34: the tab, the search, the teacher / group filter and the page all live in the address (`?tab=&q=&teacher=&group=&page=`),
+  // so a reload, a link and «Назад» from a student's card keep them.
+  const listState = parseStudentsListQuery(searchParams, OFFERED_TABS);
+  const { tab, teacher: filterTeacher, group: filterGroup, page, q: debouncedSearch } = listState;
+  const go = (patch: Partial<StudentsListState>) => {
+    router.replace(studentsListHref(pathname || `${base}/students`, { ...listState, ...patch }), { scroll: false });
   };
+  const setTab = (next: StudentTab) => { if (next !== tab) go({ tab: next, page: 0 }); };
+  const setPage = (next: number | ((current: number) => number)) => go({ page: typeof next === "function" ? next(page) : next });
+  const [search, setSearch] = useState(listState.q);
   const [counts, setCounts] = useState<StudentTabCounts>({ grouped: null, ungrouped: null, archived: null });
   // Latest-request-wins: a slow answer for the previous tab / search must not replace the current list.
   const [listSeq] = useState(() => createRequestSequence());
@@ -88,18 +86,15 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
   const handleCopyId = (displayId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(displayId);
-    setCopiedId(displayId);
-    setTimeout(() => setCopiedId(null), 2000);
+    void copy(displayId);
   };
 
-  // "Back" / a link can change the tab without a click: the page number of the old list means nothing.
-  useEffect(() => { setPage(0); }, [tab]);
-
-  // Search is debounced and resets paging.
+  // The search is typed here and written to the address once the typing stops; it resets paging.
   useEffect(() => {
-    const t = setTimeout(() => { setDebouncedSearch(search); setPage(0); }, 300);
+    if (search === listState.q) return undefined;
+    const t = setTimeout(() => go({ q: search, page: 0 }), 300);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   const loadDirectories = useCallback(async () => {
@@ -112,8 +107,14 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
     }
   }, []);
 
-  // A chosen group means «in a group», whatever tab was open.
-  const activeTab: StudentTab = filterGroup ? "grouped" : tab;
+  // A chosen group (or a chosen teacher: his groups) means «in a group», whatever tab was open.
+  const activeTab: StudentTab = filterGroup || filterTeacher ? "grouped" : tab;
+  // The live groups of the chosen teacher (the server has no teacher filter on the list: his groups are read one by one, see `mergeTeacherStudents`).
+  const teacherGroupIds = useMemo(
+    () => (filterTeacher && !filterGroup ? groups.filter((g) => g.teacher_id === filterTeacher && g.status !== "archived").map((g) => g.id as string) : []),
+    [groups, filterTeacher, filterGroup],
+  );
+  const teacherMode = Boolean(filterTeacher && !filterGroup);
 
   // Server-side paging: only the current page is fetched; `total` is the exact size of the
   // filtered set. Archived students are in neither live tab (the dashboard total leaves them out
@@ -121,19 +122,27 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
   // list of its own (`status=archived`). The other tabs' counts come from one-row requests with
   // the same search.
   const loadStudents = useCallback(async () => {
+    // a teacher is chosen: his groups come with the directories; nothing to ask before that
+    if (teacherMode && groups.length === 0) return;
     const token = listSeq.next();
     setRefreshing(true);
     setListError(null);
     try {
       const search = debouncedSearch || undefined;
-      const otherTabs = filterGroup ? [] : OFFERED_TABS.filter((value) => value !== activeTab);
+      const otherTabs = filterGroup || filterTeacher ? [] : OFFERED_TABS.filter((value) => value !== activeTab);
       const [data, otherPages] = await Promise.all([
-        orgApi.listStudentsPage({
-          ...studentTabQuery(activeTab, search),
-          group_id: filterGroup || undefined,
-          limit: PAGE_SIZE,
-          offset: page * PAGE_SIZE,
-        }),
+        teacherMode
+          ? Promise.all(teacherGroupIds.map((id) =>
+            orgApi.listStudentsPage({ ...studentTabQuery("grouped", search), group_id: id, limit: 500, offset: 0 }))).then((pages) => {
+            const merged = mergeTeacherStudents(pages.map((one) => one.items as StudentInfo[]));
+            return { items: merged.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE), total: merged.length };
+          })
+          : orgApi.listStudentsPage({
+            ...studentTabQuery(activeTab, search),
+            group_id: filterGroup || undefined,
+            limit: PAGE_SIZE,
+            offset: page * PAGE_SIZE,
+          }),
         Promise.all(otherTabs.map((value) =>
           orgApi.listStudentsPage({ ...studentTabQuery(value, search), limit: 1 }).catch(() => null))),
       ]);
@@ -142,7 +151,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
       setTotal(data.total);
       const otherTotals: Partial<Record<StudentTab, number | null>> = {};
       otherTabs.forEach((value, index) => { otherTotals[value] = otherPages[index] ? otherPages[index]!.total : null; });
-      setCounts(filterGroup
+      setCounts(filterGroup || filterTeacher
         ? { grouped: data.total, ungrouped: null, archived: null }
         : studentTabCounts(activeTab, data.total, otherTotals));
     } catch (e) {
@@ -156,7 +165,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
     } finally {
       if (listSeq.isCurrent(token)) { setLoading(false); setRefreshing(false); }
     }
-  }, [debouncedSearch, filterGroup, page, activeTab, listSeq]);
+  }, [debouncedSearch, filterGroup, filterTeacher, teacherMode, teacherGroupIds, groups.length, page, activeTab, listSeq]);
 
   const loadAll = () => { loadDirectories(); loadStudents(); };
 
@@ -169,8 +178,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
     return map;
   }, [groups]);
 
-  // Teacher without a chosen group shows group cards, not students.
-  const showStudents = !(filterTeacher && !filterGroup);
+  const showStudents = true;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   if (loading) {
@@ -212,7 +220,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
   ) : null;
 
   const subtitle = showStudents ? studentsSubtitle(counts, activeTab, total, !!filterGroup) : "";
-  const showTabs = showStudents && !filterGroup;
+  const showTabs = showStudents && !filterGroup && !filterTeacher;
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -236,7 +244,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
               type="button"
               role="tab"
               aria-selected={activeTab === value}
-              onClick={() => { setTab(value); setPage(0); }}
+              onClick={() => setTab(value)}
               className={`flex-1 whitespace-nowrap rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:flex-none sm:px-3 ${activeTab === value ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
               {studentTabLabel(value, counts[value])}
@@ -264,12 +272,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
           teachers={teachers}
           groups={groups}
           value={{ teacherId: filterTeacher, groupId: filterGroup }}
-          onChange={({ teacherId, groupId }) => {
-            setFilterTeacher(teacherId);
-            setFilterGroup(groupId);
-            if (groupId) setTab("grouped");
-            setPage(0);
-          }}
+          onChange={({ teacherId, groupId }) => go({ teacher: teacherId, group: groupId, page: 0, ...(groupId || teacherId ? { tab: "grouped" as const } : {}) })}
         />
         )}
       </div>
@@ -285,24 +288,6 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
           <button type="button" onClick={() => void loadStudents()} className="font-medium text-primary-700 hover:underline">
             Повторить
           </button>
-        </div>
-      ) : filterTeacher && !filterGroup ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {groups.filter((g) => g.teacher_id === filterTeacher).length === 0 ? (
-            <div className="col-span-full bg-white rounded-2xl border border-slate-100 p-8 text-center md:p-16">
-              <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
-                <Folder className="w-8 h-8 text-slate-300" />
-              </div>
-              <h3 className="text-lg font-semibold text-slate-900 mb-2">У преподавателя пока нет групп</h3>
-              <p className="text-slate-500 text-sm">Вы можете создать группы в разделе управления расписанием.</p>
-            </div>
-          ) : (
-            groups.filter((g) => g.teacher_id === filterTeacher).map((g, i) => (
-              <div key={g.id} onClick={() => { setFilterGroup(g.id); setPage(0); }}>
-                <GroupCard group={g} href="" index={i} />
-              </div>
-            ))
-          )}
         </div>
       ) : students.length === 0 && activeTab === "archived" ? (
         <p className="py-10 text-center text-sm text-slate-400">
@@ -323,7 +308,7 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
           <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
             {search || filterGroup || filterTeacher
               ? "Попробуйте изменить параметры поиска или фильтры."
-              : "Ученики центра, зачисленные в группы, появятся здесь. После прохождения диагностики распределите учеников по группам."}
+              : "Ученики центра, зачисленные в группы, появятся здесь. Зачислите учеников в группы на странице группы."}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -332,12 +317,15 @@ function StudentsListContent({ workspace = "admin" }: { workspace?: "admin" | "o
             >
               <Users className="w-4 h-4" /> Перейти к группам
             </Link>
-            <Link
-              href="/admin/diagnostics"
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
-            >
-              <Brain className="w-4 h-4" /> Диагностика
-            </Link>
+            {/* Diagnostics belong to the administrator only (owner decision 22.10): the owner has no link into /admin/* */}
+            {workspace === "admin" && (
+              <Link
+                href="/admin/diagnostics"
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors font-medium"
+              >
+                <Brain className="w-4 h-4" /> Диагностика
+              </Link>
+            )}
           </div>
         </div>
       ) : (

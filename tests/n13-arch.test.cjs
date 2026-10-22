@@ -257,8 +257,10 @@ test("the card: «⋯ → В архив», the banner and the modals follow stud
   const view = read("src/components/students/student-profile-view.tsx");
   assert.match(view, /const access = studentArchiveAccess\(\{ isTeacher: Boolean\(isTeacher\), status: student\.status, demo: DEMO_MODE \}\)/);
   // the menu only for a student who can be archived
-  assert.match(view, /\{access\.canArchive && \(\s*<div className="shrink-0">\s*<RowMenu/);
-  assert.match(view, /label: "В архив", icon: Archive, danger: true, onSelect: \(\) => setArchiveOpen\(true\)/);
+  // IA audit F3: the header «⋯» is the person's menu (edit / new diagnostic / copy ID / archive); «В архив» only when `access.canArchive`
+  assert.match(view, /canArchive: access\.canArchive/);
+  assert.match(view, /label: STUDENT_MENU_LABEL\.archive, icon: Archive, danger: true, onSelect: \(\) => setArchiveOpen\(true\)/);
+  assert.match(view, /\{headerMenu\.length > 0 && \(\s*<div className="shrink-0">\s*<RowMenu/);
   // the banner for an archived card; its button only for who may restore
   assert.match(view, /\{access\.showBanner && \(\s*<div role="status"/);
   assert.match(view, /\{access\.canRestore && \(\s*<button[^>]*onClick=\{\(\) => setRestoreOpen\(true\)\}/);
@@ -299,7 +301,7 @@ test("the return refreshes the card at once, whether or not the dialog stays ope
   assert.match(view, /if \(!silent\) setLoading\(true\);/);
   assert.match(view, /if \(silent\) showToast\("Не удалось обновить карточку ученика — обновите страницу", "error"\);\s*else setError\(/);
   // the only callers of reloadCard with `silent` are the restore handler
-  assert.equal((view.match(/silent:/g) || []).length, 1);
+  assert.equal((view.match(/reloadCard\(\{ silent:/g) || []).length, 1);
   // the archive direction has no dialog that stays open: it closes, toasts and reloads behind the spinner
   const archived = view.match(/const handleArchived = \(result: StudentArchiveResult\) => \{[\s\S]*?\n  \};/)[0];
   assert.match(archived, /setArchiveOpen\(false\);\s*showToast\(ARCHIVED_TOAST, "success", archiveResultDetails\(result\)\);\s*reloadCard\(\);/);
@@ -402,7 +404,7 @@ test("the API: POST archive {reason?} and restore {group_ids}; the profile carri
 });
 
 test("no screen moves a student into or out of the archive through the generic PUT (the server answers 422)", () => {
-  // the only caller of updateStudent is the contacts editor: phone and comment
+  // the only caller of updateStudent is the data editor of the card (surname, name, class, phone, note; IA audit F38)
   const callers = [];
   const walk = (dir) => {
     for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) {
@@ -415,16 +417,17 @@ test("no screen moves a student into or out of the archive through the generic P
   assert.deepEqual(callers, ["src/components/students/student-profile-view.tsx"]);
   const view = read("src/components/students/student-profile-view.tsx");
   const call = view.slice(view.indexOf("orgApi.updateStudent("), view.indexOf("orgApi.updateStudent(") + 160);
-  assert.match(call, /student_phone: phoneVal\.trim\(\) \|\| null,\s*comment: commentVal\.trim\(\) \|\| null,/);
+  assert.match(call, /orgApi\.updateStudent\(studentId, patch\)/);
+  assert.doesNotMatch(read("src/lib/student-card.ts").match(/export function studentDataPatch[\s\S]*?\n}\n/)[0], /status/);
   assert.doesNotMatch(call, /status/);
 });
 
 test("the list: three tabs from the address, a Suspense boundary, the archive without teacher / group filters and without group cells", () => {
   const list = read("src/components/students/students-list-view.tsx");
   assert.match(list, /<Suspense/);
-  assert.match(list, /const tab: StudentTab = parseStudentTab\(searchParams\?\.get\("tab"\), OFFERED_TABS\);/);
+  assert.match(list, /const listState = parseStudentsListQuery\(searchParams, OFFERED_TABS\);/); // the tab, the search, the filters and the page are in the address (F34)
   assert.match(list, /const OFFERED_TABS = availableStudentTabs\(DEMO_MODE\);/);
-  assert.match(list, /router\.replace\(studentTabHref\(pathname \|\| `\$\{base\}\/students`, next\), \{ scroll: false \}\)/);
+  assert.match(list, /router\.replace\(studentsListHref\(pathname \|\| `\$\{base\}\/students`, \{ \.\.\.listState, \.\.\.patch \}\), \{ scroll: false \}\)/);
   assert.match(list, /OFFERED_TABS\.map\(\(value\) =>/);
   assert.match(list, /OFFERED_TABS\.filter\(\(value\) => value !== activeTab\)/);   // no archive count request in the demo
   assert.match(list, /studentTabLabel\(value, counts\[value\]\)/);

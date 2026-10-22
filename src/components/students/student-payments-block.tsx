@@ -21,6 +21,8 @@ interface StudentPaymentsBlockProps {
   isTeacher: boolean;
   /** Changes when the student joins or leaves a group, so the money is read again. */
   refreshKey: string;
+  /** The rows on screen changed (a payment, a write-off...): the header of the card keeps its money chip in step. */
+  onRowsChange?: (rows: MembershipPaymentRow[]) => void;
 }
 
 /**
@@ -28,7 +30,7 @@ interface StudentPaymentsBlockProps {
  * price (of the group, or an individual one); the rest (individual price, histories, receipts, cheques) is in «⋯».  Rendered only for a role that
  * may see money and only while the server says so; nothing is requested otherwise.
  */
-export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath, isTeacher, refreshKey }: StudentPaymentsBlockProps) {
+export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath, isTeacher, refreshKey, onRowsChange }: StudentPaymentsBlockProps) {
   const studentId = profile.student.id;
   const studentName = profile.student.full_name;
 
@@ -62,6 +64,8 @@ export function StudentPaymentsBlock({ profile, paymentsBasePath, groupsBasePath
     load();
     return () => { requests.current.next(); };
   }, [moneyEnabled, load, refreshKey]);
+
+  useEffect(() => { if (rows) onRowsChange?.(rows); }, [rows, onRowsChange]);
 
   const replaceRow = (next: MembershipPaymentRow) =>
     setRows((previous) => previous?.map((row) => (row.membership_id === next.membership_id ? next : row)) ?? previous);

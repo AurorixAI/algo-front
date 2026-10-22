@@ -166,21 +166,21 @@ test("tabs of the student card by role", () => {
   assert.deepEqual(Object.values(tabs.PROFILE_TAB_LABEL), ["Диагностика и отчёты", "Обучение", "Оплаты", "Контакты и заметки"]);
 });
 
-test("?tab=: missing opens diagnostics, unknown or forbidden opens «Обучение» (a teacher: diagnostics)", () => {
+test("?tab=: missing, unknown or forbidden opens «Обучение» - the one default (IA audit F35)", () => {
   const owner = tabs.visibleProfileTabs({ isTeacher: false, paymentsVisible: true });
   const adminNoFlag = tabs.visibleProfileTabs({ isTeacher: false, paymentsVisible: false });
   const teacher = tabs.visibleProfileTabs({ isTeacher: true, paymentsVisible: false });
   for (const tab of owner) assert.equal(tabs.parseProfileTab(tab, owner), tab);
-  for (const missing of [null, undefined, ""]) assert.equal(tabs.parseProfileTab(missing, owner), "diagnostics");
+  for (const missing of [null, undefined, ""]) assert.equal(tabs.parseProfileTab(missing, owner), "learning");
   // an administrator without the right: ?tab=payments opens «Обучение», never the money
   assert.equal(tabs.parseProfileTab("payments", adminNoFlag), "learning");
   assert.equal(tabs.parseProfileTab("contacts", adminNoFlag), "contacts");
   for (const bad of ["info", "Payments", "money", "__proto__", "payments,contacts"]) {
     assert.equal(tabs.parseProfileTab(bad, owner), "learning", bad);
-    assert.equal(tabs.parseProfileTab(bad, teacher, true), "diagnostics", bad);
+    assert.equal(tabs.parseProfileTab(bad, teacher, true), "learning", bad);
   }
   // a teacher never reaches money by a link, but opens the contacts
-  assert.equal(tabs.parseProfileTab("payments", teacher, true), "diagnostics");
+  assert.equal(tabs.parseProfileTab("payments", teacher, true), "learning");
   assert.equal(tabs.parseProfileTab("contacts", teacher, true), "contacts");
   assert.equal(tabs.parseProfileTab("learning", teacher, true), "learning");
 });

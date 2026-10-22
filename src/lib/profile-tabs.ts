@@ -20,8 +20,11 @@ export const PROFILE_TAB_SHORT_LABEL: Record<ProfileTab, string> = {
   contacts: "Контакты",
 };
 
-/** The tab a card opens on without `?tab=` (as before the tabs were split). */
-export const DEFAULT_PROFILE_TAB: ProfileTab = "diagnostics";
+/**
+ * The tab a card opens on without `?tab=`, and the one an unknown or not allowed `?tab=` falls back to: «Обучение» (IA audit F35: the
+ * centre's work is the groups, the attendance and the money, not the diagnostics; it used to be two different «defaults»).
+ */
+export const DEFAULT_PROFILE_TAB: ProfileTab = "learning";
 
 /**
  * Tabs this user may see, in order.  A teacher never sees money, but reads the contacts (phone and
@@ -36,16 +39,14 @@ export function visibleProfileTabs(input: { isTeacher: boolean; paymentsVisible:
 }
 
 /**
- * `?tab=` of the card.  Missing -> the default tab (diagnostics, as before).  Unknown or not allowed
- * (`?tab=payments` without the right) -> «Обучение»; a teacher keeps his default, the diagnostics.
+ * `?tab=` of the card.  Missing, unknown or not allowed (`?tab=payments` without the right) -> the one default, «Обучение».
  */
 export function parseProfileTab(
   value: string | null | undefined,
   visible: ReadonlyArray<ProfileTab>,
-  isTeacher = false,
+  _isTeacher = false,
 ): ProfileTab {
   if (value === null || value === undefined || value === "") return DEFAULT_PROFILE_TAB;
   const known = (Object.keys(PROFILE_TAB_LABEL) as ProfileTab[]).find((tab) => tab === value);
-  if (known && visible.includes(known)) return known;
-  return !isTeacher && visible.includes("learning") ? "learning" : DEFAULT_PROFILE_TAB;
+  return known && visible.includes(known) ? known : DEFAULT_PROFILE_TAB;
 }

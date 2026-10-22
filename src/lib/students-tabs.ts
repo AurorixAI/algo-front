@@ -109,3 +109,50 @@ export function studentCardMeta(
   const classLabel = classLevel ? `${classLevel} класс` : "";
   return { id, classLabel, line: [id, classLabel].filter(Boolean).join(" · ") };
 }
+
+// ── The list in the address (IA audit F34) ──────────────────────────────────
+
+/**
+ * Everything the list shows lives in the URL: `?tab=archived&q=иванов&teacher=<id>&group=<id>&page=3`.  A return from a card, a reload and a
+ * shared link keep the filters; defaults are not written.  `page` is 1-based in the address and 0-based in the code.
+ */
+export interface StudentsListState {
+  tab: StudentTab;
+  q: string;
+  teacher: string;
+  group: string;
+  page: number;
+}
+
+export function parseStudentsListQuery(params: { get(name: string): string | null } | null | undefined, tabs: readonly StudentTab[] = STUDENT_TABS): StudentsListState {
+  const page = Math.floor(Number(params?.get("page")));
+  return {
+    tab: parseStudentTab(params?.get("tab"), tabs),
+    q: (params?.get("q") ?? "").slice(0, 80),
+    teacher: params?.get("teacher") ?? "",
+    group: params?.get("group") ?? "",
+    page: Number.isFinite(page) && page >= 2 ? page - 1 : 0,
+  };
+}
+
+export function studentsListHref(pathname: string, state: StudentsListState): string {
+  const params = new URLSearchParams();
+  if (state.tab !== DEFAULT_STUDENT_TAB) params.set("tab", state.tab);
+  if (state.q.trim()) params.set("q", state.q.trim());
+  if (state.teacher) params.set("teacher", state.teacher);
+  if (state.group) params.set("group", state.group);
+  if (state.page > 0) params.set("page", String(state.page + 1));
+  const text = params.toString();
+  return text ? `${pathname}?${text}` : pathname;
+}
+
+/**
+ * IA audit F37: a teacher chosen without a group filters the STUDENTS (not a second screen of group cards).  The server has no `teacher_id`
+ * filter on the list, so the students of the teacher's live groups are read group by group and merged here; a student who is in two of
+ * them is counted once.  Sorted like the list (surname, name).
+ */
+export function mergeTeacherStudents<T extends { id: string; last_name?: string; first_name?: string }>(pages: ReadonlyArray<ReadonlyArray<T>>): T[] {
+  const seen = new Map<string, T>();
+  for (const page of pages) for (const student of page) if (!seen.has(student.id)) seen.set(student.id, student);
+  return [...seen.values()].sort((a, b) => `${a.last_name ?? ""} ${a.first_name ?? ""}`.localeCompare(`${b.last_name ?? ""} ${b.first_name ?? ""}`, "ru"));
+}

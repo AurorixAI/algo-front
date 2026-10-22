@@ -4,10 +4,10 @@ import { Suspense, useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useRouter, usePathname, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, Brain, Copy, Check,
-  Phone, Calendar, Edit2, ExternalLink,
-  GraduationCap, Sparkles, AlertCircle,
-  FileText, Clock, ChevronRight, UserCheck, Plus, Wallet, Archive, ArchiveRestore
+  ArrowLeft, Users, Brain,
+  Phone, Edit2, ExternalLink,
+  GraduationCap, AlertCircle,
+  ChevronRight, Plus, Wallet, Archive, ArchiveRestore, Copy
 } from "lucide-react";
 import Link from "next/link";
 import { DEMO_MODE, examsApi, orgApi, StudentAttendanceSummary, StudentProfile, type StudentArchiveResult } from "@/lib/api";
@@ -16,7 +16,12 @@ import { StudentGroupsBlock, profileMemberships } from "@/components/students/st
 import { StudentPaymentsBlock } from "@/components/students/student-payments-block";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
 import { StudentRestoreModal } from "@/components/students/student-restore-modal";
-import { RowMenu } from "@/components/ui/row-menu";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { StudentDiagnosticDialog } from "@/components/students/student-diagnostic-dialog";
+import { useCopy } from "@/lib/use-copy";
+import { checkStudentData, studentDataForm, studentDataPatch, studentEditHref, studentMenuKeys, studentMoneyChip, STUDENT_MENU_LABEL, type StudentDataForm, type StudentMoneyChip } from "@/lib/student-card";
+import { defaultDiagnosticKind, diagnosticLink, diagnosticsAllowed, isShareableInvite, NEW_DIAGNOSTIC_LABEL } from "@/lib/student-diagnostic";
+import { type MembershipPaymentRow } from "@/lib/payments";
 import { useToast } from "@/components/ui/toast";
 import { useAuthStore } from "@/lib/store";
 import { capitalizeFirst, formatBusinessDate, formatUtcNaiveAsBusinessDate, formatUtcNaiveAsBusinessDayTime, monthYearLabelRu } from "@/lib/business-time";
@@ -44,6 +49,9 @@ const TAB_ICON: Record<ProfileTab, typeof Brain> = {
   payments: Wallet,
   contacts: Phone,
 };
+
+/** A reload of the card that keeps it on screen (no spinner): after saving the data. */
+const QUIET_RELOAD = { silent: true } as const;
 
 const typeLabels: Record<string, string> = {
   initial: "Первичная адаптивная диагностика",
@@ -79,6 +87,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   // The owner keeps the owner workspace (menu highlight); diagnostics exist only under /admin.
   const isOwnerPath = Boolean(pathname?.startsWith("/owner"));
   const groupsBasePath = isTeacher ? "/teacher/groups" : isOwnerPath ? "/owner/groups" : "/admin/groups";
+  // Diagnostics and exams are the administrator's (owner decision 22.10): the owner's card has no button and no link into /admin/*.
+  const workspace: "owner" | "admin" | "teacher" = isTeacher ? "teacher" : isOwnerPath ? "owner" : "admin";
   const diagnosticsBasePath = isTeacher ? "/teacher/diagnostics" : "/admin/diagnostics";
   const defaultBackPath = isTeacher ? "/teacher/groups" : isOwnerPath ? "/owner/students" : "/admin/students";
 
@@ -113,7 +123,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const selectTab = (tab: ProfileTab) => {
     router.replace(`${pathname}?tab=${tab}`, { scroll: false });
   };
-  const [copiedId, setCopiedId] = useState(false);
+  const { copied: copiedInvite, copy } = useCopy();
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [assignMode, setAssignMode] = useState<"transfer" | "add">("transfer");
   // «В архив» / «Вернуть из архива» (owner and administrator).  The toast outlives the profile reload.
@@ -126,11 +136,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
   const [examsError, setExamsError] = useState<ExamHistoryError | null>(null);
   const [examsRetrying, setExamsRetrying] = useState(false);
 
-  // Edit notes/phone state
+  // «Изменить данные…»: the surname, the name, the class, the phone and the note in one form of the «Контакты» tab
   const [editingNotes, setEditingNotes] = useState(false);
-  const [phoneVal, setPhoneVal] = useState("");
-  const [commentVal, setCommentVal] = useState("");
+  const [dataForm, setDataForm] = useState<StudentDataForm | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
   const [savingNotes, setSavingNotes] = useState(false);
+  // «Новая диагностика…» (administrator) and the money chip of the header
+  const [diagnosticOpen, setDiagnosticOpen] = useState(false);
+  const [moneyChip, setMoneyChip] = useState<StudentMoneyChip | null>(null);
 
   // Latest-request-wins, one sequence per kind of load: each request takes a
   // token and applies its result only if no newer request of that kind has
@@ -176,8 +189,6 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
       if (!isCurrent()) return;
       const profileWithHistory: StudentProfile = { ...data, exams };
       setProfile(profileWithHistory);
-      setPhoneVal(profileWithHistory.student.student_phone || "");
-      setCommentVal(profileWithHistory.student.comment || "");
     } catch (err: any) {
       console.error("Failed to load student profile:", err);
       // A silent reload never swaps the card (and the dialog on it) for the error screen.
@@ -192,10 +203,10 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
 
   useEffect(() => {
     currentStudentIdRef.current = studentId;
-    // A new student never opens with the previous student's notes editor / draft.
+    // A new student never opens with the previous student's data editor / draft.
     setEditingNotes(false);
-    setPhoneVal("");
-    setCommentVal("");
+    setDataForm(null);
+    setDataError(null);
     loadProfile();
   }, [studentId, loadProfile]);
 
@@ -240,34 +251,60 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     void loadAttendanceSummary();
   }, [loadAttendanceSummary]);
 
-  const copyDisplayId = (idStr: string) => {
-    navigator.clipboard.writeText(idStr);
-    setCopiedId(true);
-    setTimeout(() => setCopiedId(false), 2000);
+  const startEdit = () => {
+    if (!profile) return;
+    setDataForm(studentDataForm(profile.student));
+    setDataError(null);
+    setEditingNotes(true);
   };
 
   const handleSaveNotes = async () => {
-    if (!profile) return;
+    if (!profile || !dataForm) return;
+    const problem = checkStudentData(dataForm);
+    if (problem) { setDataError(problem); return; }
+    const patch = studentDataPatch(dataForm, profile.student);
+    if (Object.keys(patch).length === 0) { setEditingNotes(false); return; }
     // The save may resolve after the user opened another student: it must not
-    // close that student's notes editor (discarding unsaved text) or clear a
+    // close that student's editor (discarding unsaved text) or clear a
     // newer save's "saving" flag.  loadProfile below guards itself.
     const token = notesSeq.next();
     const stillOnScreen = () => canStartRequest(studentId, currentStudentIdRef.current);
     setSavingNotes(true);
+    setDataError(null);
     try {
-      await orgApi.updateStudent(studentId, {
-        student_phone: phoneVal.trim() || null,
-        comment: commentVal.trim() || null,
-      });
-      if (stillOnScreen()) setEditingNotes(false);
-      await loadProfile();
+      await orgApi.updateStudent(studentId, patch);
+      if (stillOnScreen()) { setEditingNotes(false); showToast("Данные ученика сохранены"); }
+      await loadProfile(QUIET_RELOAD);
     } catch (e: any) {
       // A failed save is always reported, whichever student is on screen now.
-      alert(e.message || "Ошибка сохранения");
+      if (stillOnScreen()) setDataError(e?.message || "Ошибка сохранения");
+      else showToast(e?.message || "Ошибка сохранения", "error");
     } finally {
       if (notesSeq.isCurrent(token)) setSavingNotes(false);
     }
   };
+
+  // `?tab=contacts&edit=1` (the «⋯» → «Изменить данные…» of another screen) opens the form once the card is there
+  const editRequested = searchParams?.get("edit") === "1";
+  useEffect(() => {
+    if (!profile || !editRequested || isTeacher || editingNotes || activeTab !== "contacts") return;
+    setDataForm(studentDataForm(profile.student));
+    setEditingNotes(true);
+    // once per request
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.student.id, editRequested, activeTab]);
+
+  const onMoneyRows = useCallback((rows: MembershipPaymentRow[]) => setMoneyChip(studentMoneyChip(rows)), []);
+
+  // The money chip of the header: the same rows the «Оплаты» tab shows (only a role that sees money; nothing is requested otherwise)
+  useEffect(() => {
+    if (!paymentsVisible || !profile) { setMoneyChip(null); return undefined; }
+    let cancelled = false;
+    orgApi.getStudentMemberships(studentId)
+      .then((rows: MembershipPaymentRow[]) => { if (!cancelled) setMoneyChip(studentMoneyChip(Array.isArray(rows) ? rows : [])); })
+      .catch(() => { if (!cancelled) setMoneyChip(null); });
+    return () => { cancelled = true; };
+  }, [paymentsVisible, studentId, profile]);
 
   if (loading) {
     return (
@@ -336,6 +373,16 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     reloadCard();
   };
 
+  const diagnosticsEnabled = diagnosticsAllowed({ workspace, archived: access.showBanner });
+  const headerMenu: RowMenuItem[] = isTeacher ? [] : studentMenuKeys({
+    canEdit: true, diagnostics: diagnosticsEnabled, hasDisplayId: Boolean(student.display_id), canArchive: access.canArchive,
+  }).map((key): RowMenuItem => {
+    if (key === "edit") return { key, label: STUDENT_MENU_LABEL.edit, icon: Edit2, onSelect: () => { startEdit(); if (activeTab !== "contacts") router.replace(studentEditHref(pathname ?? ""), { scroll: false }); } };
+    if (key === "diagnostic") return { key, label: NEW_DIAGNOSTIC_LABEL, icon: Brain, onSelect: () => setDiagnosticOpen(true) };
+    if (key === "copyId") return { key, label: STUDENT_MENU_LABEL.copyId, icon: Copy, onSelect: () => { void copy(student.display_id ?? "", "id").then((ok) => showToast(ok ? "ID ученика скопирован" : "Не удалось скопировать", ok ? "success" : "error")); } };
+    return { key, label: STUDENT_MENU_LABEL.archive, icon: Archive, danger: true, onSelect: () => setArchiveOpen(true) };
+  });
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-16">
       {/* ── Top Navigation Bar ────────────────────────────────────────────── */}
@@ -395,6 +442,16 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 {access.showBanner && (
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">В архиве</span>
                 )}
+                {/* IA audit F35: the money of the student in one chip, a link to «Оплаты» */}
+                {moneyChip && paymentsVisible && (
+                  <Link
+                    href={`${pathname}?tab=payments`}
+                    data-testid="student-money-chip"
+                    className={`px-2.5 py-0.5 rounded-full text-xs font-semibold hover:underline ${moneyChip.tone === "danger" ? "bg-rose-100 text-rose-700" : "bg-emerald-50 text-emerald-700"}`}
+                  >
+                    {moneyChip.label}
+                  </Link>
+                )}
               </div>
 
               {/* Meta row */}
@@ -434,16 +491,11 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
             </div>
           </div>
 
-          {/* «⋯» → «В архив»: owner and administrator, a student who is not archived yet */}
-          {access.canArchive && (
+          {/* IA audit F3: «⋯» holds the actions about the PERSON only - «Изменить данные…», «Новая диагностика…» (administrator), «Копировать ID»,
+              «В архив» last.  Money lives in «Оплаты», the groups and the pause in «Обучение». */}
+          {headerMenu.length > 0 && (
             <div className="shrink-0">
-              <RowMenu
-                label={`Действия: ${student.full_name}`}
-                width={200}
-                items={[
-                  { key: "archive", label: "В архив", icon: Archive, danger: true, onSelect: () => setArchiveOpen(true) },
-                ]}
-              />
+              <RowMenu label={`Действия: ${student.full_name}`} width={220} items={headerMenu} />
             </div>
           )}
         </div>
@@ -453,7 +505,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           {tabs.map((id) => {
             const Icon = TAB_ICON[id];
             const isActive = activeTab === id;
-            const count = id === "diagnostics" ? diagnostics.length : undefined;
+            const count = id === "diagnostics" ? diagnostics.length : id === "payments" && moneyChip && moneyChip.debtGroups > 0 ? moneyChip.debtGroups : undefined;
+            const countTone = id === "payments" ? "bg-rose-100 text-rose-700" : isActive ? "bg-primary-100 text-primary-700" : "bg-slate-100 text-slate-500";
             return (
               <button
                 key={id}
@@ -474,9 +527,8 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 <span className="hidden sm:inline">{PROFILE_TAB_LABEL[id]}</span>
                 {count !== undefined && (
                   <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                      isActive ? "bg-primary-100 text-primary-700" : "bg-slate-100 text-slate-500"
-                    }`}
+                    className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${countTone}`}
+                    title={id === "payments" ? "Группы с долгом" : undefined}
                   >
                     {count}
                   </span>
@@ -510,13 +562,15 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                   <p className="text-xs text-slate-400 max-w-sm mx-auto mb-3">
                     Ученик ещё не проходил адаптивное диагностическое тестирование.
                   </p>
-                  {access.diagnosticActions && (
-                    <Link
-                      href="/admin/students/new"
+                  {/* the administrator creates the invite for THIS student (F32); the owner has no diagnostic buttons (owner decision 22.10) */}
+                  {diagnosticsEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => setDiagnosticOpen(true)}
                       className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-primary-600 text-white rounded-xl text-xs font-medium hover:bg-primary-700 shadow-sm"
                     >
                       <Plus className="w-3.5 h-3.5" /> Назначить диагностику
-                    </Link>
+                    </button>
                   )}
                 </div>
               ) : (
@@ -560,18 +614,37 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
 
                           {/* Action Button: Open Report (same size as the badge and buttons of the diagnostics list) */}
                           {isCompleted ? (
-                            <Link href={`${diagnosticsBasePath}/${diag.invite_id}/report`} className={diagnosticActionClass("solid")}>
-                              <ExternalLink className="w-3.5 h-3.5" />
-                              <span>Полный отчёт</span>
-                            </Link>
+                            // the report is the administrator's (and the teacher's) page: no link from the owner's card
+                            workspace === "owner" ? (
+                              <DiagnosticStatusBadge testId="student-diagnostic-status" tone="bg-emerald-50 text-emerald-700 border-emerald-200" dot="bg-emerald-400">Пройдена</DiagnosticStatusBadge>
+                            ) : (
+                              <Link href={`${diagnosticsBasePath}/${diag.invite_id}/report`} className={diagnosticActionClass("solid")}>
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>Полный отчёт</span>
+                              </Link>
+                            )
                           ) : (
-                            <DiagnosticStatusBadge
-                              testId="student-diagnostic-status"
-                              tone={isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}
-                              dot={isDead ? "bg-slate-400" : "bg-amber-400"}
-                            >
-                              {studentCardInviteLabel(diag.status)}
-                            </DiagnosticStatusBadge>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* IA audit F15: a waiting invite can be sent again from the card (administrator) */}
+                              {diagnosticsEnabled && isShareableInvite(diag.status) && diag.code && (
+                                <button
+                                  type="button"
+                                  data-testid="student-diagnostic-copy-link"
+                                  onClick={() => { void copy(diagnosticLink(window.location.origin, diag.code), `invite-${diag.invite_id}`).then((ok) => showToast(ok ? "Ссылка на диагностику скопирована" : "Не удалось скопировать", ok ? "success" : "error")); }}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                                >
+                                  <Copy className="h-3.5 w-3.5" aria-hidden />
+                                  {copiedInvite === `invite-${diag.invite_id}` ? "Скопировано" : "Скопировать ссылку"}
+                                </button>
+                              )}
+                              <DiagnosticStatusBadge
+                                testId="student-diagnostic-status"
+                                tone={isDead ? "bg-slate-50 text-slate-600 border-slate-200" : "bg-amber-50 text-amber-700 border-amber-200"}
+                                dot={isDead ? "bg-slate-400" : "bg-amber-400"}
+                              >
+                                {studentCardInviteLabel(diag.status)}
+                              </DiagnosticStatusBadge>
+                            </div>
                           )}
                         </div>
 
@@ -842,6 +915,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
             groupsBasePath={groupsBasePath}
             isTeacher={Boolean(isTeacher)}
             refreshKey={memberships.map((item) => item.membership_id || item.group_id).join(",")}
+            onRowsChange={onMoneyRows}
           />
         )}
 
@@ -854,23 +928,66 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 <h2 className="text-base font-semibold text-slate-800">Контакты и служебные заметки</h2>
                 {!isTeacher && !editingNotes && (
                   <button
-                    onClick={() => setEditingNotes(true)}
+                    onClick={startEdit}
                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
                   >
-                    <Edit2 className="w-3.5 h-3.5" /> Редактировать
+                    <Edit2 className="w-3.5 h-3.5" /> Изменить данные
                   </button>
                 )}
               </div>
 
-              {editingNotes ? (
-                <div className="space-y-4 max-w-lg">
+              {editingNotes && dataForm ? (
+                <form
+                  className="space-y-4 max-w-lg"
+                  data-testid="student-data-form"
+                  onSubmit={(event) => { event.preventDefault(); void handleSaveNotes(); }}
+                  noValidate
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="student-profile-familiya" className="block text-xs font-semibold text-slate-700 mb-1">Фамилия</label>
+                      <input
+                        id="student-profile-familiya"
+                        type="text"
+                        value={dataForm.last_name}
+                        onChange={(e) => { setDataError(null); setDataForm({ ...dataForm, last_name: e.target.value }); }}
+                        className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="student-profile-imya" className="block text-xs font-semibold text-slate-700 mb-1">Имя</label>
+                      <input
+                        id="student-profile-imya"
+                        type="text"
+                        value={dataForm.first_name}
+                        onChange={(e) => { setDataError(null); setDataForm({ ...dataForm, first_name: e.target.value }); }}
+                        className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="student-profile-klass" className="block text-xs font-semibold text-slate-700 mb-1">Класс</label>
+                    <select
+                      id="student-profile-klass"
+                      value={dataForm.class_level}
+                      onChange={(e) => { setDataError(null); setDataForm({ ...dataForm, class_level: e.target.value }); }}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-primary-500 focus:outline-none sm:w-1/2"
+                    >
+                      {[...new Set([5, 6, 7, 8, 9, 10, 11, student.class_level])].sort((x, y) => x - y).map((level) => <option key={level} value={String(level)}>{level} класс</option>)}
+                    </select>
+                    {Number(dataForm.class_level) !== student.class_level && (
+                      <p className="mt-1 text-xs text-amber-800" role="note">Класс влияет на диагностику и уровни: новые диагностики пойдут по выбранному классу.</p>
+                    )}
+                  </div>
+
                   <div>
                     <label htmlFor="student-profile-nomer-telefona" className="block text-xs font-semibold text-slate-700 mb-1">Номер телефона</label>
                     <input
                       id="student-profile-nomer-telefona"
                       type="text"
-                      value={phoneVal}
-                      onChange={(e) => setPhoneVal(e.target.value)}
+                      value={dataForm.student_phone}
+                      onChange={(e) => setDataForm({ ...dataForm, student_phone: e.target.value })}
                       placeholder="+998 90 123 45 67"
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
@@ -881,29 +998,32 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     <textarea
                       id="student-profile-kommentariy-zametka"
                       rows={4}
-                      value={commentVal}
-                      onChange={(e) => setCommentVal(e.target.value)}
+                      value={dataForm.comment}
+                      onChange={(e) => setDataForm({ ...dataForm, comment: e.target.value })}
                       placeholder="Особенности ученика, пожелания родителей, цели..."
                       className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
                   </div>
 
+                  {dataError && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{dataError}</p>}
+
                   <div className="flex items-center gap-2 pt-2">
                     <button
-                      onClick={handleSaveNotes}
+                      type="submit"
                       disabled={savingNotes}
-                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+                      className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all disabled:opacity-60"
                     >
                       {savingNotes ? "Сохранение..." : "Сохранить"}
                     </button>
                     <button
-                      onClick={() => setEditingNotes(false)}
+                      type="button"
+                      onClick={() => { setEditingNotes(false); setDataError(null); }}
                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
                     >
                       Отмена
                     </button>
                   </div>
-                </div>
+                </form>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="p-4 rounded-xl bg-slate-50 space-y-1">
@@ -977,6 +1097,17 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
           onClose={() => setRestoreOpen(false)}
           onRestored={handleRestored}
           onStale={handleStale}
+        />
+      )}
+      {diagnosticOpen && diagnosticsEnabled && (
+        <StudentDiagnosticDialog
+          open
+          studentId={student.id}
+          studentName={student.full_name}
+          classLevel={student.class_level}
+          initialKind={defaultDiagnosticKind(diagnostics)}
+          onClose={() => setDiagnosticOpen(false)}
+          onCreated={() => { void loadProfile(QUIET_RELOAD); }}
         />
       )}
       {toastNode}

@@ -12,6 +12,7 @@ import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { ROSTER_LEAVE_LABEL, ROSTER_TRANSFER_LABEL, rosterMenuKeys } from "@/lib/group-workspace";
 import { LeaveStudentDialog } from "./leave-student-dialog";
+import { useCopy } from "@/lib/use-copy";
 
 type SortKey = "name" | "display_id" | "class_level" | "phone" | "joined_at";
 
@@ -44,14 +45,12 @@ export function GroupStudentTable({ students, studentBasePath, canRemove, groupI
 
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortAsc, setSortAsc] = useState(true);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { copied: copiedId, copy } = useCopy();
 
   const handleCopyId = (displayId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    navigator.clipboard.writeText(displayId);
-    setCopiedId(displayId);
-    setTimeout(() => setCopiedId(null), 2000);
+    void copy(displayId);
   };
 
   const handleSort = (key: SortKey) => {

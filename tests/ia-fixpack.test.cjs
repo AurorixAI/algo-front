@@ -307,3 +307,108 @@ test("F21 / F24: «Преподаватель» (not «Учитель») and one
   }
   for (const file of ["src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx"]) assert.match(read(file), /<h1 className="[^"]*text-xl font-bold [^"]*md:text-2xl/, file);
 });
+
+// ── F3 / F35 / F38 / F32 / F33 / F15 / F16 / F36: the card of the student ───────────────────────────────
+
+const C = require(path.join(root, "src/lib/student-card.ts"));
+const D = require(path.join(root, "src/lib/student-diagnostic.ts"));
+const PT = require(path.join(root, "src/lib/profile-tabs.ts"));
+const S = require(path.join(root, "src/lib/students-tabs.ts"));
+
+test("F3: the header «⋯» of the card is about the person - edit, new diagnostic (administrator), copy ID, archive last; at most four items", () => {
+  const labels = (input) => C.studentMenuKeys(input).map((key) => C.STUDENT_MENU_LABEL[key]);
+  assert.deepEqual(labels({ canEdit: true, diagnostics: true, hasDisplayId: true, canArchive: true }), ["Изменить данные…", "Новая диагностика…", "Копировать ID", "В архив"]);
+  assert.deepEqual(labels({ canEdit: true, diagnostics: false, hasDisplayId: true, canArchive: true }), ["Изменить данные…", "Копировать ID", "В архив"]);   // the owner: no diagnostics
+  assert.deepEqual(labels({ canEdit: true, diagnostics: false, hasDisplayId: false, canArchive: false }), ["Изменить данные…"]);
+  for (const input of [{ canEdit: true, diagnostics: true, hasDisplayId: true, canArchive: true }]) assert.ok(C.studentMenuKeys(input).length <= 4);
+  const view = read("src/components/students/student-profile-view.tsx");
+  assert.match(view, /<RowMenu label=\{`Действия: \$\{student\.full_name\}`\}/);
+  assert.match(view, /studentMenuKeys\(\{/);
+  assert.equal(C.studentEditHref("/owner/students/s1"), "/owner/students/s1?tab=contacts&edit=1");
+});
+
+test("F38 / Q2: name and class are edited in the card («Изменить данные…»); only what changed is sent", () => {
+  const student = { last_name: "Каримова", first_name: "Дилноза", class_level: 8, student_phone: "+998901234567", comment: null };
+  const form = C.studentDataForm(student);
+  assert.deepEqual(form, { last_name: "Каримова", first_name: "Дилноза", class_level: "8", student_phone: "+998901234567", comment: "" });
+  assert.deepEqual(C.studentDataPatch(form, student), {});
+  assert.deepEqual(C.studentDataPatch({ ...form, first_name: " Дильноза ", class_level: "9" }, student), { first_name: "Дильноза", class_level: 9 });
+  assert.deepEqual(C.studentDataPatch({ ...form, comment: "Сестра Малики" }, student), { comment: "Сестра Малики" });
+  assert.equal(C.checkStudentData({ ...form, last_name: " " }), "Укажите фамилию");
+  assert.equal(C.checkStudentData({ ...form, first_name: "" }), "Укажите имя");
+  assert.equal(C.checkStudentData({ ...form, class_level: "12" }), "Выберите класс");
+  assert.equal(C.checkStudentData(form), null);
+  const view = read("src/components/students/student-profile-view.tsx");
+  for (const id of ["student-profile-familiya", "student-profile-imya", "student-profile-klass"]) assert.ok(view.includes(id), id);
+  assert.match(view, /orgApi\.updateStudent\(studentId, patch\)/);
+  assert.match(view, /searchParams\?\.get\("edit"\) === "1"/);              // ?tab=contacts&edit=1
+  assert.match(view, /Класс влияет на диагностику и уровни/);
+});
+
+test("F35: the default tab of the card is «Обучение» (one default); the header says the money in one chip that leads to «Оплаты»", () => {
+  assert.equal(PT.DEFAULT_PROFILE_TAB, "learning");
+  const owner = PT.visibleProfileTabs({ isTeacher: false, paymentsVisible: true });
+  assert.equal(PT.parseProfileTab(null, owner), "learning");
+  assert.equal(PT.parseProfileTab("nonsense", owner), "learning");
+  assert.equal(PT.parseProfileTab("payments", owner), "payments");
+  const row = (over) => ({ debt: 0, advance: 0, is_active: true, paid_until: null, status: "active", ...over });
+  const chip = C.studentMoneyChip([row({ debt: 300000 }), row({ debt: 100000, is_active: false }), row({ paid_until: "2026-11-15" })]);
+  assert.deepEqual([plain(chip.label), chip.tone, chip.debtGroups], ["Долг 400 000 сум", "danger", 2]);
+  assert.deepEqual(C.studentMoneyChip([row({ paid_until: "2026-12-01" }), row({ paid_until: "2026-11-15" })]), { label: "Оплачено до 15.11", tone: "ok", debtGroups: 0 });
+  assert.equal(C.studentMoneyChip([]), null);
+  assert.equal(C.studentMoneyChip([row({ status: "paused", paid_until: "2026-11-15" })]), null);
+  const view = read("src/components/students/student-profile-view.tsx");
+  assert.match(view, /href=\{`\$\{pathname\}\?tab=payments`\}/);
+  assert.match(view, /data-testid="student-money-chip"/);
+});
+
+test("F32 / F15 / Q1: «Новая диагностика…» and the link of a waiting invite are the administrator's; the owner has no diagnostic button and no link into /admin/*", () => {
+  assert.equal(D.diagnosticsAllowed({ workspace: "admin", archived: false }), true);
+  assert.equal(D.diagnosticsAllowed({ workspace: "admin", archived: true }), false);
+  assert.equal(D.diagnosticsAllowed({ workspace: "owner", archived: false }), false);
+  assert.equal(D.diagnosticsAllowed({ workspace: "teacher", archived: false }), false);
+  assert.equal(D.defaultDiagnosticKind([]), "initial");
+  assert.equal(D.defaultDiagnosticKind([{ status: "completed" }]), "recheck");
+  assert.equal(D.diagnosticLink("https://app.algo.uz/", "ABC123"), "https://app.algo.uz/d/ABC123");
+  assert.deepEqual([D.isShareableInvite("pending"), D.isShareableInvite("confirmed"), D.isShareableInvite("completed"), D.isShareableInvite("cancelled")], [true, true, false, false]);
+  assert.match(D.shareUrls("https://x/d/A").whatsapp, /^https:\/\/wa\.me\/\?text=/);
+  const view = read("src/components/students/student-profile-view.tsx");
+  assert.match(view, /orgApi\.createDiagnostic|StudentDiagnosticDialog/);
+  assert.match(read("src/components/students/student-diagnostic-dialog.tsx"), /orgApi\.createDiagnostic\(\{ student_id: studentId, class_level: level, diagnostic_type: kind \}\)/);
+  assert.match(view, /workspace === "owner" \?/);                      // the report link is not drawn for the owner
+  assert.match(view, /data-testid="student-diagnostic-copy-link"/);
+  // no owner-reachable screen points into /admin/*: the shared components of the money / students / groups area
+  const walk = (dir, out = []) => { for (const entry of fs.readdirSync(path.join(root, dir), { withFileTypes: true })) { const rel = `${dir}/${entry.name}`; if (entry.isDirectory()) walk(rel, out); else if (/\.tsx?$/.test(entry.name)) out.push(rel); } return out; };
+  for (const file of [...walk("src/app/owner"), "src/components/students/students-list-view.tsx", "src/components/groups/group-detail-view.tsx", "src/components/groups/groups-list-view.tsx", "src/components/payments/payments-page.tsx", "src/components/payments/statement-view.tsx", "src/components/payments/receipt-view.tsx", "src/components/payments/income-journal.tsx", "src/components/substitutions/substitutions-page.tsx"]) {
+    const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    assert.doesNotMatch(file.endsWith("students-list-view.tsx") ? code.replace(/href="\/admin\/diagnostics"/, "") : code, /["'`]\/admin\//, `${file}: a literal /admin/ path`);
+  }
+  // the card serves both workspaces: its `/admin/...` strings are the administrator's branch of a ternary, the owner's is `/owner/...`
+  for (const line of view.split("\n").filter((text) => /["'`]\/admin\//.test(text) && !/startsWith/.test(text))) assert.match(line, /isOwnerPath|isTeacher/, line);
+  assert.match(read("src/components/students/students-list-view.tsx"), /\{workspace === "admin" && \(\s*<Link\s+href="\/admin\/diagnostics"/);   // the one link, only in the administrator's list
+  assert.equal(require(path.join(root, "src/lib/ia-links.ts")).pointsIntoAdmin("/admin/students/s1"), true);
+  assert.equal(require(path.join(root, "src/lib/ia-links.ts")).pointsIntoAdmin("/owner/students/s1"), false);
+});
+
+test("F34 / F37: the students list lives in the address (tab, search, teacher, group, page); a teacher filters the students, not a screen of group cards", () => {
+  const state = (over) => ({ tab: "grouped", q: "", teacher: "", group: "", page: 0, ...over });
+  assert.equal(S.studentsListHref("/owner/students", state({})), "/owner/students");
+  assert.equal(S.studentsListHref("/owner/students", state({ tab: "archived", q: "али", teacher: "t1", group: "g1", page: 2 })), "/owner/students?tab=archived&q=%D0%B0%D0%BB%D0%B8&teacher=t1&group=g1&page=3");
+  const parsed = S.parseStudentsListQuery(new URLSearchParams("tab=ungrouped&q=али&teacher=t1&group=g1&page=3"));
+  assert.deepEqual(parsed, state({ tab: "ungrouped", q: "али", teacher: "t1", group: "g1", page: 2 }));
+  assert.deepEqual(S.parseStudentsListQuery(new URLSearchParams("page=0&tab=zzz")), state({}));
+  assert.deepEqual(S.mergeTeacherStudents([[{ id: "2", last_name: "Б", first_name: "А" }, { id: "1", last_name: "А", first_name: "Я" }], [{ id: "2", last_name: "Б", first_name: "А" }]]).map((s) => s.id), ["1", "2"]);
+  const list = read("src/components/students/students-list-view.tsx");
+  assert.doesNotMatch(list, /<GroupCard|Folder|У преподавателя пока нет групп|создать группы в разделе/);
+  assert.match(list, /mergeTeacherStudents\(/);
+});
+
+test("F16 / F36: one «Копировать ID» (useCopy); no dead copy code on the card, no «copyDisplayId»", () => {
+  for (const file of ["src/components/students/students-list-view.tsx", "src/components/groups/group-student-table.tsx", "src/components/students/student-profile-view.tsx"]) {
+    const code = read(file);
+    assert.match(code, /useCopy\(/, file);
+    assert.doesNotMatch(code, /navigator\.clipboard/, file);
+    assert.doesNotMatch(code, /copyDisplayId/, file);
+  }
+  assert.match(read("src/lib/use-copy.ts"), /export function useCopy\(/);
+});

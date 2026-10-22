@@ -154,7 +154,7 @@ test("the list uses the tabs, no longer hides students without a group, and is g
   assert.match(list, /\.\.\.studentTabQuery\(activeTab, search\)/);
   assert.match(list, /role="tablist"/);
   assert.match(list, /studentTabLabel\(value, counts\[value\]\)/);
-  assert.match(list, /const activeTab: StudentTab = filterGroup \? "grouped" : tab;/); // a chosen group means «in a group»
+  assert.match(list, /const activeTab: StudentTab = filterGroup \|\| filterTeacher \? "grouped" : tab;/); // a chosen group (or teacher) means «in a group»
   assert.match(list, /const token = listSeq\.next\(\);/);
   assert.equal((list.match(/if \(!listSeq\.isCurrent\(token\)\) return;/g) || []).length, 2); // success and failure
   assert.match(list, /if \(listSeq\.isCurrent\(token\)\) \{ setLoading\(false\); setRefreshing\(false\); \}/);

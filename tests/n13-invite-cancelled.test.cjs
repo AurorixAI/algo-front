@@ -156,8 +156,10 @@ test("the student card: a grey badge and the hint for a cancelled invite; no «�
   assert.match(card, /\{cancelHint && <p className="mt-0\.5 text-xs text-slate-500">\{cancelHint\}<\/p>\}/);
   // the grey chip reaches AA at 12px (slate-600 on slate-50); the muted hint is slate-500 on white at least
   assert.match(card, /isDead \? "bg-slate-50 text-slate-600 border-slate-200"/);
-  assert.match(card, /\{access\.diagnosticActions && \(\s*<Link\s+href="\/admin\/students\/new"/);
-  assert.doesNotMatch(card, /\{!isTeacher && \(\s*<Link\s+href="\/admin\/students\/new"/);
+  // IA audit F32 / Q1: «Назначить диагностику» opens the dialog of THIS student, only in the administrator's workspace, never for an archived one
+  assert.match(card, /const diagnosticsEnabled = diagnosticsAllowed\(\{ workspace, archived: access\.showBanner \}\);/);
+  assert.match(card, /\{diagnosticsEnabled && \(\s*<button\s+type="button"\s+onClick=\{\(\) => setDiagnosticOpen\(true\)\}/);
+  assert.doesNotMatch(card, /\/admin\/students\/new/);
 });
 
 test("the archive dialog warns about the invites and the running test; the card passes the counts of its diagnostics", () => {
