@@ -1074,12 +1074,13 @@ export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone 
  * The state logic is `moneyChip`'s, only the words change:
  *  - paused: «На паузе до 12.11» (grey);
  *  - debt, the period has ended: «Долг 592 000 сум» (red; the title says «Просрочено на N дней»);
- *  - debt, never paid: «Ещё не платил» (amber; the title says the debt);
+ *  - debt, never paid, nothing overdue yet: «Ещё не платил» (amber; the title says the debt);
+ *  - debt, never paid, but a period has already ended unpaid (past_debt > 0): «Долг 1 500 000 сум» (red; the title says «Ещё не платил»);
  *  - debt, a part is paid: «Долг 92 000 сум» (amber; the title says «Не доплачено»);
  *  - no debt: «Оплачено до 30.11» (green) / «Осталось 5 дней · до 30.11» / «Сегодня последний день» (amber) / «Оплачено · осталось 9 уроков из 12» / «Без оплат» / «Бесплатно».
  * An advance is not said here (it is in the statement).
  */
-export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until">>): { label: string; tone: StatusTone; title: string | null } {
+export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until" | "past_debt">>): { label: string; tone: StatusTone; title: string | null } {
   const base = moneyChip(row);
   const debt = row.debt ?? 0;
   const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
@@ -1087,7 +1088,11 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
   if (row.status === "paused") return { ...base, title: until ? `оплачено до ${formatDateRu(until)}` : null };
   if (debt > 0) {
     if (base.tone === "danger") return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
-    if (base.label === "Ещё не платил") return { ...base, title: `Долг ${formatMoney(debt)}` };
+    if (base.label === "Ещё не платил") {
+      // Never paid, but a period has already ended unpaid: that is a real overdue debt, so red «Долг N сум» (the tooltip keeps «Ещё не платил»).
+      if ((row.past_debt ?? 0) > 0) return { label: `Долг ${formatMoney(debt)}`, tone: "danger", title: base.label };
+      return { ...base, title: `Долг ${formatMoney(debt)}` };
+    }
     return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
   }
   if (row.period_mode === "lessons") {

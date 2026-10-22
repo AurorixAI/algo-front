@@ -12,6 +12,14 @@ export const PROFILE_TAB_LABEL: Record<ProfileTab, string> = {
   contacts: "Контакты и заметки",
 };
 
+/** Below `sm` the tab strip uses these whole short words so no label is cut mid-word (the full ones are the accessible names from `sm` up). */
+export const PROFILE_TAB_SHORT_LABEL: Record<ProfileTab, string> = {
+  diagnostics: "Отчёты",
+  learning: "Обучение",
+  payments: "Оплаты",
+  contacts: "Контакты",
+};
+
 /** The tab a card opens on without `?tab=` (as before the tabs were split). */
 export const DEFAULT_PROFILE_TAB: ProfileTab = "diagnostics";
 

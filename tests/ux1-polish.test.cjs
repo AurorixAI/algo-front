@@ -198,3 +198,26 @@ test("the badge of «Оплаты» counts the debtors - the number of the banne
   // the «Должники» tab of the payments page and the card «Долг учеников» read the one count (owner 21.10)
   assert.match(read("src/components/payments/payments-page.tsx"), /usePaymentsSummary\(\(state\) => state\.debtors\)/);
 });
+
+// ── student card on a phone (inc5, ≤390 px): one-line group badge, whole tabs, no sideways page scroll ─────────────────
+
+test("student card header on a phone: the group badge is one truncated line (full text in title); the tab strip holds whole tabs and keeps the active one in view", () => {
+  const view = read("src/components/students/student-profile-view.tsx");
+  const badge = view.slice(view.indexOf('data-testid="student-group-badge"') - 400, view.indexOf("</Link>", view.indexOf('data-testid="student-group-badge"')));
+  assert.match(badge, /title=\{`[^`]*item\.group_name[^`]*item\.teacher_name/, "the full text (group and teacher) is the title");
+  assert.match(badge, /\bmin-w-0 max-w-full\b/);
+  assert.match(badge, /\bmin-w-0 truncate whitespace-nowrap\b/, "one line with an ellipsis");
+  assert.match(badge, /Users className="[^"]*\bshrink-0\b/);
+  // tabs: a scrollable strip of whole tabs, short labels below sm, the active tab scrolled into the strip's own box
+  assert.match(view, /data-testid="student-tabs"[^>]*overflow-x-auto|overflow-x-auto[^>]*data-testid="student-tabs"/);
+  assert.match(view, /\bshrink-0 items-center gap-2 whitespace-nowrap\b/);
+  assert.match(view, /<span className="sm:hidden">\{PROFILE_TAB_SHORT_LABEL\[id\]\}<\/span>/);
+  assert.match(view, /<span className="hidden sm:inline">\{PROFILE_TAB_LABEL\[id\]\}<\/span>/);
+  assert.match(view, /strip\.scrollTo\(\{ left:/, "scrolls the strip, not the page (no scrollIntoView)");
+  assert.doesNotMatch(view, /scrollIntoView/);
+  const tabs = require(path.join(root, "src/lib/profile-tabs.ts"));
+  assert.deepEqual(Object.values(tabs.PROFILE_TAB_SHORT_LABEL), ["Отчёты", "Обучение", "Оплаты", "Контакты"]);
+  for (const label of Object.values(tabs.PROFILE_TAB_SHORT_LABEL)) assert.ok(!/\s/.test(label), `${label}: one word, nothing to cut`);
+  // the hero card clips its own overflow: the page never scrolls sideways
+  assert.match(view, /relative overflow-hidden bg-white rounded-3xl/);
+});

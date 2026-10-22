@@ -182,6 +182,28 @@ test("package (lessons) mode keeps working: packages are named, the lessons line
   assert.deepEqual(chips.map((chip) => plain(chip.label)), ["Закрыть долг · 600 000 сум", "Долг + текущий пакет · 700 000 сум"]);
 });
 
+test("lessons mode, nothing due: «Пойдёт на будущие уроки — хватит на N уроков», the line «На будущие уроки» (inc5 P08); the month mode keeps «аванс»", () => {
+  const lessonsPreview = (left) => {
+    const p = preview({ segments: [], amount: 600000, mode: "lessons" });
+    p.result.lessons = left === null ? null : { covered_before: 0, covered_after: left, left_after: left, unpaid_after: 0 };
+    return p;
+  };
+  const twelve = X.planView(lessonsPreview(12));
+  assert.equal(said(twelve), "Пойдёт на будущие уроки — хватит на 12 уроков.");
+  assert.deepEqual(lines(twelve), [["На будущие уроки", 600000]]);
+  assert.equal(plain(twelve.lessons), "Уроков оплачено: 0 → 12, осталось 12");
+  assert.equal(said(X.planView(lessonsPreview(1))), "Пойдёт на будущие уроки — хватит на 1 урок.");
+  assert.equal(said(X.planView(lessonsPreview(3))), "Пойдёт на будущие уроки — хватит на 3 урока.");
+  // N is not known: no number is invented
+  assert.equal(said(X.planView(lessonsPreview(null))), "Пойдёт на будущие уроки.");
+  assert.equal(said(X.planView(lessonsPreview(0))), "Пойдёт на будущие уроки.");
+  for (const left of [12, 1, null]) assert.doesNotMatch(said(X.planView(lessonsPreview(left))) + lines(X.planView(lessonsPreview(left))).flat().join(" "), /аванс/i);
+  // the month mode is unchanged
+  const month = X.planView(preview({ segments: [seg("oct", "2026-10-01", "2026-10-31", 550000, 550000, "current")], amount: 300000, paidUntil: "2026-11-17" }));
+  assert.equal(said(month), "Вся сумма останется авансом (хватит до 17 ноября).");
+  assert.deepEqual(lines(month), [["Аванс", 300000]]);
+});
+
 test("the price rise warning of the server stays (amber note), not as a sentence of ours", () => {
   const rise = X.planView(L.normalizePreview(fixture("e9_preview_price_ahead_1069000")));
   assert.match(plain(rise.priceAhead.join(" ")), /Цена периода 15\.11–14\.12 — 600 000 сум \(сейчас 500 000 сум\)/);
@@ -316,8 +338,14 @@ test("the dialog layout: amount first, chips under it, then the plan, then metho
   assert.match(dialog, /commentOpen \|\| values\.note/); // expanded when a comment exists
   assert.match(dialog, /Комментарий\n\s*<\/button>/);
   assert.match(dialog, /plan\.sentence/);
-  // a phone: one column (the grid is two columns only from sm up), the primary button is in the footer (never scrolls away)
-  assert.match(dialog, /grid grid-cols-1 gap-4 sm:grid-cols-/);
+  // method: its OWN full-width row, all five on one line from sm up; a phone: 3 + 2 of equal width (never a lone orphan); the date is the next row
+  const methodRow = dialog.slice(dialog.indexOf('data-testid="payment-methods"'), dialog.indexOf("Дата оплаты"));
+  assert.match(methodRow, /className="grid grid-cols-3 gap-1\.5 sm:grid-cols-5"/);
+  assert.match(methodRow, /\bw-full\b[^"]*\btext-center\b/, "equal-width buttons");
+  assert.doesNotMatch(methodRow, /flex-wrap/);
+  assert.doesNotMatch(dialog, /sm:grid-cols-\[minmax\(0,1fr\)_10rem\]/, "the date no longer shares the row with the methods");
+  assert.match(dialog, /<div className="sm:w-44">\s*<label htmlFor="payment-paid-on"/);
+  // the primary button is in the footer (never scrolls away)
   assert.match(dialog, /footerClassName=/);
   assert.match(dialog, /flex flex-col-reverse gap-2 sm:flex-row/);
   // the pay2 rules stay: server calculation, idempotency key, duplicate, correction

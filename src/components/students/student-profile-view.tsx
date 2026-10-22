@@ -32,7 +32,7 @@ import { inviteCancelHint, isInviteDead, studentCardInviteLabel } from "@/lib/di
 import { MARK_CELL_LABEL } from "@/lib/attendance-marks";
 import { StudentLessonsList } from "@/components/students/student-lessons-list";
 import { formatGroupMonthLine } from "@/lib/attendance-summary";
-import { PROFILE_TAB_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
+import { PROFILE_TAB_LABEL, PROFILE_TAB_SHORT_LABEL, parseProfileTab, visibleProfileTabs, type ProfileTab } from "@/lib/profile-tabs";
 import {
   ARCHIVED_TOAST, archiveBannerTitle, archiveDiagnosticCounts, archiveGroupNames, archiveResultDetails, restoreNeedsReading,
   studentArchiveAccess, studentArchiveInfo, type RestoreOutcome,
@@ -102,6 +102,14 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
     return () => clearTimeout(timer);
   }, [requestedTab, paymentsLoaded]);
   const paymentsBasePath = isOwnerPath ? "/owner/payments" : "/admin/payments";
+  // The strip scrolls sideways on a phone: keep the active tab in view inside its own container (never scrolls the page).
+  const tabStrip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = tabStrip.current;
+    const active = strip?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+    if (!strip || !active || typeof strip.scrollTo !== "function") return;
+    strip.scrollTo({ left: Math.max(0, active.offsetLeft - (strip.clientWidth - active.offsetWidth) / 2) });
+  }, [activeTab, tabs.length]);
   const selectTab = (tab: ProfileTab) => {
     router.replace(`${pathname}?tab=${tab}`, { scroll: false });
   };
@@ -367,13 +375,13 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
       )}
 
       {/* ── Hero Profile Card ─────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-sm p-6 sm:p-8">
+      <div className="relative overflow-hidden bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-8">
         <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-br from-primary-50/40 to-indigo-50/20 rounded-full blur-3xl -z-0 pointer-events-none" />
 
         <div className="relative z-10 flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-4 sm:gap-5">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-5">
             {/* Avatar */}
-            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
+            <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-600 text-white flex items-center justify-center text-2xl font-bold shadow-md shadow-primary-600/20 shrink-0">
               {(student.first_name || student.full_name).charAt(0)}
             </div>
 
@@ -396,13 +404,17 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                     <Link
                       key={item.membership_id || item.group_id}
                       href={`${groupsBasePath}/${item.group_id}`}
-                      className="flex items-center gap-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium transition-colors"
+                      title={`${memberships.length > 1 ? "" : "Группа: "}«${item.group_name}»${item.teacher_name ? ` (${item.teacher_name})` : ""}`}
+                      data-testid="student-group-badge"
+                      className="flex min-w-0 max-w-full items-center gap-1.5 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg border border-emerald-200/60 font-medium transition-colors"
                     >
-                      <Users className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>{memberships.length > 1 ? "" : "Группа: "}«{item.group_name}»</span>
-                      {item.teacher_name && (
-                        <span className="text-emerald-600/80">({item.teacher_name})</span>
-                      )}
+                      <Users className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                      <span className="min-w-0 truncate whitespace-nowrap">
+                        {memberships.length > 1 ? "" : "Группа: "}«{item.group_name}»
+                        {item.teacher_name && (
+                          <span className="text-emerald-600/80">{` (${item.teacher_name})`}</span>
+                        )}
+                      </span>
                     </Link>
                   ))
                 ) : access.showBanner ? (
@@ -437,7 +449,7 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
         </div>
 
         {/* ── Navigation Tabs: scroll sideways on a phone, never widen the page ── */}
-        <div className="mt-8 -mb-2 flex items-center gap-2 overflow-x-auto border-b border-slate-100" role="tablist" aria-label="Разделы карточки ученика">
+        <div ref={tabStrip} data-testid="student-tabs" className="relative mt-6 sm:mt-8 -mb-2 flex items-center gap-0 sm:gap-2 overflow-x-auto overscroll-x-contain border-b border-slate-100 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="Разделы карточки ученика">
           {tabs.map((id) => {
             const Icon = TAB_ICON[id];
             const isActive = activeTab === id;
@@ -451,14 +463,15 @@ function StudentProfileViewContent({ studentId: propStudentId, backHref }: Stude
                 aria-selected={isActive}
                 aria-controls="student-tab-panel"
                 onClick={() => selectTab(id)}
-                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
+                className={`flex shrink-0 items-center gap-2 whitespace-nowrap px-3 sm:px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
                   isActive
                     ? "border-primary-600 text-primary-600"
                     : "border-transparent text-slate-500 hover:text-slate-800"
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                <span>{PROFILE_TAB_LABEL[id]}</span>
+                <Icon className="hidden sm:block w-4 h-4" />
+                <span className="sm:hidden">{PROFILE_TAB_SHORT_LABEL[id]}</span>
+                <span className="hidden sm:inline">{PROFILE_TAB_LABEL[id]}</span>
                 {count !== undefined && (
                   <span
                     className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${

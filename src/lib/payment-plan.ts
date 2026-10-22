@@ -3,6 +3,7 @@
 // does (a calendar month by its name, otherwise by dates), says in the FUTURE tense what saving will do (nothing is saved
 // yet), and offers the quick amounts that carry the information the old top block used to.  No React: node:test loads it.
 import { formatMoney, type Allocation, type PaymentPreview } from "./payments";
+import { lessonsWord } from "./plural";
 import {
   dueView,
   METHODS,
@@ -188,7 +189,9 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
       bucket: item.bucket,
     });
   });
-  if (advance > 0) lines.push({ key: "advance", label: "Аванс", amount: advance, bucket: "advance" });
+  // Lessons mode, the whole sum goes ahead (nothing is due, no lesson held): it is for the lessons to come, not an «advance» (inc5 P08).
+  const wholeAdvance = advance > 0 && lines.length === 0;
+  if (advance > 0) lines.push({ key: "advance", label: preview.mode === "lessons" && wholeAdvance ? "На будущие уроки" : "Аванс", amount: advance, bucket: "advance" });
 
   // the sentence
   const closedPast = allocations.filter((item) => item.bucket === "past_debt" && item.closes);
@@ -214,11 +217,14 @@ export function planView(preview: PaymentPreview | null | undefined): PlanView |
     else if (partial.bucket === "past_debt") first = `Оплатит часть долга за ${name}, останется ${money(partialLeft)}`;
     else first = `Оплатит ${name} частично, останется ${money(partialLeft)}`;
   }
+  // «хватит на 12 уроков»: only the lessons count the dialog already shows in its quiet line («осталось N»); nothing new is computed.
+  const lessonsLeftRaw = result.lessons ? sum(result.lessons.left_after) : 0;
+  const lessonsLeft = lessonsLeftRaw > 0 ? lessonsLeftRaw : null;
   const until = preview.mode === "lessons" ? null : longDate(result.paid_until_after, preview.as_of);
   if (advance > 0) {
     const kept = `${money(advance)} останутся авансом${until ? ` (хватит до ${until})` : ""}`;
     if (first) first = `${first}, ${kept}`;
-    else if (advance === total) first = `Вся сумма останется авансом${until ? ` (хватит до ${until})` : ""}`;
+    else if (advance === total) first = preview.mode === "lessons" ? `Пойдёт на будущие уроки${lessonsLeft !== null ? ` — хватит на ${lessonsLeft} ${lessonsWord(lessonsLeft)}` : ""}` : `Вся сумма останется авансом${until ? ` (хватит до ${until})` : ""}`;
     else first = capital(kept);
   }
   if (!first) first = base.headline; // the server's own sentence when there is nothing to name

@@ -175,6 +175,10 @@ test("membershipChip: one line per state - «Оплачено до 30.11», «Д
   assert.deepEqual(chip({ status: "active", debt: 92000 }), { label: "Долг 92 000 сум", tone: "warning", title: "Не доплачено" });
   // never paid: stays «Ещё не платил» (amber), the debt is the tooltip
   assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 450000, debt_reason: "never_paid" }), { label: "Ещё не платил", tone: "warning", title: "Долг 450 000 сум" });
+  // never paid AND a period has already ended unpaid (past_debt > 0): red «Долг N сум», the tooltip is «Ещё не платил» (inc5 C02b)
+  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 1500000, past_debt: 1000000, current_due: 500000, debt_reason: "never_paid" }), { label: "Долг 1 500 000 сум", tone: "danger", title: "Ещё не платил" });
+  // never paid, past_debt 0 (only the running period): still amber
+  assert.deepEqual(chip({ status: "none", paid_until: null, last_payment: null, debt: 500000, past_debt: 0, current_due: 500000, debt_reason: "never_paid" }), { label: "Ещё не платил", tone: "warning", title: "Долг 500 000 сум" });
   // pause stays «На паузе до 12.11»
   assert.equal(chip({ status: "paused", paused: { from: "2026-11-01", to: "2026-11-12" } }).label, "На паузе до 12.11");
   // the rest of the date states keep their words, the date joins the one line
