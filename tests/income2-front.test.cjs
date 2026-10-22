@@ -303,10 +303,10 @@ test("donut geometry: the angles add up to 360 and are contiguous; a single meth
   // an arc: a quarter of the ring from twelve o'clock goes to three o'clock; more than half uses the large-arc flag
   assert.equal(V.arcPath(90, 90, 70, 0, 90), "M 90.000 20.000 A 70 70 0 0 1 160.000 90.000");
   assert.match(V.arcPath(90, 90, 70, 0, 200), /A 70 70 0 1 1/);
-  // the colours: every known method has its own, «Способ не указан» is slate-300
+  // the colours: every known method has its own, «Способ не указан» is slate-400 (darker than the empty track)
   const colors = ["cash", "card", "bank_transfer", "click", "payme", "other", "unknown"].map((key) => V.METHOD_COLOR[key].dot);
   assert.equal(new Set(colors).size, 7);
-  assert.deepEqual(colors, ["bg-emerald-500", "bg-blue-600", "bg-violet-500", "bg-amber-400", "bg-cyan-600", "bg-pink-400", "bg-slate-300"]);
+  assert.deepEqual(colors, ["bg-emerald-500", "bg-blue-600", "bg-violet-500", "bg-amber-400", "bg-cyan-600", "bg-pink-400", "bg-slate-400"]);
 });
 
 test("legend: the biggest sum first, shares add up to 100, the centre says the total and the number of payments, the tooltip has the four facts", () => {
@@ -325,7 +325,7 @@ test("legend: the biggest sum first, shares add up to 100, the centre says the t
   assert.equal(tiny.reduce((acc, seg) => acc + seg.percent, 0), 100);
   // ties keep the order of the methods of the form; a label missing from the server says «Способ не указан»
   assert.deepEqual(V.methodSegments([{ method: "card", label: "Карта", amount: 5, count: 1 }, { method: "cash", label: "Наличные", amount: 5, count: 1 }]).map((seg) => seg.method), ["cash", "card"]);
-  assert.equal(V.methodSegments([{ method: "unknown", label: "", amount: 5, count: 1 }])[0].label, "Способ не указан");
+  assert.equal(V.methodSegments([{ method: "unknown", label: "", amount: 5, count: 1 }])[0].label, "Не указан");
   assert.equal(V.methodChipLabel("cash", SPEC_METHODS), "Наличные");
   assert.equal(V.methodChipLabel("payme", []), "Payme");
   assert.equal(V.methodChipLabel("unknown", []), "Способ не указан");
@@ -918,10 +918,10 @@ test("inc8-2: the donut centre — exact below 1 000 000, compact from there (�
 
 test("inc8-3: the palette of the donut and the tooltip dot of the same colour", () => {
   assert.deepEqual(Object.fromEntries(Object.entries(V.METHOD_COLOR).map(([key, value]) => [key, value.dot])), {
-    cash: "bg-emerald-500", card: "bg-blue-600", bank_transfer: "bg-violet-500", click: "bg-amber-400", payme: "bg-cyan-600", other: "bg-pink-400", unknown: "bg-slate-300",
+    cash: "bg-emerald-500", card: "bg-blue-600", bank_transfer: "bg-violet-500", click: "bg-amber-400", payme: "bg-cyan-600", other: "bg-pink-400", unknown: "bg-slate-400",
   });
   assert.deepEqual(Object.fromEntries(Object.entries(V.METHOD_COLOR).map(([key, value]) => [key, value.stroke])), {
-    cash: "stroke-emerald-500", card: "stroke-blue-600", bank_transfer: "stroke-violet-500", click: "stroke-amber-400", payme: "stroke-cyan-600", other: "stroke-pink-400", unknown: "stroke-slate-300",
+    cash: "stroke-emerald-500", card: "stroke-blue-600", bank_transfer: "stroke-violet-500", click: "stroke-amber-400", payme: "stroke-cyan-600", other: "stroke-pink-400", unknown: "stroke-slate-400",
   });
   // the segments, the legend dots and the tooltip dot all come from the same `segment.dot` / `segment.stroke`
   const seg = V.methodSegments([{ method: "other", label: "Другое", amount: 5, count: 1 }])[0];

@@ -778,7 +778,7 @@ export const METHOD_COLOR: Record<string, { dot: string; stroke: string }> = {
   click: { dot: "bg-amber-400", stroke: "stroke-amber-400" },
   payme: { dot: "bg-cyan-600", stroke: "stroke-cyan-600" },
   other: { dot: "bg-pink-400", stroke: "stroke-pink-400" },
-  unknown: { dot: "bg-slate-300", stroke: "stroke-slate-300" },
+  unknown: { dot: "bg-slate-400", stroke: "stroke-slate-400" }, // darker than the empty ring track, so a mostly-unknown month does not look empty
 };
 const METHOD_COLOR_FALLBACK = METHOD_COLOR.unknown;
 
@@ -818,7 +818,7 @@ export function methodSegments(byMethod: Array<Pick<IncomeMethodRow, "method" | 
     const color = METHOD_COLOR[item.method] ?? METHOD_COLOR_FALLBACK;
     const segment: MethodSegment = {
       method: item.method,
-      label: item.label || "Способ не указан",
+      label: item.method === "unknown" ? "Не указан" : item.label || "Способ не указан", // short, so the legend line never truncates
       amount: item.amount,
       count: item.count,
       percent: shares[index],
