@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, UserMinus } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
@@ -369,16 +370,14 @@ export function RequestBody({
       {colleagues !== null && colleagues.length > 0 && (
         <div>
           <label htmlFor="substitution-suggested" className="mb-1.5 block text-[13px] font-semibold text-slate-500">Предложить коллегу (необязательно)</label>
-          <select
+          <Select
             id="substitution-suggested"
             value={suggestedId}
             disabled={busy}
             onChange={(event) => onSuggested(event.target.value)}
-            className={DATE_CLASS}
-          >
-            <option value="">Не выбирать</option>
-            {colleagues.map((colleague) => <option key={colleague.id} value={colleague.id}>{colleague.name}</option>)}
-          </select>
+            options={[{ value: "", label: "Не выбирать" }, ...colleagues.map((colleague) => ({ value: colleague.id, label: colleague.name }))]}
+            buttonClassName="py-2.5"
+          />
           <p className="mt-1.5 text-xs text-slate-500">{SUGGEST_HINT}</p>
         </div>
       )}

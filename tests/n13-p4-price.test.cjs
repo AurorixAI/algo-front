@@ -516,7 +516,8 @@ test("the student card shows the price in one line with no field to type it; the
   }));
   const priceOf = (markup) => {
     const found = /<p[^>]*data-testid="membership-price"[^>]*>([\s\S]*?)<\/p>/.exec(markup);
-    return found ? textOf(found[0]) : "";
+    // the tooltip text is in the DOM for screen readers (sr-only); what a person SEES is the line without it
+    return found ? textOf(found[0].replace(/<span id="[^"]*" class="sr-only">[\s\S]*?<\/span>/g, "")) : "";
   };
 
   const group = html(priceRow());
@@ -528,8 +529,20 @@ test("the student card shows the price in one line with no field to type it; the
   assert.match(group, /aria-label="Действия по оплате: Алгебра 8А"/);
 
   const own = html(priceRow({ price: { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "Сестра ученика" } }));
-  assert.equal(priceOf(own), "Индивидуальная цена 400 000 сум/мес · Сестра ученика");
-  assert.match(plain(own), /title="Цена группы 500 000 сум"/); // the group's price stays one hover away
+  assert.equal(priceOf(own), "Индивидуальная цена 400 000 сум/мес"); // INC-14: no reason after the price
+  assert.doesNotMatch(priceOf(own), /Сестра/);
+  // the reason, the since-date and the group's price are in the tooltip (the shared Hint: reachable by focus and tap, read by screen readers)
+  assert.match(plain(own), /role="tooltip"|aria-describedby/);
+  assert.match(plain(own), /Причина: Сестра ученика\nС 05\.10\.2026\nЦена группы 500 000 сум/);
+  // the migration's own reason is not printed, and its tooltip speaks plainly
+  const migrated = html(priceRow({ price: { amount: 450000, source: "override", valid_from: "2000-01-01", group_amount: 500000, reason: "Цена до введения цены группы" } }));
+  assert.equal(priceOf(migrated), "Индивидуальная цена 450 000 сум/мес");
+  assert.match(plain(migrated), /Перенесена из прежней цены ученика\nС самого начала\nЦена группы 500 000 сум/);
+  assert.doesNotMatch(plain(migrated), /Цена до введения цены группы/);
+  // the note «Индивидуальная цена закончится вместе с группой» is not on the card (the leave dialog says it)
+  assert.doesNotMatch(plain(html(priceRow({ price: { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: "x" }, price_ends_on_leave: true }))), /закончится вместе с группой/);
+  assert.doesNotMatch(read("src/components/payments/membership-payments.tsx"), /INDIVIDUAL_PRICE_ENDS_TEXT/);
+  assert.match(read("src/components/payments/settle-block.tsx"), /individual_price_ends[\s\S]{0,200}INDIVIDUAL_PRICE_ENDS_TEXT/);
 
   const none = html(priceRow({ price: { amount: null, source: "none", valid_from: null, group_amount: null, reason: null }, monthly_fee: null }));
   assert.match(textOf(none), /Цена группы не задана/);
@@ -538,7 +551,7 @@ test("the student card shows the price in one line with no field to type it; the
 
   // an archived student / a closed membership: the price is shown, nothing can be changed (no status, no main button)
   const readOnly = textOf(html(priceRow({ price: { amount: 400000, source: "override", valid_from: null, group_amount: 500000, reason: "Сестра" } }), false));
-  assert.match(readOnly, /Индивидуальная цена 400 000 сум\/мес · Сестра/);
+  assert.match(readOnly, /Индивидуальная цена 400 000 сум\/мес/);
   assert.doesNotMatch(readOnly, /Внести оплату|Оплачено/);
   // status chip + one main button by the situation of the row
   assert.match(textOf(html(priceRow({ last_payment: { id: "p" } }))), /Оплачено до 31\.10 Внести оплату Выписка/);

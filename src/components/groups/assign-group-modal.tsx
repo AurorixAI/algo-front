@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
@@ -11,7 +12,6 @@ import {
   GraduationCap,
   UserCheck,
   User,
-  ChevronDown,
   Sparkles,
   CheckCircle2,
   RotateCcw,
@@ -416,22 +416,13 @@ export function AssignGroupModal({
         <label htmlFor="assign-group-prepodavatel" className="block text-xs font-semibold text-slate-600 mb-1.5">
           Преподаватель
         </label>
-        <div className="relative">
-          <select
-            id="assign-group-prepodavatel"
-            value={selectedTeacherId}
-            onChange={(e) => setSelectedTeacherId(e.target.value)}
-            className="w-full appearance-none pl-3.5 pr-9 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all outline-none cursor-pointer shadow-2xs"
-          >
-            <option value="">Все преподаватели</option>
-            {teachers.map((t) => (
-              <option key={t.id} value={t.id}>
-                {staffDisplayName(t)}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-        </div>
+        <Select
+          id="assign-group-prepodavatel"
+          value={selectedTeacherId}
+          onChange={(e) => setSelectedTeacherId(e.target.value)}
+          options={[{ value: "", label: "Все преподаватели" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
+          buttonClassName="bg-white py-2.5 pl-3.5"
+        />
       </div>
 
       {/* Search Bar */}

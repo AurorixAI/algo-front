@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, ArrowLeft, Download, Loader2, Search, Upload, Wallet, X } from "lucide-react";
@@ -525,15 +526,14 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
       ) : tooMany ? (
         <div data-testid="openings-too-many" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
           <p className="text-sm font-medium text-slate-800">{tooMany}</p>
-          <select
+          <Select
             value={serverGroup}
             onChange={(event) => changeServerGroup(event.target.value)}
-            aria-label="Группа"
-            className="h-10 w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 text-base sm:text-sm"
-          >
-            <option value="">Выберите группу…</option>
-            {catalog.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
-          </select>
+            ariaLabel="Группа"
+            options={[{ value: "", label: "Выберите группу…" }, ...catalog.map((group) => ({ value: group.id, label: group.name }))]}
+            className="max-w-sm"
+            buttonClassName="h-10 bg-white py-0"
+          />
         </div>
       ) : data ? (
         <>
@@ -569,19 +569,18 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
                 className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:text-sm"
               />
             </div>
-            <select
+            <Select
               value={serverGroup || filters.groupId}
               onChange={(event) => {
                 if (serverGroup !== "" || groupOptions === catalog) changeServerGroup(event.target.value);
                 else setFilters({ ...filters, groupId: event.target.value });
               }}
-              aria-label="Группа"
-              data-testid="openings-group-filter"
-              className="h-10 min-w-0 max-w-full rounded-xl border border-slate-200 bg-white px-3 text-base outline-none focus:border-primary-500 sm:text-sm"
-            >
-              <option value="">Все группы</option>
-              {groupOptions.map((group) => <option key={group.id} value={group.id}>{group.name}{group.teacher_name ? ` · ${group.teacher_name}` : ""}</option>)}
-            </select>
+              ariaLabel="Группа"
+              testId="openings-group-filter"
+              options={[{ value: "", label: "Все группы" }, ...groupOptions.map((group) => ({ value: group.id, label: `${group.name}${group.teacher_name ? ` · ${group.teacher_name}` : ""}` }))]}
+              className="w-full sm:w-auto sm:min-w-[14rem] sm:max-w-xs"
+              buttonClassName="h-10 bg-white py-0"
+            />
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
               <input type="checkbox" checked={filters.onlyMissing} onChange={(event) => setFilters({ ...filters, onlyMissing: event.target.checked })} data-testid="openings-only-missing" className="h-4 w-4 rounded border-slate-300 text-primary-600" />
               {OPENINGS_ONLY_MISSING}

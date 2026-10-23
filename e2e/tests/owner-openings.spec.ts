@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type StudentInfo } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { dm, dmy, expectNoHorizontalScroll, moneyPattern, toast } from "../support/ui";
+import { dm, dmy, expectNoHorizontalScroll, moneyPattern, pickOption, toast } from "../support/ui";
 import { readSheet, readZip, setCellText, writeZip } from "../support/xlsx-lite";
 
 /**
@@ -168,7 +168,7 @@ test("Excel round trip: the file without edits changes nothing; edited cells cha
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
   await expect(groupBlock(page, group)).toBeVisible();
-  await page.getByTestId("openings-group-filter").selectOption(group.id); // the file holds this group only
+  await pickOption(page, page.getByTestId("openings-group-filter"), new RegExp(`^${group.name}`)); // the file holds this group only
 
   // --- download
   const [download] = await Promise.all([page.waitForEvent("download"), page.getByTestId("openings-download").click()]);

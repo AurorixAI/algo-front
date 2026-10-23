@@ -119,7 +119,14 @@ test("price of the group -> consequences before saving -> student card shows it 
   await expect(toast(page, "Индивидуальная цена назначена")).toBeVisible();
   await expect(page.getByTestId("membership-price")).toContainText("Индивидуальная цена");
   await expect(page.getByTestId("membership-price")).toContainText(priceText(400000));
-  await expect(page.getByTestId("membership-price")).toContainText("· Сестра ученика"); // the reason follows the price
+  // INC-14: nothing after the price; the reason and the since-date are in the tooltip of the price
+  await expect(page.getByTestId("membership-price")).not.toContainText("· Сестра ученика");
+  await expect(page.getByTestId("membership-price")).toHaveText(/^Индивидуальная цена\s+\S/);
+  const priceValue = page.getByTestId("membership-price-value");
+  await priceValue.hover();
+  await expect(page.getByRole("tooltip")).toContainText("Причина: Сестра ученика");
+  await expect(page.getByRole("tooltip")).toContainText(/Цена группы/);
+  await page.keyboard.press("Escape");
   const membership = await org.membershipId(anvar.id);
   const mine = await org.owner.api.get(`/auth/org/memberships/${membership}/price-override`);
   expect(mine.price).toMatchObject({ amount: 400000, source: "override", group_amount: 500000, reason: "Сестра ученика" });

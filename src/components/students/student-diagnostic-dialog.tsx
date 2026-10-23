@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useState } from "react";
 import { Check, Copy, Loader2, Send } from "lucide-react";
 import QRCode from "qrcode.react";
@@ -9,7 +10,6 @@ import { useCopy } from "@/lib/use-copy";
 import { Modal } from "@/components/ui/modal";
 
 const CLASS_LEVELS = [5, 6, 7, 8, 9, 10, 11];
-const FIELD = "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
 /**
  * «Новая диагностика…» on the card of a student (administrator): the kind and the class, then the invite: the link, the QR code, WhatsApp
@@ -93,15 +93,24 @@ export function StudentDiagnosticDialog({ open, studentId, studentName, classLev
         <div className="space-y-4 pb-2">
           <div>
             <label htmlFor="student-diagnostic-kind" className="mb-1 block text-xs font-semibold text-slate-600">Вид диагностики</label>
-            <select id="student-diagnostic-kind" value={kind} onChange={(event) => setKind(event.target.value as DiagnosticKind)} className={FIELD}>
-              {(Object.keys(DIAGNOSTIC_KIND_LABEL) as DiagnosticKind[]).map((value) => <option key={value} value={value}>{DIAGNOSTIC_KIND_LABEL[value]}</option>)}
-            </select>
+            <Select
+              id="student-diagnostic-kind"
+              value={kind}
+              onChange={(event) => setKind(event.target.value as DiagnosticKind)}
+              options={(Object.keys(DIAGNOSTIC_KIND_LABEL) as DiagnosticKind[]).map((value) => ({ value, label: DIAGNOSTIC_KIND_LABEL[value] }))}
+              buttonClassName="bg-white py-2.5"
+            />
           </div>
           <div>
             <label htmlFor="student-diagnostic-class" className="mb-1 block text-xs font-semibold text-slate-600">Класс</label>
-            <select id="student-diagnostic-class" value={level} onChange={(event) => setLevel(Number(event.target.value))} className={`${FIELD} sm:w-1/2`}>
-              {levels.map((value) => <option key={value} value={value}>{value} класс</option>)}
-            </select>
+            <Select
+              id="student-diagnostic-class"
+              value={String(level)}
+              onChange={(event) => setLevel(Number(event.target.value))}
+              options={levels.map((value) => ({ value: String(value), label: `${value} класс` }))}
+              className="sm:w-1/2"
+              buttonClassName="bg-white py-2.5"
+            />
           </div>
           {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
         </div>

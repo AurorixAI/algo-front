@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -153,16 +154,15 @@ function GroupsListContent({ workspace }: { workspace: Workspace }) {
         </div>
 
         {/* The class of the group (the filter the administrator's list had lost) */}
-        <select
-          value={query.classLevel ?? ""}
+        <Select
+          value={query.classLevel === null || query.classLevel === undefined ? "" : String(query.classLevel)}
           onChange={(event) => go({ ...query, classLevel: event.target.value ? Number(event.target.value) : null })}
-          aria-label="Класс группы"
-          data-testid="groups-class-filter"
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10"
-        >
-          <option value="">Все классы</option>
-          {GROUP_CLASS_LEVELS.map((level) => <option key={level} value={level}>{level} класс</option>)}
-        </select>
+          ariaLabel="Класс группы"
+          testId="groups-class-filter"
+          options={[{ value: "", label: "Все классы" }, ...GROUP_CLASS_LEVELS.map((level) => ({ value: String(level), label: `${level} класс` }))]}
+          className="w-auto min-w-[10rem]"
+          buttonClassName="bg-white py-2 font-normal text-slate-700"
+        />
 
         <GroupPriceFilter
           count={withoutPrice}

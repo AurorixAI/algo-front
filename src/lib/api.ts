@@ -1778,8 +1778,6 @@ export const orgApi = {
   getIncomeOverview: (q: IncomeQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams({ from: q.from, to: q.to, period: q.period });
     if (q.method) params.set("method", q.method);
-    if (q.group_id) params.set("group_id", q.group_id);
-    if (q.teacher_id) params.set("teacher_id", q.teacher_id);
     return api<IncomeOverview>(`/auth/org/payments/income?${params.toString()}`, { signal }).then(normalizeOverview);
   },
   /** The journal of payments of a period: newest first, cancelled and corrected ones included (`status=all`), paged by the server. */
@@ -2093,7 +2091,7 @@ function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number;
   const params = new URLSearchParams({ from: q.from, to: q.to });
   if (q.page) params.set("page", String(q.page));
   if (q.size) params.set("size", String(q.size));
-  for (const key of ["method", "group_id", "teacher_id", "created_by", "q", "status"] as const) {
+  for (const key of ["method", "created_by", "q", "status"] as const) {
     const value = q[key];
     if (value) params.set(key, value);
   }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Users, GraduationCap, Hash, Type, Layers, AlignLeft, Loader2, BookOpen } from "lucide-react";
@@ -122,17 +123,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                 Класс
               </label>
               <div className="relative">
-                <Layers className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <select
+                <Layers className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Select
                   id="group-create-klass"
-                  value={form.class_level}
+                  value={String(form.class_level)}
                   onChange={(e) => setForm({ ...form, class_level: Number(e.target.value) })}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
-                >
-                  {CLASS_LEVELS.map((n) => (
-                    <option key={n} value={n}>{n} класс</option>
-                  ))}
-                </select>
+                  options={CLASS_LEVELS.map((n) => ({ value: String(n), label: `${n} класс` }))}
+                  buttonClassName="py-2.5 pl-10"
+                />
               </div>
             </div>
 
@@ -163,17 +161,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                 Тип занятий
               </label>
               <div className="relative">
-                <BookOpen className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <select
+                <BookOpen className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Select
                   id="group-lesson-type"
                   value={form.lesson_type}
                   onChange={(e) => setForm({ ...form, lesson_type: normalizeLessonType(e.target.value) })}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
-                >
-                  {LESSON_TYPES.map((type) => (
-                    <option key={type.key} value={type.key}>{type.label}</option>
-                  ))}
-                </select>
+                  options={LESSON_TYPES.map((type) => ({ value: type.key, label: type.label }))}
+                  buttonClassName="py-2.5 pl-10"
+                />
               </div>
             </div>
           )}
@@ -190,20 +185,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                 Преподаватель
               </label>
               <div className="relative">
-                <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <select
+                <Users className="pointer-events-none absolute left-3.5 top-1/2 z-10 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Select
                   id="group-create-uchitel"
                   value={form.teacher_id}
                   onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none appearance-none"
-                >
-                  <option value="">Без преподавателя (Не назначен)</option>
-                  {teachers.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {staffDisplayName(t)}
-                    </option>
-                  ))}
-                </select>
+                  options={[{ value: "", label: "Без преподавателя (Не назначен)" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
+                  buttonClassName="py-2.5 pl-10"
+                />
               </div>
             </div>
           )}

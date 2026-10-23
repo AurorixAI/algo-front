@@ -63,9 +63,9 @@ import { CancelMissedLessonModal, type CancelMissedTarget } from "@/components/a
 import { ExcuseDecisionDialog, type ExcuseDecisionTarget } from "@/components/attendance/excuse-decision-dialog";
 import { applyExcuseItem, excuseChange, type ExcuseItemFields } from "@/lib/excuse-conflict";
 import { afterDeadlineMark, subjectOfJournalCell, type ExcuseDecision } from "@/lib/excuse-decision";
-import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
+import { MARK_CELL_LABEL, MARK_MENU_LABEL, excuseStatusMeaning } from "@/lib/attendance-marks";
 import { AfterDeadlineChip } from "@/components/attendance/after-deadline-chip";
-import { AttendanceLegend } from "@/components/groups/attendance-legend";
+import { AttendanceLegendHint } from "@/components/groups/attendance-legend";
 import { Modal } from "@/components/ui/modal";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
@@ -324,8 +324,6 @@ function excuseTooltip(excuse: AttendanceExcuseInfo, { withLate = true }: { with
     // The menu shows this as a chip instead of a line of text.
     const late = withLate ? afterDeadlineMark(excuse) : null;
     if (late) lines.push(late.title);
-  } else {
-    lines.push("Ожидает решения администратора");
   }
   return lines.join("\n");
 }
@@ -1359,10 +1357,10 @@ export function GroupAttendanceJournal({
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-3 text-center text-slate-500"><CalendarDays className="h-10 w-10 text-slate-300" /><p className="font-semibold text-slate-800">Нет занятий в выбранном периоде</p><p className="max-w-sm text-sm">Журнал показывает только занятия из утверждённого расписания группы.</p></div>
         ) : (
           <>
-          <AttendanceLegend
-            marks={STATUS_OPTIONS}
-            decisionTones={EXCUSE_TONE_CLASS}
-          />
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-2.5 sm:px-5">
+            <h3 className="text-sm font-bold text-slate-800">Журнал посещаемости</h3>
+            <AttendanceLegendHint />
+          </div>
           <div ref={journalScrollRef} className="overflow-x-auto">
             <table className="min-w-max w-full border-collapse text-left text-xs">
               <thead>
@@ -1565,7 +1563,7 @@ export function GroupAttendanceJournal({
                               ? "Отменённый урок нельзя отмечать"
                               : "Режим просмотра";
                         const baseTitle = locked ? lockedTitle : "Выбрать отметку";
-                        const cellTitle = excuse ? `${excuseTooltip(excuse)}${locked && !reviewable ? "" : `\n${baseTitle}`}` : baseTitle;
+                        const cellTitle = excuse ? `${excuseStatusMeaning(excuse.status)}\n${excuseTooltip(excuse)}${locked && !reviewable ? "" : `\n${baseTitle}`}` : baseTitle;
                         const cellBusy = Boolean(excuse && reviewBusyId === excuse.id);
                         // A locked cell that carries an excuse still opens a READ-ONLY menu (the reason, by touch): its marking
                         // actions are all behind `!locked`, its review actions behind `reviewable`.

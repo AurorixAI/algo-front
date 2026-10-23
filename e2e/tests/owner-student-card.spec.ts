@@ -1,6 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
-import { toast } from "../support/ui";
+import { pickOption, toast } from "../support/ui";
 
 /**
  * IA audit 22.10 (the card of the student): it opens on «Обучение» (one default); the header «⋯» is the person's menu - «Изменить данные…»,
@@ -35,7 +35,7 @@ test("the card opens on «Обучение»; the owner's menu has no diagnostic
   const form = page.getByTestId("student-data-form");
   await expect(form).toBeVisible();
   await form.getByLabel("Фамилия").fill("Изменённый");
-  await form.getByLabel("Класс").selectOption("9");
+  await pickOption(page, form.getByRole("combobox", { name: "Класс" }), "9 класс");
   await expect(form).toContainText("Класс влияет на диагностику и уровни");
   await form.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Данные ученика сохранены")).toBeVisible();

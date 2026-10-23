@@ -235,7 +235,8 @@ test("F9: both workspaces render the SAME group page and group list (wrappers of
 test("F9: the class filter is on the shared list (the administrator's list had lost it) and the filters live in the URL (F34)", () => {
   const W = require(path.join(root, "src/lib/group-workspace.ts"));
   const list = read("src/components/groups/groups-list-view.tsx");
-  assert.match(list, /data-testid="groups-class-filter"/);
+  assert.match(list, /testId="groups-class-filter"/); // the shared Select, not a native <select>
+  assert.doesNotMatch(list, /<select/);
   assert.match(list, /GROUP_CLASS_LEVELS\.map/);
   const groups = [
     { name: "Алгебра 8А", status: "active", teacher_id: "t1", teacher_name: "Иванов", class_level: 8 },

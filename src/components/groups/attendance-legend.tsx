@@ -1,66 +1,32 @@
+import { Hint } from "../ui/hint";
 import {
-  EXCUSE_REVIEW_LABEL,
-  EXCUSE_REVIEW_MEANING,
   LEGEND_DECISIONS,
   LEGEND_MARKS,
   MARK_CELL_LABEL,
-  type ExcuseReviewState,
-  type MarkValue,
+  excuseStatusMeaning,
 } from "../../lib/attendance-marks"; // relative, so node:test can render this file
 
-export interface LegendMarkStyle {
-  value: MarkValue;
-  /** The classes of the journal cell (the legend drops its hover). */
-  className: string;
-  dotClassName: string;
-}
-
-/** A sample of a cell: the same colours and the same word, smaller, not a button. */
-function Sample({ className, dotClassName, children }: { className: string; dotClassName: string; children: string }) {
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[11px] font-bold ${className.replace(/\shover:\S+/g, "")}`}>
-      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${dotClassName}`} />
-      {children}
-    </span>
-  );
-}
-
 /**
- * The key to the journal, above its table: every mark exactly as a cell writes it, and what the three decisions about an
- * «Уважительная» mean.  The words come from `attendance-marks`, the colours from the cells (the journal passes them in).
+ * The key to the journal, in words: every mark as a cell writes it, and what the decisions about an «Уважительная» mean.
+ * It used to be two always-visible rows above the table; now it opens from a «?» next to the journal title (and each
+ * decision chip carries its own line as a tooltip).
  */
-export function AttendanceLegend({
-  marks,
-  decisionTones,
-}: {
-  marks: ReadonlyArray<LegendMarkStyle>;
-  decisionTones: Record<ExcuseReviewState, string>;
-}) {
-  const style = (value: MarkValue) => marks.find((mark) => mark.value === value);
-  const excused = style("excused");
+export function attendanceLegendText(): string {
+  const marks = LEGEND_MARKS.map((value) => MARK_CELL_LABEL[value]).join(" · ");
+  const decisions = LEGEND_DECISIONS.map((decision) => excuseStatusMeaning(decision));
+  return [`Отметки: ${marks}`, "Решение по уважительной причине:", ...decisions].join("\n");
+}
+
+export function AttendanceLegendHint() {
   return (
-    <div role="group" aria-label="Обозначения в журнале" className="space-y-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-600 sm:px-5">
-      <ul className="flex flex-wrap items-center gap-1.5">
-        {LEGEND_MARKS.map((value) => {
-          const mark = style(value);
-          return mark ? (
-            <li key={value}><Sample className={mark.className} dotClassName={mark.dotClassName}>{MARK_CELL_LABEL[value]}</Sample></li>
-          ) : null;
-        })}
-      </ul>
-      {excused && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <span className="font-semibold text-slate-500">Решение по уважительной причине</span>
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            {LEGEND_DECISIONS.map((decision) => (
-              <li key={decision} className="flex items-center gap-1.5">
-                <Sample className={decisionTones[decision]} dotClassName={excused.dotClassName}>{EXCUSE_REVIEW_LABEL[decision]}</Sample>
-                <span>{EXCUSE_REVIEW_MEANING[decision]}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
+    <Hint
+      text={attendanceLegendText()}
+      side="below"
+      width={300}
+      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-slate-300 text-[11px] font-bold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+    >
+      <span aria-hidden="true">?</span>
+      <span className="sr-only">Обозначения в журнале</span>
+    </Hint>
   );
 }

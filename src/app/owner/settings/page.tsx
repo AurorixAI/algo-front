@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -401,16 +402,14 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
           <label htmlFor="payments-billing-day" className={labelClasses}>Единый день оплаты</label>
           <div className="flex flex-wrap items-center gap-3">
-            <select
+            <Select
               id="payments-billing-day"
-              value={Number.isNaN(form.billing_day) ? 1 : form.billing_day}
+              value={String(Number.isNaN(form.billing_day) ? 1 : form.billing_day)}
               onChange={(e) => patch({ billing_day: Number(e.target.value) })}
-              className={`${inputClasses} !w-24`}
-            >
-              {Array.from({ length: BILLING_DAY_RANGE.max - BILLING_DAY_RANGE.min + 1 }, (_, index) => BILLING_DAY_RANGE.min + index).map((day) => (
-                <option key={day} value={day}>{day}</option>
-              ))}
-            </select>
+              options={Array.from({ length: BILLING_DAY_RANGE.max - BILLING_DAY_RANGE.min + 1 }, (_, index) => BILLING_DAY_RANGE.min + index).map((day) => ({ value: String(day), label: String(day) }))}
+              className="!w-24"
+              buttonClassName="bg-slate-50 py-2.5"
+            />
             <span className="text-sm text-slate-600">{billingDayHint(form.billing_day)}</span>
           </div>
           <p className="text-xs text-slate-500">{FIXED_DAY_HINT}</p>
@@ -577,14 +576,14 @@ function PayrollSettingsSection({ draft }: { draft: PayrollSettingsDraft }) {
 
           <div>
             <label htmlFor="payroll-divisor-from" className={labelClasses}>{DIVISOR_FROM_LABEL}</label>
-            <select
+            <Select
               id="payroll-divisor-from"
               value={draft.validFrom}
               onChange={(event) => draft.setValidFrom(event.target.value)}
-              className={`${inputClasses} !w-60`}
-            >
-              {months.map((option) => <option key={option.value} value={option.value}>{option.value === draft.validFrom ? divisorMonthTitle(option.value) : option.label}</option>)}
-            </select>
+              options={months.map((option) => ({ value: option.value, label: option.value === draft.validFrom ? divisorMonthTitle(option.value) : option.label }))}
+              className="!w-60"
+              buttonClassName="py-2.5"
+            />
             <p className="mt-1.5 text-xs text-slate-500" data-testid="divisor-change">{divisorChangeText(parsed.value, draft.validFrom, inForce)}</p>
             <p className="mt-0.5 text-xs text-slate-500">{DIVISOR_HELP}</p>
           </div>
@@ -866,15 +865,13 @@ function OwnerSettingsContent() {
             </div>
             <div>
               <label htmlFor="owner-settings-yazyk-interfeysa" className={labelClasses}>Язык интерфейса</label>
-              <select
+              <Select
                 id="owner-settings-yazyk-interfeysa"
                 value={profileForm.language}
                 onChange={(e) => setProfileForm({ ...profileForm, language: e.target.value })}
-                className={inputClasses}
-              >
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
-              </select>
+                options={[{ value: "ru", label: "Русский" }, { value: "en", label: "English" }]}
+                buttonClassName="py-2.5"
+              />
             </div>
           </SettingsSection>
           )}

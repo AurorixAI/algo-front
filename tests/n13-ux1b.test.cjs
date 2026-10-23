@@ -21,6 +21,14 @@ require.extensions[".tsx"] = (mod, filename) => {
 };
 
 const root = path.join(__dirname, "..");
+const Module = require("node:module");
+if (!Module.__ux1bAlias) {
+  const resolveFilename = Module._resolveFilename;
+  Module._resolveFilename = function (request, ...rest) {
+    return resolveFilename.call(this, request.startsWith("@/") ? path.join(root, "src", request.slice(2)) : request, ...rest);
+  };
+  Module.__ux1bAlias = true;
+}
 const read = (relative) => fs.readFileSync(path.join(root, relative), "utf8");
 const lib = (name) => require(path.join(root, "src/lib", `${name}.ts`));
 const React = require("react");
@@ -239,28 +247,33 @@ test("the journal takes its words from the map: no «Н/Б», «Ув.», «Ув.
   assert.match(journal, /Нажмите на отметку «Уважительная» у ученика/);
 });
 
-test("the legend explains every symbol the cells show, and sits above the table", () => {
-  const { AttendanceLegend } = require(path.join(root, "src/components/groups/attendance-legend.tsx"));
-  const styles = ["present", "late", "absent", "excused"].map((value) => ({ value, className: "bg-x border-x hover:bg-y", dotClassName: "bg-dot" }));
-  const tones = { pending: "t-pending hover:bg-1", confirmed: "t-confirmed hover:bg-2", rejected: "t-rejected hover:bg-3" };
-  const html = renderToStaticMarkup(React.createElement(AttendanceLegend, { marks: styles, decisionTones: tones }));
+test("INC-14: no always-visible legend rows; the same words live in a «?» hint next to the journal title and in the chips' tooltips", () => {
+  const { AttendanceLegendHint, attendanceLegendText } = require(path.join(root, "src/components/groups/attendance-legend.tsx"));
+  const html = renderToStaticMarkup(React.createElement(AttendanceLegendHint));
   const text = textOf(html);
-  for (const word of [...Object.values(marks.MARK_CELL_LABEL), ...Object.values(marks.EXCUSE_REVIEW_LABEL), ...Object.values(marks.EXCUSE_REVIEW_MEANING)]) {
-    assert.ok(text.includes(word), `the legend names «${word}»`);
-  }
-  assert.match(html, /role="group" aria-label="Обозначения в журнале"/);
-  assert.doesNotMatch(html, /hover:/, "a sample is not a button");
-  assert.match(html, /t-confirmed/, "the colour of a decision is the colour of its cell");
-  // every word a cell can show is in the legend
-  const cellWords = new Set([
-    ...Object.values(marks.MARK_CELL_LABEL),
-    ...["pending", "confirmed", "rejected", undefined].map((status) => excuses.excuseCellView(status).label),
-  ]);
-  for (const word of cellWords) assert.ok(text.includes(word), `a cell can say «${word}»`);
-  // above the table, only when there is a table
+  // the hint carries every word a cell can show and every decision with its meaning
+  const hint = attendanceLegendText();
+  for (const word of [...Object.values(marks.MARK_CELL_LABEL), ...Object.values(marks.EXCUSE_REVIEW_LABEL)]) assert.ok(hint.includes(word), `the hint names «${word}»`);
+  for (const status of ["pending", "confirmed", "rejected"]) assert.ok(hint.includes(`${marks.EXCUSE_REVIEW_LABEL[status]} — ${marks.EXCUSE_REVIEW_MEANING[status]}`), status);
+  assert.ok(hint.includes("Подтверждена — урок не идёт в зарплату"));
+  assert.match(html, /role="button"[^>]*aria-describedby/); // the shared Hint: focusable, read by screen readers
+  assert.match(text, /\?/);
+  assert.ok(text.includes("Подтверждена — урок не идёт в зарплату"), "the bubble text is in the DOM for screen readers");
+  // the always-visible rows are gone
+  assert.equal(require(path.join(root, "src/components/groups/attendance-legend.tsx")).AttendanceLegend, undefined);
   const journal = read("src/components/groups/group-attendance-journal.tsx");
-  assert.match(journal, /<AttendanceLegend\s+marks=\{STATUS_OPTIONS\}\s+decisionTones=\{EXCUSE_TONE_CLASS\}\s*\/>\s*<div ref=\{journalScrollRef\}/);
-  assert.ok(journal.indexOf("<AttendanceLegend") < journal.indexOf("<table"));
+  assert.doesNotMatch(journal, /<AttendanceLegend\b|Обозначения в журнале"|Решение по уважительной причине/);
+  assert.doesNotMatch(read("src/components/groups/attendance-legend.tsx"), /Решение по уважительной причине<\//);
+  // the hint sits in the title row above the table, and only when there is a table
+  assert.match(journal, /<h3[^>]*>Журнал посещаемости<\/h3>\s*<AttendanceLegendHint \/>/);
+  assert.ok(journal.indexOf("<AttendanceLegendHint") < journal.indexOf("<table"));
+  // a chip's tooltip says what the decision means; the teacher and the owner journals are one component
+  assert.match(journal, /const cellTitle = excuse \? `\$\{excuseStatusMeaning\(excuse\.status\)\}\\n\$\{excuseTooltip\(excuse\)\}/);
+  assert.equal(marks.excuseStatusMeaning("confirmed"), "Подтверждена — урок не идёт в зарплату");
+  assert.equal(marks.excuseStatusMeaning("pending"), "Ждёт решения — решит администратор");
+  assert.equal(marks.excuseStatusMeaning("rejected"), "Отклонена — считается обычным пропуском");
+  assert.match(read("src/app/teacher/groups/[id]/page.tsx"), /GroupAttendanceJournal/);
+  assert.doesNotMatch(read("src/app/teacher/groups/[id]/page.tsx"), /AttendanceLegend/);
 });
 
 test("a cell keeps its size: the longest words fit the 132 px column of a lesson", () => {

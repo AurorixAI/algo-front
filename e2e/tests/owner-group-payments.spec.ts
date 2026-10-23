@@ -27,9 +27,13 @@ test("group -> «Оплаты» -> filter -> individual price via «⋯» -> bad
   await page.goto(`/owner/groups/${group.id}`);
   await page.getByRole("tab", { name: "Оплаты" }).click();
   await expect(page).toHaveURL(/tab=payments/);
-  const summary = page.getByTestId("group-payments-summary");
-  await expect(summary).toContainText(new RegExp(`Цена группы\\s*${moneyPattern(500000)}`));
-  await expect(summary).toContainText("1 ученик с индивидуальной ценой");
+  // INC-14: no summary line (price · N with an individual price · collected %): the header chips, the filter counts and «Поступления» say it
+  const tab = page.getByTestId("group-payments-tab");
+  await expect(page.getByTestId("group-payments-summary")).toHaveCount(0);
+  await expect(tab).not.toContainText("с индивидуальной ценой");
+  await expect(tab).not.toContainText("собрано");
+  await expect(tab).not.toContainText("долг за месяц");
+  await expect(page.getByTestId("payments-filter-individual")).toContainText("(1)");
   await expect(page.getByTestId("group-payment-row")).toHaveCount(3);
 
   // --- the filter: only the student with an individual price, and the badge says why
@@ -62,7 +66,6 @@ test("group -> «Оплаты» -> filter -> individual price via «⋯» -> bad
   await expect(row.getByTestId("individual-badge")).toBeVisible();
   await expect(row.getByTestId("group-payment-price")).toContainText(new RegExp(moneyPattern(350000)));
   await expect(page.getByTestId("payments-filter-individual")).toContainText("(2)");
-  await expect(page.getByTestId("group-payments-summary")).toContainText("2 ученика с индивидуальной ценой");
   const mine = await org.owner.api.get(`/auth/org/memberships/${await org.membershipId(timur.id, group.id)}/price-override`);
   expect(mine.price).toMatchObject({ amount: 350000, source: "override", reason: "Скидка за двоих" });
 

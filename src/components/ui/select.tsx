@@ -32,6 +32,14 @@ interface SelectProps {
   onChange?: (e: any) => void;
   className?: string;
   buttonClassName?: string;
+  /** The id of the field (a surrounding `<label htmlFor>` points at it). */
+  id?: string;
+  /** The accessible name when there is no visible `label` (a toolbar filter). */
+  ariaLabel?: string;
+  disabled?: boolean;
+  testId?: string;
+  /** Set on the field when the surrounding form marks it invalid (the border turns red). */
+  invalid?: boolean;
 }
 
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
@@ -77,6 +85,11 @@ export function Select({
   placeholder = "Выберите...",
   value,
   onChange,
+  id,
+  ariaLabel,
+  disabled = false,
+  testId,
+  invalid = false,
 }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
@@ -88,7 +101,7 @@ export function Select({
   const swallowSpaceUp = useRef(false);
   const lastMouse = useRef<{ x: number; y: number } | null>(null);
   const uid = useId();
-  const triggerId = `${uid}-trigger`;
+  const triggerId = id ?? `${uid}-trigger`;
   const labelId = `${uid}-label`;
   const listId = `${uid}-list`;
   const errorId = `${uid}-error`;
@@ -100,11 +113,12 @@ export function Select({
   const close = useCallback(() => setOpen(false), []);
 
   const openMenu = useCallback(() => {
+    if (disabled) return;
     setActiveIndex(selectedIndex >= 0 ? selectedIndex : options.length ? 0 : -1);
     keyboardNav.current = true;
     lastMouse.current = null;
     setOpen(true);
-  }, [selectedIndex, options.length]);
+  }, [selectedIndex, options.length, disabled]);
 
   // Where the list goes: recomputed on open, resize and any scroll (page or an inner container).
   const updatePlacement = useCallback(() => {
@@ -352,8 +366,11 @@ export function Select({
           aria-expanded={open}
           aria-controls={open ? listId : undefined}
           aria-labelledby={label ? `${labelId} ${triggerId}` : undefined}
+          aria-label={!label ? ariaLabel : undefined}
+          disabled={disabled}
+          data-testid={testId}
           aria-activedescendant={open && activeIndex >= 0 ? optionId(activeIndex) : undefined}
-          aria-invalid={error ? true : undefined}
+          aria-invalid={error || invalid ? true : undefined}
           aria-describedby={error ? errorId : undefined}
           onBlur={() => {
             swallowSpaceUp.current = false;
@@ -372,7 +389,8 @@ export function Select({
             "focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 focus:bg-white",
             open && "border-primary-500 ring-2 ring-primary-500/10 bg-white shadow-sm",
             !selectedOption && "text-slate-400",
-            error && "border-red-400 focus:ring-red-500/20 focus:border-red-500",
+            (error || invalid) && "border-red-400 focus:ring-red-500/20 focus:border-red-500",
+            disabled && "cursor-not-allowed opacity-60 hover:border-slate-200 hover:bg-slate-50",
             buttonClassName
           )}
         >

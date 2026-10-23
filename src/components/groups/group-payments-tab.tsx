@@ -11,7 +11,6 @@ import {
   type GroupPriceBrief,
 } from "@/lib/group-price";
 import {
-  collectionBrief,
   emptyFilterText,
   extrasFromHistory,
   filterChipLabel,
@@ -23,14 +22,11 @@ import {
   paymentsCounts,
   PAYMENTS_LOAD_ERROR,
   PAYMENTS_SEARCH_FROM,
-  summaryParts,
   type GroupPaymentRowView,
-  type MonthCollectionBrief,
   type PaymentsFilter,
   type PriceExtras,
 } from "@/lib/group-payments";
 import { canPayLeftDebt } from "@/lib/payments-logica";
-import { overviewQuery, periodOf } from "@/lib/payments-income-v2";
 import {
   PAY_ACTION_LABEL,
   PAYMENT_SAVED_TEXT,
@@ -107,7 +103,6 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
   const [rows, setRows] = useState<MembershipPaymentRow[] | null>(null);
   const [leftRows, setLeftRows] = useState<MembershipPaymentRow[]>([]);
   const [extras, setExtras] = useState<Record<string, PriceExtras>>({});
-  const [collection, setCollection] = useState<MonthCollectionBrief | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [denied, setDenied] = useState(false);
   const [search, setSearch] = useState("");
@@ -116,15 +111,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
   const [payTarget, setPayTarget] = useState<string | null>(null);
   const [payOpen, setPayOpen] = useState(false);
   const requests = useRef(createRequestSequence());
-  const incomeRequests = useRef(createRequestSequence());
   const extrasAsked = useRef<Set<string>>(new Set());
-
-  const loadIncome = useCallback(() => {
-    const token = incomeRequests.current.next();
-    orgApi.getIncomeOverview(overviewQuery(periodOf("month", today), { groupId, teacherId: "" }))
-      .then((overview) => { if (incomeRequests.current.isCurrent(token)) setCollection(collectionBrief(overview.collection)); })
-      .catch(() => { if (incomeRequests.current.isCurrent(token)) setCollection(null); });
-  }, [groupId, today]);
 
   const load = useCallback(async (silent = false) => {
     const token = requests.current.next();
@@ -146,11 +133,9 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
   useEffect(() => {
     void load();
-    loadIncome();
     const sequence = requests.current;
-    const income = incomeRequests.current;
-    return () => { sequence.next(); income.next(); };
-  }, [load, loadIncome]);
+    return () => { sequence.next(); };
+  }, [load]);
 
   /** Who set an individual price and the one scheduled: the list carries them on a newer server, `price-override` tells otherwise. */
   const fetchExtras = useCallback(async (membershipId: string) => {
@@ -184,18 +169,16 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
   const leftViews = useMemo(() => paymentRowViews(leftRows, { periodMode, today }), [leftRows, periodMode, today]);
   const counts = useMemo(() => paymentsCounts(views), [views]);
   const shown = useMemo(() => filterPaymentRows(views, filter, search), [views, filter, search]);
-  const parts = summaryParts({ groupPrice, periodMode, individual: counts.individual, collection });
 
   const replaceRow = (next: MembershipPaymentRow) => {
     setRows((previous) => previous?.map((row) => (row.membership_id === next.membership_id ? next : row)) ?? previous);
     setLeftRows((previous) => previous.map((row) => (row.membership_id === next.membership_id ? next : row)));
   };
-  /** The server accepted a change: its row replaces ours; the menu badge, the banner and the month's collection are read again. */
+  /** The server accepted a change: its row replaces ours; the menu badge and the banner are read again. */
   const changed = (next: MembershipPaymentRow, priceChanged = false) => {
     replaceRow(next);
     if (priceChanged) void fetchExtras(next.membership_id);
     void refreshSummary(true);
-    loadIncome();
   };
 
   const openPay = (view: GroupPaymentRowView) => { setPayTarget(view.membershipId); setPayOpen(true); };
@@ -230,18 +213,13 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
   return (
     <div className="space-y-4" data-testid="group-payments-tab">
-      {/* The answer first: the price, who has an exception, how the month is going */}
-      <p className="text-sm text-slate-600" data-testid="group-payments-summary">
-        {parts.map((part, index) => (
-          <span key={index}>
-            {index > 0 && <span className="mx-1.5 text-slate-300" aria-hidden>·</span>}
-            <span className={index === 0 ? "font-semibold text-slate-900" : ""}>{part}</span>
-          </span>
-        ))}
-        {!groupPrice && (
+      {/* The price is in the header chips; only a group without one gets a line here, because that is an action */}
+      {!groupPrice && (
+        <p className="text-sm text-slate-600" data-testid="group-payments-summary">
+          <span className="font-semibold text-slate-900">Цена группы не задана</span>
           <Link href={groupPriceHref(groupsBasePath, groupId)} className="ml-3 text-xs font-semibold text-primary-700 hover:underline">Задать цену группы</Link>
-        )}
-      </p>
+        </p>
+      )}
 
       {rows !== null && (
         <div className="flex flex-wrap items-center gap-2">

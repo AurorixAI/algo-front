@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CalendarClock, Ban, Loader2, Repeat2, UserRoundCheck, XCircle } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
@@ -405,10 +406,7 @@ export function DecisionBody({
               <input type="text" value={move.room} maxLength={200} disabled={busy} onChange={(event) => onMove({ room: event.target.value })} className={`${INPUT_CLASS} mt-1`} />
             </label>
             <label className="text-xs font-semibold text-slate-500">Формат
-              <select value={move.format} disabled={busy} onChange={(event) => onMove({ format: event.target.value as "offline" | "online" })} className={`${INPUT_CLASS} mt-1`}>
-                <option value="offline">Офлайн</option>
-                <option value="online">Онлайн</option>
-              </select>
+              <Select value={move.format} disabled={busy} onChange={(event) => onMove({ format: event.target.value as "offline" | "online" })} options={[{ value: "offline", label: "Офлайн" }, { value: "online", label: "Онлайн" }]} className="mt-1" buttonClassName="py-2 font-normal" />
             </label>
           </div>
           <MoveCheck lines={lines} checking={checking} error={checkError} />

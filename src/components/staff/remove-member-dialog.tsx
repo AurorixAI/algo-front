@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CalendarClock, Loader2, Users } from "lucide-react";
 import { orgApi, opsApi } from "@/lib/api";
@@ -30,9 +31,6 @@ import {
 } from "@/lib/staff-lifecycle";
 
 export type MemberAction = { kind: "remove" } | { kind: "role"; role: string };
-
-const SELECT_CLASS =
-  "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition-all focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10 disabled:opacity-60";
 
 /**
  * O2 (LOGIC-B): «Удалить сотрудника» and the change of a role that would leave groups without their teacher.
@@ -248,6 +246,11 @@ export function RemovalDialogBody({
   const missedCount = impact?.missedLessons?.count ?? 0;
   const requestsCount = impact?.pendingSubstitutionRequests?.count ?? 0;
   const plainConfirm = impact !== null && !hasGroups && inProgress.length === 0;
+  const handoverOptions = [
+    { value: "", label: "Выберите преподавателя" },
+    ...targets.map((target) => ({ value: target.id, label: target.label ?? target.name })),
+    { value: UNASSIGNED, label: KEEP_UNASSIGNED_LABEL },
+  ];
   return (
       <div className="space-y-4 pb-1">
         {!impact && !loadError && (
@@ -290,11 +293,14 @@ export function RemovalDialogBody({
                 {groups.length > 1 && (
                   <div className="rounded-xl bg-slate-50 px-3.5 py-3">
                     <label htmlFor="handover-everyone" className="mb-1.5 block text-[13px] font-semibold text-slate-500">Передать всем</label>
-                    <select id="handover-everyone" value={everyone} onChange={(event) => onEveryone(event.target.value)} disabled={busy} className={SELECT_CLASS}>
-                      <option value="">Выберите преподавателя</option>
-                      {targets.map((target) => <option key={target.id} value={target.id}>{target.label ?? target.name}</option>)}
-                      <option value={UNASSIGNED}>{KEEP_UNASSIGNED_LABEL}</option>
-                    </select>
+                    <Select
+                      id="handover-everyone"
+                      value={everyone}
+                      onChange={(event) => onEveryone(event.target.value)}
+                      disabled={busy}
+                      options={handoverOptions}
+                      buttonClassName="bg-white py-2.5"
+                    />
                   </div>
                 )}
 
@@ -319,18 +325,16 @@ export function RemovalDialogBody({
                           )}
                         </div>
                         <label htmlFor={`handover-${group.id}`} className="sr-only">Преподаватель группы «{group.name}»</label>
-                        <select
+                        <Select
                           id={`handover-${group.id}`}
                           value={choice.value}
                           onChange={(event) => onChoice(group.id, { value: event.target.value, confirmed: false })}
                           disabled={busy}
-                          aria-invalid={Boolean(conflict)}
-                          className={`${SELECT_CLASS} mt-2.5 ${conflict ? "!border-rose-300" : ""}`}
-                        >
-                          <option value="">Выберите преподавателя</option>
-                          {targets.map((target) => <option key={target.id} value={target.id}>{target.label ?? target.name}</option>)}
-                          <option value={UNASSIGNED}>{KEEP_UNASSIGNED_LABEL}</option>
-                        </select>
+                          invalid={Boolean(conflict)}
+                          options={handoverOptions}
+                          className="mt-2.5"
+                          buttonClassName={`py-2.5 ${conflict ? "!border-rose-300" : ""}`}
+                        />
                         {choice.value === UNASSIGNED && (
                           <label className="mt-2.5 flex cursor-pointer items-start gap-2 text-xs font-medium text-slate-700">
                             <input

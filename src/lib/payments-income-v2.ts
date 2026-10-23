@@ -368,17 +368,15 @@ export function periodWords(kind: PeriodKind): string {
 
 // ── Queries ────────────────────────────────────────────────────────────────
 
-export interface IncomeFilters { method: string; groupId: string; teacherId: string }
-export const NO_FILTERS: IncomeFilters = { method: "", groupId: "", teacherId: "" };
+/** The page narrows by the method only (a click on the donut); the centre is never narrowed to a group / teacher here (INC-14). */
+export interface IncomeFilters { method: string }
+export const NO_FILTERS: IncomeFilters = { method: "" };
 
-export interface IncomeQuery { from: string; to: string; period: PeriodKind; method?: string; group_id?: string; teacher_id?: string }
+export interface IncomeQuery { from: string; to: string; period: PeriodKind; method?: string }
 
 /** The overview never takes the method: the donut «Чем платили» always shows every method; the method narrows only the journal. */
-export function overviewQuery(period: Period, filters: Pick<IncomeFilters, "groupId" | "teacherId">): IncomeQuery {
-  const query: IncomeQuery = { from: period.from, to: period.to, period: period.kind };
-  if (filters.groupId) query.group_id = filters.groupId;
-  if (filters.teacherId) query.teacher_id = filters.teacherId;
-  return query;
+export function overviewQuery(period: Period): IncomeQuery {
+  return { from: period.from, to: period.to, period: period.kind };
 }
 
 /** The days a click on a bar narrows the journal to (a day, or a month of a long period). */
@@ -390,8 +388,6 @@ export interface JournalQuery {
   page?: number;
   size?: number;
   method?: string;
-  group_id?: string;
-  teacher_id?: string;
   created_by?: string;
   q?: string;
   status?: "all" | "active" | "voided";
@@ -403,8 +399,6 @@ export const NO_JOURNAL_EXTRAS: JournalExtras = { q: "", createdBy: "" };
 export function journalQuery(period: Period, range: JournalRange | null, filters: IncomeFilters, extras: JournalExtras, page = 1, size = JOURNAL_PAGE_SIZE): JournalQuery {
   const query: JournalQuery = { from: range?.from ?? period.from, to: range?.to ?? period.to, page, size };
   if (filters.method) query.method = filters.method;
-  if (filters.groupId) query.group_id = filters.groupId;
-  if (filters.teacherId) query.teacher_id = filters.teacherId;
   if (extras.createdBy) query.created_by = extras.createdBy;
   if (extras.q.trim()) query.q = extras.q.trim();
   return query;
@@ -576,11 +570,10 @@ export function advanceCard(overview: IncomeOverview): PositionCard {
   return advance > 0 ? { amount: formatMoney(advance), caption: `${studentsText(students)} ${pluralRu(students, "оплатил", "оплатили", "оплатили")} вперёд`, none: false } : { amount: "Авансов нет", caption: "Никто не платил вперёд", none: true };
 }
 
-/** The «Должники» tab of «Оплаты», narrowed to a group / a teacher when the screen is. */
-export function debtorsHref(paymentsBase: string, scope: { groupId?: string | null; teacherId?: string | null } = {}): string {
+/** The «Должники» tab of «Оплаты», narrowed to a group when a row of the collection table leads there. */
+export function debtorsHref(paymentsBase: string, scope: { groupId?: string | null } = {}): string {
   const params = new URLSearchParams({ bucket: "debt" });
   if (scope.groupId) params.set("group_id", scope.groupId);
-  else if (scope.teacherId) params.set("teacher_id", scope.teacherId);
   return `${paymentsBase.replace(/\/+$/, "")}?${params.toString()}`;
 }
 

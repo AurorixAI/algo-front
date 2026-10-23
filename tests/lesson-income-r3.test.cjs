@@ -136,16 +136,20 @@ test("a lesson of TODAY whose start has passed (business time) is marked, not mo
 
 // ── INCOME-2 ─────────────────────────────────────────────────────────────────────────────────────
 
-test("«Должники» of the debt card carries the group / teacher the screen is narrowed to", () => {
+test("INC-14: «Должники» of the debt card is the plain link; the page has no group / teacher filter and ignores such links", () => {
   const { React, html, P } = renderer();
   const overview = V.normalizeOverview(fixture("I01_income_month_october"));
-  const view = (scope) => html(React.createElement(P.IncomeOverviewView, { overview, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {}, scope }));
-  assert.match(view(undefined), /href="\/owner\/payments\?bucket=debt"/);
-  assert.match(view({ groupId: "g1", teacherId: "" }), /href="\/owner\/payments\?bucket=debt&amp;group_id=g1"/);
-  assert.match(view({ groupId: "", teacherId: "t 1" }), /href="\/owner\/payments\?bucket=debt&amp;teacher_id=t\+1"/);
-  assert.match(view({ groupId: "g1", teacherId: "t1" }), /bucket=debt&amp;group_id=g1"/);
+  const view = html(React.createElement(P.IncomeOverviewView, { overview, today: "2026-10-21", paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
+  assert.match(view, /href="\/owner\/payments\?bucket=debt"/);
   const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /scope=\{\{ groupId: filters\.groupId, teacherId: filters\.teacherId \}\}/);
+  assert.doesNotMatch(page, /CascadingFilter|FiltersBar|usePaymentsDirectory|Все группы|filters\.groupId|filters\.teacherId|scope=/);
+  assert.doesNotMatch(page, /group_id|teacher_id/);
+  // a deep link with ?group_id= / ?teacher_id= does not break the page: the parser reads only the period and the tab
+  const parsed = V.parseIncomeQuery(new URLSearchParams("group_id=g1&teacher_id=t1&month=2026-09&tab=groups"), "2026-10-21");
+  assert.deepEqual(parsed, { period: V.periodOf("month", "2026-09-01"), tab: "groups" });
+  assert.equal(V.incomeQueryString(parsed.period, parsed.tab, "2026-10-21").includes("group_id"), false);
+  // the collection rows still lead to «Оплаты» → «Должники» of the group
+  assert.match(read("src/components/payments/income-collection.tsx"), /debtorsHref\(paymentsBase, \{ groupId: row\.groupId \}\)/);
 });
 
 test("the till block keeps the server's centre-wide scope through the normalizer (the cash line of the donut card reads it)", () => {

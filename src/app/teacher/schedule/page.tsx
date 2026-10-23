@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -3171,10 +3172,7 @@ export default function TeacherSchedulePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <label className="text-xs font-semibold text-slate-700">Формат
-                      <select value={rescheduleFormat} onChange={(event) => setRescheduleFormat(event.target.value as "offline" | "online")} className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500">
-                        <option value="offline">Офлайн</option>
-                        <option value="online">Онлайн</option>
-                      </select>
+                      <Select value={rescheduleFormat} onChange={(event) => setRescheduleFormat(event.target.value as "offline" | "online")} options={[{ value: "offline", label: "Офлайн" }, { value: "online", label: "Онлайн" }]} className="mt-1" buttonClassName="border-primary-200 bg-white px-3 py-2 text-sm" />
                     </label>
                     <label className="text-xs font-semibold text-slate-700">Аудитория
                       <input type="text" value={rescheduleRoom} onChange={(event) => setRescheduleRoom(event.target.value)} maxLength={200} className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
@@ -3400,22 +3398,15 @@ export default function TeacherSchedulePage() {
                   <label htmlFor="sched-add-gruppa" className="block text-xs font-semibold text-slate-700 mb-1">
                     Группа
                   </label>
-                  <select
+                  <Select
                     id="sched-add-gruppa"
                     value={newGroupId}
                     onChange={(e) => setNewGroupId(e.target.value)}
-                    required
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  >
-                    {groups.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name} ({g.class_level || 5} класс)
-                      </option>
-                    ))}
-                    {groups.length === 0 && (
-                      <option value="default-grp">Основная группа (5 класс)</option>
-                    )}
-                  </select>
+                    options={groups.length === 0
+                      ? [{ value: "default-grp", label: "Основная группа (5 класс)" }]
+                      : groups.map((g) => ({ value: g.id, label: `${g.name} (${g.class_level || 5} класс)` }))}
+                    buttonClassName="px-3 py-2 text-xs"
+                  />
                 </div>
 
                 <fieldset>
@@ -3471,16 +3462,13 @@ export default function TeacherSchedulePage() {
                 ) : (
                   <div>
                     <label htmlFor="sched-add-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-                    <select
+                    <Select
                       id="sched-add-den-nedeli"
-                      value={newDay}
+                      value={String(newDay)}
                       onChange={(e) => handleAddDayChange(Number(e.target.value))}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      {DAYS.map((d) => (
-                        <option key={d.id} value={d.id}>{d.name}</option>
-                      ))}
-                    </select>
+                      options={DAYS.map((d) => ({ value: String(d.id), label: d.name }))}
+                      buttonClassName="px-3 py-2 text-xs"
+                    />
                     <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
                     <label htmlFor="sched-add-deystvuet-s" className="mt-3 block text-xs font-semibold text-slate-700 mb-1">Действует с</label>
                     <input
@@ -3532,15 +3520,13 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-add-format" className="block text-xs font-semibold text-slate-700 mb-1">
                       Формат
                     </label>
-                    <select
+                    <Select
                       id="sched-add-format"
                       value={newFormat}
                       onChange={(e) => setNewFormat(e.target.value as "offline" | "online")}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      <option value="offline">Офлайн в классе</option>
-                      <option value="online">Онлайн (Zoom)</option>
-                    </select>
+                      options={[{ value: "offline", label: "Офлайн в классе" }, { value: "online", label: "Онлайн (Zoom)" }]}
+                      buttonClassName="px-3 py-2 text-xs"
+                    />
                   </div>
                   <div>
                     <label htmlFor="sched-add-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
@@ -3858,16 +3844,13 @@ export default function TeacherSchedulePage() {
 
                 <div>
                   <label htmlFor="sched-edit-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-                  <select
+                  <Select
                     id="sched-edit-den-nedeli"
-                    value={editDay}
+                    value={String(editDay)}
                     onChange={(e) => setEditDay(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  >
-                    {DAYS.map((d) => (
-                      <option key={d.id} value={d.id}>{d.name}</option>
-                    ))}
-                  </select>
+                    options={DAYS.map((d) => ({ value: String(d.id), label: d.name }))}
+                    buttonClassName="px-3 py-2 text-xs"
+                  />
                 </div>
 
                 {/* Time range */}
@@ -3906,15 +3889,13 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-edit-format" className="block text-xs font-semibold text-slate-700 mb-1">
                       Формат
                     </label>
-                    <select
+                    <Select
                       id="sched-edit-format"
                       value={editFormat}
                       onChange={(e) => setEditFormat(e.target.value as "offline" | "online")}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    >
-                      <option value="offline">Офлайн в классе</option>
-                      <option value="online">Онлайн (Zoom)</option>
-                    </select>
+                      options={[{ value: "offline", label: "Офлайн в классе" }, { value: "online", label: "Онлайн (Zoom)" }]}
+                      buttonClassName="px-3 py-2 text-xs"
+                    />
                   </div>
                   <div>
                     <label htmlFor="sched-edit-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">

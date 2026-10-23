@@ -299,17 +299,38 @@ export function membershipPriceView(price: PriceInfo | null | undefined, label: 
   return { kind: "group", title: "Цена группы", value, note: null, text: `Цена группы: ${value}` };
 }
 
+/** The reason the migration wrote for the prices students had before the group price existed (it is not a human's reason). */
+export const SYSTEM_PRICE_REASON = "Цена до введения цены группы";
+export const SYSTEM_PRICE_REASON_TOOLTIP = "Перенесена из прежней цены ученика";
+
+/**
+ * The tooltip of «Индивидуальная цена 450 000 сум/мес» on the student card: why, since when, who, and what the group pays.
+ * The reason is not printed after the price any more; the migration's own reason reads «Перенесена из прежней цены ученика».
+ */
+export function overridePriceTooltip(price: PriceInfo): string {
+  const reason = (price.reason ?? "").trim();
+  const lines: string[] = [];
+  if (reason) lines.push(reason === SYSTEM_PRICE_REASON ? SYSTEM_PRICE_REASON_TOOLTIP : `Причина: ${reason}`);
+  const since = sinceText(price.valid_from);
+  if (since) lines.push(since.charAt(0).toUpperCase() + since.slice(1));
+  const author = (price.set_by_name ?? "").trim();
+  if (author) lines.push(`Назначил(а): ${author}`);
+  const group = groupAmountPart(price.group_amount);
+  lines.push(group.charAt(0).toUpperCase() + group.slice(1));
+  return lines.join("\n");
+}
+
 export interface PriceLine {
   kind: PriceSource;
   /** What leads the line: «Цена» | «Индивидуальная цена» | «Цена группы не задана». */
   lead: string;
   /** «500 000 сум/мес» | «бесплатно» (capital at the start of the line); null when there is no price. */
   value: string | null;
-  /** What follows the dot: «цена группы» | the reason of the individual price. */
+  /** What follows the dot: «цена группы» | the reason of the individual price (the card does NOT print the reason: it is in `title`). */
   tail: string;
   /** The whole line: «Цена 500 000 сум/мес · цена группы». */
   text: string;
-  /** The price of the group behind an individual price, for the tooltip. */
+  /** The tooltip of an individual price: reason, since-date, author, the price of the group behind it. */
   title: string | null;
 }
 
@@ -328,8 +349,7 @@ export function membershipPriceLine(price: PriceInfo | null | undefined, label: 
   if (price.source === "override") {
     const lead = free ? "Индивидуальная цена —" : "Индивидуальная цена";
     const tail = (price.reason ?? "").trim();
-    const group = groupAmountPart(price.group_amount);
-    return { kind: "override", lead, value: money, tail, text: compose(lead, money, tail), title: group.charAt(0).toUpperCase() + group.slice(1) };
+    return { kind: "override", lead, value: money, tail, text: compose(lead, money, tail), title: overridePriceTooltip(price) };
   }
   const lead = free ? "" : "Цена";
   const value = free ? money.charAt(0).toUpperCase() + money.slice(1) : money;

@@ -49,11 +49,12 @@ test("[O2.R1] the dialog of a teacher with two groups: the title, the lead with 
   const text = textOf(html);
   assert.match(text, /Чтобы удалить «Иванов И\.», сначала передайте его группы другому преподавателю \(2 гр\.\)\./);
   assert.match(text, /Передать всем/);
-  assert.equal((html.match(/<select/g) || []).length, 3); // everyone + one per group
+  assert.equal((html.match(/role="combobox"/g) || []).length, 3); // everyone + one per group (the project's Select, INC-14)
+  assert.doesNotMatch(html, /<select/);
   assert.match(text, /9-А · 3 уч\./);
   assert.match(text, /7-Б · 2 уч\./);
   assert.match(text, /Ближайший урок: Ср, 21\.10 16:00|Ближайший урок: ср, 21\.10 16:00/);
-  assert.match(text, /Оставить без преподавателя/);
+  assert.match(fs.readFileSync(path.join(root, "src/components/staff/remove-member-dialog.tsx"), "utf8"), /\{ value: UNASSIGNED, label: KEEP_UNASSIGNED_LABEL \}/); // the list opens on demand: «Оставить без преподавателя» is its last option
   assert.match(text, /Пропущенных уроков: 1\. Их разберёт администратор\./);
   assert.doesNotMatch(text, /Будущие замены/); // none in the fixture: count 0 is not mentioned
   assert.equal(S.groupsBlockTitle(), "У сотрудника есть группы");

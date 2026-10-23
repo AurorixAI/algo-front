@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { businessNow } from "../support/time";
-import { dmy, groupedDigits, money, toast } from "../support/ui";
+import { dmy, groupedDigits, money, pickOption, toast } from "../support/ui";
 
 /**
  * Owner: settings «Оплаты» -> «Единый день оплаты». LOGIC-A (F12): a change of the mode never touches a running period - the new mode
@@ -32,7 +32,7 @@ test("fixed payment day: the new mode waits for the next period; the running one
   await page.goto("/owner/settings?section=payments");
   const section = page.getByRole("region", { name: "Оплаты" });
   await section.getByRole("radio", { name: /Единый день оплаты/ }).check();
-  await section.getByRole("combobox", { name: "Единый день оплаты" }).selectOption(String(billingDay));
+  await pickOption(page, section.getByRole("combobox", { name: "Единый день оплаты" }), String(billingDay));
   await section.getByRole("button", { name: "Сохранить" }).click();
   await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible(); // the button itself confirms
   const saved = await org.owner.api.get("/auth/org/settings/payments");

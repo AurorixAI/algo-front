@@ -134,17 +134,18 @@ test("the title between the arrows: «Октябрь 2026 г.»; the dead day / 
 
 test("queries: the kind is sent to the server; filters only when set; the journal of a clicked day; export has no page", () => {
   const month = V.periodOf("month", TODAY);
-  assert.deepEqual(V.overviewQuery(month, V.NO_FILTERS), { from: "2026-10-01", to: "2026-10-31", period: "month" });
+  assert.deepEqual(V.overviewQuery(month), { from: "2026-10-01", to: "2026-10-31", period: "month" });
   // the overview never takes the method (the donut shows every method); the method narrows only the journal
-  assert.deepEqual(V.overviewQuery(month, { method: "cash", groupId: "g1", teacherId: "t1" }), { from: "2026-10-01", to: "2026-10-31", period: "month", group_id: "g1", teacher_id: "t1" });
-  assert.deepEqual(V.overviewQuery(V.periodOf("day", TODAY), V.NO_FILTERS), { from: TODAY, to: TODAY, period: "day" }); // the till of today
-  assert.equal(V.overviewQuery({ kind: "custom", from: "2026-10-01", to: "2026-10-09" }, V.NO_FILTERS).period, "custom");
+  assert.deepEqual(V.overviewQuery(month, { method: "cash", groupId: "g1", teacherId: "t1" }), { from: "2026-10-01", to: "2026-10-31", period: "month" }, "no group / teacher / method is sent (INC-14: the page has no such filter)");
+  assert.deepEqual(V.NO_FILTERS, { method: "" });
+  assert.deepEqual(V.overviewQuery(V.periodOf("day", TODAY)), { from: TODAY, to: TODAY, period: "day" }); // the till of today
+  assert.equal(V.overviewQuery({ kind: "custom", from: "2026-10-01", to: "2026-10-09" }).period, "custom");
 
   assert.deepEqual(V.journalQuery(month, null, V.NO_FILTERS, V.NO_JOURNAL_EXTRAS), { from: "2026-10-01", to: "2026-10-31", page: 1, size: 25 });
   const day = { from: "2026-10-07", to: "2026-10-07", label: "7 октября" };
-  const q = V.journalQuery(month, day, { method: "cash", groupId: "", teacherId: "t1" }, { q: "  Алиев ", createdBy: "u1" }, 2);
-  assert.deepEqual(q, { from: "2026-10-07", to: "2026-10-07", page: 2, size: 25, method: "cash", teacher_id: "t1", created_by: "u1", q: "Алиев" });
-  assert.deepEqual(V.exportQuery(q), { from: "2026-10-07", to: "2026-10-07", method: "cash", teacher_id: "t1", created_by: "u1", q: "Алиев" });
+  const q = V.journalQuery(month, day, { method: "cash" }, { q: "  Алиев ", createdBy: "u1" }, 2);
+  assert.deepEqual(q, { from: "2026-10-07", to: "2026-10-07", page: 2, size: 25, method: "cash", created_by: "u1", q: "Алиев" });
+  assert.deepEqual(V.exportQuery(q), { from: "2026-10-07", to: "2026-10-07", method: "cash", created_by: "u1", q: "Алиев" });
 });
 
 // ── the sentence and the four cards ─────────────────────────────────────────────────────────────
@@ -210,8 +211,7 @@ test("cards «Долг на сегодня» and «Аванс»: the sum and the
   assert.deepEqual([V.debtCard(clean).amount, V.debtCard(clean).none, V.advanceCard(clean).amount], ["Долгов нет", true, "Авансов нет"]);
   assert.equal(V.debtorsHref("/owner/payments/"), "/owner/payments?bucket=debt");
   assert.equal(V.debtorsHref("/owner/payments", { groupId: "g 1" }), "/owner/payments?bucket=debt&group_id=g+1");
-  assert.equal(V.debtorsHref("/admin/payments", { teacherId: "t1" }), "/admin/payments?bucket=debt&teacher_id=t1");
-  assert.equal(V.debtorsHref("/admin/payments", { groupId: "g1", teacherId: "t1" }), "/admin/payments?bucket=debt&group_id=g1"); // the group is narrower
+  assert.equal(V.debtorsHref("/admin/payments", { teacherId: "t1" }), "/admin/payments?bucket=debt"); // the teacher is no longer a scope of this link
 });
 
 // ── «Куда ушли деньги» ──────────────────────────────────────────────────────────────────────────
@@ -336,7 +336,7 @@ test("click-to-filter at the state level: a click chooses the method for the jou
   assert.equal(V.toggleMethod("cash", "cash"), "");
   assert.equal(V.toggleMethod("cash", "card"), "card");
   const month = V.periodOf("month", TODAY);
-  const chosen = { method: V.toggleMethod("", "cash"), groupId: "", teacherId: "" };
+  const chosen = { method: V.toggleMethod("", "cash") };
   assert.equal(V.journalQuery(month, null, chosen, V.NO_JOURNAL_EXTRAS).method, "cash");
   assert.equal("method" in V.journalQuery(month, null, { ...chosen, method: V.toggleMethod("cash", "cash") }, V.NO_JOURNAL_EXTRAS), false);
   assert.equal("method" in V.overviewQuery(month, chosen), false, "the donut keeps showing every method");
@@ -344,7 +344,7 @@ test("click-to-filter at the state level: a click chooses the method for the jou
   const page = read("src/components/payments/income-page.tsx");
   assert.match(page, /toggleMethod\(filters\.method, method\)/);
   assert.match(page, /onClearMethod=\{\(\) => \{ setFilters\(\(state\) => \(\{ \.\.\.state, method: "" \}\)\); setPage\(1\); \}\}/);
-  assert.match(page, /const changeFilters = \(next: IncomeFilters\) => \{ setFilters\(\{ \.\.\.next, method: "" \}\)/);
+  assert.doesNotMatch(page, /changeFilters/); // INC-14: no group / teacher filter, so nothing resets the donut except the period
   assert.match(page, /const changePeriod = \(next: Period\) => \{ setPeriod\(next\); setFilters\(\(state\) => \(\{ \.\.\.state, method: "" \}\)\)/);
   assert.doesNotMatch(page, /Все способы|methodOptions|<select/);
   assert.equal(V.methodFilterOptions, undefined);
@@ -411,7 +411,7 @@ test("«Сегодня наличными»: one quiet line on the current month
   // the page: ONE request for today (period=day, no filters), only on the current month; the answer is not shown elsewhere
   const page = read("src/components/payments/income-page.tsx");
   assert.match(page, /const cashWanted = !blocked && isCurrentMonth\(period, today\);/);
-  assert.match(page, /overviewQuery\(periodOf\("day", today\), \{ groupId: "", teacherId: "" \}\)/);
+  assert.match(page, /overviewQuery\(periodOf\("day", today\)\)/);
   assert.match(page, /cashToday=\{cashWanted \? cashToday : null\}/);
   assert.match(page, /\.catch\(\(\) => \{ if \(live\) setCashToday\(null\); \}\)/);
   assert.equal((page.match(/getIncomeOverview\(/g) || []).length, 2, "the overview and the till of today, nothing else");
@@ -652,7 +652,11 @@ test("the journal section: search and filters, the focus chip, pages; empty and 
   const markup = html(React.createElement(J.JournalSection, base));
   assert.match(markup, /aria-label="Поиск по оплатам"/);
   assert.match(markup, /aria-label="Кто внёс оплату"/);
-  assert.match(markup, /Азиз Хакимов · 4/);
+  // INC-14: the project's own Select (role combobox, the chevron), not a native <select>; its list opens on demand
+  assert.match(markup, /<button[^>]*role="combobox"[^>]*aria-label="Кто внёс оплату"|<button[^>]*aria-label="Кто внёс оплату"[^>]*role="combobox"/);
+  assert.match(markup, /Кто внёс: все/);
+  assert.doesNotMatch(markup, /<select/);
+  assert.match(read("src/components/payments/income-journal.tsx"), /label: `\$\{author\.name \|\| "Без имени"\} · \$\{author\.count\}`/);
   assert.match(markup, /aria-label="Следующая страница"/);
   // one author: nothing to choose, no select
   assert.ok(!html(React.createElement(J.JournalSection, { ...base, authors: [data.authors[0]] })).includes("Кто внёс оплату"));
@@ -819,7 +823,8 @@ test("INCOME-2 addendum: «Кто внёс» from two authors, the Excel limit, 
   const { React, text, J } = parts();
   const data = journal("J03_journal_cash");
   const base = { journal: data, loading: false, error: null, onRetry: () => {}, search: "", onSearch: () => {}, createdBy: "user:admin", onCreatedBy: () => {}, authors: data.authors, focusLabel: null, onClearFocus: () => {}, empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing: () => {}, onPage: () => {}, onExport: () => {}, exporting: false, activeId: null, onOpen: () => {} };
-  assert.ok(text(React.createElement(J.JournalSection, base)).includes("Кто внёс: все")); // an author is chosen, the options stay
+  assert.ok(text(React.createElement(J.JournalSection, base)).includes("Нодира Саидова · 3")); // an author is chosen: the field shows him, «Кто внёс: все» stays the first option
+  assert.match(read("src/components/payments/income-journal.tsx"), /\{ value: "", label: "Кто внёс: все" \}/);
   const e = Object.assign(new Error("Слишком много оплат для файла — сузьте период или фильтры"), { code: "EXPORT_TOO_LONG", status: 422 });
   assert.equal(V.exportErrorText(e), "Слишком много строк — сузьте период или фильтры");
   assert.equal(V.exportErrorText(new Error("Нет сети")), "Нет сети");

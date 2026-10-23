@@ -415,10 +415,7 @@ export function StatementHeader({ statement, studentLink, groupLink }: {
           ) : m.group_name}
           {m.teacher_name && <span className="text-slate-500"> · {m.teacher_name}</span>}
         </p>
-        <p className="text-xs text-slate-500">
-          По состоянию на {formatDateRu(statement.as_of)}, учёт ведётся с {formatDateRu(statement.accounting_start)}, суммы в сумах
-          {!m.is_active && " · ученик больше не в этой группе"}
-        </p>
+        {!m.is_active && <p className="text-xs text-slate-500">Ученик больше не в этой группе</p>}
       </header>
 
       <section aria-label="Итоги" className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5">

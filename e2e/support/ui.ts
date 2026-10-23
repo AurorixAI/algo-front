@@ -140,6 +140,16 @@ export async function openPriceMode(page: Page, mode: "assign" | "return" | "can
   }
 }
 
+/**
+ * The project's own dropdown (INC-14: no native <select>): open the field and click an option by its text.
+ * `trigger` is the combobox button (by label, test id or role).
+ */
+export async function pickOption(page: Page, trigger: Locator, option: string | RegExp) {
+  await trigger.click();
+  await page.getByRole("listbox").getByRole("option", { name: option, exact: typeof option === "string" }).click();
+  await expect(page.getByRole("listbox")).toHaveCount(0);
+}
+
 /** «⋯» of the header of a group page (IA audit 22.10: «Изменить группу…», «Цена группы…», «В архив») -> an item. */
 export async function groupMenuItem(page: Page, groupName: string, name: string | RegExp) {
   for (let attempt = 0; ; attempt++) {

@@ -19,6 +19,7 @@ import {
   type JournalRow,
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
+import { Select } from "@/components/ui/select";
 import { IncomeError } from "./income-parts";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
@@ -234,18 +235,26 @@ export function JournalSection(props: JournalSectionProps) {
             className={`${FIELD} w-full pl-9`}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center md:ml-auto">
           {showAuthors && (
-            <select aria-label="Кто внёс оплату" value={props.createdBy} onChange={(event) => props.onCreatedBy(event.target.value)} className={FIELD}>
-              <option value="">Кто внёс: все</option>
-              {authors.map((author) => <option key={author.user_id} value={author.user_id}>{author.name || "Без имени"} · {author.count}</option>)}
-            </select>
+            <Select
+              ariaLabel="Кто внёс оплату"
+              testId="journal-created-by"
+              value={props.createdBy}
+              onChange={(event) => props.onCreatedBy(event.target.value)}
+              options={[
+                { value: "", label: "Кто внёс: все" },
+                ...authors.map((author) => ({ value: author.user_id, label: `${author.name || "Без имени"} · ${author.count}` })),
+              ]}
+              className="w-full sm:w-auto sm:min-w-[15rem]"
+              buttonClassName="h-10 bg-white px-3.5 py-0 font-medium text-slate-700 shadow-none hover:bg-slate-50"
+            />
           )}
           <button
             type="button"
             onClick={props.onExport}
             disabled={props.exporting || !journal || journal.total === 0}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl sm:w-auto border border-slate-200 bg-white px-3.5 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:border-primary-500 focus-visible:ring-2 focus-visible:ring-primary-500/20 disabled:opacity-50"
           >
             {props.exporting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4 text-slate-400" aria-hidden />}
             Скачать Excel

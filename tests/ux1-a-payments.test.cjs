@@ -118,7 +118,7 @@ test("price line: «Цена 500 000 сум/мес · цена группы» / 
   assert.equal(plain(line(group, "Цена пакета").text), "Цена 500 000 сум за пакет · цена группы");
   const own = { amount: 400000, source: "override", valid_from: "2026-10-05", group_amount: 500000, reason: " Сестра ученика " };
   assert.equal(plain(line(own).text), "Индивидуальная цена 400 000 сум/мес · Сестра ученика");
-  assert.equal(plain(line(own).title), "Цена группы 500 000 сум");
+  assert.equal(plain(line(own).title), "Причина: Сестра ученика\nС 05.10.2026\nЦена группы 500 000 сум"); // the card prints no reason: it is here
   assert.equal(plain(line({ ...own, reason: null }).text), "Индивидуальная цена 400 000 сум/мес"); // no empty dot
   assert.equal(line({ amount: null, source: "none", valid_from: null, group_amount: null, reason: null }).text, "Цена группы не задана");
   assert.equal(line(null).kind, "none");

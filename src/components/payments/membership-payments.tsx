@@ -14,7 +14,7 @@ import {
   type PeriodMode,
 } from "@/lib/payments";
 import { lastPaymentLine } from "@/lib/membership-actions";
-import { canPayLeftDebt, INDIVIDUAL_PRICE_ENDS_TEXT, openingSummary } from "@/lib/payments-logica";
+import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
@@ -154,8 +154,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         </div>
       )}
 
-      {/* F13: an individual price ends with the stay in the group */}
-      {row.price_ends_on_leave && row.is_active && <p className="text-xs text-slate-500">{INDIVIDUAL_PRICE_ENDS_TEXT}</p>}
+      {/* F13: an individual price ends with the stay in the group - said in the leave dialog (settle-block), not on the card (INC-14) */}
 
       {/* What the student had before ALGO */}
       {row.opening && openingSummary(row.opening) && (

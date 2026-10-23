@@ -90,7 +90,7 @@ test("rate in «Сотрудники» -> «Рассчитать всех» -> t
   const dialog = page.getByRole("dialog", { name: "Изменить ставку" });
   await expect(dialog).toContainText("Групповой");
   // the first rate of a teacher: «С самого начала» by default (it also covers the months before), with the hint
-  await expect(dialog.getByLabel("Действует с")).toHaveValue("2020-01");
+  await expect(dialog.getByRole("combobox", { name: "Действует с" })).toContainText("С самого начала");
   await expect(dialog).toContainText("Первая ставка действует и для прошлых месяцев");
   await dialog.getByRole("textbox", { name: "Группа" }).fill("62.5");
   await dialog.getByRole("button", { name: "Сохранить" }).click();

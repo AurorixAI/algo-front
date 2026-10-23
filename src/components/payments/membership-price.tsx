@@ -37,6 +37,7 @@ import {
 } from "@/lib/group-price";
 import { type MembershipPaymentRow, type PeriodMode } from "@/lib/payments";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { Hint } from "@/components/ui/hint";
 import { Modal } from "@/components/ui/modal";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
 
@@ -59,10 +60,17 @@ export function MembershipPriceLine({ row, periodMode, groupsBasePath }: {
       </Link>
     </p>
   ) : (
-    <p data-testid="membership-price" title={view.title ?? undefined} className="min-w-0 break-words text-sm text-slate-600">
+    <p data-testid="membership-price" className="min-w-0 break-words text-sm text-slate-600">
       {view.lead ? `${view.lead} ` : null}
-      <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{view.value}</span>
-      {view.tail ? <span className="text-slate-500"> · {view.tail}</span> : null}
+      {/* An individual price is just «Индивидуальная цена 450 000 сум/мес»: the reason, the date and the author are in the tooltip */}
+      {view.kind === "override" && view.title ? (
+        <Hint text={view.title} side="below" width={280} className="inline-block">
+          <span data-testid="membership-price-value" className="whitespace-nowrap font-semibold tabular-nums text-slate-900 underline decoration-dotted decoration-slate-300 underline-offset-4">{view.value}</span>
+        </Hint>
+      ) : (
+        <span className="whitespace-nowrap font-semibold tabular-nums text-slate-900">{view.value}</span>
+      )}
+      {view.kind !== "override" && view.tail ? <span className="text-slate-500"> · {view.tail}</span> : null}
     </p>
   );
 }

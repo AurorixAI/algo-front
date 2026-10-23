@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
 import { orgApi, opsApi } from "@/lib/api";
@@ -399,11 +400,14 @@ export function GroupRestoreDialog({
           <>
             <p role="alert" className="text-sm leading-6 text-slate-700">{RESTORE_TEACHER_INACTIVE_TEXT}</p>
             <label htmlFor="restore-teacher" className="sr-only">Преподаватель группы</label>
-            <select id="restore-teacher" value={teacherId} onChange={(event) => setTeacherId(event.target.value)} disabled={busy} className={FIELD_CLASS}>
-              <option value="">Выберите преподавателя</option>
-              {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
-              <option value="__none__">{RESTORE_NO_TEACHER}</option>
-            </select>
+            <Select
+              id="restore-teacher"
+              value={teacherId}
+              onChange={(event) => setTeacherId(event.target.value)}
+              disabled={busy}
+              options={[{ value: "", label: "Выберите преподавателя" }, ...teachers.map((teacher) => ({ value: teacher.id, label: teacher.name })), { value: "__none__", label: RESTORE_NO_TEACHER }]}
+              buttonClassName="py-2.5"
+            />
           </>
         ) : (
           <p className="text-sm leading-6 text-slate-700">

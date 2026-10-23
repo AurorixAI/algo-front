@@ -1,5 +1,6 @@
 "use client";
 
+import { Select } from "@/components/ui/select";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
@@ -164,14 +165,14 @@ export function TeacherRateDialog({
 
         <div>
           <label htmlFor="payroll-rate-from" className="mb-1 block text-sm font-medium text-slate-700">Действует с</label>
-          <select
+          <Select
             id="payroll-rate-from"
             value={validFrom}
             onChange={(event) => setValidFrom(event.target.value)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64"
-          >
-            {months.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
+            options={months.map((option) => ({ value: option.value, label: option.label }))}
+            className="sm:w-64"
+            buttonClassName="bg-white py-2"
+          />
           {!firstRate && validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_PAST_NOTE}</p>}
           {firstRate && validFrom <= currentMonth && <p className="mt-1.5 text-xs text-slate-500">{RATE_FIRST_NOTE}</p>}
         </div>

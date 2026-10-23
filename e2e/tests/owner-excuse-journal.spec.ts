@@ -36,16 +36,27 @@ test("journal: «Отклонить» asks first, sends the note once, and the n
   const row = page.getByRole("row").filter({ hasText: "Отклонённый Дилшод" });
   const cell = row.getByRole("button", { name: "Ждёт решения" });
 
-  // the legend above the table explains every word a cell can show
-  const legend = page.getByRole("group", { name: "Обозначения в журнале" });
-  await expect(legend).toBeVisible();
-  for (const word of ["Был", "Опоздал", "Не был", "Уважительная", "Ждёт решения", "Подтверждена", "Отклонена"]) {
-    await expect(legend).toContainText(word);
+  // INC-14: no always-visible legend rows; the same words are in the «?» next to the journal title and in the tooltip of a chip
+  await expect(page.getByRole("group", { name: "Обозначения в журнале" })).toHaveCount(0);
+  await expect(page.getByText("Решение по уважительной причине")).toHaveCount(0);
+  const title = page.getByRole("heading", { name: "Журнал посещаемости" });
+  await expect(title).toBeVisible();
+  const help = page.getByRole("button", { name: "Обозначения в журнале" });
+  await help.hover();
+  const bubble = page.getByRole("tooltip");
+  await expect(bubble).toBeVisible();
+  for (const word of ["Был", "Опоздал", "Не был", "Уважительная", "Ждёт решения — решит администратор", "Подтверждена — урок не идёт в зарплату", "Отклонена — считается обычным пропуском"]) {
+    await expect(bubble).toContainText(word);
   }
-  const legendBox = await legend.boundingBox();
+  const titleBox = await title.boundingBox();
+  const helpBox = await help.boundingBox();
   const tableBox = await page.getByRole("table").first().boundingBox();
-  expect(legendBox && tableBox, "legend and table are on the screen").toBeTruthy();
-  expect(legendBox!.y + legendBox!.height, "the legend is above the table").toBeLessThanOrEqual(tableBox!.y + 1);
+  expect(titleBox && helpBox && tableBox, "title, hint and table are on the screen").toBeTruthy();
+  expect(helpBox!.y + helpBox!.height, "the hint is above the table").toBeLessThanOrEqual(tableBox!.y + 1);
+  expect(Math.abs(helpBox!.y - titleBox!.y), "the hint sits next to the title").toBeLessThan(24);
+  await page.keyboard.press("Escape");
+  // the chip of a decision carries its meaning
+  await expect(cell).toHaveAttribute("title", /^Ждёт решения — решит администратор\n/);
   // no abbreviation is left in the table
   await expect(page.getByRole("table").first()).not.toContainText(/Н\/Б|Ув\./);
 

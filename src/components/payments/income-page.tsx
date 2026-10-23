@@ -39,10 +39,8 @@ import {
   type Period,
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
-import { usePaymentsDirectory } from "@/lib/use-payments-directory";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
-import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { CollectionTable } from "./income-collection";
 import { JournalDrawer, JournalSection } from "./income-journal";
@@ -88,7 +86,6 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const initial = useMemo(() => parseIncomeQuery(searchParams, formatBusinessDate()), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [period, setPeriod] = useState<Period>(initial.period);
   const [filters, setFilters] = useState<IncomeFilters>(NO_FILTERS);
-  const { teachers, groups } = usePaymentsDirectory();
   const periodProblem = validatePeriod(period);
   const { showToast, toastNode } = useToast();
 
@@ -100,7 +97,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     const token = overviewRequests.current.next();
     setOverview((state) => ({ ...state, loading: true, error: null }));
     try {
-      const data = await orgApi.getIncomeOverview(overviewQuery(period, { groupId: filters.groupId, teacherId: filters.teacherId }));
+      const data = await orgApi.getIncomeOverview(overviewQuery(period));
       if (!overviewRequests.current.isCurrent(token)) return;
       setOverview({ data, loading: false, error: null, denied: false });
     } catch (cause) {
@@ -108,7 +105,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
       const failure = incomeErrorText(cause);
       setOverview({ data: null, loading: false, error: failure.text, denied: failure.denied });
     }
-  }, [period, filters.groupId, filters.teacherId]);
+  }, [period]);
 
   // ── the journal ──
   const [focus, setFocus] = useState<JournalRange | null>(null);
@@ -151,10 +148,8 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Another period or another method / group / teacher is another set of payments: the narrowing of the old one is dropped.
+  // Another period or another method is another set of payments: the narrowing of the old one is dropped.
   const resetNarrowing = () => { setFocus(null); setPage(1); setCreatedBy(""); };
-  // Another group / teacher is another donut: the method chosen on the old one is dropped with the rest.
-  const changeFilters = (next: IncomeFilters) => { setFilters({ ...next, method: "" }); resetNarrowing(); };
   const changePeriod = (next: Period) => { setPeriod(next); setFilters((state) => ({ ...state, method: "" })); resetNarrowing(); };
 
   // ── tabs, the drawer, the chart ──
@@ -190,13 +185,13 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     if (next) requestAnimationFrame(() => journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  // «Сегодня наличными»: one light request for today (period=day, no filters: the till is the centre's), only on the current month.
+  // «Сегодня наличными»: one light request for today (period=day: the till is the centre's), only on the current month.
   const cashWanted = !blocked && isCurrentMonth(period, today);
   const [cashToday, setCashToday] = useState<IncomeCash | null>(null);
   useEffect(() => {
     if (!cashWanted) return undefined;
     let live = true;
-    orgApi.getIncomeOverview(overviewQuery(periodOf("day", today), { groupId: "", teacherId: "" }))
+    orgApi.getIncomeOverview(overviewQuery(periodOf("day", today)))
       .then((data) => { if (live) setCashToday(data.cash ?? null); })
       .catch(() => { if (live) setCashToday(null); });
     return () => { live = false; };
@@ -225,7 +220,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     }
   };
 
-  const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || filters.groupId !== "" || filters.teacherId !== "";
+  const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "";
   const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
@@ -242,7 +237,6 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
       </div>
 
       <PeriodBar period={period} today={today} onChange={changePeriod} />
-      <FiltersBar filters={filters} onChange={changeFilters} teachers={teachers} groups={groups} />
       {periodProblem && <p role="alert" className="text-sm font-medium text-rose-700">{periodProblem}</p>}
 
       {anyDenied ? (
@@ -259,7 +253,6 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                 overview={overview.data}
                 today={today}
                 paymentsBase={paymentsBase}
-                scope={{ groupId: filters.groupId, teacherId: filters.teacherId }}
                 activeBucket={focusBucket(focus, overview.data)}
                 onPick={pickBar}
                 method={filters.method}
@@ -375,20 +368,6 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
           {problem && <p role="alert" className="w-full text-sm font-medium text-rose-600">{problem}</p>}
         </div>
       )}
-    </div>
-  );
-}
-
-function FiltersBar({ filters, onChange, teachers, groups }: { filters: IncomeFilters; onChange: (filters: IncomeFilters) => void; teachers: ReturnType<typeof usePaymentsDirectory>["teachers"]; groups: ReturnType<typeof usePaymentsDirectory>["groups"] }) {
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <CascadingFilter
-        teachers={teachers}
-        groups={groups}
-        value={{ teacherId: filters.teacherId, groupId: filters.groupId }}
-        onChange={(value) => onChange({ ...filters, teacherId: value.teacherId, groupId: value.groupId })}
-        allLabel="Все группы"
-      />
     </div>
   );
 }

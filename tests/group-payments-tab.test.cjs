@@ -238,22 +238,10 @@ test("the author and the scheduled price from `price-override` when the list doe
   assert.equal(G.needsExtras({ ...ROWS[4], is_active: false }), false);
 });
 
-// ── the line above the table ────────────────────────────────────────────────────────────────
+// ── the line above the table: gone (INC-14), only the «price not set» prompt stays ──────────
 
-test("top line: price · N with an individual price · month: collected %, debt of the month", () => {
-  const collection = G.collectionBrief({ month_label: "октябрь 2026", total: { pct: 74, debt: 900000, charged: 3000000 } });
-  assert.deepEqual(collection, { month: "Октябрь", pct: 74, debt: 900000 });
-  const parts = G.summaryParts({ groupPrice: { amount: 500000, valid_from: "2026-01-01" }, periodMode: "calendar", individual: 5, collection });
-  assert.equal(plain(parts.join(" · ")), "Цена группы 500 000 сум/мес · 5 учеников с индивидуальной ценой · Октябрь: собрано 74%, долг за месяц 900 000 сум");
-  // nothing known: just the price (no empty parts)
-  assert.deepEqual(G.summaryParts({ groupPrice: { amount: 500000, valid_from: "x" }, periodMode: "calendar", individual: 0, collection: null }).map(plain), ["Цена группы 500 000 сум/мес"]);
-  // no price for the group
-  assert.deepEqual(G.summaryParts({ groupPrice: null, periodMode: "calendar", individual: 0, collection: null }), ["Цена группы не задана"]);
-  assert.match(plain(G.summaryParts({ groupPrice: { amount: 500000, valid_from: "x" }, periodMode: "lessons", individual: 1, collection: null }).join(" ")), /за пакет · ?1 ученик с индивидуальной ценой|за пакет 1 ученик/);
-  assert.match(G.summaryParts({ groupPrice: null, periodMode: "calendar", individual: 0, collection: { month: "Октябрь", pct: 100, debt: 0 } }).join("|"), /Октябрь: собрано 100%, долгов за месяц нет/);
-  assert.equal(G.collectionBrief(null), null);
-  assert.equal(G.individualCountText(1), "1 ученик с индивидуальной ценой");
-  assert.equal(G.individualCountText(2), "2 ученика с индивидуальной ценой");
+test("no summary line: no price/individual/collection sentence is built any more", () => {
+  for (const name of ["summaryParts", "collectionBrief", "individualCountText"]) assert.equal(G[name], undefined, name);
 });
 
 // ── the component: its words, its actions, the phone ────────────────────────────────────────
@@ -272,7 +260,7 @@ test("the tab: columns, actions and the shared dialogs (payment, individual pric
   assert.match(src, /data-testid=\{`payments-filter-\$\{key\}`\}/);
   assert.match(src, /flex flex-col gap-2 rounded-xl border[^`]*lg:grid/);   // a card below lg, a table row from lg
   assert.doesNotMatch(src, /overflow-x-auto|min-w-\[/);                    // no horizontal scroll
-  assert.match(src, /orgApi\.getIncomeOverview\(overviewQuery\(periodOf\("month", today\), \{ groupId/);
+  assert.doesNotMatch(src, /getIncomeOverview|collection|loadIncome/); // the month's collection is in the header chips and «Поступления», not here
   // never requested for a teacher: the pages render the tab only for «show»
   assert.match(read("src/lib/group-payments.ts"), /if \(input\.isTeacher \|\| input\.demo \|\| input\.archived\) return "hidden"/);
 });
@@ -301,7 +289,8 @@ test("the tab renders the line of the group and a loader first (no table before 
     studentsBasePath: "/owner/students", paymentsBasePath: "/owner/payments", joinedAt: {}, filter: "all", onFilterChange: () => undefined,
   }));
   const text = plain(html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " "));
-  assert.match(text, /Цена группы 500 000 сум\/мес/);
+  assert.doesNotMatch(text, /Цена группы|индивидуальной ценой|собрано|долг за месяц/); // INC-14: the summary line is gone (the header chips, the filter counts and «Поступления» carry it)
+  assert.doesNotMatch(html, /group-payments-summary/);
   assert.match(text, /Загрузка/);
   assert.doesNotMatch(html, /group-payment-row/);
   const noPrice = renderToStaticMarkup(React.createElement(GroupPaymentsTab, {

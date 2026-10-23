@@ -255,45 +255,4 @@ export function needsExtras(row: MembershipPaymentRow): boolean {
   return price.source === "override" && (price.set_by_name === undefined || price.scheduled === undefined);
 }
 
-// ── The line above the table ────────────────────────────────────────────────
-
-export interface MonthCollectionBrief {
-  /** «Октябрь» */
-  month: string;
-  pct: number | null;
-  debt: number;
-}
-
-/** The month of the collection of THIS group (the answer of `payments/income` narrowed to the group): «Октябрь», 74 %, the debt of the month. */
-export function collectionBrief(collection: { month_label: string; total: Pick<CollectionRow, "pct" | "debt" | "charged"> } | null | undefined): MonthCollectionBrief | null {
-  if (!collection) return null;
-  const word = (collection.month_label || "").trim().split(/\s+/)[0] ?? "";
-  if (!word) return null;
-  return { month: word.charAt(0).toUpperCase() + word.slice(1), pct: collection.total.pct, debt: collection.total.debt };
-}
-
-export function individualCountText(count: number): string {
-  return `${count} ${pluralRu(count, "ученик", "ученика", "учеников")} с индивидуальной ценой`;
-}
-
-/**
- * «Цена группы 500 000 сум/мес · 5 учеников с индивидуальной ценой · Октябрь: собрано 74%, долг за месяц 900 000 сум».
- * The parts that are not known are left out (no collection - no third part; nobody with an individual price - no second one).
- * `priceMissing`: the group has no price - the first part says so (the tab adds a link).
- */
-export function summaryParts(input: { groupPrice: GroupPriceBrief | null | undefined; periodMode: PeriodMode; individual: number; collection: MonthCollectionBrief | null }): string[] {
-  const label = priceLabelOf(input.periodMode);
-  const parts: string[] = [];
-  parts.push(input.groupPrice ? `Цена группы ${formatPrice(input.groupPrice.amount, label)}` : "Цена группы не задана");
-  if (input.individual > 0) parts.push(individualCountText(input.individual));
-  const c = input.collection;
-  if (c) {
-    const pct = c.pct === null ? "" : `собрано ${c.pct}%`;
-    const debt = c.debt > 0 ? `долг за месяц ${formatMoney(c.debt)}` : c.pct === null ? "" : "долгов за месяц нет";
-    const tail = [pct, debt].filter(Boolean).join(", ");
-    if (tail) parts.push(`${c.month}: ${tail}`);
-  }
-  return parts;
-}
-
 export const PAYMENTS_LOAD_ERROR = "Не удалось загрузить оплаты";

@@ -1,5 +1,6 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
+import { pickOption } from "../support/ui";
 
 /**
  * IA audit 22.10 (paths): the cards of «Оплаты» lead to the debtors tab; the owner's dashboard is not a dead end (KPI cards, the debt tile, the
@@ -48,9 +49,9 @@ test("«Группы»: the class filter and the status are in the address of th
   await org.createGroup({ name: "Группа К9", teacherId: teacher.userId, classLevel: 9 });
   const page = await signIn(org.owner);
   await page.goto("/owner/groups");
-  await page.getByTestId("groups-class-filter").selectOption("9");
+  await pickOption(page, page.getByTestId("groups-class-filter"), "9 класс");
   await expect(page).toHaveURL(/class=9/);
   await expect(page.getByRole("heading", { name: "Группа К9" })).toBeVisible();
   await page.reload();
-  await expect(page.getByTestId("groups-class-filter")).toHaveValue("9");
+  await expect(page.getByTestId("groups-class-filter")).toContainText("9 класс");
 });

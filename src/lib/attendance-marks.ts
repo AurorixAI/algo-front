@@ -37,6 +37,11 @@ export const EXCUSE_REVIEW_MEANING: Record<ExcuseReviewState, string> = {
   rejected: "считается обычным пропуском",
 };
 
+/** «Подтверждена — урок не идёт в зарплату»: a decision and what it means, one line (the tooltip of a chip). */
+export function excuseStatusMeaning(status: ExcuseReviewState): string {
+  return `${EXCUSE_REVIEW_LABEL[status]} — ${EXCUSE_REVIEW_MEANING[status]}`;
+}
+
 /** Order of the legend: the marks first, then the decisions about an «Уважительная». */
 export const LEGEND_MARKS: MarkValue[] = ["present", "late", "absent", "excused"];
 export const LEGEND_DECISIONS: ExcuseReviewState[] = ["pending", "confirmed", "rejected"];
