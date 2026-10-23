@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { dm, expectNoHorizontalScroll } from "../support/ui";
+import { dm, expectNoHorizontalScroll, fillDate } from "../support/ui";
 
 /**
  * LOGIC-A «Пауза»: «Пауза…» in the menu of a group of the «Обучение» tab (IA audit 22.10: a pause is a property of the enrolment, not of the
@@ -44,9 +44,8 @@ test("pause: «На паузе» tab, no charge for the paused days, the lesson 
   await page.getByRole("menuitem", { name: /^Пауза/ }).dispatchEvent("click"); // a scroll closes the menu: the event goes to the item itself
   const dialog = page.getByRole("dialog", { name: "Пауза ученика" });
   await expect(dialog).toBeVisible();
-  const dates = dialog.locator('input[type="date"]');
-  await dates.nth(0).fill(today);
-  await dates.nth(1).fill(last);
+  await fillDate(dialog.locator("#pause-first"), today);
+  await fillDate(dialog.locator("#pause-last"), last);
   await dialog.getByLabel(/Причина/).fill("Уехал к бабушке");
   await dialog.getByRole("button", { name: "Поставить на паузу" }).click();
   await expect(dialog).toHaveCount(0);

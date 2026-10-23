@@ -45,6 +45,7 @@ import { useToast } from "@/components/ui/toast";
 import { CollectionTable } from "./income-collection";
 import { JournalDrawer, JournalSection } from "./income-journal";
 import { IncomeError, IncomeOverviewView, IncomeSkeleton } from "./income-parts";
+import { DateInput } from "@/components/ui/date-input";
 
 const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 
@@ -361,9 +362,9 @@ export function PeriodBar({ period, today, onChange }: { period: Period; today: 
       </button>
       {open && (
         <div className="flex w-full flex-wrap items-center gap-1.5" data-testid="period-picker">
-          <input type="date" aria-label="С какого дня" value={from} max={today} onChange={(event) => setFrom(event.target.value)} className={`${FIELD} py-2`} />
+          <DateInput wrapperClassName="w-40 shrink-0" aria-label="С какого дня" value={from} max={today} onChange={(next) => setFrom(next)} className={`${FIELD} py-2`} />
           <span className="text-slate-400" aria-hidden>—</span>
-          <input type="date" aria-label="По какой день" value={to} max={today} onChange={(event) => setTo(event.target.value)} className={`${FIELD} py-2`} />
+          <DateInput wrapperClassName="w-40 shrink-0" aria-label="По какой день" value={to} max={today} onChange={(next) => setTo(next)} className={`${FIELD} py-2`} />
           <button type="button" onClick={apply} disabled={problem !== null} className="rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">Показать</button>
           {problem && <p role="alert" className="w-full text-sm font-medium text-rose-600">{problem}</p>}
         </div>

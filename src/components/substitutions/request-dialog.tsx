@@ -24,6 +24,7 @@ import {
   substitutionErrorText,
 } from "@/lib/substitutions";
 import type { CreateSubstitutionOut, MyLesson, SubstitutionReasonCode } from "@/lib/substitution-types";
+import { DateInput } from "@/components/ui/date-input";
 
 /** The lesson the dialog was opened on; `null` = «Новый запрос»: the teacher picks the lessons himself. */
 export interface RequestLesson {
@@ -320,10 +321,10 @@ export function RequestBody({
           <div id="substitution-range" className="space-y-3 border-t border-slate-100 px-3.5 py-3">
             <div className="grid grid-cols-[1fr_1fr] items-end gap-2 sm:grid-cols-[1fr_1fr_auto]">
               <label className="text-xs font-semibold text-slate-500">С
-                <input type="date" value={from} onChange={(event) => onFrom(event.target.value)} className={`${DATE_CLASS} mt-1`} />
+                <DateInput value={from} onChange={(next) => onFrom(next)} wrapperClassName="mt-1" className={DATE_CLASS} />
               </label>
               <label className="text-xs font-semibold text-slate-500">По
-                <input type="date" value={to} onChange={(event) => onTo(event.target.value)} className={`${DATE_CLASS} mt-1`} />
+                <DateInput value={to} onChange={(next) => onTo(next)} wrapperClassName="mt-1" className={DATE_CLASS} />
               </label>
               <button type="button" onClick={onShow} disabled={othersLoading} className="col-span-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:col-span-1">
                 Показать уроки

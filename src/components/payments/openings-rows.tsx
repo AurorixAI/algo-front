@@ -23,6 +23,7 @@ import {
   type RowDraft,
 } from "@/lib/openings";
 import { studentHref } from "@/lib/ia-links";
+import { DateInput } from "@/components/ui/date-input";
 
 /**
  * Wide layout (xl): ONE column template for the header and every row, so each header sits over its cells.
@@ -232,15 +233,14 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
         <div className="grid grid-cols-2 gap-3 xl:contents">
           <div className="min-w-0" data-col="paid">
             <label className="mb-1 block text-xs text-slate-500 xl:hidden" htmlFor={`op-paid-${id}`}>Оплачено до</label>
-            <input
+            <DateInput
               id={`op-paid-${id}`}
-              type="date"
               value={shown.paidUntil}
               min={row.floor || undefined}
               max={paidUntilMax || undefined}
               disabled={left}
               title={left ? OPENINGS_LEFT_NOTE : undefined}
-              onChange={(event) => onEdit(row, { paidUntil: event.target.value, lessons: "" })}
+              onChange={(next) => onEdit(row, { paidUntil: next, lessons: "" })}
               aria-label={`Оплачено до — ${name}`}
               data-testid="openings-paid-until"
               className={FIELD}
@@ -289,15 +289,14 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
             </div>
             <div className="mt-1.5 flex items-center gap-1.5 text-xs text-slate-500">
               <label htmlFor={`op-debt-on-${id}`} className="shrink-0">на</label>
-              <input
+              <DateInput
                 id={`op-debt-on-${id}`}
-                type="date"
                 value={debtDate}
                 min={OPENING_MIN_DATE}
                 max={row.floor || undefined}
                 disabled={!shown.debt}
                 title={shown.debt ? undefined : "Сначала введите сумму долга"}
-                onChange={(event) => onEdit(row, { debtOn: event.target.value })}
+                onChange={(next) => onEdit(row, { debtOn: next })}
                 aria-label={`Дата долга — ${name}`}
                 data-testid="openings-debt-on"
                 className="h-8 min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 text-base text-slate-700 outline-none focus:border-primary-500 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400 sm:text-xs"

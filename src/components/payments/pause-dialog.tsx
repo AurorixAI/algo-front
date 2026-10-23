@@ -29,6 +29,7 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
+import { DateInput } from "@/components/ui/date-input";
 
 const CALC_DEBOUNCE_MS = 350;
 
@@ -187,11 +188,11 @@ export function PauseDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="pause-first" className={PRICE_LABEL}>С</label>
-            <input id="pause-first" type="date" value={values.first} min={pauseEarliest(today)} onChange={(event) => { setError(null); setValues({ ...values, first: event.target.value }); }} className={PRICE_FIELD} />
+            <DateInput id="pause-first" value={values.first} min={pauseEarliest(today)} onChange={(next) => { setError(null); setValues({ ...values, first: next }); }} className={PRICE_FIELD} />
           </div>
           <div>
             <label htmlFor="pause-last" className={PRICE_LABEL}>По</label>
-            <input id="pause-last" type="date" value={values.last} min={values.first || undefined} onChange={(event) => { setError(null); setValues({ ...values, last: event.target.value }); }} className={PRICE_FIELD} />
+            <DateInput id="pause-last" value={values.last} min={values.first || undefined} onChange={(next) => { setError(null); setValues({ ...values, last: next }); }} className={PRICE_FIELD} />
           </div>
         </div>
         <p className="-mt-2 text-xs text-slate-500">{pauseBackdateHint(today)}. Дни паузы не входят в стоимость, место в группе сохраняется.</p>

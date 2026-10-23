@@ -28,6 +28,7 @@ import {
 } from "@/lib/openings";
 import { formatDateRu } from "@/lib/payments";
 import { pluralRu } from "@/lib/plural";
+import { DateInput } from "@/components/ui/date-input";
 
 const FIELD = "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:text-sm";
 
@@ -72,7 +73,7 @@ export function OpeningsBulkBar({
           <div className="mt-3 flex items-end gap-2">
             <div className="min-w-0 flex-1">
               <label htmlFor="openings-bulk-date" className="mb-1 block text-xs font-semibold text-slate-600">Другая дата</label>
-              <input id="openings-bulk-date" type="date" value={date} onChange={(event) => setDate(event.target.value)} className={FIELD} />
+              <DateInput id="openings-bulk-date" value={date} onChange={(next) => setDate(next)} className={FIELD} />
             </div>
             <button type="button" onClick={() => date && apply(date)} disabled={!date} data-testid="openings-bulk-paid-apply" className="h-9 rounded-xl bg-primary-600 px-3.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-50">Применить</button>
           </div>

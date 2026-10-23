@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo, type StudentInfo } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { dm, dmy, expectNoHorizontalScroll, moneyPattern, pickOption, toast } from "../support/ui";
+import { dm, dmy, expectDate, expectNoHorizontalScroll, fillDate, moneyPattern, pickOption, toast } from "../support/ui";
 import { readSheet, readZip, setCellText, writeZip } from "../support/xlsx-lite";
 
 /**
@@ -78,9 +78,9 @@ test("bulk «оплачено до» for a group → «Проверить» → 
   await expect(page.locator(`[data-testid="openings-quick-date"][data-date="${dayBefore}"]`)).toHaveText(`${dm(dayBefore)} (долга нет)`);
   await expect(page.getByTestId("openings-quick-date").nth(1)).toContainText("(оплатил ");
   const paidUntil = addDays(start, 20);
-  await page.getByLabel("Другая дата").fill(paidUntil);
+  await fillDate(page.getByLabel("Другая дата"), paidUntil);
   await page.getByTestId("openings-bulk-paid-apply").click();
-  await expect(rowOf(block, memberships[0]).getByTestId("openings-paid-until")).toHaveValue(paidUntil);
+  await expectDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), paidUntil);
   await expect(page.getByTestId("openings-changed")).toHaveText("Изменено: 3");
   await expect(toast(page, `Оплачено до ${dm(paidUntil)}: 3 ученика`)).toBeVisible();
   // nothing is written yet
@@ -116,7 +116,7 @@ test("«Долга нет» writes «оплачено до» the day before the 
   const block = await openBlock(page, group);
   await block.getByTestId("openings-group-select").check();
   await page.getByTestId("openings-bulk-nodebt").click();
-  await expect(rowOf(block, memberships[0]).getByTestId("openings-paid-until")).toHaveValue(dayBefore);
+  await expectDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), dayBefore);
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-parts")).toContainText("2 — долга на начало нет");
@@ -136,16 +136,16 @@ test("a debt for one student → the effect says a debtor appears → saved → 
   await row.getByTestId("openings-debt").fill("250000");
   await expect(row.getByTestId("openings-debt")).toHaveValue(/250\s000/);
   // the date of the debt is the floor of the row until the user picks another
-  await expect(row.getByTestId("openings-debt-on")).toHaveValue(dayBefore);
+  await expectDate(row.getByTestId("openings-debt-on"), dayBefore);
   // a debt that happened before the start: a few days earlier is fine, a day after the start is refused on the spot
   const debtDay = addDays(today, -10);
-  await row.getByTestId("openings-debt-on").fill(debtDay);
+  await fillDate(row.getByTestId("openings-debt-on"), debtDay);
   await expect(page.getByTestId("openings-changed")).toHaveText("Изменено: 1");
-  await row.getByTestId("openings-debt-on").fill(addDays(start, 3));
+  await fillDate(row.getByTestId("openings-debt-on"), addDays(start, 3));
   await expect(row.getByTestId("openings-row-problem")).toContainText(`не позже ${dmy(dayBefore)}`);
   await page.getByTestId("openings-check").click();
   await expect(page.getByText(/Исправьте 1 строку/)).toBeVisible();
-  await row.getByTestId("openings-debt-on").fill(debtDay);
+  await fillDate(row.getByTestId("openings-debt-on"), debtDay);
   await expect(row.getByTestId("openings-row-problem")).toHaveCount(0);
 
   await page.getByTestId("openings-check").click();
@@ -235,7 +235,7 @@ test("a student who left before the start: «Показать ушедших» �
   await expect(left.getByTestId("openings-debt")).toBeEnabled();
   await expect(left.getByTestId("openings-row-select")).toBeDisabled();
   await left.getByTestId("openings-debt").fill("300000");
-  await left.getByTestId("openings-debt-on").fill(addDays(today, -20));
+  await fillDate(left.getByTestId("openings-debt-on"), addDays(today, -20));
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
   await expect(dialog.getByTestId("openings-review-parts")).toContainText(new RegExp(`1 — долг ${moneyPattern(300000)}\\sсум`));
@@ -253,8 +253,8 @@ test("a conflict: somebody else changed the row between the table and the save �
   const page = await signIn(org.owner);
   await page.goto("/owner/payments/openings");
   const block = await openBlock(page, group);
-  await rowOf(block, memberships[0]).getByTestId("openings-paid-until").fill(addDays(start, 10));
-  await rowOf(block, memberships[1]).getByTestId("openings-paid-until").fill(addDays(start, 11));
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
+  await fillDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start, 11));
   // «Проверить» is done: the summary is on the screen ...
   await page.getByTestId("openings-check").click();
   const dialog = page.getByRole("dialog", { name: "Проверьте перед сохранением" });
@@ -270,7 +270,7 @@ test("a conflict: somebody else changed the row between the table and the save �
   await expect(page.getByTestId("openings-notice")).toContainText("Кто-то уже изменил 1 строку");
   await expect(page.getByTestId("openings-notice")).toContainText("Остальные ваши правки сохранены");
   await expect(rowOf(block, memberships[0]).getByTestId("openings-now")).toHaveText(`Оплачено до ${dm(addDays(start, 5))}`);
-  await expect(rowOf(block, memberships[1]).getByTestId("openings-paid-until")).toHaveValue(addDays(start, 11)); // the other edit is kept
+  await expectDate(rowOf(block, memberships[1]).getByTestId("openings-paid-until"), addDays(start, 11)); // the other edit is kept
   await expect(page.getByTestId("openings-changed")).toHaveText("Изменено: 1");
   await page.getByTestId("openings-check").click();
   await dialog.getByTestId("openings-review-save").click();
@@ -286,7 +286,7 @@ test("unsaved edits are guarded: leaving the page asks first, and a phone shows 
   const block = await openBlock(page, group);
   await expect(block.getByTestId("openings-row")).toHaveCount(1);
   await expectNoHorizontalScroll(page);
-  await rowOf(block, memberships[0]).getByTestId("openings-paid-until").fill(addDays(start, 10));
+  await fillDate(rowOf(block, memberships[0]).getByTestId("openings-paid-until"), addDays(start, 10));
   await expect(page.getByTestId("openings-save-bar")).toBeVisible(); // sticky at the bottom
   await expectNoHorizontalScroll(page);
   const dialogs: string[] = [];

@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow } from "../support/time";
-import { cardMenuItem, cardMenuLabels, dmy, expectNoHorizontalScroll, expectWithinViewportWidth, moneyPattern, openPriceMode, toast } from "../support/ui";
+import { cardMenuItem, cardMenuLabels, dmy, expectDate, expectNoHorizontalScroll, fillDate, expectWithinViewportWidth, moneyPattern, openPriceMode, toast } from "../support/ui";
 
 /**
  * #105 «цена группы»: the price is set on the GROUP (owner), the students of the group take it from there; the student
@@ -46,12 +46,12 @@ test("price of the group -> consequences before saving -> student card shows it 
   await dialog.getByLabel("Цена в месяц").fill("500000");
   await expect(dialog).toContainText("Цену получат 2 ученика");
   await expect(dialog).toContainText("Внесённые оплаты не меняются, но долг и аванс пересчитываются");
-  await expect(dialog.getByLabel("Действует с")).toHaveValue(today);
+  await expectDate(dialog.getByLabel("Действует с"), today);
 
   // a past day: an explicit warning (the calculations change, the recorded payments never do)
-  await dialog.getByLabel("Действует с").fill(addDays(today, -1));
+  await fillDate(dialog.getByLabel("Действует с"), addDays(today, -1));
   await expect(dialog).toContainText("Дата в прошлом");
-  await dialog.getByLabel("Действует с").fill(today);
+  await fillDate(dialog.getByLabel("Действует с"), today);
   await expect(dialog).not.toContainText("Дата в прошлом");
 
   await dialog.getByLabel("Примечание").fill("Новый учебный год");
@@ -74,7 +74,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await block.getByRole("button", { name: "Изменить цену" }).click();
   const plan = page.getByRole("dialog", { name: "Изменить цену группы" });
   await plan.getByLabel("Цена в месяц").fill("550000");
-  await plan.getByLabel("Действует с").fill(addDays(today, 30));
+  await fillDate(plan.getByLabel("Действует с"), addDays(today, 30));
   await expect(plan).toContainText("Новая цена начнёт действовать с");
   await plan.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, "Цена группы изменена")).toBeVisible();
@@ -143,7 +143,7 @@ test("price of the group -> consequences before saving -> student card shows it 
   await openPriceMode(page, "assign");
   const planned = page.getByRole("dialog", { name: "Назначить индивидуальную цену" });
   await planned.getByLabel(/Индивидуальная цена в месяц/).fill("350000");
-  await planned.getByLabel("Действует с").fill(addDays(today, 30));
+  await fillDate(planned.getByLabel("Действует с"), addDays(today, 30));
   await planned.getByLabel("Причина").fill("С нового месяца");
   await planned.getByRole("button", { name: "Сохранить" }).click();
   await expect(toast(page, /действует с/)).toBeVisible();

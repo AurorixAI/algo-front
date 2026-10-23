@@ -61,6 +61,7 @@ import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/at
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
+import { DateInput } from "@/components/ui/date-input";
 
 const COLOR_CLASSES = {
   blue: {
@@ -3447,13 +3448,12 @@ export default function TeacherSchedulePage() {
                 {newLessonScope === "one_off" ? (
                   <div>
                     <label htmlFor="sched-add-data-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
-                    <input
+                    <DateInput
                       id="sched-add-data-zanyatiya"
-                      type="date"
                       value={newLessonDate}
                       min={formatBusinessDate()}
                       max={weekPeriod.end}
-                      onChange={(e) => setNewLessonDate(e.target.value)}
+                      onChange={(next) => setNewLessonDate(next)}
                       required
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
@@ -3471,13 +3471,12 @@ export default function TeacherSchedulePage() {
                     />
                     <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
                     <label htmlFor="sched-add-deystvuet-s" className="mt-3 block text-xs font-semibold text-slate-700 mb-1">Действует с</label>
-                    <input
+                    <DateInput
                       id="sched-add-deystvuet-s"
-                      type="date"
                       value={newValidFrom}
                       min={validFromBounds(formatBusinessDate()).min}
                       max={validFromBounds(formatBusinessDate()).max}
-                      onChange={(e) => { setNewValidFrom(e.target.value); setScheduleError(null); }}
+                      onChange={(next) => { setNewValidFrom(next); setScheduleError(null); }}
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
                     <p className="mt-1 text-[11px] leading-4 text-slate-500">{VALID_FROM_HINT}</p>
@@ -3675,13 +3674,13 @@ export default function TeacherSchedulePage() {
                   <div className="space-y-4">
                     <label className="block text-xs font-semibold text-slate-700">
                       Прекратить с даты
-                      <input
-                        type="date"
+                      <DateInput
                         value={endRecurringEffectiveFrom}
                         min={nextBusinessDate()}
-                        onChange={(event) => setEndRecurringEffectiveFrom(event.target.value)}
+                        onChange={(next) => setEndRecurringEffectiveFrom(next)}
                         disabled={isEndingRecurring}
-                        className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
+                        wrapperClassName="mt-1.5"
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
                       />
                     </label>
 
@@ -3835,7 +3834,7 @@ export default function TeacherSchedulePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label htmlFor="sched-edit-izmeneniya-deystvuyut-s" className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
-                    <input id="sched-edit-izmeneniya-deystvuyut-s" type="date" value={editEffectiveFrom} min={nextBusinessDate()} onChange={(e) => setEditEffectiveFrom(e.target.value)} required className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none" />
+                    <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={editEffectiveFrom} min={nextBusinessDate()} onChange={(next) => setEditEffectiveFrom(next)} required className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none" />
                   </div>
                   <div className="flex items-end">
                     <p className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-[11px] leading-relaxed text-primary-800">Уроки до этой даты сохраняют прежнее время и посещаемость.</p>

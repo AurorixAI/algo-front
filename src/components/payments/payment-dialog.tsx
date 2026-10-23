@@ -51,6 +51,7 @@ import { isLeftDebtOnly, LEFT_DEBT_ONLY_TEXT, leftPaymentProblem } from "@/lib/p
 import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { groupPriceHref } from "@/lib/group-price";
 import { Modal } from "@/components/ui/modal";
+import { DateInput } from "@/components/ui/date-input";
 
 export type PaymentFormKind = "create" | "replace";
 
@@ -368,13 +369,11 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           </div>
           <div className="sm:w-44">
             <label htmlFor="payment-paid-on" className={LABEL}>Дата оплаты</label>
-            <input
+            <DateInput
               id="payment-paid-on"
-              type="date"
-              lang="ru"
               value={values.paidOn}
               max={today}
-              onChange={(event) => patch({ paidOn: event.target.value })}
+              onChange={(next) => patch({ paidOn: next })}
               className={FIELD}
             />
           </div>

@@ -20,6 +20,21 @@ export const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 /** "2026-10-31" -> "31.10.2026" */
 export const dmy = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`;
 
+/** Types an ISO day into the platform's date field (INC-15): the field shows and takes «дд.мм.гггг», whatever the browser's locale. */
+export async function fillDate(field: Locator, iso: string) {
+  await field.fill(dmy(iso));
+}
+
+/** The date field shows this ISO day. */
+export async function expectDate(field: Locator, iso: string) {
+  await expect(field).toHaveValue(dmy(iso));
+}
+
+/** Types a time into the platform's time field («15:00», «1500» and «9:30» all work). */
+export async function fillTime(field: Locator, time: string) {
+  await field.fill(time);
+}
+
 /**
  * The «Срок» of a waiting excuse in the words of the screen (UX-1 B), written from the rule and not from the app's helper:
  * «Остался 1 день» / «Осталось 25 дней» / «Срок сегодня» / «Срок прошёл 3 дня назад».

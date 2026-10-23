@@ -26,7 +26,7 @@ const SRC = path.join(root, "src");
 const src = (p) => path.join(SRC, p);
 
 const CONTROLS = /^(input|select|textarea)$/;
-const WRAPPABLE = /^(input|select|textarea|Input|Select|Textarea)$/;
+const WRAPPABLE = /^(input|select|textarea|Input|Select|Textarea|DateInput|TimeInput|NumberInput|Checkbox|Radio)$/;
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

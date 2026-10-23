@@ -795,10 +795,11 @@ test("table: the date of the debt is on, shows the floor and is off only while t
   const dateOf = (markup) => /<input[^>]*aria-label="Дата долга — Орлова Дана"[^>]*>/.exec(markup)[0];
   const empty = dateOf(html(React.createElement(R.OpeningsGroups, { ...props, drafts: { [row.membership_id]: { ...O.draftOfRow(row), debt: "" } } })));
   assert.match(empty, /disabled=""/);
-  assert.ok(empty.includes(`value="${row.floor}"`));
+  const dmyOf = (iso) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}`; // the date field shows дд.мм.гггг
+  assert.ok(empty.includes(`value="${dmyOf(row.floor)}"`));
   const typed = dateOf(html(React.createElement(R.OpeningsGroups, { ...props, drafts: { [row.membership_id]: { ...O.draftOfRow(row), debt: "250 000" } } })));
   assert.ok(!/disabled=""/.test(typed));
-  assert.ok(typed.includes(`value="${row.floor}"`));
+  assert.ok(typed.includes(`value="${dmyOf(row.floor)}"`));
 });
 
 // ── plurals of the counts ────────────────────────────────────────────────────

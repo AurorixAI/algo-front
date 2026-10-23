@@ -27,6 +27,7 @@ import { logicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { Select } from "@/components/ui/select";
 import { PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
+import { DateInput } from "@/components/ui/date-input";
 
 const IMPACT_DEBOUNCE_MS = 350;
 
@@ -200,13 +201,12 @@ export function GroupLessonTypeDialog({ open, groupId, groupName, initialType, o
 
           <div>
             <label htmlFor="group-lesson-type-from" className={PRICE_LABEL}>{LESSON_TYPE_FROM_LABEL}</label>
-            <input
+            <DateInput
               id="group-lesson-type-from"
-              type="date"
               value={validFrom}
               min={range.min}
               max={range.max}
-              onChange={(event) => { setError(null); setValidFrom(event.target.value); }}
+              onChange={(next) => { setError(null); setValidFrom(next); }}
               className={`${PRICE_FIELD} sm:w-1/2`}
             />
           </div>

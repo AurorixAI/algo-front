@@ -20,6 +20,7 @@ import {
 } from "@/lib/schedule-card-actions";
 import type { LessonMark } from "@/lib/substitutions";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
+import { DateInput } from "@/components/ui/date-input";
 
 const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -251,7 +252,7 @@ export function LessonActionSheet({
             <div className="space-y-3">
               <div>
                 <label htmlFor="sheet-date" className={LABEL}>Новая дата</label>
-                <input id="sheet-date" type="date" min={today} value={newDate} onChange={(event) => { setError(null); setNewDate(event.target.value); }} className={FIELD} />
+                <DateInput id="sheet-date" min={today} value={newDate} onChange={(next) => { setError(null); setNewDate(next); }} className={FIELD} />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>

@@ -31,6 +31,7 @@ import { logicaError, type LogicaError } from "@/lib/payments-logica";
 import { Modal } from "@/components/ui/modal";
 import { PriceBlockedBanner, PriceImpactMoneyBlock } from "@/components/payments/price-impact";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL } from "@/components/payments/price-fields";
+import { DateInput } from "@/components/ui/date-input";
 
 /** Wait this long after the last keystroke before asking the server what the change would touch. */
 const IMPACT_DEBOUNCE_MS = 350;
@@ -211,13 +212,12 @@ export function GroupPriceDialog({ open, groupId, groupName, label, current, his
 
         <div>
           <label htmlFor="group-price-from" className={PRICE_LABEL}>Действует с</label>
-          <input
+          <DateInput
             id="group-price-from"
-            type="date"
             value={validFrom}
             min={range.min}
             max={range.max}
-            onChange={(event) => { setError(null); setValidFrom(event.target.value); }}
+            onChange={(next) => { setError(null); setValidFrom(next); }}
             className={`${PRICE_FIELD} sm:w-1/2`}
           />
         </div>

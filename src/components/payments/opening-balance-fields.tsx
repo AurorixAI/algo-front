@@ -15,6 +15,7 @@ import {
   openingPaidUntilMax,
   type OpeningFormValues,
 } from "@/lib/payments-logica";
+import { DateInput } from "@/components/ui/date-input";
 
 /**
  * «Остаток на начало учёта»: what the student had before ALGO — paid until a date, and / or owed a sum on a date.  The same three
@@ -52,15 +53,15 @@ export function OpeningBalanceFields({
       <div className={`grid gap-3 ${compact ? "grid-cols-1" : "sm:grid-cols-2"}`}>
         <div className={compact ? "" : "sm:col-span-2"}>
           <label htmlFor={`${idPrefix}-paid-until`} className={PRICE_LABEL}>{OPENING_PAID_UNTIL_LABEL}</label>
-          <input
+          <DateInput
             id={`${idPrefix}-paid-until`}
-            type="date"
             value={values.paidUntil}
             min={earliest}
             max={openingPaidUntilMax(today)}
-            onChange={(event) => patch({ paidUntil: event.target.value })}
+            onChange={(next) => patch({ paidUntil: next })}
             aria-describedby={`${idPrefix}-paid-until-hint`}
-            className={`${PRICE_FIELD} sm:w-1/2`}
+            wrapperClassName="sm:w-1/2"
+            className={PRICE_FIELD}
           />
           <p id={`${idPrefix}-paid-until-hint`} className="mt-1 text-xs text-slate-500">{OPENING_PAID_UNTIL_HINT}</p>
         </div>
@@ -74,13 +75,12 @@ export function OpeningBalanceFields({
         />
         <div>
           <label htmlFor={`${idPrefix}-debt-on`} className={PRICE_LABEL}>{OPENING_DEBT_ON_LABEL}</label>
-          <input
+          <DateInput
             id={`${idPrefix}-debt-on`}
-            type="date"
             value={values.debtOn}
             min={OPENING_MIN_DATE}
             max={openingDebtMax({ enrolDate, accountingStart, floor }) ?? today}
-            onChange={(event) => patch({ debtOn: event.target.value })}
+            onChange={(next) => patch({ debtOn: next })}
             aria-describedby={`${idPrefix}-debt-hint`}
             className={PRICE_FIELD}
           />

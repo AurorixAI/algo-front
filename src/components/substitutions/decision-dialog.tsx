@@ -55,6 +55,7 @@ import type {
   SubstitutionDecisionKind,
   SubstitutionItem,
 } from "@/lib/substitution-types";
+import { DateInput } from "@/components/ui/date-input";
 
 const FIELD_CLASS =
   "w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -394,7 +395,7 @@ export function DecisionBody({
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <label className="col-span-2 text-xs font-semibold text-slate-500 sm:col-span-1">Новая дата
-              <input type="date" value={move.newDate} min={formatBusinessDate()} disabled={busy} onChange={(event) => onMove({ newDate: event.target.value })} className={`${INPUT_CLASS} mt-1`} />
+              <DateInput value={move.newDate} min={formatBusinessDate()} disabled={busy} onChange={(next) => onMove({ newDate: next })} wrapperClassName="mt-1" className={INPUT_CLASS} />
             </label>
             <label className="text-xs font-semibold text-slate-500">Начало
               <input type="time" value={move.startTime} disabled={busy} onChange={(event) => onMove({ startTime: event.target.value })} className={`${INPUT_CLASS} mt-1`} />

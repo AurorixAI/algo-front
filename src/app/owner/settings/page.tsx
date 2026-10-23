@@ -57,6 +57,7 @@ import {
   visibleSettingsSections,
   type SettingsSection as SectionKey,
 } from "@/lib/settings-sections";
+import { DateInput } from "@/components/ui/date-input";
 
 interface SettingsSectionProps {
   title: string;
@@ -370,13 +371,13 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
 
       <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
         <label htmlFor="payments-accounting-start" className={labelClasses}>Начало учёта оплат</label>
-        <input
+        <DateInput
           id="payments-accounting-start"
-          type="date"
           min={ACCOUNTING_START_MIN}
           value={form.accounting_start_date ?? ""}
-          onChange={(e) => patch({ accounting_start_date: e.target.value || loaded.accounting_start_date || null })}
-          className={`${inputClasses} !w-48`}
+          onChange={(next) => patch({ accounting_start_date: next || loaded.accounting_start_date || null })}
+          wrapperClassName="w-48"
+          className={inputClasses}
         />
         <p className="text-xs text-slate-500">
           С этого дня центр считает деньги: до него стоимость обучения не считается, задним числом долга не будет. Не позже чем через 31 день от сегодня.

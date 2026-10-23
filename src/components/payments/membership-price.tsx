@@ -40,6 +40,7 @@ import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { Modal } from "@/components/ui/modal";
 import { MoneyField, PRICE_FIELD, PRICE_LABEL, ReasonField } from "./price-fields";
+import { DateInput } from "@/components/ui/date-input";
 
 type Dialog = "assign" | "return" | { cancel: PriceOverrideRow } | null;
 
@@ -389,14 +390,14 @@ export function AssignOverrideDialog({
         <MoneyField id="membership-price-amount" label={`Индивидуальная ${label.charAt(0).toLowerCase()}${label.slice(1)}`} value={amount} onChange={(text) => { setError(null); setAmount(text); }} autoFocus />
         <div>
           <label htmlFor="membership-price-from" className={PRICE_LABEL}>Действует с</label>
-          <input
+          <DateInput
             id="membership-price-from"
-            type="date"
             value={validFrom}
             min={range.min}
             max={range.max}
-            onChange={(event) => { setError(null); setValidFrom(event.target.value); }}
-            className={`${PRICE_FIELD} sm:w-1/2`}
+            onChange={(next) => { setError(null); setValidFrom(next); }}
+            wrapperClassName="sm:w-1/2"
+            className={PRICE_FIELD}
           />
         </div>
         <ReasonField id="membership-price-reason" value={reason} onChange={(text) => { setError(null); setReason(text); }} />
@@ -494,14 +495,14 @@ export function ReturnPriceDialog({
         </p>
         <div>
           <label htmlFor="membership-price-return-from" className={PRICE_LABEL}>С какого дня</label>
-          <input
+          <DateInput
             id="membership-price-return-from"
-            type="date"
             value={validFrom}
             min={earliest}
             max={range.max}
-            onChange={(event) => { setError(null); setValidFrom(event.target.value); }}
-            className={`${PRICE_FIELD} sm:w-1/2`}
+            onChange={(next) => { setError(null); setValidFrom(next); }}
+            wrapperClassName="sm:w-1/2"
+            className={PRICE_FIELD}
           />
         </div>
         {past && <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">{past}</p>}

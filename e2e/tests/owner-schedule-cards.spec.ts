@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { expectNoHorizontalScroll, toast } from "../support/ui";
+import { expectNoHorizontalScroll, fillDate, toast } from "../support/ui";
 
 /**
  * Owner: «Группа → Расписание».  The week cards are information only (status chip, the whole topic, time, room, the teacher): no
@@ -115,7 +115,7 @@ test("week cards carry no buttons; the lesson sheet offers the actions by situat
   const moveSheet = page.getByRole("dialog", { name: "Для сдвига" });
   await moveSheet.getByRole("button", { name: "Перенести урок" }).click();
   const target = addDays(day, 1);
-  await moveSheet.getByLabel("Новая дата").fill(target);
+  await fillDate(moveSheet.getByLabel("Новая дата"), target);
   await moveSheet.getByLabel("Начало").fill("1200");
   await moveSheet.getByLabel("Окончание").fill("13:00");
   await expect(moveSheet.getByTestId("move-check")).toContainText("Преподаватель занят в это время"); // the clash of the other group

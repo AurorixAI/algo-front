@@ -22,6 +22,7 @@ import {
 } from "@/lib/payroll-logica";
 import { monthTitle, type PayrollErrorLike } from "@/lib/payroll";
 import { Modal } from "@/components/ui/modal";
+import { DateInput } from "@/components/ui/date-input";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -138,7 +139,7 @@ export function PayoutDialog({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
           <div>
             <label htmlFor="payout-paid-on" className={LABEL}>Дата</label>
-            <input id="payout-paid-on" type="date" value={values.paidOn} max={today} onChange={(event) => patch({ paidOn: event.target.value })} className={FIELD} />
+            <DateInput id="payout-paid-on" value={values.paidOn} max={today} onChange={(next) => patch({ paidOn: next })} className={FIELD} />
           </div>
           <div>
             <span id="payout-method-label" className={LABEL}>Способ</span>
