@@ -68,10 +68,11 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                 <span className={`contents text-sm font-medium md:col-start-2 md:flex md:min-w-0 md:items-center md:gap-2 ${view.muted ? "text-slate-400" : "text-slate-900"}`}>
                   <span className="col-start-1 row-start-1 min-w-0 truncate">{view.student}</span>
                   {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
+                  {/* «исправлена» sits where «отменена» does (next to the name; under the amount on a phone), so the amount column stays one line */}
+                  {view.correctedChip && <span data-testid="journal-corrected" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 md:justify-self-auto">{view.correctedChip}</span>}
                 </span>
                 <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
                 <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>
-                  {view.correctedChip && <span data-testid="journal-corrected" className="mr-1.5 inline-block whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-medium tracking-normal text-amber-800">{view.correctedChip}</span>}
                   <span className="whitespace-nowrap">{view.amount}</span>
                 </span>
                 <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>

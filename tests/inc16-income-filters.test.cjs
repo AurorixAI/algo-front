@@ -378,3 +378,10 @@ test("the server's J06–J09 fixtures: kind answers have no hidden payments (no 
   const all = V.normalizeJournal(fixture("J04_journal_voided_and_replaced"));
   assert.ok(all.rows.some((r) => r.status === "voided" && V.voidedLine(r).startsWith("Отменена ")));
 });
+
+test("the «исправлена» chip sits next to the name like «отменена», not above the amount (lead review 23.10)", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/components/payments/income-journal.tsx"), "utf8");
+  const amountCell = src.slice(src.indexOf("md:col-start-4"), src.indexOf("md:col-start-5"));
+  assert.ok(!/journal-corrected/.test(amountCell), "the corrected chip is not inside the amount cell");
+  assert.match(src, /data-testid="journal-corrected" className="col-start-2 row-start-3/);
+});
