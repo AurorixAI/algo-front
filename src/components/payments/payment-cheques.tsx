@@ -15,6 +15,7 @@ import {
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Modal } from "@/components/ui/modal";
 import type { RowMenuItem } from "@/components/ui/row-menu";
+import { FileInput } from "@/components/ui/file-input";
 
 /**
  * IA audit F10: «Прикрепить чек» lived only in the embedded payment history of the student card; that history is gone («Выписка» is the
@@ -175,13 +176,10 @@ export function usePaymentCheques({ membershipId, enabled, onNotify }: {
   /** One picker for every row, and the confirmation of a deletion: rendered once by the screen. */
   const dialogs = (
     <>
-      <input
+      <FileInput
         ref={fileInput}
-        type="file"
         accept={PAYMENT_FILE_ACCEPT}
-        tabIndex={-1}
         aria-hidden="true"
-        className="sr-only"
         onChange={(event) => {
           const picked = event.target.files?.[0];
           event.target.value = "";

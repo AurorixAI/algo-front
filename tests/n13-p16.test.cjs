@@ -84,7 +84,7 @@ test("the certificate picker offers photos only on a touch screen so Android sho
   const page = read("src/components/attendance/excuses-page.tsx");
   assert.match(page, /matchMedia\("\(pointer: coarse\)"\)/);
   assert.match(page, /accept=\{excusePickerAccept\(coarsePointer\)\}/);
-  assert.equal((page.match(/type="file"/g) || []).length, 1); // still one picker, one «Прикрепить справку»
+  assert.equal((page.match(/<FileInput\b/g) || []).length, 1); // still one picker (the shared hidden file input, INC-15), one «Прикрепить справку»
   assert.equal((page.match(/Прикрепить справку/g) || []).length, 1);
 });
 

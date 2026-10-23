@@ -72,6 +72,7 @@ import {
 } from "@/components/payments/openings-dialogs";
 import { OpeningsGroups } from "@/components/payments/openings-rows";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FileInput } from "@/components/ui/file-input";
 
 const newKey = (): string => {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
@@ -505,7 +506,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
             {busyFile === "import" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4 text-slate-400" aria-hidden="true" />}
             Загрузить файл
           </button>
-          <input ref={fileInput} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="sr-only" tabIndex={-1} aria-label="Файл с остатками (.xlsx)" data-testid="openings-file" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} />
+          <FileInput ref={fileInput} accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" aria-label="Файл с остатками (.xlsx)" data-testid="openings-file" onChange={(event) => void onFile(event.target.files?.[0] ?? null)} />
         </div>
       </div>
 

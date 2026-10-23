@@ -4,7 +4,7 @@ import { IMPORT_OPENING_COLUMNS_HINT, importOpeningsDone, importOpeningsReview }
 import { useState, useEffect, useRef } from "react";
 import {
   Upload, Download, FileSpreadsheet, CheckCircle2, AlertTriangle,
-  Loader2, GraduationCap, UserSquare2, Check, ArrowRight, ArrowLeft,
+  Loader2, GraduationCap, UserSquare2, Check, ArrowRight, ArrowLeft, X,
 } from "lucide-react";
 import {
   orgApi, ImportPreviewResult, ImportCommitResult, ImportCounts,
@@ -23,6 +23,7 @@ import {
   isInformational,
   skipReasonText,
 } from "@/lib/import-report";
+import { FileInput } from "@/components/ui/file-input";
 
 interface ImportModalProps {
   open: boolean;
@@ -73,6 +74,12 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
     }
     setError(null);
     setFile(f);
+  };
+
+  const clearFile = () => {
+    if (inputRef.current) inputRef.current.value = "";
+    setFile(null);
+    setError(null);
   };
 
   const runPreview = async () => {
@@ -178,6 +185,7 @@ export function ImportModal({ open, onClose, onImported }: ImportModalProps) {
               setDragging={setDragging}
               inputRef={inputRef}
               pickFile={pickFile}
+              clearFile={clearFile}
               onDownloadTemplate={handleDownloadTemplate}
             />
           )}
@@ -219,9 +227,9 @@ function StepBar({ step }: { step: Step }) {
 }
 
 // ── Step 1: upload ──────────────────────────────────────────────────────────
-function UploadStep({ file, dragging, setDragging, inputRef, pickFile, onDownloadTemplate }: {
+function UploadStep({ file, dragging, setDragging, inputRef, pickFile, clearFile, onDownloadTemplate }: {
   file: File | null; dragging: boolean; setDragging: (v: boolean) => void;
-  inputRef: React.RefObject<HTMLInputElement>; pickFile: (f: File | null) => void;
+  inputRef: React.RefObject<HTMLInputElement>; pickFile: (f: File | null) => void; clearFile: () => void;
   onDownloadTemplate: () => void;
 }) {
   return (
@@ -251,11 +259,11 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, onDownloa
           onClick={() => inputRef.current?.click()}
           className={`cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-colors ${dragging ? "border-primary-400 bg-primary-50/50" : "border-slate-200 hover:border-slate-300 bg-slate-50/50"}`}
         >
-          <input
+          <FileInput
             ref={inputRef}
-            type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            className="hidden"
+            aria-label="Файл .xlsx для импорта"
+            onClick={(e) => e.stopPropagation()}
             onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
           />
           {file ? (
@@ -265,6 +273,15 @@ function UploadStep({ file, dragging, setDragging, inputRef, pickFile, onDownloa
                 <p className="text-sm font-semibold">{file.name}</p>
                 <p className="text-xs text-slate-500">{(file.size / 1024).toFixed(0)} КБ · нажмите, чтобы заменить</p>
               </div>
+              <button
+                type="button"
+                aria-label="Убрать файл"
+                title="Убрать файл"
+                onClick={(e) => { e.stopPropagation(); clearFile(); }}
+                className="rounded-lg p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2 text-slate-500">

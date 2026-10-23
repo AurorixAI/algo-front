@@ -63,6 +63,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { Modal } from "@/components/ui/modal";
 import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
 import { useToast } from "@/components/ui/toast";
+import { FileInput } from "@/components/ui/file-input";
 
 const PAGE_SIZE = 50;
 
@@ -832,13 +833,10 @@ function ExcusesPageContent({ studentProfileBasePath, groupsBasePath }: { studen
       )}
 
       {/* One picker for every row: images offer the camera on a phone by themselves */}
-      <input
+      <FileInput
         ref={fileInputRef}
-        type="file"
         accept={excusePickerAccept(coarsePointer)}
-        tabIndex={-1}
         aria-hidden="true"
-        className="sr-only"
         onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; onFilePicked(picked); }}
       />
 
