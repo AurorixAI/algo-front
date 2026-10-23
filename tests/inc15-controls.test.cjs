@@ -241,3 +241,23 @@ test("SegmentedControl is a radiogroup of role=radio buttons with one tab stop (
   assert.match(dot, /peer-checked:bg-primary-600/);
   assert.match(html(React.createElement(Radio, { bare: true, name: "g", checked: false, onChange() {} })), /class="sr-only"/);
 });
+
+test("NumberInput: a text field with the numeric keypad (no browser spinner), our own stepper only where asked, red outside [min, max]", () => {
+  const { React, html } = renderer();
+  const { NumberInput } = require(path.join(root, "src/components/ui/number-input.tsx"));
+  const plain = html(React.createElement(NumberInput, { id: "n", value: "12", onChange() {}, min: 1, max: 30 }));
+  assert.match(plain, /<input[^>]*type="text"/);
+  assert.match(plain, /inputMode="numeric"/);
+  assert.doesNotMatch(plain, /type="number"/);
+  assert.doesNotMatch(plain, /aria-label="Больше"/); // no stepper unless asked
+  assert.doesNotMatch(plain, /aria-invalid/);
+  const stepper = html(React.createElement(NumberInput, { value: "30", onChange() {}, min: 1, max: 30, stepper: true }));
+  assert.match(stepper, /aria-label="Меньше"/);
+  assert.match(stepper, /aria-label="Больше"[^>]*disabled=""|disabled=""[^>]*aria-label="Больше"/); // at the top: «+» is off
+  assert.doesNotMatch(stepper, /aria-label="Меньше"[^>]*disabled=""/);
+  assert.match(stepper, /tabindex="-1"/); // the buttons are not tab stops: the arrows of the field step
+  const bad = html(React.createElement(NumberInput, { value: "31", onChange() {}, min: 1, max: 30 }));
+  assert.match(bad, /aria-invalid="true"/);
+  assert.match(bad, /border-red-400/);
+  assert.match(html(React.createElement(NumberInput, { value: "", onChange() {}, placeholder: "уроков" })), /placeholder="уроков"/);
+});

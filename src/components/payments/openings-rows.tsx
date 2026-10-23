@@ -24,6 +24,7 @@ import {
 import { studentHref } from "@/lib/ia-links";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NumberInput } from "@/components/ui/number-input";
 
 /**
  * Wide layout (xl): ONE column template for the header and every row, so each header sits over its cells.
@@ -245,14 +246,16 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
               {!left && (
                 <>
                   <label htmlFor={`op-lessons-${id}`} className="mb-1 block text-xs text-slate-500 xl:hidden">Осталось уроков</label>
-                  <div className="w-28 xl:w-full">
-                    <input
+                  <div className="w-32 xl:w-full">
+                    <NumberInput
                       id={`op-lessons-${id}`}
+                      stepper
+                      min={0}
+                      max={999}
+                      maxLength={3}
                       value={shown.lessons}
-                      inputMode="numeric"
-                      autoComplete="off"
                       placeholder="уроков"
-                      onChange={(event) => onEdit(row, { lessons: event.target.value.replace(/\D+/g, "").slice(0, 3), paidUntil: "" })}
+                      onChange={(next) => onEdit(row, { lessons: next.slice(0, 3), paidUntil: "" })}
                       aria-label={`Осталось уроков — ${name}`}
                       data-testid="openings-lessons"
                       className={FIELD}

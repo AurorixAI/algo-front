@@ -59,6 +59,7 @@ import {
 } from "@/lib/settings-sections";
 import { DateInput } from "@/components/ui/date-input";
 import { Radio } from "@/components/ui/radio";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface SettingsSectionProps {
   title: string;
@@ -271,14 +272,14 @@ function NumberField({
     <div>
       <label htmlFor={id} className={labelClasses}>{label}</label>
       <div className="flex items-center gap-2">
-        <input
+        <NumberInput
           id={id}
-          type="number"
           min={range.min}
           max={range.max}
-          value={Number.isNaN(value) ? "" : value}
-          onChange={(e) => onChange(e.target.value === "" ? NaN : Number(e.target.value))}
-          className={numberInputClasses}
+          value={Number.isNaN(value) ? "" : String(value)}
+          onChange={(next) => onChange(next === "" ? NaN : Number(next))}
+          wrapperClassName="w-24"
+          className={inputClasses}
         />
         {suffix && <span className="text-sm text-slate-600">{suffix}</span>}
       </div>
@@ -488,14 +489,14 @@ function AttendanceSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="payments-excuse-days" className="font-semibold text-slate-700">Оплата по месяцам: за</label>
-            <input
+            <NumberInput
               id="payments-excuse-days"
-              type="number"
               min={EXCUSE_DEADLINE_DAYS_RANGE.min}
               max={EXCUSE_DEADLINE_DAYS_RANGE.max}
-              value={Number.isNaN(form.excuse_deadline_days) ? "" : form.excuse_deadline_days}
-              onChange={(e) => patch({ excuse_deadline_days: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
+              value={Number.isNaN(form.excuse_deadline_days) ? "" : String(form.excuse_deadline_days)}
+              onChange={(next) => patch({ excuse_deadline_days: next === "" ? NaN : Number(next) })}
+              wrapperClassName="w-24"
+              className={inputClasses}
             />
             <span>{daysWord(form.excuse_deadline_days)} до конца оплаты</span>
           </div>
@@ -503,14 +504,14 @@ function AttendanceSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <label htmlFor="payments-excuse-lessons" className="font-semibold text-slate-700">Пакет уроков: когда осталось</label>
-            <input
+            <NumberInput
               id="payments-excuse-lessons"
-              type="number"
               min={EXCUSE_DEADLINE_LESSONS_RANGE.min}
               max={EXCUSE_DEADLINE_LESSONS_RANGE.max}
-              value={Number.isNaN(form.excuse_deadline_lessons) ? "" : form.excuse_deadline_lessons}
-              onChange={(e) => patch({ excuse_deadline_lessons: e.target.value === "" ? NaN : Number(e.target.value) })}
-              className={numberInputClasses}
+              value={Number.isNaN(form.excuse_deadline_lessons) ? "" : String(form.excuse_deadline_lessons)}
+              onChange={(next) => patch({ excuse_deadline_lessons: next === "" ? NaN : Number(next) })}
+              wrapperClassName="w-24"
+              className={inputClasses}
             />
             <span>{lessonsWord(form.excuse_deadline_lessons)}</span>
           </div>

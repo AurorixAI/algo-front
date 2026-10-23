@@ -8,6 +8,7 @@ import { orgApi, GroupInfo } from "@/lib/api";
 import { staffDisplayName } from "@/lib/staff-name";
 import { DEFAULT_LESSON_TYPE, LESSON_TYPES, normalizeLessonType, type LessonType } from "@/lib/payroll";
 import { Modal } from "@/components/ui/modal";
+import { NumberInput } from "@/components/ui/number-input";
 
 interface GroupCreateModalProps {
   open: boolean;
@@ -141,14 +142,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
               </label>
               <div className="relative">
                 <Hash className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
+                <NumberInput
                   id="group-create-maks-uchenikov"
-                  type="number"
+                  stepper
                   min={1}
                   max={100}
-                  value={form.max_students}
-                  onChange={(e) => setForm({ ...form, max_students: Math.min(100, Math.max(1, Number(e.target.value))) })}
-                  className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none"
+                  value={String(form.max_students)}
+                  onChange={(next) => setForm({ ...form, max_students: Math.min(100, Math.max(1, Number(next))) })}
+                  className="w-full pl-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none"
                 />
               </div>
             </div>

@@ -35,6 +35,7 @@ import { GroupPriceAction } from "@/components/groups/group-price-action";
 import { GROUP_HEADER_LABEL, groupDebtChipText, groupDebtSummary, groupHeaderActions, groupPriceChipText, groupWorkspacePaths, type GroupDebtSummary, type Workspace } from "@/lib/group-workspace";
 import { priceLabelOf } from "@/lib/group-price";
 import { groupPaymentsHref } from "@/lib/group-payments";
+import { NumberInput } from "@/components/ui/number-input";
 
 type Tab = "students" | "schedule" | "attendance" | "payments";
 
@@ -339,14 +340,14 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-400">
                       <Users className="w-4 h-4" />
                     </div>
-                    <input
+                    <NumberInput
                       id="group-maksimum-uchenikov"
-                      type="number"
+                      stepper
                       min={Math.max(1, group.student_count)}
                       max={200}
                       value={editState.max_students}
-                      onChange={(e) => setEditState((s) => ({ ...s, max_students: e.target.value }))}
-                      className="w-full pl-11 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all"
+                      onChange={(next) => setEditState((s) => ({ ...s, max_students: next }))}
+                      className="w-full pl-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:bg-white focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 outline-none transition-all"
                     />
                   </div>
                   <p className="text-xs text-slate-500 flex items-center gap-1.5">
