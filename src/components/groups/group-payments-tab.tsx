@@ -53,7 +53,7 @@ import { MembershipRowActions } from "@/components/payments/membership-row-actio
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
-const GRID_COLS = "lg:grid-cols-[minmax(0,1fr)_152px_168px_272px]";
+const GRID_COLS = "lg:grid-cols-[minmax(12rem,22rem)_152px_168px_minmax(272px,1fr)]"; // the student column is capped so «Цена в месяц» and «Оплата» sit close to the names (owner 23.10); the actions take the rest and stay right
 const PAGE = 500;
 const MAX_PAGES = 5;
 /** At most this many `price-override` calls at once (an older server: the author of an individual price is not in the list). */

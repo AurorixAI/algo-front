@@ -42,7 +42,7 @@ test("inc12-1: every row of «Незакрытые уроки» has the same act
 test("inc12-2: group «Оплаты» - price and payment have their own fixed centred columns, student left, actions right", () => {
   const src = read("src/components/groups/group-payments-tab.tsx");
   const grid = const_(src, "GRID_COLS");
-  assert.equal(grid, "lg:grid-cols-[minmax(0,1fr)_152px_168px_272px]");
+  assert.equal(grid, "lg:grid-cols-[minmax(12rem,22rem)_152px_168px_minmax(272px,1fr)]");
   const cols = grid.match(/\[(.*)\]/)[1].split("_");
   assert.equal(cols.length, 4);
   assert.match(cols[1], /^\d+px$/, "price: fixed");
