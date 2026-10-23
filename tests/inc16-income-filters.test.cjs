@@ -383,5 +383,9 @@ test("the «исправлена» chip sits next to the name like «отмен�
   const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/components/payments/income-journal.tsx"), "utf8");
   const amountCell = src.slice(src.indexOf("md:col-start-4"), src.indexOf("md:col-start-5"));
   assert.ok(!/journal-corrected/.test(amountCell), "the corrected chip is not inside the amount cell");
-  assert.match(src, /data-testid="journal-corrected" className="col-start-2 row-start-3/);
+  assert.match(src, /data-testid="journal-corrected" title=\{view.correctedTitle \?\? undefined\} className="col-start-2 row-start-3/);
+});
+
+test("the old record of a correction says «заменена на № N», the live one «исправлена» with «вместо квитанции № M» on hover (owner 23.10)", () => {
+  assert.equal(V.statusTag({ status: "replaced", replaced_by_receipt_no: 11 }), "заменена на № 11");
 });

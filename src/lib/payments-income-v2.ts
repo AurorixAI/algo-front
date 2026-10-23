@@ -1120,10 +1120,10 @@ export function collectionTotalDebtorsHint(collection: MonthCollection | null | 
 
 // ── The journal ────────────────────────────────────────────────────────────
 
-/** «отменена» for a cancelled payment, «исправлена → № 11» for one that a correction replaced. */
+/** «отменена» for a cancelled payment, «заменена на № 11» for the old record a correction replaced (the live one says «исправлена»). */
 export function statusTag(row: Pick<JournalRow, "status" | "replaced_by_receipt_no">): string | null {
   if (row.status === "voided") return "отменена";
-  if (row.status === "replaced") return row.replaced_by_receipt_no ? `исправлена → № ${row.replaced_by_receipt_no}` : "исправлена";
+  if (row.status === "replaced") return row.replaced_by_receipt_no ? `заменена на № ${row.replaced_by_receipt_no}` : "заменена";
   return null;
 }
 
@@ -1176,11 +1176,13 @@ export interface JournalRowView {
   teacher: string | null;
   amount: string;
   method: string;
-  /** «отменена» / «исправлена → № N»; null for a live payment. */
+  /** «отменена» / «заменена на № N»; null for a live payment. */
   tag: string | null;
   muted: boolean;
   /** «исправлена» — a live payment that replaced an earlier one; null otherwise. */
   correctedChip: string | null;
+  /** The hover text of that chip: «вместо квитанции № 10». */
+  correctedTitle: string | null;
   /** «внесена 21.10 в 11:40»: a quiet second line of the phone card; null when the server did not send it. */
   enteredAt: string | null;
 }
@@ -1207,6 +1209,7 @@ export function journalRowView(row: JournalRow, withYear = false): JournalRowVie
     tag,
     muted: tag !== null,
     correctedChip: isCorrection(row) ? CORRECTED_CHIP : null,
+    correctedTitle: isCorrection(row) ? `вместо квитанции № ${row.replaces_receipt_no}` : null,
     enteredAt: enteredAtText(row),
   };
 }
@@ -1231,6 +1234,8 @@ export interface DrawerView {
   tag: string | null;
   /** «исправлена» next to the method of a live payment that corrected an earlier one. */
   correctedChip: string | null;
+  /** The hover text of that chip: «вместо квитанции № 10». */
+  correctedTitle: string | null;
   facts: DrawerFact[];
   /** «Куда пошли деньги»: «за сентябрь — 200 000», «аванс — 50 000»; the server's lines. */
   destination: string[];
@@ -1344,6 +1349,7 @@ export function drawerView(row: JournalRow): DrawerView {
     method: row.method_label,
     tag: statusTag(row),
     correctedChip: isCorrection(row) ? CORRECTED_CHIP : null,
+    correctedTitle: isCorrection(row) ? `вместо квитанции № ${row.replaces_receipt_no}` : null,
     facts,
     destination: row.status === "active" ? destinationLines(row) : [],
     destinationItems: row.status === "active" ? destinationItems(row) : [],

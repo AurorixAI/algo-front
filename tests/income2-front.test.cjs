@@ -479,8 +479,8 @@ test("journal rows: date · time | student | group | amount | method; a cancelle
   const voided = V.journalRowView(rows[2]);
   assert.deepEqual([voided.tag, voided.muted], ["отменена", true]);
   const replaced = V.journalRowView(rows[4]);
-  assert.deepEqual([replaced.tag, replaced.muted], ["исправлена → № 11", true]);
-  assert.equal(V.statusTag({ status: "replaced", replaced_by_receipt_no: null }), "исправлена");
+  assert.deepEqual([replaced.tag, replaced.muted], ["заменена на № 11", true]);
+  assert.equal(V.statusTag({ status: "replaced", replaced_by_receipt_no: null }), "заменена");
   // the time is paid_on + paid_time; without a time only the date
   assert.equal(V.journalRowView({ ...rows[0], paid_time: null }).time, "");
   assert.equal(V.journalRowView(rows[0], true).date, "21.10.2026");
