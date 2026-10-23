@@ -1004,10 +1004,23 @@ export function balanceCell(balance: number | null | undefined): { kind: Balance
   return { kind: "none", text: "0" };
 }
 
-/** «Баланс на начало месяца: долг 519 000» / «аванс 21 000» / «0». */
-export function carryText(carry: { kind: BalanceKind; text: string }): string {
-  const value = carry.kind === "debt" ? `долг ${carry.text.replace("Долг ", "")}` : carry.kind === "advance" ? `аванс ${carry.text.replace("Аванс ", "")}` : "0";
-  return `Баланс на начало месяца: ${value}`;
+const MONTH_GENITIVE = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+
+/** «сентября» / «декабря 2025» (the year only when it is not the year of `of`): the month a balance is carried from, after «С». */
+export function monthFromWords(key: string, of: string): string {
+  const name = MONTH_GENITIVE[Number(key.slice(5, 7)) - 1] ?? key;
+  return key.slice(0, 4) === of.slice(0, 4) ? name : `${name} ${key.slice(0, 4)}`;
+}
+
+/**
+ * The quiet line over a month: «С сентября перенесён аванс 508 000» / «С сентября перенесён долг 92 000».
+ * null when nothing is carried (a zero balance, the first month of the enrolment): the line is not drawn.
+ */
+export function carryLine(month: string, carry: { kind: BalanceKind; text: string }): { lead: string; amount: string; kind: BalanceKind; text: string } | null {
+  if (carry.kind === "none") return null;
+  const lead = `С ${monthFromWords(shiftMonthKey(month, -1), month)} перенесён`;
+  const amount = carry.kind === "debt" ? `долг ${carry.text.replace("Долг ", "")}` : `аванс ${carry.text.replace("Аванс ", "")}`;
+  return { lead, amount, kind: carry.kind, text: `${lead} ${amount}` };
 }
 
 export interface StatementEntry {
@@ -1036,19 +1049,137 @@ export interface StatementEntry {
 export interface StatementMonthItem {
   kind: "month";
   key: string;
+  /** «Октябрь 2026»: the header row says only the month, the columns carry the figures. */
   title: string;
-  /** «стоимость 450 000 · оплачено 382 000 · осталось 68 000» — about the month's OWN charge. */
-  summary: string;
+  /** A single month without a record: a quiet «записей нет» is drawn under it. */
+  empty: boolean;
 }
 
 export interface StatementCarryItem {
   kind: "carry";
-  /** «Баланс на начало месяца: долг 519 000». */
+  /** «С сентября перенесён аванс 508 000». */
   text: string;
+  /** «С сентября перенесён» */
+  lead: string;
+  /** «аванс 508 000» (coloured) */
+  amount: string;
   balance: { kind: BalanceKind; text: string };
 }
 
 export type StatementItem = StatementMonthItem | StatementCarryItem | StatementEntry;
+
+// ── Statement: how a row is drawn (icon, amounts, balance chip, alignment) ───────────────────────────────
+
+/** What a row is, for its small icon: a charge, a payment, a forgiven debt, a refund, a transfer, a corrected / cancelled payment… */
+export type StatementIconKind = "charge" | "payment" | "writeoff" | "refund" | "transfer" | "correction" | "void" | "opening" | "pause";
+
+export function statementIconKind(entry: Pick<StatementEntry, "type" | "cancelled" | "replaced">): StatementIconKind {
+  if (entry.cancelled) return "void";
+  switch (entry.type) {
+    case "charge": return "charge";
+    case "payment": return entry.replaced ? "correction" : "payment";
+    case "writeoff": return "writeoff";
+    case "refund": return "refund";
+    case "transfer_in":
+    case "transfer_out": return "transfer";
+    case "pause": return "pause";
+    default: return "opening";
+  }
+}
+
+/** The round tint behind the icon: a charge is slate, money in is emerald, the rest has its own quiet colour. */
+export const STATEMENT_ICON_TONE: Record<StatementIconKind, string> = {
+  charge: "bg-slate-100 text-slate-500",
+  payment: "bg-emerald-50 text-emerald-600",
+  correction: "bg-emerald-50 text-emerald-600",
+  writeoff: "bg-sky-50 text-sky-600",
+  refund: "bg-amber-50 text-amber-600",
+  transfer: "bg-indigo-50 text-indigo-600",
+  void: "bg-slate-100 text-slate-400",
+  opening: "bg-slate-100 text-slate-500",
+  pause: "bg-slate-100 text-slate-500",
+};
+
+/** «600 000»: a whole sum without the unit (the header of the statement says сум once). */
+export function statementDigits(value: number): string {
+  return digitsOf(value);
+}
+
+/** The «Стоимость» cell: «600 000», empty when the row has no charge. */
+export function statementChargedText(entry: Pick<StatementEntry, "charged">): string {
+  return entry.charged === null ? "" : digitsOf(entry.charged);
+}
+
+/** The «Оплачено» cell: money in is «+600 000» (a write-off and a transfer in too), money out «−500 000» (a true minus), nothing is empty. */
+export function statementPaidText(entry: Pick<StatementEntry, "paid">): string {
+  if (entry.paid === null) return "";
+  if (entry.paid > 0) return `+${digitsOf(entry.paid)}`;
+  if (entry.paid < 0) return `${MINUS}${digitsOf(-entry.paid)}`;
+  return "0";
+}
+
+/** The amounts are plain slate-800: the colour is only for the balance chip (a green payment next to a green advance read as one thing). */
+export const STATEMENT_AMOUNT_CLASS = "text-sm tabular-nums text-slate-800";
+export const STATEMENT_PAID_CLASS = "text-sm font-medium tabular-nums text-slate-800";
+
+/** The «Баланс» chip: the same height for every row, the tone says debt / advance / zero. */
+export const BALANCE_CHIP_BASE = "inline-flex h-6 items-center justify-center whitespace-nowrap rounded-full px-2.5 text-[13px] font-medium tabular-nums";
+export const BALANCE_CHIP_TONE: Record<BalanceKind, string> = {
+  debt: "bg-rose-50 text-rose-700",
+  advance: "bg-emerald-50 text-emerald-700",
+  none: "bg-slate-100 text-slate-600",
+};
+export function balanceChipClass(kind: BalanceKind): string {
+  return `${BALANCE_CHIP_BASE} ${BALANCE_CHIP_TONE[kind]}`;
+}
+
+/** Alignment of the columns on a desktop (owner 23.10: centre everywhere, only the operation stays left). */
+export const STATEMENT_ALIGN = {
+  date: "text-center",
+  operation: "text-left",
+  money: "text-center tabular-nums",
+} as const;
+
+// ── Statement: which month it opens on ──────────────────────────────────────────────────────────────
+
+/**
+ * What the address / the user chose: `null` = nothing yet (the page opens on its own choice), `"all"` = every month,
+ * `"YYYY-MM"` = that month.
+ */
+export type StatementMonthChoice = string | null;
+
+/** `?month=2026-10` → that month, `?month=all` → every month, anything else (a missing or broken value) → no choice yet. */
+export function parseStatementMonth(raw: string | null | undefined): StatementMonthChoice {
+  const value = (raw ?? "").trim();
+  if (value === "all") return "all";
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value) ? value : null;
+}
+
+/** The value for the address of a choice: `all` or `YYYY-MM`; no choice → no parameter. */
+export function statementMonthParam(choice: StatementMonthChoice): string | null {
+  return choice;
+}
+
+/**
+ * The month the statement opens on: the current month of the centre (Tashkent business date) when it has rows, else the latest
+ * month that has rows (a student who left earlier, a future enrolment); a statement without rows opens on the current month.
+ */
+export function defaultStatementMonth(statement: Pick<StatementOut, "rows">, currentMonth: string): string {
+  const keys = statement.rows.filter((row) => !row.voided_at).map((row) => monthKey(row.date));
+  if (keys.length === 0 || keys.includes(currentMonth)) return currentMonth;
+  return keys.reduce((latest, key) => (key > latest ? key : latest));
+}
+
+/** The month on screen: `null` = every month. */
+export function resolveStatementMonth(choice: StatementMonthChoice, statement: Pick<StatementOut, "rows">, currentMonth: string): string | null {
+  if (choice === "all") return null;
+  return choice ?? defaultStatementMonth(statement, currentMonth);
+}
+
+/** «Октябрь 2026» for the file and the switcher; «Все месяцы» for no month. */
+export function statementMonthLabel(month: string | null): string {
+  return month ? monthTitle(month) : "Все месяцы";
+}
 
 /** The months that hold rows, from the first to the month of the statement date (the arrows of the switcher stop there). */
 export function statementMonths(statement: Pick<StatementOut, "rows" | "as_of">): string[] {
@@ -1072,53 +1203,6 @@ export function openingBalance(rows: StatementRow[], month: string): number {
 
 function lowerMethod(method: PayMethod | null | undefined): string {
   return methodLabel(method).toLowerCase();
-}
-
-/** The unpaid part of a charge as of the statement date: the server's `remaining`, else `unpaid`, else charge − paid − forgiven. */
-export function segmentRemaining(segment: Pick<Segment, "charge" | "paid" | "written_off" | "unpaid" | "remaining">): number {
-  if (segment.remaining !== undefined && segment.remaining !== null) return Math.max(0, sum(segment.remaining));
-  if (segment.unpaid !== undefined && segment.unpaid !== null) return Math.max(0, sum(segment.unpaid));
-  return Math.max(0, sum(segment.charge) - sum(segment.paid) - sum(segment.written_off));
-}
-
-/**
- * The line of a month header: about the month's OWN charge, not about the movements inside it —
- * «стоимость 450 000 · оплачено 81 000 · осталось 369 000» (+ «прощено N» when part of it was forgiven).
- * Several charges that start in the month (a package mode) are added up; a month that holds only the opening debt says so;
- * a month without a charge of its own says «стоимости нет».
- */
-export function monthChargeSummary(segments: Segment[], opening: Segment[] = []): string {
-  if (segments.length === 0 && opening.length === 0) return "стоимости нет";
-  const parts: string[] = [];
-  if (segments.length > 0) {
-    const charge = segments.reduce((total, segment) => total + sum(segment.charge), 0);
-    const paid = segments.reduce((total, segment) => total + sum(segment.paid), 0);
-    const forgiven = segments.reduce((total, segment) => total + sum(segment.written_off), 0);
-    const remaining = segments.reduce((total, segment) => total + segmentRemaining(segment), 0);
-    parts.push(`стоимость ${digitsOf(charge)}`, `оплачено ${digitsOf(paid)}`);
-    if (forgiven > 0) parts.push(`прощено ${digitsOf(forgiven)}`);
-    parts.push(`осталось ${digitsOf(remaining)}`);
-  }
-  if (opening.length > 0) {
-    const charge = opening.reduce((total, segment) => total + sum(segment.charge), 0);
-    const remaining = opening.reduce((total, segment) => total + segmentRemaining(segment), 0);
-    parts.push(`долг на начало ${digitsOf(charge)}${remaining !== charge ? `, осталось ${digitsOf(remaining)}` : ""}`);
-  }
-  return parts.join(" · ");
-}
-
-function monthOwnSegments(statement: StatementOut, key: string): { own: Segment[]; opening: Segment[] } {
-  const own = new Map<string, Segment>();
-  const opening = new Map<string, Segment>();
-  for (const row of statement.rows) {
-    const segment = row.details.segment;
-    if (!segment || row.voided_at || monthKey(row.date) !== key) continue;
-    if (row.type === "charge") own.set(segment.id, segment);
-    else if (row.type === "opening_debt") opening.set(segment.id, segment);
-  }
-  // A period that has not begun yet but is paid ahead belongs to the month it starts in.
-  for (const segment of statement.upcoming) if (monthKey(segment.period_from) === key) own.set(segment.id, segment);
-  return { own: [...own.values()], opening: [...opening.values()] };
 }
 
 /**
@@ -1196,18 +1280,11 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
   const keys = month ? [month] : [...new Set(entries.map((entry) => monthKey(entry.date)))];
   for (const key of keys) {
     const inMonth = entries.filter((entry) => monthKey(entry.date) === key);
-    if (month && inMonth.length === 0) {
-      const carry = balanceCell(openingBalance(statement.rows, key));
-      const own = monthOwnSegments(statement, key);
-      items.push({ kind: "month", key, title: monthTitle(key), summary: own.own.length > 0 || own.opening.length > 0 ? monthChargeSummary(own.own, own.opening) : "записей нет" });
-      items.push({ kind: "carry", text: carryText(carry), balance: carry });
-      continue;
-    }
-    const own = monthOwnSegments(statement, key);
-    items.push({ kind: "month", key, title: monthTitle(key), summary: monthChargeSummary(own.own, own.opening) });
+    items.push({ kind: "month", key, title: monthTitle(key), empty: Boolean(month) && inMonth.length === 0 });
     if (month) {
-      const carry = balanceCell(openingBalance(statement.rows, key));
-      items.push({ kind: "carry", text: carryText(carry), balance: carry });
+      // only a single month explains where its balance began; every month at once never repeats it, and a zero is not told
+      const line = carryLine(key, balanceCell(openingBalance(statement.rows, key)));
+      if (line) items.push({ kind: "carry", text: line.text, lead: line.lead, amount: line.amount, balance: { kind: line.kind, text: line.amount } });
     }
     items.push(...inMonth);
   }

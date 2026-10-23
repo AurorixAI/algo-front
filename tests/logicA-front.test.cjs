@@ -475,17 +475,9 @@ test("the fingerprint is required to save a calculation (F14)", () => {
 test("statement: Стоимость | Оплачено | Баланс, the month's own charge, the exact remainder per allocation (E1)", () => {
   const statement = L.normalizeStatement(pay2("e1_statement_790000"));
   const items = L.buildStatementItems(statement, null);
-  // each month header is about the month's OWN charge as of the statement date
-  assert.deepEqual(items.filter((i) => i.kind === "month").map((i) => [i.title, plain(i.summary)]), [
-    ["Сентябрь 2026", "стоимость 500 000 · оплачено 500 000 · осталось 0"],
-    ["Октябрь 2026", "стоимость 500 000 · оплачено 500 000 · осталось 0"],
-  ]);
-  // «Сентябрь 2026 · стоимость 450 000 · оплачено 81 000 · осталось 369 000»
-  const segment = (charge, paid, remaining, extra = {}) => ({ id: "s", kind: "period", period_from: "2026-09-01", period_to: "2026-09-30", charge, paid, remaining, unpaid: remaining, written_off: 0, ...extra });
-  assert.equal(plain(L.monthChargeSummary([segment(450000, 81000, 369000)])), "стоимость 450 000 · оплачено 81 000 · осталось 369 000");
-  assert.equal(plain(L.monthChargeSummary([segment(450000, 81000, 329000, { written_off: 40000 })])), "стоимость 450 000 · оплачено 81 000 · прощено 40 000 · осталось 329 000");
-  assert.equal(L.monthChargeSummary([]), "стоимости нет");
-  assert.equal(L.segmentRemaining({ charge: 100, paid: 30, written_off: 20 }), 50); // an older answer without `remaining`
+  // a month header is only the name of the month (owner 23.10: the figures are in the columns, the summary repeated them)
+  assert.deepEqual(items.filter((i) => i.kind === "month").map((i) => [i.title, "summary" in i]), [["Сентябрь 2026", false], ["Октябрь 2026", false]]);
+  assert.equal(L.monthChargeSummary, undefined);
   // the exact remainder after each piece of money comes from the server
   const rows = items.filter((i) => i.kind === "row");
   assert.deepEqual(rows[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 269 000)"]);
@@ -644,7 +636,7 @@ test("payment tabs: the rows of each tab come from `buckets`, a tab «На па�
   assert.equal(row.bucket, "debt");
   const opening = L.buildStatementItems(L.normalizeStatement(named("A31_")), null);
   assert.deepEqual(opening.filter((i) => i.kind === "row").map((r) => [r.type, r.charged]), [["opening_debt", 250000], ["charge", 213000]]);
-  assert.match(opening.find((i) => i.kind === "month").summary, /долг на начало/);
+  assert.equal(opening.find((i) => i.kind === "month").title.includes("2026"), true);
   const info = L.buildStatementItems(L.normalizeStatement(named("A32_")), null).filter((i) => i.kind === "row");
   assert.deepEqual(info.map((r) => [r.type, r.title, r.charged, r.paid]), [["opening_paid_until", "Остаток на начало: оплачено до 15.11", null, null], ["pause", "Пауза 05.11–20.11 — начислений нет", null, null]]);
 });

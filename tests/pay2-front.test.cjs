@@ -353,17 +353,13 @@ test("E1 statement: one timeline with the running balance, the header adds up an
   // where each payment went, per period, with the outcome
   assert.deepEqual(rows[1].allocations.map(plain), ["за 15.09–14.10 — 231 000 (осталось 269 000)"]);
   assert.deepEqual(rows[3].allocations.map(plain), ["за 15.09–14.10 — 269 000 (период закрыт)", "за 15.10–14.11 — 500 000 (период закрыт)", "аванс на 15.11–14.12 — 21 000"]);
-  // a light row per month sums it up
+  // a light row per month names it (the figures are in the columns)
   const months = items.filter((item) => item.kind === "month");
-  assert.deepEqual(months.map((item) => [item.title, plain(item.summary)]), [
-    // the month's OWN charge as of the statement date: September was paid up by the second payment
-    ["Сентябрь 2026", "стоимость 500 000 · оплачено 500 000 · осталось 0"],
-    ["Октябрь 2026", "стоимость 500 000 · оплачено 500 000 · осталось 0"],
-  ].map(([title, summary]) => [title, summary]));
-  // one month: the balance carried in, then its rows
+  assert.deepEqual(months.map((item) => item.title), ["Сентябрь 2026", "Октябрь 2026"]);
+  // one month: a line about the balance carried in, then its rows (owner 23.10)
   const october = L.buildStatementItems(statement, "2026-10");
   assert.deepEqual(october.map((item) => item.kind), ["month", "carry", "row", "row"]);
-  assert.equal(plain(october[1].text), "Баланс на начало месяца: долг 269 000");
+  assert.equal(plain(october[1].text), "С сентября перенесён долг 269 000");
   assert.equal(L.openingBalance(statement.rows, "2026-10"), -269000);
   assert.equal(L.openingBalance(statement.rows, "2026-09"), 0);
   assert.deepEqual(L.statementMonths(statement), ["2026-09", "2026-10"]);
@@ -652,18 +648,20 @@ test("the statement draws E1 with the running balance after every row and the li
   // nothing forgiven or returned: no tiles for it; «Сходится» has no formula on screen (it is in the hint)
   assert.ok(!head.includes("Прощено") && !head.includes("Возвращено"));
   const body = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  for (const part of ["Дата", "Операция", "Стоимость", "Оплачено", "Баланс", "Сентябрь 2026", "стоимость 500 000 · оплачено 500 000 · осталось 0", "Период 15.09–14.10", "цена 500 000 сум в месяц · цена группы",
+  for (const part of ["Дата", "Операция", "Стоимость", "Оплачено", "Баланс", "Сентябрь 2026", "Период 15.09–14.10", "цена 500 000 сум в месяц · цена группы",
     "Оплата № 17 · наличные", "231 000", "за 15.09–14.10 — 231 000 (осталось 269 000)", "Долг 269 000", "Октябрь 2026", "Оплата № 18", "аванс на 15.11–14.12 — 21 000", "Аванс 21 000", "Следующие периоды"]) assert.ok(body.includes(part), part);
-  assert.ok(!/[+−]\d/.test(body)); // a bank statement: no signs
+  assert.ok(body.includes("+231 000")); // money in is «+», a charge has no sign (owner 23.10)
+  assert.ok(!body.includes("стоимость 500 000 · оплачено")); // the month rows carry no summary
   // the order is the order of time
   const order = ["Период 15.09–14.10", "Оплата № 17", "Период 15.10–14.11", "Оплата № 18"].map((title) => body.indexOf(title));
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  // the columns: «Дата» is centred, «Операция» left, the money (Стоимость, Оплачено, Баланс) right over its digits
+  // the columns: «Дата» and the money (Стоимость, Оплачено, Баланс) are centred, «Операция» left (see inc13-statement.test.cjs)
   const markup = html(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false }));
-  assert.match(markup, /text-center text-\[13px\] font-semibold[^"]*"><span>Дата<\/span><span class="text-left">Операция<\/span><span class="text-right">Стоимость<\/span><span class="text-right">Оплачено<\/span><span class="text-right">Баланс<\/span>/);
-  // one month: the balance carried in comes first
+  assert.match(markup, /<span class="md:px-2 md:py-3 text-center">Дата<\/span><span class="md:px-3 md:py-3 text-left">Операция<\/span>/);
+  // one month: a line about the balance carried in comes first
   const one = text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false, month: "2026-10" }));
-  assert.ok(one.includes("Баланс на начало месяца") && one.includes("Долг 269 000") && !one.includes("Сентябрь 2026") && !one.includes("Оплата № 17"));
+  assert.ok(one.includes("С сентября перенесён долг 269 000") && one.includes("Долг 769 000") && !one.includes("Сентябрь 2026") && !one.includes("Оплата № 17"));
+  assert.ok(!text(React.createElement(StatementTimeline, { statement, menuFor: () => [], withVoided: false })).includes("перенесён")); // «Все месяцы»: no carry line
   // write-off, refund and a corrected payment in the words of the owner
   const rows = statement.rows;
   const extra = { ...statement, rows: [
@@ -737,16 +735,16 @@ test("the list, the card and the statement: debt / advance shown, actions in «�
   assert.match(read("src/lib/membership-actions.ts"), /canRefund\(row\)/);
   const statement = read("src/components/payments/statement-view.tsx");
   assert.match(statement, /aria-label="Куда пошли деньги"/); // every payment of the one history says where it went
-  assert.match(statement, /window\.print\(\)/);
+  assert.doesNotMatch(statement, /window\.print\(\)|Printer|print:/); // the «Печать» button is gone (owner 23.10)
   assert.match(statement, /orgApi\.exportStatement\(/);
   assert.match(statement, /orgApi\.voidWriteoff\(/);
   assert.match(statement, /orgApi\.voidRefund\(/);
   assert.match(statement, /Сходится/);
-  // a bank statement: Дата | Операция | Стоимость | Оплачено | Баланс, all centred but the operation
-  assert.match(statement, /<span>Дата<\/span>\s*<span className="text-left">Операция<\/span>\s*<span className="text-right">Стоимость<\/span>\s*<span className="text-right">Оплачено<\/span>\s*<span className="text-right">Баланс<\/span>/);
-  assert.match(statement, /md:text-right/);
-  // the month switcher: ‹ Октябрь 2026 › and «Все месяцы» (the default)
-  assert.match(statement, /useState<string \| null>\(\(\) => \{/); // «Все месяцы» (null) unless `?month=` names one (IA audit F34)
+  // a bank statement: Дата | Операция | Стоимость | Оплачено | Баланс; alignment is pinned in inc13-statement.test.cjs
+  assert.match(statement, /<span className=\{`\$\{CELL_DATE\} \$\{STATEMENT_ALIGN\.date\}`\}>Дата<\/span>/);
+  assert.match(statement, />Стоимость<\/span>[\s\S]*>Оплачено<\/span>[\s\S]*>Баланс<\/span>/);
+  // the month switcher: ‹ Октябрь 2026 › and the toggle «Все месяцы»; it opens on the current month (owner 23.10)
+  assert.match(statement, /useState<StatementMonthChoice>\(\(\) => parseStatementMonth\(searchParams\?\.get\("month"\)\)\)/);
   assert.match(statement, />\s*Все месяцы\s*</);
   assert.match(statement, /aria-label="Предыдущий месяц"/);
   assert.doesNotMatch(statement, /type="date"/); // no date inputs any more
