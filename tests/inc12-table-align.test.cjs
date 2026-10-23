@@ -81,7 +81,7 @@ test("inc12-4: journal «Оплаты» - Группа and Способ centred,
   assert.match(src, /<span className="text-center">Дата · время<\/span>\s*<span>Ученик<\/span>\s*<span className="text-center">Группа<\/span>\s*<span className="text-right">Сумма<\/span>\s*<span className="text-center">Способ<\/span>/);
   // cells
   assert.match(src, /md:col-start-3 md:row-start-1 md:text-center md:text-sm [^>]*>\{view\.group\}/);
-  assert.match(src, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 [^>]*>\{view\.amount\}/);
+  assert.match(src, /text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 [^>]*>[\s\S]*?\{view\.amount\}/);
   assert.match(src, /md:col-start-5 md:row-start-1 md:text-center md:text-sm [^>]*>\{view\.method\}/);
   // the phone card is unchanged: the method is still right-aligned under the amount below md
   assert.match(src, /col-start-2 row-start-2 text-right text-xs md:col-start-5/);

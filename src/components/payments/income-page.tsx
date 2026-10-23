@@ -12,11 +12,14 @@ import {
   collectionCaption,
   exportErrorText,
   exportQuery,
+  filterNoticeText,
   focusBucket,
   incomeErrorText,
   isCurrentMonth,
   journalIsQuiet,
   journalQuery,
+  journalScrollOptions,
+  kindRejected,
   methodChipLabel,
   monthOfPeriod,
   NO_FILTERS,
@@ -25,11 +28,13 @@ import {
   periodTitle,
   rangeChipText,
   stepPeriod,
+  toggleKind,
   toggleMethod,
   validatePeriod,
   incomeQueryString,
   parseIncomeQuery,
   type Bar,
+  type FlowKind,
   type IncomeCash,
   type IncomeFilters,
   type IncomeOverview,
@@ -113,10 +118,14 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [createdBy, setCreatedBy] = useState("");
+  // INC-16: a part of «Куда ушли деньги» (the server's `kind`), and the toggle that brings back the cancelled and corrected payments (off = status=active)
+  const [kind, setKind] = useState<FlowKind | "">("");
+  const [kindUnsupported, setKindUnsupported] = useState(false);
+  const [showVoided, setShowVoided] = useState(false);
   const [page, setPage] = useState(1);
   const [journal, setJournal] = useState<Loaded<PaymentsJournal>>(idle);
   const journalRequests = useRef(createRequestSequence());
-  const extras: JournalExtras = useMemo(() => ({ q: debouncedSearch, createdBy }), [debouncedSearch, createdBy]);
+  const extras: JournalExtras = useMemo(() => ({ q: debouncedSearch, createdBy, kind, withVoided: showVoided }), [debouncedSearch, createdBy, kind, showVoided]);
   const query = useMemo(() => journalQuery(period, focus, filters, extras, page), [period, focus, filters, extras, page]);
   const loadJournal = useCallback(async () => {
     const token = journalRequests.current.next();
@@ -127,6 +136,12 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
       setJournal({ data, loading: false, error: null, denied: false });
     } catch (cause) {
       if (!journalRequests.current.isCurrent(token)) return;
+      // An older server refuses the param `kind`: the strip stops being clickable, the journal is asked again without it.
+      if (query.kind && kindRejected(cause)) {
+        setKindUnsupported(true);
+        setKind("");
+        return;
+      }
       const failure = incomeErrorText(cause);
       setJournal({ data: null, loading: false, error: failure.text, denied: failure.denied });
     }
@@ -150,7 +165,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   }, [search]);
 
   // Another period or another method is another set of payments: the narrowing of the old one is dropped.
-  const resetNarrowing = () => { setFocus(null); setPage(1); setCreatedBy(""); };
+  const resetNarrowing = () => { setFocus(null); setPage(1); setCreatedBy(""); setKind(""); };
   const changePeriod = (next: Period) => { setPeriod(next); setFilters((state) => ({ ...state, method: "" })); resetNarrowing(); };
 
   // ── tabs, the drawer, the chart ──
@@ -167,6 +182,8 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   }, [period, tab]);
   const [opened, setOpened] = useState<JournalRow | null>(null);
   const journalRef = useRef<HTMLDivElement | null>(null);
+  // The widget that was clicked last: the notice «Показаны … · К списку ↓» sits under it.  A click never moves the page (INC-16).
+  const [anchor, setAnchor] = useState<"chart" | "methods" | "flow" | null>(null);
 
   const pickBar = (bar: Bar) => {
     if (!bar.range) return;
@@ -174,7 +191,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     setFocus(same ? null : bar.range);
     setPage(1);
     setTab("journal");
-    if (!same) requestAnimationFrame(() => journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setAnchor("chart");
   };
 
   // A click on a segment / a legend line of «Чем платили» narrows the journal to that method; the same one again clears it.
@@ -183,7 +200,24 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     setFilters((state) => ({ ...state, method: next }));
     setPage(1);
     setTab("journal");
-    if (next) requestAnimationFrame(() => journalRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    setAnchor("methods");
+  };
+
+  // A click on a part of «Куда ушли деньги» (a segment or a legend line) narrows the journal to that kind; the same one again clears it.
+  const pickKind = (clicked: FlowKind) => {
+    setKind((current) => toggleKind(current, clicked));
+    setPage(1);
+    setTab("journal");
+    setAnchor("flow");
+  };
+
+  // «К списку ↓»: the only thing that moves the page, and it moves it smoothly (at once for a visitor who asked for less motion), leaving the toolbar in view.
+  const jumpToList = () => {
+    const box = journalRef.current;
+    if (!box || typeof window === "undefined") return;
+    const reducedMotion = typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo(journalScrollOptions({ journalTop: box.getBoundingClientRect().top, scrollY: window.scrollY, reducedMotion }));
+    box.focus({ preventScroll: true });
   };
 
   // «Сегодня наличными»: one light request for today (period=day: the till is the centre's), only on the current month.
@@ -221,10 +255,17 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     }
   };
 
-  const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "";
+  const narrowed = debouncedSearch !== "" || createdBy !== "" || filters.method !== "" || kind !== "";
   const quietJournal = !journal.error && journalIsQuiet(journal.data, { narrowed, focusLabel: focus?.label ?? null });
   const message = noRight ? incomeErrorText({ status: 403 }).text : null;
   const showFirstLoad = overview.loading && !overview.data;
+  const methodName = filters.method ? methodChipLabel(filters.method, overview.data?.by_method) : null;
+  const clearAll = () => { setFocus(null); setFilters((state) => ({ ...state, method: "" })); setKind(""); setPage(1); };
+  // The notice under the widget that was clicked last, while that widget still narrows the journal: the whole combination in words, the count from the journal's answer.
+  const widgetActive = anchor === "chart" ? focus !== null : anchor === "methods" ? filters.method !== "" : anchor === "flow" ? kind !== "" : false;
+  const notice = anchor && widgetActive && journal.data
+    ? { widget: anchor, onJump: jumpToList, text: filterNoticeText({ count: journal.loading ? null : journal.data.totals.count, day: focus?.label ?? null, method: methodName, kind }) }
+    : null;
   const anyDenied = noRight || overview.denied || journal.denied;
 
   return (
@@ -259,11 +300,14 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                 method={filters.method}
                 onPickMethod={pickMethod}
                 cashToday={cashWanted ? cashToday : null}
+                kind={kind}
+                onPickKind={kindUnsupported ? undefined : pickKind}
+                notice={notice}
               />
             ) : null}
           </div>
 
-          <div ref={journalRef} className="scroll-mt-4 space-y-3">
+          <div ref={journalRef} tabIndex={-1} className="scroll-mt-4 space-y-3 outline-none">
             {collection ? (
               <div role="tablist" aria-label="Оплаты и группы" className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
                 {([["journal", "Оплаты"], ["groups", "Группы — собираемость"]] as Array<[Tab, string]>).map(([key, label]) => (
@@ -297,10 +341,15 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
                 authors={journal.data?.authors ?? []}
                 focusLabel={focus?.label ?? null}
                 onClearFocus={() => { setFocus(null); setPage(1); }}
-                methodLabel={filters.method ? methodChipLabel(filters.method, overview.data?.by_method) : null}
+                methodLabel={methodName}
                 onClearMethod={() => { setFilters((state) => ({ ...state, method: "" })); setPage(1); }}
+                kind={kind}
+                onClearKind={() => { setKind(""); setPage(1); }}
+                onClearAll={clearAll}
+                showVoided={showVoided}
+                onToggleVoided={() => { setShowVoided((on) => !on); setPage(1); }}
                 empty={{ kind: period.kind, focusLabel: focus?.label ?? null, narrowed, year: today.slice(0, 4) }}
-                onResetNarrowing={() => { setSearch(""); setDebouncedSearch(""); setCreatedBy(""); setPage(1); setFilters(NO_FILTERS); }}
+                onResetNarrowing={() => { setSearch(""); setDebouncedSearch(""); setCreatedBy(""); setKind(""); setPage(1); setFilters(NO_FILTERS); }}
                 onPage={setPage}
                 onExport={() => void download()}
                 exporting={exporting}

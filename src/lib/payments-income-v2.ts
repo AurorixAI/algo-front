@@ -175,10 +175,15 @@ export interface JournalRow {
   void_reason: string | null;
   voided_at: string | null;
   voided_by_name: string | null;
+  /** The correction this payment made (INC-16; absent on an older server): why, who and when the earlier payment was replaced by this one. */
+  replaces_reason?: string | null;
+  corrected_by_name?: string | null;
+  corrected_at?: string | null;
 }
 
 export interface JournalAuthor { user_id: string; name: string | null; count: number }
-export interface JournalTotals { count: number; sum: number; voided_count: number }
+/** `count` / `sum` are the live payments; `voided_count` the cancelled ones and `replaced_count` the corrected ones of the same set (INC-16: absent on an older server = 0). */
+export interface JournalTotals { count: number; sum: number; voided_count: number; replaced_count?: number }
 
 export interface PaymentsJournal {
   as_of: string;
@@ -277,6 +282,7 @@ function journalRow(raw: JournalRow): JournalRow {
     refunded: sum(raw.refunded), transferred: sum(raw.transferred), status,
     replaces_receipt_no: raw.replaces_receipt_no ?? null, replaces_amount: raw.replaces_amount ?? null, replaced_by_receipt_no: raw.replaced_by_receipt_no ?? null,
     void_reason: nullableText(raw.void_reason), voided_at: nullableText(raw.voided_at), voided_by_name: nullableText(raw.voided_by_name),
+    replaces_reason: nullableText(raw.replaces_reason), corrected_by_name: nullableText(raw.corrected_by_name), corrected_at: nullableText(raw.corrected_at),
   };
 }
 
@@ -285,7 +291,7 @@ export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
   return {
     as_of: text(raw?.as_of), from: text(raw?.from), to: text(raw?.to),
     page: Math.max(1, sum(raw?.page)), size: Math.max(1, sum(raw?.size) || JOURNAL_PAGE_SIZE), total: sum(raw?.total), pages: Math.max(1, sum(raw?.pages)),
-    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count) },
+    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count), replaced_count: sum(totals.replaced_count) },
     rows: arr<JournalRow>(raw?.rows).map(journalRow),
     authors: arr<JournalAuthor>(raw?.authors).map((author) => ({ user_id: text(author.user_id), name: nullableText(author.name), count: sum(author.count) })),
   };
@@ -391,14 +397,18 @@ export interface JournalQuery {
   created_by?: string;
   q?: string;
   status?: "all" | "active" | "voided";
+  /** INC-16: the journal narrowed to the payments that went to this part of «Куда ушли деньги» (old_debt / current / forward / advance). */
+  kind?: FlowKind;
 }
 
-export interface JournalExtras { q: string; createdBy: string }
+/** `kind` — a part of the strip chosen by a click; `withVoided` — the toggle «Показать отменённые и исправленные» (off = `status=active`). */
+export interface JournalExtras { q: string; createdBy: string; kind?: FlowKind | ""; withVoided?: boolean }
 export const NO_JOURNAL_EXTRAS: JournalExtras = { q: "", createdBy: "" };
 
 export function journalQuery(period: Period, range: JournalRange | null, filters: IncomeFilters, extras: JournalExtras, page = 1, size = JOURNAL_PAGE_SIZE): JournalQuery {
-  const query: JournalQuery = { from: range?.from ?? period.from, to: range?.to ?? period.to, page, size };
+  const query: JournalQuery = { from: range?.from ?? period.from, to: range?.to ?? period.to, page, size, status: extras.withVoided ? "all" : "active" };
   if (filters.method) query.method = filters.method;
+  if (extras.kind) query.kind = extras.kind;
   if (extras.createdBy) query.created_by = extras.createdBy;
   if (extras.q.trim()) query.q = extras.q.trim();
   return query;
@@ -646,6 +656,106 @@ export function flowParts(overview: IncomeOverview): FlowPart[] {
 /** «Прощено долгов: 100 000 сум», or «» when nobody was forgiven (nothing is said about zero). */
 export function writtenOffText(overview: IncomeOverview): string {
   return overview.current.written_off > 0 ? `Прощено долгов: ${formatMoney(overview.current.written_off)}` : "";
+}
+
+// ── «Куда ушли деньги»: the sentence, the kinds that filter the journal, the notice and the chips (INC-16) ──
+
+/** The parts of the strip the journal can be narrowed to (the server's param `kind`); «возвращено» / «переведено» have no payment rows of their own. */
+export type FlowKind = "old_debt" | "current" | "forward" | "advance";
+export const FLOW_KINDS: readonly FlowKind[] = ["old_debt", "current", "forward", "advance"];
+
+/** The kind a strip part filters by: the server's kind, or the field name of an older server; null for a part without journal meaning. */
+export function flowKindOf(key: string): FlowKind | null {
+  if ((FLOW_KINDS as readonly string[]).includes(key)) return key as FlowKind;
+  if (key === "to_past_debt") return "old_debt";
+  if (key === "to_current") return "current";
+  if (key === "to_advance") return "advance";
+  return null;
+}
+
+/** The words of a kind: the chip above the journal, the clause of the notice, the label of the button that clears it. */
+export const KIND_WORDS: Record<FlowKind, { chip: string; notice: string }> = {
+  old_debt: { chip: "Старые долги", notice: "на старые долги" },
+  current: { chip: "Текущие периоды", notice: "на текущие периоды" },
+  forward: { chip: "Периоды вперёд", notice: "на периоды вперёд" },
+  advance: { chip: "Аванс", notice: "в аванс" },
+};
+
+/** The insight under the strip says something only when a share is big: old debts take half the money (or more), advances take 30 % (or more). */
+export const INSIGHT_OLD_DEBT_PERCENT = 50;
+export const INSIGHT_ADVANCE_PERCENT = 30;
+export const INSIGHT_OLD_DEBT_TEXT = "Больше половины денег закрыли старые долги — оплаты отстают.";
+export const INSIGHT_ADVANCE_TEXT = "Много оплат вперёд — у центра запас на следующие периоды.";
+
+/** One sentence under the strip, or null when nothing is worth saying.  Old debts first (it is the worse news).  Integer arithmetic: no rounding at the edge. */
+export function flowInsight(overview: IncomeOverview): string | null {
+  const received = sum(overview.current.received);
+  if (received <= 0) return null;
+  const of = (kind: FlowKind) => flowItems(overview).filter((item) => flowKindOf(item.key) === kind).reduce((acc, item) => acc + item.amount, 0);
+  if (of("old_debt") * 100 >= received * INSIGHT_OLD_DEBT_PERCENT) return INSIGHT_OLD_DEBT_TEXT;
+  if (of("advance") * 100 >= received * INSIGHT_ADVANCE_PERCENT) return INSIGHT_ADVANCE_TEXT;
+  return null;
+}
+
+/** What a click on a day / a method / a part of the strip narrowed the journal to. */
+export interface FilterState { day?: string | null; method?: string | null; kind?: FlowKind | "" | null }
+
+export const JUMP_TEXT = "К списку ↓";
+
+const lowerFirst = (value: string) => value.charAt(0).toLowerCase() + value.slice(1);
+
+/** «15 октября» stays; a month bar's «Октябрь 2026 г.» is lowered to follow «за». */
+export function dayPhrase(label: string): string {
+  const value = label.trim();
+  return /^[А-ЯЁ][а-яё]+ \d{4}/.test(value) ? lowerFirst(value) : value;
+}
+
+/**
+ * The inline notice near the clicked widget: «Показаны 5 оплат за 15 октября» (+ «способом Наличные», «на старые долги»), the count from the
+ * journal's answer.  The verb agrees with the number: «Показана 1 оплата», «Показаны 2 оплаты», «Показаны 5 оплат», «Показана 21 оплата».
+ * `count` null = the answer is on its way.
+ */
+export function filterNoticeText(input: FilterState & { count: number | null }): string {
+  if (input.count === null) return "Загружаю оплаты…";
+  const clauses: string[] = [];
+  if (input.day) clauses.push(`за ${dayPhrase(input.day)}`);
+  if (input.method) clauses.push(`способом ${input.method}`);
+  if (input.kind) clauses.push(KIND_WORDS[input.kind].notice);
+  const tail = clauses.length > 0 ? ` ${clauses.join(" ")}` : "";
+  const n = Math.max(0, Math.round(sum(input.count)));
+  if (n === 0) return `Оплат нет${tail}`;
+  const one = n % 10 === 1 && n % 100 !== 11;
+  return `${one ? "Показана" : "Показаны"} ${n} ${pluralRu(n, "оплата", "оплаты", "оплат")}${tail}`;
+}
+
+export interface FilterChip { key: "day" | "method" | "kind"; label: string; clearLabel: string }
+
+/** The chips above the journal: «15 октября ✕», «Наличные ✕», «Старые долги ✕» — they combine, each is removed alone. */
+export function filterChips(input: FilterState): FilterChip[] {
+  const chips: FilterChip[] = [];
+  if (input.day) chips.push({ key: "day", label: input.day, clearLabel: "Показать весь период" });
+  if (input.method) chips.push({ key: "method", label: input.method, clearLabel: "Показать все способы" });
+  if (input.kind) chips.push({ key: "kind", label: KIND_WORDS[input.kind].chip, clearLabel: "Показать все виды" });
+  return chips;
+}
+
+/** A click on a part of the strip: the kind is chosen; the same one again clears it. */
+export function toggleKind(current: FlowKind | "", clicked: FlowKind): FlowKind | "" {
+  return current === clicked ? "" : clicked;
+}
+
+/** The server refuses (or does not know) the param `kind`: the strip is then not clickable. */
+export function kindRejected(cause: unknown): boolean {
+  const status = (cause as { status?: number } | null)?.status;
+  return status === 422 || status === 400;
+}
+
+/** «К списку ↓» scrolls the page (smoothly, or at once for a visitor who asked for less motion) so that the toolbar of the journal stays visible. */
+export const JOURNAL_SCROLL_OFFSET = 88;
+export function journalScrollOptions(input: { journalTop: number; scrollY: number; reducedMotion: boolean; offset?: number }): ScrollToOptions {
+  const options: ScrollToOptions = { top: Math.max(0, Math.round(input.journalTop + input.scrollY - (input.offset ?? JOURNAL_SCROLL_OFFSET))), behavior: "smooth" };
+  if (input.reducedMotion) options.behavior = "auto";
+  return options;
 }
 
 export const CHECK_LABEL: Record<string, string> = {
@@ -1015,6 +1125,44 @@ export function statusTag(row: Pick<JournalRow, "status" | "replaced_by_receipt_
   return null;
 }
 
+/** The small chip on a live payment that corrected an earlier one. */
+export const CORRECTED_CHIP = "исправлена";
+
+/** A live payment that replaced an earlier one (the earlier one is `replaced` and, by default, not in the list). */
+export function isCorrection(row: Pick<JournalRow, "status" | "replaces_receipt_no">): boolean {
+  return row.status === "active" && row.replaces_receipt_no !== null && row.replaces_receipt_no !== undefined;
+}
+
+/** «20.10» from an ISO date or date-time; null when there is no usable date. */
+function shortDate(value: string | null | undefined): string | null {
+  const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
+  return match ? `${match[3]}.${match[2]}` : null;
+}
+
+/** The drawer of a corrected payment: «Было 350 000 сум → стало 300 000 сум · исправил Нодира 15.10 · причина: опечатка».  Each part only when the server sent it. */
+export function correctionLine(row: JournalRow): string | null {
+  if (!isCorrection(row)) return null;
+  const parts: string[] = [];
+  if (typeof row.replaces_amount === "number") parts.push(`Было ${formatMoney(row.replaces_amount)} → стало ${formatMoney(row.amount)}`);
+  const date = shortDate(row.corrected_at);
+  const who = [row.corrected_by_name ? `исправил ${row.corrected_by_name}` : date ? "исправлена" : "", date].filter(Boolean).join(" ");
+  if (who) parts.push(who);
+  if (row.replaces_reason) parts.push(`причина: ${row.replaces_reason}`);
+  if (parts.length === 0) return null;
+  const line = parts.join(" · ");
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
+
+/** The drawer of a cancelled payment: «Отменена 20.10 · Нодира Саидова · причина: Ошибочный ввод». */
+export function voidedLine(row: JournalRow): string | null {
+  if (row.status !== "voided") return null;
+  const date = shortDate(row.voided_at);
+  const parts = [date ? `Отменена ${date}` : "Отменена"];
+  if (row.voided_by_name) parts.push(row.voided_by_name);
+  if (row.void_reason) parts.push(`причина: ${row.void_reason}`);
+  return parts.join(" · ");
+}
+
 export interface JournalRowView {
   id: string;
   /** «21.10» (+ year when the period spans years). */
@@ -1029,6 +1177,8 @@ export interface JournalRowView {
   /** «отменена» / «исправлена → № N»; null for a live payment. */
   tag: string | null;
   muted: boolean;
+  /** «исправлена» — a live payment that replaced an earlier one; null otherwise. */
+  correctedChip: string | null;
   /** «внесена 21.10 в 11:40»: a quiet second line of the phone card; null when the server did not send it. */
   enteredAt: string | null;
 }
@@ -1054,6 +1204,7 @@ export function journalRowView(row: JournalRow, withYear = false): JournalRowVie
     method: row.method_label,
     tag,
     muted: tag !== null,
+    correctedChip: isCorrection(row) ? CORRECTED_CHIP : null,
     enteredAt: enteredAtText(row),
   };
 }
@@ -1076,6 +1227,8 @@ export interface DrawerView {
   amount: string;
   method: string;
   tag: string | null;
+  /** «исправлена» next to the method of a live payment that corrected an earlier one. */
+  correctedChip: string | null;
   facts: DrawerFact[];
   /** «Куда пошли деньги»: «за сентябрь — 200 000», «аванс — 50 000»; the server's lines. */
   destination: string[];
@@ -1172,12 +1325,14 @@ export function drawerView(row: JournalRow): DrawerView {
   if (row.created_by_name) facts.push({ label: "Кто внёс", value: row.created_by_name });
   const notes: string[] = [];
   if (row.status === "voided") {
-    notes.push(`Оплата отменена${row.void_reason ? `: ${row.void_reason}` : ""}${row.voided_by_name ? ` (${row.voided_by_name})` : ""}`);
+    notes.push(voidedLine(row) as string);
   } else if (row.status === "replaced") {
     notes.push(`Оплата исправлена${row.replaced_by_receipt_no ? `: действует квитанция № ${row.replaced_by_receipt_no}` : ""}${row.void_reason ? ` (${row.void_reason})` : ""}`);
   }
   if (row.replaces_receipt_no) {
-    notes.push(`Исправляет квитанцию № ${row.replaces_receipt_no}${row.replaces_amount ? `, было ${formatMoney(row.replaces_amount)}` : ""}`);
+    notes.push(`Исправляет квитанцию № ${row.replaces_receipt_no}`);
+    const correction = correctionLine(row);
+    if (correction) notes.push(correction);
   }
   return {
     title: row.receipt_no ? `Оплата № ${row.receipt_no}` : "Оплата",
@@ -1186,6 +1341,7 @@ export function drawerView(row: JournalRow): DrawerView {
     amount: formatMoney(row.amount),
     method: row.method_label,
     tag: statusTag(row),
+    correctedChip: isCorrection(row) ? CORRECTED_CHIP : null,
     facts,
     destination: row.status === "active" ? destinationLines(row) : [],
     destinationItems: row.status === "active" ? destinationItems(row) : [],
@@ -1218,11 +1374,19 @@ export function journalPaging(journal: Pick<PaymentsJournal, "page" | "size" | "
   };
 }
 
-/** «7 оплат на 3 450 000 сум · отменено 2»; nothing when there are no live payments. */
+/** «19 оплат на 7 885 000 сум»; nothing when there are no live payments.  The cancelled and corrected ones are the toggle's business (`hiddenPaymentsCount`). */
 export function journalTotalsText(totals: JournalTotals): string {
-  if (totals.count <= 0) return totals.voided_count > 0 ? `Отменено: ${totals.voided_count}` : "";
-  const head = `${paymentsCountText(totals.count)} на ${formatMoney(totals.sum)}`;
-  return totals.voided_count > 0 ? `${head} · отменено ${totals.voided_count}` : head;
+  return totals.count <= 0 ? "" : `${paymentsCountText(totals.count)} на ${formatMoney(totals.sum)}`;
+}
+
+/** The cancelled and the corrected payments of the set: what the toggle would add to the list (an older server sends no `replaced_count`). */
+export function hiddenPaymentsCount(totals: Pick<JournalTotals, "voided_count" | "replaced_count"> | null | undefined): number {
+  return sum(totals?.voided_count) + sum(totals?.replaced_count);
+}
+
+/** The label of the toggle; the same words on and off (the pressed state says which). */
+export function showVoidedLabel(totals: Pick<JournalTotals, "voided_count" | "replaced_count"> | null | undefined): string {
+  return `Показать отменённые и исправленные (${hiddenPaymentsCount(totals)})`;
 }
 
 export interface EmptyContext {
@@ -1256,8 +1420,9 @@ export function journalEmptyText(context: EmptyContext): string {
 }
 
 /** Zero rows and nothing narrowed (no search, no author, no filter, no bar): the journal has nothing to search or export, so it is one quiet line. */
-export function journalIsQuiet(journal: Pick<PaymentsJournal, "rows"> | null | undefined, context: Pick<EmptyContext, "narrowed" | "focusLabel">): boolean {
-  return Boolean(journal) && journal!.rows.length === 0 && !context.narrowed && !context.focusLabel;
+export function journalIsQuiet(journal: (Pick<PaymentsJournal, "rows"> & { totals?: Pick<JournalTotals, "voided_count" | "replaced_count"> }) | null | undefined, context: Pick<EmptyContext, "narrowed" | "focusLabel">): boolean {
+  // cancelled / corrected payments behind the toggle are something to show: the journal is not empty then
+  return Boolean(journal) && journal!.rows.length === 0 && !context.narrowed && !context.focusLabel && hiddenPaymentsCount(journal!.totals) === 0;
 }
 
 /** The one line of a journal without rows: the sentence and the card above already say «оплат не было», so this one says only where the rows would be. */

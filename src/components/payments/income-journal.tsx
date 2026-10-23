@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, Loader2, Search, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Download, Loader2, Search, X } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { receiptHref, statementHref } from "@/lib/payments";
 import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import {
   drawerView,
+  filterChips,
+  hiddenPaymentsCount,
   JOURNAL_QUIET_TEXT,
   journalEmptyText,
   journalIsQuiet,
@@ -14,6 +16,8 @@ import {
   journalRowView,
   journalSpansYears,
   journalTotalsText,
+  showVoidedLabel,
+  type FlowKind,
   type EmptyContext,
   type JournalAuthor,
   type JournalRow,
@@ -66,7 +70,10 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                   {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
                 </span>
                 <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
-                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>{view.amount}</span>
+                <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>
+                  {view.correctedChip && <span data-testid="journal-corrected" className="mr-1.5 inline-block whitespace-nowrap rounded-md bg-amber-50 px-1.5 py-0.5 align-middle text-[11px] font-medium tracking-normal text-amber-800">{view.correctedChip}</span>}
+                  <span className="whitespace-nowrap">{view.amount}</span>
+                </span>
                 <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
               </button>
             </li>
@@ -109,6 +116,7 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
         <p className="mt-0.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {view.method}
           {view.tag && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500">{view.tag}</span>}
+          {view.correctedChip && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">{view.correctedChip}</span>}
         </p>
         {view.entered && <p className="mt-1 text-xs text-slate-400" data-testid="drawer-entered">{view.entered}</p>}
       </div>
@@ -198,6 +206,14 @@ export interface JournalSectionProps {
   /** A segment of the donut narrowed the journal to this method («Наличные»); null when every method is shown. */
   methodLabel?: string | null;
   onClearMethod?: () => void;
+  /** A part of «Куда ушли деньги» narrowed the journal to this kind (INC-16). */
+  kind?: FlowKind | "";
+  onClearKind?: () => void;
+  /** «Сбросить всё»: removes the day, the method and the kind at once. */
+  onClearAll?: () => void;
+  /** The toggle «Показать отменённые и исправленные (N)»: off = only live payments. */
+  showVoided?: boolean;
+  onToggleVoided?: () => void;
   empty: EmptyContext;
   onResetNarrowing: () => void;
   onPage: (page: number) => void;
@@ -208,11 +224,16 @@ export interface JournalSectionProps {
 }
 
 export function JournalSection(props: JournalSectionProps) {
-  const { journal, loading, error, authors, focusLabel, methodLabel } = props;
+  const { journal, loading, error, authors, focusLabel, methodLabel, kind = "", showVoided = false } = props;
   const paging = journal ? journalPaging(journal) : null;
   const withYear = journal ? journalSpansYears(journal.from, journal.to) : false;
   const totals = journal ? journalTotalsText(journal.totals) : "";
   const showAuthors = authors.length > 1;
+  const chips = filterChips({ day: focusLabel, method: methodLabel, kind });
+  const hidden = hiddenPaymentsCount(journal?.totals);
+  const toggle = Boolean(props.onToggleVoided) && Boolean(journal) && (hidden > 0 || showVoided);
+  const clear: Record<"day" | "method" | "kind", (() => void) | undefined> = { day: props.onClearFocus, method: props.onClearMethod, kind: props.onClearKind };
+  const testId: Record<"day" | "method" | "kind", string> = { day: "journal-focus", method: "journal-method", kind: "journal-kind" };
   // Nothing in the period and nothing narrowed: the sentence and the card above already said so; no search, no Excel, one quiet line.
   if (!error && journalIsQuiet(journal, props.empty)) {
     return (
@@ -262,21 +283,34 @@ export function JournalSection(props: JournalSectionProps) {
         </div>
       </div>
 
-      {(focusLabel || methodLabel || totals) && (
+      {(chips.length > 0 || totals || toggle) && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm text-slate-500">
-          {focusLabel && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium text-primary-800" data-testid="journal-focus">
-              Оплаты: {focusLabel}
-              <button type="button" onClick={props.onClearFocus} aria-label="Показать весь период" className="rounded-full p-1 text-primary-600 hover:bg-primary-100"><X className="h-3.5 w-3.5" aria-hidden /></button>
-            </span>
-          )}
-          {methodLabel && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium text-primary-800" data-testid="journal-method">
-              {methodLabel}
-              <button type="button" onClick={props.onClearMethod} aria-label="Показать все способы" className="rounded-full p-1 text-primary-600 hover:bg-primary-100"><X className="h-3.5 w-3.5" aria-hidden /></button>
-            </span>
+          {chips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Что показано в журнале" data-testid="journal-chips">
+              {chips.map((chip) => (
+                <span key={chip.key} className="inline-flex items-center gap-1 rounded-full bg-primary-50 py-1 pl-3 pr-1 text-sm font-medium text-primary-800" data-testid={testId[chip.key]}>
+                  {chip.label}
+                  <button type="button" onClick={clear[chip.key]} aria-label={chip.clearLabel} title={chip.clearLabel} className="rounded-full p-1 text-primary-600 hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40"><X className="h-3.5 w-3.5" aria-hidden /></button>
+                </span>
+              ))}
+              {props.onClearAll && (
+                <button type="button" onClick={props.onClearAll} data-testid="journal-clear-all" className="rounded-lg px-2 py-1 text-sm font-medium text-primary-700 hover:bg-primary-50 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40">Сбросить всё</button>
+              )}
+            </div>
           )}
           {totals && <span data-testid="journal-totals">{totals}</span>}
+          {toggle && (
+            <button
+              type="button"
+              onClick={props.onToggleVoided}
+              aria-pressed={showVoided}
+              data-testid="journal-voided-toggle"
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-left text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${showVoided ? "border-primary-200 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+            >
+              {showVoided && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />}
+              {journal ? showVoidedLabel(journal.totals) : null}
+            </button>
+          )}
         </div>
       )}
 

@@ -1780,7 +1780,7 @@ export const orgApi = {
     if (q.method) params.set("method", q.method);
     return api<IncomeOverview>(`/auth/org/payments/income?${params.toString()}`, { signal }).then(normalizeOverview);
   },
-  /** The journal of payments of a period: newest first, cancelled and corrected ones included (`status=all`), paged by the server. */
+  /** The journal of payments of a period: newest first, paged by the server; live payments (`status=active`) unless the screen asks for `status=all` (cancelled and corrected ones too); `kind` narrows to a part of «Куда ушли деньги». */
   getPaymentsJournal: (q: JournalQuery, signal?: AbortSignal) =>
     api<PaymentsJournal>(`/auth/org/payments/journal?${journalParams(q).toString()}`, { signal }).then(normalizeJournal),
   /** The same journal as an .xlsx file (the server builds it from every row of the filtered set). */
@@ -2091,7 +2091,7 @@ function journalParams(q: Omit<JournalQuery, "page" | "size"> & { page?: number;
   const params = new URLSearchParams({ from: q.from, to: q.to });
   if (q.page) params.set("page", String(q.page));
   if (q.size) params.set("size", String(q.size));
-  for (const key of ["method", "created_by", "q", "status"] as const) {
+  for (const key of ["method", "created_by", "q", "status", "kind"] as const) {
     const value = q[key];
     if (value) params.set(key, value);
   }

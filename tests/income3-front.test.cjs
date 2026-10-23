@@ -106,7 +106,7 @@ test("an empty period: the journal is ONE quiet line (no search, no Excel); with
   const narrowed = html(React.createElement(J.JournalSection, { ...base, empty: { kind: "day", focusLabel: null, narrowed: true } }));
   assert.ok(narrowed.includes("<input") && narrowed.includes("Скачать Excel") && narrowed.includes("По этому запросу оплат не нашлось"));
   const bar = text(React.createElement(J.JournalSection, { ...base, focusLabel: "7 октября", empty: { kind: "month", focusLabel: "7 октября", narrowed: false } }));
-  assert.ok(bar.includes("Оплаты: 7 октября") && bar.includes("В этот день оплат не было"));
+  assert.ok(bar.includes("7 октября") && bar.includes("В этот день оплат не было"));
   assert.equal(V.journalIsQuiet(empty, { narrowed: false, focusLabel: null }), true);
   assert.equal(V.journalIsQuiet(data, { narrowed: false, focusLabel: null }), false);
   assert.equal(V.journalIsQuiet(null, { narrowed: false, focusLabel: null }), false);

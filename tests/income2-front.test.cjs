@@ -141,11 +141,11 @@ test("queries: the kind is sent to the server; filters only when set; the journa
   assert.deepEqual(V.overviewQuery(V.periodOf("day", TODAY)), { from: TODAY, to: TODAY, period: "day" }); // the till of today
   assert.equal(V.overviewQuery({ kind: "custom", from: "2026-10-01", to: "2026-10-09" }).period, "custom");
 
-  assert.deepEqual(V.journalQuery(month, null, V.NO_FILTERS, V.NO_JOURNAL_EXTRAS), { from: "2026-10-01", to: "2026-10-31", page: 1, size: 25 });
+  assert.deepEqual(V.journalQuery(month, null, V.NO_FILTERS, V.NO_JOURNAL_EXTRAS), { from: "2026-10-01", to: "2026-10-31", page: 1, size: 25, status: "active" }); // INC-16: live payments by default
   const day = { from: "2026-10-07", to: "2026-10-07", label: "7 октября" };
   const q = V.journalQuery(month, day, { method: "cash" }, { q: "  Алиев ", createdBy: "u1" }, 2);
-  assert.deepEqual(q, { from: "2026-10-07", to: "2026-10-07", page: 2, size: 25, method: "cash", created_by: "u1", q: "Алиев" });
-  assert.deepEqual(V.exportQuery(q), { from: "2026-10-07", to: "2026-10-07", method: "cash", created_by: "u1", q: "Алиев" });
+  assert.deepEqual(q, { from: "2026-10-07", to: "2026-10-07", page: 2, size: 25, status: "active", method: "cash", created_by: "u1", q: "Алиев" });
+  assert.deepEqual(V.exportQuery(q), { from: "2026-10-07", to: "2026-10-07", status: "active", method: "cash", created_by: "u1", q: "Алиев" });
 });
 
 // ── the sentence and the four cards ─────────────────────────────────────────────────────────────
@@ -502,12 +502,12 @@ test("the drawer: who entered it, where the money went, the receipt, the way to 
   assert.deepEqual(V.destinationLines({ allocation_text: null, allocations: [{ label: "На текущий период 01.10–31.10", amount: 5000 }, { label: "ноль", amount: 0 }] }).map(plain), ["На текущий период 01.10–31.10 — 5 000 сум"]);
   // cancelled: the reason and who, and no «куда пошли деньги» (the money did not go anywhere)
   const voided = V.drawerView(rows[2]);
-  assert.deepEqual([voided.tag, voided.destination, voided.notes[0].startsWith("Оплата отменена: Ошибочный ввод")], ["отменена", [], true]);
+  assert.deepEqual([voided.tag, voided.destination, voided.notes[0] === "Отменена 20.10 · Нодира Саидова · причина: Ошибочный ввод"], ["отменена", [], true]);
   // corrected: points at the receipt that replaced it; and the new one points back
   const replaced = V.drawerView(rows[4]);
   assert.match(replaced.notes[0], /Оплата исправлена: действует квитанция № 11/);
   const correcting = V.drawerView(rows[3]);
-  assert.match(plain(correcting.notes.join(" ")), /Исправляет квитанцию № 9, было 400 000 сум/);
+  assert.match(plain(correcting.notes.join(" ")), /Исправляет квитанцию № 9/);
   // someone unknown is not a row of dashes
   assert.ok(!V.drawerView({ ...rows[0], created_by_name: null }).facts.some((f) => f.label === "Кто внёс"));
 });
@@ -518,7 +518,7 @@ test("journal paging and totals as the server gives them", () => {
   const p2 = V.journalPaging(journal("J02_journal_page2"));
   assert.deepEqual([p2.text, p2.canPrev, p2.canNext], ["6–9 из 9", true, false]);
   assert.equal(V.journalPaging({ page: 1, size: 25, total: 0, pages: 1, rows: [] }).text, "");
-  assert.equal(plain(V.journalTotalsText(journal("J01_journal_page1").totals)), "7 оплат на 3 450 000 сум · отменено 2");
+  assert.equal(plain(V.journalTotalsText(journal("J01_journal_page1").totals)), "7 оплат на 3 450 000 сум"); // INC-16: the cancelled ones are the toggle's business
   assert.equal(plain(V.journalTotalsText({ count: 4, sum: 950000, voided_count: 0 })), "4 оплаты на 950 000 сум");
   assert.equal(V.journalTotalsText({ count: 0, sum: 0, voided_count: 0 }), "");
 });
@@ -636,7 +636,7 @@ test("the drawer body: amount, method, who entered it, where the money went, lin
   assert.match(markup, new RegExp(`href="/owner/payments/statement/${encodeURIComponent(row.membership_id)}"`));
   // a cancelled payment has its history in words and no destination block
   const voided = text(React.createElement(J.JournalDrawerBody, { row: journal("J04_journal_voided_and_replaced").rows[0], paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" }));
-  assert.ok(voided.includes("Оплата отменена: Ошибочный ввод") && voided.includes("отменена") && !voided.includes("Куда пошли деньги"));
+  assert.ok(voided.includes("Отменена 20.10 · Нодира Саидова · причина: Ошибочный ввод") && voided.includes("отменена") && !voided.includes("Куда пошли деньги"));
 });
 
 test("the journal section: search and filters, the focus chip, pages; empty and error states in words", () => {
@@ -648,7 +648,7 @@ test("the journal section: search and filters, the focus chip, pages; empty and 
     exporting: false, activeId: null, onOpen: () => {},
   };
   const full = text(React.createElement(J.JournalSection, base));
-  for (const piece of ["Скачать Excel", "7 оплат на 3 450 000 сум · отменено 2", "1–5 из 9", "1 из 2"]) assert.ok(full.includes(piece), piece);
+  for (const piece of ["Скачать Excel", "7 оплат на 3 450 000 сум", "1–5 из 9", "1 из 2"]) assert.ok(full.includes(piece), piece);
   const markup = html(React.createElement(J.JournalSection, base));
   assert.match(markup, /aria-label="Поиск по оплатам"/);
   assert.match(markup, /aria-label="Кто внёс оплату"/);
@@ -660,7 +660,7 @@ test("the journal section: search and filters, the focus chip, pages; empty and 
   assert.match(markup, /aria-label="Следующая страница"/);
   // one author: nothing to choose, no select
   assert.ok(!html(React.createElement(J.JournalSection, { ...base, authors: [data.authors[0]] })).includes("Кто внёс оплату"));
-  assert.match(text(React.createElement(J.JournalSection, { ...base, focusLabel: "7 октября" })), /Оплаты: 7 октября/);
+  assert.match(text(React.createElement(J.JournalSection, { ...base, focusLabel: "7 октября" })), /7 октября/);
   const empty = { ...data, rows: [], total: 0, totals: { count: 0, sum: 0, voided_count: 0 } };
   assert.ok(text(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: false } })).includes("Журнал оплат пуст")); // nothing in the period and nothing narrowed: one quiet line, no toolbar (income3)
   const narrowed = text(React.createElement(J.JournalSection, { ...base, journal: empty, empty: { kind: "day", focusLabel: null, narrowed: true } }));

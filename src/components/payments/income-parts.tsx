@@ -20,7 +20,10 @@ import {
   DONUT,
   donutCenterAmount,
   donutCenterFont,
+  flowInsight,
+  flowKindOf,
   flowParts,
+  JUMP_TEXT,
   isFullRing,
   methodSegments,
   methodsTotal,
@@ -29,6 +32,7 @@ import {
   showChart,
   writtenOffText,
   type Bar,
+  type FlowKind,
   type IncomeCash,
   type IncomeOverview,
   type MethodSegment,
@@ -74,6 +78,31 @@ export function IncomeError({ message, onRetry, denied = false }: { message: str
         <button type="button" onClick={onRetry} className="mt-1 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
           Повторить
         </button>
+      )}
+    </div>
+  );
+}
+
+// ── The notice near a clicked widget ──────────────────────────────────────
+
+/**
+ * «Показаны 5 оплат за 15 октября · К списку ↓»: a click on a day / a method / a part of the strip does not move the page; this line, under
+ * the widget that was clicked, says what the journal now shows and offers the way down.  The region is always in the page, so that a screen reader
+ * announces the text when it appears.  `text` is null when this widget has nothing to say.
+ */
+export function FilterNotice({ text, onJump, testId = "filter-notice" }: { text: string | null; onJump?: () => void; testId?: string }) {
+  return (
+    <div role="status" aria-live="polite">
+      {text && (
+        <p className="mt-3 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-xl bg-primary-50 px-3 py-2 text-sm text-primary-900" data-testid={testId}>
+          <span className="min-w-0 break-words">{text}</span>
+          {onJump && (
+            <>
+              <span aria-hidden className="text-primary-300">·</span>
+              <button type="button" onClick={onJump} data-testid="filter-notice-jump" className="rounded-md font-medium text-primary-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40">{JUMP_TEXT}</button>
+            </>
+          )}
+        </p>
       )}
     </div>
   );
@@ -145,12 +174,21 @@ export function IncomeCards({ overview, paymentsBase }: { overview: IncomeOvervi
 
 // ── «Куда ушли деньги» ─────────────────────────────────────────────────────
 
-/** One compact line: shares of the received money and the mark that the parts add up to the whole. */
-export function FlowLine({ overview }: { overview: IncomeOverview }) {
+/**
+ * One compact line: shares of the received money and the mark that the parts add up to the whole.  A part that means payments in the journal
+ * (old debts / current / forward / advance) is a button — on the bar and in the legend — that narrows the journal to it; the same one again clears
+ * it.  A part without such meaning (returned, moved) stays text.  Without `onPickKind` (an older server) nothing is clickable.  One sentence under the
+ * legend, only when a share is big.
+ */
+export function FlowLine({ overview, kind = "", onPickKind, notice = null, onJump }: { overview: IncomeOverview; kind?: FlowKind | ""; onPickKind?: (kind: FlowKind) => void; notice?: string | null; onJump?: () => void }) {
   const parts = flowParts(overview);
   const check = checkView(overview);
   const forgiven = writtenOffText(overview);
+  const insight = flowInsight(overview);
   if (parts.length === 0 && check.ok) return null;
+  const kindOf = (key: string): FlowKind | null => (onPickKind ? flowKindOf(key) : null);
+  const anyButton = parts.some((part) => kindOf(part.key) !== null);
+  const summary = parts.map((part) => `${part.label}: ${part.percent}%`).join(", ");
   return (
     <section aria-label="Куда ушли деньги" className="rounded-2xl border border-slate-200 bg-white px-4 py-3.5 md:px-5" data-testid="income-flow">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
@@ -166,21 +204,64 @@ export function FlowLine({ overview }: { overview: IncomeOverview }) {
       </div>
       {parts.length > 0 && (
         <>
-          <div className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-slate-100" role="img" aria-label={parts.map((part) => `${part.label}: ${part.percent}%`).join(", ")}>
-            {parts.map((part) => <span key={part.key} className={part.dot} style={{ width: `${part.percent}%` }} />)}
+          <div
+            className="mt-2.5 flex h-2.5 overflow-hidden rounded-full bg-slate-100"
+            {...(anyButton ? { role: "group", "aria-label": "Куда ушли деньги по видам" } : { role: "img", "aria-label": summary })}
+            data-testid="flow-bar"
+          >
+            {parts.map((part) => {
+              const partKind = kindOf(part.key);
+              if (!partKind) return <span key={part.key} className={part.dot} style={{ width: `${part.percent}%` }} />;
+              const dim = kind !== "" && kind !== partKind;
+              return (
+                <button
+                  key={part.key}
+                  type="button"
+                  aria-label={`${part.label}: ${part.percent}%. Показать оплаты`}
+                  aria-pressed={kind === partKind}
+                  data-testid="flow-segment"
+                  data-kind={partKind}
+                  title={`${part.label} · ${formatMoney(part.amount)} · ${part.percent}%`}
+                  onClick={() => onPickKind?.(partKind)}
+                  className={`${part.dot} h-full min-w-[6px] cursor-pointer transition-opacity hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-500/70 ${dim ? "opacity-40" : ""}`}
+                  style={{ width: `${part.percent}%` }}
+                />
+              );
+            })}
           </div>
-          <ul className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1.5 text-sm">
-            {parts.map((part) => (
-              <li key={part.key} className="flex items-center gap-2 text-slate-700" data-testid={`flow-${part.key}`}>
-                <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${part.dot}`} aria-hidden />
-                <span>{part.label}</span>
-                <span className="font-medium tabular-nums tracking-tight text-slate-800">{formatMoney(part.amount)}</span>
-                <span className="text-xs text-slate-400">{part.percent}%</span>
-              </li>
-            ))}
+          <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-sm">
+            {parts.map((part) => {
+              const partKind = kindOf(part.key);
+              const body = (
+                <>
+                  <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${part.dot}`} aria-hidden />
+                  <span>{part.label}</span>
+                  <span className="font-medium tabular-nums tracking-tight text-slate-800">{formatMoney(part.amount)}</span>
+                  <span className="text-xs text-slate-400">{part.percent}%</span>
+                </>
+              );
+              if (!partKind) return <li key={part.key} className="flex items-center gap-2 px-2 py-1.5 text-slate-700" data-testid={`flow-${part.key}`}>{body}</li>;
+              const dim = kind !== "" && kind !== partKind;
+              return (
+                <li key={part.key} data-testid={`flow-${part.key}`}>
+                  <button
+                    type="button"
+                    aria-label={`${part.label}: ${formatMoney(part.amount)}, ${part.percent}%. Показать оплаты`}
+                    aria-pressed={kind === partKind}
+                    data-testid="flow-legend-row"
+                    data-kind={partKind}
+                    onClick={() => onPickKind?.(partKind)}
+                    className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/40 ${kind === partKind ? "bg-slate-100" : ""} ${dim ? "opacity-60" : ""}`}
+                  >
+                    {body}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
+      {insight && <p className="mt-2 text-sm text-slate-700" data-testid="flow-insight">{insight}</p>}
       {forgiven && <p className="mt-1.5 text-xs text-slate-500">{forgiven}</p>}
       {!check.ok && (
         <ul className="mt-2 space-y-0.5 text-xs">
@@ -189,6 +270,7 @@ export function FlowLine({ overview }: { overview: IncomeOverview }) {
           ))}
         </ul>
       )}
+      <FilterNotice text={notice} onJump={onJump} />
     </section>
   );
 }
@@ -196,7 +278,7 @@ export function FlowLine({ overview }: { overview: IncomeOverview }) {
 // ── The chart of income by day ─────────────────────────────────────────────
 
 /** Bars of income; the tooltip says the sum and the number of payments; a click narrows the journal to that day. */
-export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars: Bar[]; title: string; activeBucket: string | null; onPick: (bar: Bar) => void; today: string }) {
+export function IncomeChart({ bars, title, activeBucket, onPick, today, notice = null, onJump }: { bars: Bar[]; title: string; activeBucket: string | null; onPick: (bar: Bar) => void; today: string; notice?: string | null; onJump?: () => void }) {
   const count = bars.length;
   const trackRef = useRef<HTMLDivElement | null>(null);
   // A phone shows a part of the chart: it opens at the last day with money (else today), not at the 1st of the month.  Only the chart's own box
@@ -257,6 +339,7 @@ export function IncomeChart({ bars, title, activeBucket, onPick, today }: { bars
           })}
         </div>
       </ScrollHint>
+      <FilterNotice text={notice} onJump={onJump} />
     </section>
   );
 }
@@ -276,7 +359,7 @@ const DONUT_GAP = 0.9;
  * that method, the same one again clears it.  Segments and legend lines are buttons.  On the current month one quiet line says
  * how much cash must be in the till today.
  */
-export function MethodsDonut({ overview, selected = "", onSelect, cashToday = null }: { overview: IncomeOverview; selected?: string; onSelect?: (method: string) => void; cashToday?: IncomeCash | null }) {
+export function MethodsDonut({ overview, selected = "", onSelect, cashToday = null, notice = null, onJump }: { overview: IncomeOverview; selected?: string; onSelect?: (method: string) => void; cashToday?: IncomeCash | null; notice?: string | null; onJump?: () => void }) {
   const segments = useMemo(() => methodSegments(overview.by_method), [overview.by_method]);
   const [hover, setHover] = useState<string | null>(null);
   if (segments.length === 0) return null;
@@ -376,6 +459,8 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
         ))}
       </ul>
 
+      <FilterNotice text={notice} onJump={onJump} />
+
       {cash && (
         <p className="mt-2.5 border-t border-slate-100 pt-2.5 text-sm text-slate-600" data-testid="cash-today">
           {cash.text}
@@ -393,25 +478,30 @@ export function MethodsDonut({ overview, selected = "", onSelect, cashToday = nu
  * methods.  Presentational: a click on a bar is reported with `onPick`, a click on a method with `onPickMethod`.
  */
 export function IncomeOverviewView({
-  overview, today, paymentsBase, activeBucket, onPick, method = "", onPickMethod, cashToday = null,
+  overview, today, paymentsBase, activeBucket, onPick, method = "", onPickMethod, cashToday = null, kind = "", onPickKind, notice = null,
 }: {
   overview: IncomeOverview; today: string; paymentsBase: string; activeBucket: string | null; onPick: (bar: Bar) => void;
   /** The method the journal is narrowed to ("" = all) and the way to change it. */
   method?: string; onPickMethod?: (method: string) => void;
   /** The till of today (the current month only; the page passes null otherwise or when the request failed). */
   cashToday?: IncomeCash | null;
+  /** The part of the strip the journal is narrowed to ("" = none) and the way to change it; without `onPickKind` the strip is not clickable. */
+  kind?: FlowKind | ""; onPickKind?: (kind: FlowKind) => void;
+  /** The line under the widget that was clicked last (`widget`), with the way down to the journal. */
+  notice?: { widget: "chart" | "methods" | "flow"; text: string | null; onJump: () => void } | null;
 }) {
   const chart = showChart(overview);
   const bars = useMemo(() => chartBars(overview, today), [overview, today]);
   const methods = methodSegments(overview.by_method).length > 0;
+  const at = (widget: "chart" | "methods" | "flow") => (notice && notice.widget === widget ? notice.text : null);
   return (
     <div className="space-y-4">
       <IncomeCards overview={overview} paymentsBase={paymentsBase} />
-      <FlowLine overview={overview} />
+      <FlowLine overview={overview} kind={kind} onPickKind={onPickKind} notice={at("flow")} onJump={notice?.onJump} />
       {(chart || methods) && (
         <div className={`grid grid-cols-1 gap-4 ${chart && methods ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,340px)]" : ""}`}>
-          {chart && <IncomeChart bars={bars} today={today} title={overview.series_by === "month" ? "Пришло по месяцам" : "Пришло по дням"} activeBucket={activeBucket} onPick={onPick} />}
-          {methods && <MethodsDonut overview={overview} selected={method} onSelect={onPickMethod} cashToday={cashToday} />}
+          {chart && <IncomeChart bars={bars} today={today} title={overview.series_by === "month" ? "Пришло по месяцам" : "Пришло по дням"} activeBucket={activeBucket} onPick={onPick} notice={at("chart")} onJump={notice?.onJump} />}
+          {methods && <MethodsDonut overview={overview} selected={method} onSelect={onPickMethod} cashToday={cashToday} notice={at("methods")} onJump={notice?.onJump} />}
         </div>
       )}
     </div>
