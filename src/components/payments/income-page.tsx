@@ -61,6 +61,8 @@ interface Loaded<T> {
   loading: boolean;
   error: string | null;
   denied: boolean;
+  /** The request this answer belongs to: an answer of an older request is never read as the answer of the current one. */
+  key?: string;
 }
 
 const idle = <T,>(): Loaded<T> => ({ data: null, loading: true, error: null, denied: false });
@@ -133,7 +135,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     try {
       const data = await orgApi.getPaymentsJournal(query);
       if (!journalRequests.current.isCurrent(token)) return;
-      setJournal({ data, loading: false, error: null, denied: false });
+      setJournal({ data, loading: false, error: null, denied: false, key: JSON.stringify(query) });
     } catch (cause) {
       if (!journalRequests.current.isCurrent(token)) return;
       // An older server refuses the param `kind`: the strip stops being clickable, the journal is asked again without it.
@@ -264,7 +266,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   // The notice under the widget that was clicked last, while that widget still narrows the journal: the whole combination in words, the count from the journal's answer.
   const widgetActive = anchor === "chart" ? focus !== null : anchor === "methods" ? filters.method !== "" : anchor === "flow" ? kind !== "" : false;
   const notice = anchor && widgetActive && journal.data
-    ? { widget: anchor, onJump: jumpToList, text: filterNoticeText({ count: journal.loading ? null : journal.data.totals.count, day: focus?.label ?? null, method: methodName, kind }) }
+    ? { widget: anchor, onJump: jumpToList, text: filterNoticeText({ count: journal.loading || journal.key !== JSON.stringify(query) ? null : journal.data.totals.count, day: focus?.label ?? null, method: methodName, kind }) }
     : null;
   const anyDenied = noRight || overview.denied || journal.denied;
 

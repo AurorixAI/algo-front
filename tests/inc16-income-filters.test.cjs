@@ -187,6 +187,12 @@ test("the notice sits under the widget that was clicked (chart / donut / strip),
   assert.deepEqual(["chart", "methods", "flow"].map(owner), ids, "each notice is inside the card of its own widget");
 });
 
+test("the notice never shows the count of an older request: the answer carries the key of its query", () => {
+  const page = read("src/components/payments/income-page.tsx");
+  assert.match(page, /key: JSON\.stringify\(query\) \}\);/);
+  assert.match(page, /journal\.loading \|\| journal\.key !== JSON\.stringify\(query\) \? null : journal\.data\.totals\.count/);
+});
+
 test("no scrollIntoView on a click of a day, a donut segment or a strip segment; the page does not move", () => {
   const page = read("src/components/payments/income-page.tsx");
   const handlers = page.slice(page.indexOf("const pickBar = "), page.indexOf("// «Сегодня наличными»"));
