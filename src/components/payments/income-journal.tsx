@@ -16,6 +16,7 @@ import {
   journalRowView,
   journalSpansYears,
   journalTotalsText,
+  listedRows,
   showVoidedLabel,
   type FlowKind,
   type EmptyContext,
@@ -34,10 +35,10 @@ const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm t
 const ROW_GRID = "md:grid-cols-[6.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_11rem]";
 
 /**
- * Compact rows: date · time | student | group | amount | method.  A cancelled or corrected payment is grey and says «отменена».
+ * Compact rows: date · time | student | group | amount | method.  A cancelled payment is grey and says «отменена»; a corrected one says «исправлена» and shows its earlier versions as quiet lines under it.
  * One piece of markup for the table (md and up) and for the cards of a phone: only the grid places it differently.
  */
-export function JournalList({ rows, withYear, activeId, onOpen }: { rows: JournalRow[]; withYear: boolean; activeId: string | null; onOpen: (row: JournalRow) => void }) {
+export function JournalList({ rows, withYear, activeId, onOpen, history = [] }: { rows: JournalRow[]; withYear: boolean; activeId: string | null; onOpen: (row: JournalRow) => void; history?: JournalRow[] }) {
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white" data-testid="income-journal-list">
       <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 md:grid md:gap-x-3 ${ROW_GRID}`}>
@@ -48,8 +49,9 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
         <span className="text-center">Способ</span>
       </div>
       <ul className="divide-y divide-slate-100">
-        {rows.map((row) => {
-          const view = journalRowView(row, withYear);
+        {/* a superseded record is never a row: its payment is one row with the current amount and the changes under it (INC-17) */}
+        {listedRows(rows).map((row) => {
+          const view = journalRowView(row, withYear, history);
           return (
             <li key={row.id}>
               <button
@@ -76,6 +78,12 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                   <span className="whitespace-nowrap">{view.amount}</span>
                 </span>
                 <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
+                {/* the changes of the payment, quiet: under the main line (a phone: under the card, wrapping; md and up: under the name) */}
+                {view.subLines.length > 0 && (
+                  <span data-testid="journal-sublines" className="col-span-2 row-start-5 mt-0.5 block space-y-0.5 text-xs leading-snug text-slate-400 md:col-span-4 md:col-start-2 md:row-start-2 md:mt-0">
+                    {view.subLines.map((line) => <span key={line} data-testid="journal-subline" className="block break-words">{line}</span>)}
+                  </span>
+                )}
               </button>
             </li>
           );
@@ -102,8 +110,8 @@ export function JournalSkeleton() {
 // ── The drawer ─────────────────────────────────────────────────────────────
 
 /** What a row says in full: who entered it, where the money went, the receipt, the way to the student. */
-export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }: { row: JournalRow; paymentsBase: string; studentProfileBasePath: string }) {
-  const view = drawerView(row);
+export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath, history = [] }: { row: JournalRow; paymentsBase: string; studentProfileBasePath: string; history?: JournalRow[] }) {
+  const view = drawerView(row, history);
   const hrefs = {
     receipt: receiptHref(paymentsBase, row.id, { membershipId: row.membership_id, studentId: row.student_id, groupId: row.group_id }),
     // IA audit F29: a money screen leads to the «Оплаты» tab of the card, never to the default one
@@ -126,6 +134,15 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
         <ul className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-sm text-slate-700" data-testid="drawer-notes">
           {view.notes.map((note) => <li key={note}>{note}</li>)}
         </ul>
+      )}
+
+      {view.versions.length > 0 && (
+        <section aria-label="Все версии оплаты">
+          <h3 className="text-sm font-semibold text-slate-800">Все версии оплаты</h3>
+          <ol className="mt-1.5 space-y-1 border-l-2 border-slate-100 pl-3 text-sm text-slate-700" data-testid="drawer-versions">
+            {view.versions.map((line) => <li key={line} className="break-words">{line}</li>)}
+          </ol>
+        </section>
       )}
 
       <dl className="space-y-2.5 text-sm">
@@ -179,11 +196,11 @@ export function JournalDrawerBody({ row, paymentsBase, studentProfileBasePath }:
 }
 
 /** The side drawer of a desktop, the bottom sheet of a phone. */
-export function JournalDrawer({ row, onClose, paymentsBase, studentProfileBasePath }: { row: JournalRow | null; onClose: () => void; paymentsBase: string; studentProfileBasePath: string }) {
-  const view = row ? drawerView(row) : null;
+export function JournalDrawer({ row, onClose, paymentsBase, studentProfileBasePath, history = [] }: { row: JournalRow | null; onClose: () => void; paymentsBase: string; studentProfileBasePath: string; history?: JournalRow[] }) {
+  const view = row ? drawerView(row, history) : null;
   return (
     <Modal open={row !== null} placement="sheet" title={view?.title ?? "Оплата"} description={view?.when} onClose={onClose}>
-      {row && <JournalDrawerBody row={row} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} />}
+      {row && <JournalDrawerBody row={row} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} history={history} />}
     </Modal>
   );
 }
@@ -212,7 +229,7 @@ export interface JournalSectionProps {
   onClearKind?: () => void;
   /** «Сбросить всё»: removes the day, the method and the kind at once. */
   onClearAll?: () => void;
-  /** The toggle «Показать отменённые и исправленные (N)»: off = only live payments. */
+  /** The toggle «Показать отменённые (N)»: off = only live payments (a corrected payment is always one row, its changes under it). */
   showVoided?: boolean;
   onToggleVoided?: () => void;
   empty: EmptyContext;
@@ -320,7 +337,7 @@ export function JournalSection(props: JournalSectionProps) {
           <IncomeError message={error} onRetry={props.onRetry} />
         ) : !journal ? (
           <JournalSkeleton />
-        ) : journal.rows.length === 0 ? (
+        ) : listedRows(journal.rows).length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-10 text-center" data-testid="journal-empty">
             <p className="text-sm font-medium text-slate-600">{journalEmptyText(props.empty)}</p>
             {props.empty.narrowed && (
@@ -328,11 +345,11 @@ export function JournalSection(props: JournalSectionProps) {
             )}
           </div>
         ) : (
-          <JournalList rows={journal.rows} withYear={withYear} activeId={props.activeId} onOpen={props.onOpen} />
+          <JournalList rows={journal.rows} withYear={withYear} activeId={props.activeId} onOpen={props.onOpen} history={journal.history} />
         )}
       </div>
 
-      {journal && paging && journal.rows.length > 0 && (
+      {journal && paging && listedRows(journal.rows).length > 0 && (
         <nav aria-label="Страницы журнала" className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500" data-testid="journal-paging">
           <span>{paging.text}</span>
           {paging.pages > 1 && (

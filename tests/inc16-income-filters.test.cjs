@@ -276,12 +276,12 @@ test("the journal asks for live payments by default (status=active); the toggle 
   assert.match(page, /onToggleVoided=\{\(\) => \{ setShowVoided\(\(on\) => !on\); setPage\(1\); \}\}/);
 });
 
-test("the toggle «Показать отменённые и исправленные (N)»: N = the server's voided_count (cancelled + corrected); the count line has no «отменено»; hidden when nothing is hidden", () => {
-  // the server's voided_count is cancelled + corrected, replaced_count is the corrected part OF it: the toggle shows voided_count, never the sum of the two
+test("the toggle «Показать отменённые (N)»: N = voided_count − replaced_count (pure cancellations; INC-17: a corrected payment is one row, never behind the toggle); the count line has no «отменено»; hidden when nothing is hidden", () => {
+  // the server's voided_count is cancelled + corrected, replaced_count is the corrected part OF it
   const totals = { count: 19, sum: 7885000, voided_count: 5, replaced_count: 2 };
-  assert.equal(V.hiddenPaymentsCount(totals), 5);
+  assert.equal(V.hiddenPaymentsCount(totals), 3);
   assert.equal(V.hiddenPaymentsCount({ count: 1, sum: 1, voided_count: 4 }), 4, "an older server sends no replaced_count");
-  assert.equal(V.showVoidedLabel(totals), "Показать отменённые и исправленные (5)");
+  assert.equal(V.showVoidedLabel(totals), "Показать отменённые (3)");
   assert.equal(plain(V.journalTotalsText(totals)), "19 оплат на 7 885 000 сум");
   const data = V.normalizeJournal({ ...fixture("J01_journal_page1"), totals });
   assert.equal(data.totals.replaced_count, 2);
@@ -291,13 +291,13 @@ test("the toggle «Показать отменённые и исправленн
     empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing() {}, onPage() {}, onExport() {}, exporting: false, activeId: null, onOpen() {}, onToggleVoided() {},
   };
   const off = html(React.createElement(J.JournalSection, base));
-  assert.match(off, /data-testid="journal-voided-toggle"[^>]*>[^<]*Показать отменённые и исправленные \(5\)/);
+  assert.match(off, /data-testid="journal-voided-toggle"[^>]*>[^<]*Показать отменённые \(3\)/);
   assert.match(off, /aria-pressed="false"/);
   assert.ok(!text(React.createElement(J.JournalSection, base)).includes("отменено"));
   assert.ok(text(React.createElement(J.JournalSection, base)).includes("19 оплат на 7 885 000 сум"));
   const onMarkup = html(React.createElement(J.JournalSection, { ...base, showVoided: true }));
   assert.match(onMarkup, /aria-pressed="true"/);
-  assert.match(onMarkup, /Показать отменённые и исправленные \(5\)/);
+  assert.match(onMarkup, /Показать отменённые \(3\)/);
   // nothing hidden (e.g. under a `kind`: the server answers 0) → no toggle, on or off
   const none = { ...base, journal: { ...data, totals: { ...totals, voided_count: 0, replaced_count: 0 } } };
   assert.ok(!html(React.createElement(J.JournalSection, none)).includes("journal-voided-toggle"));
@@ -367,9 +367,9 @@ test("the server's J06–J09 fixtures: kind answers have no hidden payments (no 
   }
   const active = V.normalizeJournal(fixture("J09_journal_status_active"));
   assert.ok(active.rows.every((r) => r.status === "active"), "status=active: no cancelled and no superseded rows");
-  assert.equal(V.hiddenPaymentsCount(active.totals), active.totals.voided_count);
+  assert.equal(V.hiddenPaymentsCount(active.totals), active.totals.voided_count - active.totals.replaced_count);
   assert.ok(active.totals.voided_count >= 1 && active.totals.replaced_count >= 1 && active.totals.replaced_count <= active.totals.voided_count, "replaced_count is a part of voided_count");
-  assert.match(text(section(active)), new RegExp(`Показать отменённые и исправленные \\(${active.totals.voided_count}\\)`));
+  assert.match(text(section(active)), new RegExp(`Показать отменённые \\(${active.totals.voided_count - active.totals.replaced_count}\\)`));
   const fixed = active.rows.find((r) => r.replaces_receipt_no);
   assert.ok(fixed, "a corrected payment in the list");
   assert.equal(V.journalRowView(fixed).correctedChip, "исправлена");

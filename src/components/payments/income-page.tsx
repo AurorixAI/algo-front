@@ -18,6 +18,7 @@ import {
   isCurrentMonth,
   journalIsQuiet,
   journalQuery,
+  loadJournalPage,
   journalScrollOptions,
   kindRejected,
   methodChipLabel,
@@ -120,7 +121,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [createdBy, setCreatedBy] = useState("");
-  // INC-16: a part of «Куда ушли деньги» (the server's `kind`), and the toggle that brings back the cancelled and corrected payments (off = status=active)
+  // INC-16: a part of «Куда ушли деньги» (the server's `kind`), and the toggle that brings back the cancelled payments (the list itself is always status=active; INC-17)
   const [kind, setKind] = useState<FlowKind | "">("");
   const [kindUnsupported, setKindUnsupported] = useState(false);
   const [showVoided, setShowVoided] = useState(false);
@@ -133,7 +134,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     const token = journalRequests.current.next();
     setJournal((state) => ({ ...state, loading: true, error: null }));
     try {
-      const data = await orgApi.getPaymentsJournal(query);
+      const data = await loadJournalPage((request) => orgApi.getPaymentsJournal(request), query);
       if (!journalRequests.current.isCurrent(token)) return;
       setJournal({ data, loading: false, error: null, denied: false, key: JSON.stringify(query) });
     } catch (cause) {
@@ -363,7 +364,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
         </>
       )}
 
-      <JournalDrawer row={opened} onClose={() => setOpened(null)} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} />
+      <JournalDrawer row={opened} history={journal.data?.history} onClose={() => setOpened(null)} paymentsBase={paymentsBase} studentProfileBasePath={studentProfileBasePath} />
       {toastNode}
     </div>
   );

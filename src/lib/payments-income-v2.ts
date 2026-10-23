@@ -179,6 +179,8 @@ export interface JournalRow {
   replaces_reason?: string | null;
   corrected_by_name?: string | null;
   corrected_at?: string | null;
+  /** The method of the earlier payment, only when the correction changed it («Наличные»); absent / null otherwise. */
+  replaces_method_label?: string | null;
 }
 
 export interface JournalAuthor { user_id: string; name: string | null; count: number }
@@ -196,6 +198,8 @@ export interface PaymentsJournal {
   totals: JournalTotals;
   rows: JournalRow[];
   authors: JournalAuthor[];
+  /** The superseded (`replaced`) records found for the corrections of this page: the front's own, never in `rows` (INC-17). */
+  history?: JournalRow[];
 }
 
 export const JOURNAL_PAGE_SIZE = 25;
@@ -283,6 +287,7 @@ function journalRow(raw: JournalRow): JournalRow {
     replaces_receipt_no: raw.replaces_receipt_no ?? null, replaces_amount: raw.replaces_amount ?? null, replaced_by_receipt_no: raw.replaced_by_receipt_no ?? null,
     void_reason: nullableText(raw.void_reason), voided_at: nullableText(raw.voided_at), voided_by_name: nullableText(raw.voided_by_name),
     replaces_reason: nullableText(raw.replaces_reason), corrected_by_name: nullableText(raw.corrected_by_name), corrected_at: nullableText(raw.corrected_at),
+    replaces_method_label: nullableText(raw.replaces_method_label),
   };
 }
 
@@ -401,7 +406,7 @@ export interface JournalQuery {
   kind?: FlowKind;
 }
 
-/** `kind` — a part of the strip chosen by a click; `withVoided` — the toggle «Показать отменённые и исправленные» (off = `status=active`). */
+/** `kind` — a part of the strip chosen by a click; `withVoided` — the toggle «Показать отменённые» (off = `status=active`; on = `status=all`, which is what the Excel asks; the screen itself always lists `status=active`, see `loadJournalPage`). */
 export interface JournalExtras { q: string; createdBy: string; kind?: FlowKind | ""; withVoided?: boolean }
 export const NO_JOURNAL_EXTRAS: JournalExtras = { q: "", createdBy: "" };
 
@@ -1136,9 +1141,9 @@ export function isCorrection(row: Pick<JournalRow, "status" | "replaces_receipt_
 }
 
 /** «20.10» from an ISO date or date-time; null when there is no usable date. */
-function shortDate(value: string | null | undefined): string | null {
+function shortDate(value: string | null | undefined, withYear = false): string | null {
   const match = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})/.exec(value) : null;
-  return match ? `${match[3]}.${match[2]}` : null;
+  return match ? `${match[3]}.${match[2]}${withYear ? `.${match[1]}` : ""}` : null;
 }
 
 /** The drawer of a corrected payment: «Было 350 000 сум → стало 300 000 сум · исправил Нодира 15.10 · причина: опечатка».  Each part only when the server sent it. */
@@ -1165,6 +1170,104 @@ export function voidedLine(row: JournalRow): string | null {
   return parts.join(" · ");
 }
 
+// ── INC-17: one payment = one row with its CURRENT amount; the changes are quiet sub-lines under it ──────────────────────────
+
+/** One earlier version of a corrected payment: what it was and when / who / why it was replaced. */
+export interface CorrectionStep {
+  /** The receipt of that version. */
+  receiptNo: number | null;
+  amount: number | null;
+  /** Its method, only when the correction changed it. */
+  methodLabel: string | null;
+  by: string | null;
+  at: string | null;
+  reason: string | null;
+}
+
+/**
+ * The earlier versions of a live correction, OLDEST first.  The live row says what it replaced (`replaces_*`: one level); every further level comes
+ * from the superseded records of the same period (`history`, linked by receipt number, `replaced_by_receipt_no` ↔ `replaces_receipt_no`).
+ * Without them the chain is cut at the first level.
+ */
+export function correctionSteps(row: JournalRow, history: readonly JournalRow[] = []): CorrectionStep[] {
+  if (!isCorrection(row)) return [];
+  const byReceipt = new Map<number, JournalRow>();
+  for (const old of history) {
+    if (old.status === "replaced" && typeof old.receipt_no === "number" && old.student_id === row.student_id) byReceipt.set(old.receipt_no, old);
+  }
+  const steps: CorrectionStep[] = [];
+  const seen = new Set<number>();
+  let current: JournalRow | undefined = row;
+  while (current && typeof current.replaces_receipt_no === "number" && !seen.has(current.replaces_receipt_no) && steps.length < 20) {
+    const receiptNo: number = current.replaces_receipt_no;
+    seen.add(receiptNo);
+    steps.push({
+      receiptNo,
+      amount: typeof current.replaces_amount === "number" ? current.replaces_amount : null,
+      methodLabel: current.replaces_method_label || null,
+      by: current.corrected_by_name || null,
+      at: current.corrected_at || null,
+      reason: current.replaces_reason || null,
+    });
+    const older: JournalRow | undefined = byReceipt.get(receiptNo);
+    const consistent: boolean = !older || older.replaced_by_receipt_no === null || older.replaced_by_receipt_no === current.receipt_no;
+    current = consistent ? older : undefined;
+  }
+  return steps.reverse();
+}
+
+/** «↳ исправлена 19.10: было 350 000 сум, способ: Наличные · исправил Олег · причина: опечатка в сумме»; each part only when it is known, null when nothing is. */
+export function correctionSubLine(step: CorrectionStep, withYear = false): string | null {
+  const date = shortDate(step.at, withYear);
+  const was: string[] = [];
+  if (typeof step.amount === "number") was.push(`было ${formatMoney(step.amount)}`);
+  if (step.methodLabel) was.push(`способ: ${step.methodLabel}`);
+  const head = `исправлена${date ? ` ${date}` : ""}`;
+  const parts = [was.length > 0 ? `${head}: ${was.join(", ")}` : head];
+  if (step.by) parts.push(`исправил ${step.by}`);
+  if (step.reason) parts.push(`причина: ${step.reason}`);
+  if (parts.length === 1 && !date && was.length === 0) return null;
+  return `↳ ${parts.join(" · ")}`;
+}
+
+/** «↳ отменена 21.10 · Олег · причина: ошибочный ввод» under a cancelled payment (shown only when the toggle is on). */
+export function cancelledSubLine(row: Pick<JournalRow, "status" | "voided_at" | "voided_by_name" | "void_reason">, withYear = false): string | null {
+  if (row.status !== "voided") return null;
+  const date = shortDate(row.voided_at, withYear);
+  const parts = [date ? `отменена ${date}` : "отменена"];
+  if (row.voided_by_name) parts.push(row.voided_by_name);
+  if (row.void_reason) parts.push(`причина: ${row.void_reason}`);
+  return `↳ ${parts.join(" · ")}`;
+}
+
+/** The quiet lines under a row: one per earlier version of a correction (oldest first), the story of a cancellation; nothing for a plain payment. */
+export function journalSubLines(row: JournalRow, history: readonly JournalRow[] = [], withYear = false): string[] {
+  if (row.status === "voided") return [cancelledSubLine(row, withYear) as string];
+  return correctionSteps(row, history).map((step) => correctionSubLine(step, withYear)).filter((line): line is string => line !== null);
+}
+
+/** A superseded record is NEVER a row of its own: the payment it belonged to is one row with the current amount. */
+export function listedRows(rows: readonly JournalRow[]): JournalRow[] {
+  return rows.filter((row) => row.status !== "replaced");
+}
+
+/**
+ * The drawer of a payment corrected more than once: every version with its receipt, oldest first, the live one last.  Empty for a payment
+ * corrected once (its single earlier version is already said in the notes above).
+ */
+export function versionLines(row: JournalRow, history: readonly JournalRow[] = []): string[] {
+  const steps = correctionSteps(row, history);
+  if (steps.length < 2) return [];
+  const lines = steps.map((step) => {
+    const date = shortDate(step.at, true);
+    const what = [step.receiptNo ? `№ ${step.receiptNo}` : "Прежняя версия", typeof step.amount === "number" ? formatMoney(step.amount) + (step.methodLabel ? `, ${step.methodLabel}` : "") : step.methodLabel ?? ""].filter(Boolean).join(" · ");
+    const when = [date ? `заменена ${date}` : "заменена", step.by, step.reason ? `причина: ${step.reason}` : ""].filter(Boolean).join(" · ");
+    return `${what} — ${when}`;
+  });
+  lines.push(`${row.receipt_no ? `№ ${row.receipt_no} · ` : ""}${formatMoney(row.amount)} — действует`);
+  return lines;
+}
+
 export interface JournalRowView {
   id: string;
   /** «21.10» (+ year when the period spans years). */
@@ -1185,6 +1288,8 @@ export interface JournalRowView {
   correctedTitle: string | null;
   /** «внесена 21.10 в 11:40»: a quiet second line of the phone card; null when the server did not send it. */
   enteredAt: string | null;
+  /** «↳ исправлена 19.10: было 350 000 сум · …» (one per earlier version, oldest first) / «↳ отменена 21.10 · …»: quiet lines under the row. */
+  subLines: string[];
 }
 
 /** The server's «внесена 21.10 в 11:40» (trimmed); null when it is absent. */
@@ -1193,7 +1298,7 @@ export function enteredAtText(row: Pick<JournalRow, "entered_at_text">): string 
   return value || null;
 }
 
-export function journalRowView(row: JournalRow, withYear = false): JournalRowView {
+export function journalRowView(row: JournalRow, withYear = false, history: readonly JournalRow[] = []): JournalRowView {
   const date = formatDateRu(row.paid_on);
   const tag = statusTag(row);
   return {
@@ -1211,6 +1316,7 @@ export function journalRowView(row: JournalRow, withYear = false): JournalRowVie
     correctedChip: isCorrection(row) ? CORRECTED_CHIP : null,
     correctedTitle: isCorrection(row) ? `вместо квитанции № ${row.replaces_receipt_no}` : null,
     enteredAt: enteredAtText(row),
+    subLines: journalSubLines(row, history, withYear),
   };
 }
 
@@ -1243,6 +1349,8 @@ export interface DrawerView {
   destinationItems: DestinationLine[];
   /** The history of a cancelled or corrected payment, in words. */
   notes: string[];
+  /** Every version of a payment corrected more than once, oldest first, the live one last (empty otherwise). */
+  versions: string[];
   note: string | null;
   links: DrawerLink[];
 }
@@ -1327,7 +1435,7 @@ export function destinationItems(row: Pick<JournalRow, "allocation_text" | "allo
   return row.allocations.filter((line) => line.amount > 0).map((line) => ({ text: `${line.label} — ${formatMoney(line.amount)}`, dot: null }));
 }
 
-export function drawerView(row: JournalRow): DrawerView {
+export function drawerView(row: JournalRow, history: readonly JournalRow[] = []): DrawerView {
   const facts: DrawerFact[] = [{ label: "Ученик", value: row.student_name }, { label: "Группа", value: row.teacher_name ? `${row.group_name} · ${row.teacher_name}` : row.group_name }];
   if (row.created_by_name) facts.push({ label: "Кто внёс", value: row.created_by_name });
   const notes: string[] = [];
@@ -1354,6 +1462,7 @@ export function drawerView(row: JournalRow): DrawerView {
     destination: row.status === "active" ? destinationLines(row) : [],
     destinationItems: row.status === "active" ? destinationItems(row) : [],
     notes,
+    versions: versionLines(row, history),
     note: row.note,
     links: [
       { key: "receipt", label: row.receipt_no ? `Квитанция № ${row.receipt_no}` : "Квитанция" },
@@ -1374,9 +1483,11 @@ export interface JournalPaging {
 
 export function journalPaging(journal: Pick<PaymentsJournal, "page" | "size" | "total" | "pages" | "rows">): JournalPaging {
   const first = (journal.page - 1) * journal.size + 1;
-  const last = first + journal.rows.length - 1;
+  // the pages are made of live payments (the server's total); the cancelled ones the toggle brings in are not counted
+  const shown = journal.rows.filter((row) => row.status !== "voided" && row.status !== "replaced").length;
+  const last = first + shown - 1;
   return {
-    text: journal.rows.length === 0 ? "" : `${first}–${last} из ${journal.total}`,
+    text: journal.rows.length === 0 ? "" : shown === 0 ? "" : `${first}–${last} из ${journal.total}`,
     page: journal.page, pages: journal.pages,
     canPrev: journal.page > 1, canNext: journal.page < journal.pages,
   };
@@ -1388,16 +1499,116 @@ export function journalTotalsText(totals: JournalTotals): string {
 }
 
 /**
- * The cancelled and the corrected payments of the set: what the toggle would add to the list.  The server's `voided_count` is already
- * «cancelled + corrected» and `replaced_count` is the corrected part OF it (contract INC-16), so adding them would count a corrected payment twice.
+ * The cancelled payments of the set: what the toggle brings back.  The server's `voided_count` is «cancelled + corrected» and `replaced_count` is the
+ * corrected part OF it; a corrected payment is one row with its history (never a row of its own), so only the pure cancellations are left behind the toggle.
+ * An older server sends no `replaced_count` (= 0).
  */
 export function hiddenPaymentsCount(totals: Pick<JournalTotals, "voided_count" | "replaced_count"> | null | undefined): number {
-  return sum(totals?.voided_count);
+  return Math.max(0, sum(totals?.voided_count) - sum(totals?.replaced_count));
 }
 
 /** The label of the toggle; the same words on and off (the pressed state says which). */
 export function showVoidedLabel(totals: Pick<JournalTotals, "voided_count" | "replaced_count"> | null | undefined): string {
-  return `Показать отменённые и исправленные (${hiddenPaymentsCount(totals)})`;
+  return `Показать отменённые (${hiddenPaymentsCount(totals)})`;
+}
+
+// ── INC-17: the page of the journal = live payments (paged by the server) + the history of the corrections + the cancelled ones (toggle) ──
+
+/** The server's order of the journal: newest first (day, then entered-at, then receipt); negative when `a` stands above `b`. */
+export function journalOrder(a: Pick<JournalRow, "paid_on" | "created_at" | "receipt_no" | "id">, b: Pick<JournalRow, "paid_on" | "created_at" | "receipt_no" | "id">): number {
+  if (a.paid_on !== b.paid_on) return a.paid_on > b.paid_on ? -1 : 1;
+  const ca = a.created_at ?? "";
+  const cb = b.created_at ?? "";
+  if (ca !== cb) return ca > cb ? -1 : 1;
+  const ra = a.receipt_no ?? -1;
+  const rb = b.receipt_no ?? -1;
+  if (ra !== rb) return ra > rb ? -1 : 1;
+  return a.id === b.id ? 0 : a.id > b.id ? -1 : 1;
+}
+
+/**
+ * The cancelled payments that belong to a page of live ones: each stands right above the first live payment below it, so it is on the page that holds that
+ * payment.  `after` is the last live row of the previous page, `before` the last live row of this page (null on the first / the last page: no bound).
+ */
+export function cancelledOfPage(cancelled: readonly JournalRow[], bounds: { after: JournalRow | null; before: JournalRow | null }): JournalRow[] {
+  return cancelled.filter((row) => (!bounds.after || journalOrder(bounds.after, row) < 0) && (!bounds.before || journalOrder(row, bounds.before) < 0));
+}
+
+/** The live rows of a page with the cancelled ones put where they stand in the server's order. */
+export function mergeCancelled(live: readonly JournalRow[], cancelled: readonly JournalRow[]): JournalRow[] {
+  const ordered = [...cancelled].sort(journalOrder);
+  const out: JournalRow[] = [];
+  let next = 0;
+  for (const row of live) {
+    while (next < ordered.length && journalOrder(ordered[next], row) < 0) out.push(ordered[next++]);
+    out.push(row);
+  }
+  while (next < ordered.length) out.push(ordered[next++]);
+  return out;
+}
+
+/** Do the loaded superseded records reach back to the first version of every correction? */
+function chainsComplete(corrections: readonly JournalRow[], found: readonly JournalRow[]): boolean {
+  const byReceipt = new Map<number, JournalRow>();
+  for (const old of found) if (old.status === "replaced" && typeof old.receipt_no === "number") byReceipt.set(old.receipt_no, old);
+  for (const row of corrections) {
+    let current: JournalRow | undefined = row;
+    for (let guard = 0; current && typeof current.replaces_receipt_no === "number" && guard < 20; guard += 1) {
+      current = byReceipt.get(current.replaces_receipt_no);
+      if (!current) return false;
+    }
+  }
+  return true;
+}
+
+export type JournalFetcher = (query: JournalQuery) => Promise<PaymentsJournal>;
+/** The superseded / cancelled records are read page by page (100 a page) and only as far as the page of the journal needs. */
+export const HISTORY_PAGE_SIZE = 100;
+export const HISTORY_MAX_PAGES = 5;
+
+/**
+ * One page of the journal for the screen (INC-17).
+ *   - The list is ALWAYS `status=active`: pages, `total` and totals are the server's live payments, so the page text stays «1–25 из 98».
+ *   - A page with corrections asks `status=voided` (cancelled + superseded) of the same period and filters ONLY IF the server says superseded records exist
+ *     (`totals.replaced_count`), and reads pages only until every chain reaches its first version; the superseded ones go to `history`, never to `rows`.
+ *   - The toggle (`query.status === "all"`) adds the cancelled ones that stand between the live rows of THIS page (the same `status=voided` answer);
+ *     on a page after the first, one more call with `size=1` reads the last live row of the previous page to know where this page starts.
+ *   - A failure of the history alone is silent (the live rows still carry one level); a failure of the cancelled ones the toggle asked for is the page's error.
+ */
+export async function loadJournalPage(fetchPage: JournalFetcher, query: JournalQuery): Promise<PaymentsJournal> {
+  const withCancelled = query.status === "all";
+  const live: JournalQuery = { ...query, status: "active" };
+  const page = query.page ?? 1;
+  const size = query.size ?? JOURNAL_PAGE_SIZE;
+  const [data, previous] = await Promise.all([
+    fetchPage(live),
+    withCancelled && page > 1 ? fetchPage({ ...live, page: (page - 1) * size, size: 1 }).catch(() => null) : Promise.resolve(null),
+  ]);
+  const rows = listedRows(data.rows);
+  const wantCancelled = withCancelled && hiddenPaymentsCount(data.totals) > 0;
+  const corrections = rows.filter(isCorrection);
+  const wantHistory = corrections.length > 0 && sum(data.totals.replaced_count) > 0;
+  if (!wantCancelled && !wantHistory) return { ...data, rows };
+
+  const before = data.page < data.pages ? rows[rows.length - 1] ?? null : null;
+  const after = previous?.rows[0] ?? null;
+  const found = new Map<string, JournalRow>();
+  try {
+    for (let step = 1; step <= HISTORY_MAX_PAGES; step += 1) {
+      const answer = await fetchPage({ ...query, status: "voided", page: step, size: HISTORY_PAGE_SIZE });
+      for (const row of answer.rows) found.set(row.id, row);
+      const tail = answer.rows[answer.rows.length - 1];
+      if (!tail || step >= answer.pages) break;
+      const chainsDone = !wantHistory || chainsComplete(corrections, [...found.values()]);
+      const windowDone = !wantCancelled || (before !== null && journalOrder(before, tail) < 0);
+      if (chainsDone && windowDone) break;
+    }
+  } catch (cause) {
+    if (wantCancelled) throw cause;
+  }
+  const all = [...found.values()];
+  const cancelled = wantCancelled ? cancelledOfPage(all.filter((row) => row.status === "voided"), { after, before }) : [];
+  return { ...data, rows: mergeCancelled(rows, cancelled), history: all.filter((row) => row.status === "replaced") };
 }
 
 export interface EmptyContext {
@@ -1432,7 +1643,7 @@ export function journalEmptyText(context: EmptyContext): string {
 
 /** Zero rows and nothing narrowed (no search, no author, no filter, no bar): the journal has nothing to search or export, so it is one quiet line. */
 export function journalIsQuiet(journal: (Pick<PaymentsJournal, "rows"> & { totals?: Pick<JournalTotals, "voided_count" | "replaced_count"> }) | null | undefined, context: Pick<EmptyContext, "narrowed" | "focusLabel">): boolean {
-  // cancelled / corrected payments behind the toggle are something to show: the journal is not empty then
+  // cancelled payments behind the toggle are something to show: the journal is not empty then
   return Boolean(journal) && journal!.rows.length === 0 && !context.narrowed && !context.focusLabel && hiddenPaymentsCount(journal!.totals) === 0;
 }
 

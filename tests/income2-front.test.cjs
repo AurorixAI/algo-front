@@ -513,8 +513,12 @@ test("the drawer: who entered it, where the money went, the receipt, the way to 
 });
 
 test("journal paging and totals as the server gives them", () => {
-  const p1 = V.journalPaging(journal("J01_journal_page1"));
-  assert.deepEqual([p1.text, p1.canPrev, p1.canNext, p1.page, p1.pages], ["1–5 из 9", false, true, 1, 2]);
+  // INC-17: the screen lists `status=active` (J09): the pages are the live payments, «1–5 из 7»
+  const p1 = V.journalPaging(journal("J09_journal_status_active"));
+  assert.deepEqual([p1.text, p1.canPrev, p1.canNext, p1.page, p1.pages], ["1–5 из 7", false, true, 1, 2]);
+  // the cancelled rows the toggle brings in are not counted: «1–5 из 7» stays with six rows on the page
+  const withCancelled = journal("J09_journal_status_active");
+  assert.equal(V.journalPaging({ ...withCancelled, rows: V.mergeCancelled(withCancelled.rows, [journal("J04_journal_voided_and_replaced").rows[0]]) }).text, "1–5 из 7");
   const p2 = V.journalPaging(journal("J02_journal_page2"));
   assert.deepEqual([p2.text, p2.canPrev, p2.canNext], ["6–9 из 9", true, false]);
   assert.equal(V.journalPaging({ page: 1, size: 25, total: 0, pages: 1, rows: [] }).text, "");
@@ -607,14 +611,16 @@ test("loading skeleton and the error with a retry; no access has no retry", () =
 
 test("the journal on screen: compact rows, cancelled ones grey with «отменена»; a phone gets the same rows as cards", () => {
   const { React, text, html, J } = parts();
-  const rows = journal("J04_journal_voided_and_replaced").rows;
+  const rows = journal("J04_journal_voided_and_replaced").rows; // a cancelled payment and a superseded record
   const list = React.createElement(J.JournalList, { rows, withYear: false, activeId: null, onOpen: () => {} });
   const body = text(list);
-  for (const piece of ["Дата · время", "Ученик", "Группа", "Сумма", "Способ", "Алиев Тимур", "20.10 · 13:08", "777 000 сум", "Нуров Жасур", "отменена"]) assert.ok(body.includes(piece), piece);
+  for (const piece of ["Дата · время", "Ученик", "Группа", "Сумма", "Способ", "Алиев Тимур", "20.10 · 13:08", "777 000 сум", "отменена", "↳ отменена 20.10 · Нодира Саидова · причина: Ошибочный ввод"]) assert.ok(body.includes(piece), piece);
   const markup = html(list);
-  assert.equal((markup.match(/data-testid="journal-row"/g) || []).length, 2);
+  // INC-17: the superseded record (№ 9) is never a row of its own, whatever the server sent
+  assert.equal((markup.match(/data-testid="journal-row"/g) || []).length, 1);
+  assert.ok(!body.includes("Нуров Жасур") && !body.includes("заменена"));
   assert.match(markup, /data-status="voided"/);
-  assert.match(markup, /data-status="replaced"/);
+  assert.doesNotMatch(markup, /data-status="replaced"/);
   assert.match(markup, /line-through/);
   assert.match(markup, /text-slate-400/);
   assert.match(markup, /aria-haspopup="dialog"/);
@@ -641,14 +647,14 @@ test("the drawer body: amount, method, who entered it, where the money went, lin
 
 test("the journal section: search and filters, the focus chip, pages; empty and error states in words", () => {
   const { React, text, html, J } = parts();
-  const data = journal("J01_journal_page1");
+  const data = journal("J09_journal_status_active");
   const base = {
     journal: data, loading: false, error: null, onRetry: () => {}, search: "", onSearch: () => {}, createdBy: "", onCreatedBy: () => {}, authors: data.authors,
     focusLabel: null, onClearFocus: () => {}, empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing: () => {}, onPage: () => {}, onExport: () => {},
     exporting: false, activeId: null, onOpen: () => {},
   };
   const full = text(React.createElement(J.JournalSection, base));
-  for (const piece of ["Скачать Excel", "7 оплат на 3 450 000 сум", "1–5 из 9", "1 из 2"]) assert.ok(full.includes(piece), piece);
+  for (const piece of ["Скачать Excel", "7 оплат на 3 450 000 сум", "1–5 из 7", "1 из 2"]) assert.ok(full.includes(piece), piece);
   const markup = html(React.createElement(J.JournalSection, base));
   assert.match(markup, /aria-label="Поиск по оплатам"/);
   assert.match(markup, /aria-label="Кто внёс оплату"/);
