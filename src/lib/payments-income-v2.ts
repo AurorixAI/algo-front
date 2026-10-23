@@ -182,8 +182,8 @@ export interface JournalRow {
 }
 
 export interface JournalAuthor { user_id: string; name: string | null; count: number }
-/** `count` / `sum` are the live payments; `voided_count` the cancelled ones and `replaced_count` the corrected ones of the same set (INC-16: absent on an older server = 0). */
-export interface JournalTotals { count: number; sum: number; voided_count: number; replaced_count?: number }
+/** `count` / `sum` are the live payments; `voided_count` the cancelled AND corrected ones of the same set, `replaced_count` the corrected part of them (INC-16: absent on an older server = 0); `kind_sum` only with `kind`. */
+export interface JournalTotals { count: number; sum: number; voided_count: number; replaced_count?: number; kind_sum?: number | null }
 
 export interface PaymentsJournal {
   as_of: string;
@@ -291,7 +291,7 @@ export function normalizeJournal(raw: PaymentsJournal): PaymentsJournal {
   return {
     as_of: text(raw?.as_of), from: text(raw?.from), to: text(raw?.to),
     page: Math.max(1, sum(raw?.page)), size: Math.max(1, sum(raw?.size) || JOURNAL_PAGE_SIZE), total: sum(raw?.total), pages: Math.max(1, sum(raw?.pages)),
-    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count), replaced_count: sum(totals.replaced_count) },
+    totals: { count: sum(totals.count), sum: sum(totals.sum), voided_count: sum(totals.voided_count), replaced_count: sum(totals.replaced_count), kind_sum: totals.kind_sum === null || totals.kind_sum === undefined ? null : sum(totals.kind_sum) },
     rows: arr<JournalRow>(raw?.rows).map(journalRow),
     authors: arr<JournalAuthor>(raw?.authors).map((author) => ({ user_id: text(author.user_id), name: nullableText(author.name), count: sum(author.count) })),
   };
@@ -660,9 +660,9 @@ export function writtenOffText(overview: IncomeOverview): string {
 
 // ── «Куда ушли деньги»: the sentence, the kinds that filter the journal, the notice and the chips (INC-16) ──
 
-/** The parts of the strip the journal can be narrowed to (the server's param `kind`); «возвращено» / «переведено» have no payment rows of their own. */
-export type FlowKind = "old_debt" | "current" | "forward" | "advance";
-export const FLOW_KINDS: readonly FlowKind[] = ["old_debt", "current", "forward", "advance"];
+/** The parts of the strip the journal can be narrowed to (the server's param `kind`: it takes the kinds of `split`, the same as the strip's). */
+export type FlowKind = "old_debt" | "current" | "forward" | "advance" | "refunded" | "transferred";
+export const FLOW_KINDS: readonly FlowKind[] = ["old_debt", "current", "forward", "advance", "refunded", "transferred"];
 
 /** The kind a strip part filters by: the server's kind, or the field name of an older server; null for a part without journal meaning. */
 export function flowKindOf(key: string): FlowKind | null {
@@ -679,6 +679,8 @@ export const KIND_WORDS: Record<FlowKind, { chip: string; notice: string }> = {
   current: { chip: "Текущие периоды", notice: "на текущие периоды" },
   forward: { chip: "Периоды вперёд", notice: "на периоды вперёд" },
   advance: { chip: "Аванс", notice: "в аванс" },
+  refunded: { chip: "Возвращено", notice: "с возвратом денег" },
+  transferred: { chip: "Переведено", notice: "с переводом в другую группу" },
 };
 
 /** The insight under the strip says something only when a share is big: old debts take half the money (or more), advances take 30 % (or more). */
@@ -1379,9 +1381,12 @@ export function journalTotalsText(totals: JournalTotals): string {
   return totals.count <= 0 ? "" : `${paymentsCountText(totals.count)} на ${formatMoney(totals.sum)}`;
 }
 
-/** The cancelled and the corrected payments of the set: what the toggle would add to the list (an older server sends no `replaced_count`). */
+/**
+ * The cancelled and the corrected payments of the set: what the toggle would add to the list.  The server's `voided_count` is already
+ * «cancelled + corrected» and `replaced_count` is the corrected part OF it (contract INC-16), so adding them would count a corrected payment twice.
+ */
 export function hiddenPaymentsCount(totals: Pick<JournalTotals, "voided_count" | "replaced_count"> | null | undefined): number {
-  return sum(totals?.voided_count) + sum(totals?.replaced_count);
+  return sum(totals?.voided_count);
 }
 
 /** The label of the toggle; the same words on and off (the pressed state says which). */

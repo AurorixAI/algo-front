@@ -89,30 +89,30 @@ test("the insight is one sentence under the legend, only when it means something
 
 // ── 2. the strip and the legend filter the journal ──────────────────────────────────────────────
 
-test("strip segments and legend lines are buttons (aria-label, aria-pressed); returned / moved are not; a click reports the kind", () => {
-  const data = withStrip(1000, [["old_debt", 300], ["current", 300], ["forward", 100], ["advance", 100], ["refunded", 100], ["transferred", 100]]);
+test("strip segments and legend lines are buttons (aria-label, aria-pressed); a part the server does not know is not; a click reports the kind", () => {
+  const data = withStrip(1000, [["old_debt", 300], ["current", 300], ["forward", 100], ["advance", 100], ["refunded", 100], ["mystery", 100]]);
   const picked = [];
   const tree = P.FlowLine({ overview: data, kind: "current", onPickKind: (kind) => picked.push(kind) });
   const segments = find(tree, "flow-segment");
   const legend = find(tree, "flow-legend-row");
-  assert.deepEqual(segments.map((el) => el.props["data-kind"]), ["old_debt", "current", "forward", "advance"]);
-  assert.deepEqual(legend.map((el) => el.props["data-kind"]), ["old_debt", "current", "forward", "advance"]);
-  assert.deepEqual(segments.map((el) => el.props["aria-pressed"]), [false, true, false, false]);
-  assert.deepEqual(legend.map((el) => el.props["aria-pressed"]), [false, true, false, false]);
+  assert.deepEqual(segments.map((el) => el.props["data-kind"]), ["old_debt", "current", "forward", "advance", "refunded"]);
+  assert.deepEqual(legend.map((el) => el.props["data-kind"]), ["old_debt", "current", "forward", "advance", "refunded"]);
+  assert.deepEqual(segments.map((el) => el.props["aria-pressed"]), [false, true, false, false, false]);
+  assert.deepEqual(legend.map((el) => el.props["aria-pressed"]), [false, true, false, false, false]);
   for (const el of [...segments, ...legend]) assert.ok(el.props.type === "button" && /Показать оплаты/.test(el.props["aria-label"]), "a native button: Enter / Space work; the label says what it does");
   segments[0].props.onClick();
   legend[3].props.onClick();
   assert.deepEqual(picked, ["old_debt", "advance"]);
-  // «возвращено» / «переведено» have no payment rows of their own: plain text
+  // the server takes every kind of the strip (`kind=refunded|transferred` too); a part with a kind the front does not know stays text
   const markup = html(React.createElement(P.FlowLine, { overview: data, onPickKind: () => {} }));
-  assert.equal((markup.match(/data-testid="flow-segment"/g) || []).length, 4);
-  assert.match(markup, /data-testid="flow-refunded"/);
+  assert.equal((markup.match(/data-testid="flow-segment"/g) || []).length, 5);
+  assert.match(markup, /data-testid="flow-mystery"/);
   assert.match(markup, /role="group"[^>]*aria-label="Куда ушли деньги по видам"|aria-label="Куда ушли деньги по видам"[^>]*role="group"/);
 });
 
 test("the older server's fixed fields map to the same kinds; unknown parts are not clickable", () => {
   assert.deepEqual(["old_debt", "current", "forward", "advance", "refunded", "transferred", "to_past_debt", "to_current", "to_advance", "other"].map(V.flowKindOf),
-    ["old_debt", "current", "forward", "advance", null, null, "old_debt", "current", "advance", null]);
+    ["old_debt", "current", "forward", "advance", "refunded", "transferred", "old_debt", "current", "advance", null]);
 });
 
 test("a click on a part → the query has `kind`; again → no `kind`; combined with the day and the method; defensively: a refusing server makes the strip static", () => {
@@ -221,6 +221,7 @@ test("chips: «15 октября ✕», «Наличные ✕», «Старые
   assert.deepEqual(V.filterChips({ day: "15 октября" }).map((c) => c.label), ["15 октября"]);
   assert.deepEqual(V.filterChips({ day: "15 октября", method: "Наличные", kind: "old_debt" }).map((c) => [c.key, c.label]), [["day", "15 октября"], ["method", "Наличные"], ["kind", "Старые долги"]]);
   assert.deepEqual(["old_debt", "current", "forward", "advance"].map((k) => V.KIND_WORDS[k].chip), ["Старые долги", "Текущие периоды", "Периоды вперёд", "Аванс"]);
+  assert.equal(V.filterNoticeText({ count: 2, kind: "refunded" }), "Показаны 2 оплаты с возвратом денег");
 
   const data = V.normalizeJournal(fixture("J01_journal_page1"));
   const calls = [];
@@ -268,8 +269,9 @@ test("the journal asks for live payments by default (status=active); the toggle 
   assert.match(page, /onToggleVoided=\{\(\) => \{ setShowVoided\(\(on\) => !on\); setPage\(1\); \}\}/);
 });
 
-test("the toggle «Показать отменённые и исправленные (N)»: N = voided + replaced; the count line has no «отменено»; hidden when nothing is hidden", () => {
-  const totals = { count: 19, sum: 7885000, voided_count: 3, replaced_count: 2 };
+test("the toggle «Показать отменённые и исправленные (N)»: N = the server's voided_count (cancelled + corrected); the count line has no «отменено»; hidden when nothing is hidden", () => {
+  // the server's voided_count is cancelled + corrected, replaced_count is the corrected part OF it: the toggle shows voided_count, never the sum of the two
+  const totals = { count: 19, sum: 7885000, voided_count: 5, replaced_count: 2 };
   assert.equal(V.hiddenPaymentsCount(totals), 5);
   assert.equal(V.hiddenPaymentsCount({ count: 1, sum: 1, voided_count: 4 }), 4, "an older server sends no replaced_count");
   assert.equal(V.showVoidedLabel(totals), "Показать отменённые и исправленные (5)");
