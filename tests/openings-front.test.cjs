@@ -820,3 +820,8 @@ test("plural: the hint of the reason and the review note decline the count (1 у
   }
   assert.ok(!/\)\s*учеников уже есть оплаты/.test(read("src/components/payments/openings-dialogs.tsx")));
 });
+
+test("progress with nothing to fill says so instead of «Заполнено 0 из 0» (stage walkthrough 23.10)", () => {
+  const src = read("src/lib/openings.ts");
+  assert.match(src, /needed === 0 \? "Остатки не нужны: все ученики пришли после начала учёта"/);
+});

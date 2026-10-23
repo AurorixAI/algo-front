@@ -451,7 +451,7 @@ export function progressOf(totals: { with_opening: number; missing: number }): P
   const filled = Math.max(0, totals.with_opening);
   const left = Math.max(0, totals.missing);
   const needed = filled + left;
-  return { filled, needed, left, percent: needed === 0 ? 100 : Math.floor((filled * 100) / needed), text: `Заполнено ${filled} из ${needed}` };
+  return { filled, needed, left, percent: needed === 0 ? 100 : Math.floor((filled * 100) / needed), text: needed === 0 ? "Остатки не нужны: все ученики пришли после начала учёта" : `Заполнено ${filled} из ${needed}` };
 }
 
 /** The same count for the rows of one group on screen (the left students are not counted). */
