@@ -185,8 +185,6 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   }, [period, tab]);
   const [opened, setOpened] = useState<JournalRow | null>(null);
   const journalRef = useRef<HTMLDivElement | null>(null);
-  // The widget that was clicked last: the notice «Показаны … · К списку ↓» sits under it.  A click never moves the page (INC-16).
-  const [anchor, setAnchor] = useState<"chart" | "methods" | "flow" | null>(null);
 
   const pickBar = (bar: Bar) => {
     if (!bar.range) return;
@@ -194,7 +192,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     setFocus(same ? null : bar.range);
     setPage(1);
     setTab("journal");
-    setAnchor("chart");
+    if (!same) scrollToListSoon();
   };
 
   // A click on a segment / a legend line of «Чем платили» narrows the journal to that method; the same one again clears it.
@@ -203,15 +201,16 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     setFilters((state) => ({ ...state, method: next }));
     setPage(1);
     setTab("journal");
-    setAnchor("methods");
+    if (next) scrollToListSoon();
   };
 
   // A click on a part of «Куда ушли деньги» (a segment or a legend line) narrows the journal to that kind; the same one again clears it.
   const pickKind = (clicked: FlowKind) => {
-    setKind((current) => toggleKind(current, clicked));
+    const next = toggleKind(kind, clicked);
+    setKind(next);
     setPage(1);
     setTab("journal");
-    setAnchor("flow");
+    if (next) scrollToListSoon();
   };
 
   // «К списку ↓»: the only thing that moves the page, and it moves it smoothly (at once for a visitor who asked for less motion), leaving the toolbar in view.
@@ -222,6 +221,8 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
     window.scrollTo(journalScrollOptions({ journalTop: box.getBoundingClientRect().top, scrollY: window.scrollY, reducedMotion }));
     box.focus({ preventScroll: true });
   };
+  // A click that narrows the journal glides the page down to it by itself (owner 23.10: no notice under the widget — it stretched the chart).
+  const scrollToListSoon = () => { if (typeof window !== "undefined") window.setTimeout(jumpToList, 60); };
 
   // «Сегодня наличными»: one light request for today (period=day: the till is the centre's), only on the current month.
   const cashWanted = !blocked && isCurrentMonth(period, today);
@@ -264,11 +265,8 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const showFirstLoad = overview.loading && !overview.data;
   const methodName = filters.method ? methodChipLabel(filters.method, overview.data?.by_method) : null;
   const clearAll = () => { setFocus(null); setFilters((state) => ({ ...state, method: "" })); setKind(""); setPage(1); };
-  // The notice under the widget that was clicked last, while that widget still narrows the journal: the whole combination in words, the count from the journal's answer.
-  const widgetActive = anchor === "chart" ? focus !== null : anchor === "methods" ? filters.method !== "" : anchor === "flow" ? kind !== "" : false;
-  const notice = anchor && widgetActive && journal.data
-    ? { widget: anchor, onJump: jumpToList, text: filterNoticeText({ count: journal.loading || journal.key !== JSON.stringify(query) ? null : journal.data.totals.count, day: focus?.label ?? null, method: methodName, kind }) }
-    : null;
+  // No notice under the widgets (owner 23.10): the chips above the journal say what narrows it.
+  const notice = null;
   const anyDenied = noRight || overview.denied || journal.denied;
 
   return (

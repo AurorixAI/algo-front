@@ -136,7 +136,7 @@ test("a click on a part → the query has `kind`; again → no `kind`; combined 
   const page = read("src/components/payments/income-page.tsx");
   assert.match(page, /onPickKind=\{kindUnsupported \? undefined : pickKind\}/);
   assert.match(page, /if \(query\.kind && kindRejected\(cause\)\) \{\s*setKindUnsupported\(true\);\s*setKind\(""\);\s*return;/);
-  assert.match(page, /setKind\(\(current\) => toggleKind\(current, clicked\)\)/);
+  assert.match(page, /const next = toggleKind\(kind, clicked\);\s*setKind\(next\);/);
   const lib = fs.readFileSync(path.join(root, "src/lib/api.ts"), "utf8");
   assert.match(lib, /for \(const key of \["method", "created_by", "q", "status", "kind"\] as const\)/);
   // without the handler (an older server) the strip is plain text
@@ -187,23 +187,20 @@ test("the notice sits under the widget that was clicked (chart / donut / strip),
   assert.deepEqual(["chart", "methods", "flow"].map(owner), ids, "each notice is inside the card of its own widget");
 });
 
-test("the notice never shows the count of an older request: the answer carries the key of its query", () => {
+test("no notice under the widgets (owner 23.10: it stretched the chart); the chips above the journal say what narrows it", () => {
   const page = read("src/components/payments/income-page.tsx");
-  assert.match(page, /key: JSON\.stringify\(query\) \}\);/);
-  assert.match(page, /journal\.loading \|\| journal\.key !== JSON\.stringify\(query\) \? null : journal\.data\.totals\.count/);
+  assert.match(page, /const notice = null;/);
+  assert.doesNotMatch(page, /setAnchor\(/);
 });
 
-test("no scrollIntoView on a click of a day, a donut segment or a strip segment; the page does not move", () => {
+test("a click that narrows the journal glides the page down to it by itself (smoothly); a click that clears does not move the page (owner 23.10)", () => {
   const page = read("src/components/payments/income-page.tsx");
   const handlers = page.slice(page.indexOf("const pickBar = "), page.indexOf("// «Сегодня наличными»"));
-  assert.ok(handlers.includes("const pickMethod") && handlers.includes("const pickKind") && handlers.includes("const jumpToList"));
-  const clicks = handlers.slice(0, handlers.indexOf("const jumpToList"));
-  assert.doesNotMatch(clicks, /scrollIntoView|scrollTo|requestAnimationFrame/);
+  assert.match(handlers, /if \(!same\) scrollToListSoon\(\);/);
+  assert.match(handlers, /if \(next\) scrollToListSoon\(\);[\s\S]*if \(next\) scrollToListSoon\(\);/);
+  assert.match(handlers, /const scrollToListSoon = \(\) => \{ if \(typeof window !== "undefined"\) window\.setTimeout\(jumpToList, 60\); \};/);
   assert.doesNotMatch(read("src/components/payments/income-parts.tsx"), /scrollIntoView/);
   assert.doesNotMatch(read("src/components/payments/income-journal.tsx"), /scrollIntoView/);
-  // the only place that scrolls is «К списку ↓», and `#position` / `#advance` from «Оплаты» (a link, not a click on the page)
-  assert.equal((page.match(/scrollIntoView/g) || []).length, 1);
-  assert.match(page, /document\.getElementById\(target\)\?\.scrollIntoView/);
 });
 
 test("«К списку ↓» scrolls SMOOTHLY (at once for prefers-reduced-motion), leaving the toolbar of the journal in view", () => {
