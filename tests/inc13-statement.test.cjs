@@ -255,3 +255,8 @@ test("inc13-8: opens on the current month, else the latest month with rows; ?mon
   assert.match(src, /const range = month \? monthRange\(month\) : \{\}/);
   assert.match(src, /buildStatementItems\(statement, month\)/);
 });
+
+test("method names inside the operation text: brands keep capitals, generic words are lower case (owner 23.10)", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/lib/payments-ledger.ts"), "utf8");
+  assert.match(src, /method === "click" \|\| method === "payme" \? label : label\.toLowerCase\(\)/);
+});

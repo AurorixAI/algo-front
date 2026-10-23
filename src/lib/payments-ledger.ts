@@ -1202,8 +1202,10 @@ export function openingBalance(rows: StatementRow[], month: string): number {
   return balance;
 }
 
+/** The method inside a sentence: generic words in lower case («наличные», «карта»), brand names keep their capitals («Click», «Payme»). */
 function lowerMethod(method: PayMethod | null | undefined): string {
-  return methodLabel(method).toLowerCase();
+  const label = methodLabel(method);
+  return method === "click" || method === "payme" ? label : label.toLowerCase();
 }
 
 /**
