@@ -209,6 +209,11 @@
             "title": "Expected",
             "type": "integer"
           },
+          "filtered_view": {
+            "default": false,
+            "title": "Filtered View",
+            "type": "boolean"
+          },
           "label": {
             "title": "Label",
             "type": "string"
@@ -217,6 +222,22 @@
             "default": 0,
             "title": "Payments Count",
             "type": "integer"
+          },
+          "scope": {
+            "default": "centre",
+            "title": "Scope",
+            "type": "string"
+          },
+          "scope_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Text"
           },
           "text": {
             "title": "Text",
@@ -230,7 +251,10 @@
           "cash_refunded",
           "expected",
           "payments_count",
-          "text"
+          "text",
+          "scope",
+          "filtered_view",
+          "scope_text"
         ],
         "title": "IncomeCash",
         "type": "object"
@@ -243,7 +267,13 @@
               "received_eq_methods",
               "received_eq_series",
               "received_eq_journal",
-              "collection_total_eq_groups"
+              "collection_total_eq_groups",
+              "strip_old_debt_eq_journal",
+              "strip_current_eq_journal",
+              "strip_forward_eq_journal",
+              "strip_advance_eq_journal",
+              "strip_refunded_eq_journal",
+              "strip_transferred_eq_journal"
             ],
             "title": "Code",
             "type": "string"
@@ -437,6 +467,17 @@
           "previous": {
             "$ref": "#/components/schemas/IncomeTotals"
           },
+          "previous_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Hint"
+          },
           "previous_label": {
             "title": "Previous Label",
             "type": "string"
@@ -460,6 +501,13 @@
             "title": "Series By",
             "type": "string"
           },
+          "strip": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStripPart"
+            },
+            "title": "Strip",
+            "type": "array"
+          },
           "summary_text": {
             "title": "Summary Text",
             "type": "string"
@@ -470,6 +518,7 @@
           "period",
           "previous_period",
           "previous_label",
+          "previous_hint",
           "current",
           "previous",
           "delta_amount",
@@ -478,6 +527,7 @@
           "delta_text",
           "summary_text",
           "by_method",
+          "strip",
           "series",
           "series_by",
           "cash",
@@ -588,8 +638,41 @@
         "title": "IncomePosition",
         "type": "object"
       },
+      "IncomeStripPart": {
+        "description": "One part of «Куда ушли деньги» (the labels are the server's words): ``old_debt`` «на старые долги» (the period ended before the payment's date), ``current`` «за текущий период»\n(the period contains it), ``forward`` «вперёд (за будущие периоды)» (starts after it, consumed since), ``advance`` «пока не потрачено (аванс)», ``refunded``, ``transferred``.",
+        "properties": {
+          "amount": {
+            "default": 0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "old_debt",
+              "current",
+              "forward",
+              "advance",
+              "refunded",
+              "transferred"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "amount"
+        ],
+        "title": "IncomeStripPart",
+        "type": "object"
+      },
       "IncomeTotals": {
-        "description": "Where the money of the period went.  ``to_past_debt + to_current + to_advance + refunded_from_received + transferred == received``.",
+        "description": "Where the money of the period went.  ``to_past_debt + to_current + to_forward + to_advance + refunded_from_received + transferred == received``.\nEach payment is split by the CURRENT ledger allocation, every piece classified relative to the payment's own date (see ``IncomeStripPart``).",
         "properties": {
           "net_received": {
             "default": 0,
@@ -626,6 +709,11 @@
             "title": "To Current",
             "type": "integer"
           },
+          "to_forward": {
+            "default": 0,
+            "title": "To Forward",
+            "type": "integer"
+          },
           "to_past_debt": {
             "default": 0,
             "title": "To Past Debt",
@@ -650,6 +738,7 @@
           "transferred",
           "to_past_debt",
           "to_current",
+          "to_forward",
           "to_advance",
           "written_off",
           "net_received"
@@ -712,6 +801,28 @@
             "title": "Amount",
             "type": "integer"
           },
+          "corrected_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected At"
+          },
+          "corrected_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corrected By Name"
+          },
           "created_at": {
             "anyOf": [
               {
@@ -755,6 +866,17 @@
               }
             ],
             "title": "Display Id"
+          },
+          "entered_at_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entered At Text"
           },
           "group_id": {
             "title": "Group Id",
@@ -854,6 +976,48 @@
             ],
             "title": "Replaces Amount"
           },
+          "replaces_method": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cash",
+                  "card",
+                  "bank_transfer",
+                  "click",
+                  "payme",
+                  "other",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Method"
+          },
+          "replaces_method_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Method Label"
+          },
+          "replaces_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Reason"
+          },
           "replaces_receipt_no": {
             "anyOf": [
               {
@@ -864,6 +1028,13 @@
               }
             ],
             "title": "Replaces Receipt No"
+          },
+          "split": {
+            "items": {
+              "$ref": "#/components/schemas/IncomeStripPart"
+            },
+            "title": "Split",
+            "type": "array"
           },
           "status": {
             "default": "active",
@@ -938,6 +1109,7 @@
           "receipt_no",
           "paid_on",
           "paid_time",
+          "entered_at_text",
           "created_at",
           "student_id",
           "student_name",
@@ -954,11 +1126,17 @@
           "note",
           "allocation_text",
           "allocations",
+          "split",
           "refunded",
           "transferred",
           "status",
           "replaces_receipt_no",
           "replaces_amount",
+          "replaces_reason",
+          "replaces_method",
+          "replaces_method_label",
+          "corrected_by_name",
+          "corrected_at",
           "replaced_by_receipt_no",
           "void_reason",
           "voided_at",
@@ -968,11 +1146,27 @@
         "type": "object"
       },
       "JournalTotals": {
-        "description": "Of the ACTIVE payments of the filtered set; equals the period's «Поступило» for the same filters.",
+        "description": "Of the ACTIVE payments of the filtered set; ``sum`` equals the period's «Поступило» for the same filters (with ``kind``: of the rows that have the kind, whole amounts).",
         "properties": {
           "count": {
             "default": 0,
             "title": "Count",
+            "type": "integer"
+          },
+          "kind_sum": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind Sum"
+          },
+          "replaced_count": {
+            "default": 0,
+            "title": "Replaced Count",
             "type": "integer"
           },
           "sum": {
@@ -989,7 +1183,9 @@
         "required": [
           "count",
           "sum",
-          "voided_count"
+          "voided_count",
+          "replaced_count",
+          "kind_sum"
         ],
         "title": "JournalTotals",
         "type": "object"
@@ -1501,6 +1697,32 @@
               "title": "Status",
               "type": "string"
             }
+          },
+          {
+            "description": "Только оплаты, в «куда пошли» которых есть этот вид (old_debt | current | forward | advance | refunded | transferred); в строке остаётся весь split, totals.kind_sum = сумма этого вида по отобранным строкам = цифра плашки «Куда ушли деньги» за тот же период и фильтры. Отменённые и исправленные строки вида не имеют и не показываются.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "old_debt",
+                    "current",
+                    "forward",
+                    "advance",
+                    "refunded",
+                    "transferred"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Только оплаты, в «куда пошли» которых есть этот вид (old_debt | current | forward | advance | refunded | transferred); в строке остаётся весь split, totals.kind_sum = сумма этого вида по отобранным строкам = цифра плашки «Куда ушли деньги» за тот же период и фильтры. Отменённые и исправленные строки вида не имеют и не показываются.",
+              "title": "Kind"
+            }
           }
         ],
         "responses": {
@@ -1698,6 +1920,32 @@
               ],
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "description": "Только оплаты, в «куда пошли» которых есть этот вид (old_debt | current | forward | advance | refunded | transferred); в строке остаётся весь split, totals.kind_sum = сумма этого вида по отобранным строкам = цифра плашки «Куда ушли деньги» за тот же период и фильтры. Отменённые и исправленные строки вида не имеют и не показываются.",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "old_debt",
+                    "current",
+                    "forward",
+                    "advance",
+                    "refunded",
+                    "transferred"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Только оплаты, в «куда пошли» которых есть этот вид (old_debt | current | forward | advance | refunded | transferred); в строке остаётся весь split, totals.kind_sum = сумма этого вида по отобранным строкам = цифра плашки «Куда ушли деньги» за тот же период и фильтры. Отменённые и исправленные строки вида не имеют и не показываются.",
+              "title": "Kind"
             }
           }
         ],

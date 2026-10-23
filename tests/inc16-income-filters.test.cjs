@@ -72,10 +72,11 @@ test("the insight: old debts ≥ 50 % → «оплаты отстают»; advan
   assert.equal(V.flowInsight(withStrip(1000, [["old_debt", 500], ["advance", 500]])), V.INSIGHT_OLD_DEBT_TEXT);
   // nothing received: nothing to say
   assert.equal(V.flowInsight(withStrip(0, [["old_debt", 0]])), null);
-  // an older server (fixed fields): the fixture has 29 % of old debts and 13 % of advance → nothing; a patched one speaks
+  // an older server (fixed fields, no strip): 29 % of old debts and 13 % of advance → nothing; a patched one speaks
   assert.equal(V.flowInsight(overview("I01_income_month_october")), null);
+  assert.equal(V.flowInsight({ ...overview("I01_income_month_october"), strip: null }), null);
   const old = overview("I01_income_month_october");
-  assert.equal(V.flowInsight({ ...old, current: { ...old.current, to_past_debt: 2000000 } }), V.INSIGHT_OLD_DEBT_TEXT);
+  assert.equal(V.flowInsight({ ...old, strip: null, current: { ...old.current, to_past_debt: 2000000 } }), V.INSIGHT_OLD_DEBT_TEXT);
 });
 
 test("the insight is one sentence under the legend, only when it means something", () => {
@@ -278,7 +279,7 @@ test("the toggle «Показать отменённые и исправленн
   assert.equal(plain(V.journalTotalsText(totals)), "19 оплат на 7 885 000 сум");
   const data = V.normalizeJournal({ ...fixture("J01_journal_page1"), totals });
   assert.equal(data.totals.replaced_count, 2);
-  assert.equal(V.normalizeJournal(fixture("J01_journal_page1")).totals.replaced_count, 0);
+  assert.equal(V.normalizeJournal({ ...fixture("J01_journal_page1"), totals: { count: 1, sum: 1, voided_count: 1 } }).totals.replaced_count, 0, "an older server sends none");
   const base = {
     journal: data, loading: false, error: null, onRetry() {}, search: "", onSearch() {}, createdBy: "", onCreatedBy() {}, authors: [], focusLabel: null, onClearFocus() {},
     empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing() {}, onPage() {}, onExport() {}, exporting: false, activeId: null, onOpen() {}, onToggleVoided() {},
@@ -291,10 +292,10 @@ test("the toggle «Показать отменённые и исправленн
   const onMarkup = html(React.createElement(J.JournalSection, { ...base, showVoided: true }));
   assert.match(onMarkup, /aria-pressed="true"/);
   assert.match(onMarkup, /Показать отменённые и исправленные \(5\)/);
-  // nothing hidden → no toggle (unless it is on: then it can be switched off)
+  // nothing hidden (e.g. under a `kind`: the server answers 0) → no toggle, on or off
   const none = { ...base, journal: { ...data, totals: { ...totals, voided_count: 0, replaced_count: 0 } } };
   assert.ok(!html(React.createElement(J.JournalSection, none)).includes("journal-voided-toggle"));
-  assert.ok(html(React.createElement(J.JournalSection, { ...none, showVoided: true })).includes("journal-voided-toggle"));
+  assert.ok(!html(React.createElement(J.JournalSection, { ...none, showVoided: true })).includes("journal-voided-toggle"));
   // no handler (a caller that knows nothing of the toggle): no button
   assert.ok(!html(React.createElement(J.JournalSection, { ...base, onToggleVoided: undefined })).includes("journal-voided-toggle"));
   // a period with only cancelled payments is not an empty period
@@ -342,4 +343,32 @@ test("the drawer of a cancelled payment: «Отменена <дата> · <кт�
   assert.equal(V.voidedLine(row({ status: "voided", void_reason: null, voided_by_name: null, voided_at: null })), "Отменена");
   assert.equal(V.voidedLine(row()), null);
   assert.equal(V.drawerView(row(voided)).notes[0], "Отменена 20.10 · Нодира Саидова · причина: Ошибочный ввод");
+});
+
+// ── the server's fixtures (artifacts/partner_doc_check/income2_fixtures, INC-16) ─────────────────
+
+test("the server's J06–J09 fixtures: kind answers have no hidden payments (no toggle) and kind_sum; status=active hides the superseded row; the corrected one carries its details", () => {
+  const section = (journalData, extra = {}) => React.createElement(J.JournalSection, {
+    journal: journalData, loading: false, error: null, onRetry() {}, search: "", onSearch() {}, createdBy: "", onCreatedBy() {}, authors: [], focusLabel: null, onClearFocus() {},
+    empty: { kind: "month", focusLabel: null, narrowed: false }, onResetNarrowing() {}, onPage() {}, onExport() {}, exporting: false, activeId: null, onOpen() {}, onToggleVoided() {}, ...extra,
+  });
+  for (const name of ["J06_journal_kind_advance", "J07_journal_kind_current_cash_day", "J08_journal_kind_current_page2"]) {
+    const data = V.normalizeJournal(fixture(name));
+    assert.equal(V.hiddenPaymentsCount(data.totals), 0, name);
+    assert.ok(typeof data.totals.kind_sum === "number" && data.totals.kind_sum > 0, `${name}: kind_sum`);
+    assert.ok(!html(section(data, { kind: "advance" })).includes("journal-voided-toggle"), `${name}: no toggle`);
+    assert.ok(data.rows.length > 0 && data.rows.every((r) => r.status === "active"), name);
+  }
+  const active = V.normalizeJournal(fixture("J09_journal_status_active"));
+  assert.ok(active.rows.every((r) => r.status === "active"), "status=active: no cancelled and no superseded rows");
+  assert.equal(V.hiddenPaymentsCount(active.totals), active.totals.voided_count);
+  assert.ok(active.totals.voided_count >= 1 && active.totals.replaced_count >= 1 && active.totals.replaced_count <= active.totals.voided_count, "replaced_count is a part of voided_count");
+  assert.match(text(section(active)), new RegExp(`Показать отменённые и исправленные \\(${active.totals.voided_count}\\)`));
+  const fixed = active.rows.find((r) => r.replaces_receipt_no);
+  assert.ok(fixed, "a corrected payment in the list");
+  assert.equal(V.journalRowView(fixed).correctedChip, "исправлена");
+  const line = plain(V.correctionLine(fixed));
+  assert.ok(line.startsWith("Было ") && line.includes(" → стало ") && line.includes("исправил ") && line.includes("причина: "), line);
+  const all = V.normalizeJournal(fixture("J04_journal_voided_and_replaced"));
+  assert.ok(all.rows.some((r) => r.status === "voided" && V.voidedLine(r).startsWith("Отменена ")));
 });

@@ -57,13 +57,13 @@ test("«Поступило»: line 1 the delta (or the quiet «В августе
   const month = overview("I01_income_month_october");
   const up = V.receivedCard(month);
   assert.deepEqual([up.delta.arrow, up.delta.text, up.countText], ["▲", "130% к 1–21 сентября", "7 оплат"]);
-  assert.equal(up.hint, "сравнение с 1–21 сент."); // only the title of line 1
+  assert.equal(up.hint, "Сравнение с 1–21 сентября"); // only the title of line 1
   const { React, text, html, P } = parts();
   const card = React.createElement(P.IncomeCards, { overview: month, paymentsBase: "/owner/payments" });
   const body = text(card);
   assert.ok(body.includes("▲ 130% к 1–21 сентября") && body.includes("7 оплат"));
   assert.ok(!body.includes("сравнение с"), "no third line");
-  assert.match(html(card), /data-testid="received-delta"[^>]*title="сравнение с 1–21 сент\."/);
+  assert.match(html(card), /data-testid="received-delta"[^>]*title="Сравнение с 1–21 сентября"/);
   // the previous period took nothing: the quiet sentence is line 1, the count is line 2
   const quiet = V.receivedCard(overview("I04_income_september_closed"));
   assert.deepEqual([quiet.delta.text, quiet.delta.tone, quiet.countText.length > 0], ["В августе оплат не было", "none", true]);
@@ -219,14 +219,16 @@ test("«Куда ушли деньги» shows whatever kinds and labels the ser
   assert.equal(V.flowParts({ ...month, strip: [strip[3]] })[0].dot, shown[3].dot);
   assert.equal(V.flowDot("to_advance"), V.flowDot("advance"), "the older server's names keep theirs");
   // without `strip` (an older server): the fixed fields, as before
-  assert.deepEqual(V.flowParts(month).map((part) => part.key), ["to_past_debt", "to_current", "to_advance", "refunded"]);
+  assert.deepEqual(V.flowParts({ ...month, strip: null }).map((part) => part.key), ["to_past_debt", "to_current", "to_advance", "refunded"]);
+  assert.deepEqual(V.flowParts(month).map((part) => part.key), ["old_debt", "current", "advance", "refunded"], "the server's strip: its kinds");
   // the screen draws them
   const { React, text, P: Parts } = parts();
   const body = text(React.createElement(Parts.FlowLine, { overview: { ...month, strip } }));
   assert.ok(body.includes("за будущие месяцы") && body.includes("что-то новое"));
   const raw = fixture("I01_income_month_october");
   assert.equal(V.normalizeOverview({ ...raw, strip: [{ kind: "current", label: "на текущий", amount: 5 }] }).strip[0].kind, "current");
-  assert.equal(V.normalizeOverview(raw).strip, null);
+  assert.equal(V.normalizeOverview({ ...raw, strip: undefined }).strip, null, "an older server has no strip");
+  assert.equal(V.normalizeOverview(raw).strip.length, 6, "the server's strip: six kinds");
 });
 
 // ── 7. the teacher's week ──────────────────────────────────────────────────────────────────────

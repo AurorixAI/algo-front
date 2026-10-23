@@ -173,7 +173,7 @@ test("card «Поступило»: the sum, ▲/▼ with the server's words, gre
   assert.equal(V.noPaymentsBefore("14 окт."), "14 окт.: оплат не было");
   assert.equal(V.noPaymentsBefore(""), "");
   // a running period is compared like for like and says so quietly; a closed one does not
-  assert.equal(V.receivedCard(overview("I01_income_month_october")).hint, "сравнение с 1–21 сент.");
+  assert.equal(V.receivedCard(overview("I01_income_month_october")).hint, "Сравнение с 1–21 сентября");
   assert.equal(V.receivedCard(overview("I03_income_week")).hint, "");
   assert.equal(V.receivedCard(overview("I02_income_day_today_cash")).hint, "");
   assert.equal(overview("I03_income_week").previous_label, "5–11 окт.");
@@ -218,15 +218,15 @@ test("cards «Долг на сегодня» and «Аванс»: the sum and the
 
 test("the line «Куда ушли деньги»: only the non-zero parts, shares that add up to 100, «Сходится»", () => {
   const parts_ = V.flowParts(overview("I01_income_month_october"));
-  assert.deepEqual(parts_.map((p) => [p.key, p.amount, p.percent]), [["to_past_debt", 1000000, 29], ["to_current", 1900000, 55], ["to_advance", 450000, 13], ["refunded", 100000, 3]]);
+  assert.deepEqual(parts_.map((p) => [p.key, p.amount, p.percent]), [["old_debt", 1000000, 29], ["current", 1900000, 55], ["advance", 450000, 13], ["refunded", 100000, 3]]);
   assert.equal(parts_.reduce((acc, p) => acc + p.percent, 0), 100);
-  assert.deepEqual(V.flowParts(overview("I02_income_day_today_cash")).map((p) => p.key), ["to_current"]); // zero parts are not drawn
+  assert.deepEqual(V.flowParts(overview("I02_income_day_today_cash")).map((p) => p.key), ["current"]); // zero parts are not drawn
   assert.deepEqual(V.sharesOf([1, 1, 1]), [34, 33, 33]);
   assert.deepEqual(V.sharesOf([0, 0]), [0, 0]);
   assert.equal(V.sharesOf([333, 333, 334]).reduce((a, b) => a + b, 0), 100);
   assert.equal(plain(V.writtenOffText(overview("I01_income_month_october"))), "Прощено долгов: 100 000 сум");
   assert.equal(V.writtenOffText(overview("I03_income_week")), ""); // nothing is said about zero
-  const transferred = { ...overview("I03_income_week"), current: { ...overview("I03_income_week").current, transferred: 50000 } };
+  const transferred = { ...overview("I03_income_week"), strip: null, current: { ...overview("I03_income_week").current, transferred: 50000 } };
   assert.ok(V.flowParts(transferred).some((p) => p.key === "transferred" && p.label === "переведено в другие группы"));
 });
 
@@ -494,7 +494,7 @@ test("the drawer: who entered it, where the money went, the receipt, the way to 
   assert.equal(view.title, "Оплата № 13");
   assert.equal(view.when, "21.10.2026 · 11:40");
   assert.deepEqual(view.facts, [{ label: "Ученик", value: "Алиев Тимур" }, { label: "Группа", value: "Английский 7Б · Мария Ким" }, { label: "Кто внёс", value: "Азиз Хакимов" }]);
-  assert.deepEqual(view.destination.map(plain), ["за октябрь — 150 000 сум"]);
+  assert.deepEqual(view.destination.map(plain), ["Текущий период — за октябрь · 150 000 сум"]);
   assert.equal(view.note, "=SUM(A1)"); // shown as text, never as a formula
   assert.deepEqual(view.links.map((l) => [l.key, l.label]), [["receipt", "Квитанция № 13"], ["student", "Карточка ученика"], ["statement", "Выписка по группе"]]);
   // «за сентябрь — 200 000 · аванс — 50 000» is two lines
@@ -550,7 +550,7 @@ test("the month on screen: the sentence of the server, four cards, one line, the
     "Собрано за месяц", "1 900 000 сум", "из 2 500 000 сум · 76%",
     "Долг", "500 000 сум", "3 ученика", "Должники",
     "Аванс", "450 000 сум", "2 ученика оплатили вперёд",
-    "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "на текущие периоды", "55%", "в аванс", "13%", "возвращено", "3%", "Сходится", "Прощено долгов: 100 000 сум",
+    "Куда ушли деньги", "на старые долги", "1 000 000 сум", "29%", "за текущий период", "55%", "пока не потрачено (аванс)", "13%", "возвращено", "3%", "Сходится", "Прощено долгов: 100 000 сум",
     "Пришло по дням", "Чем платили", "Click", "1 250 000 сум", "Наличные", "Перевод", "Карта", "36%", "28%",
   ]) assert.ok(body.includes(piece), piece);
   assert.ok(!body.includes("NaN") && !body.includes("undefined") && !body.includes("null"));
@@ -585,7 +585,7 @@ test("a day answer (the shape the till of today asks for): three cards (no «С�
 test("a quiet period: the cards, no chart, no line of shares, no till; the zero is said in words", () => {
   const { React, text, P } = parts();
   const o = overview("I02_income_day_today_cash");
-  const quiet = { ...o, current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debt_total: 0, students_with_debt: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
+  const quiet = { ...o, strip: null, current: { ...o.current, received: 0, payments_count: 0, to_current: 0, refunded: 0, refunded_from_received: 0 }, by_method: [], cash: null, series: [{ bucket: TODAY, received: 0, count: 0 }], position: { ...o.position, debt_total: 0, students_with_debt: 0, advance_total: 0, students_with_advance: 0 }, delta_text: null, delta_direction: null };
   const body = text(React.createElement(P.IncomeOverviewView, { overview: quiet, today: TODAY, paymentsBase: "/owner/payments", activeBucket: null, onPick: () => {} }));
   for (const piece of ["Оплат не было", "Долгов нет", "Авансов нет"]) assert.ok(body.includes(piece), piece);
   for (const absent of ["Куда ушли деньги", "Чем платили", "Пришло по дням", "Должники"]) assert.ok(!body.includes(absent), absent);
@@ -629,7 +629,7 @@ test("the drawer body: amount, method, who entered it, where the money went, lin
   const row = journal("J01_journal_page1").rows[0];
   const el = React.createElement(J.JournalDrawerBody, { row, paymentsBase: "/owner/payments", studentProfileBasePath: "/owner/students" });
   const body = text(el);
-  for (const piece of ["150 000 сум", "Наличные", "Алиев Тимур", "Английский 7Б · Мария Ким", "Кто внёс", "Азиз Хакимов", "Куда пошли деньги", "за октябрь — 150 000", "Комментарий", "=SUM(A1)", "Квитанция № 13", "Карточка ученика", "Выписка по группе"]) assert.ok(body.includes(piece), piece);
+  for (const piece of ["150 000 сум", "Наличные", "Алиев Тимур", "Английский 7Б · Мария Ким", "Кто внёс", "Азиз Хакимов", "Куда пошли деньги", "Текущий период — за октябрь · 150 000", "Комментарий", "=SUM(A1)", "Квитанция № 13", "Карточка ученика", "Выписка по группе"]) assert.ok(body.includes(piece), piece);
   const markup = html(el);
   assert.match(markup, new RegExp(`href="/owner/payments/receipt/${encodeURIComponent(row.id)}\\?m=${encodeURIComponent(row.membership_id)}&amp;s=${encodeURIComponent(row.student_id)}&amp;g=${encodeURIComponent(row.group_id)}"`)); // the receipt knows where it came from (IA audit F28)
   assert.match(markup, new RegExp(`href="/owner/students/${encodeURIComponent(row.student_id)}\\?tab=payments"`)); // IA audit F29: the «Оплаты» tab, never the default one
@@ -975,5 +975,5 @@ test("inc8-5: the quiet delta line is one line: «Сентябрь: оплат �
   const markup = html(React.createElement(P.IncomeCards, { overview: nothing({}), paymentsBase: "/owner/payments" }));
   assert.match(markup, /class="mt-1 truncate text-sm font-medium [^"]*" data-testid="received-delta" data-tone="none" title="Те же дни сентября: оплат не было">Сентябрь: оплат не было</);
   // a delta with a percent also truncates and carries the comparison as its title
-  assert.match(html(React.createElement(P.IncomeCards, { overview: base, paymentsBase: "/owner/payments" })), /class="mt-1 truncate text-sm font-medium [^"]*" data-testid="received-delta" data-tone="up" title="сравнение с 1–21 сент\."/);
+  assert.match(html(React.createElement(P.IncomeCards, { overview: base, paymentsBase: "/owner/payments" })), /class="mt-1 truncate text-sm font-medium [^"]*" data-testid="received-delta" data-tone="up" title="Сравнение с 1–21 сентября"/);
 });

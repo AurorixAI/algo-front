@@ -231,7 +231,7 @@ export function JournalSection(props: JournalSectionProps) {
   const showAuthors = authors.length > 1;
   const chips = filterChips({ day: focusLabel, method: methodLabel, kind });
   const hidden = hiddenPaymentsCount(journal?.totals);
-  const toggle = Boolean(props.onToggleVoided) && Boolean(journal) && (hidden > 0 || showVoided);
+  const toggle = Boolean(props.onToggleVoided) && Boolean(journal) && hidden > 0; // nothing to bring back (also under a `kind`: those rows have no split) = no button
   const clear: Record<"day" | "method" | "kind", (() => void) | undefined> = { day: props.onClearFocus, method: props.onClearMethod, kind: props.onClearKind };
   const testId: Record<"day" | "method" | "kind", string> = { day: "journal-focus", method: "journal-method", kind: "journal-kind" };
   // Nothing in the period and nothing narrowed: the sentence and the card above already said so; no search, no Excel, one quiet line.
