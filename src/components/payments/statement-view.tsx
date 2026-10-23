@@ -189,7 +189,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
     setExporting(true);
     try {
       const range = month ? monthRange(month) : {};
-      const file = await orgApi.exportStatement(membershipId, { ...range, include_voided: withVoided }, statementFileName(statement));
+      const file = await orgApi.exportStatement(membershipId, { ...range, include_voided: withVoided }, statementFileName(statement, month));
       saveBlobAs(file.blob, file.filename);
     } catch (cause) {
       showToast(cause instanceof Error ? cause.message : "Не удалось скачать Excel", "error");
@@ -629,7 +629,7 @@ function StatementRowItem({ entry, menu, extra }: { entry: StatementEntry; menu:
         </span>
       </div>
 
-      <div className={`flex items-center justify-between gap-3 md:justify-center ${CELL_MONEY} ${STATEMENT_ALIGN.money}`} data-testid="statement-cell-balance">
+      <div className={`flex items-center justify-between gap-3 md:items-start md:justify-center ${CELL_MONEY} ${STATEMENT_ALIGN.money}`} data-testid="statement-cell-balance">
         <span className="text-xs text-slate-400 md:hidden">Баланс</span>
         <BalanceChip balance={entry.balance} />
       </div>

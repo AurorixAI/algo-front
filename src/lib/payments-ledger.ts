@@ -774,9 +774,10 @@ export function validateStatementRange(from: string, to: string): string | null 
 }
 
 /** File name of the downloaded statement when the server sends none. */
-export function statementFileName(statement: Pick<StatementOut, "membership" | "as_of">): string {
+export function statementFileName(statement: Pick<StatementOut, "membership" | "as_of">, month: string | null = null): string {
   const who = `${statement.membership.student_name}_${statement.membership.group_name}`.replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_+|_+$/g, "");
-  return `Выписка_${who}_${statement.as_of}.xlsx`;
+  // the file of one month says which one; «Все месяцы» keeps the date of the statement
+  return `Выписка_${who}_${month ?? statement.as_of}.xlsx`;
 }
 
 /** The upcoming (already paid) periods, for the quiet block under the table. */

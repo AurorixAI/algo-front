@@ -421,6 +421,7 @@ test("a statement that does not add up is called out, not hidden", () => {
   assert.equal(L.validateStatementRange("2026-10-10", "2026-10-01"), "Конец периода раньше начала");
   assert.equal(L.validateStatementRange("", ""), null);
   assert.match(L.statementFileName(statement), /^Выписка_Хасанов_Азиз_Математика_7А_2026-10-21\.xlsx$/);
+  assert.match(L.statementFileName(statement, "2026-10"), /^Выписка_Хасанов_Азиз_Математика_7А_2026-10\.xlsx$/); // one month: its name in the file
 });
 
 // ── receipts report «Поступления» ───────────────────────────────────────────────────────────────
