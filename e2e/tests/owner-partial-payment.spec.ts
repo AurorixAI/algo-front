@@ -65,15 +65,21 @@ test("partial payment: debtors row -> statement shows the allocation and «ос�
   const file = test.info().outputPath("vypiska.xlsx");
   await download.saveAs(file);
   const sheet = readSheet(readZip(readFileSync(file)), "Выписка");
-  const header = sheet.find((r) => Object.values(r.cells).includes("Дата"));
-  expect(header, "the header row of the file").toBeTruthy();
-  const titles = Object.values(header!.cells);
-  for (const word of ["Дата", "Операция", "Стоимость", "Баланс"]) expect(titles).toContain(word);
-  expect(titles.some((t) => t.startsWith("Оплачено"))).toBe(true);
+  // the layout: a compact title block (row 1 «Выписка — …»), the table header further down (found by its content, not by a row number)
+  const HEADER = ["Дата", "Операция", "Стоимость", "Оплачено", "Баланс", "Подробности"];
+  const header = sheet.find((r) => HEADER.every((h, i) => Object.values(r.cells)[i] === h));
+  expect(header, "the header row of the file: Дата | Операция | Стоимость | Оплачено | Баланс | Подробности").toBeTruthy();
+  expect(header!.row, "the header sits below the title block").toBeGreaterThan(1);
+  const title = sheet.find((r) => r.row === 1);
+  expect(Object.values(title?.cells ?? {})[0] ?? "", "row 1 is the title").toMatch(/^Выписка — /);
   expect(JSON.stringify(sheet)).not.toMatch(/Начисл/); // the owner's vocabulary
-  const paymentRow = sheet.find((r) => Object.values(r.cells).some((t) => /^Оплата № 1/.test(t)));
+  const paymentRow = sheet.find((r) => r.row > header!.row && Object.values(r.cells).some((t) => /^Оплата № 1/.test(t)));
   expect(paymentRow, "the payment of the page is a row of the file").toBeTruthy();
-  expect(Object.values(paymentRow!.cells)).toContain("200000"); // a number, not a text with spaces
+  const paymentCells = Object.values(paymentRow!.cells);
+  expect(paymentCells.some((t) => /^\d+(\.\d+)?$/.test(t)), "a numeric amount cell").toBe(true);
+  expect(paymentCells).toContain("200000"); // a number, not a text with spaces
+  expect(paymentCells.join(" | "), "the method is a Russian word").toMatch(/наличные/i);
+  expect(paymentCells.join(" | ")).not.toMatch(/\bcash\b/i);
 
   // --- the rest is paid: the debt is closed, the second payment leaves nothing «осталось»
   await org.pay(student.id, 300000, { method: "card" });
