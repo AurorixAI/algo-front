@@ -177,7 +177,11 @@ test("Excel round trip: the file without edits changes nothing; edited cells cha
   await download.saveAs(path);
   const sheet = readSheet(readZip(readFileSync(path)), "Остатки");
   const byName = (surname: string) => sheet.find((r) => r.cells.A === surname);
-  expect(byName(students[0].lastName)?.cells.K).toBe(memberships[0]); // the key of the row: «ID членства»
+  // the house-style file keeps the keys in hidden columns at the end: find «ID членства» by its header, not by a letter
+  const head = sheet.find((r) => Object.values(r.cells).some((v) => v.startsWith("ID членства")));
+  const keyColumn = head ? Object.entries(head.cells).find(([, v]) => v.startsWith("ID членства"))?.[0] : undefined;
+  expect(keyColumn).toBeTruthy();
+  expect(byName(students[0].lastName)?.cells[keyColumn!]).toBe(memberships[0]); // the key of the row: «ID членства»
 
   // --- the file as it is: 0 changes
   await page.getByTestId("openings-file").setInputFiles(path);
