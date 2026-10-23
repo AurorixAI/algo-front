@@ -30,6 +30,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
     lesson_type: DEFAULT_LESSON_TYPE as LessonType,
   });
   const [saving, setSaving] = useState(false);
+  const [maxDraft, setMaxDraft] = useState(String(form.max_students));
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -42,6 +43,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
         max_students: 30,
         lesson_type: DEFAULT_LESSON_TYPE,
       });
+      setMaxDraft("30");
       setError(null);
     }
   }, [open]);
@@ -147,8 +149,14 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                   stepper
                   min={1}
                   max={100}
-                  value={String(form.max_students)}
-                  onChange={(next) => setForm({ ...form, max_students: Math.min(100, Math.max(1, Number(next))) })}
+                  value={maxDraft}
+                  onChange={(next) => {
+                    // the field may be emptied while typing a new number; the form keeps the last valid one (1..100)
+                    setMaxDraft(next);
+                    const n = Number(next);
+                    if (next !== "" && n >= 1 && n <= 100) setForm({ ...form, max_students: n });
+                  }}
+                  onBlur={() => setMaxDraft(String(form.max_students))}
                   className="w-full pl-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm transition-all focus:bg-white focus:ring-4 focus:ring-primary-500/10 focus:border-primary-500 outline-none"
                 />
               </div>

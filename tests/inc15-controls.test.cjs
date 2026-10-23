@@ -326,3 +326,10 @@ test("the date field never shows the browser's locale: no native date input, ISO
   assert.match(date, /event\.key !== "Escape"/);
   assert.match(date, /mousedown/); // an outside press closes the calendar
 });
+
+test("group create: «Макс. учеников» can be emptied while typing; blur restores the last valid number (stage walkthrough 23.10)", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "src/components/groups/group-create-modal.tsx"), "utf8");
+  assert.match(src, /value=\{maxDraft\}/);
+  assert.match(src, /if \(next !== "" && n >= 1 && n <= 100\) setForm/);
+  assert.match(src, /onBlur=\{\(\) => setMaxDraft\(String\(form\.max_students\)\)\}/);
+});
