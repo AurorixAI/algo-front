@@ -63,6 +63,7 @@ import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-error
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const COLOR_CLASSES = {
   blue: {
@@ -3728,12 +3729,10 @@ export default function TeacherSchedulePage() {
                               </div>
                               {endRecurringImpact.canEnd && (
                                 <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={releaseAffectedExams}
                                     onChange={(event) => setReleaseAffectedExams(event.target.checked)}
                                     disabled={isEndingRecurring}
-                                    className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
                                   />
                                   <span>Подтверждаю возврат затронутых экзаменов в черновики.</span>
                                 </label>

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { ChevronRight, Check, Book, BookOpen } from "lucide-react";
 import { Textbook, Chapter } from "@/lib/curriculum/topics-tree";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TextbookSelectorProps {
   textbooks: Textbook[];
@@ -168,11 +169,9 @@ function ChapterItem({ chapter, isExpanded, onToggle, selectedSections, onToggle
                       : "hover:bg-slate-50"
                   )}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={selectedSections.has(section.id)}
                     onChange={(e) => onToggleSection(section.id, e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                   />
                   <span className="text-sm text-slate-600">
                     <span className="font-medium">§{section.number}</span> {section.name}

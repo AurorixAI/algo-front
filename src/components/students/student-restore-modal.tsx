@@ -15,6 +15,7 @@ import {
   type RestoreOutcome,
 } from "@/lib/student-archive";
 import { Modal } from "@/components/ui/modal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface StudentRestoreModalProps {
   open: boolean;
@@ -163,13 +164,12 @@ export function StudentRestoreModal({ open, studentId, studentName, archivedGrou
                     option.disabled ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400" : "cursor-pointer border-slate-200 text-slate-800 hover:bg-slate-50"
                   }`}
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    className="mt-0.5"
                     checked={selected.includes(option.groupId)}
                     disabled={option.disabled || busy}
                     aria-describedby={option.note ? noteId : undefined}
                     onChange={() => setSelected((current) => toggleRestoreGroup(current, options, option.groupId))}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-primary-600 focus:ring-primary-500 disabled:opacity-50"
                   />
                   <span className="min-w-0">
                     <span className="block break-words text-sm font-medium">{option.name}</span>

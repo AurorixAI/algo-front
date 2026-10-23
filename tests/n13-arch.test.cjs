@@ -361,7 +361,7 @@ test("the archive dialog: title, reason (≤300, optional), the note, buttons, t
 
 test("the restore dialog: a checkbox per former group, disabled with the reason, only choosable ids are sent, skipped groups are listed", () => {
   const modal = read("src/components/students/student-restore-modal.tsx");
-  assert.match(modal, /type="checkbox"/);
+  assert.match(modal, /<Checkbox\b/);
   assert.match(modal, /disabled=\{option\.disabled \|\| busy\}/);
   assert.match(modal, /aria-describedby=\{option\.note \? noteId : undefined\}/);
   assert.match(modal, /orgApi\.restoreStudent\(studentId, ids\)/);

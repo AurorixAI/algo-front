@@ -10,6 +10,7 @@ import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
 import { postLoginTarget } from "@/lib/safe-redirect";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -147,11 +148,9 @@ export default function LoginPage() {
               {/* Remember me + Forgot password */}
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={rememberMe}
                     onChange={(e) => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500/20"
                   />
                   <span className="text-sm text-slate-600">Запомнить меня</span>
                 </label>

@@ -35,6 +35,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Tab = "pending" | "decided";
 
@@ -269,7 +270,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           </label>
           {pendingTab && (
             <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <input type="checkbox" checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+              <Checkbox checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} />
               Только срочные
             </label>
           )}
@@ -311,7 +312,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             />
             {pendingTab && (
               <label className="mb-2 flex cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:mb-0 xl:border-b xl:border-slate-100 xl:px-4 xl:py-2">
-                <input type="checkbox" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+                <Checkbox checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} />
                 Выбрать все
               </label>
             )}
@@ -325,12 +326,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                     {/* Урок */}
                     <div className="flex min-w-0 items-start gap-3">
                       {pendingTab && (
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           aria-label={`Выбрать: ${item.group.name}, ${item.teacher.name}`}
+                          className="mt-0.5"
                           checked={selected.has(item.id)}
                           onChange={(event) => toggle(item.id, event.target.checked)}
-                          className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                         />
                       )}
                       <div className="min-w-0">

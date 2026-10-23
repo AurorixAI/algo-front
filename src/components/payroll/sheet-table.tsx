@@ -36,6 +36,7 @@ import { Hint } from "@/components/ui/hint";
 import { groupPriceHref, priceLabelOf } from "@/lib/group-price";
 import { splitLayout } from "@/lib/payroll-logica";
 import { usePaymentsSummary } from "@/lib/payments-summary";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const CELL = "px-2 py-2 align-middle max-sm:px-1.5 print:px-1 print:py-1";
 const HEAD = "px-2 py-2 text-left text-xs font-semibold text-slate-500 max-sm:px-1.5 whitespace-nowrap print:px-1 print:py-1 print:text-[9px]";
@@ -93,12 +94,11 @@ function IncludeCell({
       <span className="font-semibold tabular-nums text-slate-700">{line.unpaid}</span>
       {editable ? (
         <>
-          <input
-            type="checkbox"
+          <Checkbox
             checked={view.include}
             onChange={(event) => onChange(event.target.checked)}
             aria-label={label}
-            className="h-4 w-4 accent-primary-600 print:hidden"
+            className="print:hidden"
           />
           <span className="text-xs text-slate-500 print:hidden">{INCLUDE_LABEL}</span>
           <Hint text={INCLUDE_HINT} className="inline-flex max-sm:hidden print:hidden">

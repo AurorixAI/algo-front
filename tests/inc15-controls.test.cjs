@@ -125,3 +125,68 @@ test("a whole-number field takes digits only and steps inside its bounds", () =>
   assert.equal(f.stepNumber("0", -1, 0, 5), "0");
   assert.equal(f.stepNumber("x", 1), "1");
 });
+
+// ── the components, rendered on the server (no browser): markup and states ───────────────────────────────────────
+function renderer() {
+  require.extensions[".tsx"] = (mod, filename) => {
+    mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+    }).outputText, filename);
+  };
+  const Module = require("node:module");
+  if (!Module.__inc15Alias) {
+    const resolveFilename = Module._resolveFilename;
+    Module._resolveFilename = function (request, ...rest) {
+      return resolveFilename.call(this, request.startsWith("@/") ? path.join(root, "src", request.slice(2)) : request, ...rest);
+    };
+    Module.__inc15Alias = true;
+  }
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  return { React, html: (element) => renderToStaticMarkup(element) };
+}
+
+test("Checkbox wraps the native input: checked, indeterminate (a dash), disabled, focus ring, rounded-md, the primary colour", () => {
+  const { React, html } = renderer();
+  const { Checkbox } = require(path.join(root, "src/components/ui/checkbox.tsx"));
+  const on = html(React.createElement(Checkbox, { checked: true, onChange() {}, "aria-label": "Выбрать" }));
+  assert.match(on, /<input[^>]*type="checkbox"[^>]*checked=""|<input[^>]*checked=""[^>]*type="checkbox"/); // the native input stays (keyboard, label click, screen reader)
+  assert.match(on, /aria-label="Выбрать"/);
+  assert.match(on, /rounded-md/);
+  assert.match(on, /peer-checked:bg-primary-600/);
+  assert.match(on, /peer-focus-visible:ring-2/);
+  assert.match(on, /lucide-check/);
+  assert.doesNotMatch(on, /lucide-minus/);
+  const some = html(React.createElement(Checkbox, { checked: false, indeterminate: true, onChange() {} }));
+  assert.match(some, /lucide-minus/);        // «выбрана часть группы»: a dash, not a tick
+  assert.doesNotMatch(some, /lucide-check/);
+  assert.match(some, /bg-primary-600/);
+  const off = html(React.createElement(Checkbox, { checked: false, disabled: true, onChange() {} }));
+  assert.match(off, /disabled=""/);
+  assert.match(off, /peer-disabled:opacity-60/);
+  assert.doesNotMatch(off, /checked=""/);
+  // the wrapper takes the class (margins, print:hidden), the input does not
+  const cls = html(React.createElement(Checkbox, { checked: false, onChange() {}, className: "mt-0.5 print:hidden" }));
+  assert.match(cls, /<span class="[^"]*mt-0\.5 print:hidden/);
+});
+
+test("DateInput / TimeInput render a text field with the project's look: дд.мм.гггг, 24 h, a calendar button, numeric keypad", () => {
+  const { React, html } = renderer();
+  const { DateInput } = require(path.join(root, "src/components/ui/date-input.tsx"));
+  const { TimeInput } = require(path.join(root, "src/components/ui/time-input.tsx"));
+  const date = html(React.createElement(DateInput, { id: "d", value: "2026-10-22", onChange() {}, "data-testid": "the-date", "aria-label": "Дата" }));
+  assert.match(date, /<input[^>]*type="text"/);
+  assert.match(date, /value="22\.10\.2026"/);
+  assert.match(date, /inputMode="numeric"/);
+  assert.match(date, /placeholder="дд\.мм\.гггг"/);
+  assert.match(date, /id="d"/);
+  assert.match(date, /data-testid="the-date"/);
+  assert.match(date, /aria-label="Открыть календарь"/);
+  assert.doesNotMatch(date, /type="date"/);
+  assert.match(html(React.createElement(DateInput, { value: "", onChange() {} })), /value=""/);
+  const time = html(React.createElement(TimeInput, { id: "t", value: "15:00:00", onChange() {} }));
+  assert.match(time, /<input[^>]*type="text"/);
+  assert.match(time, /value="15:00"/);
+  assert.match(time, /placeholder="15:00"/);
+  assert.match(time, /maxLength="5"/);
+});

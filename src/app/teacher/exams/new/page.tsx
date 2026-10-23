@@ -48,6 +48,7 @@ import {
   FileCheck2,
   Shuffle,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type SourceType = "topics" | "textbook" | "custom";
@@ -171,12 +172,10 @@ function SkillTreeAccordion({
                               <div key={l3.id}>
                                 <div className="flex items-center gap-2 pl-14 pr-4 py-2 hover:bg-slate-100/60 transition-colors">
                                   {/* Group checkbox for L3 — selects all L4 */}
-                                  <input
-                                    type="checkbox"
+                                  <Checkbox
                                     checked={l3AllSelected}
-                                    ref={(el) => { if (el) el.indeterminate = l3Selected > 0 && !l3AllSelected; }}
+                                    indeterminate={l3Selected > 0 && !l3AllSelected}
                                     onChange={(e) => onToggleGroup(l3Leaves, e.target.checked)}
-                                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 flex-shrink-0"
                                   />
                                   <button
                                     onClick={() => l3HasL4 && onExpand(l3.id)}
@@ -208,11 +207,10 @@ function SkillTreeAccordion({
                                           key={l4.id}
                                           className="flex items-center gap-2.5 pl-20 pr-4 py-1.5 cursor-pointer hover:bg-primary-50/40 transition-colors"
                                         >
-                                          <input
-                                            type="checkbox"
+                                          <Checkbox
                                             checked={checked}
                                             onChange={(e) => onToggle(l4.id, e.target.checked)}
-                                            className="w-3.5 h-3.5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                            size="sm"
                                           />
                                           <span className={`text-xs ${
                                             checked ? "text-primary-700 font-medium" : "text-slate-500"
@@ -280,12 +278,9 @@ function TOCTreeView({
         return (
           <div key={node.id} className="py-1">
             <div className="flex items-center gap-2.5 group hover:bg-slate-50 p-1.5 rounded-lg transition-colors">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={isAllSelected}
-                ref={(el) => {
-                  if (el) el.indeterminate = isPartial;
-                }}
+                indeterminate={isPartial}
                 onChange={(e) => {
                   if (hasChildren) {
                     onToggleGroup(leafIds, e.target.checked);
@@ -293,7 +288,6 @@ function TOCTreeView({
                     onToggle(String(node.id), e.target.checked);
                   }
                 }}
-                className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500 flex-shrink-0 cursor-pointer"
               />
               <span
                 className={`text-sm flex-1 ${

@@ -28,6 +28,7 @@ import {
 } from "@/lib/group-archive";
 import { AssignGroupModal } from "@/components/groups/assign-group-modal";
 import { StudentArchiveModal } from "@/components/students/student-archive-modal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const FIELD_CLASS =
   "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -256,12 +257,11 @@ export function ArchiveDialogBody({
 
       {view.offersCancelMissed && (
         <label className={`flex cursor-pointer items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm transition-colors ${cancelMissed ? "border-primary-300 bg-primary-50/50" : "border-slate-200 bg-white"}`}>
-          <input
-            type="checkbox"
+          <Checkbox
+            className="mt-0.5"
             checked={cancelMissed}
             onChange={(event) => onCancelMissed(event.target.checked)}
             disabled={busy}
-            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
           />
           <span className="font-medium text-slate-800">
             {cancelMissed && <span className="block text-xs font-normal text-slate-500">{missedLessonsText(view.missedCount)}</span>}

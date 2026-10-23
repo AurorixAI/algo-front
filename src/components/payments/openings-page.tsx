@@ -71,6 +71,7 @@ import {
   type ReviewState,
 } from "@/components/payments/openings-dialogs";
 import { OpeningsGroups } from "@/components/payments/openings-rows";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const newKey = (): string => {
   const c = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
@@ -582,17 +583,15 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
               buttonClassName="h-10 bg-white py-0"
             />
             <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-              <input type="checkbox" checked={filters.onlyMissing} onChange={(event) => setFilters({ ...filters, onlyMissing: event.target.checked })} data-testid="openings-only-missing" className="h-4 w-4 rounded border-slate-300 text-primary-600" />
+              <Checkbox checked={filters.onlyMissing} onChange={(event) => setFilters({ ...filters, onlyMissing: event.target.checked })} data-testid="openings-only-missing" />
               {OPENINGS_ONLY_MISSING}
             </label>
             {hasLeft && (
               <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={includeLeft}
                   onChange={(event) => toggleLeft(event.target.checked)}
                   data-testid="openings-show-left"
-                  className="h-4 w-4 rounded border-slate-300 text-primary-600"
                 />
                 {OPENINGS_SHOW_LEFT}{!includeLeft && data.totals.left_available > 0 ? ` (${data.totals.left_available})` : ""}
               </label>

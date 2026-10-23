@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ChevronDown, Undo2 } from "lucide-react";
 import { reformatMoneyTyping } from "@/lib/payments";
@@ -24,6 +23,7 @@ import {
 } from "@/lib/openings";
 import { studentHref } from "@/lib/ia-links";
 import { DateInput } from "@/components/ui/date-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * Wide layout (xl): ONE column template for the header and every row, so each header sits over its cells.
@@ -96,8 +96,6 @@ function GroupBlock({ group, open, onToggle, ...props }: OpeningsListProps & { g
   const { selected, onToggleGroup, drafts } = props;
   const progress = groupProgress(group.memberships);
   const state = groupSelection(group.memberships, selected);
-  const checkbox = useRef<HTMLInputElement | null>(null);
-  useEffect(() => { if (checkbox.current) checkbox.current.indeterminate = state === "some"; }, [state]);
   const percent = progress.needed === 0 ? 100 : Math.floor((progress.filled * 100) / progress.needed);
   const edited = group.memberships.filter((row) => isChanged(row, drafts[row.membership_id])).length;
   const selectable = group.memberships.some(isSelectable);
@@ -108,15 +106,13 @@ function GroupBlock({ group, open, onToggle, ...props }: OpeningsListProps & { g
     <section data-testid="openings-group" data-group-id={group.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
       <div className="flex items-center gap-1 pr-2">
         <label className="flex h-12 w-11 shrink-0 cursor-pointer items-center justify-center">
-          <input
-            ref={checkbox}
-            type="checkbox"
+          <Checkbox
+            indeterminate={state === "some"}
             checked={state === "all"}
             disabled={!selectable}
             onChange={() => onToggleGroup(group)}
             aria-label={`Выбрать всю группу ${group.name}`}
             data-testid="openings-group-select"
-            className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500/30"
           />
         </label>
         <button
@@ -189,14 +185,12 @@ function OpeningRowView({ row, lessons, ...props }: OpeningsListProps & { row: O
     >
       <div className="flex items-start gap-2 xl:contents">
         <label className="-ml-1 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center xl:ml-0 xl:h-6 xl:w-6">
-          <input
-            type="checkbox"
+          <Checkbox
             checked={selected.has(id)}
             disabled={!isSelectable(row)}
             onChange={() => onToggleRow(id)}
             aria-label={`Выбрать: ${name}`}
             data-testid="openings-row-select"
-            className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500/30 disabled:opacity-40"
           />
         </label>
         <div className="min-w-0 flex-1">

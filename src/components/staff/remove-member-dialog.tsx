@@ -29,6 +29,7 @@ import {
   roleChangeBlockText,
   type HandoverChoices,
 } from "@/lib/staff-lifecycle";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export type MemberAction = { kind: "remove" } | { kind: "role"; role: string };
 
@@ -337,12 +338,10 @@ export function RemovalDialogBody({
                         />
                         {choice.value === UNASSIGNED && (
                           <label className="mt-2.5 flex cursor-pointer items-start gap-2 text-xs font-medium text-slate-700">
-                            <input
-                              type="checkbox"
+                            <Checkbox
                               checked={choice.confirmed}
                               onChange={(event) => onChoice(group.id, { confirmed: event.target.checked })}
                               disabled={busy}
-                              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                             />
                             <span>{UNASSIGNED_CONFIRM_TEXT}</span>
                           </label>

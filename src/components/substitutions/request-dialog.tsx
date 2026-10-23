@@ -25,6 +25,7 @@ import {
 } from "@/lib/substitutions";
 import type { CreateSubstitutionOut, MyLesson, SubstitutionReasonCode } from "@/lib/substitution-types";
 import { DateInput } from "@/components/ui/date-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /** The lesson the dialog was opened on; `null` = «Новый запрос»: the teacher picks the lessons himself. */
 export interface RequestLesson {
@@ -346,12 +347,11 @@ export function RequestBody({
                     return (
                       <li key={key}>
                         <label className={`flex items-start gap-3 px-3 py-2.5 text-sm ${blocked ? "cursor-not-allowed bg-slate-50 text-slate-400" : "cursor-pointer hover:bg-slate-50"}`}>
-                          <input
-                            type="checkbox"
+                          <Checkbox
+                            className="mt-0.5"
                             checked={!blocked && picked.has(key)}
                             disabled={blocked || busy}
                             onChange={(event) => onPick(key, event.target.checked)}
-                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                           />
                           <span className="min-w-0">
                             <span className={`block ${blocked ? "" : "font-medium text-slate-800"}`}>{myLessonLabel(entry)}</span>

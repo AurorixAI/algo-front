@@ -58,6 +58,7 @@ import { PaymentDialog, type EditablePayment } from "./payment-dialog";
 import { PaymentVoidModal, type VoidablePayment } from "./payment-void-modal";
 import { usePaymentCheques } from "./payment-cheques";
 import { RecordVoidModal, type VoidTarget } from "./record-void-modal";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * Date · operation · charged · paid · balance: a bank statement.  Date and money are centred, the operation is left.
@@ -338,7 +339,7 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
               Все месяцы
             </button>
             <label className="ml-auto flex items-center gap-2 py-1.5 text-sm text-slate-700">
-              <input type="checkbox" checked={withVoided} onChange={(event) => setWithVoided(event.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-primary-600" />
+              <Checkbox checked={withVoided} onChange={(event) => setWithVoided(event.target.checked)} />
               Показать отменённые
             </label>
           </div>
