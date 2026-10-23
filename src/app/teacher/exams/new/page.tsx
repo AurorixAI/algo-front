@@ -49,6 +49,7 @@ import {
   Shuffle,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Slider } from "@/components/ui/slider";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type SourceType = "topics" | "textbook" | "custom";
@@ -867,9 +868,8 @@ export default function NewExamPage() {
                           <label htmlFor="exam-new-questions-count" className="text-sm font-medium text-slate-700">Заданий в варианте</label>
                           <span className="text-lg font-bold text-primary-600">{config.questionsCount}</span>
                         </div>
-                        <input id="exam-new-questions-count" type="range" min="5" max="20" value={config.questionsCount}
-                          onChange={(e) => setConfig({ ...config, questionsCount: parseInt(e.target.value) })}
-                          className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-primary-500" />
+                        <Slider id="exam-new-questions-count" min={5} max={20} value={config.questionsCount}
+                          onChange={(next) => setConfig({ ...config, questionsCount: next })} />
                         <div className="flex justify-between text-[10px] text-slate-400 mt-1"><span>5</span><span>10</span><span>15</span><span>20</span></div>
                       </div>
 
@@ -921,21 +921,14 @@ export default function NewExamPage() {
                                 level.color === "amber" ? "text-amber-600" : "text-red-600"
                               }`}>{val}%</span>
                             </div>
-                            <input type="range" min="0" max="100" value={val} aria-label={`${level.label}, доля заданий в процентах`}
-                              onChange={(e) => {
-                                const newVal = parseInt(e.target.value);
+                            <Slider min={0} max={100} value={val} aria-label={`${level.label}, доля заданий в процентах`}
+                              tone={level.color === "green" ? "green" : level.color === "amber" ? "amber" : "red"}
+                              onChange={(newVal) => {
                                 const others = Object.keys(config.difficulty).filter(k => k !== level.key) as Array<keyof typeof config.difficulty>;
                                 const remaining = 100 - newVal;
                                 const perOther = Math.floor(remaining / 2);
                                 setConfig({ ...config, difficulty: { ...config.difficulty, [level.key]: newVal, [others[0]]: perOther, [others[1]]: remaining - perOther } });
                               }}
-                              className={`w-full h-1.5 rounded-lg appearance-none cursor-pointer ${
-                                level.color === "green" ? "accent-green-500" :
-                                level.color === "amber" ? "accent-amber-500" : "accent-red-500"
-                              }`}
-                              style={{ background: `linear-gradient(to right, ${
-                                level.color === "green" ? "#22c55e" : level.color === "amber" ? "#f59e0b" : "#ef4444"
-                              } ${val}%, #e2e8f0 ${val}%)` }}
                             />
                           </div>
                         );

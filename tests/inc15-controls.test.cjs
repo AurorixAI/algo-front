@@ -261,3 +261,68 @@ test("NumberInput: a text field with the numeric keypad (no browser spinner), ou
   assert.match(bad, /border-red-400/);
   assert.match(html(React.createElement(NumberInput, { value: "", onChange() {}, placeholder: "уроков" })), /placeholder="уроков"/);
 });
+
+test("Slider: a native range under the project's track and thumb (primary colour, filled up to the thumb), tones for the difficulty shares", () => {
+  const { React, html } = renderer();
+  const { Slider } = require(path.join(root, "src/components/ui/slider.tsx"));
+  const mid = html(React.createElement(Slider, { id: "s", min: 5, max: 20, value: 10, onChange() {}, "aria-label": "Заданий" }));
+  assert.match(mid, /<input[^>]*type="range"/);
+  assert.match(mid, /class="ui-slider"/);
+  assert.match(mid, /--slider-color:#2563eb/);
+  assert.match(mid, /--slider-fill:33\.3+\d*%/); // (10 - 5) / (20 - 5)
+  assert.match(mid, /min="5"/);
+  assert.match(mid, /max="20"/);
+  const green = html(React.createElement(Slider, { min: 0, max: 100, value: 100, onChange() {}, tone: "green" }));
+  assert.match(green, /--slider-color:#22c55e/);
+  assert.match(green, /--slider-fill:100%/);
+  assert.match(html(React.createElement(Slider, { min: 0, max: 100, value: 0, onChange() {} })), /--slider-fill:0%/);
+  const css = read("src/app/globals.css");
+  assert.match(css, /\.ui-slider::-webkit-slider-thumb/);
+  assert.match(css, /\.ui-slider::-moz-range-thumb/);
+  assert.match(css, /\.ui-slider:focus-visible::-webkit-slider-thumb/);
+});
+
+// ── the source scan: nowhere on the platform a control looks like the browser's default ─────────────────────────────
+const walk = (dir) => fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+  const rel = path.join(dir, entry.name);
+  return entry.isDirectory() ? walk(rel) : /\.tsx$/.test(entry.name) ? [rel] : [];
+});
+/** Documented exceptions: file → the native types it may keep, and why.  Empty on purpose: every control has a shared component. */
+const NATIVE_EXCEPTIONS = {};
+
+test("no native date / time / number / checkbox / radio / range / file input and no <select> is left outside src/components/ui", () => {
+  const offenders = [];
+  for (const file of walk("src")) {
+    if (file.startsWith(path.join("src", "components", "ui") + path.sep)) continue;
+    const source = read(file);
+    const allowed = NATIVE_EXCEPTIONS[file.split(path.sep).join("/")] || [];
+    for (const m of source.matchAll(/\btype=(?:"|\{\s*["'`])(date|time|datetime-local|month|week|number|checkbox|radio|range|file|color)\b/g)) {
+      if (!allowed.includes(m[1])) offenders.push(`${file}: type="${m[1]}"`);
+    }
+    if (/<select[\s>]/.test(source) && !allowed.includes("select")) offenders.push(`${file}: <select>`);
+  }
+  assert.deepEqual(offenders, [], "native controls outside the UI kit (use DateInput / TimeInput / Checkbox / Radio / SegmentedControl / NumberInput / FileInput / Slider / Select):\n" + offenders.join("\n"));
+});
+
+test("the shared controls are the only place a native control is created, and each one is used", () => {
+  const ui = { "date-input.tsx": /<input/, "time-input.tsx": /<input/, "checkbox.tsx": /type="checkbox"/, "radio.tsx": /type="radio"/, "number-input.tsx": /<input/, "file-input.tsx": /type="file"/, "slider.tsx": /type="range"/ };
+  const all = walk("src").filter((file) => !file.includes(`${path.sep}ui${path.sep}`)).map(read).join("\n");
+  const used = { "date-input.tsx": "<DateInput", "time-input.tsx": "<TimeInput", "checkbox.tsx": "<Checkbox", "radio.tsx": "<Radio", "number-input.tsx": "<NumberInput", "file-input.tsx": "<FileInput", "slider.tsx": "<Slider" };
+  for (const [file, pattern] of Object.entries(ui)) {
+    assert.match(read(`src/components/ui/${file}`), pattern, file);
+    assert.ok(all.includes(used[file]), `${file} is not used anywhere`);
+  }
+  assert.ok(all.includes("<SegmentedControl"));
+  // no leftover browser look: the project never styles a control with the browser's accent-* checkbox colour
+  assert.doesNotMatch(all, /\baccent-(primary|slate|blue)-\d{3}\b/, "accent-* colours are the browser's checkbox look");
+});
+
+test("the date field never shows the browser's locale: no native date input, ISO is the value, дд.мм.гггг the text", () => {
+  const date = read("src/components/ui/date-input.tsx");
+  assert.match(date, /isoToDmy\(value\)/);
+  assert.match(date, /placeholder = "дд\.мм\.гггг"/);
+  assert.match(date, /formatBusinessDate\(\)/); // «today» is the Tashkent business clock, not the browser's
+  assert.doesNotMatch(date, /new Date\(\)|Date\.now\(\)/);
+  assert.match(date, /event\.key !== "Escape"/);
+  assert.match(date, /mousedown/); // an outside press closes the calendar
+});
