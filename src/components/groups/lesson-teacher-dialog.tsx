@@ -19,6 +19,7 @@ import {
   lessonTeacherDialogTitle,
   reasonError,
 } from "@/lib/lesson-teacher";
+import { Radio } from "@/components/ui/radio";
 
 export interface LessonTeacherTarget {
   groupId: string;
@@ -198,14 +199,13 @@ export function LessonTeacherBody({
           return (
             <li key={candidate.teacherId}>
               <label className={`flex items-start gap-3 px-3.5 py-3 text-sm ${selectable ? "cursor-pointer hover:bg-slate-50" : "cursor-not-allowed bg-slate-50/60"} ${checked ? "bg-primary-50/50" : ""}`}>
-                <input
-                  type="radio"
+                <Radio
                   name="lesson-teacher"
                   value={candidate.teacherId}
                   checked={checked}
                   disabled={!selectable}
                   onChange={() => onPick(candidate.teacherId)}
-                  className="mt-0.5 h-4 w-4 border-slate-300 text-primary-600 focus:ring-primary-500"
+                  className="mt-0.5"
                 />
                 <span className="min-w-0">
                   <span className={`block font-medium ${selectable ? "text-slate-900" : "text-slate-400"}`}>{candidate.name}</span>

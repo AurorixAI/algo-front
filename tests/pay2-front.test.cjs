@@ -708,7 +708,8 @@ test("the dialog: amount first, due block, live calculation from the server, an 
   assert.match(dialog, /failure\.kind === "duplicate"/); // a repeated send is not an error: the payment is there
   assert.match(dialog, /planView\(fresh\)/); // the words come from the server's allocations
   assert.match(dialog, /plan\.priceAhead\.join/); // D8
-  assert.match(dialog, /role="radiogroup"/);
+  assert.match(dialog, /<SegmentedControl[^>]*ariaLabelledBy="payment-method-label"/); // the methods are the shared radiogroup (INC-15)
+  assert.match(read("src/components/ui/radio.tsx"), /role="radiogroup"/);
   assert.match(dialog, /Прежняя запись будет отменена и останется в истории серым/);
   assert.match(dialog, /Деньги всей группы распределятся заново/); // the correction explains the re-allocation
   // no period pickers any more

@@ -52,6 +52,7 @@ import { previewKey, usePaymentPreview } from "@/lib/use-payment-preview";
 import { groupPriceHref } from "@/lib/group-price";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
+import { SegmentedControl } from "@/components/ui/radio";
 
 export type PaymentFormKind = "create" | "replace";
 
@@ -352,20 +353,14 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}
           <div>
             <span id="payment-method-label" className={LABEL}>Способ оплаты</span>
-            <div role="radiogroup" aria-labelledby="payment-method-label" data-testid="payment-methods" className="grid grid-cols-3 gap-1.5 sm:grid-cols-5">
-              {methods.map((method) => (
-                <button
-                  key={method.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={values.method === method.key}
-                  onClick={() => patch({ method: method.key })}
-                  className={`w-full rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-colors ${values.method === method.key ? "border-primary-300 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
-                >
-                  {method.label}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              ariaLabelledBy="payment-method-label"
+              testId="payment-methods"
+              value={values.method}
+              onChange={(key) => patch({ method: key })}
+              options={methods.map((method) => ({ value: method.key, label: method.label }))}
+              className="grid-cols-3 sm:grid-cols-5"
+            />
           </div>
           <div className="sm:w-44">
             <label htmlFor="payment-paid-on" className={LABEL}>Дата оплаты</label>

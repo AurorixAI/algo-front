@@ -22,6 +22,7 @@ import {
   type SettleItem,
 } from "@/lib/payments-logica";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { Radio } from "@/components/ui/radio";
 
 /**
  * The state of the «what happens to the money» part of leaving a group / the archive: the server's preview (what is left on the
@@ -114,10 +115,10 @@ export function SettleBlock({
   );
 }
 
-function Radio({ checked, onChange, disabled, children, name }: { checked: boolean; onChange: () => void; disabled: boolean; children: React.ReactNode; name: string }) {
+function ChoiceRow({ checked, onChange, disabled, children, name }: { checked: boolean; onChange: () => void; disabled: boolean; children: React.ReactNode; name: string }) {
   return (
     <label className="flex items-start gap-2 text-sm text-slate-800">
-      <input type="radio" name={name} checked={checked} onChange={onChange} disabled={disabled} className="mt-0.5 h-4 w-4 shrink-0 accent-primary-600" />
+      <Radio name={name} checked={checked} onChange={onChange} disabled={disabled} className="mt-0.5" />
       <span className="min-w-0">{children}</span>
     </label>
   );
@@ -142,9 +143,9 @@ function MembershipSettle({
 
       {kind === "debt" && money && (
         <div className="space-y-2">
-          <Radio name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{SETTLE_LABEL.keepDebt}</Radio>
+          <ChoiceRow name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{SETTLE_LABEL.keepDebt}</ChoiceRow>
           {membership.allowed.includes("writeoff") && (
-            <Radio name={name} checked={choice.action === "writeoff"} onChange={() => onChoice({ action: "writeoff" })} disabled={disabled}>{SETTLE_LABEL.forgive}</Radio>
+            <ChoiceRow name={name} checked={choice.action === "writeoff"} onChange={() => onChoice({ action: "writeoff" })} disabled={disabled}>{SETTLE_LABEL.forgive}</ChoiceRow>
           )}
           {choice.action === "writeoff" && (
             <div className="pl-6">
@@ -158,7 +159,7 @@ function MembershipSettle({
       {kind === "advance" && money && (
         <div className="space-y-2">
           {membership.allowed.includes("refund") && money.refundable > 0 && (
-            <Radio name={name} checked={choice.action === "refund"} onChange={() => onChoice({ action: "refund" })} disabled={disabled}>{SETTLE_LABEL.refund(money.refundable)}</Radio>
+            <ChoiceRow name={name} checked={choice.action === "refund"} onChange={() => onChoice({ action: "refund" })} disabled={disabled}>{SETTLE_LABEL.refund(money.refundable)}</ChoiceRow>
           )}
           {choice.action === "refund" && (
             <div className="pl-6" role="radiogroup" aria-label="Как вернули деньги">
@@ -180,7 +181,7 @@ function MembershipSettle({
               </div>
             </div>
           )}
-          <Radio name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{SETTLE_LABEL.keepAdvance}</Radio>
+          <ChoiceRow name={name} checked={choice.action === "keep"} onChange={() => onChoice({ action: "keep" })} disabled={disabled}>{SETTLE_LABEL.keepAdvance}</ChoiceRow>
         </div>
       )}
 

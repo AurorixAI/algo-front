@@ -57,6 +57,7 @@ import type {
 } from "@/lib/substitution-types";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
+import { Radio } from "@/components/ui/radio";
 
 const FIELD_CLASS =
   "w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -366,7 +367,7 @@ export function DecisionBody({
                 checked ? (entry === "cancel" ? "border-rose-400 bg-rose-50/60" : "border-primary-500 bg-primary-50/60") : "border-slate-200 bg-white hover:bg-slate-50"
               }`}
             >
-              <input type="radio" name="substitution-decision" value={entry} checked={checked} disabled={busy} onChange={() => onKind(entry)} className="sr-only" />
+              <Radio bare name="substitution-decision" value={entry} checked={checked} disabled={busy} onChange={() => onKind(entry)} />
               <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${checked ? (entry === "cancel" ? "text-rose-600" : "text-primary-600") : "text-slate-400"}`} />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold leading-snug text-slate-900">{decisionCardTitle(entry, late)}</span>
@@ -504,14 +505,13 @@ export function SubstituteForm({
             return (
               <li key={candidate.teacherId}>
                 <label className={`flex items-start gap-3 px-3.5 py-3 text-sm ${selectable ? "cursor-pointer hover:bg-slate-50" : "cursor-not-allowed bg-slate-50/60"} ${checked ? "bg-primary-50/50" : ""}`}>
-                  <input
-                    type="radio"
+                  <Radio
                     name="substitute-teacher"
                     value={candidate.teacherId}
                     checked={checked}
                     disabled={!selectable}
                     onChange={() => onPick(candidate.teacherId)}
-                    className="mt-0.5 h-4 w-4 border-slate-300 text-primary-600 focus:ring-primary-500"
+                    className="mt-0.5"
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">

@@ -190,3 +190,54 @@ test("DateInput / TimeInput render a text field with the project's look: дд.м
   assert.match(time, /placeholder="15:00"/);
   assert.match(time, /maxLength="5"/);
 });
+
+test("radio keyboard: arrows move to the next ENABLED option and wrap, Home / End jump to the ends, nothing when all are off", () => {
+  const none = [false, false, false, false];
+  assert.equal(f.nextRadioIndex(none, 0, "ArrowRight"), 1);
+  assert.equal(f.nextRadioIndex(none, 0, "ArrowDown"), 1);
+  assert.equal(f.nextRadioIndex(none, 3, "ArrowRight"), 0);  // wraps
+  assert.equal(f.nextRadioIndex(none, 0, "ArrowLeft"), 3);   // wraps back
+  assert.equal(f.nextRadioIndex(none, 2, "ArrowUp"), 1);
+  assert.equal(f.nextRadioIndex(none, 2, "Home"), 0);
+  assert.equal(f.nextRadioIndex(none, 1, "End"), 3);
+  const gap = [false, true, true, false];                     // the middle options are disabled
+  assert.equal(f.nextRadioIndex(gap, 0, "ArrowRight"), 3);
+  assert.equal(f.nextRadioIndex(gap, 3, "ArrowLeft"), 0);
+  assert.equal(f.nextRadioIndex([true, false, true], 1, "ArrowRight"), 1); // the only enabled one stays
+  assert.equal(f.nextRadioIndex([true, true], 0, "ArrowRight"), -1);
+  assert.equal(f.nextRadioIndex([true, false, false, true], 0, "Home"), 1);
+  assert.equal(f.nextRadioIndex([true, false, false, true], 0, "End"), 2);
+  assert.equal(f.nextRadioIndex(none, -1, "ArrowRight"), 0);  // nothing chosen yet: the first
+  assert.equal(f.nextRadioIndex(none, -1, "ArrowLeft"), 3);
+  assert.equal(f.nextRadioIndex(none, 1, "Enter"), -1);       // not our key
+  assert.equal(f.nextRadioIndex(none, 1, "a"), -1);
+});
+
+test("SegmentedControl is a radiogroup of role=radio buttons with one tab stop (the chosen one) and a disabled state", () => {
+  const { React, html } = renderer();
+  const { SegmentedControl, Radio } = require(path.join(root, "src/components/ui/radio.tsx"));
+  const options = [{ value: "cash", label: "Наличные" }, { value: "card", label: "Карта" }, { value: "x", label: "Другое", disabled: true }];
+  const on = html(React.createElement(SegmentedControl, { value: "card", onChange() {}, options, ariaLabel: "Способ оплаты", testId: "methods" }));
+  assert.match(on, /role="radiogroup"/);
+  assert.match(on, /aria-label="Способ оплаты"/);
+  assert.match(on, /data-testid="methods"/);
+  assert.equal((on.match(/role="radio"/g) || []).length, 3);
+  assert.match(on, /role="radio"[^>]*aria-checked="true"[^>]*tabindex="0"[^>]*>Карта|aria-checked="true"[^>]*>Карта/);
+  assert.equal((on.match(/aria-checked="true"/g) || []).length, 1);
+  assert.equal((on.match(/tabindex="0"/g) || []).length, 1, "one tab stop in the group");
+  assert.equal((on.match(/tabindex="-1"/g) || []).length, 2);
+  assert.match(on, /disabled=""[^>]*>Другое|>Другое/);
+  assert.match(on, /bg-primary-50/);
+  // nothing chosen: Tab lands on the first enabled option
+  const none = html(React.createElement(SegmentedControl, { value: "", onChange() {}, options }));
+  assert.match(none, /tabindex="0"[^>]*>Наличные/);
+  // the whole group disabled
+  const off = html(React.createElement(SegmentedControl, { value: "cash", onChange() {}, options, disabled: true }));
+  assert.equal((off.match(/disabled=""/g) || []).length, 3);
+  // the single styled Radio keeps the native radio, the bare one is only visually hidden
+  const dot = html(React.createElement(Radio, { name: "g", checked: true, onChange() {} }));
+  assert.match(dot, /<input[^>]*type="radio"/);
+  assert.match(dot, /rounded-full/);
+  assert.match(dot, /peer-checked:bg-primary-600/);
+  assert.match(html(React.createElement(Radio, { bare: true, name: "g", checked: false, onChange() {} })), /class="sr-only"/);
+});

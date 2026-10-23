@@ -7,6 +7,7 @@ import { formatBusinessDate } from "@/lib/business-time";
 import { formatMoney, reformatMoneyTyping, REASON_MAX, type MembershipPaymentRow, type WriteoffCreated } from "@/lib/payments";
 import { buildWriteoffPayload, payError, validateWriteoff, writeoffPreviewText, type WriteoffFormValues } from "@/lib/payments-ledger";
 import { Modal } from "@/components/ui/modal";
+import { SegmentedControl } from "@/components/ui/radio";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -88,14 +89,14 @@ export function WriteoffDialog({
 
         <fieldset className="space-y-2">
           <legend className={LABEL}>Сколько простить</legend>
-          <label className="flex items-center gap-2 text-sm text-slate-800">
-            <input type="radio" name="writeoff-kind" checked={values.all} onChange={() => patch({ all: true })} className="h-4 w-4 accent-primary-600" />
-            Весь долг
-          </label>
-          <label className="flex items-center gap-2 text-sm text-slate-800">
-            <input type="radio" name="writeoff-kind" checked={!values.all} onChange={() => patch({ all: false })} className="h-4 w-4 accent-primary-600" />
-            Часть долга
-          </label>
+          <SegmentedControl
+            ariaLabel="Сколько простить"
+            value={values.all ? "all" : "part"}
+            onChange={(next) => patch({ all: next === "all" })}
+            options={[{ value: "all", label: "Весь долг" }, { value: "part", label: "Часть долга" }]}
+            className="grid-cols-2"
+            buttonClassName="py-2.5 text-sm"
+          />
           {!values.all && (
             <div className="relative">
               <input

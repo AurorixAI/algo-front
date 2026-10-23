@@ -26,6 +26,7 @@ import {
 import type { CreateSubstitutionOut, MyLesson, SubstitutionReasonCode } from "@/lib/substitution-types";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { SegmentedControl } from "@/components/ui/radio";
 
 /** The lesson the dialog was opened on; `null` = «Новый запрос»: the teacher picks the lessons himself. */
 export interface RequestLesson {
@@ -271,22 +272,15 @@ export function RequestBody({
     <div className="space-y-5 pb-1">
       <fieldset>
         <legend className="mb-1.5 text-[13px] font-semibold text-slate-500">Причина</legend>
-        <div role="radiogroup" aria-label="Причина" className="grid grid-cols-3 gap-2">
-          {REASON_OPTIONS.map((option) => {
-            const checked = reasonCode === option.code;
-            return (
-              <label
-                key={option.code}
-                className={`flex cursor-pointer items-center justify-center rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors focus-within:ring-2 focus-within:ring-primary-500/30 ${
-                  checked ? "border-primary-500 bg-primary-50 text-primary-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                }`}
-              >
-                <input type="radio" name="substitution-reason" value={option.code} checked={checked} disabled={busy} onChange={() => onReason(option.code)} className="sr-only" />
-                {option.label}
-              </label>
-            );
-          })}
-        </div>
+        <SegmentedControl
+          ariaLabel="Причина"
+          value={reasonCode}
+          disabled={busy}
+          onChange={(code) => onReason(code)}
+          options={REASON_OPTIONS.map((option) => ({ value: option.code, label: option.label }))}
+          className="grid-cols-3 gap-2"
+          buttonClassName="rounded-xl px-3 py-2.5 text-sm font-medium"
+        />
       </fieldset>
 
       <div>

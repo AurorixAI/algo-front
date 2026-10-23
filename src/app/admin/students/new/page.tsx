@@ -19,6 +19,7 @@ import Link from "next/link";
 import QRCode from "qrcode.react";
 import { orgApi } from "@/lib/api";
 import { formatUzPhone, isValidUzPhone } from "@/lib/phone";
+import { Radio } from "@/components/ui/radio";
 
 type Step = 1 | 2;
 
@@ -186,13 +187,11 @@ export default function NewStudentPage() {
                               : "border-slate-200 hover:border-slate-300 bg-white/50"
                           }`}
                         >
-                          <input
-                            type="radio"
+                          <Radio
                             name="level"
                             value={level.value}
                             checked={formData.expectedLevel === level.value}
                             onChange={(e) => setFormData({ ...formData, expectedLevel: e.target.value })}
-                            className="w-4 h-4 text-primary-600"
                           />
                           <span className="text-sm text-slate-700">{level.label}</span>
                         </label>

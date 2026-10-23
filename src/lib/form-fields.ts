@@ -281,3 +281,30 @@ export function stepNumber(current: string, delta: number, min?: number, max?: n
   if (max !== undefined && next > max) next = max;
   return String(next);
 }
+
+// ── Radio groups ─────────────────────────────────────────────────────────────────────────────────────
+
+export type RadioKey = "ArrowLeft" | "ArrowRight" | "ArrowUp" | "ArrowDown" | "Home" | "End";
+
+/**
+ * The option a key moves a segmented radio group to: arrows go to the next / previous ENABLED option and wrap around,
+ * Home / End to the first / last enabled one.  -1 when no option can take the focus (all disabled) or the key is not ours.
+ */
+export function nextRadioIndex(disabled: readonly boolean[], current: number, key: string): number {
+  const count = disabled.length;
+  const enabled = (i: number) => !disabled[i];
+  if (!disabled.some((_, i) => enabled(i))) return -1;
+  if (key === "Home") return disabled.findIndex((_, i) => enabled(i));
+  if (key === "End") {
+    for (let i = count - 1; i >= 0; i -= 1) if (enabled(i)) return i;
+    return -1;
+  }
+  const step = key === "ArrowRight" || key === "ArrowDown" ? 1 : key === "ArrowLeft" || key === "ArrowUp" ? -1 : 0;
+  if (step === 0) return -1;
+  let index = current < 0 ? (step > 0 ? -1 : count) : current;
+  for (let tried = 0; tried < count; tried += 1) {
+    index = (index + step + count) % count;
+    if (enabled(index)) return index;
+  }
+  return -1;
+}

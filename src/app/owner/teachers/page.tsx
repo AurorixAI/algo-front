@@ -31,6 +31,7 @@ import {
   restoreConfirmText,
   sortInvitations,
 } from "@/lib/staff-lifecycle";
+import { Radio, SegmentedControl } from "@/components/ui/radio";
 
 type Member = OrgMemberRow;
 type Invitation = InvitationRow;
@@ -601,23 +602,23 @@ function OwnerTeachersContent() {
             <div>
               <span id="owner-invite-role-label" className="block text-sm font-bold text-slate-700 mb-2">Роль сотрудника</span>
               <div role="radiogroup" aria-labelledby="owner-invite-role-label" className="grid grid-cols-2 gap-3">
-                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-500/40 ${
                   inviteForm.org_role === "teacher" ? "border-primary-500 bg-primary-50/50" : "border-slate-100 hover:border-slate-200"
                 }`}>
-                  <input type="radio" name="role" value="teacher" className="sr-only" 
-                    checked={inviteForm.org_role === "teacher"} 
-                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
+                  <Radio bare name="role" value="teacher"
+                    checked={inviteForm.org_role === "teacher"}
+                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })}
                   />
                   <Users className={`w-6 h-6 mb-2 ${inviteForm.org_role === "teacher" ? "text-primary-600" : "text-slate-400"}`} />
                   <div className={`font-semibold ${inviteForm.org_role === "teacher" ? "text-primary-900" : "text-slate-700"}`}>Преподаватель</div>
                   <div className="text-xs text-slate-500 mt-1">Доступ к группам и диагностикам</div>
                 </label>
-                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all ${
+                <label className={`cursor-pointer border-2 rounded-xl p-4 transition-all has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary-500/40 ${
                   inviteForm.org_role === "admin" ? "border-blue-500 bg-blue-50/50" : "border-slate-100 hover:border-slate-200"
                 }`}>
-                  <input type="radio" name="role" value="admin" className="sr-only" 
-                    checked={inviteForm.org_role === "admin"} 
-                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })} 
+                  <Radio bare name="role" value="admin"
+                    checked={inviteForm.org_role === "admin"}
+                    onChange={(e) => setInviteForm({ ...inviteForm, org_role: e.target.value })}
                   />
                   <Shield className={`w-6 h-6 mb-2 ${inviteForm.org_role === "admin" ? "text-blue-600" : "text-slate-400"}`} />
                   <div className={`font-semibold ${inviteForm.org_role === "admin" ? "text-blue-900" : "text-slate-700"}`}>Администратор</div>
@@ -726,14 +727,14 @@ function RoleChangeDialog({
       }
     >
       <div className="space-y-3 pb-1">
-        <div role="radiogroup" aria-label="Роль сотрудника" className="grid grid-cols-2 gap-3">
-          {(["teacher", "admin"] as const).map((key) => (
-            <label key={key} className={`cursor-pointer rounded-xl border-2 p-3.5 text-sm font-semibold transition-all ${role === key ? "border-primary-500 bg-primary-50/50 text-primary-900" : "border-slate-100 text-slate-700 hover:border-slate-200"}`}>
-              <input type="radio" name="member-role" value={key} className="sr-only" checked={role === key} onChange={() => setRole(key)} />
-              {roleConfig[key].label}
-            </label>
-          ))}
-        </div>
+        <SegmentedControl
+          ariaLabel="Роль сотрудника"
+          value={role}
+          onChange={(key) => setRole(key)}
+          options={(["teacher", "admin"] as const).map((key) => ({ value: key, label: roleConfig[key].label }))}
+          className="grid-cols-2 gap-3"
+          buttonClassName="rounded-xl border-2 p-3.5 text-sm"
+        />
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </div>
     </Modal>

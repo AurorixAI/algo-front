@@ -58,6 +58,7 @@ import {
   type SettingsSection as SectionKey,
 } from "@/lib/settings-sections";
 import { DateInput } from "@/components/ui/date-input";
+import { Radio } from "@/components/ui/radio";
 
 interface SettingsSectionProps {
   title: string;
@@ -342,12 +343,11 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
               key={option.key}
               className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 ${model === option.key ? "border-primary-400 bg-primary-50/60" : "border-slate-200 hover:bg-slate-50"}`}
             >
-              <input
-                type="radio"
+              <Radio
                 name="payments-model"
                 checked={model === option.key}
                 onChange={() => choose(option.key)}
-                className="mt-1 h-4 w-4 shrink-0 accent-primary-600"
+                className="mt-0.5"
               />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
