@@ -56,6 +56,7 @@ import type {
   SubstitutionItem,
 } from "@/lib/substitution-types";
 import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 
 const FIELD_CLASS =
   "w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -398,10 +399,10 @@ export function DecisionBody({
               <DateInput value={move.newDate} min={formatBusinessDate()} disabled={busy} onChange={(next) => onMove({ newDate: next })} wrapperClassName="mt-1" className={INPUT_CLASS} />
             </label>
             <label className="text-xs font-semibold text-slate-500">Начало
-              <input type="time" value={move.startTime} disabled={busy} onChange={(event) => onMove({ startTime: event.target.value })} className={`${INPUT_CLASS} mt-1`} />
+              <TimeInput value={move.startTime} disabled={busy} onChange={(next) => onMove({ startTime: next })} wrapperClassName="mt-1" className={INPUT_CLASS} />
             </label>
             <label className="text-xs font-semibold text-slate-500">Окончание
-              <input type="time" value={move.endTime} disabled={busy} onChange={(event) => onMove({ endTime: event.target.value })} className={`${INPUT_CLASS} mt-1`} />
+              <TimeInput value={move.endTime} disabled={busy} onChange={(next) => onMove({ endTime: next })} wrapperClassName="mt-1" className={INPUT_CLASS} />
             </label>
             <label className="text-xs font-semibold text-slate-500">Кабинет (необязательно)
               <input type="text" value={move.room} maxLength={200} disabled={busy} onChange={(event) => onMove({ room: event.target.value })} className={`${INPUT_CLASS} mt-1`} />

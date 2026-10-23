@@ -21,6 +21,7 @@ import {
 import type { LessonMark } from "@/lib/substitutions";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 
 const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -257,11 +258,11 @@ export function LessonActionSheet({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label htmlFor="sheet-start" className={LABEL}>Начало</label>
-                  <input id="sheet-start" inputMode="numeric" autoComplete="off" placeholder="15:00" maxLength={5} value={start} onChange={(event) => { setError(null); setStart(event.target.value); }} onBlur={() => setStart((value) => normalizeTime(value) ?? value)} className={FIELD} />
+                  <TimeInput id="sheet-start" value={start} onChange={(next) => { setError(null); setStart(next); }} className={FIELD} />
                 </div>
                 <div>
                   <label htmlFor="sheet-end" className={LABEL}>Окончание</label>
-                  <input id="sheet-end" inputMode="numeric" autoComplete="off" placeholder="16:30" maxLength={5} value={end} onChange={(event) => { setError(null); setEnd(event.target.value); }} onBlur={() => setEnd((value) => normalizeTime(value) ?? value)} className={FIELD} />
+                  <TimeInput id="sheet-end" placeholder="16:30" value={end} onChange={(next) => { setError(null); setEnd(next); }} className={FIELD} />
                 </div>
               </div>
               <div>

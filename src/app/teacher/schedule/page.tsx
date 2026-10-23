@@ -62,6 +62,7 @@ import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { DateInput } from "@/components/ui/date-input";
+import { TimeInput } from "@/components/ui/time-input";
 
 const COLOR_CLASSES = {
   blue: {
@@ -3165,10 +3166,10 @@ export default function TeacherSchedulePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <label className="text-xs font-semibold text-slate-700">Начало
-                      <input type="time" value={rescheduleStartTime} onChange={(event) => setRescheduleStartTime(event.target.value)} required className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
+                      <TimeInput value={rescheduleStartTime} onChange={(next) => setRescheduleStartTime(next)} required wrapperClassName="mt-1" className="rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
                     </label>
                     <label className="text-xs font-semibold text-slate-700">Окончание
-                      <input type="time" value={rescheduleEndTime} onChange={(event) => setRescheduleEndTime(event.target.value)} required className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
+                      <TimeInput value={rescheduleEndTime} onChange={(next) => setRescheduleEndTime(next)} required wrapperClassName="mt-1" className="rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
                     </label>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -3489,11 +3490,10 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-add-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
                       Начало
                     </label>
-                    <input
+                    <TimeInput
                       id="sched-add-nachalo"
-                      type="time"
                       value={newStartTime}
-                      onChange={(e) => handleStartTimeChange(e.target.value)}
+                      onChange={(next) => handleStartTimeChange(next)}
                       required
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
@@ -3502,11 +3502,10 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-add-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
                       Окончание
                     </label>
-                    <input
+                    <TimeInput
                       id="sched-add-okonchanie"
-                      type="time"
                       value={newEndTime}
-                      onChange={(e) => setNewEndTime(e.target.value)}
+                      onChange={(next) => setNewEndTime(next)}
                       required
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
@@ -3858,11 +3857,10 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-edit-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
                       Начало
                     </label>
-                    <input
+                    <TimeInput
                       id="sched-edit-nachalo"
-                      type="time"
                       value={editStartTime}
-                      onChange={(e) => handleEditStartTimeChange(e.target.value)}
+                      onChange={(next) => handleEditStartTimeChange(next)}
                       required
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
@@ -3871,11 +3869,10 @@ export default function TeacherSchedulePage() {
                     <label htmlFor="sched-edit-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
                       Окончание
                     </label>
-                    <input
+                    <TimeInput
                       id="sched-edit-okonchanie"
-                      type="time"
                       value={editEndTime}
-                      onChange={(e) => setEditEndTime(e.target.value)}
+                      onChange={(next) => setEditEndTime(next)}
                       required
                       className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
                     />
