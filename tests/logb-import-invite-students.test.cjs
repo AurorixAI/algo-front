@@ -63,9 +63,9 @@ test("[O9.R7] the blocking teacher check of chain 3 is shown as an error and the
   const html = renderToStaticMarkup(React.createElement(ReviewStep, { preview: { ...preview, counts: withLegacyShape(preview.counts) } }));
   const text = textOf(html);
   assert.match(text, /Есть ошибки — исправьте файл и загрузите снова\./);
-  assert.match(text, /Группы строка 4 · Email учителя: Преподаватель nobody@algo\.test не найден в системе\. Добавьте его через интерфейс\./);
+  assert.match(text, /Группы строка 4 · Почта учителя: Преподаватель nobody@algo\.test не найден в системе\. Добавьте его через интерфейс\./);
   assert.doesNotMatch(text, /Пропущено и почему/, "no skipped rows, no table");
-  assert.match(R.issueText(issue), /^Группы, строка 4 · Email учителя: /);
+  assert.match(R.issueText(issue), /^Группы, строка 4 · Почта учителя: /);
 });
 
 test("[O9.R2] the repeat of chain 3: «Уже в этой группе» is information and is counted apart; the skipped counter is the real one", () => {
