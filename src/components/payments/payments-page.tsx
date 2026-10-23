@@ -398,7 +398,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
             <span className="text-center">Группа</span>
             <span className="text-right">{priceLabelOf(periodMode)}</span>
             <span className="text-center">Статус</span>
-            <span className="text-right">Последняя оплата</span>
+            <span className="text-center">Последняя оплата</span>
             <span className="text-right"><span className="sr-only">Действия</span></span>
           </div>
           <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
@@ -553,15 +553,15 @@ function PaymentRow({
           </div>
 
           {/* Последняя оплата: the amount reads like «Цена в месяц», the date is the quiet line under it (like «оплачено до») */}
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-center">
             <span className="shrink-0 text-xs text-slate-400 xl:hidden">Последняя оплата</span>
             {last ? (
-              <span className="text-right tabular-nums" title={lastPaymentLabel(last)}>
+              <span className="text-right tabular-nums xl:block xl:text-center" title={lastPaymentLabel(last)}>
                 <span className="block font-medium text-slate-800">{paymentAmountLabel(last)}</span>
                 <span className="block whitespace-nowrap text-xs text-slate-500">{isCarryOver(last) ? "перенесено" : "внесено"} {formatDateRu(last.paid_on)}</span>
               </span>
             ) : (
-              <span className="text-slate-400">—</span>
+              <span className="text-slate-400 xl:block xl:text-center" data-testid="last-payment-empty">—</span>
             )}
           </div>
 

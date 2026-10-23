@@ -25,7 +25,8 @@ const FIELD = "rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm t
 
 // ── The rows ───────────────────────────────────────────────────────────────
 
-const ROW_GRID = "md:grid-cols-[6.5rem_minmax(0,1.4fr)_minmax(0,1.2fr)_9rem_8.5rem]";
+// Дата · Ученик · Группа (centred, narrower) · Сумма (its own fixed column, right-aligned, tabular) · Способ (centred, wide enough to leave room before the amount).
+const ROW_GRID = "md:grid-cols-[6.5rem_minmax(0,1.5fr)_minmax(0,1fr)_8rem_11rem]";
 
 /**
  * Compact rows: date · time | student | group | amount | method.  A cancelled or corrected payment is grey and says «отменена».
@@ -37,9 +38,9 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
       <div role="presentation" className={`hidden border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 md:grid md:gap-x-3 ${ROW_GRID}`}>
         <span className="text-center">Дата · время</span>
         <span>Ученик</span>
-        <span>Группа</span>
+        <span className="text-center">Группа</span>
         <span className="text-right">Сумма</span>
-        <span>Способ</span>
+        <span className="text-center">Способ</span>
       </div>
       <ul className="divide-y divide-slate-100">
         {rows.map((row) => {
@@ -63,9 +64,9 @@ export function JournalList({ rows, withYear, activeId, onOpen }: { rows: Journa
                   <span className="col-start-1 row-start-1 min-w-0 truncate">{view.student}</span>
                   {view.tag && <span data-testid="journal-tag" className="col-start-2 row-start-3 shrink-0 justify-self-end whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-500 md:justify-self-auto">{view.tag}</span>}
                 </span>
-                <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
+                <span className={`col-start-1 row-start-2 min-w-0 truncate text-xs md:col-start-3 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.group}</span>
                 <span className={`col-start-2 row-start-1 text-right text-sm font-medium tabular-nums tracking-tight md:col-start-4 ${view.muted ? "text-slate-400 line-through" : "text-slate-800"}`}>{view.amount}</span>
-                <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-left md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
+                <span className={`col-start-2 row-start-2 text-right text-xs md:col-start-5 md:row-start-1 md:text-center md:text-sm ${view.muted ? "text-slate-400" : "text-slate-600"}`}>{view.method}</span>
               </button>
             </li>
           );

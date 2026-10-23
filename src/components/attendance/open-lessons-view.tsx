@@ -42,6 +42,9 @@ const CHIP_TONE: Record<OpenAttendanceAction["actionType"], ChipTone> = {
  * one left edge, and cells are top-aligned like in «Пропуски».  Below `lg` a row is a card.
  */
 const COLS = "lg:grid-cols-[148px_minmax(0,1fr)_minmax(0,1fr)_152px]";
+// Action cell: the primary button has one fixed width (the same for «Открыть» and «Отметить») and the «⋯» slot is always reserved (32px).
+const ACTION_BUTTON_CLASS = "inline-flex h-8 w-[88px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-2 text-xs font-semibold text-white hover:bg-primary-700";
+const MENU_SLOT_CLASS = "flex h-8 w-8 shrink-0 items-center justify-center";
 
 /** Focus and visibility events fire together; one re-read is enough. */
 const FOCUS_REFETCH_GAP_MS = 1500;
@@ -244,14 +247,22 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
                             href={journalHref(groupsBasePath, item)}
                             data-testid="open-lesson-action"
                             aria-label={`${openLessonActionLabel(item)}: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
-                            className="inline-flex h-8 items-center whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-3.5 text-xs font-semibold text-white hover:bg-primary-700"
+                            className={ACTION_BUTTON_CLASS}
                           >
                             {openLessonActionLabel(item)}
                           </Link>
-                          <RowMenu
-                            items={menuItemsOf(item)}
-                            label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
-                          />
+                          {/* The «⋯» slot is always reserved: the menu when the row has actions, otherwise an invisible spacer of the same size,
+                              so the primary buttons of all rows stand in one column. */}
+                          <div className={MENU_SLOT_CLASS} data-testid="open-lesson-menu-slot">
+                            {menuItemsOf(item).length > 0 ? (
+                              <RowMenu
+                                items={menuItemsOf(item)}
+                                label={`Действия: ${item.groupName}, ${formatLessonDate(item.lessonDate)}`}
+                              />
+                            ) : (
+                              <span aria-hidden="true" data-testid="open-lesson-menu-placeholder" className="invisible block h-8 w-8" />
+                            )}
+                          </div>
                         </>
                       )}
                     </div>

@@ -262,7 +262,7 @@ test("the tab: columns, actions and the shared dialogs (payment, individual pric
   const src = read("src/components/groups/group-payments-tab.tsx");
   for (const word of ["Ученик", "Оплата", "PAY_ACTION_LABEL", "Выписка", "индивидуальная", "Оплатить долг"]) assert.ok(src.includes(word), word);
   assert.ok(src.includes("<PaymentDialog"));
-  assert.match(src, /<span className="text-right">\{label\}<\/span>/); // the column is named by the centre's mode (priceLabelOf), never hard-coded
+  assert.match(src, /<span className="text-center">\{label\}<\/span>/); // the column is named by the centre's mode (priceLabelOf), never hard-coded
   // IA audit F1 / F13: the «⋯» of a row is the student card's own component (the dialogs and the rules live there)
   assert.match(src, /<MembershipRowActions\b/);
   const shared = read("src/components/payments/membership-row-actions.tsx");
