@@ -14,7 +14,8 @@ import {
   Download,
 } from "lucide-react";
 import { examsApi } from "@/lib/api";
-import { formatUtcNaiveAsBusinessDateTime, formatUtcNaiveAsBusinessTime } from "@/lib/business-time";
+import { formatUtcNaiveAsBusinessTime } from "@/lib/business-time";
+import { buildExamSessionsCsv } from "@/lib/exam-sessions-csv";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 
 interface SessionSummary {
@@ -83,25 +84,8 @@ export default function ExamSessionsPage() {
       : 0;
 
   const exportCsv = () => {
-    const header = "Студент,Вариант,Балл,Макс,Правильных,Всего,Процент,Время,Статус,Сдано\n";
-    const rows = sessions
-      .map((s) =>
-        [
-          s.student_name,
-          s.variant_number,
-          s.score,
-          s.max_score,
-          s.correct_count,
-          s.total_tasks,
-          s.percentage.toFixed(1),
-          formatTime(s.time_spent_seconds),
-          s.status,
-          // naive-UTC server stamp shown on the Tashkent clock (no comma inside the CSV field either)
-          formatUtcNaiveAsBusinessDateTime(s.submitted_at) || "—",
-        ].join(",")
-      )
-      .join("\n");
-    const blob = new Blob(["\uFEFF" + header + rows], { type: "text/csv;charset=utf-8;" });
+    // RFC 4180 + a guard against formulas in the student-typed name (src/lib/csv.ts); BOM so Excel reads UTF-8
+    const blob = new Blob(["\uFEFF" + buildExamSessionsCsv(sessions)], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;

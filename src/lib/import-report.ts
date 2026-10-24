@@ -2,6 +2,7 @@
  * O9 / F6 (LOGIC-B): the report of the Excel import - what was skipped and why, the counters, the blocking issues, the CSV of the report.
  * Pure: no React, no network.
  */
+import { neutralizeFormula } from "./csv";
 import { opsErrorCode } from "./ops-errors";
 import type { ImportCountsB, ImportIssueB, ImportSkipped } from "./ops-b-types";
 
@@ -83,7 +84,8 @@ export function issueText(issue: ImportIssueB): string {
 }
 
 function csvCell(value: unknown): string {
-  const text = value === null || value === undefined ? "" : String(value);
+  // the student / group names come from the teacher's uploaded sheet: a «=HYPERLINK(...)» there must not run in Excel
+  const text = value === null || value === undefined ? "" : typeof value === "number" ? String(value) : neutralizeFormula(String(value));
   return /[";\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
