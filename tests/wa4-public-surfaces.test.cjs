@@ -76,7 +76,7 @@ test("an ordinary row is not touched; numbers stay numbers; the status is in Rus
   const csv = E.buildExamSessionsCsv([session(), session({ status: "in_progress", submitted_at: null, student_name: "Бобур" })]);
   const rows = parseCsv(csv);
   assert.deepEqual(rows[0], ["Студент", "Вариант", "Балл", "Макс", "Правильных", "Всего", "Процент", "Время", "Статус", "Сдано"]);
-  assert.deepEqual(rows[1], ["Алия Каримова", "2", "7", "10", "7", "10", "70.0", "10:05", "Сдал", "20.10.2026 13:30"]);
+  assert.deepEqual(rows[1], ["Алия Каримова", "2", "7", "10", "7", "10", "70,0", "10:05", "Сдал", "20.10.2026 13:30"]);
   assert.deepEqual(rows[2].slice(8), ["Проходит", "—"]);
   assert.ok(csv.endsWith("\r\n") && !/[^\r]\n/.test(csv), "every line ends with CRLF");
   assert.ok(!csv.includes("submitted") && !csv.includes("in_progress"));
@@ -325,6 +325,8 @@ test("the file uses the Russian / Uzbek Excel delimiter (;) and opens as ten col
   const [head, row] = csv.split("\r\n");
   assert.equal(head, "Студент;Вариант;Балл;Макс;Правильных;Всего;Процент;Время;Статус;Сдано");
   assert.equal(row.split(";").length, 10);
+  assert.match(row, /;70,0;/, "decimal comma, not quoted");
+  assert.equal(C.csvCell("70,0"), "70,0");
   assert.equal(C.csvLine(["a;b", "c", 'd"e']), '"a;b";c;"d""e"');
   assert.equal(C.CSV_DELIMITER, ";");
 });

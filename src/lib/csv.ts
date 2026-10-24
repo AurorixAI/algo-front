@@ -26,7 +26,8 @@ export type CsvValue = string | number | null | undefined;
 export function csvCell(value: CsvValue): string {
   if (value === null || value === undefined) return "";
   const text = typeof value === "number" ? (Number.isFinite(value) ? String(value) : "") : neutralizeFormula(String(value));
-  return /[;",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  // only the delimiter, a quote or a line break force quotes: a comma is an ordinary character next to `;`
+  return /[;"\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function csvLine(values: CsvValue[]): string {

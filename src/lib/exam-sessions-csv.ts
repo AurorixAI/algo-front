@@ -38,7 +38,8 @@ export function buildExamSessionsCsv(sessions: ExamSessionCsvRow[]): string {
       s.max_score,
       s.correct_count,
       s.total_tasks,
-      s.percentage.toFixed(1),
+      // decimal comma, as the `;` delimiter and the Russian / Uzbek Excel expect (a dot would stay text there)
+      s.percentage.toFixed(1).replace(".", ","),
       formatMinutes(s.time_spent_seconds),
       examSessionStatusLabel(s.status),
       // naive-UTC server stamp shown on the Tashkent clock
