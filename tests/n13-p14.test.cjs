@@ -85,7 +85,7 @@ test("the exam page labels, hint and submit rule", () => {
   assert.match(page, /placeholder=\{ID_PLACEHOLDER\}/);
   assert.match(page, /\{IDENTITY_HINT\}/);
   assert.equal(entry.IDENTITY_HINT, "Введите имя и фамилию полностью или ID из карточки ученика");
-  assert.match(page, /disabled=\{!canSubmitIdentity\(studentName, studentId\) \|\| phase === "starting"\}/);
+  assert.match(page, /disabled=\{!canSubmitIdentity\(studentName, studentId\) \|\| phase === "starting" \|\| !canRetryNow\(limitUntil, limitNow\)\}/);
   assert.match(page, /if \(!canSubmitIdentity\(sName, sId\)\) return;/);
   // the server message is shown as is
   assert.match(page, /check\.message \|\|/);

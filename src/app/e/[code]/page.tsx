@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -41,6 +41,9 @@ import {
   transientFailureMessage,
   withTransientRetry,
 } from "@/lib/exam-retry";
+import { RateLimitCard } from "@/components/exam/rate-limit-card";
+import { canRetryNow, rateLimitDeadline, rateLimitText, secondsLeft, waitLabel } from "@/lib/exam-rate-limit";
+import { useNowUntil } from "@/lib/use-countdown";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
 import { createAdvanceOnce } from "@/lib/option-tap";
@@ -60,7 +63,7 @@ import { useScrollLock } from "@/components/ui/modal";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Phase = "loading" | "lobby" | "waiting_room" | "starting" | "exam" | "review" | "submitting" | "results" | "error";
+type Phase = "loading" | "rate_limited" | "lobby" | "waiting_room" | "starting" | "exam" | "review" | "submitting" | "results" | "error";
 
 interface Task {
   task_id: string;
@@ -128,6 +131,11 @@ export default function ExamPage() {
   const [groupWarning, setGroupWarning] = useState<string | null>(null);
   // The warning is «too many attempts» (429): the form stays open and the banner says so, not «access restricted».
   const [rateLimited, setRateLimited] = useState(false);
+  // When the wait of a 429 is over (the server's Retry-After); null = it named none.  The lobby banner and the start button follow it;
+  // `loadLimit` is the same for the very first request (the exam page cannot even open): a calm screen with «Попробовать снова».
+  const [limitUntil, setLimitUntil] = useState<number | null>(null);
+  const [loadLimit, setLoadLimit] = useState<{ deadline: number | null } | null>(null);
+  const limitNow = useNowUntil(limitUntil);
   // A busy server (503): the page repeats the request itself («Сохраняем… повторяем попытку»); when the tries are used
   // up the exam stays on screen with the reason and a «Повторить» button (submit), or the form keeps its input (start).
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
@@ -203,26 +211,39 @@ export default function ExamPage() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [phase]);
 
-  // ── Load exam info on mount ──────────────────────────────────────────────
-  useEffect(() => {
-    const loadExamInfo = async () => {
-      try {
-        const info = await examsApi.getByCode(code);
-        setExamInfo(info);
-        if (info.status !== "active" && info.status !== "lobby") {
-          setError("Этот экзамен уже закрыт или недоступен");
-          setPhase("error");
-          return;
-        }
-        setPhase("lobby");
-      } catch (err: any) {
-        console.error("Failed to load exam:", err);
-        setError(err.message || "Экзамен не найден. Проверьте код доступа.");
+  // ── Load exam info on mount (and by «Попробовать снова» after a 429) ───────
+  const loadExamInfo = useCallback(async () => {
+    try {
+      const info = await examsApi.getByCode(code);
+      setExamInfo(info);
+      if (info.status !== "active" && info.status !== "lobby") {
+        setError("Этот экзамен уже закрыт или недоступен");
         setPhase("error");
+        return;
       }
-    };
-    loadExamInfo();
+      setPhase("lobby");
+    } catch (err: any) {
+      if (isRateLimited(err)) {
+        // 429 while the page opens (not a missing exam): a calm screen with the wait, the student repeats the request.
+        setLoadLimit({ deadline: rateLimitDeadline(err, Date.now()) });
+        setPhase("rate_limited");
+        return;
+      }
+      console.error("Failed to load exam:", err);
+      setError(err.message || "Экзамен не найден. Проверьте код доступа.");
+      setPhase("error");
+    }
   }, [code]);
+
+  useEffect(() => {
+    void loadExamInfo();
+  }, [loadExamInfo]);
+
+  const retryLoad = () => {
+    setLoadLimit(null);
+    setPhase("loading");
+    void loadExamInfo();
+  };
 
   // ── Polling in Waiting Room Phase ────────────────────────────────────────
   useEffect(() => {
@@ -384,6 +405,7 @@ export default function ExamPage() {
         // typed - stay on the form and ask to try again.
         console.error("Check student error:", err);
         setRateLimited(isRateLimited(err));
+        setLimitUntil(rateLimitDeadline(err, Date.now()));
         setGroupWarning(checkFailureMessage(err));
         return;
       }
@@ -454,6 +476,7 @@ export default function ExamPage() {
         // Too many attempts: not a failure of the exam. The form stays open with the wait; the student retries.
         setPhase("lobby");
         setRateLimited(true);
+        setLimitUntil(rateLimitDeadline(err, Date.now()));
         setGroupWarning(rateLimitMessage(err));
         return;
       }
@@ -461,6 +484,7 @@ export default function ExamPage() {
         // A busy server, still after the repeats: not a broken exam.  The form keeps what was typed; the same button repeats.
         setPhase("lobby");
         setRateLimited(false);
+        setLimitUntil(null);
         setGroupWarning(transientFailureMessage(err));
         return;
       }
@@ -562,6 +586,12 @@ export default function ExamPage() {
           // Fall through to a clear final-state message below.
         }
       }
+      if (isRateLimited(err)) {
+        // Too many requests from this address: the answers are safe on the screen, the same button repeats the save.
+        setSubmitFailure(rateLimitMessage(err));
+        setPhase("exam");
+        return;
+      }
       if (isTransientServerError(err)) {
         // The server is busy, still after the repeats.  The answers are on the screen and in the state: back to the
         // exam with the reason and a «Повторить» button, not to the error page.
@@ -593,6 +623,18 @@ export default function ExamPage() {
             <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
             <p className="text-slate-500 font-medium">Загрузка экзамена...</p>
           </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Too many attempts while the page opens: calm, with the wait and a retry
+  if (phase === "rate_limited") {
+    return (
+      <div className="h-screen w-full overflow-hidden relative bg-background-light">
+        <TestBackground />
+        <div className="relative z-10 h-full flex items-center justify-center p-4">
+          <RateLimitCard deadline={loadLimit?.deadline ?? null} onRetry={retryLoad} />
         </div>
       </div>
     );
@@ -697,7 +739,9 @@ export default function ExamPage() {
                       <p className="text-xs font-bold text-amber-900">
                         {rateLimited ? "Слишком много попыток" : "Доступ ограничен группой"}
                       </p>
-                      <p className="text-xs text-amber-800 leading-relaxed">{groupWarning}</p>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        {rateLimited && limitUntil !== null ? rateLimitText(limitUntil, limitNow) : groupWarning}
+                      </p>
                     </div>
                   </motion.div>
                 )}
@@ -789,12 +833,14 @@ export default function ExamPage() {
                       className="w-full shadow-md shadow-primary-500/20"
                       size="lg"
                       onClick={handleStartClick}
-                      disabled={!canSubmitIdentity(studentName, studentId) || phase === "starting"}
+                      disabled={!canSubmitIdentity(studentName, studentId) || phase === "starting" || !canRetryNow(limitUntil, limitNow)}
                       loading={phase === "starting"}
                       icon={phase !== "starting" ? <ArrowRight className="w-5 h-5" /> : undefined}
                     >
                       {phase === "starting"
                         ? retryNotice ?? "Проверка..."
+                        : secondsLeft(limitUntil, limitNow) > 0
+                        ? `Подождите ${waitLabel(secondsLeft(limitUntil, limitNow))}`
                         : examInfo.status === "lobby"
                         ? "Присоединиться к лобби"
                         : "Начать экзамен"}
