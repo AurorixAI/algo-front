@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { dispatchDemoRequestAsync, parseCookies } from "@demo/handlers";
 
+/**
+ * The demo API exists ONLY in a demo build (NEXT_PUBLIC_DEMO_MODE=true). On a real deployment every method answers
+ * 404 before anything is loaded: no demo login, no cookie, no state written to disk. The demo handlers are
+ * imported lazily so that the real path never even evaluates them.
+ */
 async function handle(req: NextRequest, pathSegments: string[]) {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "true") {
+    return NextResponse.json({ detail: "Not Found" }, { status: 404 });
+  }
+  const { dispatchDemoRequestAsync, parseCookies } = await import("@demo/handlers");
   const path = "/" + pathSegments.join("/");
   let body: unknown = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {

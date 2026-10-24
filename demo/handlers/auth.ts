@@ -2,19 +2,19 @@ import type { DemoRequest, DemoResponse } from "../types";
 import orgFixture from "../fixtures/org.json";
 import { demoState, initDemoState, generateDiagCode, nextInviteId } from "../engine/state";
 
+// The demo session has its OWN cookie. It must never share the name of the real session cookie
+// (`algo_auth_token`): a demo login on a real domain would overwrite, and a demo logout would erase, a real session.
 const DEMO_COOKIE = "algo_demo_session";
-const AUTH_COOKIE = "algo_auth_token";
 
 function isDemoAuthenticated(cookies: Record<string, string>): boolean {
-  return Boolean(cookies[DEMO_COOKIE] || cookies[AUTH_COOKIE]);
+  return Boolean(cookies[DEMO_COOKIE]);
 }
 
 function cookieHeader(): string {
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
   const maxAge = "86400";
   const base = `Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-  // Middleware expects algo_auth_token; demo session kept for /auth/me fallback
-  return `${AUTH_COOKIE}=demo-access-token; ${base}, ${DEMO_COOKIE}=1; ${base}`;
+  return `${DEMO_COOKIE}=1; ${base}`;
 }
 
 function json(status: number, body: unknown, withAuthCookie = false, extraHeaders?: Record<string, string>): DemoResponse {
@@ -92,7 +92,7 @@ export function handleAuth(req: DemoRequest): DemoResponse | null {
   if (method === "POST" && path === "/auth/logout") {
     const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
     return json(200, { message: "ok" }, false, {
-      "Set-Cookie": `${AUTH_COOKIE}=; Path=/; Max-Age=0${secure}, ${DEMO_COOKIE}=; Path=/; Max-Age=0${secure}`,
+      "Set-Cookie": `${DEMO_COOKIE}=; Path=/; Max-Age=0${secure}`,
     });
   }
 

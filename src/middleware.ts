@@ -17,7 +17,6 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/register",
-  "/forgot-password",
 ];
 
 // Paths accessible without full auth (invite-based)
@@ -27,6 +26,10 @@ const OPEN_PATHS = [
   "/invite/",  // Invite acceptance
   "/diagnostic/",
 ];
+
+// Files the middleware lets through without a cookie: a path whose LAST segment ends in one of these. Any
+// other dot (`/owner/payments/receipt/a.b`, `/teacher/groups/x.y`) is an ordinary page and is checked.
+const STATIC_FILE = /\.(?:ico|png|jpe?g|gif|svg|webp|avif|css|js|map|txt|xml|json|webmanifest|woff2?|ttf)$/i;
 
 const ROLE_PATHS: Record<string, string[]> = {
   "/admin": ["admin", "owner", "superadmin"],
@@ -41,7 +44,7 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
-    pathname.includes(".")
+    STATIC_FILE.test(pathname)
   ) {
     return NextResponse.next();
   }
@@ -63,8 +66,11 @@ export function middleware(request: NextRequest) {
   // The server sets httpOnly cookie "algo_auth_token" on login/apply/refresh. The cookie lives as long
   // as the refresh cookie (30 days) while the JWT inside expires after an hour: a stale JWT is NOT
   // detected here (middleware cannot refresh) - the first API call answers 401 and api() refreshes.
+  // The demo session cookie counts ONLY in a demo build (NEXT_PUBLIC_DEMO_MODE=true); on a real deployment a
+  // hand-made `algo_demo_session=1` must not pass the gate.
   const authCookie =
-    request.cookies.get("algo_auth_token") ?? request.cookies.get("algo_demo_session");
+    request.cookies.get("algo_auth_token") ??
+    (process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? request.cookies.get("algo_demo_session") : undefined);
 
   if (!authCookie?.value) {
     // No token — redirect to login with the full return URL (path AND query), so that

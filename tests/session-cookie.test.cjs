@@ -171,7 +171,7 @@ test("no cookie: a hostile path never becomes a redirect that leaves the site", 
 
 test("a cookie, even one holding an expired JWT, lets the page through: the first API call refreshes", () => {
   // The middleware cannot refresh and does not look inside the cookie; a stale JWT is the API's 401.
-  for (const cookie of ["algo_auth_token=eyJ.stale.jwt", "algo_auth_token=x; algo_refresh_token=y", "algo_demo_session=1"]) {
+  for (const cookie of ["algo_auth_token=eyJ.stale.jwt", "algo_auth_token=x; algo_refresh_token=y"]) {
     const res = visit("/owner/settings?section=payments", cookie);
     assert.equal(res.status, 200, cookie);
     assert.equal(res.headers.get("location"), null);
@@ -180,7 +180,7 @@ test("a cookie, even one holding an expired JWT, lets the page through: the firs
 });
 
 test("public and code-based pages never need the cookie", () => {
-  for (const url of ["/", "/login?redirect=%2Fowner", "/register", "/forgot-password", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y", "/_next/static/a.js", "/api/demo/v1/auth/me"]) {
+  for (const url of ["/", "/login?redirect=%2Fowner", "/register", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y", "/_next/static/a.js", "/api/demo/v1/auth/me"]) {
     assert.equal(visit(url).status, 200, url);
   }
 });
