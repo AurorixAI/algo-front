@@ -9,9 +9,10 @@ import { useNowUntil } from "@/lib/use-countdown";
 
 /**
  * The calm screen for «too many attempts» (HTTP 429) while the exam page loads: amber, not red, with the countdown from
- * `Retry-After` and a button that becomes active when it is over.  `deadline` null = the server named no wait.
+ * `Retry-After` and a button that becomes active when it is over.  `fallback` is the text for a wait that is not counted
+ * (no usable Retry-After: the button is held for a default minute).
  */
-export function RateLimitCard({ deadline, onRetry }: { deadline: number | null; onRetry: () => void }) {
+export function RateLimitCard({ deadline, fallback = null, onRetry }: { deadline: number | null; fallback?: string | null; onRetry: () => void }) {
   const now = useNowUntil(deadline);
   const ready = canRetryNow(deadline, now);
   return (
@@ -22,7 +23,7 @@ export function RateLimitCard({ deadline, onRetry }: { deadline: number | null; 
         </div>
         <h2 className="text-xl font-bold text-slate-900 mb-2">{RATE_LIMIT_TITLE}</h2>
         <p className="text-slate-500 mb-6" data-testid="rate-limit-text">
-          {rateLimitText(deadline, now)}
+          {rateLimitText(deadline, now, fallback)}
         </p>
         <Button className="w-full" onClick={onRetry} disabled={!ready} icon={<RefreshCw className="w-4 h-4" />} data-testid="rate-limit-retry">
           {RATE_LIMIT_RETRY_LABEL}

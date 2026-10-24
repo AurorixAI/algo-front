@@ -219,13 +219,19 @@ class ApiError extends Error {
   }
 }
 
-/** `Retry-After` in whole seconds ("120"); an HTTP-date or garbage is not used.  Read for a 429 and a 503 only. */
+/** `Retry-After` in whole seconds ("120") or as an HTTP-date (turned into the seconds left); garbage is not used.  Read for a 429 and a 503 only. */
 function retryAfterSeconds(response: Response): number | undefined {
   if (response.status !== 429 && response.status !== 503) return undefined;
   const raw = response.headers?.get?.("Retry-After")?.trim();
-  if (!raw || !/^\d+$/.test(raw)) return undefined;
-  const seconds = Number(raw);
-  return seconds > 0 ? seconds : undefined;
+  if (!raw) return undefined;
+  if (/^\d+$/.test(raw)) {
+    const seconds = Number(raw);
+    return seconds > 0 ? seconds : undefined;
+  }
+  const at = Date.parse(raw);
+  if (!Number.isFinite(at)) return undefined;
+  const left = Math.ceil((at - Date.now()) / 1000);
+  return left > 0 ? left : undefined;
 }
 
 /**

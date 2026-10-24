@@ -5,9 +5,15 @@ import { useEffect, useState } from "react";
 /**
  * The current time, ticking once a second while a `deadline` (ms since epoch) is still ahead; it stops by itself at the deadline.
  * Derive the seconds left from the deadline and this value (`secondsLeft`), so a throttled background tab catches up at once.
+ * A new deadline refreshes the value during the same render, so the first frame after a 429 is not computed from a stale clock.
  */
 export function useNowUntil(deadline: number | null): number {
   const [now, setNow] = useState(() => Date.now());
+  const [seen, setSeen] = useState(deadline);
+  if (seen !== deadline) {
+    setSeen(deadline);
+    setNow(Date.now());
+  }
   useEffect(() => {
     if (deadline === null) return;
     setNow(Date.now());
