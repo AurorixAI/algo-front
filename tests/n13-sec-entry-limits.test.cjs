@@ -75,7 +75,7 @@ test("the entry page keeps the form open on a 429 at the check AND at the start,
 
 test("the teacher can reset the entry limits while the exam is open, and only then", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /resetEntryLimits: \(examId: string\) =>\s*examApi<\{ exam_id: string; reset: boolean \}>\(`\/exams\/\$\{examId\}\/entry-limits\/reset`, "staff", \{\s*method: "POST"/);
+  assert.match(api, /resetEntryLimits: \(examId: string\) =>\s*examApi<\{ exam_id: string; reset: boolean \}>\(`\/exams\/\$\{encodePathId\(examId\)\}\/entry-limits\/reset`, "staff", \{\s*method: "POST"/);
   const page = read("src/app/teacher/exams/[id]/page.tsx");
   assert.match(page, /await examsApi\.resetEntryLimits\(examId\);\s*showToast\("Ограничения входа сброшены", "success"\);/);
   const button = page.slice(page.indexOf("onClick={handleResetEntryLimits}") - 400, page.indexOf("Сбросить ограничения входа") + 40);

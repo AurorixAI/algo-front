@@ -389,8 +389,8 @@ test("the restore dialog: a checkbox per former group, disabled with the reason,
 
 test("the API: POST archive {reason?} and restore {group_ids}; the profile carries archived_groups and student.archived_at", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /api<StudentArchiveResult>\(`\/auth\/org\/students\/\$\{id\}\/archive`, \{ method: "POST", body: reason \? \{ reason \} : \{\} \}\)/);
-  assert.match(api, /api<StudentRestoreResult>\(`\/auth\/org\/students\/\$\{id\}\/restore`, \{ method: "POST", body: \{ group_ids: groupIds \} \}\)/);
+  assert.match(api, /api<StudentArchiveResult>\(`\/auth\/org\/students\/\$\{encodePathId\(id\)\}\/archive`, \{ method: "POST", body: reason \? \{ reason \} : \{\} \}\)/);
+  assert.match(api, /api<StudentRestoreResult>\(`\/auth\/org\/students\/\$\{encodePathId\(id\)\}\/restore`, \{ method: "POST", body: \{ group_ids: groupIds \} \}\)/);
   assert.match(api, /closed_groups: Array<\{ group_id: string; group_name: string \}>/);
   assert.match(api, /restored_groups\?: Array<\{ group_id: string; group_name: string \}>/);
   assert.match(api, /skipped: Array<\{ group_id: string; group_name: string \| null; reason: StudentRestoreSkipReason \| string; message: string \}>/);

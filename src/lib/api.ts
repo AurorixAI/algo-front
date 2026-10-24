@@ -562,7 +562,7 @@ async function downloadExamPrintPdf(
   variantNumber: number,
 ): Promise<void> {
   // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed); a busy 503 is asked again
-  const path = `/exams/${encodeURIComponent(examId)}/print-package/${kind}/${variantNumber}.pdf`;
+  const path = `/exams/${encodePathId(examId)}/print-package/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
   if (!response.ok) {
@@ -595,7 +595,7 @@ async function previewExamPrintPdf(
   variantNumber: number,
 ): Promise<Blob> {
   // staff-only: a 401 refreshes the session once and repeats the request (fetchAuthed); a busy 503 is asked again
-  const path = `/exams/${encodeURIComponent(examId)}/print-preview/${kind}/${variantNumber}.pdf`;
+  const path = `/exams/${encodePathId(examId)}/print-preview/${encodePathId(String(kind))}/${encodePathId(String(variantNumber))}.pdf`;
   const response = await fetchExamStaff(`${EXAM_API_V1}${path}`, { credentials: "include", cache: "no-store" }, path);
 
   if (!response.ok) {
@@ -1289,7 +1289,7 @@ export const authApi = {
 
   getInviteInfo: (code: string) =>
     api<InviteInfo>(
-      `/auth/invite/${encodeURIComponent(code)}`,
+      `/auth/invite/${encodePathId(code)}`,
       { noAuth: true }
     ),
 
@@ -1367,16 +1367,16 @@ export const orgApi = {
     }),
   listInvitations: () => api<InvitationRow[]>("/auth/org/invitations"),
   revokeInvitation: (id: string) =>
-    api<{ message: string }>(`/auth/org/invitations/${id}`, { method: "DELETE" }),
+    api<{ message: string }>(`/auth/org/invitations/${encodePathId(id)}`, { method: "DELETE" }),
 
   // Members
   /** `status`: `active` (the default), `removed` (the former staff) or `all` (LOGIC-B O2). */
   listMembers: (status?: MemberListStatus) =>
-    api<any[]>(`/auth/org/members${status ? `?status=${status}` : ""}`),
+    api<any[]>(`/auth/org/members${status ? `?status=${encodeURIComponent(status)}` : ""}`),
   updateMemberRole: (memberId: string, role: string) =>
-    api<any>(`/auth/org/members/${memberId}/role?role=${role}`, { method: "PUT" }),
+    api<any>(`/auth/org/members/${encodePathId(memberId)}/role?role=${encodeURIComponent(role)}`, { method: "PUT" }),
   removeMember: (memberId: string) =>
-    api<RemoveMemberResult>(`/auth/org/members/${memberId}`, { method: "DELETE" }),
+    api<RemoveMemberResult>(`/auth/org/members/${encodePathId(memberId)}`, { method: "DELETE" }),
 
   // Students
   createStudent: (data: { first_name: string; last_name: string; class_level: number; student_phone: string; comment?: string }) =>
@@ -1414,20 +1414,20 @@ export const orgApi = {
     if (Array.isArray(response)) return { items: response, total: response.length };
     return { items: response.items ?? [], total: response.total ?? (response.items ?? []).length };
   },
-  getStudent: (id: string) => api<any>(`/auth/org/students/${id}`),
-  getStudentProfile: (id: string) => api<StudentProfile>(`/auth/org/students/${id}/profile`),
+  getStudent: (id: string) => api<any>(`/auth/org/students/${encodePathId(id)}`),
+  getStudentProfile: (id: string) => api<StudentProfile>(`/auth/org/students/${encodePathId(id)}/profile`),
   getStudentAttendanceSummary: (id: string, month?: string) =>
     api<StudentAttendanceSummary>(
-      `/auth/org/students/${id}/attendance${month ? `?month=${encodeURIComponent(month)}` : ""}`
+      `/auth/org/students/${encodePathId(id)}/attendance${month ? `?month=${encodeURIComponent(month)}` : ""}`
     ),
   updateStudent: (id: string, data: any) =>
-    api<any>(`/auth/org/students/${id}`, { method: "PUT", body: data }),
+    api<any>(`/auth/org/students/${encodePathId(id)}`, { method: "PUT", body: data }),
   /** «Ученик ушёл из центра»: owner / administrator; closes every active membership. 409 when already archived. */
   archiveStudent: (id: string, reason?: string) =>
-    api<StudentArchiveResult>(`/auth/org/students/${id}/archive`, { method: "POST", body: reason ? { reason } : {} }),
+    api<StudentArchiveResult>(`/auth/org/students/${encodePathId(id)}/archive`, { method: "POST", body: reason ? { reason } : {} }),
   /** «Вернуть из архива» into the chosen groups (none = without a group). 409 when the student is not archived. */
   restoreStudent: (id: string, groupIds: string[]) =>
-    api<StudentRestoreResult>(`/auth/org/students/${id}/restore`, { method: "POST", body: { group_ids: groupIds } }),
+    api<StudentRestoreResult>(`/auth/org/students/${encodePathId(id)}/restore`, { method: "POST", body: { group_ids: groupIds } }),
 
   // Diagnostics
   createDiagnostic: (data: { student_id: string; class_level: number; diagnostic_type?: string }) =>
@@ -1476,15 +1476,15 @@ export const orgApi = {
     const qs = query.toString();
     return api<GroupInfo[]>(`/auth/org/groups${qs ? `?${qs}` : ""}`);
   },
-  getGroup: (id: string) => api<GroupDetail>(`/auth/org/groups/${id}`),
-  getGroupStats: (id: string) => api<GroupStats>(`/auth/org/groups/${id}/stats`),
+  getGroup: (id: string) => api<GroupDetail>(`/auth/org/groups/${encodePathId(id)}`),
+  getGroupStats: (id: string) => api<GroupStats>(`/auth/org/groups/${encodePathId(id)}/stats`),
   updateGroup: (id: string, data: Partial<{ name: string; class_level: number | null; teacher_id: string | null; description: string; max_students: number; lesson_type: LessonType }>) =>
-    api<GroupInfo>(`/auth/org/groups/${id}`, { method: "PUT", body: data }),
+    api<GroupInfo>(`/auth/org/groups/${encodePathId(id)}`, { method: "PUT", body: data }),
   /** LOGIC-B (O4): archiving is an operation of its own (`POST …/archive` after `GET …/archive-impact`); `PUT status` answers 422. */
   archiveGroup: (id: string, body: ArchiveGroupBody = {}) =>
-    api<ArchiveGroupResult & GroupInfo>(`/auth/org/groups/${id}/archive`, { method: "POST", body }),
+    api<ArchiveGroupResult & GroupInfo>(`/auth/org/groups/${encodePathId(id)}/archive`, { method: "POST", body }),
   unarchiveGroup: (id: string, teacherId?: string | null) =>
-    api<GroupInfo>(`/auth/org/groups/${id}/restore`, {
+    api<GroupInfo>(`/auth/org/groups/${encodePathId(id)}/restore`, {
       method: "POST",
       body: teacherId === undefined ? {} : { teacherId },
     }),
@@ -1494,7 +1494,7 @@ export const orgApi = {
    * price (sum + reason) and is sent only by roles that may see money (the server answers 403 otherwise).
    */
   addStudentToGroup: (groupId: string, studentId: string, options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null; opening_balance?: OpeningIn | null }) => {
-    const query = options?.mode ? `?mode=${options.mode}` : "";
+    const query = options?.mode ? `?mode=${encodeURIComponent(options.mode)}` : "";
     // LOGIC-A decision 1: «оплачено до» / «долг на дату» of the new membership ride along (needs access to money).
     const extra = {
       ...(options?.price_override ? { price_override: options.price_override } : {}),
@@ -1509,10 +1509,10 @@ export const orgApi = {
       display_id?: string | null;
       /** Server hints (third group, class mismatch); never a refusal. */
       warnings?: PaymentWarning[];
-    }>(`/auth/org/groups/${groupId}/students/${studentId}${query}`, { method: "POST", body });
+    }>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}${query}`, { method: "POST", body });
   },
   removeStudentFromGroup: (groupId: string, studentId: string) =>
-    api<any>(`/auth/org/groups/${groupId}/students/${studentId}`, { method: "DELETE" }),
+    api<any>(`/auth/org/groups/${encodePathId(groupId)}/students/${encodePathId(studentId)}`, { method: "DELETE" }),
   /** One `price_override` (sum + reason) for everybody added, or none: the students follow the price of the group. */
   bulkAddStudents: (groupId: string, studentIds: string[], options?: { mode?: GroupJoinMode; price_override?: EnrolPriceOverride | null }) =>
     api<{
@@ -1524,7 +1524,7 @@ export const orgApi = {
       /** Hints per student (`student_id` when the server names one). */
       warnings?: Array<PaymentWarning & { student_id?: string }>;
     }>(
-      `/auth/org/groups/${groupId}/students/bulk${options?.mode ? `?mode=${options.mode}` : ""}`,
+      `/auth/org/groups/${encodePathId(groupId)}/students/bulk${options?.mode ? `?mode=${encodeURIComponent(options.mode)}` : ""}`,
       {
         method: "POST",
         body: {
@@ -1536,7 +1536,7 @@ export const orgApi = {
 
   // ── Schedule ──────────────────────────────────────────────────────────
   getSchedule: (teacherId?: string) =>
-    api<LessonEvent[]>(`/auth/org/schedule${teacherId ? `?teacher_id=${teacherId}` : ""}`),
+    api<LessonEvent[]>(`/auth/org/schedule${teacherId ? `?teacher_id=${encodeURIComponent(teacherId)}` : ""}`),
   getScheduleOccurrences: (period: { dateFrom: string; dateTo: string }, teacherId?: string) => {
     const query = new URLSearchParams({ date_from: period.dateFrom, date_to: period.dateTo });
     if (teacherId) query.set("teacher_id", teacherId);
@@ -1555,7 +1555,7 @@ export const orgApi = {
     topic?: string;
   }) => api<ScheduleOccurrence>(`/auth/org/schedule/occurrences`, { method: "POST", body: data }),
   updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
-    api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}`, { method: "PUT", body: data }),
+    api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}`, { method: "PUT", body: data }),
   rescheduleLessonOccurrence: (
     lessonId: string,
     data: {
@@ -1567,22 +1567,22 @@ export const orgApi = {
       topic?: string;
       reason: string;
     },
-  ) => api<ScheduleOccurrence>(`/auth/org/schedule/lessons/${lessonId}/reschedule`, { method: "POST", body: data }),
+  ) => api<ScheduleOccurrence>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/reschedule`, { method: "POST", body: data }),
   reviseRecurringLesson: (
     lessonId: string,
     data: Partial<LessonEvent> & { effectiveFrom: string; reason: string },
-  ) => api<LessonEvent>(`/auth/org/schedule/lessons/${lessonId}/recurrence`, { method: "PUT", body: data }),
+  ) => api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence`, { method: "PUT", body: data }),
   getRecurringLessonEndImpact: (lessonId: string, effectiveFrom: string) => {
     const query = new URLSearchParams({ effective_from: effectiveFrom });
     return api<RecurringLessonEndImpact>(
-      `/auth/org/schedule/lessons/${lessonId}/recurrence/end-impact?${query.toString()}`,
+      `/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence/end-impact?${query.toString()}`,
     );
   },
   endRecurringLesson: (
     lessonId: string,
     data: { effectiveFrom: string; reason: string; releaseAffectedExams: boolean },
   ) => api<EndRecurringLessonResult>(
-    `/auth/org/schedule/lessons/${lessonId}/recurrence/end`,
+    `/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence/end`,
     { method: "POST", body: data },
   ),
 
@@ -1606,7 +1606,7 @@ export const orgApi = {
       params.set("month", period.month);
     }
     const query = params.toString();
-    return api<GroupAttendance>(`/auth/org/groups/${groupId}/attendance${query ? `?${query}` : ""}`);
+    return api<GroupAttendance>(`/auth/org/groups/${encodePathId(groupId)}/attendance${query ? `?${query}` : ""}`);
   },
   saveGroupAttendance: (
     groupId: string,
@@ -1626,25 +1626,25 @@ export const orgApi = {
       acknowledgeLiveExam?: boolean;
     }
   ) =>
-    api<SaveAttendanceResult & { ok: boolean; saved: boolean }>(`/auth/org/groups/${groupId}/attendance`, { method: "POST", body: data }),
+    api<SaveAttendanceResult & { ok: boolean; saved: boolean }>(`/auth/org/groups/${encodePathId(groupId)}/attendance`, { method: "POST", body: data }),
 
   startGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; topic?: string },
   ) =>
-    api<{ ok: boolean; started: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/start`, { method: "POST", body: data }),
+    api<{ ok: boolean; started: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/start`, { method: "POST", body: data }),
 
   reconcileMissedGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; topic?: string },
   ) =>
-    api<{ ok: boolean; reconciled: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/reconcile`, { method: "POST", body: data }),
+    api<{ ok: boolean; reconciled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile`, { method: "POST", body: data }),
 
   cancelMissedGroupAttendance: (
     groupId: string,
     data: { lessonDate: string; lessonId: string; cancellationReason: string },
   ) =>
-    api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${groupId}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+    api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
 
   // ── Excused absences (admin / owner) ──────────────────────────────────
   listAttendanceExcuses: (q: AttendanceExcuseQuery = {}) => {
@@ -1962,7 +1962,7 @@ export const orgApi = {
     api<PayrollSettingsFull>("/auth/org/payroll/settings", { method: "PUT", body }),
   /** Payouts of the month (live and cancelled), optionally of one teacher. */
   listPayrollPayouts: (month: string, teacherId?: string) =>
-    api<PayoutOut[]>(`/auth/org/payroll/payouts?month=${encodeURIComponent(month)}${teacherId ? `&teacher_id=${encodePathId(teacherId)}` : ""}`)
+    api<PayoutOut[]>(`/auth/org/payroll/payouts?month=${encodeURIComponent(month)}${teacherId ? `&teacher_id=${encodeURIComponent(teacherId)}` : ""}`)
       .then((list) => (Array.isArray(list) ? list.map(normalizePayout).filter((item): item is PayoutOut => item !== null) : [])),
   /** «Отметить выплату»; `Idempotency-Key`: one per opening of the dialog (409 `DUPLICATE_PAYOUT` carries `payout_id`). */
   createPayrollPayout: (sheetId: string, body: PayoutCreate, idempotencyKey?: string) =>
@@ -2157,9 +2157,9 @@ async function uploadImport<T>(endpoint: string, file: File): Promise<T> {
 
 export const diagnosticInviteApi = {
   getInfo: (code: string) =>
-    api<any>(`/auth/diagnostic/${encodeURIComponent(code)}`, { noAuth: true }),
+    api<any>(`/auth/diagnostic/${encodePathId(code)}`, { noAuth: true }),
   confirm: (code: string) =>
-    api<any>(`/auth/diagnostic/${encodeURIComponent(code)}/confirm`, {
+    api<any>(`/auth/diagnostic/${encodePathId(code)}/confirm`, {
       method: "POST",
       noAuth: true,
     }),
@@ -2174,9 +2174,9 @@ const diagApi = diagServiceApi;
 export const analyticsApi = {
   // Student progress — diagnostic-service (DIAG_API_V1)
   studentSkillMap: (studentId: string) =>
-    diagApi<any>(`/analytics/students/${studentId}/skill-map`, "staff"),
+    diagApi<any>(`/analytics/students/${encodePathId(studentId)}/skill-map`, "staff"),
   studentTimeline: (studentId: string) =>
-    diagApi<any>(`/analytics/students/${studentId}/timeline`, "staff"),
+    diagApi<any>(`/analytics/students/${encodePathId(studentId)}/timeline`, "staff"),
   studentReport: (studentId: string, sessionId?: string | null) => {
     const query = new URLSearchParams({ _t: String(Date.now()) });
     if (sessionId) query.set("session_id", sessionId);
@@ -2185,9 +2185,9 @@ export const analyticsApi = {
 
   // Group analytics — передаём student_ids списком
   groupOverview: (studentIds: string[]) =>
-    diagApi<any>(`/analytics/groups/overview?${studentIds.map(id => `student_ids=${id}`).join("&")}`, "staff"),
+    diagApi<any>(`/analytics/groups/overview?${new URLSearchParams(studentIds.map((id) => ["student_ids", id])).toString()}`, "staff"),
   groupHeatmap: (studentIds: string[]) =>
-    diagApi<any>(`/analytics/groups/heatmap?${studentIds.map(id => `student_ids=${id}`).join("&")}`, "staff"),
+    diagApi<any>(`/analytics/groups/heatmap?${new URLSearchParams(studentIds.map((id) => ["student_ids", id])).toString()}`, "staff"),
 
   // Org analytics
   orgLiveQueue: (hours?: number) =>
@@ -2284,13 +2284,15 @@ export const diagnosticApi = {
     inviteCode: string,
   ) =>
     diagServiceApi<DiagAnswerResult>(
-      `/diagnostic/sessions/${sessionId}/answer`, "student",
+      `/diagnostic/sessions/${encodePathId(sessionId)}/answer`, "student",
       { method: "POST", body: data, inviteCode },
     ),
 
   getReport: (sessionId: string, inviteCode: string) =>
     diagServiceApi<DiagReport>(
-      `/diagnostic/sessions/${sessionId}/report?invite_code=${encodeURIComponent(inviteCode)}`, "student",
+      // the invite code is a capability: in a header (like `answer`), not in the URL (history, proxy logs)
+      `/diagnostic/sessions/${encodePathId(sessionId)}/report`, "student",
+      { inviteCode },
     ),
 };
 
@@ -2526,10 +2528,10 @@ export const examsApi = {
   },
 
   /** Teacher-profile visual data for an administrator, without any controls or access code. */
-  getAdminView: (examId: string) => examApi<AdminExamView>(`/admin/exams/${examId}/view`, "staff"),
+  getAdminView: (examId: string) => examApi<AdminExamView>(`/admin/exams/${encodePathId(examId)}/view`, "staff"),
 
   /** Read-only exam metadata. Safe for the admin monitoring surface. */
-  getSummary: (examId: string) => examApi<ExamSummary>(`/exams/${examId}`, "staff"),
+  getSummary: (examId: string) => examApi<ExamSummary>(`/exams/${encodePathId(examId)}`, "staff"),
 
   /** Compact server-authoritative state for Dashboard live exam cards. */
   getLiveDashboardSummary: () =>
@@ -2542,7 +2544,7 @@ export const examsApi = {
       status: "draft" | "variants_ready";
       delivery_mode: "online" | "print" | "hybrid";
       requires_clone_for_print: boolean;
-    }>(`/exams/${examId}/delivery/cancel`, "staff", { method: "POST", body: data }),
+    }>(`/exams/${encodePathId(examId)}/delivery/cancel`, "staff", { method: "POST", body: data }),
 
   /** Full draft with tasks & correct answers (teacher only) */
   getDraft: (examId: string) =>
@@ -2592,11 +2594,11 @@ export const examsApi = {
           is_template_generated: boolean;
         }>;
       }>;
-    }>(`/exams/${examId}/draft`, "staff"),
+    }>(`/exams/${encodePathId(examId)}/draft`, "staff"),
 
   /** Persist the paper-only answer/work-space layout before it is frozen. */
   updatePrintLayout: (examId: string, layout: PrintExamLayout) =>
-    examApi<{ exam_id: string; layout: PrintExamLayout }>(`/exams/${examId}/print-layout`, "staff", {
+    examApi<{ exam_id: string; layout: PrintExamLayout }>(`/exams/${encodePathId(examId)}/print-layout`, "staff", {
       method: "PUT",
       body: { layout },
     }),
@@ -2611,18 +2613,18 @@ export const examsApi = {
       scheduled_lesson_id: string;
       scheduled_lesson_date: string;
       print_package: PrintPackageMetadata;
-    }>(`/exams/${examId}/print-package/prepare`, "staff", { method: "POST", body: data }),
+    }>(`/exams/${encodePathId(examId)}/print-package/prepare`, "staff", { method: "POST", body: data }),
 
   /** Mark a scheduled paper exam as physically handed out/in progress. */
   startPrintPackage: (examId: string) =>
     examApi<{ exam_id: string; status: "active"; print_package: PrintPackageMetadata }>(
-      `/exams/${examId}/print-package/start`, "staff",
+      `/exams/${encodePathId(examId)}/print-package/start`, "staff",
       { method: "POST" },
     ),
 
   getPrintPackage: (examId: string) =>
     examApi<{ exam_id: string; status: string; print_package: PrintPackageMetadata }>(
-      `/exams/${examId}/print-package`, "staff",
+      `/exams/${encodePathId(examId)}/print-package`, "staff",
     ),
 
   downloadStudentPrintPdf: (examId: string, variantNumber = 1) =>
@@ -2646,59 +2648,59 @@ export const examsApi = {
       difficulty: string;
       correct_answer: string;
       answer_type: string;
-    }>>(`/exams/${examId}/draft/alternatives?variant_number=${variantNumber}&task_id=${encodeURIComponent(taskId)}`, "staff"),
+    }>>(`/exams/${encodePathId(examId)}/draft/alternatives?variant_number=${variantNumber}&task_id=${encodeURIComponent(taskId)}`, "staff"),
 
   /** Replace a task in a draft variant */
   replaceTask: (examId: string, data: { variant_number: number; task_id: string; old_task_id?: string; new_task_id?: string }) =>
-    examApi<{ status: string; new_task: any }>(`/exams/${examId}/draft/replace-task`, "staff", {
+    examApi<{ status: string; new_task: any }>(`/exams/${encodePathId(examId)}/draft/replace-task`, "staff", {
       method: "POST",
       body: data,
     }),
 
   /** Schedule a draft for one concrete lesson and open its lobby. */
   publish: (examId: string, data: { lesson_id: string; lesson_date: string; teacher_name?: string; subject?: string; group_id?: string; group_name?: string; class_level?: number }) =>
-    examApi<PublishExamResult>(`/exams/${examId}/publish`, "staff", {
+    examApi<PublishExamResult>(`/exams/${encodePathId(examId)}/publish`, "staff", {
       method: "POST",
       body: data,
     }),
 
   /** Close an active exam */
   close: (examId: string) =>
-    examApi<{ exam_id: string; status: string }>(`/exams/${examId}/close`, "staff", { method: "POST" }),
+    examApi<{ exam_id: string; status: string }>(`/exams/${encodePathId(examId)}/close`, "staff", { method: "POST" }),
 
   /** Get sessions list for an exam (teacher) */
-  getSessions: (examId: string) => examApi<any[]>(`/exams/${examId}/sessions`, "staff"),
+  getSessions: (examId: string) => examApi<any[]>(`/exams/${encodePathId(examId)}/sessions`, "staff"),
 
   /** Completed online attempts for one student, scoped by current staff access. */
   getStudentHistory: (studentId: string) =>
     examApi<NonNullable<StudentProfile["exams"]>>(
-      `/students/${encodeURIComponent(studentId)}/exam-history`
+      `/students/${encodePathId(studentId)}/exam-history`
     , "staff"),
 
   /** Get analytics for an exam (teacher) */
-  getAnalytics: (examId: string) => examApi<any>(`/exams/${examId}/analytics`, "staff"),
+  getAnalytics: (examId: string) => examApi<any>(`/exams/${encodePathId(examId)}/analytics`, "staff"),
 
   /** Get cached narrative report for an exam (teacher) */
-  getReport: (examId: string) => examApi<any>(`/exams/${examId}/report`, "staff"),
+  getReport: (examId: string) => examApi<any>(`/exams/${encodePathId(examId)}/report`, "staff"),
 
   /** Generate on-demand LLM narrative report for an exam (teacher) */
   generateReport: (examId: string, force = true) =>
-    examApi<any>(`/exams/${examId}/report?force=${force}`, "staff", { method: "POST" }),
+    examApi<any>(`/exams/${encodePathId(examId)}/report?force=${force}`, "staff", { method: "POST" }),
 
   /** Toggle is_pinned (Library favourite) */
   pin: (examId: string) =>
-    examApi<{ exam_id: string; is_pinned: boolean }>(`/exams/${examId}/pin`, "staff", { method: "POST" }),
+    examApi<{ exam_id: string; is_pinned: boolean }>(`/exams/${encodePathId(examId)}/pin`, "staff", { method: "POST" }),
 
   /** Clone a template, optionally binding it to a new group */
   clone: (examId: string, data?: { title?: string; group_id?: string; group_name?: string; class_level?: number }) =>
     examApi<{ exam_id: string; title: string; status: string; source_exam_id: string; group_id?: string | null; group_name?: string | null }>(
-      `/exams/${examId}/clone`, "staff",
+      `/exams/${encodePathId(examId)}/clone`, "staff",
       { method: "POST", body: data ?? {} },
     ),
 
   /** Rename an editable draft. Prepared and conducted runs stay immutable. */
   rename: (examId: string, title: string) =>
-    examApi<{ exam_id: string; title: string; status: string }>(`/exams/${examId}/title`, "staff", {
+    examApi<{ exam_id: string; title: string; status: string }>(`/exams/${encodePathId(examId)}/title`, "staff", {
       method: "PATCH",
       body: { title },
     }),
@@ -2706,17 +2708,17 @@ export const examsApi = {
   /** Assign a draft to a group; publishing additionally requires one lesson occurrence. */
   assign: (examId: string, data: { group_id: string; group_name?: string; class_level?: number; teacher_name?: string; subject?: string; publish?: boolean; lesson_id?: string; lesson_date?: string }) =>
     examApi<{ exam_id: string; status: string; group_id: string; group_name?: string | null; access_code?: string | null; scheduled_lesson_id?: string | null; scheduled_lesson_date?: string | null; url?: string | null }>(
-      `/exams/${examId}/assign`, "staff",
+      `/exams/${encodePathId(examId)}/assign`, "staff",
       { method: "POST", body: data },
     ),
 
   /** Delete an exam (soft archive by default, or permanent) */
   delete: (examId: string, permanent: boolean = false) =>
-    examApi<{ ok: boolean; action: string; id: string }>(`/exams/${examId}?permanent=${permanent}`, "staff", { method: "DELETE" }),
+    examApi<{ ok: boolean; action: string; id: string }>(`/exams/${encodePathId(examId)}?permanent=${permanent}`, "staff", { method: "DELETE" }),
 
   /** Restore an archived exam */
   restore: (examId: string) =>
-    examApi<{ ok: boolean; action: string; id: string; status: string }>(`/exams/${examId}/restore`, "staff", { method: "POST" }),
+    examApi<{ ok: boolean; action: string; id: string; status: string }>(`/exams/${encodePathId(examId)}/restore`, "staff", { method: "POST" }),
 
   // ── Student: public (no auth) ────────────────────────────────────────────
 
@@ -2736,7 +2738,7 @@ export const examsApi = {
       status: string;
       time_remaining_seconds?: number | null;
       started_at?: string | null;
-    }>(`/exams/by-code/${encodeURIComponent(code)}`, "student"),
+    }>(`/exams/by-code/${encodePathId(code)}`, "student"),
 
   /** Fast student roster check before starting exam */
   checkStudent: (
@@ -2759,7 +2761,7 @@ export const examsApi = {
       already_submitted?: boolean;
       session_id?: string | null;
       message?: string | null;
-    }>(`/exams/by-code/${encodeURIComponent(code)}/check-student`, "student", {
+    }>(`/exams/by-code/${encodePathId(code)}/check-student`, "student", {
       method: "POST",
       body,
     });
@@ -2791,7 +2793,7 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-    }>(`/exams/by-code/${encodeURIComponent(code)}/start`, "student", { method: "POST", body: data }),
+    }>(`/exams/by-code/${encodePathId(code)}/start`, "student", { method: "POST", body: data }),
 
   /** Auto-save student progress in real-time */
   saveProgress: (
@@ -2799,7 +2801,7 @@ export const examsApi = {
     data: { answers: Record<string, string>; time_spent_seconds?: number },
     sessionToken: string,
   ) =>
-    examApi<{ ok: boolean; answered_count: number }>(`/exam-sessions/${sessionId}/progress`, "student", {
+    examApi<{ ok: boolean; answered_count: number }>(`/exam-sessions/${encodePathId(sessionId)}/progress`, "student", {
       method: "POST",
       body: data,
       sessionToken,
@@ -2827,11 +2829,11 @@ export const examsApi = {
         skill_name: string;
         answer_type?: string;
       }>;
-    }>(`/exams/by-code/${encodeURIComponent(code)}/session-status/${encodeURIComponent(sessionId)}`, "student", { sessionToken }),
+    }>(`/exams/by-code/${encodePathId(code)}/session-status/${encodePathId(sessionId)}`, "student", { sessionToken }),
 
   /** Teacher: bind a concrete lesson and open the lobby. */
   openLobby: (examId: string, data: { lesson_id: string; lesson_date: string }) =>
-    examApi<{ status: string; access_code: string; url: string }>(`/exams/${examId}/open-lobby`, "staff", {
+    examApi<{ status: string; access_code: string; url: string }>(`/exams/${encodePathId(examId)}/open-lobby`, "staff", {
       method: "POST",
       body: data,
     }),
@@ -2853,13 +2855,13 @@ export const examsApi = {
 
   /** Teacher: Synchronously start exam from lobby */
   startLive: (examId: string) =>
-    examApi<{ status: string; started_count: number }>(`/exams/${examId}/start-live`, "staff", {
+    examApi<{ status: string; started_count: number }>(`/exams/${encodePathId(examId)}/start-live`, "staff", {
       method: "POST",
     }),
 
   /** Teacher: clear the entry rate limits of an open exam (a classmate used up the failure budget of the school address) */
   resetEntryLimits: (examId: string) =>
-    examApi<{ exam_id: string; reset: boolean }>(`/exams/${examId}/entry-limits/reset`, "staff", {
+    examApi<{ exam_id: string; reset: boolean }>(`/exams/${encodePathId(examId)}/entry-limits/reset`, "staff", {
       method: "POST",
     }),
 
@@ -2892,11 +2894,11 @@ export const examsApi = {
         started_at?: string | null;
         submitted_at?: string | null;
       }>;
-    }>(`/exams/${examId}/lobby-status`, "staff"),
+    }>(`/exams/${encodePathId(examId)}/lobby-status`, "staff"),
 
   /** Teacher: Kick / remove student from lobby */
   kickStudent: (examId: string, sessionId: string) =>
-    examApi<{ ok: boolean; kicked_session_id: string }>(`/exams/${examId}/sessions/${sessionId}`, "staff", {
+    examApi<{ ok: boolean; kicked_session_id: string }>(`/exams/${encodePathId(examId)}/sessions/${encodePathId(sessionId)}`, "staff", {
       method: "DELETE",
     }),
 
@@ -2914,7 +2916,7 @@ export const examsApi = {
       answered_count: number;
       total_tasks: number;
       percentage: number;
-    }>(`/exam-sessions/${sessionId}/submit`, "student", { method: "POST", body: data, sessionToken }),
+    }>(`/exam-sessions/${encodePathId(sessionId)}/submit`, "student", { method: "POST", body: data, sessionToken }),
 
   /** Detailed session results (shown after submission) */
   getResult: (sessionId: string, sessionToken: string) =>
@@ -2945,7 +2947,7 @@ export const examsApi = {
         is_correct?: boolean | null;
         skill_name: string;
       }>;
-    }>(`/exam-sessions/${sessionId}/results`, "student", { sessionToken }),
+    }>(`/exam-sessions/${encodePathId(sessionId)}/results`, "student", { sessionToken }),
 };
 
 // ============================================================================
@@ -3022,7 +3024,7 @@ export const textbookApi = {
 
   /** Оглавление учебника (дерево) */
   toc: (textbookId: string) =>
-    examApi<TOCNode[]>(`/textbooks/${textbookId}/toc/tree`, "staff"),
+    examApi<TOCNode[]>(`/textbooks/${encodePathId(textbookId)}/toc/tree`, "staff"),
 
   /** Задачи из учебника */
   tasks: (
@@ -3036,12 +3038,12 @@ export const textbookApi = {
     if (params?.limit) query.set("limit", String(params.limit));
     if (params?.offset) query.set("offset", String(params.offset));
     const qs = query.toString();
-    return examApi<TextbookTask[]>(`/textbooks/${textbookId}/tasks${qs ? `?${qs}` : ""}`, "staff");
+    return examApi<TextbookTask[]>(`/textbooks/${encodePathId(textbookId)}/tasks${qs ? `?${qs}` : ""}`, "staff");
   },
 
   /** Дерево навыков (для режима "По программе") */
   skillTree: (classLevel?: number) => {
-    const qs = classLevel ? `?class_level=${classLevel}` : "";
+    const qs = classLevel ? `?class_level=${encodeURIComponent(classLevel)}` : "";
     return examApi<SkillTreeNode[]>(`/textbooks/skills/tree${qs}`, "staff");
   },
 };
@@ -3071,7 +3073,7 @@ export const opsApi = {
   restoreMember: (memberId: string) =>
     api<{ member_id: string; is_active: boolean }>(`/auth/org/members/${encodePathId(memberId)}/restore`, { method: "POST" }),
   listMembersByStatus: (status: MemberListStatus) =>
-    api<OrgMemberRow[]>(`/auth/org/members?status=${status}`),
+    api<OrgMemberRow[]>(`/auth/org/members?status=${encodeURIComponent(status)}`),
 };
 
 // ── LOGIC-B2 («Замены»): the request of a teacher and the decision of an administrator ──────────────────────────────
@@ -3083,7 +3085,7 @@ export const substitutionsApi = {
   create: (body: CreateSubstitutionBody) =>
     api<CreateSubstitutionOut>("/auth/org/substitutions", { method: "POST", body }),
   mine: (status: "pending" | "all" = "all") =>
-    api<MineOut>(`/auth/org/substitutions/mine?status=${status}`),
+    api<MineOut>(`/auth/org/substitutions/mine?status=${encodeURIComponent(status)}`),
   withdraw: (requestId: string) =>
     api<SubstitutionItem>(`/auth/org/substitutions/${encodePathId(requestId)}/withdraw`, { method: "POST" }),
   withdrawMany: (ids: string[]) =>

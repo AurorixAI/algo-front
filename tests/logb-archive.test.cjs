@@ -141,8 +141,8 @@ test("the group pages are wired: «В архив» opens the dialog, the archive
   }
   const api = read("src/lib/api.ts");
   assert.match(read("src/components/groups/group-detail-view.tsx"), /GroupScheduleOverview groupId=\{groupId\} groupName=\{group\.name\} viewerRole=\{paths\.viewerRole\}/, "the owner replaces a lesson's teacher from the schedule tab too");
-  assert.match(api, /groups\/\$\{id\}\/archive`, \{ method: "POST"/);
-  assert.match(api, /groups\/\$\{id\}\/restore`/);
+  assert.match(api, /groups\/\$\{encodePathId\(id\)\}\/archive`, \{ method: "POST"/);
+  assert.match(api, /groups\/\$\{encodePathId\(id\)\}\/restore`/);
   assert.match(api, /archive-impact/);
   assert.doesNotMatch(api, /body: \{ status: "archived" \}/);
   assert.doesNotMatch(read("src/app/owner/groups/page.tsx"), /confirm\("Архивировать группу/);
