@@ -81,8 +81,8 @@ test("anything else is thrown at once, unrepeated", async () => {
 
 test("the API client keeps Retry-After of a 503 as well as of a 429", () => {
   const api = read("src/lib/api.ts");
-  assert.match(api, /if \(response\.status !== 429 && response\.status !== 503\) return undefined;/);
-  assert.match(api, /throw new ApiError\(response\.status, message, code, undefined, undefined, retryAfterSeconds\(response\)\);/);
+  assert.match(api, /if \(!anyStatus && response\.status !== 429 && response\.status !== 503\) return undefined;/);
+  assert.match(api, /throw new ApiError\(response\.status, message, code, undefined, undefined, retryAfterSeconds\(response, response\.status === 409\)\);/);
 });
 
 const page = read("src/app/e/[code]/page.tsx");

@@ -54,9 +54,9 @@ test("the pre-check failure text: a 429 gives the wait, other client errors the 
 test("the API client keeps Retry-After on the error of the exam endpoints", () => {
   const api = read("src/lib/api.ts");
   assert.match(api, /public retryAfter\?: number/);
-  assert.match(api, /function retryAfterSeconds\(response: Response\)[\s\S]{0,300}headers\?\.get\?\.\("Retry-After"\)/);
-  assert.match(api, /if \(response\.status !== 429 && response\.status !== 503\) return undefined;/);
-  assert.match(api, /throw new ApiError\(response\.status, message, code, undefined, undefined, retryAfterSeconds\(response\)\);/);
+  assert.match(api, /function retryAfterSeconds\(response: Response, anyStatus = false\)[\s\S]{0,300}headers\?\.get\?\.\("Retry-After"\)/);
+  assert.match(api, /if \(!anyStatus && response\.status !== 429 && response\.status !== 503\) return undefined;/);
+  assert.match(api, /throw new ApiError\(response\.status, message, code, undefined, undefined, retryAfterSeconds\(response, response\.status === 409\)\);/);
 });
 
 test("the entry page keeps the form open on a 429 at the check AND at the start, never the error phase", () => {
