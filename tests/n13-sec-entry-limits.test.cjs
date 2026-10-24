@@ -62,10 +62,10 @@ test("the API client keeps Retry-After on the error of the exam endpoints", () =
 test("the entry page keeps the form open on a 429 at the check AND at the start, never the error phase", () => {
   const page = read("src/app/e/[code]/page.tsx");
   // check: the catch shows the failure text on the form and marks the banner
-  assert.match(page, /console\.error\("Check student error:", err\);\s*setRateLimited\(isRateLimited\(err\)\);\s*setLimitUntil\(rateLimitDeadline\(err, Date\.now\(\)\)\);\s*setGroupWarning\(checkFailureMessage\(err\)\);\s*return;/);
+  assert.match(page, /console\.error\("Check student error:", err\);\s*setRateLimited\(isRateLimited\(err\)\);\s*setLimitUntil\(rateLimitDeadline\(err, Date\.now\(\)\)\);\s*setLimitFallback\(rateLimitFallbackText\(err\)\);\s*setGroupWarning\(checkFailureMessage\(err\)\);\s*return;/);
   // start: a 429 goes back to the form with the server's wait BEFORE the generic error phase
   const catchStart = page.slice(page.indexOf("if (isRateLimited(err)) {\n        // Too many attempts"));
-  assert.match(catchStart, /^if \(isRateLimited\(err\)\) \{[\s\S]{0,300}setPhase\("lobby"\);\s*setRateLimited\(true\);\s*setLimitUntil\(rateLimitDeadline\(err, Date\.now\(\)\)\);\s*setGroupWarning\(rateLimitMessage\(err\)\);\s*return;\s*\}/);
+  assert.match(catchStart, /^if \(isRateLimited\(err\)\) \{[\s\S]{0,300}setPhase\("lobby"\);\s*setRateLimited\(true\);\s*setLimitUntil\(rateLimitDeadline\(err, Date\.now\(\)\)\);\s*setLimitFallback\(rateLimitFallbackText\(err\)\);\s*setGroupWarning\(rateLimitMessage\(err\)\);\s*return;\s*\}/);
   assert.ok(catchStart.indexOf('setPhase("lobby")') < catchStart.indexOf('setPhase("error")'), "the 429 branch comes before the error phase");
   // a new attempt clears the mark together with the warning
   assert.match(page, /setGroupWarning\(null\);\s*setRateLimited\(false\);/);

@@ -42,7 +42,8 @@ import {
   withTransientRetry,
 } from "@/lib/exam-retry";
 import { RateLimitCard } from "@/components/exam/rate-limit-card";
-import { canRetryNow, rateLimitDeadline, rateLimitText, secondsLeft, waitLabel } from "@/lib/exam-rate-limit";
+import { canRetryNow, rateLimitDeadline, rateLimitFallbackText, rateLimitText, secondsLeft, waitLabel } from "@/lib/exam-rate-limit";
+import { createAutoSubmit, type AutoSubmit, type SubmitOutcome } from "@/lib/exam-auto-submit";
 import { useNowUntil } from "@/lib/use-countdown";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickOptionDisplayProjection, pickTaskDisplayProjection } from "@/lib/task-display";
@@ -134,12 +135,17 @@ export default function ExamPage() {
   // When the wait of a 429 is over (the server's Retry-After); null = it named none.  The lobby banner and the start button follow it;
   // `loadLimit` is the same for the very first request (the exam page cannot even open): a calm screen with «Попробовать снова».
   const [limitUntil, setLimitUntil] = useState<number | null>(null);
-  const [loadLimit, setLoadLimit] = useState<{ deadline: number | null } | null>(null);
+  const [loadLimit, setLoadLimit] = useState<{ deadline: number | null; fallback: string | null } | null>(null);
+  const [limitFallback, setLimitFallback] = useState<string | null>(null);
   const limitNow = useNowUntil(limitUntil);
   // A busy server (503): the page repeats the request itself («Сохраняем… повторяем попытку»); when the tries are used
   // up the exam stays on screen with the reason and a «Повторить» button (submit), or the form keeps its input (start).
   const [retryNotice, setRetryNotice] = useState<string | null>(null);
   const [submitFailure, setSubmitFailure] = useState<string | null>(null);
+  // A 429 on the final save: the «Повторить» button is held until the wait is over (same countdown as the lobby).
+  const [submitLimitUntil, setSubmitLimitUntil] = useState<number | null>(null);
+  const [submitLimitFallback, setSubmitLimitFallback] = useState<string | null>(null);
+  const submitLimitNow = useNowUntil(submitLimitUntil);
 
   // Single attempt & confirmation modal
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
@@ -225,7 +231,7 @@ export default function ExamPage() {
     } catch (err: any) {
       if (isRateLimited(err)) {
         // 429 while the page opens (not a missing exam): a calm screen with the wait, the student repeats the request.
-        setLoadLimit({ deadline: rateLimitDeadline(err, Date.now()) });
+        setLoadLimit({ deadline: rateLimitDeadline(err, Date.now()), fallback: rateLimitFallbackText(err) });
         setPhase("rate_limited");
         return;
       }
@@ -305,10 +311,22 @@ export default function ExamPage() {
     return () => clearInterval(timer);
   }, [phase, timeLeft]);
 
-  // Auto-submit when time runs out
+  // Auto-submit when time runs out: once per session (a failed submit puts the page back to «exam», which must not fire it again);
+  // after a 429 exactly one more automatic try when the wait ends, then only the button (nits N3-1).
+  const phaseRef = useRef<Phase>(phase);
+  phaseRef.current = phase;
+  const handleSubmitRef = useRef<() => Promise<SubmitOutcome>>(async () => ({ ok: true, retryAt: null }));
+  const autoSubmitRef = useRef<AutoSubmit | null>(null);
+  if (autoSubmitRef.current === null) {
+    autoSubmitRef.current = createAutoSubmit({
+      // The retry timer may fire after the student has already saved by the button: only an exam still on screen is submitted.
+      submit: async () => (phaseRef.current === "exam" ? handleSubmitRef.current() : { ok: true, retryAt: null }),
+    });
+  }
+  useEffect(() => () => autoSubmitRef.current?.cancel(), []);
   useEffect(() => {
     if (phase === "exam" && timeLeft === 0 && startTimeRef.current > 0) {
-      handleSubmit();
+      autoSubmitRef.current?.trigger();
     }
   }, [timeLeft, phase]);
 
@@ -406,6 +424,7 @@ export default function ExamPage() {
         console.error("Check student error:", err);
         setRateLimited(isRateLimited(err));
         setLimitUntil(rateLimitDeadline(err, Date.now()));
+        setLimitFallback(rateLimitFallbackText(err));
         setGroupWarning(checkFailureMessage(err));
         return;
       }
@@ -433,6 +452,7 @@ export default function ExamPage() {
     }
     setPhase("starting");
     setRetryNotice(null);
+    autoSubmitRef.current?.reset();
     try {
       const res = await withTransientRetry(() => examsApi.startSession(code, identity), {
         onRetry: () => setRetryNotice(START_RETRY_MESSAGE),
@@ -477,6 +497,7 @@ export default function ExamPage() {
         setPhase("lobby");
         setRateLimited(true);
         setLimitUntil(rateLimitDeadline(err, Date.now()));
+        setLimitFallback(rateLimitFallbackText(err));
         setGroupWarning(rateLimitMessage(err));
         return;
       }
@@ -523,9 +544,10 @@ export default function ExamPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (phase === "submitting") return;
+  const handleSubmit = async (): Promise<SubmitOutcome> => {
+    if (phase === "submitting") return { ok: false, retryAt: null };
     setSubmitFailure(null);
+    setSubmitLimitUntil(null);
     setRetryNotice(null);
     setPhase("submitting");
     try {
@@ -570,6 +592,7 @@ export default function ExamPage() {
         });
       }
       setPhase("results");
+      return { ok: true, retryAt: null };
     } catch (err: any) {
       setRetryNotice(null);
       console.error("Submit failed:", err);
@@ -581,28 +604,34 @@ export default function ExamPage() {
           const detailed = await examsApi.getResult(sessionId, sessionToken);
           setResult(detailed);
           setPhase("results");
-          return;
+          return { ok: true, retryAt: null };
         } catch {
           // Fall through to a clear final-state message below.
         }
       }
       if (isRateLimited(err)) {
         // Too many requests from this address: the answers are safe on the screen, the same button repeats the save.
+        // The button is held for the wait; the automatic submit of the end of time tries once more when it is over.
+        const retryAt = rateLimitDeadline(err, Date.now());
         setSubmitFailure(rateLimitMessage(err));
+        setSubmitLimitUntil(retryAt);
+        setSubmitLimitFallback(rateLimitFallbackText(err));
         setPhase("exam");
-        return;
+        return { ok: false, retryAt };
       }
       if (isTransientServerError(err)) {
         // The server is busy, still after the repeats.  The answers are on the screen and in the state: back to the
         // exam with the reason and a «Повторить» button, not to the error page.
         setSubmitFailure(transientFailureMessage(err));
         setPhase("exam");
-        return;
+        return { ok: false, retryAt: null };
       }
       setError(err.message || "Ошибка отправки ответов. Попробуйте ещё раз.");
       setPhase("error");
+      return { ok: false, retryAt: null };
     }
   };
+  handleSubmitRef.current = handleSubmit;
 
   const goNext = () => setCurrentQuestion((c) => Math.min(tasks.length - 1, c + 1));
   const goPrev = () => setCurrentQuestion((c) => Math.max(0, c - 1));
@@ -634,7 +663,7 @@ export default function ExamPage() {
       <div className="h-screen w-full overflow-hidden relative bg-background-light">
         <TestBackground />
         <div className="relative z-10 h-full flex items-center justify-center p-4">
-          <RateLimitCard deadline={loadLimit?.deadline ?? null} onRetry={retryLoad} />
+          <RateLimitCard deadline={loadLimit?.deadline ?? null} fallback={loadLimit?.fallback ?? null} onRetry={retryLoad} />
         </div>
       </div>
     );
@@ -740,7 +769,7 @@ export default function ExamPage() {
                         {rateLimited ? "Слишком много попыток" : "Доступ ограничен группой"}
                       </p>
                       <p className="text-xs text-amber-800 leading-relaxed">
-                        {rateLimited && limitUntil !== null ? rateLimitText(limitUntil, limitNow) : groupWarning}
+                        {rateLimited && limitUntil !== null ? rateLimitText(limitUntil, limitNow, limitFallback) : groupWarning}
                       </p>
                     </div>
                   </motion.div>
@@ -1032,10 +1061,20 @@ export default function ExamPage() {
               >
                 <div className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm">
-                    {submitFailure} Ваши ответы сохранены на этой странице.
+                    {submitLimitUntil !== null
+                      ? rateLimitText(submitLimitUntil, submitLimitNow, submitLimitFallback)
+                      : submitFailure}{" "}
+                    Ваши ответы сохранены на этой странице.
                   </p>
-                  <Button size="sm" onClick={handleSubmit} icon={<Send className="w-4 h-4" />}>
-                    Повторить
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    disabled={!canRetryNow(submitLimitUntil, submitLimitNow)}
+                    icon={<Send className="w-4 h-4" />}
+                  >
+                    {secondsLeft(submitLimitUntil, submitLimitNow) > 0
+                      ? `Подождите ${waitLabel(secondsLeft(submitLimitUntil, submitLimitNow))}`
+                      : "Повторить"}
                   </Button>
                 </div>
               </div>

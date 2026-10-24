@@ -93,7 +93,7 @@ test("submit repeats on a busy server and says so; the exam stays on screen when
   assert.match(submitHandler, /onRetry: \(\) => setRetryNotice\(SAVING_RETRY_MESSAGE\)/);
   assert.equal(SAVING_RETRY_MESSAGE, "Сохраняем… повторяем попытку");
   const transient = submitHandler.slice(submitHandler.indexOf("isTransientServerError(err)"));
-  assert.match(transient, /setSubmitFailure\(transientFailureMessage\(err\)\);\s*setPhase\("exam"\);\s*return;/);
+  assert.match(transient, /setSubmitFailure\(transientFailureMessage\(err\)\);\s*setPhase\("exam"\);\s*return \{ ok: false, retryAt: null \};/);
   // and the ordinary failure still ends on the error page, after the transient branch
   assert.ok(transient.indexOf('setPhase("exam")') < transient.indexOf('setPhase("error")'));
 });
@@ -101,7 +101,7 @@ test("submit repeats on a busy server and says so; the exam stays on screen when
 test("the failure is a banner on the exam with a «Повторить» button that submits again - not a link to /login", () => {
   const banner = page.slice(page.indexOf("{submitFailure && ("), page.indexOf("min-h-[calc(100vh-5rem)]"));
   assert.match(banner, /role="alert"/);
-  assert.match(banner, /onClick=\{handleSubmit\}[\s\S]{0,200}Повторить/);
+  assert.match(banner, /onClick=\{handleSubmit\}[\s\S]{0,400}Повторить/);
   assert.doesNotMatch(banner, /\/login|<Link/);
   assert.match(page, /\{submitFailure && \(/);
 });
