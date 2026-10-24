@@ -247,3 +247,60 @@ test("the invite code of the report travels in a header, never in the URL", asyn
   assert.equal(c.headers["X-Diagnostic-Invite-Code"], "ABCD-1234");
   assert.ok(!c.url.includes("ABCD-1234"));
 });
+
+// ---- the report page: a refused refresh keeps the report ------------------------------------------------
+
+test("force refresh answered 409 REPORT_COOLDOWN / REPORT_IN_PROGRESS keeps the report on screen and shows the server's text", async () => {
+  const { loadExamReport } = load("src/lib/report-refresh.ts");
+  const previous = { id: "rep-1", narrative_ru: "старый отчёт" };
+  const cooldown = Object.assign(new Error("Отчёт по этому экзамену уже обновлялся совсем недавно. Повторное обновление будет доступно примерно через 8 мин."), { status: 409, code: "REPORT_COOLDOWN", retryAfter: 480 });
+  const building = Object.assign(new Error("Отчёт по этому экзамену уже формируется. Подождите около минуты и обновите страницу."), { status: 409, code: "REPORT_IN_PROGRESS", retryAfter: 15 });
+  for (const err of [cooldown, building]) {
+    const out = await loadExamReport({ force: true, examStatus: "closed", previous, getReport: async () => assert.fail("not asked"), generateReport: async () => { throw err; } });
+    assert.equal(out.report, previous, "the previous report is not wiped");
+    assert.equal(out.notice, err.message, "the server's sentence, which already names the wait");
+  }
+  // a Retry-After the sentence does not mention is added
+  const bare = Object.assign(new Error("Отчёт сейчас недоступен."), { status: 409, code: "REPORT_COOLDOWN", retryAfter: 120 });
+  const out = await loadExamReport({ force: true, examStatus: "closed", previous, getReport: async () => 1, generateReport: async () => { throw bare; } });
+  assert.equal(out.notice, "Отчёт сейчас недоступен. Повторите через 2 мин.");
+  // any other failure of a refresh (500, network) also keeps the report
+  const boom = await loadExamReport({ force: true, examStatus: "closed", previous, getReport: async () => 1, generateReport: async () => { throw new Error(""); } });
+  assert.equal(boom.report, previous);
+  assert.ok(boom.notice);
+});
+
+test("a good refresh replaces the report; the first load of a closed exam builds it, and REPORT_IN_PROGRESS there is explained", async () => {
+  const { loadExamReport } = load("src/lib/report-refresh.ts");
+  const fresh = { id: "rep-2" };
+  assert.deepEqual(await loadExamReport({ force: true, examStatus: "closed", previous: { id: "rep-1" }, getReport: async () => 1, generateReport: async () => fresh }), { report: fresh, notice: null });
+  assert.deepEqual(await loadExamReport({ force: false, examStatus: "closed", previous: null, getReport: async () => fresh, generateReport: async () => assert.fail("no build") }), { report: fresh, notice: null });
+  // no report yet on a closed exam -> built without force
+  const calls = [];
+  const built = await loadExamReport({ force: false, examStatus: "archived", previous: null, getReport: async () => { throw new Error("404"); }, generateReport: async (f) => { calls.push(f); return fresh; } });
+  assert.deepEqual(calls, [false]);
+  assert.equal(built.report, fresh);
+  // someone else is building it right now
+  const building = Object.assign(new Error("Отчёт по этому экзамену уже формируется. Подождите около минуты и обновите страницу."), { status: 409, code: "REPORT_IN_PROGRESS", retryAfter: 15 });
+  const wait = await loadExamReport({ force: false, examStatus: "closed", previous: null, getReport: async () => { throw new Error("404"); }, generateReport: async () => { throw building; } });
+  assert.equal(wait.report, null);
+  assert.equal(wait.notice, building.message);
+  // an exam that is still running has no report and no notice (unchanged)
+  assert.deepEqual(await loadExamReport({ force: false, examStatus: "active", previous: null, getReport: async () => { throw new Error("404"); }, generateReport: async () => assert.fail("no build") }), { report: null, notice: null });
+  // a 422 «no submitted work» of the auto-build is not announced as a refusal
+  assert.deepEqual(await loadExamReport({ force: false, examStatus: "closed", previous: null, getReport: async () => { throw new Error("404"); }, generateReport: async () => { throw Object.assign(new Error("Нет сданных работ"), { status: 422 }); } }), { report: null, notice: null });
+});
+
+test("api.ts hands the Retry-After of a 409 to the error, and the page uses the loader", async () => {
+  global.window = { location: { pathname: "/teacher", search: "", href: "" } };
+  global.localStorage = { removeItem() {}, getItem: () => null, setItem() {} };
+  global.fetch = async () => ({
+    ok: false, status: 409, headers: { get: (h) => (h.toLowerCase() === "retry-after" ? "480" : null) },
+    json: async () => ({ detail: "Отчёт по этому экзамену уже обновлялся совсем недавно.", code: "REPORT_COOLDOWN" }),
+  });
+  const { examsApi } = loadApi();
+  await assert.rejects(examsApi.generateReport("e1", true), (e) => e.status === 409 && e.code === "REPORT_COOLDOWN" && e.retryAfter === 480 && /недавно/.test(e.message));
+  const page = fs.readFileSync(path.join(root, "src/app/teacher/exams/[id]/report/page.tsx"), "utf8");
+  assert.match(page, /loadExamReport/);
+  assert.match(page, /data-testid="report-notice"/);
+});

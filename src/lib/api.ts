@@ -220,8 +220,8 @@ class ApiError extends Error {
 }
 
 /** `Retry-After` in whole seconds ("120") or as an HTTP-date (turned into the seconds left); garbage is not used.  Read for a 429 and a 503 only. */
-function retryAfterSeconds(response: Response): number | undefined {
-  if (response.status !== 429 && response.status !== 503) return undefined;
+function retryAfterSeconds(response: Response, anyStatus = false): number | undefined {
+  if (!anyStatus && response.status !== 429 && response.status !== 503) return undefined;
   const raw = response.headers?.get?.("Retry-After")?.trim();
   if (!raw) return undefined;
   if (/^\d+$/.test(raw)) {
@@ -549,7 +549,7 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     }
     // The exam service names an expected refusal next to its text: `{detail: "...", code: "EXAM_NOT_ARCHIVED"}`.
     const code = typeof error?.code === "string" ? error.code : undefined;
-    throw new ApiError(response.status, message, code, undefined, undefined, retryAfterSeconds(response));
+    throw new ApiError(response.status, message, code, undefined, undefined, retryAfterSeconds(response, response.status === 409));
   }
 
   return response.json();

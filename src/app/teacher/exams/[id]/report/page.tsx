@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import { examsApi } from "@/lib/api";
+import { loadExamReport } from "@/lib/report-refresh";
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { pickTaskDisplayProjection, prepareMathDisplay } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
@@ -260,11 +261,13 @@ export default function ExamReportPage() {
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"diagnosis" | "errors" | "plan">("diagnosis");
 
   const loadData = async (force = false) => {
     if (!examId) return;
     setError(null);
+    setNotice(null);
     try {
       if (force) setRecalculating(true);
       else setLoading(true);
@@ -278,23 +281,16 @@ export default function ExamReportPage() {
       setExam(examData);
       setSessions(sessionsData || []);
 
-      let rep: ExamReportData | null = null;
-      try {
-        if (force) {
-          rep = await examsApi.generateReport(examId, true);
-        } else {
-          rep = await examsApi.getReport(examId);
-        }
-      } catch (err: any) {
-        if (!force && (examData?.status === "closed" || examData?.status === "archived")) {
-          try {
-            rep = await examsApi.generateReport(examId, false);
-          } catch (genErr: any) {
-            console.error("Auto generate report error:", genErr);
-          }
-        }
-      }
-      setReport(rep);
+      // A refused refresh (409 REPORT_COOLDOWN / REPORT_IN_PROGRESS) keeps the report on the screen and says why.
+      const loaded = await loadExamReport<ExamReportData>({
+        force,
+        examStatus: examData?.status,
+        previous: report,
+        getReport: () => examsApi.getReport(examId),
+        generateReport: (f) => examsApi.generateReport(examId, f),
+      });
+      setReport(loaded.report);
+      setNotice(loaded.notice);
     } catch (err: any) {
       setError(err.message || "Не удалось загрузить отчёт");
     } finally {
@@ -420,6 +416,13 @@ export default function ExamReportPage() {
             </div>
           </div>
         </div>
+
+        {notice && (
+          <div role="status" data-testid="report-notice" className="flex items-start gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+            <span>{notice}</span>
+          </div>
+        )}
 
         {/* ── KPI КАРТОЧКИ (Идентичные исходному стилю) ───────────────────── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
