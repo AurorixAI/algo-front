@@ -198,3 +198,54 @@ test("the demo build never asks (as before): the check of the profile comes afte
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.stdout.trim().split("\n").pop(), "[0,false,true]");
 });
+
+test("N1-1: the profile says true but the summary answers 403 (the right was taken back): one summary request, one /auth/me, then nothing until the value flips; false -> true asks again", async () => {
+  signIn({ payments_access: true });
+  let profileAccess = true; // what /auth/me says
+  let summaryStatus = 200;
+  const routes = {
+    "/auth/me": () => reply(200, profile({ payments_access: profileAccess })),
+    "/auth/org/payments/summary": () => (summaryStatus === 200 ? reply(200, SUMMARY) : reply(403, { detail: "no" })),
+  };
+  const meCalls = (calls) => calls.filter((url) => url.endsWith("/auth/me")).length;
+  await withServer(routes, async (calls) => {
+    await usePaymentsSummary.getState().refresh(true);
+    assert.equal(usePaymentsSummary.getState().available, true);
+    // the owner takes the right back: the server refuses, and its profile now says false
+    summaryStatus = 403;
+    profileAccess = false;
+    await usePaymentsSummary.getState().refresh(true);
+    await new Promise((resolve) => setImmediate(resolve)); // the profile read started by the refusal
+    assert.deepEqual([usePaymentsSummary.getState().available, usePaymentsSummary.getState().loaded], [false, true]);
+    assert.equal(summaryCalls(calls).length, 2);
+    assert.equal(meCalls(calls), 1);
+    // every navigation afterwards: nothing at all
+    for (let i = 0; i < 6; i += 1) await usePaymentsSummary.getState().refresh(true);
+    await usePaymentsSummary.getState().refresh();
+    assert.equal(summaryCalls(calls).length, 2, "no 403 per navigation");
+    assert.equal(meCalls(calls), 1);
+    assert.equal(useAuthStore.getState().user.payments_access, false);
+    // the right is given again: the profile flips false -> true and the money comes back
+    summaryStatus = 200;
+    useAuthStore.setState({ user: profile({ payments_access: true }) });
+    await usePaymentsSummary.getState().refresh(true);
+    assert.equal(usePaymentsSummary.getState().available, true);
+    assert.equal(summaryCalls(calls).length, 3);
+  });
+});
+
+test("N1-1: a profile that stays true while the summary keeps refusing is asked once per refusal, not per navigation (only the timer re-checks)", async () => {
+  signIn({ payments_access: true });
+  await withServer({
+    "/auth/me": () => reply(200, profile({ payments_access: true })),
+    "/auth/org/payments/summary": () => reply(403, { detail: "no" }),
+  }, async (calls) => {
+    await usePaymentsSummary.getState().refresh(true);
+    await new Promise((resolve) => setImmediate(resolve));
+    for (let i = 0; i < 5; i += 1) await usePaymentsSummary.getState().refresh(true);
+    assert.equal(summaryCalls(calls).length, 1);
+    assert.equal(calls.filter((url) => url.endsWith("/auth/me")).length, 1);
+    await usePaymentsSummary.getState().refresh(true, { recheck: true });
+    assert.equal(summaryCalls(calls).length, 2, "the 5-minute timer still re-checks");
+  });
+});

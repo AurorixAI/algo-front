@@ -89,6 +89,8 @@ let lastStartedAt = 0;
 let warned = false;
 /** The server answered 403/404: this user has no payments; stop asking until a recheck. */
 let denied = false;
+/** The profile said `payments_access: true` when that refusal came (the owner took the right back): only a changed profile lifts it. */
+let deniedWhileProfileTrue = false;
 /** A forced refresh asked for while one was in flight. */
 let queued = false;
 /** Bumped by `reset` so an answer that arrives after logout is dropped. */
@@ -141,6 +143,7 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
     epoch += 1;
     inFlight = null;
     denied = false;
+    deniedWhileProfileTrue = false;
     queued = false;
     lastStartedAt = 0;
     set({ ...EMPTY });
@@ -153,6 +156,9 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
     }
     let access = paymentsAccessFromProfile(useAuthStore.getState().user);
     if (access === false) {
+      // The profile has the final word; whatever was remembered from the probe is forgotten (a later false -> true asks again).
+      denied = false;
+      deniedWhileProfileTrue = false;
       // The profile has already answered «no money for this user»: no request, the state of a refusal.
       const settle = (): void => {
         if (get().available || !get().loaded) set({ ...EMPTY, loaded: true });
@@ -175,8 +181,9 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
         })
         .catch(() => undefined);
     }
-    // A profile that says «yes» outranks an earlier refusal (the right was given, the profile was reloaded).
-    if (access === true) denied = false;
+    // A profile that says «yes» outranks a refusal remembered from the probe (the right was given, the profile was reloaded) -
+    // but not one that came while the profile already said «yes»: that is the right taken back, and the profile has to change first.
+    if (access === true && !deniedWhileProfileTrue) denied = false;
     if (denied && !options?.recheck) return Promise.resolve();
     if (inFlight) {
       if (force) queued = true;
@@ -189,6 +196,7 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
       .then((summary) => {
         if (myEpoch !== epoch) return;
         denied = false;
+        deniedWhileProfileTrue = false;
         set(summaryToState(summary));
       })
       .catch((error: unknown) => {
@@ -198,6 +206,13 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
           // No right (or the flag is off, or an old server): no money anywhere, no alerts.
           denied = true;
           set({ ...EMPTY, loaded: true });
+          if (access === true) {
+            // The profile is out of date (the right was taken back in this session): read it once; no probe until its value changes.
+            deniedWhileProfileTrue = true;
+            void useAuthStore.getState().refreshProfile().catch(() => undefined);
+          } else {
+            deniedWhileProfileTrue = false;
+          }
           return;
         }
         // Network error / 5xx: keep what is known, so open dialogs and the menu do not vanish.
