@@ -650,6 +650,8 @@ export interface AuthUser {
   is_active: boolean;
   is_verified: boolean;
   must_change_password?: boolean;
+  /** GET/PUT /auth/me: may this user see money (owner; an administrator the owner allowed)?  Absent from an older server and from login answers. */
+  payments_access?: boolean | null;
   created_at: string | null;
 }
 

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { DEMO_MODE, orgApi } from "./api";
 import type { PaymentsSummary, PeriodMode } from "./payments";
+import { useAuthStore } from "./store";
 
 interface PaymentsSummaryState {
   /**
@@ -45,6 +46,8 @@ interface PaymentsSummaryState {
    * after an action that changed the numbers.  A `force` call during a request queues exactly
    * one more read after it.  After a 403/404 nothing is requested again until `recheck`
    * (the 5-minute timer, saving the payment settings); `reset` (logout) forgets the refusal.
+   * When the profile already says `payments_access: false` nothing is requested at all (no probe that
+   * ends in a 403); a `recheck` then re-reads the profile first, so a right the owner has just given shows up.
    */
   refresh: (force?: boolean, options?: { recheck?: boolean }) => Promise<void>;
   /** Forget everything (logout / another account). */
@@ -91,6 +94,14 @@ let queued = false;
 /** Bumped by `reset` so an answer that arrives after logout is dropped. */
 let epoch = 0;
 const MIN_GAP_MS = 1000;
+
+/**
+ * What the profile (`GET /auth/me`) says about money: `true` / `false`, or `null` when it says nothing
+ * (an older server, a profile stored before the field existed, nobody signed in) - then the summary is asked for as before.
+ */
+export function paymentsAccessFromProfile(user: { payments_access?: unknown } | null | undefined): boolean | null {
+  return typeof user?.payments_access === "boolean" ? user.payments_access : null;
+}
 
 /** Fields of the state that come from one summary answer. */
 export function summaryToState(summary: Partial<PaymentsSummary> | null | undefined) {
@@ -140,6 +151,32 @@ export const usePaymentsSummary = create<PaymentsSummaryState>((set, get) => ({
       set({ ...EMPTY, loaded: true });
       return Promise.resolve();
     }
+    let access = paymentsAccessFromProfile(useAuthStore.getState().user);
+    if (access === false) {
+      // The profile has already answered «no money for this user»: no request, the state of a refusal.
+      const settle = (): void => {
+        if (get().available || !get().loaded) set({ ...EMPTY, loaded: true });
+      };
+      if (!options?.recheck) {
+        settle();
+        return Promise.resolve();
+      }
+      // The timer / saving the settings: the owner may have given the right since the profile was read.
+      const myEpoch = epoch;
+      return useAuthStore.getState().refreshProfile()
+        .then((outcome) => {
+          if (myEpoch !== epoch) return undefined;
+          access = outcome === "ok" ? paymentsAccessFromProfile(useAuthStore.getState().user) : false;
+          if (access === false) {
+            settle();
+            return undefined;
+          }
+          return get().refresh(true, { ...options, recheck: false });
+        })
+        .catch(() => undefined);
+    }
+    // A profile that says «yes» outranks an earlier refusal (the right was given, the profile was reloaded).
+    if (access === true) denied = false;
     if (denied && !options?.recheck) return Promise.resolve();
     if (inFlight) {
       if (force) queued = true;
