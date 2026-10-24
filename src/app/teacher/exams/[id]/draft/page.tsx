@@ -13,6 +13,7 @@ import QRCode from "qrcode.react";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import {
   ArrowLeft,
   Check,
@@ -387,14 +388,11 @@ export default function ExamDraftPage() {
     }
   };
 
-  const handleArchive = async () => {
-    if (!confirm("Перенести этот экзамен в архив? Его можно будет восстановить в разделе «Архив».")) return;
-    try {
-      await examsApi.delete(examId, false);
-      router.push(backHref);
-    } catch (err: any) {
-      alert("Не удалось перенести экзамен в архив: " + (err?.message || "Повторите попытку."));
-    }
+  const removal = useExamRemoval(() => {
+    router.push(backHref);
+  });
+  const handleArchive = () => {
+    removal.ask({ mode: "archive", examId, title: draft?.title ?? "" });
   };
 
   const getTaskPrintLayout = (task: DraftTask): PrintTaskLayout => {
@@ -1260,6 +1258,15 @@ export default function ExamDraftPage() {
           onSave={handleRename}
         />
       )}
+
+      <ExamRemovalDialog
+        removal={removal.removal}
+        busy={removal.busy}
+        error={removal.error}
+        blocked={removal.blocked}
+        onConfirm={removal.confirm}
+        onClose={removal.close}
+      />
 
       {/* Group Assignment Modal */}
       <AnimatePresence>

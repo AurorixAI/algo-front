@@ -35,6 +35,7 @@ import {
 import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
@@ -643,14 +644,14 @@ export default function TeacherExamsPage() {
     }
   };
 
-  const handleDeletePermanently = async (examId: string) => {
-    if (!confirm("Вы действительно хотите навсегда удалить этот экзамен? Это действие нельзя отменить.")) return;
-    try {
-      await examsApi.delete(examId, true);
-      setExams((prev) => prev.filter((e) => e.exam_id !== examId));
-    } catch (err: any) {
-      alert(err?.message || "Не удалось удалить экзамен");
-    }
+  // «Удалить навсегда»: our dialog (not the browser's confirm) that says what archive would do instead and shows the
+  // server's refusal (an exam with results is only archived).
+  const removal = useExamRemoval((_mode, examId) => {
+    setExams((prev) => prev.filter((e) => e.exam_id !== examId));
+  });
+  const handleDeletePermanently = (examId: string) => {
+    const exam = exams.find((e) => e.exam_id === examId);
+    removal.ask({ mode: "delete", examId, title: exam?.title ?? "" });
   };
 
   const handleAssigned = (examId: string, result: any) => {
@@ -858,6 +859,15 @@ export default function TeacherExamsPage() {
           </div>
         </AnimatePresence>
       )}
+
+      <ExamRemovalDialog
+        removal={removal.removal}
+        busy={removal.busy}
+        error={removal.error}
+        blocked={removal.blocked}
+        onConfirm={removal.confirm}
+        onClose={removal.close}
+      />
 
       {(loadError || groupsLoadError) && exams.length > 0 && (
         <DataLoadError

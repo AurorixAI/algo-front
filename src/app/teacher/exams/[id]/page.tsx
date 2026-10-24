@@ -17,6 +17,7 @@ import { FloatingPanel } from "@/components/ui/floating-panel";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
@@ -534,14 +535,13 @@ export default function ExamHubPage() {
     } catch {}
   };
 
-  const handleArchive = async () => {
-    if (!confirm("Перенести этот экзамен в архив? Вы сможете найти и восстановить его в любой момент из раздела «Архив».")) return;
-    try {
-      await examsApi.delete(examId, false);
-      router.push(backHref);
-    } catch (err: any) {
-      alert("Не удалось перенести экзамен в архив: " + (err.message || ""));
-    }
+  // Archive and «delete forever» share one dialog (ui/modal): it says what the other action would do and shows the
+  // server's refusal (an exam with results is only archived).  Both leave the exam page for the list.
+  const removal = useExamRemoval(() => {
+    router.push(backHref);
+  });
+  const handleArchive = () => {
+    removal.ask({ mode: "archive", examId, title: exam?.title ?? "" });
   };
 
   const handleRestore = async () => {
@@ -553,14 +553,8 @@ export default function ExamHubPage() {
     }
   };
 
-  const handleDeletePermanently = async () => {
-    if (!confirm("Вы действительно хотите навсегда удалить этот экзамен? Это действие нельзя отменить.")) return;
-    try {
-      await examsApi.delete(examId, true);
-      router.push(backHref);
-    } catch (err: any) {
-      alert("Не удалось удалить экзамен: " + (err.message || ""));
-    }
+  const handleDeletePermanently = () => {
+    removal.ask({ mode: "delete", examId, title: exam?.title ?? "" });
   };
 
   const handleOpenLobby = async () => {
@@ -2574,6 +2568,15 @@ export default function ExamHubPage() {
         currentTitle={exam.title}
         onClose={() => setShowRenameModal(false)}
         onSave={handleRename}
+      />
+
+      <ExamRemovalDialog
+        removal={removal.removal}
+        busy={removal.busy}
+        error={removal.error}
+        blocked={removal.blocked}
+        onConfirm={removal.confirm}
+        onClose={removal.close}
       />
 
       {/* ─── Assign / Switch Group Modal ─── */}
