@@ -2729,7 +2729,8 @@ export const examsApi = {
       title: string;
       subject: string;
       teacher_name: string | null;
-      group_id?: string | null;
+      /** the exam is tied to a group (the page then asks for the student's ID); the group's own id is not public */
+      has_group?: boolean;
       group_name?: string | null;
       class_level?: number | null;
       total_time_minutes: number;

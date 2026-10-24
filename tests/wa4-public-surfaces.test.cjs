@@ -304,3 +304,16 @@ test("api.ts hands the Retry-After of a 409 to the error, and the page uses the 
   assert.match(page, /loadExamReport/);
   assert.match(page, /data-testid="report-notice"/);
 });
+
+// ---- EX-38: the student's page asks «has a group?», not for the group's id --------------------------------------
+
+test("the public exam page uses has_group; the group UUID is not part of the by-code contract any more", () => {
+  const page = fs.readFileSync(path.join(root, "src/app/e/[code]/page.tsx"), "utf8");
+  assert.match(page, /examInfo\?\.has_group/);
+  assert.doesNotMatch(page, /examInfo\?*\.group_id/);
+  assert.doesNotMatch(page, /^\s*group_id\?:/m);
+  const api = fs.readFileSync(path.join(root, "src/lib/api.ts"), "utf8");
+  const getByCode = api.slice(api.indexOf("getByCode: (code: string)"), api.indexOf("checkStudent: ("));
+  assert.match(getByCode, /has_group\?: boolean/);
+  assert.doesNotMatch(getByCode, /group_id/);
+});

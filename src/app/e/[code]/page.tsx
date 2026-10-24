@@ -84,7 +84,7 @@ interface ExamInfo {
   title: string;
   teacher_name: string | null;
   subject: string;
-  group_id?: string | null;
+  has_group?: boolean;
   group_name?: string | null;
   class_level?: number | null;
   total_time_minutes: number;
@@ -384,7 +384,7 @@ export default function ExamPage() {
     let confirmed: ConfirmedStudent | null = null;
 
     // Verify enrollment and single attempt before starting
-    if (examInfo?.group_id) {
+    if (examInfo?.has_group) {
       try {
         const check = await examsApi.checkStudent(code, {
           student_id: sId || undefined,
@@ -443,7 +443,7 @@ export default function ExamPage() {
     const identity = startIdentity(
       { name: studentName, id: studentId },
       confirmed ?? confirmedStudent,
-      { idStandsInForName: !examInfo?.group_id }, // no group, no roster: the typed ID is all there is
+      { idStandsInForName: !examInfo?.has_group }, // no group, no roster: the typed ID is all there is
     );
     if (!identity) {
       // Nobody was confirmed for a group exam: never start it under a typed ID.
