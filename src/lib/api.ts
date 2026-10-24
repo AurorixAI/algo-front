@@ -2731,6 +2731,8 @@ export const examsApi = {
       teacher_name: string | null;
       /** the exam is tied to a group (the page then asks for the student's ID); the group's own id is not public */
       has_group?: boolean;
+      /** Deprecated: an exam service older than this release answers with the group's id instead of `has_group` (one release). */
+      group_id?: string | null;
       group_name?: string | null;
       class_level?: number | null;
       total_time_minutes: number;

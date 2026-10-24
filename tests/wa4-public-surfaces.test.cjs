@@ -29,8 +29,8 @@ const load = (rel) => { const f = path.join(root, rel); delete require.cache[f];
 const C = require(path.join(root, "src/lib/csv.ts"));
 const E = require(path.join(root, "src/lib/exam-sessions-csv.ts"));
 
-/** A strict RFC 4180 reader: what a spreadsheet makes of the file. */
-function parseCsv(text) {
+/** A strict RFC 4180 reader (delimiter `;`, as Russian / Uzbek Excel expects): what a spreadsheet makes of the file. */
+function parseCsv(text, delimiter = ";") {
   const rows = [];
   let row = [], cell = "", quoted = false, i = 0;
   while (i < text.length) {
@@ -41,7 +41,7 @@ function parseCsv(text) {
       cell += ch; i += 1; continue;
     }
     if (ch === '"' && cell === "") { quoted = true; i += 1; continue; }
-    if (ch === ",") { row.push(cell); cell = ""; i += 1; continue; }
+    if (ch === delimiter) { row.push(cell); cell = ""; i += 1; continue; }
     if (ch === "\r" && text[i + 1] === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; i += 2; continue; }
     cell += ch; i += 1;
   }
@@ -63,8 +63,8 @@ test("a name that starts with = + - @ tab or CR gets the apostrophe: no formula 
   }
 });
 
-test("a comma, a quote or a line break in the name keeps the row at ten columns (RFC 4180)", () => {
-  for (const name of ["Каримова, Алия", 'Алия "Али" К.', "Алия\nК.", "Алия\r\nК.", '"", ,', "=A,B"]) {
+test("a semicolon, a comma, a quote or a line break in the name keeps the row at ten columns (RFC 4180, delimiter ;)", () => {
+  for (const name of ["Каримова; Алия", "Каримова, Алия", 'Алия "Али" К.', "Алия\nК.", "Алия\r\nК.", '"";;", ,', "=A;B"]) {
     const rows = parseCsv(E.buildExamSessionsCsv([session({ student_name: name }), session()]));
     assert.equal(rows.length, 3, JSON.stringify(name));
     for (const r of rows) assert.equal(r.length, 10, JSON.stringify(name));
@@ -307,7 +307,7 @@ test("api.ts hands the Retry-After of a 409 to the error, and the page uses the 
 
 // ---- EX-38: the student's page asks «has a group?», not for the group's id --------------------------------------
 
-test("the public exam page uses has_group; the group UUID is not part of the by-code contract any more", () => {
+test("the public exam page uses has_group; the group id stays only as a documented one-release fallback", () => {
   const page = fs.readFileSync(path.join(root, "src/app/e/[code]/page.tsx"), "utf8");
   assert.match(page, /examInfo\?\.has_group/);
   assert.doesNotMatch(page, /examInfo\?*\.group_id/);
@@ -315,5 +315,51 @@ test("the public exam page uses has_group; the group UUID is not part of the by-
   const api = fs.readFileSync(path.join(root, "src/lib/api.ts"), "utf8");
   const getByCode = api.slice(api.indexOf("getByCode: (code: string)"), api.indexOf("checkStudent: ("));
   assert.match(getByCode, /has_group\?: boolean/);
-  assert.doesNotMatch(getByCode, /group_id/);
+  assert.match(getByCode, /Deprecated[\s\S]{0,200}group_id/, "group_id only as the documented one-release fallback");
+});
+
+// ---- fix round after R3 -----------------------------------------------------------------------------------------
+
+test("the file uses the Russian / Uzbek Excel delimiter (;) and opens as ten columns", () => {
+  const csv = E.buildExamSessionsCsv([session()]);
+  const [head, row] = csv.split("\r\n");
+  assert.equal(head, "Студент;Вариант;Балл;Макс;Правильных;Всего;Процент;Время;Статус;Сдано");
+  assert.equal(row.split(";").length, 10);
+  assert.equal(C.csvLine(["a;b", "c", 'd"e']), '"a;b";c;"d""e"');
+  assert.equal(C.CSV_DELIMITER, ";");
+});
+
+test("exam info: has_group is read as it is, and from an older service's group_id for one release", () => {
+  const { normalizeExamInfo } = load("src/lib/exam-info.ts");
+  assert.equal(normalizeExamInfo({ title: "T", has_group: true }).has_group, true);
+  assert.equal(normalizeExamInfo({ title: "T", has_group: false, group_id: "g" }).has_group, false, "the new flag wins");
+  assert.equal(normalizeExamInfo({ title: "T", group_id: "11111111-2222-3333-4444-555555555555" }).has_group, true);
+  assert.equal(normalizeExamInfo({ title: "T", group_id: null }).has_group, false);
+  assert.equal(normalizeExamInfo({ title: "T" }).has_group, false);
+  assert.ok(!("group_id" in normalizeExamInfo({ title: "T", group_id: "g" })), "the id is not kept in the page state");
+  assert.match(fs.readFileSync(path.join(root, "src/app/e/[code]/page.tsx"), "utf8"), /setExamInfo\(normalizeExamInfo\(info\)\)/);
+});
+
+test("signed-out visitors can open the e-mail activation link and the site icon", async () => {
+  await withEnv(undefined, async () => {
+    for (const url of ["/activate?token=abc123", "/activate", "/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
+    assert.ok(redirectsToLogin(visit("/activate/other")), "only the exact pages");
+    assert.ok(redirectsToLogin(visit("/owner/groups")));
+  });
+  const R = load("src/lib/safe-redirect.ts");
+  assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login");
+  // no page behind /forgot-password: it is an ordinary unknown path now
+  assert.equal(R.loginUrlForPage("/forgot-password", ""), "/login?redirect=%2Fforgot-password");
+});
+
+test("a file-like ending never skips the cookie check under /owner /admin /teacher", async () => {
+  await withEnv(undefined, async () => {
+    for (const url of ["/owner/files/report.pdf", "/owner/x.png", "/admin/exams/1.json", "/teacher/groups/a.js", "/teacher/x.css", "/owner/logo.svg", "/admin/a.map"]) {
+      assert.ok(redirectsToLogin(visit(url)), url);
+      const signedIn = visit(url, "algo_auth_token=jwt");
+      assert.equal(signedIn.status, 200, url);
+      if (url.startsWith("/teacher")) assert.match(signedIn.headers.get("cache-control"), /no-store/, url);
+    }
+    for (const url of ["/favicon.ico", "/robots.txt", "/ownership/logo.png", "/_next/static/a.js"]) assert.equal(visit(url).status, 200, url);
+  });
 });

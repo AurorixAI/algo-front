@@ -17,6 +17,8 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/register",
+  "/activate", // the activation link of an e-mail opens for a signed-out user
+  "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
 
 // Paths accessible without full auth (invite-based)
@@ -30,6 +32,8 @@ const OPEN_PATHS = [
 // Files the middleware lets through without a cookie: a path whose LAST segment ends in one of these. Any
 // other dot (`/owner/payments/receipt/a.b`, `/teacher/groups/x.y`) is an ordinary page and is checked.
 const STATIC_FILE = /\.(?:ico|png|jpe?g|gif|svg|webp|avif|css|js|map|txt|xml|json|webmanifest|woff2?|ttf)$/i;
+// ...and never under the three staff areas, whatever the ending (a file-like id there is still a page).
+const STAFF_AREA = /^\/(?:owner|admin|teacher)(?:\/|$)/;
 
 const ROLE_PATHS: Record<string, string[]> = {
   "/admin": ["admin", "owner", "superadmin"],
@@ -44,7 +48,7 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
-    STATIC_FILE.test(pathname)
+    (STATIC_FILE.test(pathname) && !STAFF_AREA.test(pathname))
   ) {
     return NextResponse.next();
   }

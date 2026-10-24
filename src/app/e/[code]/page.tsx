@@ -34,6 +34,7 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { examsApi } from "@/lib/api";
+import { normalizeExamInfo } from "@/lib/exam-info";
 import {
   SAVING_RETRY_MESSAGE,
   START_RETRY_MESSAGE,
@@ -221,7 +222,7 @@ export default function ExamPage() {
   const loadExamInfo = useCallback(async () => {
     try {
       const info = await examsApi.getByCode(code);
-      setExamInfo(info);
+      setExamInfo(normalizeExamInfo(info));
       if (info.status !== "active" && info.status !== "lobby") {
         setError("Этот экзамен уже закрыт или недоступен");
         setPhase("error");
