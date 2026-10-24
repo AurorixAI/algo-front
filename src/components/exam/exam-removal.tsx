@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { examsApi } from "@/lib/api";
@@ -102,7 +102,19 @@ export function ExamRemovalDialog({
   onConfirm: () => void;
   onClose: () => void;
 }) {
-  const copy = removal ? examRemovalCopy(removal.mode, removal.title) : null;
+  // While the dialog animates out, `removal` is already null: keep painting the last state, so the text and the
+  // buttons do not flash into something else on the way out.
+  const lastRef = useRef<{ removal: ExamRemoval; error: string | null; blocked: boolean } | null>(null);
+  if (removal) lastRef.current = { removal, error, blocked };
+  const shown = removal ? { removal, error, blocked } : lastRef.current;
+  const copy = shown ? examRemovalCopy(shown.removal.mode, shown.removal.title) : null;
+
+  // A refusal leaves a single button: it takes the focus, so Enter / Escape / Space dismiss it at once.
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (removal && blocked) closeRef.current?.focus();
+  }, [removal, blocked]);
+
   return (
     <Modal
       open={removal !== null}
@@ -112,10 +124,10 @@ export function ExamRemovalDialog({
       maxWidthClassName="max-w-md"
       footer={
         <>
-          <button type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
-            {blocked ? "Закрыть" : "Отмена"}
+          <button ref={closeRef} type="button" onClick={onClose} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">
+            {shown?.blocked ? "Закрыть" : "Отмена"}
           </button>
-          {!blocked && copy && (
+          {!shown?.blocked && copy && (
             <button
               type="button"
               onClick={onConfirm}
@@ -132,20 +144,27 @@ export function ExamRemovalDialog({
         </>
       }
     >
-      {removal && <ExamRemovalBody removal={removal} error={error} />}
+      {shown && <ExamRemovalBody removal={shown.removal} error={shown.error} />}
     </Modal>
   );
 }
 
 /**
  * State and call of the dialog.  `ask` opens it; the confirm button calls the server, and only a successful answer closes it:
- * a refusal (the server's own sentence) stays on screen where the teacher is looking.
+ * a refusal (the server's own sentence) stays on screen where the teacher is looking.  Exceptions:
+ * - a 404 means a twin request already deleted the exam: nothing is left to refuse, so the dialog closes and the caller
+ *   is told the exam is gone (`onRemoved`), which refreshes its list or leaves its page;
+ * - one request at a time: a second click while the first is in flight sends nothing (a ref, not the render's `busy`,
+ *   because two clicks can land in the same render).
  */
 export function useExamRemoval(onRemoved: (mode: ExamRemovalMode, examId: string) => void) {
   const [removal, setRemoval] = useState<ExamRemoval | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blocked, setBlocked] = useState(false);
+  const inFlight = useRef(false);
+  const current = useRef<ExamRemoval | null>(null);
+  current.current = removal;
 
   const ask = useCallback((next: ExamRemoval) => {
     setError(null);
@@ -154,30 +173,37 @@ export function useExamRemoval(onRemoved: (mode: ExamRemovalMode, examId: string
   }, []);
 
   const close = useCallback(() => {
-    if (busy) return;
+    if (inFlight.current) return;
     setRemoval(null);
     setError(null);
     setBlocked(false);
-  }, [busy]);
+  }, []);
 
   const confirm = useCallback(async () => {
-    if (!removal || busy) return;
+    const target = current.current;
+    if (!target || inFlight.current) return;
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
-      const { examId, permanent } = removalRequest(removal);
+      const { examId, permanent } = removalRequest(target);
       await examsApi.delete(examId, permanent);
-      const done = removal;
       setRemoval(null);
-      onRemoved(done.mode, done.examId);
+      onRemoved(target.mode, target.examId);
     } catch (err) {
-      const failure = removalFailure(err);
-      setError(failure.error);
-      setBlocked(failure.blocked);
+      if ((err as { status?: unknown } | null)?.status === 404) {
+        setRemoval(null);
+        onRemoved(target.mode, target.examId);
+      } else {
+        const failure = removalFailure(err);
+        setError(failure.error);
+        setBlocked(failure.blocked);
+      }
     } finally {
+      inFlight.current = false;
       setBusy(false);
     }
-  }, [removal, busy, onRemoved]);
+  }, [onRemoved]);
 
   return { removal, busy, error, blocked, ask, close, confirm };
 }

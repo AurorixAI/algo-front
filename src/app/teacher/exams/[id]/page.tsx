@@ -544,12 +544,25 @@ export default function ExamHubPage() {
     removal.ask({ mode: "archive", examId, title: exam?.title ?? "" });
   };
 
+  // One restore at a time; «not archived any more» (a twin click, another tab) just reloads the exam - nothing to report.
+  const [restoring, setRestoring] = useState(false);
+  const restoringRef = useRef(false);
   const handleRestore = async () => {
+    if (restoringRef.current) return;
+    restoringRef.current = true;
+    setRestoring(true);
     try {
       const res = await examsApi.restore(examId);
       setExam((prev) => (prev ? { ...prev, status: res.status || "draft" } : null));
     } catch (err: any) {
-      alert("Не удалось восстановить экзамен: " + (err.message || ""));
+      if (err?.status === 409 && err?.code === "EXAM_NOT_ARCHIVED") {
+        await fetchExam();
+      } else {
+        alert("Не удалось восстановить экзамен: " + (err.message || ""));
+      }
+    } finally {
+      restoringRef.current = false;
+      setRestoring(false);
     }
   };
 
@@ -1180,7 +1193,8 @@ export default function ExamHubPage() {
                               setHeaderMenuOpen(false);
                               handleRestore();
                             }}
-                            className="w-full text-left px-4 py-2.5 text-emerald-700 hover:bg-emerald-50 font-medium flex items-center gap-2.5 transition-colors cursor-pointer"
+                            disabled={restoring}
+                            className="w-full text-left px-4 py-2.5 text-emerald-700 hover:bg-emerald-50 font-medium flex items-center gap-2.5 transition-colors cursor-pointer disabled:opacity-50"
                           >
                             <RotateCcw className="w-4 h-4 text-emerald-600" />
                             Восстановить из архива

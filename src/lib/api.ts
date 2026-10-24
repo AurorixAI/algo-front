@@ -547,7 +547,9 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     if (audience === "staff" && isStaffWriteBusy(method, response.status, retryAfterSeconds(response))) {
       message = STAFF_BUSY_MESSAGE;
     }
-    throw new ApiError(response.status, message, undefined, undefined, undefined, retryAfterSeconds(response));
+    // The exam service names an expected refusal next to its text: `{detail: "...", code: "EXAM_NOT_ARCHIVED"}`.
+    const code = typeof error?.code === "string" ? error.code : undefined;
+    throw new ApiError(response.status, message, code, undefined, undefined, retryAfterSeconds(response));
   }
 
   return response.json();

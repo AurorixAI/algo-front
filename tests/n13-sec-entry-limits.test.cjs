@@ -56,7 +56,7 @@ test("the API client keeps Retry-After on the error of the exam endpoints", () =
   assert.match(api, /public retryAfter\?: number/);
   assert.match(api, /function retryAfterSeconds\(response: Response\)[\s\S]{0,300}headers\?\.get\?\.\("Retry-After"\)/);
   assert.match(api, /if \(response\.status !== 429 && response\.status !== 503\) return undefined;/);
-  assert.match(api, /throw new ApiError\(response\.status, message, undefined, undefined, undefined, retryAfterSeconds\(response\)\);/);
+  assert.match(api, /throw new ApiError\(response\.status, message, code, undefined, undefined, retryAfterSeconds\(response\)\);/);
 });
 
 test("the entry page keeps the form open on a 429 at the check AND at the start, never the error phase", () => {

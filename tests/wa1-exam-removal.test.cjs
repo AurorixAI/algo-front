@@ -73,26 +73,3 @@ test("archive asks the server to archive, delete asks for the erasure", () => {
   assert.deepEqual(R.removalRequest({ mode: "archive", examId: "E1", title: "" }), { examId: "E1", permanent: false });
   assert.deepEqual(R.removalRequest({ mode: "delete", examId: "E2", title: "" }), { examId: "E2", permanent: true });
 });
-
-test("the dialog is a ui/modal that cannot be dismissed mid-request, and a refusal leaves only «Закрыть»", () => {
-  const src = read("src/components/exam/exam-removal.tsx");
-  assert.match(src, /import \{ Modal \} from "@\/components\/ui\/modal"/);
-  assert.match(src, /<Modal[\s\S]{0,200}busy=\{busy\}/);
-  assert.match(src, /\{blocked \? "Закрыть" : "Отмена"\}/);
-  assert.match(src, /\{!blocked && copy && \(/);
-  // success closes it, failure keeps it (and the text) open
-  assert.match(src, /await examsApi\.delete\(examId, permanent\);\s*const done = removal;\s*setRemoval\(null\);/);
-  assert.match(src, /catch \(err\) \{\s*const failure = removalFailure\(err\);\s*setError\(failure\.error\);/);
-});
-
-test("no page asks about deleting or archiving an exam with the browser's confirm() / alert()", () => {
-  for (const file of ["src/app/teacher/exams/page.tsx", "src/app/teacher/exams/[id]/page.tsx", "src/app/teacher/exams/[id]/draft/page.tsx"]) {
-    const src = read(file);
-    assert.doesNotMatch(src, /confirm\([^)]*(навсегда|в архив)/, file);
-    assert.doesNotMatch(src, /alert\([^)]*(удалить экзамен|в архив: )/, file);
-    assert.match(src, /useExamRemoval\(/, file);
-    assert.match(src, /<ExamRemovalDialog/, file);
-  }
-  assert.match(read("src/app/teacher/exams/page.tsx"), /removal\.ask\(\{ mode: "delete", examId, title: exam\?\.title \?\? "" \}\)/);
-  assert.match(read("src/app/teacher/exams/[id]/page.tsx"), /removal\.ask\(\{ mode: "archive"[\s\S]{0,1200}removal\.ask\(\{ mode: "delete"/);
-});

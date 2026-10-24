@@ -633,14 +633,25 @@ export default function TeacherExamsPage() {
     }
   };
 
+  // One restore per exam at a time.  If the server says the exam is not archived any more (a twin click or another tab
+  // already restored it), the list is simply refreshed: there is nothing to report.
+  const restoringRef = useRef<Set<string>>(new Set());
   const handleRestore = async (examId: string) => {
+    if (restoringRef.current.has(examId)) return;
+    restoringRef.current.add(examId);
     try {
       const res = await examsApi.restore(examId);
       setExams((prev) =>
         prev.map((e) => e.exam_id === examId ? { ...e, status: res.status || "draft" } : e)
       );
     } catch (err: any) {
-      alert(err?.message || "Не удалось восстановить экзамен");
+      if (err?.status === 409 && err?.code === "EXAM_NOT_ARCHIVED") {
+        await loadData();
+      } else {
+        alert(err?.message || "Не удалось восстановить экзамен");
+      }
+    } finally {
+      restoringRef.current.delete(examId);
     }
   };
 
