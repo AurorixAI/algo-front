@@ -55,6 +55,7 @@ import { narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster,
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { DayHeading } from "@/components/schedule/day-heading";
 import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
@@ -1829,19 +1830,7 @@ export default function TeacherSchedulePage() {
                       : "bg-slate-50/70 border-slate-100 text-slate-800 rounded-t-2xl"
                   }`}
                 >
-                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className="shrink-0 font-semibold text-xs">{day.short}</span>
-                      <span className={`hidden 2xl:inline text-[11px] whitespace-nowrap ${isToday ? "text-primary-100" : "text-slate-400"}`}>
-                        {day.name}
-                      </span>
-                    </div>
-                    {isToday && (
-                      <span className="shrink-0 whitespace-nowrap text-[10px] bg-white/20 px-2 py-1 rounded-md font-bold">
-                        Сегодня
-                      </span>
-                    )}
-                  </div>
+                  <DayHeading date={businessWeekdayDate(day.id, weekOffset)} isToday={isToday} onAccent />
                 </div>
 
                 {/* Day Lessons List */}

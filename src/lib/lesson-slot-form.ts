@@ -241,9 +241,16 @@ export function revisionPatch(snapshot: WeeklyLesson, form: RevisionForm): {
   return patch;
 }
 
-/** «каб. 12» for a room given as a number or a code; a room that begins with a word («Зал», «Малый зал») is shown as it is. */
+const ROOM_WORD = /^(?:кабинет|каб)(?:\.\s*|\s+)(\S.*)$/iu;
+
+/**
+ * «каб. 12» for a room given as a number or a code, and for «Кабинет 5» / «кабинет 5» / «Каб. 5» / «каб 5» (one way of writing it on every screen);
+ * a room that begins with another word («Зал», «Малый зал», «Актовый зал») is shown as it is.  Display only: what is saved is not changed.
+ */
 export function roomWithPrefix(room: string): string {
   const text = room.trim();
+  const word = ROOM_WORD.exec(text);
+  if (word) return `каб. ${word[1]}`;
   return /^\p{L}/u.test(text) ? text : `каб. ${text}`;
 }
 

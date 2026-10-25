@@ -33,6 +33,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
+import { DayHeading, dayAndMonth, weekdayShort } from "@/components/schedule/day-heading";
 import { AddLessonDialog, EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
 import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@/lib/lesson-slot-form";
 import { weeklyResolver } from "@/lib/weekly-lessons";
@@ -413,23 +414,17 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
               const dateLessons = lessonsByDate.get(date) || [];
               const isToday = date === today;
               const empty = dateLessons.length === 0;
-              const weekday = formatIsoDateLabel(date, { weekday: "short" }).replace(".", "");
+              const weekday = weekdayShort(date);
               return (
                 // a phone: an empty day is one quiet line, not a tall dashed box (the desktop grid keeps its seven columns)
-                <div key={date} className={`p-4 md:min-h-[220px] ${empty ? "max-md:px-4 max-md:py-2.5" : ""} ${isToday ? "bg-primary-50/45" : "bg-white"}`}>
+                <div key={date} className={`p-4 xl:px-3 md:min-h-[220px] ${empty ? "max-md:px-4 max-md:py-2.5" : ""} ${isToday ? "bg-primary-50/45" : "bg-white"}`}>
                   {empty && (
                     <p className="text-xs text-slate-400 md:hidden">
-                      <span className="capitalize">{weekday}</span>, {formatIsoDateLabel(date, { day: "numeric", month: "short" })} — нет занятий
+                      <span className="capitalize">{weekday}</span>, {dayAndMonth(date)} — нет занятий
                       {isToday && <span className="ml-2 rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-semibold text-white">Сегодня</span>}
                     </p>
                   )}
-                  <div className={`mb-3 flex items-start justify-between gap-2 ${empty ? "max-md:hidden" : ""}`}>
-                    <div>
-                      <p className="text-sm font-semibold capitalize text-slate-900">{weekday}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{formatIsoDateLabel(date, { day: "numeric", month: "short" })}</p>
-                    </div>
-                    {isToday && <span className="rounded-full bg-primary-600 px-2 py-0.5 text-[11px] font-semibold text-white">Сегодня</span>}
-                  </div>
+                  <div className={`mb-3 flex ${empty ? "max-md:hidden" : ""}`}><DayHeading date={date} isToday={isToday} /></div>
 
                   {empty ? (
                     <div className="hidden min-h-[130px] items-center justify-center rounded-xl border border-dashed border-slate-200 px-3 text-center text-xs text-slate-400 md:flex">Нет занятий</div>

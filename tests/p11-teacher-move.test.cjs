@@ -11,6 +11,11 @@ require.extensions[".ts"] = (mod, filename) => {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
   }).outputText, filename);
 };
+require.extensions[".tsx"] = (mod, filename) => {
+  mod._compile(ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
+  }).outputText, filename);
+};
 const Module = require("node:module");
 const resolveFilename = Module._resolveFilename;
 Module._resolveFilename = function (request, ...rest) {
@@ -107,4 +112,27 @@ test("the hint for the last hour is shown instead of the button, next to «Не 
 
 test("the journal of «Замены и переносы» types the new via", () => {
   assert.match(read("src/lib/substitution-types.ts"), /"request" \| "teacher_move"/);
+});
+
+test("rooms are written one way: «Кабинет 5» / «кабинет 5» / «Каб. 5» / «каб 5» -> «каб. 5»; other words stay (display only)", () => {
+  const F = require(path.join(root, "src/lib/lesson-slot-form.ts"));
+  for (const room of ["Кабинет 5", "кабинет 5", "Каб. 5", "каб 5", "КАБ.5", "  Кабинет   5 ", "каб. 5"]) assert.equal(F.roomWithPrefix(room), "каб. 5", room);
+  assert.equal(F.roomWithPrefix("Кабинет 3-А"), "каб. 3-А");
+  assert.equal(F.roomWithPrefix("21"), "каб. 21");
+  assert.equal(F.roomWithPrefix("5"), "каб. 5");
+  for (const room of ["Зал", "Малый зал", "Актовый зал", "Кабинетный зал", "каб5", "Каб"]) assert.equal(F.roomWithPrefix(room), room, room);
+  // saving is not changed: the value that is sent is the one the teacher typed
+  assert.equal(F.roomWithPrefix.length, 1);
+});
+
+test("both week grids write the head of a day with the one component: weekday, the date under it, the pill of today", () => {
+  const Day = require(path.join(root, "src/components/schedule/day-heading.tsx"));
+  assert.equal(Day.weekdayShort("2026-10-26"), "пн");
+  assert.equal(Day.dayAndMonth("2026-10-26"), "26 окт.");
+  const owner = read("src/components/groups/group-schedule-overview.tsx");
+  const teacher = read("src/app/teacher/schedule/page.tsx");
+  assert.match(owner, /<DayHeading date=\{date\} isToday=\{isToday\} \/>/);
+  assert.match(teacher, /<DayHeading date=\{businessWeekdayDate\(day\.id, weekOffset\)\} isToday=\{isToday\} onAccent \/>/);
+  assert.doesNotMatch(owner + teacher, /text-\[10px\] bg-white\/20 px-2 py-1 rounded-md font-bold/, "no second copy of the pill");
+  assert.ok(teacher.split("\n").length < 3210, "the teacher page did not grow");
 });
