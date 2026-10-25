@@ -26,8 +26,6 @@ import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";
 import { notifyRequestsChanged } from "./shell";
 
-const STATUS_OPTIONS = [{ value: "", label: "Все статусы" }, ...REQUEST_STATUSES.map((s) => ({ value: s.value, label: s.label }))];
-
 export function RequestsScreen() {
   const { me } = useSession();
   const canManage = can(me, "requests.manage");
@@ -35,6 +33,7 @@ export function RequestsScreen() {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortState>({ key: "created_at", order: "desc" });
   const [openId, setOpenId] = useUrlId();
+  const [more, setMore] = useState(false);
   const { showToast, toastNode } = useToast();
 
   const debouncedQ = useDebounced(filters.q);
@@ -122,23 +121,25 @@ export function RequestsScreen() {
           })}
         </div>
         <FilterBar onReset={() => { setFilters(EMPTY_REQUEST_FILTERS); setPage(1); }} canReset={hasFilters(filters)}>
-          <SearchField value={filters.q} onChange={(q) => change({ q })} placeholder="ФИО, центр, почта, телефон" />
-          <Field label="Статус" width="w-44">
-            <Select ariaLabel="Статус" options={STATUS_OPTIONS} value={filters.status} onChange={(e) => change({ status: e.target.value })} buttonClassName="py-2 text-sm" />
-          </Field>
+          <SearchField value={filters.q} onChange={(q) => change({ q })} placeholder="ФИО, центр, почта, телефон" width="w-72" />
           <Field label="Город" width="w-36"><Input aria-label="Город" value={filters.city} onChange={(e) => change({ city: e.target.value })} className="py-2 text-sm" /></Field>
-          <Field label="Источник" width="w-36"><Input aria-label="Источник" placeholder="utm_source" value={filters.source} onChange={(e) => change({ source: e.target.value })} className="py-2 text-sm" /></Field>
           <Field label="С даты" width="w-40"><DateInput value={filters.dateFrom} onChange={(v) => change({ dateFrom: v })} aria-label="С даты" /></Field>
           <Field label="По дату" width="w-40"><DateInput value={filters.dateTo} onChange={(v) => change({ dateTo: v })} aria-label="По дату" /></Field>
-          <Field label="Повторные" width="w-40">
-            <Select
-              ariaLabel="Повторные заявки"
-              options={[{ value: "", label: "Все" }, { value: "true", label: "Только повторные" }]}
-              value={filters.repeat}
-              onChange={(e) => change({ repeat: e.target.value as RequestFilters["repeat"] })}
-              buttonClassName="py-2 text-sm"
-            />
-          </Field>
+          <Button variant="ghost" size="sm" onClick={() => setMore((v) => !v)} aria-expanded={more}>{more ? "Меньше фильтров" : "Ещё фильтры"}</Button>
+          {more && (
+            <>
+              <Field label="Источник" width="w-36"><Input aria-label="Источник" placeholder="utm_source" value={filters.source} onChange={(e) => change({ source: e.target.value })} className="py-2 text-sm" /></Field>
+              <Field label="Повторные" width="w-40">
+                <Select
+                  ariaLabel="Повторные заявки"
+                  options={[{ value: "", label: "Все" }, { value: "true", label: "Только повторные" }]}
+                  value={filters.repeat}
+                  onChange={(e) => change({ repeat: e.target.value as RequestFilters["repeat"] })}
+                  buttonClassName="py-2 text-sm"
+                />
+              </Field>
+            </>
+          )}
         </FilterBar>
         <DataTable
           caption="Заявки на демо"

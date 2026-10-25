@@ -9,3 +9,8 @@ Dockerfile
 # E2E harness (e2e/) and its build output
 e2e
 .next-e2e
+
+# The console (console/) is a separate static export: its build output never belongs in the cabinets image
+console/.next
+console/out
+console/node_modules
