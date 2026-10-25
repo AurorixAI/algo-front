@@ -103,6 +103,7 @@ test("both week grids carry the date under the day name; the status chip of the 
   const teacher = await org.addStaff("teacher", "Сеткин");
   const group = await org.createGroup({ name: "Группа П11-С", teacherId: teacher.userId });
   for (let day = 1; day <= 7; day++) {
+    if (day === weekdayOf(businessNow().date)) continue; // a lesson of today earlier than «now» is refused; next week has all seven
     await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: day, startTime: "16:00", endTime: "17:30", topic: "Геометрия", room: day % 2 ? "Кабинет 5" : "21" });
   }
   const dateOf = (iso: string) => `${Number(iso.slice(8, 10))} ${["", "янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."][Number(iso.slice(5, 7))]}`;
