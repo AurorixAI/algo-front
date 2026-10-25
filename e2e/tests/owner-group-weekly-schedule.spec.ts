@@ -342,7 +342,9 @@ test("«Изменить постоянный урок»: the day as chips; the 
   await expect(block).toContainText(`${SHORT[weekdayOf(d2)]} 14:00–15:30`);
   await expect(block.getByRole("checkbox")).not.toBeChecked(); // off by default
   await block.getByRole("checkbox").check();
+  await page.setViewportSize({ width: 1280, height: 1300 }); // tall enough for the whole dialog: the day chips and the block of the other days
   await shot(page, `13-edit-series-chips-${info.project.name}`);
+  await page.setViewportSize({ width: 1280, height: 800 });
   await edit.getByRole("button", { name: "Изменить расписание" }).click();
   const error = edit.getByTestId("weekly-edit-error");
   await expect(error).toContainText(`${SHORT[weekdayOf(d1)]} изменён, ${SHORT[weekdayOf(d2)]} — преподаватель занят`);
