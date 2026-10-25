@@ -190,7 +190,7 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   assert.equal(S.decisionToast(decided), "Замена назначена: Рахимов Т.");
   assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Замена: Рахимов Т.", tone: "green" });
   assert.equal(S.decidedByLine(decided.item), "Решил(а) Каримова Н., 21.10 14:12");
-  assert.equal(S.decisionResultText(decided.item), "Замена: Рахимов Т.");
+  assert.equal(S.decisionResultText(decided.item), "Иванов И. → Рахимов Т.", "P1.2: who was replaced by whom");
   // the body that goes out: the suggested colleague, the status the dialog saw
   assert.deepEqual(S.buildDecide("substitute", { teacherId: ordered[0].teacherId, note: "  Договорился по телефону " }), {
     decision: "substitute", teacherId: ordered[0].teacherId, note: "Договорился по телефону", expectedStatus: "pending",

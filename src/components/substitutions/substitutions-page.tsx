@@ -27,6 +27,7 @@ import {
   lessonWhen,
   moreLessonsText,
   suggestedLine,
+  supersededBy,
   tabLabel,
   type DeadlineChip,
 } from "@/lib/substitutions";
@@ -227,6 +228,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
   const selectedItems = items.filter((item) => selected.has(item.id));
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
+  const superseded = useMemo(() => supersededBy(items), [items]);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "pending", label: tabLabel("pending", pendingTotal) },
@@ -384,6 +386,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         <p className="break-words text-sm font-medium text-slate-800">{decisionResultText(item)}</p>
                         {item.decision?.note && item.status !== "substituted" && <p className="break-words text-xs text-slate-500">{item.decision.note}</p>}
                         <p className="text-xs text-slate-500">{decidedByLine(item)}</p>
+                        {superseded.get(item.id) && <p className="text-xs text-slate-500">Позже заменена на {superseded.get(item.id)}</p>}
                       </div>
                     )}
 

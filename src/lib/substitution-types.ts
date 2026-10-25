@@ -25,7 +25,8 @@ export type ClosedReasonCode =
   | "GROUP_ARCHIVED"
   | "GROUP_TEACHER_CHANGED"
   | "TEACHER_REMOVED"
-  | "LESSON_OUTSIDE_WINDOW";
+  | "LESSON_OUTSIDE_WINDOW"
+  | "ASSIGNMENT_CLEARED";
 
 export interface PersonRef {
   id: string;

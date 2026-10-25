@@ -171,6 +171,7 @@ export const CLOSED_REASON_TEXT: Record<ClosedReasonCode, string> = {
   GROUP_TEACHER_CHANGED: "Преподаватель группы изменён",
   TEACHER_REMOVED: "Преподаватель больше не работает в центре",
   LESSON_OUTSIDE_WINDOW: "Срок разбора истёк",
+  ASSIGNMENT_CLEARED: "Замена снята",
 };
 
 /** The words of a closing: the server's own text, else the table (`GROUP_TEACHER_CHANGED` names the new teacher when known). */
@@ -206,9 +207,19 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
       return { text: reason ? `Отклонено: ${reason}` : "Отклонено", tone: "red" };
     }
     case "withdrawn": return { text: "Отозван", tone: "gray" };
-    case "closed": return { text: `Закрыт: ${closedReasonText(item)}`, tone: "gray" };
+    case "closed": return { text: closedResultText(item), tone: "gray" };
     default: return { text: "", tone: "gray" };
   }
+}
+
+/**
+ * P1.2: a substitution the administrator set on the lesson sheet with no request of the teacher (the record is the system's, decided through the sheet), also after he
+ * took it off.  A request of a teacher decided through the sheet is not one (its origin is the teacher), nor is a reopened one decided on the page (`via` is `request`).
+ */
+export function isDirectSubstitution(item: Pick<SubstitutionItem, "origin" | "status" | "decision">): boolean {
+  const decision = item.decision;
+  if (item.origin !== "system" || decision?.via !== "lesson_teacher_put") return false;
+  return item.status === "substituted" || (item.status === "closed" && decision.closedReason === "ASSIGNMENT_CLEARED");
 }
 
 /**
@@ -217,13 +228,15 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
  */
 export function originLine(item: SubstitutionItem): string | null {
   if (item.origin !== "system") return null;
+  if (isDirectSubstitution(item)) return "Заменил администратор, без запроса";
   if (item.status === "rescheduled") return item.decision?.via === "teacher_move" ? "Перенёс сам, без запроса" : "Перенёс администратор, без запроса";
   return "Запрос создан системой";
 }
 
-/** The reason chip: a move without a request is «Перенос» (its machine reason «other» says nothing); otherwise the teacher's reason. */
+/** The reason chip: a move without a request is «Перенос», a substitution without a request is «Замена» (their machine reason «other» says nothing); otherwise the teacher's reason. */
 export function reasonChipText(item: SubstitutionItem): string {
   if (item.origin === "system" && item.status === "rescheduled") return "Перенос";
+  if (isDirectSubstitution(item)) return "Замена";
   return item.reasonLabel || reasonLabelOf(item.reasonCode);
 }
 
@@ -234,9 +247,11 @@ export function decidedByLine(item: SubstitutionItem): string {
   const when = formatUtcNaiveAsBusinessDateTime(decision.at);
   // «ДД.ММ.ГГГГ ЧЧ:ММ» -> «ДД.ММ ЧЧ:ММ»
   const short = when.replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+  const by = (decision.by?.name ?? "").trim();
+  // P1.2: a substitution taken off is the administrator's act, not the system's
+  if (decision.closedReason === "ASSIGNMENT_CLEARED") return [by ? `Снял(а) ${by}` : "Снята", short].filter(Boolean).join(", ");
   if (decision.via === "system" || decision.kind === "closed") return short ? `Закрыто системой, ${short}` : "Закрыто системой";
   if (decision.kind === "withdraw" || item.status === "withdrawn") return short ? `Отозван учителем, ${short}` : "Отозван учителем";
-  const by = (decision.by?.name ?? "").trim();
   // P1.1: a move says WHO moved the lesson: the teacher himself or an administrator
   if (item.status === "rescheduled") {
     const who = `${decision.via === "teacher_move" ? "преподаватель" : "администратор"}${by ? ` ${by}` : ""}`;
@@ -245,16 +260,44 @@ export function decidedByLine(item: SubstitutionItem): string {
   return [by ? `Решил(а) ${by}` : "", short].filter(Boolean).join(", ");
 }
 
+/** «Иванов А. → Петров Б.» of a substitution (a request of a teacher and one without a request alike); the substitute alone when the teacher is unknown. */
+export function substitutionArrowText(item: Pick<SubstitutionItem, "teacher" | "decision">): string {
+  const substitute = (item.decision?.substitute?.name ?? "").trim();
+  const teacher = (item.teacher?.name ?? "").trim();
+  if (!substitute) return "Замена назначена";
+  return teacher ? `${teacher} → ${substitute}` : `Замена: ${substitute}`;
+}
+
+/** A substitution taken off says so and whom it was: «Замена снята: Петров Б.»; any other closing keeps «Закрыт: <причина>». */
+export function closedResultText(item: SubstitutionItem): string {
+  if (item.decision?.closedReason !== "ASSIGNMENT_CLEARED") return `Закрыт: ${closedReasonText(item)}`;
+  const substitute = (item.decision.substitute?.name ?? "").trim();
+  return substitute ? `${closedReasonText(item)}: ${substitute}` : closedReasonText(item);
+}
+
+/**
+ * The substituted records of the shown page that a later one has taken over (the administrator set another substitute on the lesson): `{id of the old record -> the new
+ * substitute}`.  Only what the page shows is known (the new record points to the old by `previous`), so the hint is a hint, not a rule.
+ */
+export function supersededBy(items: readonly SubstitutionItem[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const item of items) {
+    const name = (item.decision?.substitute?.name ?? "").trim();
+    if (item.status === "substituted" && item.previous?.status === "substituted" && name) out.set(item.previous.id, name);
+  }
+  return out;
+}
+
 /** What the administrator decided, in a few words (the chip of a decided row). */
 export function decisionResultText(item: SubstitutionItem): string {
   const decision = item.decision;
   switch (item.status) {
-    case "substituted": return decision?.substitute?.name ? `Замена: ${decision.substitute.name}` : "Замена назначена";
+    case "substituted": return substitutionArrowText(item);
     case "rescheduled": return decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён";
     case "cancelled": return LESSON_CANCELLED_LABEL;
     case "rejected": return "Запрос отклонён";
     case "withdrawn": return "Отозван учителем";
-    case "closed": return `Закрыт: ${closedReasonText(item)}`;
+    case "closed": return closedResultText(item);
     default: return "";
   }
 }
