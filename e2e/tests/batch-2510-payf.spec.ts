@@ -124,7 +124,7 @@ test.describe("package centre", () => {
     await page.getByTestId("statement-pay").click();
     const dialog = page.getByRole("dialog", { name: "Внести оплату" });
     await expect(dialog).toBeVisible();
-    expect(Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""))).toBe(fee);
+    await dialog.getByLabel("Сумма", { exact: true }).fill(String(fee));   // nothing is due yet: the owner types the price of the package
     await shot(page, `01b-pay-package-${project}`);
     await dialog.getByRole("radio", { name: "Карта" }).click();
     await dialog.getByRole("button", { name: new RegExp(`^Внести\\s*${grouped(fee)}`) }).click();
