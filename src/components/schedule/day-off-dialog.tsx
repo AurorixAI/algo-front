@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { dayOffBody, dayOffError, dayOffLessonLine, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
+import { EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
 
@@ -19,7 +19,8 @@ export function DayOffLessonList({ title, lessons, tone, testId }: { title: stri
   return (
     <div className={`rounded-xl border px-3.5 py-2.5 text-xs ${tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} data-testid={testId}>
       <p className="font-semibold">{title}</p>
-      <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto">
+      {/* a list that scrolls is reachable and named for the keyboard and the screen reader */}
+      <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto" tabIndex={0} aria-label={title}>
         {lessons.map((lesson) => <li key={`${lesson.groupId}-${lesson.lessonId}-${lesson.date}`}>{dayOffLessonLine(lesson)}</li>)}
       </ul>
     </div>
@@ -47,13 +48,15 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
   }, [open, today]);
 
   const problem = dayOffError(form);
-  const key = JSON.stringify(dayOffBody(form));
+  // the dry run depends on the DATES only: typing the reason does not ask the server again
+  const datesProblem = dayOffDatesError(form);
+  const key = JSON.stringify(dayOffPreviewBody(form));
   useEffect(() => {
-    if (!open || problem) { setPlan(null); setChecking(false); return undefined; }
+    if (!open || datesProblem) { setPlan(null); setChecking(false); return undefined; }
     let cancelled = false;
     setChecking(true);
     const timer = setTimeout(() => {
-      orgApi.previewDayOff(dayOffBody(form))
+      orgApi.previewDayOff(dayOffPreviewBody(form))
         .then((answer) => { if (!cancelled) { setPlan(answer); setError(null); } })
         .catch((cause) => { if (!cancelled) { setPlan(null); setError(cause instanceof Error ? cause.message : "Не удалось проверить уроки"); } })
         .finally(() => { if (!cancelled) setChecking(false); });
@@ -61,7 +64,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
     return () => { cancelled = true; clearTimeout(timer); };
     // `form` is a new object on every keystroke; its key stands for the content.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, problem, key]);
+  }, [open, datesProblem, key]);
 
   const patch = (next: Partial<DayOffForm>) => { setError(null); setForm((previous) => ({ ...previous, ...next })); };
 
@@ -120,13 +123,15 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
         </div>
 
         <div aria-live="polite" className="space-y-2" data-testid="day-off-plan">
-          {problem && form.reason.trim() !== "" && <p className="text-xs text-slate-500">{problem}</p>}
+          {problem && <p className="text-xs text-slate-500">{problem}</p>}
           {checking && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
           {!checking && plan && (
             <>
               <p className="text-sm font-medium text-slate-900" data-testid="day-off-plan-text">{plan.text}</p>
               {plan.alreadyCancelled > 0 && <p className="text-xs text-slate-500">Уже отменено раньше: {plan.alreadyCancelled}</p>}
+              <DayOffLessonList title="Отмена будет переведена в праздник" lessons={plan.convertible ?? []} tone="ok" testId="day-off-convertible" />
               <DayOffLessonList title="Не будут отменены" lessons={plan.blocked} tone="warn" testId="day-off-blocked" />
+              <p className="text-xs text-slate-500" data-testid="day-off-exams-note">{plan.examsNote ?? EXAMS_NOTE}</p>
             </>
           )}
         </div>

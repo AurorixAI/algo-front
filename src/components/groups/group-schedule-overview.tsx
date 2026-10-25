@@ -530,6 +530,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             notes={notes}
             marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], null) : []}
             requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
+            cancellationKind={lessonState === "cancelled" ? attendance?.cancellationKinds?.[key] ?? null : null}
             actions={actions}
             assignLabel={assignActionLabel({ past: Boolean(lesson && lessonHasStarted({ date: lesson.date, today, startTime: lesson.startTime || lesson.start_time })), lacksTeacher: lacksTeacher(info), isSubstitution: Boolean(info?.isSubstitution) })}
             onClose={() => { setSheetLesson(null); setSeriesError(null); }}

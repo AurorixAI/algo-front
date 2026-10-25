@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { dayOffLine, dayOffSpan, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { EXAMS_NOTE, dayOffLine, dayOffSpan, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
 
@@ -60,6 +60,7 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
         {plan && <p className="text-sm font-medium text-slate-900" data-testid="day-off-void-text">Вернутся уроки: {plan.restored.length}. Останутся отменёнными: {plan.kept.length}.</p>}
         {plan && <DayOffLessonList title="Вернутся в расписание" lessons={plan.restored} tone="ok" testId="day-off-restored" />}
         {plan && <DayOffLessonList title="Останутся отменёнными" lessons={plan.kept} tone="warn" testId="day-off-kept" />}
+        <p className="text-xs text-slate-500" data-testid="day-off-void-exams-note">{plan?.examsNote ?? EXAMS_NOTE}</p>
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </div>
     </Modal>
@@ -86,9 +87,25 @@ export function DaysOffPanel() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
+  const [unfinished, setUnfinished] = useState<DayOffOut | null>(null);
+  const [continuing, setContinuing] = useState(false);
   const created = (result: DayOffApplied) => {
-    setNotice(`Выходной назначен: отменено уроков ${result.cancelled.length}${result.blocked.length > 0 ? `, не отменены ${result.blocked.length}` : ""}.`);
+    const converted = result.converted?.length ?? 0;
+    setNotice(`Выходной назначен: отменено уроков ${result.cancelled.length}${converted > 0 ? `, отмена переведена в праздник: ${converted}` : ""}${result.blocked.length > 0 ? `, не отменены ${result.blocked.length}` : ""}.`);
+    setUnfinished(result.complete === false ? result.dayOff : null);
     void load();
+  };
+  // exam-service did not answer: the rest of the lessons waits; «Продолжить» tries again (the server skips what is cancelled)
+  const proceed = async () => {
+    if (!unfinished || continuing) return;
+    setContinuing(true);
+    try {
+      created(await orgApi.applyDayOff(unfinished.id));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Не удалось продолжить");
+    } finally {
+      setContinuing(false);
+    }
   };
   const voided = (result: DayOffVoided) => {
     setNotice(`Выходной отменён: вернулось уроков ${result.restored.length}${result.kept.length > 0 ? `, осталось отменёнными ${result.kept.length}` : ""}.`);
@@ -105,6 +122,12 @@ export function DaysOffPanel() {
         <button type="button" onClick={() => setCreating(true)} data-testid="day-off-new" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Назначить выходной</button>
       </div>
       {notice && <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{notice}</p>}
+      {unfinished && (
+        <p role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900" data-testid="day-off-unfinished">
+          Сервис экзаменов не ответил: часть уроков не отменена.
+          <button type="button" onClick={() => void proceed()} disabled={continuing} className="rounded-lg bg-amber-600 px-3 py-1 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">{continuing ? "Продолжаем…" : "Продолжить"}</button>
+        </p>
+      )}
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
       {days === null && !error && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загрузка…</p>}
       {days !== null && days.length === 0 && <p className="text-sm text-slate-500">Выходных пока нет.</p>}

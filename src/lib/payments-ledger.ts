@@ -36,7 +36,7 @@ import {
   type StatementSummary,
   type WriteoffCreate,
 } from "./payments";
-import type { RecalcLine } from "./payf";
+import { recalcAmountText, type RecalcLine } from "./payf";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
 
@@ -649,7 +649,7 @@ export function statementRowNotes(row: StatementRow): string[] {
       if (d.created_by_name) notes.push(`вернул: ${d.created_by_name}`);
       break;
     case "recalc":
-      if (d.recalc) notes.push(d.recalc.text);
+      if (d.recalc) notes.push(recalcAmountText(d.recalc));       // the title names the lesson; the line carries the amount only
       break;
     default:
       break;
@@ -1277,7 +1277,7 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
       entries.push({ ...base, title, sub: null, tag: "прощено", charged: null, paid: sum(row.credit) });
     } else if (row.type === "recalc") {
       // PAY-F: the lesson the centre cancelled, taken off the money like a forgiven debt (the line is derived by the server, nothing was entered)
-      entries.push({ ...base, title: row.title, sub: d.recalc?.text ?? null, tag: "перерасчёт", charged: null, paid: sum(row.credit) });
+      entries.push({ ...base, title: row.title, sub: d.recalc ? recalcAmountText(d.recalc) : null, tag: "перерасчёт", charged: null, paid: sum(row.credit) });
     } else if (row.type === "refund") {
       const title = `Возврат аванса — ${lowerMethod(d.method)}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
       entries.push({ ...base, title, sub: d.reason ? `причина: ${d.reason}` : null, tag: "возврат", charged: null, paid: -sum(row.outflow) });

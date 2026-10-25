@@ -23,6 +23,9 @@ function money(amount: number): string {
 /** Nothing is left of the package. */
 export const PACKAGE_OVER_TEXT = "пакет закончился";
 
+/** The schedule does not reach far enough to name the day (a long package of rare lessons). */
+export const FORECAST_UNAVAILABLE_TEXT = "прогноз недоступен";
+
 /** The forecast is a promise of the schedule, not of the money. */
 export const FORECAST_NOTE = "по расписанию";
 
@@ -34,7 +37,9 @@ export function forecastText(row: Pick<MembershipPaymentRow, "period_mode" | "le
   if (row.period_mode !== "lessons") return "";
   if (row.lessons_left === 0) return PACKAGE_OVER_TEXT;
   const day = dayMonth(row.paid_through_forecast);
-  return day ? `хватит до ~${day} (${FORECAST_NOTE})` : "";
+  if (day) return `хватит до ~${day} (${FORECAST_NOTE})`;
+  // the server sent the field and it is empty (the schedule does not reach the end of the package): say so; an older server has no field at all
+  return row.paid_through_forecast === null && (row.lessons_left ?? 0) > 0 ? FORECAST_UNAVAILABLE_TEXT : "";
 }
 
 // ── 3. The kind of a cancellation and the deduction ─────────────────────────
@@ -48,6 +53,26 @@ export const CANCELLATION_KINDS: ReadonlyArray<{ key: CancellationKind; label: s
 ];
 export const DEFAULT_CANCELLATION_KIND: CancellationKind = "centre";
 
+/** Who may choose the kind: the owner and the administrator of the centre (the server answers 403 to a teacher who sends «holiday»; a teacher always cancels «по вине центра»). */
+export function canChooseCancellationKind(user: { org_role?: string | null } | null | undefined): boolean {
+  return user?.org_role === "owner" || user?.org_role === "admin";
+}
+
+/** The part of the body of a cancellation that carries the kind: nothing for a teacher (the server's default is «по вине центра»). */
+export function cancellationKindBody(kind: CancellationKind, canChoose: boolean): { cancellationKind?: CancellationKind } {
+  return canChoose ? { cancellationKind: kind } : {};
+}
+
+/** The kinds of a cancelled lesson as the journal sends them: `day_off` = cancelled by a day off of the centre (change the day off, not the lesson). */
+export type CancelledKind = CancellationKind | "day_off";
+export const CHANGE_KIND_LABEL = "Изменить причину отмены";
+export const CHANGE_KIND_BUTTON = "Сохранить причину";
+
+/** The «Изменить причину отмены» action exists for a lesson cancelled with a kind of its own (not by a day off, not an old cancellation or a move). */
+export function canChangeKind(canChoose: boolean, kind: string | null | undefined): kind is CancellationKind {
+  return canChoose && (kind === "centre" || kind === "holiday");
+}
+
 /** One deduction as the server sends it (`text` is the server's own sentence). */
 export interface RecalcLine {
   lesson_date: string;
@@ -57,6 +82,11 @@ export interface RecalcLine {
 }
 
 export const RECALC_HEADING = "Перерасчёт за уроки, отменённые центром";
+
+/** The quiet line under the title of a statement row (the title already names the lesson): «−46 000 сум». */
+export function recalcAmountText(line: Pick<RecalcLine, "amount">): string {
+  return `${MINUS}${money(line.amount)}`;
+}
 
 /** «−46 000 сум: урок 21.10 отменён центром» (the server's words; built here only for a line that came without a text). */
 export function recalcText(line: Pick<RecalcLine, "amount" | "lesson_date"> & { text?: string | null }): string {
@@ -88,13 +118,18 @@ export interface DayOffLesson {
 export interface DayOffPlan {
   dateFrom: string;
   dateTo: string;
-  reason: string;
   cancellable: DayOffLesson[];
   blocked: DayOffLesson[];
+  /** Cancelled by hand «по вине центра» on these dates: they would be turned into holidays. */
+  convertible?: DayOffLesson[];
   alreadyCancelled: number;
   groups: number;
+  /** Exam-service did not answer: the lessons after the first one are not checked (listed as «сервис экзаменов недоступен»). */
+  examServiceDown?: boolean;
   /** «Будут отменены 4 урока в 4 группах: …» */
   text: string;
+  /** «Экзамены, снятые с уроков, при отмене выходного не вернутся — назначьте заново» (the server's words). */
+  examsNote?: string;
 }
 
 export interface DayOffOut {
@@ -112,7 +147,11 @@ export interface DayOffApplied {
   dayOff: DayOffOut;
   cancelled: DayOffLesson[];
   blocked: DayOffLesson[];
+  /** «отмена переведена в праздник» */
+  converted?: DayOffLesson[];
   alreadyCancelled: number;
+  /** false: exam-service stopped the loop; «Продолжить» (`apply`) finishes it. */
+  complete?: boolean;
 }
 
 export interface DayOffVoided {
@@ -120,7 +159,12 @@ export interface DayOffVoided {
   restored: DayOffLesson[];
   kept: DayOffLesson[];
   dryRun: boolean;
+  examsNote?: string;
 }
+
+/** Said in the dialogs of a day off when the server did not send its own sentence. */
+export const EXAMS_NOTE = "Экзамены, снятые с уроков, при отмене выходного не вернутся — назначьте заново";
+export const CONVERTED_TEXT = "Отмена переведена в праздник";
 
 export interface DayOffForDate {
   dayOff: DayOffOut | null;
@@ -146,15 +190,24 @@ function daysBetween(from: string, to: string): number {
   return dayNumber(to) - dayNumber(from) + 1;
 }
 
-/** What is wrong with the form of a day off, or null.  The server checks the same (3 characters, up to 14 days). */
-export function dayOffError(form: DayOffForm): string | null {
+/** What is wrong with the DATES of a day off (the dry run asks no reason), or null. */
+export function dayOffDatesError(form: Pick<DayOffForm, "dateFrom" | "dateTo">): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.dateFrom)) return "Укажите дату";
   if (form.dateTo && !/^\d{4}-\d{2}-\d{2}$/.test(form.dateTo)) return "Укажите дату окончания";
   const to = form.dateTo || form.dateFrom;
   if (to < form.dateFrom) return "Конец выходного раньше его начала";
   if (daysBetween(form.dateFrom, to) > DAY_OFF_MAX_DAYS) return `Выходной — не больше ${DAY_OFF_MAX_DAYS} дней подряд`;
-  if (form.reason.trim().length < DAY_OFF_REASON_MIN) return `Укажите причину: не короче ${DAY_OFF_REASON_MIN} символов`;
   return null;
+}
+
+/** What is wrong with the form of a day off, or null.  The server checks the same (3 characters, up to 14 days). */
+export function dayOffError(form: DayOffForm): string | null {
+  return dayOffDatesError(form) ?? (form.reason.trim().length < DAY_OFF_REASON_MIN ? `Укажите причину: не короче ${DAY_OFF_REASON_MIN} символов` : null);
+}
+
+/** The body of the dry run: the dates only, so typing the reason does not ask the server again. */
+export function dayOffPreviewBody(form: Pick<DayOffForm, "dateFrom" | "dateTo">): { dateFrom: string; dateTo: string } {
+  return { dateFrom: form.dateFrom, dateTo: form.dateTo || form.dateFrom };
 }
 
 /** The body of the request: a single date has the same end. */

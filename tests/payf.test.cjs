@@ -100,12 +100,52 @@ test("3. the dialog of a cancellation asks «По вине центра» (defau
   assert.equal(F.DEFAULT_CANCELLATION_KIND, "centre");
   for (const file of ["src/components/groups/lesson-action-sheet.tsx", "src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx", "src/components/attendance/cancel-missed-lesson-modal.tsx"]) {
     const source = read(file);
-    assert.match(source, /<CancellationKindField/, file);
-    assert.match(source, /cancellationKind/, file);
-    assert.match(source, /DEFAULT_CANCELLATION_KIND/, file);
+    assert.match(source, /<CancellationKindField canChooseKind=\{canChooseKind\}/, file);          // the field gets the right to choose
+    assert.match(source, /cancellationKindBody\(/, file);                                            // and what is sent goes through the one rule below
   }
   const api = read("src/lib/api.ts");
   assert.equal((api.match(/cancellationKind\?: CancellationKind/g) || []).length, 2);              // the lesson cancel and «Урока не было»
+});
+
+test("3. only the owner and the administrator choose the kind; a teacher sends nothing", () => {
+  assert.equal(F.canChooseCancellationKind({ org_role: "owner" }), true);
+  assert.equal(F.canChooseCancellationKind({ org_role: "admin" }), true);
+  assert.equal(F.canChooseCancellationKind({ org_role: "teacher" }), false);
+  assert.equal(F.canChooseCancellationKind({ org_role: null }), false);
+  assert.equal(F.canChooseCancellationKind(null), false);
+  assert.deepEqual(F.cancellationKindBody("holiday", true), { cancellationKind: "holiday" });
+  assert.deepEqual(F.cancellationKindBody("holiday", false), {});                                    // never «holiday» from a teacher: the server would answer 403
+  assert.deepEqual(F.cancellationKindBody("centre", false), {});
+  assert.equal(F.canChangeKind(true, "centre"), true);
+  assert.equal(F.canChangeKind(true, "holiday"), true);
+  assert.equal(F.canChangeKind(true, "day_off"), false);                                             // a day off: change the day off
+  assert.equal(F.canChangeKind(true, null), false);                                                  // an old cancellation or a move has no kind
+  assert.equal(F.canChangeKind(false, "centre"), false);
+});
+
+test("2. the lesson sheet: every step starts clean (the reducer the sheet runs on)", () => {
+  const { sheetReducer, FRESH_DRAFT } = require(path.join(root, "src/lib/cancel-sheet.ts"));
+  let draft = FRESH_DRAFT;
+  const run = (action) => { draft = sheetReducer(draft, action); return draft; };
+  run({ type: "open", mode: "cancel" });
+  run({ type: "reason", reason: "Нет света" });
+  run({ type: "kind", kind: "holiday" });
+  assert.deepEqual(draft, { mode: "cancel", reason: "Нет света", kind: "holiday" });
+  run({ type: "mode", mode: "menu" });                                                               // «Назад»: only the step changes
+  assert.deepEqual(draft, { mode: "menu", reason: "Нет света", kind: "holiday" });
+  run({ type: "open", mode: "cancel" });                                                             // the next time the dialog opens it is clean
+  assert.deepEqual(draft, { mode: "cancel", reason: "", kind: "centre" });
+  run({ type: "kind", kind: "holiday" });
+  run({ type: "close" });                                                                            // closing forgets everything
+  assert.deepEqual(draft, FRESH_DRAFT);
+  assert.equal(FRESH_DRAFT.kind, "centre");
+  run({ type: "open", mode: "cancel" });
+  run({ type: "kind", kind: "holiday" });
+  run({ type: "reset" });                                                                            // after a save
+  assert.deepEqual(draft, { mode: "cancel", reason: "", kind: "centre" });
+  run({ type: "open", mode: "kind", kind: "holiday" });                                              // «Изменить причину» starts from the kind it is changed to
+  assert.deepEqual(draft, { mode: "kind", reason: "", kind: "holiday" });
+  assert.match(read("src/components/groups/lesson-action-sheet.tsx"), /useReducer\(sheetReducer, FRESH_DRAFT\)/);
 });
 
 test("3. the deduction: «−46 000 сум: урок 21.10 отменён центром»; the statement row, the tile and the identity know it", () => {
@@ -126,13 +166,14 @@ test("3. the deduction: «−46 000 сум: урок 21.10 отменён цен
     details: { allocations: [], recalc: line }, voided_at: null, voided_by_name: null, void_reason: null };
   assert.equal(L.STATEMENT_TYPE_LABEL.recalc, "Перерасчёт");
   assert.equal(plain(L.effectText(row)), "+46 000");
-  assert.deepEqual(L.statementRowNotes(row), [line.text]);
   const norm = L.normalizeStatement({ membership: {}, as_of: "2026-10-25", mode: "calendar", accounting_start: "2026-09-01", summary, rows: [row], voided: [], upcoming: [] });
   assert.equal(norm.summary.recalculated, 46000);
   assert.equal(norm.rows[0].details.recalc.text, line.text);
   const entries = L.buildStatementItems(norm, null).filter((item) => item.kind === "row");
   assert.equal(entries[0].title, "Перерасчёт: урок 21.10 отменён центром");
   assert.equal(entries[0].tag, "перерасчёт");
+  assert.equal(plain(entries[0].sub), "−46 000 сум");                                                 // the title names the lesson, the quiet line carries the amount only
+  assert.deepEqual(L.statementRowNotes(row).map(plain), ["−46 000 сум"]);
   assert.equal(entries[0].paid, 46000);
   assert.equal(L.statementIconKind({ type: "recalc", cancelled: false, replaced: null }), "writeoff");
 });
@@ -206,7 +247,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
     "src/app/admin/settings/page.tsx": 107 + 6, "src/components/payments/payment-dialog.tsx": 459 + 3, "src/components/payments/receipt-view.tsx": 297 + 3,
-    "src/components/groups/lesson-action-sheet.tsx": 338 + 5 };
+    "src/components/groups/lesson-action-sheet.tsx": 338 + 26 };
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
 
@@ -225,11 +266,13 @@ test("the small components render their words", () => {
   assert.equal(html(React.createElement(RecalcNote, { lines: undefined })), "");
 
   const { CancellationKindField } = require(path.join(root, "src/components/attendance/cancellation-kind-field.tsx"));
-  const field = html(React.createElement(CancellationKindField, { value: "centre", onChange() {} }));
+  const field = html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true }));
   assert.match(field, /По вине центра/);
   assert.match(field, /Праздник, выходной/);
-  assert.match(field, /Перерасчёта не будет|заболел преподаватель/);
-  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {} })), /Перерасчёта не будет/);
+  assert.match(field, /заболел преподаватель/);
+  assert.match(field, /aria-describedby="[^"]+"/);                                                   // the hint is tied to the field and to its radios
+  assert.match(html(React.createElement(CancellationKindField, { value: "holiday", onChange() {}, canChooseKind: true })), /Перерасчёта не будет/);
+  assert.equal(html(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: false })), "");     // a teacher sees no choice
 
   const { CentreCancelSetting } = require(path.join(root, "src/components/payments/centre-cancel-setting.tsx"));
   const setting = html(React.createElement(CentreCancelSetting, { value: false, onChange() {} }));
@@ -253,4 +296,39 @@ test("the panel of the days off renders (before the list arrives) and the dialog
   assert.match(html, /деньги по ним не пересчитываются/);
   const { DayOffDialog } = require(path.join(root, "src/components/schedule/day-off-dialog.tsx"));
   assert.equal(renderToStaticMarkup(React.createElement(DayOffDialog, { open: false, onClose() {}, onDone() {} })), "");              // closed: nothing
+});
+
+
+test("1. the forecast says «прогноз недоступен» when the server sent an empty day for a package that is not over", () => {
+  assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: null }), "прогноз недоступен");
+  assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: null }), "осталось 12 уроков из 12 · прогноз недоступен");
+  assert.equal(F.forecastText({ ...PACKAGE, paid_through_forecast: undefined }), "");                  // an older server: no field, no word
+  assert.equal(F.forecastText({ ...PACKAGE, lessons_left: 0, paid_through_forecast: null }), "пакет закончился");
+});
+
+test("2. the dry run of a day off asks for the dates only; the dialog's lists and notes", () => {
+  assert.deepEqual(F.dayOffPreviewBody({ dateFrom: "2026-10-21", dateTo: "" }), { dateFrom: "2026-10-21", dateTo: "2026-10-21" });
+  assert.equal(F.dayOffDatesError({ dateFrom: "2026-10-21", dateTo: "2026-11-04" }), "Выходной — не больше 14 дней подряд");
+  assert.equal(F.dayOffDatesError({ dateFrom: "2026-10-21", dateTo: "" }), null);                    // no reason is needed to look
+  assert.equal(F.dayOffError({ dateFrom: "2026-10-21", dateTo: "", reason: "" }), "Укажите причину: не короче 3 символов");
+  const dialog = read("src/components/schedule/day-off-dialog.tsx");
+  assert.match(dialog, /\[open, datesProblem, key\]/);                                                // the effect does not depend on the reason
+  assert.match(dialog, /orgApi\.previewDayOff\(dayOffPreviewBody\(form\)\)/);
+  assert.match(dialog, /tabIndex=\{0\} aria-label=\{title\}/);                                       // the scrolling list is reachable and named
+  assert.equal(F.EXAMS_NOTE, "Экзамены, снятые с уроков, при отмене выходного не вернутся — назначьте заново");
+  assert.match(dialog, /day-off-exams-note/);
+  assert.match(read("src/components/schedule/days-off-panel.tsx"), /day-off-void-exams-note/);
+  assert.match(read("src/components/schedule/days-off-panel.tsx"), /orgApi\.applyDayOff\(unfinished\.id\)/);          // «Продолжить» finishes a day off the exam-service stopped
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { DayOffLessonList } = require(path.join(root, "src/components/schedule/day-off-dialog.tsx"));
+  const list = renderToStaticMarkup(React.createElement(DayOffLessonList, { title: "Не будут отменены", tone: "warn", testId: "x", lessons: [{ groupId: "g", groupName: "Группа 5", lessonId: "l", date: "2026-10-21", startTime: "10:00", endTime: "11:00", reason: "У урока идёт экзамен" }] }));
+  assert.match(list, /tabindex="0"/);
+  assert.match(list, /aria-label="Не будут отменены"/);
+  assert.match(list, /Группа 5 · 21\.10 10:00 — У урока идёт экзамен/);
+});
+
+test("4. the names are the frozen contract with the server: PAYMENT_MODELS = tests/fixtures/payf-mode-names.json (a copy of auth's mode_names.json)", () => {
+  const contract = JSON.parse(read("tests/fixtures/payf-mode-names.json"));
+  assert.deepEqual(P.PAYMENT_MODELS.map((m) => ({ key: m.key, title: m.title, hint: m.hint })), contract);
 });
