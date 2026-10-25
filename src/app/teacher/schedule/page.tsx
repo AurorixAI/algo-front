@@ -17,7 +17,7 @@ import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
-import { canFinishLessonNow, clockMinutes, serverErrorMessage } from "@/lib/lesson-actions";
+import { canFinishLessonNow, serverErrorMessage } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import {
   Calendar as CalendarIcon,
@@ -47,21 +47,22 @@ import {
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
 import {
-  roomForSave, validFromBadge, validFromError,
+  validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
-import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
+import { scheduleErrorText } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
 import { narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { RequestControl } from "@/components/substitutions/request-control";
+import { TeacherMoveControl } from "@/components/substitutions/teacher-move-control";
+import { useToast } from "@/components/ui/toast";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
-import { TimeInput } from "@/components/ui/time-input";
 import { LessonScopeFields, LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
 import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
@@ -173,6 +174,7 @@ function getLessonTimeStatus(
 
 export default function TeacherSchedulePage() {
   const { user } = useAuthStore();
+  const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -244,13 +246,6 @@ export default function TeacherSchedulePage() {
     examTitle?: string;
     message?: string | null;
   } | null>(null);
-  const [isReschedulingLesson, setIsReschedulingLesson] = useState(false);
-  const [rescheduleStartTime, setRescheduleStartTime] = useState("");
-  const [rescheduleEndTime, setRescheduleEndTime] = useState("");
-  const [rescheduleRoom, setRescheduleRoom] = useState("");
-  const [rescheduleFormat, setRescheduleFormat] = useState<"offline" | "online">("offline");
-  const [rescheduleTopic, setRescheduleTopic] = useState("");
-  const [rescheduleReason, setRescheduleReason] = useState("");
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
   const [clockTick, setClockTick] = useState(0);
   const [liveExams, setLiveExams] = useState<LiveExamDashboardSummary[]>([]);
@@ -422,7 +417,8 @@ export default function TeacherSchedulePage() {
   // closing before this window listener runs: the state would then already say «no dialog» and the panel would close with the same key.
   // So the question «is a dialog above the panel?» is asked in the capture phase, before any of them has reacted.
   const weeklyDialogOpenRef = useRef(false);
-  weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson || moveDialogOpen);
   const escapeBelongsToDialogRef = useRef(false);
   useEffect(() => {
     const noteKey = (e: KeyboardEvent) => { if (e.key === "Escape") escapeBelongsToDialogRef.current = weeklyDialogOpenRef.current; };
@@ -547,7 +543,6 @@ export default function TeacherSchedulePage() {
     setActiveLessonView(view);
     setActiveLessonStatus("scheduled");
     setIsCancellingLesson(false);
-    setIsReschedulingLesson(false);
     setCancellationReason("");
   }, [scheduleDataUnavailable]);
 
@@ -969,69 +964,9 @@ export default function TeacherSchedulePage() {
     }
   };
 
-  const openRescheduleModal = () => {
-    if (!activeLesson) return;
-    setRescheduleStartTime(activeLesson.startTime);
-    setRescheduleEndTime(activeLesson.endTime);
-    setRescheduleRoom(activeLesson.room || "");
-    setRescheduleFormat(activeLesson.format || "offline");
-    setRescheduleTopic(activeLesson.topic || "");
-    setRescheduleReason("");
-    setAttendanceError(null);
-    setIsCancellingLesson(false);
-    setIsReschedulingLesson(true);
-  };
-
-  const handleRescheduleLesson = async () => {
-    if (!activeLesson) return;
-    const reason = rescheduleReason.trim();
-    if (reason.length < 3) {
-      setAttendanceError("Укажите понятную причину переноса урока.");
-      return;
-    }
-
-    setAttendanceError(null);
-    setSavingAttendance(true);
-    try {
-      const updated = await orgApi.rescheduleLessonOccurrence(activeLesson.id, {
-        lessonDate: activeLesson.occurrenceDate,
-        startTime: rescheduleStartTime,
-        endTime: rescheduleEndTime,
-        room: roomForSave(rescheduleRoom) ?? undefined,
-        format: rescheduleFormat,
-        topic: rescheduleTopic || undefined,
-        reason,
-      });
-      const replaceOccurrence = (item: LessonOccurrence) =>
-        item.id === updated.id && item.occurrenceDate === updated.occurrenceDate ? updated : item;
-      setTodayOccurrences((previous) => previous.map(replaceOccurrence));
-      setWeekOccurrences((previous) => previous.map(replaceOccurrence));
-      setActiveLesson(updated);
-      setIsReschedulingLesson(false);
-      setScheduleNotices(warningTexts(updated));
-    } catch (err) {
-      console.error("Failed to reschedule lesson:", err);
-      setAttendanceError(scheduleErrorText(err, "Не удалось перенести урок. Расписание и посещаемость не изменены."));
-    } finally {
-      setSavingAttendance(false);
-    }
-  };
-
-  /**
-   * Today is deliberately a different operation from a schedule change.
-   * A transfer is allowed only before the one-hour cut-off and only while
-   * this concrete occurrence has no attendance lifecycle yet.
-   */
   // The time windows of the lesson panel's buttons (the last minutes of a lesson, the hour before its start) move
   // with the clock, not with the click that opened the panel: re-read every 30 s while a panel is open.
   const panelClock = useNow(30_000, Boolean(activeLesson));
-  const canRescheduleToday = useMemo(() => {
-    if (!activeLesson || activeLessonView !== "today" || !activeLesson.startTime) return false;
-    const at = new Date(panelClock);
-    if (activeLessonStatus !== "scheduled" || activeLesson.occurrenceDate !== formatBusinessDate(at)) return false;
-    return businessTimeMinutes(at) < clockMinutes(activeLesson.startTime) - 60;
-  }, [activeLesson, activeLessonStatus, activeLessonView, panelClock]);
-
   // Week mode never rewrites the displayed occurrence. It opens a versioned
   // recurring change whose effect starts on a future date selected by teacher.
   // A substitute holds this one lesson: the recurring schedule of the group is not his to change.
@@ -2395,20 +2330,41 @@ export default function TeacherSchedulePage() {
 
               {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
               {!loadingStudents && (
-                <RequestControl
-                  lesson={{
-                    groupId: activeLesson.groupId,
-                    groupName: activeLesson.groupName,
-                    lessonId: activeLesson.id,
-                    lessonDate: activeLesson.occurrenceDate,
-                    startTime: activeLesson.startTime,
-                    endTime: activeLesson.endTime,
-                  }}
-                  mark={activeRequestMark}
-                  lessonTeacherId={activeTeacherInfo?.teacherId}
-                  lessonStatus={activeLessonStatus}
-                  onChanged={() => { void loadData(); }}
-                />
+                <>
+                  <RequestControl
+                    lesson={{
+                      groupId: activeLesson.groupId,
+                      groupName: activeLesson.groupName,
+                      lessonId: activeLesson.id,
+                      lessonDate: activeLesson.occurrenceDate,
+                      startTime: activeLesson.startTime,
+                      endTime: activeLesson.endTime,
+                    }}
+                    mark={activeRequestMark}
+                    lessonTeacherId={activeTeacherInfo?.teacherId}
+                    lessonStatus={activeLessonStatus}
+                    onChanged={() => { void loadData(); }}
+                  />
+                  {/* P1.1: the teacher moves his own lesson ahead of time (the administrator's dialog) */}
+                  <TeacherMoveControl
+                    lesson={{
+                      groupId: activeLesson.groupId,
+                      groupName: activeLesson.groupName,
+                      lessonId: activeLesson.id,
+                      lessonDate: activeLesson.occurrenceDate,
+                      startTime: activeLesson.startTime,
+                      endTime: activeLesson.endTime,
+                      room: activeLesson.room,
+                      format: activeLesson.format,
+                      topic: activeLesson.topic,
+                    }}
+                    lessonTeacherId={activeTeacherInfo?.teacherId}
+                    isSubstitution={activeTeacherInfo?.isSubstitution}
+                    lessonStatus={activeLessonStatus}
+                    onDialogChange={setMoveDialogOpen}
+                    onMoved={(text) => { setActiveLesson(null); if (text) showToast(text); void reloadAfterWeeklyChange(); }}
+                  />
+                </>
               )}
 
               {/* Attendance Section */}
@@ -2809,41 +2765,6 @@ export default function TeacherSchedulePage() {
                 </div>
               )}
 
-              {isReschedulingLesson && canRescheduleToday && (
-                <div className="mb-5 rounded-2xl border border-primary-200 bg-primary-50/70 p-4 space-y-3">
-                  <div>
-                    <p className="text-sm font-bold text-primary-950">Перенести урок только на сегодня</p>
-                    <p className="text-xs text-primary-800 mt-0.5">Будущие занятия не меняются. Посещаемость останется привязана к этому же уроку и будет доступна в новое время.</p>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="text-xs font-semibold text-slate-700">Начало
-                      <TimeInput value={rescheduleStartTime} onChange={(next) => setRescheduleStartTime(next)} required wrapperClassName="mt-1" className="rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
-                    </label>
-                    <label className="text-xs font-semibold text-slate-700">Окончание
-                      <TimeInput value={rescheduleEndTime} onChange={(next) => setRescheduleEndTime(next)} required wrapperClassName="mt-1" className="rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
-                    </label>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label className="text-xs font-semibold text-slate-700">Формат
-                      <Select value={rescheduleFormat} onChange={(event) => setRescheduleFormat(event.target.value as "offline" | "online")} options={[{ value: "offline", label: "Офлайн" }, { value: "online", label: "Онлайн" }]} className="mt-1" buttonClassName="border-primary-200 bg-white px-3 py-2 text-sm" />
-                    </label>
-                    <label className="text-xs font-semibold text-slate-700">Аудитория
-                      <input type="text" value={rescheduleRoom} onChange={(event) => setRescheduleRoom(event.target.value)} maxLength={200} className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
-                    </label>
-                  </div>
-                  <label className="block text-xs font-semibold text-slate-700">Тема урока (при необходимости)
-                    <input type="text" value={rescheduleTopic} onChange={(event) => setRescheduleTopic(event.target.value)} maxLength={300} className="mt-1 w-full rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
-                  </label>
-                  <label className="block text-xs font-semibold text-slate-700">Причина переноса
-                    <textarea value={rescheduleReason} onChange={(event) => setRescheduleReason(event.target.value)} maxLength={500} rows={2} placeholder="Например: аудитория занята" className="mt-1 w-full resize-none rounded-xl border border-primary-200 bg-white px-3 py-2 text-sm outline-none focus:border-primary-500" />
-                  </label>
-                  <div className="flex justify-end gap-2">
-                    <button type="button" onClick={() => setIsReschedulingLesson(false)} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg">Не переносить</button>
-                    <button type="button" onClick={handleRescheduleLesson} disabled={savingAttendance || rescheduleReason.trim().length < 3} className="px-3 py-1.5 text-xs font-bold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 rounded-lg">Подтвердить перенос</button>
-                  </div>
-                </div>
-              )}
-
               {/* The marking list shows its own copy of the error; every other step shows it here. */}
               {!isMarkingAttendance && <LessonPanelError message={attendanceError} />}
 
@@ -2852,15 +2773,7 @@ export default function TeacherSchedulePage() {
               {!isMarkingAttendance && (
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2">
-                  {canRescheduleToday ? (
-                    <button
-                      type="button"
-                      onClick={openRescheduleModal}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-primary-700 bg-primary-50 hover:bg-primary-100 rounded-xl transition-colors"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" /> Перенести урок
-                    </button>
-                  ) : canReviseRecurringSchedule ? (
+                  {canReviseRecurringSchedule ? (
                     <button
                       type="button"
                       onClick={() => openEditModal(activeLesson)}
@@ -2881,7 +2794,7 @@ export default function TeacherSchedulePage() {
                     ) : null
                   )}
 
-                  {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson)) && (
+                  {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson)) && (
                     <div className="shrink-0">
                       <button
                         type="button"
@@ -2943,7 +2856,7 @@ export default function TeacherSchedulePage() {
         zIndexClass="z-[100001]"
         className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
       >
-            {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
+            {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && (
               <button
                 type="button"
                 role="menuitem"
@@ -2986,7 +2899,7 @@ export default function TeacherSchedulePage() {
                 </span>
               </button>
             )}
-            {canReviseRecurringSchedule && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && !isReschedulingLesson && (
+            {canReviseRecurringSchedule && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && (
               <div className="mx-2 my-1 border-t border-slate-100" />
             )}
             {canReviseRecurringSchedule && (

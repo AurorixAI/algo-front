@@ -80,7 +80,7 @@ export interface SubstitutionDecision {
   by?: PersonRef | null;
   /** Naive UTC. */
   at?: string | null;
-  via?: "request" | "lesson_teacher_put" | "system" | "withdraw" | string | null;
+  via?: "request" | "teacher_move" | "lesson_teacher_put" | "system" | "withdraw" | string | null;
   /** The reason of a rejection / a cancellation / a move, or the comment of a substitution. */
   note?: string | null;
   substitute?: PersonRef | null;

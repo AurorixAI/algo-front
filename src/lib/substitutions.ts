@@ -221,6 +221,11 @@ export function decidedByLine(item: SubstitutionItem): string {
   if (decision.via === "system" || decision.kind === "closed") return short ? `Закрыто системой, ${short}` : "Закрыто системой";
   if (decision.kind === "withdraw" || item.status === "withdrawn") return short ? `Отозван учителем, ${short}` : "Отозван учителем";
   const by = (decision.by?.name ?? "").trim();
+  // P1.1: a move says WHO moved the lesson: the teacher himself or an administrator
+  if (item.status === "rescheduled") {
+    const who = `${decision.via === "teacher_move" ? "преподаватель" : "администратор"}${by ? ` ${by}` : ""}`;
+    return [`Перенёс: ${who}`, short].filter(Boolean).join(", ");
+  }
   return [by ? `Решил(а) ${by}` : "", short].filter(Boolean).join(", ");
 }
 
@@ -432,6 +437,33 @@ export function requestControl(input: {
   if (input.lessonStatus && input.lessonStatus !== "scheduled") return { kind: "none" };
   if (input.startsAtMs === null || input.startsAtMs <= input.nowMs) return { kind: "none" };
   return { kind: "button" };
+}
+
+/** P1.1: the teacher moves his own lesson only while more than this is left before it starts (the server's `MOVE_TOO_LATE`). */
+export const TEACHER_MOVE_LEAD_MS = 60 * 60_000;
+export const MOVE_TOO_LATE_HINT = "Перенести можно не позднее чем за 60 минут до начала";
+
+export type TeacherMoveControl = { kind: "none" } | { kind: "button" } | { kind: "late" };
+
+/**
+ * «Перенести урок» is on the teacher's own future lesson (not a substitution of one lesson, not started, not cancelled): a button while more than
+ * 60 minutes are left, then the hint `MOVE_TOO_LATE_HINT` (and «Не смогу провести» stays).  A waiting request of his own does not hide it: the move closes it.
+ */
+export function teacherMoveControl(input: {
+  role: string | null | undefined;
+  userId: string | null | undefined;
+  /** Who teaches the lesson; absent = the lesson is the viewer's own as far as we know (the server has the last word). */
+  lessonTeacherId?: string | null;
+  isSubstitution?: boolean;
+  lessonStatus: string | null | undefined;
+  startsAtMs: number | null;
+  nowMs: number;
+}): TeacherMoveControl {
+  if (input.role !== "teacher" || input.isSubstitution) return { kind: "none" };
+  if (input.lessonTeacherId && input.userId && input.lessonTeacherId !== input.userId) return { kind: "none" };
+  if (input.lessonStatus && input.lessonStatus !== "scheduled") return { kind: "none" };
+  if (input.startsAtMs === null || input.startsAtMs <= input.nowMs) return { kind: "none" };
+  return input.startsAtMs - input.nowMs > TEACHER_MOVE_LEAD_MS ? { kind: "button" } : { kind: "late" };
 }
 
 /** The planned start of a lesson as an instant (the organisation's clock); null when the date or the time is unreadable. */

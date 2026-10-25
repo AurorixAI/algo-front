@@ -138,7 +138,7 @@ test("both pages feed the rule from useNow while a panel is open, not from a val
   assert.match(schedule, /const panelClock = useNow\(30_000, Boolean\(activeLesson\)\)/);
   assert.match(scheduleMemo, /canFinishLessonNow\(/);
   assert.match(scheduleMemo, /businessTimeMinutes\(at\)/);
-  // the one-hour reschedule cut-off moves with the same clock
-  assert.match(between(schedule, "const canRescheduleToday = useMemo(() => {", "panelClock]);"), /businessTimeMinutes\(at\)/);
+  // P1.1: the one-hour cut-off of the teacher's move moves with the same kind of clock (the control reads useNow itself)
+  assert.match(read("components/substitutions/teacher-move-control.tsx"), /const now = useNow\(30_000, true\)/);
   assert.doesNotMatch(schedule, /businessTimeMinutes\(\) < startMinutes - 60/);
 });

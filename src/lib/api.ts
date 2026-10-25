@@ -1556,18 +1556,6 @@ export const orgApi = {
   }) => api<ScheduleOccurrence>(`/auth/org/schedule/occurrences`, { method: "POST", body: data }),
   updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
     api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}`, { method: "PUT", body: data }),
-  rescheduleLessonOccurrence: (
-    lessonId: string,
-    data: {
-      lessonDate: string;
-      startTime?: string;
-      endTime?: string;
-      room?: string;
-      format?: "offline" | "online";
-      topic?: string;
-      reason: string;
-    },
-  ) => api<ScheduleOccurrence>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/reschedule`, { method: "POST", body: data }),
   reviseRecurringLesson: (
     lessonId: string,
     data: Partial<LessonEvent> & { effectiveFrom: string; reason: string },

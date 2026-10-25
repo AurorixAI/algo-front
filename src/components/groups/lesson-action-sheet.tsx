@@ -27,6 +27,8 @@ const FIELD = "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 const REASON_MIN = 3;
 const REASON_MAX = 500;
+const NO_NOTES: string[] = [];
+const NO_MARKS: LessonMark[] = [];
 
 type Mode = "menu" | "reschedule" | "cancel";
 
@@ -36,11 +38,13 @@ type Mode = "menu" | "reschedule" | "cancel";
  * «Отметить посещаемость» / «Назначить того, кто провёл»; a held one - «Открыть в журнале».  A phone gets the same as a card at the
  * bottom of the screen (the dialog of the project).  The assignment itself is the dialog of LOGIC-B (`LessonTeacherDialog`).
  *
+ * P1.1: the teacher moves HIS lesson with the same form (`moveOnly`: the sheet holds nothing but the move; see `TeacherMoveControl`).
+ *
  * #124: «Перенести урок» moves the lesson to ANY date (`lesson-move`, with a live check of the new time); «Отменить урок» first asks
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -51,14 +55,18 @@ export function LessonActionSheet({
   /** «Ведёт: Коллега У. — замена за Основной У.» */
   teacherLine: string | null;
   /** Where a moved lesson went, the reason of a move / a cancellation in full. */
-  notes: string[];
-  marks: LessonMark[];
+  notes?: string[];
+  marks?: LessonMark[];
   actions: ScheduleCardAction[];
-  assignLabel: string;
+  assignLabel?: string;
   requestHref?: (requestId: string) => string;
+  /** P1.1, the teacher's own move: the sheet opens straight on the form of the move and «Назад» closes it. */
+  moveOnly?: boolean;
+  /** The sheet opens over the teacher's lesson panel. */
+  aboveLessonPanel?: boolean;
   onClose: () => void;
-  onAssign: () => void;
-  onJournal: () => void;
+  onAssign?: () => void;
+  onJournal?: () => void;
   /** «Изменить постоянный урок» / «Прекратить урок»: the weekly lesson of this one (the page opens its dialogs). */
   onEditSeries?: () => void;
   onEndSeries?: () => void;
@@ -114,6 +122,10 @@ export function LessonActionSheet({
     if (next === "cancel") loadBinding();
     setMode(next);
   };
+
+  const lessonKey = lesson ? `${lesson.id}|${lesson.date}` : null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- opens once per lesson, not at every render of the parent
+  useEffect(() => { if (moveOnly && lessonKey) open("reschedule"); }, [moveOnly, lessonKey]);
 
   // the live check of the new time, with a pause for typing
   const from = normalizeTime(start);
@@ -206,11 +218,12 @@ export function LessonActionSheet({
       onClose={close}
       busy={busy}
       maxWidthClassName="max-w-md"
+      aboveLessonPanel={aboveLessonPanel}
       footer={mode === "menu" ? (
         <button type="button" onClick={close} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Закрыть</button>
       ) : (
         <>
-          <button type="button" onClick={() => { setMode("menu"); setError(null); }} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
+          <button type="button" onClick={() => { if (moveOnly) close(); else { setMode("menu"); setError(null); } }} disabled={busy} className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50">Назад</button>
           <button
             type="button"
             onClick={() => void submit()}
@@ -240,19 +253,19 @@ export function LessonActionSheet({
                 {actions.map((action) => {
                   switch (action) {
                     case "assign":
-                      return <button key={action} type="button" onClick={onAssign} className={ACTION_BUTTON}><UserRoundCheck className="h-4 w-4 text-violet-600" />{assignLabel}</button>;
+                      return <button key={action} type="button" onClick={() => onAssign?.()} className={ACTION_BUTTON}><UserRoundCheck className="h-4 w-4 text-violet-600" />{assignLabel}</button>;
                     case "reschedule":
                       return <button key={action} type="button" onClick={() => open("reschedule")} className={ACTION_BUTTON}><CalendarClock className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.reschedule}</button>;
                     case "cancel":
                       return <button key={action} type="button" onClick={() => open("cancel")} className={ACTION_BUTTON}><Ban className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.cancel}</button>;
                     case "mark":
-                      return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
+                      return <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
                     case "editSeries":
                       return <button key={action} type="button" onClick={onEditSeries} disabled={seriesPending !== null} className={`${ACTION_BUTTON} disabled:cursor-wait disabled:opacity-70`}>{seriesPending === "edit" ? <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> : <Pencil className="h-4 w-4 text-primary-600" />}{SCHEDULE_ACTION_LABEL.editSeries}</button>;
                     case "endSeries":
                       return <button key={action} type="button" onClick={onEndSeries} disabled={seriesPending !== null} className={`${ACTION_BUTTON} disabled:cursor-wait disabled:opacity-70`}>{seriesPending === "end" ? <Loader2 className="h-4 w-4 animate-spin text-rose-600" /> : <X className="h-4 w-4 text-rose-600" />}{SCHEDULE_ACTION_LABEL.endSeries}</button>;
                     case "journal":
-                      return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ExternalLink className="h-4 w-4 text-slate-500" />{SCHEDULE_ACTION_LABEL.journal}</button>;
+                      return <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ExternalLink className="h-4 w-4 text-slate-500" />{SCHEDULE_ACTION_LABEL.journal}</button>;
                   }
                 })}
               </div>
