@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { User, Lock, Save } from "lucide-react";
+import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 
 export default function AdminSettingsPage() {
   const { user, updateUser } = useAuthStore();
@@ -46,6 +47,9 @@ export default function AdminSettingsPage() {
       {msg && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-xl bg-primary-50 text-primary-700 text-sm">{msg}</motion.div>
       )}
+
+      {/* PAY-F: «Выходной день центра» (owner and administrator) */}
+      <DaysOffPanel />
 
       {/* Profile */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm">

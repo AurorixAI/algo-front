@@ -27,6 +27,7 @@ import type {
   WithdrawBatchOut,
 } from "./substitution-types";
 import { loginUrlForPage } from "./safe-redirect";
+import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
   EnrolPriceOverride,
@@ -1014,6 +1015,8 @@ export interface GroupAttendance {
   records: Record<string, Record<string, AttendanceStatus>>; // instance_key -> student_id -> status
   statuses?: Record<string, LessonAttendanceStatus>; // instance_key -> status
   cancellationReasons?: Record<string, string>; // instance_key -> teacher-provided reason
+  /** PAY-F: instance_key -> `centre` | `holiday` | `day_off` (cancelled by a day off of the centre); a cancellation without a kind (old / a move) is absent. */
+  cancellationKinds?: Record<string, string>;
   /** Roster frozen when the concrete lesson was started. */
   rosterStudentIds?: Record<string, string[]>;
   /** Transferred-out students with attendance in the selected period. */
@@ -1606,6 +1609,8 @@ export const orgApi = {
       records: Record<string, AttendanceStatus>;
       correctionReason?: string;
       cancellationReason?: string;
+      /** PAY-F: only with a cancellation; absent = «по вине центра». */
+      cancellationKind?: CancellationKind;
       /** student_id -> reason (3..300) for every newly "excused" student. */
       excuseReasons?: Record<string, string>;
       /** LOGIC-B (O7): the version this screen saw; another one on the server answers 409 ATTENDANCE_CONFLICT. */
@@ -1630,9 +1635,22 @@ export const orgApi = {
 
   cancelMissedGroupAttendance: (
     groupId: string,
-    data: { lessonDate: string; lessonId: string; cancellationReason: string },
+    data: { lessonDate: string; lessonId: string; cancellationReason: string; cancellationKind?: CancellationKind },
   ) =>
     api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+
+  // ── PAY-F: «Выходной день центра» (owner / admin) ───────────────────────
+  previewDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo">) =>
+    api<DayOffPlan>("/auth/org/days-off/preview", { method: "POST", body }),
+  createDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo" | "reason">) =>
+    api<DayOffApplied>("/auth/org/days-off", { method: "POST", body }),
+  applyDayOff: (id: string) => api<DayOffApplied>(`/auth/org/days-off/${encodePathId(id)}/apply`, { method: "POST" }),
+  changeCancellationKind: (groupId: string, body: { lessonDate: string; lessonId: string; cancellationKind: CancellationKind; reason: string }) =>
+    api<{ ok: boolean; changed: boolean; cancellationKind: CancellationKind; version: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/cancellation-kind`, { method: "PUT", body }),
+  listDaysOff: () => api<DayOffOut[]>("/auth/org/days-off"),
+  dayOffForDate: (date: string) => api<DayOffForDate>(`/auth/org/days-off/for-date?date=${encodeURIComponent(date)}`),
+  voidDayOff: (id: string, dryRun = false) =>
+    api<DayOffVoided>(`/auth/org/days-off/${encodePathId(id)}/void${dryRun ? "?dry_run=true" : ""}`, { method: "POST" }),
 
   // ── Excused absences (admin / owner) ──────────────────────────────────
   listAttendanceExcuses: (q: AttendanceExcuseQuery = {}) => {

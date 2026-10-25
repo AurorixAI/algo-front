@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, Pencil, RefreshCw, UserRoundCheck, X } from "lucide-react";
 import { orgApi, substitutionsApi, type Lesson } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
@@ -20,6 +20,11 @@ import {
 } from "@/lib/schedule-card-actions";
 import type { LessonMark } from "@/lib/substitutions";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
+import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
+import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
+import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { ChangeKindForm } from "./change-kind-form";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
 
@@ -29,8 +34,6 @@ const REASON_MIN = 3;
 const REASON_MAX = 500;
 const NO_NOTES: string[] = [];
 const NO_MARKS: LessonMark[] = [];
-
-type Mode = "menu" | "reschedule" | "cancel";
 
 /**
  * The sheet of one lesson of the group's week schedule (owner / administrator).  The card is information only; this is where the
@@ -44,7 +47,7 @@ type Mode = "menu" | "reschedule" | "cancel";
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -64,6 +67,8 @@ export function LessonActionSheet({
   moveOnly?: boolean;
   /** The sheet opens over the teacher's lesson panel. */
   aboveLessonPanel?: boolean;
+  /** PAY-F: the kind of the cancellation of this lesson as the journal sends it (`centre` | `holiday` | `day_off`; none = an old cancellation or a move). */
+  cancellationKind?: string | null;
   onClose: () => void;
   onAssign?: () => void;
   onJournal?: () => void;
@@ -78,8 +83,14 @@ export function LessonActionSheet({
   /** «Урок уже изменили — обновите»: the schedule is read again and the sheet closes. */
   onRefresh?: () => void;
 }) {
-  const [mode, setMode] = useState<Mode>("menu");
-  const [reason, setReason] = useState("");
+  // the step, the reason and the kind in ONE reducer: every step starts clean (`lib/cancel-sheet.ts`, tested)
+  const [draft, dispatch] = useReducer(sheetReducer, FRESH_DRAFT);
+  const { mode, reason, kind } = draft;
+  const setMode = (next: SheetMode) => dispatch({ type: "mode", mode: next });
+  const setReason = (next: string) => dispatch({ type: "reason", reason: next });
+  const setKind = (next: CancellationKind) => dispatch({ type: "kind", kind: next });
+  const canChooseKind = useCanChooseCancellationKind();
+  const changeKind = canChangeKind(canChooseKind, cancellationKind) ? cancellationKind : null;
   const [newDate, setNewDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -98,7 +109,7 @@ export function LessonActionSheet({
   const lessonStart = lesson ? lesson.startTime || lesson.start_time || "" : "";
   const lessonEnd = lesson?.endTime || "";
 
-  const close = () => { if (busy) return; setMode("menu"); setReason(""); setError(null); setStale(false); onClose(); };
+  const close = () => { if (busy) return; dispatch({ type: "close" }); setError(null); setStale(false); onClose(); };
 
   const loadBinding = useCallback(() => {
     if (!lesson) return;
@@ -108,10 +119,9 @@ export function LessonActionSheet({
       .catch(() => setBinding({ state: "unavailable", canCancel: false, message: "Не удалось проверить экзамены группы. Повторите попытку." }));
   }, [groupId, lesson]);
 
-  const open = (next: Mode) => {
+  const open = (next: SheetMode) => {
     setError(null);
     setStale(false);
-    setReason("");
     setResult(null);
     if (next === "reschedule" && lesson) {
       setNewDate(lesson.date);
@@ -120,7 +130,7 @@ export function LessonActionSheet({
       setRoom(lesson.room || "");
     }
     if (next === "cancel") loadBinding();
-    setMode(next);
+    dispatch({ type: "open", mode: next, kind: next === "kind" && changeKind ? (changeKind === "centre" ? "holiday" : "centre") : undefined });      // «Изменить причину»: starts from the OTHER kind
   };
 
   const lessonKey = lesson ? `${lesson.id}|${lesson.date}` : null;
@@ -186,12 +196,16 @@ export function LessonActionSheet({
         });
         setMode("menu");
         onChanged("Урок перенесён");
+      } else if (mode === "kind") {
+        await orgApi.changeCancellationKind(groupId, { lessonDate: lesson.date, lessonId: lesson.id, cancellationKind: kind, reason: trimmed });
+        setMode("menu");
+        onChanged("Причина отмены изменена");
       } else {
-        await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed });
+        await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, canChooseKind) });
         setMode("menu");
         onChanged("Урок отменён");
       }
-      setReason("");
+      dispatch({ type: "reset" });
     } catch (cause) {
       setStale(isLessonChanged(cause));
       if (mode === "reschedule") {
@@ -231,7 +245,7 @@ export function LessonActionSheet({
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : SCHEDULE_ACTION_LABEL.reschedule}
+            {mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : mode === "kind" ? CHANGE_KIND_BUTTON : SCHEDULE_ACTION_LABEL.reschedule}
           </button>
         </>
       )}
@@ -319,12 +333,22 @@ export function LessonActionSheet({
             </div>
           )}
 
+          {mode === "menu" && changeKind && (
+            <button type="button" data-testid="sheet-change-kind" onClick={() => open("kind")} className={ACTION_BUTTON}>
+              <Pencil className="h-4 w-4 text-slate-500" />{CHANGE_KIND_LABEL}
+              <span className="ml-auto text-xs font-medium text-slate-500">{changeKind === "centre" ? "по вине центра" : "праздник, выходной"}</span>
+            </button>
+          )}
+
+          {mode === "kind" && <ChangeKindForm kind={kind} onKind={setKind} reason={reason} onReason={(next) => { setError(null); setReason(next); }} busy={busy} />}
+
           {mode === "cancel" && (
             <div className="space-y-3">
               <div>
                 <label htmlFor="sheet-reason" className={LABEL}>Причина отмены</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
+              <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} />
               {examState.loading && <p role="status" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Проверяем экзамены группы…</p>}
               {examState.message && (
                 <div data-testid="exam-binding">

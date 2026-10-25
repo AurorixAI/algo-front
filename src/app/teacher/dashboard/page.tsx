@@ -53,6 +53,8 @@ import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
+import { cancellationKindBody, canChooseCancellationKind, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
@@ -306,6 +308,11 @@ export default function TeacherDashboardPage() {
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [cancellationKind, setCancellationKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
+  const canChooseKind = canChooseCancellationKind(user);
+  const [missedLessonKind, setMissedLessonKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
+  useEffect(() => { if (!isCancellingLesson) setCancellationKind(DEFAULT_CANCELLATION_KIND); }, [isCancellingLesson]);       // every cancellation starts with «по вине центра»
+  useEffect(() => { if (!isCancellingMissedLesson) setMissedLessonKind(DEFAULT_CANCELLATION_KIND); }, [isCancellingMissedLesson]);
   const [lessonExamBinding, setLessonExamBinding] = useState<{
     loading: boolean;
     attached: boolean;
@@ -748,6 +755,7 @@ export default function TeacherDashboardPage() {
         lessonDate: missedLessonAction.lessonDate,
         lessonId: missedLessonAction.lessonId,
         cancellationReason: reason,
+        ...cancellationKindBody(missedLessonKind, canChooseKind),
       });
       setOpenAttendanceActions((previous) => previous.filter((action) => !(
         action.actionType === "missed"
@@ -957,6 +965,7 @@ export default function TeacherDashboardPage() {
         status: "cancelled",
         records: {},
         cancellationReason: reason,
+        ...cancellationKindBody(cancellationKind, canChooseKind),
         ...marksOps.versionBody(),
       });
       setActiveInstanceStatus("cancelled");
@@ -2182,6 +2191,7 @@ export default function TeacherDashboardPage() {
                         placeholder="Например: урок не состоялся по болезни преподавателя"
                         className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
                       />
+                      <CancellationKindField canChooseKind={canChooseKind} value={missedLessonKind} onChange={setMissedLessonKind} name="missed-cancellation-kind" disabled={isResolvingMissedLesson} />
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
@@ -2712,6 +2722,7 @@ export default function TeacherDashboardPage() {
                       placeholder="Причина отмены (обязательно)"
                       className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
                     />
+                    <CancellationKindField canChooseKind={canChooseKind} value={cancellationKind} onChange={setCancellationKind} name="dashboard-cancellation-kind" disabled={savingAttendance} />
                     <div className="flex justify-end gap-2">
                       <button
                         type="button"

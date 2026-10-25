@@ -53,6 +53,7 @@ import { groupPriceHref } from "@/lib/group-price";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { SegmentedControl } from "@/components/ui/radio";
+import { RecalcNote } from "./recalc-note";
 
 export type PaymentFormKind = "create" | "replace";
 
@@ -348,6 +349,7 @@ export function PaymentDialog({ open, kind, membership, payment, groupsBasePath,
             ) : calculating || state.loading ? (
               <p className="flex items-center gap-1.5 text-sm text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />{PLAN_LOADING_TEXT}</p>
             ) : null}
+            <RecalcNote lines={latest?.recalc} />
           </section>
 
           {/* 3. Method (its own full-width row: all five on one line; on a phone 3 + 2 of equal width) and, on the next row, the date */}

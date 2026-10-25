@@ -10,6 +10,8 @@ import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
+import { cancellationKindBody, canChooseCancellationKind, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
@@ -239,6 +241,9 @@ export default function TeacherSchedulePage() {
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [cancellationKind, setCancellationKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
+  const canChooseKind = canChooseCancellationKind(user);
+  useEffect(() => { if (!isCancellingLesson) setCancellationKind(DEFAULT_CANCELLATION_KIND); }, [isCancellingLesson]);       // every cancellation starts with «по вине центра»
   const [lessonExamBinding, setLessonExamBinding] = useState<{
     loading: boolean;
     attached: boolean;
@@ -909,6 +914,7 @@ export default function TeacherSchedulePage() {
         status: "cancelled",
         records: {},
         cancellationReason: reason,
+        ...cancellationKindBody(cancellationKind, canChooseKind),
         ...marksOps.versionBody(),
       });
       setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
@@ -2721,6 +2727,7 @@ export default function TeacherSchedulePage() {
                     <p className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs leading-5 font-medium text-rose-800">{lessonExamBinding.message || "Отмена недоступна."}</p>
                   )}
                   <textarea value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} maxLength={500} rows={3} placeholder="Причина отмены (обязательно)" className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400" />
+                  <CancellationKindField canChooseKind={canChooseKind} value={cancellationKind} onChange={setCancellationKind} name="schedule-cancellation-kind" disabled={savingAttendance} />
                   <div className="flex justify-end gap-2">
                     <button type="button" onClick={() => { setIsCancellingLesson(false); setCancellationReason(""); setLessonExamBinding(null); }} className="px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg">Не отменять</button>
                     <button type="button" onClick={handleCancelLesson} disabled={savingAttendance || !lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel || cancellationReason.trim().length < 3} className="px-3 py-1.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 rounded-lg">Подтвердить отмену</button>

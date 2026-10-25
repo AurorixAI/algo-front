@@ -5,6 +5,7 @@ import { Select } from "@/components/ui/select";
 import { TimeInput } from "@/components/ui/time-input";
 import { DateInput } from "@/components/ui/date-input";
 import { formatBusinessDate } from "@/lib/business-time";
+import { DayOffWarning } from "./day-off-warning";
 import { ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, validFromBounds } from "@/lib/schedule-slots";
 import {
   COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, isEndTyped, startTimePatch, toggleDay,
@@ -215,6 +216,7 @@ export function LessonScopeFields({ idPrefix, scope, onScope, days, onDays, days
           <label htmlFor={`${idPrefix}-data-zanyatiya`} className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
           <DateInput id={`${idPrefix}-data-zanyatiya`} value={date} min={today} max={dateMax} onChange={onDate} required disabled={disabled} className={SLOT_FIELD_CLASS} />
           <p className="mt-1 text-[11px] leading-4 text-slate-500">Занятие появится только на выбранную дату и не изменит следующие недели.</p>
+          <DayOffWarning date={date} />
         </div>
       ) : (
         <>

@@ -12,6 +12,7 @@ import { formatDateRu } from "./attendance-excuses";
 import { CHIP_TONE_CLASS } from "./chip-tone";
 import { daysLabel, leftPhrase, lessonsWord, pluralRu } from "./plural";
 import type { PriceInfo } from "./group-price";
+import { forecastText, type RecalcLine } from "./payf";
 
 // ── API contract (pay2_contract.json) ──────────────────────────────────────
 
@@ -41,6 +42,8 @@ export interface PaymentSettings {
   /** ...or when this many lessons are left in a lessons package. */
   excuse_deadline_lessons: number;
   admin_can_manage: boolean;
+  /** PAY-F: a lesson the CENTRE cancelled is deducted from the next payment of a monthly mode (false: not recalculated, as before). */
+  centre_cancel_recalc: boolean;
   /** The day the center starts to count money (PAY-2): nothing before it is charged.  Always the effective date from the server. */
   accounting_start_date?: string | null;
   updated_by: string | null;
@@ -232,6 +235,8 @@ export interface ReceiptOut {
   paid_until_before?: string | null;
   paid_until_after?: string | null;
   price_snapshot?: SnapshotPrice | null;
+  /** PAY-F: «−46 000 сум: урок 21.10 отменён центром» - what this payment took into account (empty on an old receipt). */
+  recalc?: RecalcLine[];
   mode?: PeriodMode | null;
   /** Only an old (pre-PAY-2) receipt. */
   valid_from?: string | null;
@@ -276,6 +281,8 @@ export interface MembershipPaymentRow {
   lessons_total?: number | null;
   lessons_used?: number | null;
   lessons_left?: number | null;
+  /** PAY-F: the day of the last paid lesson by the schedule (a package only; null: no forecast). */
+  paid_through_forecast?: string | null;
   last_payment?: PaymentOut | null;
   /** PAY-2 balance of the group (whole сум).  An older server does not send them: read through `rowBalance`. */
   debt?: number;
@@ -440,6 +447,8 @@ export interface PaymentPreview {
   /** Null when no amount was asked about. */
   result: PreviewResult | null;
   warnings: PaymentWarning[];
+  /** PAY-F: deductions for lessons the centre cancelled that this payment is the first to take into account. */
+  recalc?: RecalcLine[];
 }
 
 export interface PreviewQuery {
@@ -538,7 +547,7 @@ export interface PayErrorDetail {
  * `opening_debt` (the debt «на начало учёта», debit) and `opening_paid_until` / `pause` (information rows, no money) are the LOGIC-A
  * ledger events; the contract does not freeze how the statement carries them, so the front reads them defensively.
  */
-export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out" | "opening_debt" | "opening_paid_until" | "pause";
+export type StatementRowType = "charge" | "payment" | "writeoff" | "refund" | "transfer_in" | "transfer_out" | "opening_debt" | "opening_paid_until" | "pause" | "recalc";
 
 export interface StatementDetails {
   allocations: Allocation[];
@@ -555,6 +564,8 @@ export interface StatementDetails {
   to_group_name: string | null;
   to_membership_id: string | null;
   writeoff_id: string | null;
+  /** PAY-F: the line of a `recalc` row. */
+  recalc?: RecalcLine | null;
   /** A corrected payment: the receipt it replaces and what it was («исправлена: было 450 000»). */
   replaces_receipt_no?: number | null;
   replaces_amount?: number | null;
@@ -588,13 +599,15 @@ export interface StatementSummary {
   paid: number;
   transferred_in: number;
   written_off: number;
+  /** PAY-F: deductions for the lessons the centre cancelled (older servers do not send it). */
+  recalculated?: number;
   refunded: number;
   transferred_out: number;
   debt: number;
   advance: number;
   paid_until: string | null;
   status: PaymentStatus;
-  /** charged − paid − written_off + refunded = debt − advance (checked by the server). */
+  /** charged − paid − written_off − recalculated + refunded = debt − advance (checked by the server). */
   reconciles: boolean;
 }
 
@@ -1135,7 +1148,7 @@ export function moneyChip(row: MoneyChipRow): { label: string; tone: StatusTone 
  *  - no debt: «Оплачено до 30.11» (green) / «Осталось 5 дней · до 30.11» / «Сегодня последний день» (amber) / «Оплачено · осталось 9 уроков из 12» / «Без оплат» / «Бесплатно».
  * An advance is not said here (it is in the statement).
  */
-export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until" | "past_debt">>): { label: string; tone: StatusTone; title: string | null } {
+export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymentRow, "paid_until" | "past_debt" | "paid_through_forecast">>): { label: string; tone: StatusTone; title: string | null } {
   const base = moneyChip(row);
   const debt = row.debt ?? 0;
   const dayMonth = (iso: string): string => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
@@ -1151,8 +1164,9 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
     return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
   }
   if (row.period_mode === "lessons") {
-    const left = statusDetail(row);
-    return { ...base, label: base.tone === "ok" && left ? `${base.label} · ${left}` : base.label, title: null };
+    // PAY-F: next to «осталось N уроков из M» the forecast «хватит до ~ДД.ММ (по расписанию)» (amber too: that is when it matters most)
+    const extra = base.tone === "ok" ? statusDetail(row) : base.tone === "warning" ? forecastText(row) : "";
+    return { ...base, label: extra ? `${base.label} · ${extra}` : base.label, title: null };
   }
   if (row.status === "active" && until) return { label: `Оплачено до ${dayMonth(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
   if (row.status === "expiring" && until) return { label: `${base.label} · до ${dayMonth(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };
@@ -1174,14 +1188,14 @@ function lessonsLeftText(row: Pick<MembershipPaymentRow, "lessons_total" | "less
 }
 
 /**
- * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12» / «остался 1 урок из 12» (a package that is
- * paid and not running out yet).
+ * The second line under the chip: «оплачено до 19.09.2026» (calendar), «осталось 9 уроков из 12 · хватит до ~30.10 (по расписанию)» (a package that is
+ * paid and not running out yet; PAY-F: the forecast of the schedule), «пакет закончился» (nothing left).
  */
 export function statusDetail(
-  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until" | "lessons_total" | "lessons_left">,
+  row: Pick<MembershipPaymentRow, "status" | "period_mode" | "paid_until" | "lessons_total" | "lessons_left"> & Partial<Pick<MembershipPaymentRow, "paid_through_forecast">>,
 ): string {
   if (row.period_mode === "lessons") {
-    return row.status === "active" ? lessonsLeftText(row).toLowerCase() : "";
+    return [row.status === "active" ? lessonsLeftText(row).toLowerCase() : "", forecastText(row)].filter(Boolean).join(" · ");
   }
   if (!row.paid_until) return "";
   if (row.status === "expiring" || row.status === "ends_today" || row.status === "expired" || row.status === "active" || row.status === "paused") {
@@ -1477,6 +1491,7 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   excuse_deadline_days: 5,
   excuse_deadline_lessons: 2,
   admin_can_manage: false,
+  centre_cancel_recalc: false,
   updated_by: null,
   updated_at: null,
 };
@@ -1490,6 +1505,7 @@ export type PaymentSettingsScope = "payments" | "attendance";
 
 export const PAYMENTS_SCOPE_KEYS = [
   "period_mode", "billing_anchor", "billing_day", "lessons_per_payment", "expiring_days", "expiring_lessons", "admin_can_manage", "accounting_start_date",
+  "centre_cancel_recalc",
 ] as const;
 export const ATTENDANCE_SCOPE_KEYS = ["excuse_deadline_days", "excuse_deadline_lessons"] as const;
 
@@ -1499,12 +1515,13 @@ type SettingsKey = (typeof PAYMENTS_SCOPE_KEYS)[number] | (typeof ATTENDANCE_SCO
  * The fields of the «Оплаты» section that the chosen card shows (and therefore may change): the model itself
  * and the admin switch always, then the day of a fixed-day center, the warning in days for a calendar one,
  * the package size and its warning for a package center.  The others are hidden and are neither validated nor sent.
+ * PAY-F: «уроки, отменённые центром» belongs to the monthly modes only (a package never charges a cancelled lesson).
  */
 export function paymentsScopeKeys(model: PaymentModel): SettingsKey[] {
   const common: SettingsKey[] = ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date"];
   if (model === "lessons") return [...common, "lessons_per_payment", "expiring_lessons"];
-  if (model === "fixed_day") return [...common, "billing_day", "expiring_days"];
-  return [...common, "expiring_days"];
+  if (model === "fixed_day") return [...common, "billing_day", "expiring_days", "centre_cancel_recalc"];
+  return [...common, "expiring_days", "centre_cancel_recalc"];
 }
 
 /** «Изменит долг у 12 учеников: +5 400 000 сум» — what a new start of the accounting does (the dry run of the server). */
@@ -1561,7 +1578,7 @@ export function validatePaymentSettings(
       return `Порог «скоро» в уроках: от ${EXPIRING_LESSONS_RANGE.min} до ${EXPIRING_LESSONS_RANGE.max}`;
     }
     if (check("billing_day") && settings.billing_day !== undefined && !inRange(settings.billing_day, BILLING_DAY_RANGE)) {
-      return `Единый день оплаты: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
+      return `${BILLING_DAY_LABEL}: число от ${BILLING_DAY_RANGE.min} до ${BILLING_DAY_RANGE.max}`;
     }
     if (check("accounting_start_date") && settings.accounting_start_date && !isIsoDate(settings.accounting_start_date)) {
       return "Укажите дату начала учёта оплат";
@@ -1584,11 +1601,20 @@ export function validatePaymentSettings(
 // The three ways a center counts a payment, as the owner sees them (spec §1).
 export type PaymentModel = "payment_date" | "fixed_day" | "lessons";
 
+// PAY-F: ONE dictionary of the names (settings, hints, statements); the server mirrors it in `payments_texts.MODE_NAMES`.
 export const PAYMENT_MODELS: Array<{ key: PaymentModel; title: string; hint: string }> = [
-  { key: "payment_date", title: "От даты оплаты", hint: "Месяц считается со дня оплаты: 05.10 → 04.11" },
-  { key: "fixed_day", title: "Единый день оплаты", hint: "У всех учеников один период, например с 1-го по последнее число месяца" },
-  { key: "lessons", title: "Пакет уроков", hint: "Оплата закрывает заданное число проведённых уроков" },
+  { key: "payment_date", title: "Свой месяц у каждого ученика", hint: "Месяц считается с первого занятия ученика: 05.10 → 04.11" },
+  { key: "fixed_day", title: "Общий месяц для всех", hint: "У всех один период, например с 1-го по последнее число; первый неполный месяц — по урокам" },
+  { key: "lessons", title: "Пакет уроков", hint: "Оплата закрывает заданное число проведённых уроков; отменённые уроки не списываются" },
 ];
+
+/** The name of a way to count a payment, from the dictionary above. */
+export function paymentModelTitle(model: PaymentModel): string {
+  return PAYMENT_MODELS.find((option) => option.key === model)?.title ?? "";
+}
+
+/** The field of the «Общий месяц»: the day its period starts on. */
+export const BILLING_DAY_LABEL = "День, с которого начинается общий месяц";
 
 export const FIXED_DAY_HINT = "Ученик, пришедший в середине месяца, платит за неполный месяц — сумма пересчитывается по урокам";
 

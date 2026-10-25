@@ -1078,10 +1078,10 @@ export function studentLessonLabel(lesson: { isSubstitution?: boolean | null; te
   return name ? `Замена: ${name}` : "Замена";
 }
 
-/** «Урок отменён» / «Урок перенесён на чт, 29.10, 16:00». */
-export function studentNoticeLabel(notice: Pick<StudentNotice, "kind" | "movedTo">): string {
+/** «Урок отменён» / «Урок отменён: выходной (Хайит)» (PAY-F: a day off of the centre is public) / «Урок перенесён на чт, 29.10, 16:00». */
+export function studentNoticeLabel(notice: Pick<StudentNotice, "kind" | "movedTo"> & { holiday?: string | null }): string {
   if (notice.kind === "rescheduled") return notice.movedTo ? movedText(notice.movedTo) : "Урок перенесён";
-  return LESSON_CANCELLED_LABEL;
+  return notice.holiday ? `${LESSON_CANCELLED_LABEL}: выходной (${notice.holiday})` : LESSON_CANCELLED_LABEL;
 }
 
 export interface StudentLessonRow {

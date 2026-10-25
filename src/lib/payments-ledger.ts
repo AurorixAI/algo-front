@@ -13,6 +13,7 @@ import {
   NOTE_MAX,
   parseMoneyInput,
   PAYMENT_MAX_AGE_YEARS,
+  paymentModelTitle,
   REASON_MAX,
   REASON_MIN,
   subtractYears,
@@ -35,6 +36,7 @@ import {
   type StatementSummary,
   type WriteoffCreate,
 } from "./payments";
+import { recalcAmountText, type RecalcLine } from "./payf";
 
 // ── Tolerant numbers and lists ─────────────────────────────────────────────
 
@@ -429,6 +431,7 @@ export function normalizePreview(raw: unknown): PaymentPreview {
         }
       : null,
     warnings: list<PaymentWarning>(data.warnings),
+    recalc: list<RecalcLine>(data.recalc),
   };
 }
 
@@ -590,6 +593,7 @@ export const STATEMENT_TYPE_LABEL: Record<StatementRowType, string> = {
   opening_debt: "Долг на начало учёта",
   opening_paid_until: "Оплачено до начала учёта",
   pause: "Пауза",
+  recalc: "Перерасчёт",
 };
 
 const MINUS = "−";
@@ -644,6 +648,9 @@ export function statementRowNotes(row: StatementRow): string[] {
       if (d.reason) notes.push(`причина: ${d.reason}`);
       if (d.created_by_name) notes.push(`вернул: ${d.created_by_name}`);
       break;
+    case "recalc":
+      if (d.recalc) notes.push(recalcAmountText(d.recalc));       // the title names the lesson; the line carries the amount only
+      break;
     default:
       break;
   }
@@ -651,7 +658,7 @@ export function statementRowNotes(row: StatementRow): string[] {
 }
 
 export interface StatementTotal {
-  key: "charged" | "paid" | "written_off" | "refunded" | "transferred_in" | "transferred_out" | "balance";
+  key: "charged" | "paid" | "written_off" | "recalculated" | "refunded" | "transferred_in" | "transferred_out" | "balance";
   label: string;
   /** Money; for the balance the signed text is `text`. */
   amount: number;
@@ -663,10 +670,11 @@ export interface StatementTotal {
 
 export const STATEMENT_HINTS = {
   written_off: "Прощено — долг, который центр простил (кнопка «Простить долг»)",
+  recalculated: "Перерасчёт — уроки, которые отменил центр, вычтены из оплаты (настройка «Оплаты»)",
   refunded: "Возвращено — аванс, возвращённый ученику (кнопка «Вернуть аванс»)",
   transferred_in: "Деньги, которые пришли вместе с учеником из другой группы",
   transferred_out: "Деньги, которые ушли вместе с учеником в другую группу",
-  reconciles: "Счёт сходится: стоимость − оплачено − прощено + возвращено = долг − аванс",
+  reconciles: "Счёт сходится: стоимость − оплачено − прощено − перерасчёт + возвращено = долг − аванс",
 } as const;
 
 /**
@@ -679,6 +687,7 @@ export function statementTotals(summary: StatementSummary | null | undefined): S
   const out: StatementTotal[] = [money("charged", "Стоимость обучения", summary.charged), money("paid", "Оплачено", summary.paid)];
   if (sum(summary.transferred_in) > 0) out.push(money("transferred_in", "Перенесено из групп", summary.transferred_in, STATEMENT_HINTS.transferred_in));
   if (sum(summary.written_off) > 0) out.push(money("written_off", "Прощено", summary.written_off, STATEMENT_HINTS.written_off));
+  if (sum(summary.recalculated) > 0) out.push(money("recalculated", "Перерасчёт", sum(summary.recalculated), STATEMENT_HINTS.recalculated));
   if (sum(summary.refunded) > 0) out.push(money("refunded", "Возвращено", summary.refunded, STATEMENT_HINTS.refunded));
   if (sum(summary.transferred_out) > 0) out.push(money("transferred_out", "Перенесено в группы", summary.transferred_out, STATEMENT_HINTS.transferred_out));
   const left = sum(summary.advance) - sum(summary.debt);
@@ -689,7 +698,7 @@ export function statementTotals(summary: StatementSummary | null | undefined): S
 
 /** The identity of the statement: стоимость − оплачено − перенесено − прощено + возвращено + перенесено в другие = долг − аванс. */
 export function statementDiff(summary: StatementSummary): number {
-  const left = sum(summary.charged) - sum(summary.paid) - sum(summary.transferred_in) - sum(summary.written_off) + sum(summary.refunded) + sum(summary.transferred_out);
+  const left = sum(summary.charged) - sum(summary.paid) - sum(summary.transferred_in) - sum(summary.written_off) - sum(summary.recalculated) + sum(summary.refunded) + sum(summary.transferred_out);
   return left - (sum(summary.debt) - sum(summary.advance));
 }
 
@@ -739,6 +748,7 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
       to_group_name: item.details?.to_group_name ?? null,
       to_membership_id: item.details?.to_membership_id ?? null,
       writeoff_id: item.details?.writeoff_id ?? null,
+      recalc: item.details?.recalc ?? null,
       replaces_receipt_no: item.details?.replaces_receipt_no ?? null,
       replaces_amount: item.details?.replaces_amount ?? null,
       replaced_by_receipt_no: item.details?.replaced_by_receipt_no ?? null,
@@ -751,6 +761,7 @@ export function normalizeStatement(raw: StatementOut): StatementOut {
       paid: sum(summary.paid),
       transferred_in: sum(summary.transferred_in),
       written_off: sum(summary.written_off),
+      recalculated: sum(summary.recalculated),
       refunded: sum(summary.refunded),
       transferred_out: sum(summary.transferred_out),
       debt: sum(summary.debt),
@@ -973,7 +984,7 @@ export function chargeWords(segment: Segment): { title: string; sub: string } {
     ? partWords(segment.days_text)
     : segment.kind === "package" && segment.lessons ? `${segment.lessons.in_part} из ${segment.lessons.in_period} ${segment.lessons.in_period % 10 === 1 && segment.lessons.in_period % 100 !== 11 ? "урок" : "уроков"}` : "";
   if (segment.kind === "package") {
-    return { title: `Пакет уроков ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
+    return { title: `${paymentModelTitle("lessons")} ${dm(segment.period_from)}–${dm(segment.period_to)}${part ? ` (${part})` : ""}`, sub };
   }
   if (isCalendarMonthPeriod(segment.period_from, segment.period_to)) {
     const key = monthKey(segment.period_from);
@@ -1079,7 +1090,8 @@ export function statementIconKind(entry: Pick<StatementEntry, "type" | "cancelle
   switch (entry.type) {
     case "charge": return "charge";
     case "payment": return entry.replaced ? "correction" : "payment";
-    case "writeoff": return "writeoff";
+    case "writeoff":
+    case "recalc": return "writeoff";
     case "refund": return "refund";
     case "transfer_in":
     case "transfer_out": return "transfer";
@@ -1263,6 +1275,9 @@ export function buildStatementItems(statement: StatementOut, month: string | nul
       writeoffSeen = true;
       const title = `Долг прощён${d.reason ? ` — причина: ${d.reason}` : ""}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
       entries.push({ ...base, title, sub: null, tag: "прощено", charged: null, paid: sum(row.credit) });
+    } else if (row.type === "recalc") {
+      // PAY-F: the lesson the centre cancelled, taken off the money like a forgiven debt (the line is derived by the server, nothing was entered)
+      entries.push({ ...base, title: row.title, sub: d.recalc ? recalcAmountText(d.recalc) : null, tag: "перерасчёт", charged: null, paid: sum(row.credit) });
     } else if (row.type === "refund") {
       const title = `Возврат аванса — ${lowerMethod(d.method)}${d.created_by_name ? ` · ${d.created_by_name}` : ""}`;
       entries.push({ ...base, title, sub: d.reason ? `причина: ${d.reason}` : null, tag: "возврат", charged: null, paid: -sum(row.outflow) });

@@ -5,6 +5,9 @@ import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatDateRu } from "@/lib/attendance-excuses";
 import { Modal } from "@/components/ui/modal";
+import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { CancellationKindField } from "./cancellation-kind-field";
 
 export interface CancelMissedTarget {
   groupId: string;
@@ -29,12 +32,15 @@ export function CancelMissedLessonModal({
   onCancelled: (target: CancelMissedTarget) => void | Promise<void>;
 }) {
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
+  const canChooseKind = useCanChooseCancellationKind();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   // A fresh form for every lesson.
   useEffect(() => {
     setReason("");
+    setKind(DEFAULT_CANCELLATION_KIND);
     setError(null);
   }, [target?.groupId, target?.lessonId, target?.lessonDate]);
 
@@ -51,6 +57,7 @@ export function CancelMissedLessonModal({
         lessonDate: target.lessonDate,
         lessonId: target.lessonId,
         cancellationReason: text,
+        ...cancellationKindBody(kind, canChooseKind),
       });
       onClose();
       await onCancelled(target);
@@ -96,6 +103,7 @@ export function CancelMissedLessonModal({
             placeholder="Например: преподаватель заболел, урок не проводился"
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
           />
+          <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} />
           {error && <p role="alert" className="text-xs font-medium text-rose-600">{error}</p>}
         </div>
       )}
