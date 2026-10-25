@@ -56,6 +56,7 @@ import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
+import { useToast } from "@/components/ui/toast";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
@@ -172,6 +173,7 @@ function getLessonTimeStatus(
 
 export default function TeacherSchedulePage() {
   const { user } = useAuthStore();
+  const { showToast, toastNode } = useToast();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -2332,12 +2334,9 @@ export default function TeacherSchedulePage() {
                     groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate,
                     startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
                   }}
-                  mark={activeRequestMark}
-                  lessonTeacherId={activeTeacherInfo?.teacherId}
-                  isSubstitution={activeTeacherInfo?.isSubstitution}
-                  lessonStatus={activeLessonStatus}
+                  mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeLessonStatus}
                   onChanged={() => { void loadData(); }}
-                  onMoved={() => { setActiveLesson(null); void reloadAfterWeeklyChange(); }}
+                  onMoved={(text) => { setActiveLesson(null); showToast(text); void reloadAfterWeeklyChange(); }}
                   onDialogChange={(open) => { moveHoldsEscape.current = open; }}
                 />
               )}
@@ -3093,6 +3092,7 @@ export default function TeacherSchedulePage() {
         onClose={() => setTeacherTarget(null)}
         onChanged={() => { setTeacherTarget(null); setActiveLesson(null); void loadData(); }}
       />
+      {toastNode}
     </div>
   );
 }

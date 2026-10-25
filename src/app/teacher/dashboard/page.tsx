@@ -70,6 +70,7 @@ import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, read
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
+import { useToast } from "@/components/ui/toast";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
 
@@ -250,6 +251,7 @@ function getLessonTimeStatus(
 export default function TeacherDashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
+  const { showToast, toastNode } = useToast();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ groups: 0, students: 0 });
@@ -2289,12 +2291,9 @@ export default function TeacherDashboardPage() {
                       groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate || businessDate,
                       startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
                     }}
-                    mark={activeRequestMark}
-                    lessonTeacherId={activeTeacherInfo?.teacherId}
-                    isSubstitution={activeTeacherInfo?.isSubstitution}
-                    lessonStatus={activeInstanceStatus}
+                    mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeInstanceStatus}
                     onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
-                    onMoved={() => { setActiveLesson(null); setDashboardRefreshNonce((current) => current + 1); }}
+                    onMoved={(text) => { setActiveLesson(null); showToast(text); setDashboardRefreshNonce((current) => current + 1); }}
                     onDialogChange={(open) => { moveHoldsEscape.current = open; }}
                   />
                 )}
@@ -2836,6 +2835,7 @@ export default function TeacherDashboardPage() {
         onBack={marksOps.clearLiveExams}
         onConfirm={() => void handleFinishLesson(true)}
       />
+      {toastNode}
     </div>
   );
 }

@@ -1,6 +1,5 @@
 "use client";
 
-import { useToast } from "@/components/ui/toast";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import { RequestControl } from "@/components/substitutions/request-control";
 import { TeacherMoveControl, type MovableLesson } from "@/components/substitutions/teacher-move-control";
@@ -19,16 +18,15 @@ export function TeacherLessonControls({
   lessonStatus: string | null | undefined;
   /** A request was sent or withdrawn: the panel's page refreshes its numbers. */
   onChanged: () => void;
-  /** The lesson was moved (the toast is shown here): the panel closes and the page reads the schedule again. */
-  onMoved: () => void;
+  /** The lesson was moved (the toast text; the page shows it - this control goes away with the panel): the panel closes and the page reads the schedule again. */
+  onMoved: (text: string) => void;
   /** The move dialog is above the panel: the page's Escape key leaves the panel alone. */
   onDialogChange: (open: boolean) => void;
 }) {
-  const { showToast } = useToast();
   return (
     <>
       <RequestControl lesson={lesson} mark={mark} lessonTeacherId={lessonTeacherId} lessonStatus={lessonStatus} onChanged={onChanged} />
-      <TeacherMoveControl lesson={lesson} lessonTeacherId={lessonTeacherId} isSubstitution={isSubstitution} lessonStatus={lessonStatus} onDialogChange={onDialogChange} onMoved={(text) => { if (text) showToast(text); onMoved(); }} />
+      <TeacherMoveControl lesson={lesson} lessonTeacherId={lessonTeacherId} isSubstitution={isSubstitution} lessonStatus={lessonStatus} onDialogChange={onDialogChange} onMoved={onMoved} />
     </>
   );
 }

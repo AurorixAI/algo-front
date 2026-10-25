@@ -89,7 +89,8 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   for (const source of [page, dashboard]) {
     assert.match(source, /moveHoldsEscape\.current\) return/);
     assert.match(source, /onDialogChange=\{\(open\) => \{ moveHoldsEscape\.current = open; \}\}/);
-    assert.match(source, /onMoved=\{\(\) => \{ setActiveLesson\(null\);/);
+    assert.match(source, /onMoved=\{\(text\) => \{ setActiveLesson\(null\); showToast\(text\);/, "the toast lives in the page: the control goes away with the panel");
+    assert.match(source, /\{toastNode\}/);
   }
 });
 
