@@ -135,3 +135,35 @@ export function timeRangeProblem(startTime: string, endTime: string): string | n
   if (endTime <= startTime) return END_BEFORE_START_TEXT;
   return null;
 }
+
+// ── several weekdays at once ─────────────────────────────────────────────────────────────────────────────────────
+
+export const DAYS_REQUIRED_HINT = "Выберите день";
+
+/** «Пн» for 1 .. «Вс» for 7. */
+export function dayShort(day: number): string {
+  return DAYS.find((item) => item.id === day)?.short ?? String(day);
+}
+
+/** «Пн», «Пн и Ср», «Пн, Ср и Пт» (the days in the order of the week). */
+export function dayList(days: readonly number[]): string {
+  const names = [...days].sort((a, b) => a - b).map(dayShort);
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} и ${names[names.length - 1]}`;
+}
+
+/** The days with `day` switched on / off, in the order of the week. */
+export function toggleDay(days: readonly number[], day: number): number[] {
+  return (days.includes(day) ? days.filter((item) => item !== day) : [...days, day]).sort((a, b) => a - b);
+}
+
+/**
+ * What a save of several weekly lessons says, with no silent partial success: «Пн и Ср добавлены, Пт — преподаватель занят».
+ * "" when nothing failed (the caller then shows its plain success text).
+ */
+export function weeklyResultText(added: readonly number[], failed: ReadonlyArray<{ day: number; reason: string }>): string {
+  if (failed.length === 0) return "";
+  const bad = [...failed].sort((a, b) => a.day - b.day).map((item) => `${dayShort(item.day)} — ${item.reason}`).join("; ");
+  if (added.length === 0) return `Не добавлено: ${bad}`;
+  return `${dayList(added)} ${added.length > 1 ? "добавлены" : "добавлен"}, ${bad}`;
+}

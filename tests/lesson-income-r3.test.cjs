@@ -130,7 +130,7 @@ test("a lesson of TODAY whose start has passed (business time) is marked, not mo
   assert.equal(C.assignActionLabel({ past: C.lessonHasStarted({ date: "2026-10-22", today: "2026-10-22", startTime: "10:00", now: after }), lacksTeacher: false, isSubstitution: false }), "Назначить того, кто провёл");
   assert.equal(C.SCHEDULE_ACTION_LABEL.mark, "Отметить посещаемость");
   const overview = read("src/components/groups/group-schedule-overview.tsx");
-  assert.equal((overview.match(/startTime: lesson\.startTime \|\| lesson\.start_time \}\)/g) || []).length, 3, "the card, the sheet and the label of «assign» pass the start time");
+  assert.equal((overview.match(/startTime: lesson\.startTime \|\| lesson\.start_time(?: \}\)|, recurring: isRecurringLesson\(lesson\) \})/g) || []).length, 3, "the card, the sheet and the label of «assign» pass the start time");
   assert.match(overview, /past: Boolean\(lesson && lessonHasStarted\(/);
 });
 

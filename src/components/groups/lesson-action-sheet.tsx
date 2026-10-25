@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, RefreshCw, UserRoundCheck } from "lucide-react";
+import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, Pencil, RefreshCw, UserRoundCheck, X } from "lucide-react";
 import { orgApi, substitutionsApi, type Lesson } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { Modal } from "@/components/ui/modal";
@@ -40,7 +40,7 @@ type Mode = "menu" | "reschedule" | "cancel";
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onEditSeries, onEndSeries, onChanged, onRefresh,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -59,6 +59,9 @@ export function LessonActionSheet({
   onClose: () => void;
   onAssign: () => void;
   onJournal: () => void;
+  /** «Изменить постоянный урок» / «Прекратить урок»: the weekly lesson of this one (the page opens its dialogs). */
+  onEditSeries?: () => void;
+  onEndSeries?: () => void;
   /** After a move or a cancellation was saved: the toast text. */
   onChanged: (text: string) => void;
   /** «Урок уже изменили — обновите»: the schedule is read again and the sheet closes. */
@@ -241,6 +244,10 @@ export function LessonActionSheet({
                       return <button key={action} type="button" onClick={() => open("cancel")} className={ACTION_BUTTON}><Ban className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.cancel}</button>;
                     case "mark":
                       return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
+                    case "editSeries":
+                      return <button key={action} type="button" onClick={onEditSeries} className={ACTION_BUTTON}><Pencil className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.editSeries}</button>;
+                    case "endSeries":
+                      return <button key={action} type="button" onClick={onEndSeries} className={ACTION_BUTTON}><X className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.endSeries}</button>;
                     case "journal":
                       return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ExternalLink className="h-4 w-4 text-slate-500" />{SCHEDULE_ACTION_LABEL.journal}</button>;
                   }

@@ -7,29 +7,22 @@ import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
-import { VALID_FROM_HINT, roomForSave, validFromBounds, validFromError } from "@/lib/schedule-slots";
-import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, warningTexts } from "@/lib/ops-errors";
-import type { TeacherBusyDetail } from "@/lib/ops-b-types";
+import { roomForSave, validFromError } from "@/lib/schedule-slots";
+import { warningTexts } from "@/lib/ops-errors";
+import { createOneOff, createWeeklyLessons, refusalText } from "@/lib/weekly-lessons";
 import {
-  DAYS, DAY_REQUIRED_TEXT, LESSON_SUBJECT, NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, overlappingLesson, pastTimeProblem,
-  suggestedTimes, timeRangeProblem,
+  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastTimeProblem,
+  timeRangeProblem, weeklyResultText,
 } from "@/lib/lesson-slot-form";
-import { LessonSlotFields, SLOT_FIELD_CLASS, WeekdayField, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+import { LessonScopeFields, LessonSlotFields, SLOT_FIELD_CLASS, WeekdayField, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+
+const DEFAULT_VALUE: SlotFormValue = { startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" };
 
 /** The weekly lesson as both screens know it (`LessonEvent` of the schedule, or an occurrence of it). */
 export type WeeklyLesson = Pick<LessonEvent, "id" | "groupName" | "classLevel" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "color"> & { topic?: string };
 
 const CANCEL_BUTTON = "px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50";
 const PRIMARY_BUTTON = "inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm";
-
-/** A refusal of the schedule in calm words; a busy teacher is told by the clashes alone (the server's own sentence repeats the first one with an ISO date). */
-function refusalText(failure: unknown, fallback: string): string {
-  if (opsErrorCode(failure) === "TEACHER_BUSY") {
-    const lines = teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(failure), 2);
-    if (lines.length) return `У преподавателя в это время уже есть урок. ${lines.join("; ")}`;
-  }
-  return scheduleErrorText(failure, fallback);
-}
 
 function Problem({ children, tone = "rose" }: { children: React.ReactNode; tone?: "rose" | "amber" }) {
   const palette = tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-rose-200 bg-rose-50 text-rose-700";
@@ -48,78 +41,92 @@ function OverlapNote({ lesson }: { lesson: { groupName: string; startTime: strin
   );
 }
 
-// ── add a weekly lesson to one group (owner / administrator) ────────────────────────────────────────────────────────────────
+// ── add a lesson to one group (owner / administrator) ───────────────────────────────────────────────────────────────────────
 
 /**
- * «Добавить в расписание» on the group page: one weekly lesson of THIS group (day, time, room, format, «Действует с»).  The same
- * rules as the teacher's form: nothing in the past of today, a clash of the teacher (409 TEACHER_BUSY) in calm words, a busy room is
- * a note after the save.  A group without a teacher is saved too (the server allows it): the dialog only says what to do next.
+ * «Добавить в расписание» on the group page: a weekly lesson (one or several weekdays at once) or a one-off lesson of THIS group, with
+ * the rules of the teacher's form: nothing in the past of today, a clash of the teacher (409 TEACHER_BUSY) in calm words, a busy room is
+ * a note after the save.  Several weekdays are saved one by one and the answer names the days that were added and the days that were
+ * refused («Пн и Ср добавлены, Пт — преподаватель занят»): the refused ones stay chosen to be fixed or dropped.  A group without a
+ * teacher is saved too (the server allows it): the dialog only says what to do next.
  */
-export function AddWeeklyLessonDialog({ open, group, teacherAssigned, siblings, onClose, onCreated }: {
+export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClose, onAdded }: {
   open: boolean;
   group: { id: string; name: string };
   teacherAssigned: boolean;
-  /** The weekly lessons of the group already (for a clash inside the group and for the suggested time). */
+  /** The weekly lessons of the group already (for a clash inside the group). */
   siblings: readonly LessonEvent[];
   onClose: () => void;
-  onCreated: (created: LessonEvent, notices: string[]) => void;
+  /** Something was saved (also when only some days were): the schedule is read again. `closed` = the dialog is done. */
+  onAdded: (summary: { text: string; notices: string[]; closed: boolean }) => void;
 }) {
-  const [day, setDay] = useState<number | null>(null);
-  const [value, setValue] = useState<SlotFormValue>({ startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" });
+  const [scope, setScope] = useState<LessonScope>("recurring");
+  const [days, setDays] = useState<number[]>([]);
+  const [date, setDate] = useState(formatBusinessDate());
+  const [value, setValue] = useState<SlotFormValue>(DEFAULT_VALUE);
   const [validFrom, setValidFrom] = useState(formatBusinessDate());
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [details, setDetails] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
-    setDay(null);
-    setValue({ startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" });
+    setScope("recurring");
+    setDays([]);
+    setDate(formatBusinessDate());
+    setValue(DEFAULT_VALUE);
     setValidFrom(formatBusinessDate());
     setTouched(false);
     setBusy(false);
     setError(null);
+    setDetails([]);
   }, [open]);
 
   const today = formatBusinessDate();
-  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); };
-  const chooseDay = (next: number) => {
-    setDay(next);
-    setError(null);
-    const times = suggestedTimes(siblings.filter((lesson) => lesson.dayOfWeek === next));
-    setValue((current) => ({ ...current, ...times }));
-  };
+  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
 
-  const overlap = day ? overlappingLesson(siblings, day, value.startTime, value.endTime) : undefined;
+  const overlaps = scope === "recurring"
+    ? days.map((day) => ({ day, lesson: overlappingLesson(siblings, day, value.startTime, value.endTime) })).filter((item) => item.lesson)
+    : [];
   const timeProblem = timeRangeProblem(value.startTime, value.endTime);
   // the server: a lesson of today whose start has gone is refused - say it before the click
-  const startsToday = Boolean(day) && (validFrom || today) === today && day === businessDayOfWeek();
+  const startsToday = scope === "one_off"
+    ? date === today
+    : (validFrom || today) === today && days.includes(businessDayOfWeek());
   const pastProblem = startsToday && !timeProblem ? pastTimeProblem(value.startTime, businessTimeMinutes()) : null;
-  const dateProblem = validFromError(validFrom, today);
-  const blocking = timeProblem || pastProblem || dateProblem || (overlap ? "overlap" : null);
+  const dateProblem = scope === "recurring" ? validFromError(validFrom, today) : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
+  const blocking = timeProblem || pastProblem || dateProblem || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setTouched(true);
-    if (!day) { setError(DAY_REQUIRED_TEXT); return; }
+    if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); return; }
+    if (!date && scope === "one_off") { setError("Выберите дату занятия"); return; }
     if (blocking || busy) return;
     setBusy(true);
     setError(null);
+    setDetails([]);
     try {
-      const created = await orgApi.createLesson({
-        groupId: group.id,
-        dayOfWeek: day,
-        startTime: value.startTime,
-        endTime: value.endTime,
-        subject: LESSON_SUBJECT,
-        room: roomForSave(value.room),
-        format: value.format,
-        color: value.color,
-        topic: value.topic.trim() || undefined,
-        validFrom: validFrom || today,
-      });
-      if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
-      onCreated(created, warningTexts(created));
+      if (scope === "one_off") {
+        const notices = await createOneOff(group.id, date, value);
+        onAdded({ text: "Разовое занятие добавлено в расписание группы", notices, closed: true });
+        return;
+      }
+      const result = await createWeeklyLessons(group.id, days, { ...value, validFrom: validFrom || today });
+      if (result.failed.length === 0) {
+        onAdded({
+          text: result.added.length > 1 ? `Уроки добавлены в расписание группы: ${dayList(result.added)}` : "Урок добавлен в расписание группы",
+          notices: result.notices,
+          closed: true,
+        });
+        return;
+      }
+      // no silent partial success: say which days were added and which were not; only the refused days stay chosen
+      setError(weeklyResultText(result.added, result.failed));
+      setDetails(result.failed.map((item) => `${dayShort(item.day)}: ${item.detail}`));
+      setDays(result.failed.map((item) => item.day));
+      if (result.added.length > 0) onAdded({ text: `${dayList(result.added)} — добавлено`, notices: result.notices, closed: false });
     } catch (failure) {
       setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
     } finally {
@@ -131,52 +138,51 @@ export function AddWeeklyLessonDialog({ open, group, teacherAssigned, siblings, 
     <Modal
       open={open}
       title="Добавить в расписание"
-      description={`Еженедельный урок группы «${group.name}». Он будет повторяться каждую неделю.`}
+      description={`Урок группы «${group.name}»`}
       onClose={onClose}
       busy={busy}
       footer={
         <>
           <button type="button" onClick={onClose} disabled={busy} className={CANCEL_BUTTON}>Отмена</button>
-          <button type="submit" form="weekly-lesson-add-form" disabled={busy || Boolean(blocking)} className={PRIMARY_BUTTON}>
+          <button type="submit" form="lesson-add-form" disabled={busy || Boolean(blocking)} className={PRIMARY_BUTTON}>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Сохранить урок
           </button>
         </>
       }
     >
-      <form id="weekly-lesson-add-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
+      <form id="lesson-add-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
         {!teacherAssigned && (
           <p data-testid="weekly-no-teacher-hint" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
             {NO_TEACHER_SCHEDULE_HINT}. Урок сохранится в расписании группы уже сейчас.
           </p>
         )}
 
-        <div>
-          <label htmlFor="weekly-add-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-          <WeekdayField id="weekly-add-den-nedeli" value={day} onChange={chooseDay} disabled={busy} invalid={touched && !day} />
-          <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
-        </div>
+        <LessonScopeFields
+          idPrefix="weekly-add"
+          scope={scope}
+          onScope={(next) => { setScope(next); setError(null); setDetails([]); }}
+          days={days}
+          onDays={(next) => { setDays(next); setError(null); setDetails([]); }}
+          daysInvalid={touched && scope === "recurring" && days.length === 0}
+          date={date}
+          onDate={(next) => { setDate(next); setError(null); }}
+          validFrom={validFrom}
+          onValidFrom={(next) => { setValidFrom(next); setError(null); }}
+          disabled={busy}
+        />
 
-        <div>
-          <label htmlFor="weekly-add-deystvuet-s" className="block text-xs font-semibold text-slate-700 mb-1">Действует с</label>
-          <DateInput
-            id="weekly-add-deystvuet-s"
-            value={validFrom}
-            min={validFromBounds(today).min}
-            max={validFromBounds(today).max}
-            onChange={(next) => { setValidFrom(next); setError(null); }}
-            disabled={busy}
-            className={SLOT_FIELD_CLASS}
-          />
-          <p className="mt-1 text-[11px] leading-4 text-slate-500">{VALID_FROM_HINT}</p>
-        </div>
+        <LessonSlotFields idPrefix="weekly-add" value={value} onChange={patch} disabled={busy} endInvalid={Boolean(timeProblem)} />
 
-        <LessonSlotFields idPrefix="weekly-add" value={value} onChange={patch} disabled={busy} endInvalid={Boolean(timeProblem) && touched} />
-
-        {overlap && <OverlapNote lesson={overlap} />}
+        {overlaps.map((item) => item.lesson && <OverlapNote key={item.day} lesson={item.lesson} />)}
         {timeProblem && <Problem>{timeProblem}</Problem>}
         {pastProblem && <Problem>{pastProblem}</Problem>}
         {dateProblem && <Problem>{dateProblem}</Problem>}
-        {error && <Problem>{error}</Problem>}
+        {error && (
+          <div role="alert" data-testid="weekly-add-error" className="space-y-1.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            <p className="flex items-start gap-2 font-semibold"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{error}</span></p>
+            {details.map((line) => <p key={line} className="pl-6 font-normal leading-relaxed">{line}</p>)}
+          </div>
+        )}
       </form>
     </Modal>
   );
@@ -202,18 +208,21 @@ function snapshotOf(lesson: WeeklyLesson): EditSnapshot {
  * «Изменить постоянное расписание»: a new time / day / room from a FUTURE date.  The lessons before that date keep their time and
  * their attendance (the server versions the schedule; it never rewrites a past lesson).
  */
-export function EditWeeklyLessonDialog({ lesson, siblings, onClose, onSaved }: {
+export function EditWeeklyLessonDialog({ lesson, siblings, onClose, onSaved, defaultEffectiveFrom }: {
   lesson: WeeklyLesson | null;
+  /** The date the change starts from when the dialog opens (a future one; default: tomorrow). */
+  defaultEffectiveFrom?: string;
   /** The weekly lessons that may clash with the new time (the teacher's, or the group's). */
   siblings: readonly WeeklyLesson[];
   onClose: () => void;
   onSaved: (notices: string[], effectiveFrom: string) => void | Promise<void>;
 }) {
-  return lesson ? <EditWeeklyLessonForm key={lesson.id} lesson={lesson} siblings={siblings} onClose={onClose} onSaved={onSaved} /> : null;
+  return lesson ? <EditWeeklyLessonForm key={lesson.id} lesson={lesson} siblings={siblings} onClose={onClose} onSaved={onSaved} defaultEffectiveFrom={defaultEffectiveFrom} /> : null;
 }
 
-function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved }: {
+function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffectiveFrom }: {
   lesson: WeeklyLesson;
+  defaultEffectiveFrom?: string;
   siblings: readonly WeeklyLesson[];
   onClose: () => void;
   onSaved: (notices: string[], effectiveFrom: string) => void | Promise<void>;
@@ -221,7 +230,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved }: {
   const snapshot = useMemo(() => snapshotOf(lesson), [lesson]);
   const [day, setDay] = useState<number | null>(snapshot.day);
   const [value, setValue] = useState<SlotFormValue>({ startTime: snapshot.startTime, endTime: snapshot.endTime, format: snapshot.format, room: snapshot.room, topic: snapshot.topic, color: snapshot.color });
-  const [effectiveFrom, setEffectiveFrom] = useState(nextBusinessDate());
+  const [effectiveFrom, setEffectiveFrom] = useState(defaultEffectiveFrom && defaultEffectiveFrom >= nextBusinessDate() ? defaultEffectiveFrom : nextBusinessDate());
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -352,20 +361,22 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved }: {
  * Before it the dialog asks the server what the stop would do to the future exams of the lesson (they return to drafts only after an
  * explicit tick), exactly as the teacher's screen always did.
  */
-export function EndWeeklyLessonDialog({ lesson, onClose, onEnded }: {
+export function EndWeeklyLessonDialog({ lesson, onClose, onEnded, defaultEffectiveFrom }: {
   lesson: WeeklyLesson | null;
+  defaultEffectiveFrom?: string;
   onClose: () => void;
   onEnded: () => void | Promise<void>;
 }) {
-  return lesson ? <EndWeeklyLessonForm key={lesson.id} lesson={lesson} onClose={onClose} onEnded={onEnded} /> : null;
+  return lesson ? <EndWeeklyLessonForm key={lesson.id} lesson={lesson} onClose={onClose} onEnded={onEnded} defaultEffectiveFrom={defaultEffectiveFrom} /> : null;
 }
 
-function EndWeeklyLessonForm({ lesson, onClose, onEnded }: {
+function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom }: {
   lesson: WeeklyLesson;
+  defaultEffectiveFrom?: string;
   onClose: () => void;
   onEnded: () => void | Promise<void>;
 }) {
-  const [effectiveFrom, setEffectiveFrom] = useState(nextBusinessDate());
+  const [effectiveFrom, setEffectiveFrom] = useState(defaultEffectiveFrom && defaultEffectiveFrom >= nextBusinessDate() ? defaultEffectiveFrom : nextBusinessDate());
   const [reason, setReason] = useState("");
   const [impact, setImpact] = useState<RecurringLessonEndImpact | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);

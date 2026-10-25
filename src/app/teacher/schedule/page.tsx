@@ -12,7 +12,7 @@ import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -46,7 +46,7 @@ import {
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
 import {
-  VALID_FROM_HINT, roomForSave, validFromBadge, validFromBounds, validFromError,
+  roomForSave, validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
@@ -60,11 +60,11 @@ import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/at
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
-import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
-import { LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
+import { LessonScopeFields, LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
+import { createOneOff, createWeeklyLessons } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
-import { COLOR_CLASSES, DAYS, overlappingLesson, suggestedTimes } from "@/lib/lesson-slot-form";
+import { COLOR_CLASSES, DAYS, DAY_REQUIRED_TEXT, dayShort, overlappingLesson, suggestedTimes, weeklyResultText } from "@/lib/lesson-slot-form";
 
 function russianPlural(count: number, one: string, few: string, many: string) {
   const absolute = Math.abs(count) % 100;
@@ -305,7 +305,7 @@ export default function TeacherSchedulePage() {
   const [newGroupId, setNewGroupId] = useState("");
   const [newLessonScope, setNewLessonScope] = useState<"one_off" | "recurring">("one_off");
   const [newLessonDate, setNewLessonDate] = useState(formatBusinessDate());
-  const [newDay, setNewDay] = useState(1);
+  const [newDays, setNewDays] = useState<number[]>([]);
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("11:30");
   const [newRoom, setNewRoom] = useState("");
@@ -444,8 +444,8 @@ export default function TeacherSchedulePage() {
         && newEndTime > lesson.startTime,
       );
     }
-    return overlappingLesson(lessons, newDay, newStartTime, newEndTime);
-  }, [lessons, newDay, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
+    return newDays.map((day) => overlappingLesson(lessons, day, newStartTime, newEndTime)).find(Boolean);
+  }, [lessons, newDays, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
 
   // Current real day of week: 1=Mon .. 7=Sun
   const todayDayOfWeek = businessDayOfWeek();
@@ -454,7 +454,7 @@ export default function TeacherSchedulePage() {
   const addPastTimeConflict = useMemo(() => {
     const isToday = newLessonScope === "one_off"
       ? newLessonDate === formatBusinessDate()
-      : Number(newDay) === todayDayOfWeek;
+      : newDays.includes(todayDayOfWeek) && (newValidFrom || formatBusinessDate()) === formatBusinessDate();
     if (!isToday) return null;
     const curMin = businessTimeMinutes();
     const [startH, startM] = (newStartTime || "00:00").split(":").map(Number);
@@ -465,7 +465,7 @@ export default function TeacherSchedulePage() {
       return `Нельзя назначить урок на прошедшее время сегодняшнего дня (текущее время: ${curTimeStr})`;
     }
     return null;
-  }, [newDay, newLessonDate, newLessonScope, newStartTime, todayDayOfWeek]);
+  }, [newDays, newLessonDate, newLessonScope, newStartTime, newValidFrom, todayDayOfWeek]);
 
   const filteredWeekLessons = useMemo(() => {
     return weekOccurrences.filter((l) => {
@@ -1072,67 +1072,41 @@ export default function TeacherSchedulePage() {
         return;
       }
     }
-    const group = groups.find((g) => g.id === newGroupId);
-    const groupName = group ? group.name : "Группа";
-    const classLevel = group?.class_level || 5;
-    const oneOffDay = newLessonScope === "one_off"
-      ? isoDateDayOfWeek(newLessonDate)
-      : Number(newDay);
-
-    const tempId = `lesson-${Date.now()}`;
-    const newLesson: LessonEvent = {
-      id: tempId,
-      groupId: newGroupId || (groups[0]?.id ?? "custom-group"),
-      groupName: groupName,
-      classLevel,
-      // ALGO currently schedules mathematics groups only.  Keep the stored
-      // subject deterministic instead of showing an artificial choice in the
-      // create-lesson form.
-      subject: "Математика",
-      dayOfWeek: oneOffDay,
-      startTime: newStartTime,
-      endTime: newEndTime,
-      room: roomForSave(newRoom),
-      format: newFormat,
-      color: newColor,
-      topic: newTopic || undefined,
-    };
+    if (newLessonScope === "recurring" && newDays.length === 0) {
+      setScheduleError(DAY_REQUIRED_TEXT);
+      return;
+    }
+    const groupId = newGroupId || (groups[0]?.id ?? "custom-group");
+    const draft = { startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor };
 
     try {
       setScheduleError(null);
       setScheduleNotices([]);
-      const created = newLessonScope === "one_off"
-        ? await orgApi.createOneOffLesson({
-            groupId: newLesson.groupId,
-            lessonDate: newLessonDate,
-            startTime: newLesson.startTime,
-            endTime: newLesson.endTime,
-            room: newLesson.room,
-            format: newLesson.format,
-            color: newLesson.color,
-            topic: newLesson.topic,
-          })
-        : await orgApi.createLesson({
-            groupId: newLesson.groupId,
-            dayOfWeek: newLesson.dayOfWeek,
-            startTime: newLesson.startTime,
-            endTime: newLesson.endTime,
-            subject: newLesson.subject,
-            room: newLesson.room,
-            format: newLesson.format,
-            color: newLesson.color,
-            topic: newLesson.topic,
-            validFrom: newValidFrom || formatBusinessDate(),
-          });
-      if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
-      setScheduleNotices(warningTexts(created));
+      // A one-off is one request; a weekly lesson is one request per chosen weekday, and the answer names the days that were refused.
+      let notices: string[] = [];
+      let failed: Array<{ day: number; reason: string }> = [];
+      let added: number[] = [];
+      if (newLessonScope === "one_off") {
+        notices = await createOneOff(groupId, newLessonDate, draft);
+      } else {
+        const result = await createWeeklyLessons(groupId, newDays, { ...draft, validFrom: newValidFrom || formatBusinessDate() });
+        notices = result.notices;
+        failed = result.failed;
+        added = result.added;
+        if (failed.length > 0) {
+          setScheduleError([weeklyResultText(added, failed), ...result.failed.map((item) => `${dayShort(item.day)}: ${item.detail}`)].join("\n"));
+          setNewDays(failed.map((item) => item.day));
+          if (added.length === 0) return;
+        }
+      }
+      setScheduleNotices(notices);
 
       // Reload the canonical schedule after either operation. A one-off is
       // intentionally absent from the recurring template, so optimistic
       // browser state would otherwise make it look permanent.
       const reloaded = await loadData();
       if (!reloaded) {
-        setIsAddModalOpen(false);
+        if (failed.length === 0) setIsAddModalOpen(false);
         setNewTopic("");
         return;
       }
@@ -1146,8 +1120,11 @@ export default function TeacherSchedulePage() {
       } catch (error) {
         setWeekLoadError(getDataLoadErrorMessage(error));
       }
-      setIsAddModalOpen(false);
-      setNewTopic("");
+      // some weekdays were refused: the dialog stays open with those days chosen, so nothing is lost silently
+      if (failed.length === 0) {
+        setIsAddModalOpen(false);
+        setNewTopic("");
+      }
     } catch (err) {
       console.error("Failed to persist lesson on backend:", err);
       setScheduleError(scheduleErrorText(err, "Не удалось создать урок. Расписание не изменено — повторите попытку."));
@@ -1157,7 +1134,7 @@ export default function TeacherSchedulePage() {
   // Open Add Modal with smart non-conflicting time calculation
   const openAddModal = (targetDay?: number) => {
     const day = targetDay !== undefined ? targetDay : (todayDayOfWeek || 1);
-    setNewDay(day);
+    setNewDays(targetDay !== undefined ? [targetDay] : []);
     setNewLessonScope("one_off");
     setNewLessonDate(businessWeekdayDate(day, weekOffset));
 
@@ -1173,13 +1150,6 @@ export default function TeacherSchedulePage() {
     setNewValidFrom(formatBusinessDate());
     setScheduleError(null);
     setIsAddModalOpen(true);
-  };
-
-  const handleAddDayChange = (day: number) => {
-    setNewDay(day);
-    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
-    setNewStartTime(times.startTime);
-    setNewEndTime(times.endTime);
   };
 
   // Changing / stopping a weekly lesson is the shared dialogs' job; the page only reloads the canonical schedule afterwards.
@@ -3051,78 +3021,24 @@ export default function TeacherSchedulePage() {
                   />
                 </div>
 
-                <fieldset>
-                  <legend className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Как добавить занятие
-                  </legend>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewLessonScope("one_off");
-                        setNewLessonDate(businessWeekdayDate(newDay, weekOffset));
-                      }}
-                      className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-colors ${
-                        newLessonScope === "one_off"
-                          ? "border-primary-500 bg-primary-50 text-primary-800 ring-1 ring-primary-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="block font-bold">Только на этой неделе</span>
-                      <span className="mt-0.5 block text-[11px] opacity-75">Разовое занятие</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewLessonScope("recurring")}
-                      className={`rounded-xl border px-3 py-2.5 text-left text-xs transition-colors ${
-                        newLessonScope === "recurring"
-                          ? "border-primary-500 bg-primary-50 text-primary-800 ring-1 ring-primary-200"
-                          : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                      }`}
-                    >
-                      <span className="block font-bold">На постоянной основе</span>
-                      <span className="mt-0.5 block text-[11px] opacity-75">Повторяется еженедельно</span>
-                    </button>
-                  </div>
-                </fieldset>
-
-                {newLessonScope === "one_off" ? (
-                  <div>
-                    <label htmlFor="sched-add-data-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">Дата занятия</label>
-                    <DateInput
-                      id="sched-add-data-zanyatiya"
-                      value={newLessonDate}
-                      min={formatBusinessDate()}
-                      max={weekPeriod.end}
-                      onChange={(next) => setNewLessonDate(next)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">Занятие появится только на выбранную дату и не изменит следующие недели.</p>
-                  </div>
-                ) : (
-                  <div>
-                    <label htmlFor="sched-add-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-                    <Select
-                      id="sched-add-den-nedeli"
-                      value={String(newDay)}
-                      onChange={(e) => handleAddDayChange(Number(e.target.value))}
-                      options={DAYS.map((d) => ({ value: String(d.id), label: d.name }))}
-                      buttonClassName="px-3 py-2 text-xs"
-                    />
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в этот день каждую неделю.</p>
-                    <label htmlFor="sched-add-deystvuet-s" className="mt-3 block text-xs font-semibold text-slate-700 mb-1">Действует с</label>
-                    <DateInput
-                      id="sched-add-deystvuet-s"
-                      value={newValidFrom}
-                      min={validFromBounds(formatBusinessDate()).min}
-                      max={validFromBounds(formatBusinessDate()).max}
-                      onChange={(next) => { setNewValidFrom(next); setScheduleError(null); }}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                    <p className="mt-1 text-[11px] leading-4 text-slate-500">{VALID_FROM_HINT}</p>
-                  </div>
-                )}
+                <LessonScopeFields
+                  idPrefix="sched-add"
+                  scope={newLessonScope}
+                  onScope={(next) => {
+                    setNewLessonScope(next);
+                    setScheduleError(null);
+                    // a one-off lesson opens on the day chosen first (or today): a date of the open week
+                    if (next === "one_off" && newDays.length > 0) setNewLessonDate(businessWeekdayDate(newDays[0], weekOffset));
+                  }}
+                  days={newDays}
+                  onDays={(next) => { setNewDays(next); setScheduleError(null); }}
+                  daysInvalid={newLessonScope === "recurring" && newDays.length === 0 && Boolean(scheduleError)}
+                  date={newLessonDate}
+                  onDate={(next) => setNewLessonDate(next)}
+                  dateMax={weekPeriod.end}
+                  validFrom={newValidFrom}
+                  onValidFrom={(next) => { setNewValidFrom(next); setScheduleError(null); }}
+                />
 
                 <LessonSlotFields
                   idPrefix="sched-add"
@@ -3156,7 +3072,7 @@ export default function TeacherSchedulePage() {
 
                 {scheduleError && (
                   <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{scheduleError}</span>
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="whitespace-pre-line">{scheduleError}</span>
                   </p>
                 )}
 

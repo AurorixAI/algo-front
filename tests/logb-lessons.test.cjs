@@ -91,8 +91,8 @@ test("[O5.R7] a busy teacher at a schedule write: the server head and the first 
 
 test("the schedule page is wired: «Действует с», the optional room without «Кабинет 204», the errors inside the dialogs, the notices", () => {
   // P1: the fields of the weekly lesson (room label / placeholder) live in the shared component, used by the teacher's add and edit forms
-  const page = read("src/app/teacher/schedule/page.tsx") + read("src/components/schedule/lesson-slot-fields.tsx");
-  for (const needle of [/Действует с/, /VALID_FROM_HINT/, /ROOM_LABEL/, /ROOM_PLACEHOLDER/, /roomForSave\(newRoom\)/, /validFrom: newValidFrom/, /scheduleErrorText\(err/, /warningTexts\(created\)/, /validFromBadge\(l\.validFrom/, /placeText\(l\)/, /placeText\(activeLesson\)/]) {
+  const page = read("src/app/teacher/schedule/page.tsx") + read("src/components/schedule/lesson-slot-fields.tsx") + read("src/lib/weekly-lessons.ts");
+  for (const needle of [/Действует с/, /VALID_FROM_HINT/, /ROOM_LABEL/, /ROOM_PLACEHOLDER/, /roomForSave\(draft\.room\)/, /validFrom: newValidFrom/, /scheduleErrorText\(err/, /warningTexts\(created\)/, /validFromBadge\(l\.validFrom/, /placeText\(l\)/, /placeText\(activeLesson\)/]) {
     assert.match(page, needle, String(needle));
   }
   assert.doesNotMatch(page, /Кабинет 204/);

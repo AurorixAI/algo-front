@@ -11,13 +11,17 @@ export type ScheduleCardAction =
   | "reschedule"      // «Перенести урок» (the time / room of this lesson)
   | "cancel"          // «Отменить урок»
   | "mark"            // «Отметить посещаемость»: a past lesson nobody marked (the journal)
-  | "journal";        // «Открыть в журнале»: a lesson that is held or going on
+  | "journal"        // «Открыть в журнале»: a lesson that is held or going on
+  | "editSeries"     // «Изменить постоянный урок»: the weekly lesson this one belongs to, from a future date
+  | "endSeries";     // «Прекратить урок»: stop the weekly lesson from a future date
 
 export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">, string> = {
   reschedule: "Перенести урок",
   cancel: "Отменить урок",
   mark: "Отметить посещаемость",
   journal: "Открыть в журнале",
+  editSeries: "Изменить постоянный урок",
+  endSeries: "Прекратить урок",
 };
 
 /**
@@ -47,6 +51,8 @@ export interface ScheduleCardInput {
   hasTeacherInfo: boolean;
   /** «HH:MM» of the start: with it a lesson of today that has begun is treated as a past one. */
   startTime?: string | null;
+  /** The lesson is an occurrence of a WEEKLY lesson (not a one-off one): the sheet then also changes / stops the weekly lesson. */
+  recurring?: boolean;
   /** The moment of the decision (business clock is applied to it); the real now by default, a test passes its own. */
   now?: Date;
 }
@@ -65,6 +71,12 @@ export function lessonHasStarted(input: { date: string; today: string; startTime
 
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
+  const base = lessonActions(input);
+  // the weekly lesson itself is changed / stopped from a future date, whatever happened to this one occurrence (a cancelled one has no sheet)
+  return input.recurring && base.length > 0 ? [...base, "editSeries", "endSeries"] : base;
+}
+
+function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
   if (input.archived || (input.role !== "owner" && input.role !== "admin")) return [];
   const { state, date, today } = input;
   if (state === "cancelled") return [];

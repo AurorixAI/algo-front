@@ -7,6 +7,7 @@ import {
   CalendarCheck2,
   CalendarClock,
   CalendarDays,
+  CalendarPlus,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
   orgApi,
   type GroupAttendance,
   type Lesson,
+  type LessonEvent,
   type LessonAttendanceStatus,
 } from "@/lib/api";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
@@ -31,7 +33,8 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
-import { GroupWeeklySlots } from "@/components/groups/group-weekly-slots";
+import { AddLessonDialog, EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
+import { NO_TEACHER_SCHEDULE_HINT } from "@/lib/lesson-slot-form";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { assignActionLabel, lessonHasStarted, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
@@ -52,6 +55,11 @@ function mondayFor(isoDate: string): string {
   const date = new Date(`${isoDate}T12:00:00Z`);
   const weekday = date.getUTCDay() || 7;
   return shiftDate(isoDate, 1 - weekday);
+}
+
+/** An occurrence of a WEEKLY lesson: the one-off lessons (added for one date, or made by a move) have no weekly lesson behind them. */
+function isRecurringLesson(lesson: Lesson): boolean {
+  return !String(lesson.id).startsWith("one-off-");
 }
 
 function lessonKey(lesson: Lesson): string {
@@ -150,6 +158,11 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
   const router = useRouter();
   const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   const [sheetLesson, setSheetLesson] = useState<Lesson | null>(null);
+  // P1: the weekly lessons of this group (templates), read when a dialog needs them; the dialogs of «добавить / изменить / прекратить»
+  const [templates, setTemplates] = useState<LessonEvent[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editTemplate, setEditTemplate] = useState<{ lesson: LessonEvent; from?: string } | null>(null);
+  const [endTemplate, setEndTemplate] = useState<{ lesson: LessonEvent; from?: string } | null>(null);
   const [anchorDate, setAnchorDate] = useState(today);
   const [attendance, setAttendance] = useState<GroupAttendance | null>(null);
   const [loading, setLoading] = useState(true);
@@ -246,6 +259,39 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
     };
   }, [attendance?.statuses, todayLessons]);
 
+  const loadTemplates = useCallback(async (): Promise<LessonEvent[] | null> => {
+    try {
+      const all = (await orgApi.getSchedule()).filter((lesson) => lesson.groupId === groupId);
+      setTemplates(all);
+      return all;
+    } catch {
+      return null;
+    }
+  }, [groupId]);
+
+  const canManage = (viewerRole === "owner" || viewerRole === "admin") && !archived;
+
+  const openAdd = async () => {
+    await loadTemplates();
+    setAddOpen(true);
+  };
+
+  /** «Изменить постоянный урок» / «Прекратить урок» of the sheet: the weekly lesson of this occurrence, as the schedule has it today. */
+  const openSeries = async (kind: "edit" | "end") => {
+    const lesson = sheetLesson;
+    if (!lesson) return;
+    setSheetLesson(null);
+    const all = await loadTemplates();
+    const template = all?.find((item) => item.id === lesson.id);
+    if (!template) {
+      showToast(all ? "Постоянный урок не найден: возможно, он уже прекращён. Обновите расписание." : "Не удалось загрузить постоянное расписание. Повторите попытку.", "error");
+      return;
+    }
+    const from = lesson.date > today ? lesson.date : undefined;
+    if (kind === "edit") setEditTemplate({ lesson: template, from });
+    else setEndTemplate({ lesson: template, from });
+  };
+
   const moveWeek = (direction: -1 | 1) => setAnchorDate((value) => shiftDate(value, direction * 7));
   const isCurrentWeek = period.start === mondayFor(today);
 
@@ -272,17 +318,6 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         </button>
       </section>
 
-      {/* P1: the owner and the administrator add, change and stop the weekly lessons right here (not on an archived group) */}
-      {(viewerRole === "owner" || viewerRole === "admin") && !archived && (
-        <GroupWeeklySlots
-          groupId={groupId}
-          groupName={groupName || "Группа"}
-          teacherAssigned={teacherAssigned}
-          onChanged={() => void loadSchedule()}
-          onMessage={(text) => showToast(text)}
-        />
-      )}
-
       <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1">
@@ -306,11 +341,24 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
-          <div>
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="min-w-0">
             <h3 className="text-base font-semibold text-slate-900">Расписание группы</h3>
             <p className="mt-0.5 text-sm text-slate-500">Фактический статус занятий, включая переносы и отмены.</p>
+            {canManage && !teacherAssigned && (
+              <p data-testid="weekly-no-teacher" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs text-amber-800">{NO_TEACHER_SCHEDULE_HINT}.</p>
+            )}
           </div>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => void openAdd()}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-700"
+            >
+              <CalendarPlus className="h-4 w-4" />
+              Добавить в расписание
+            </button>
+          )}
         </div>
 
         {loading ? (
@@ -367,7 +415,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
                         const room = roomLabel(lesson);
-                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time });
+                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: isRecurringLesson(lesson) });
                         // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
                         const marks = lessonMarks(attendance?.substitutionRequests?.[key], null);
                         const manager = viewerRole === "owner" || viewerRole === "admin";
@@ -430,7 +478,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
         const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
-        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time }) : [];
+        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, recurring: isRecurringLesson(lesson) }) : [];
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
@@ -462,11 +510,47 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
               if (!lesson) return;
               router.push(`${base}/groups/${groupId}?tab=attendance&month=${lesson.date.slice(0, 7)}&lesson=${encodeURIComponent(lesson.id)}&date=${lesson.date}`);
             }}
+            onEditSeries={() => void openSeries("edit")}
+            onEndSeries={() => void openSeries("end")}
             onChanged={(text) => { setSheetLesson(null); showToast(text); void loadSchedule(); }}
             onRefresh={() => { setSheetLesson(null); void loadSchedule(); }}
           />
         );
       })()}
+
+      <AddLessonDialog
+        open={addOpen}
+        group={{ id: groupId, name: groupName || "Группа" }}
+        teacherAssigned={teacherAssigned}
+        siblings={templates}
+        onClose={() => setAddOpen(false)}
+        onAdded={({ text, notices, closed }) => {
+          if (closed) setAddOpen(false);
+          showToast(text, "success", notices);
+          void loadSchedule();
+        }}
+      />
+      <EditWeeklyLessonDialog
+        lesson={editTemplate?.lesson ?? null}
+        defaultEffectiveFrom={editTemplate?.from}
+        siblings={templates}
+        onClose={() => setEditTemplate(null)}
+        onSaved={(notices, effectiveFrom) => {
+          setEditTemplate(null);
+          showToast(`Расписание изменено с ${formatIsoDateLabel(effectiveFrom, { day: "numeric", month: "long" })}`, "success", notices);
+          void loadSchedule();
+        }}
+      />
+      <EndWeeklyLessonDialog
+        lesson={endTemplate?.lesson ?? null}
+        defaultEffectiveFrom={endTemplate?.from}
+        onClose={() => setEndTemplate(null)}
+        onEnded={() => {
+          setEndTemplate(null);
+          showToast("Занятия прекращены с выбранной даты");
+          void loadSchedule();
+        }}
+      />
 
       <LessonTeacherDialog
         target={teacherTarget}

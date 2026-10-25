@@ -339,7 +339,8 @@ test("exam and diagnostic screens go through the business-time helpers", () => {
     "app/teacher/exams/[id]/report/page.tsx": ["formatUtcNaiveAsBusinessDayTime(report.generated_at"],
     "app/teacher/groups/[id]/page.tsx": ["formatUtcNaiveAsBusinessDate(ex.created_at)"],
     "components/students/student-profile-view.tsx": ["formatUtcNaiveAsBusinessDayTime(ex.submitted_at)", "formatUtcNaiveAsBusinessDate(ex.started_at"],
-    "app/teacher/schedule/page.tsx": ["isoDateDayOfWeek(newLessonDate)"],
+    // P1: a one-off lesson is saved on its date through the shared helper (the server derives the weekday from the date)
+    "app/teacher/schedule/page.tsx": ["createOneOff(groupId, newLessonDate"],
     "app/teacher/dashboard/page.tsx": ["isoDateDayOfWeek(action.lessonDate)"],
   };
   for (const [file, needles] of Object.entries(sites)) {
