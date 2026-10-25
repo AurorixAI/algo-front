@@ -299,7 +299,8 @@ test("wiring: the teacher's schedule uses the shared scope switch, fields and di
   assert.match(page, /<EndWeeklyLessonDialog/);
   assert.match(page, /<EndWeeklyLessonDialog\s+lesson=\{endingRecurringLesson\}\s+aboveLessonPanel/);
   assert.match(page, /<EditWeeklyLessonDialog\s+lesson=\{editingLesson\}\s+aboveLessonPanel/);
-  assert.match(page, /if \(endingRecurringLesson \|\| editingLesson\) return;/, "Escape closes the topmost layer only");
+  assert.match(page, /if \(escapeBelongsToDialogRef\.current\) return;/, "Escape closes the topmost layer only");
+  assert.match(page, /window\.addEventListener\("keydown", noteKey, true\)/, "asked in the capture phase, before the dialog has reacted");
   assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /aboveLessonPanel=\{aboveLessonPanel\}/);
   assert.match(page, /<LessonSlotFields/);
   assert.match(page, /<LessonScopeFields/);

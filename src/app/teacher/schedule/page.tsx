@@ -418,13 +418,24 @@ export default function TeacherSchedulePage() {
   useScrollLock(isAddModalOpen || isWeekPlanOpen || !!activeLesson);
 
   // ─── Close Modal on Escape Key ───
+  // The dialogs of «Изменить / Прекратить» (shared `Modal`) close themselves on Escape from ONE document listener and React may commit that
+  // closing before this window listener runs: the state would then already say «no dialog» and the panel would close with the same key.
+  // So the question «is a dialog above the panel?» is asked in the capture phase, before any of them has reacted.
+  const weeklyDialogOpenRef = useRef(false);
+  weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson);
+  const escapeBelongsToDialogRef = useRef(false);
+  useEffect(() => {
+    const noteKey = (e: KeyboardEvent) => { if (e.key === "Escape") escapeBelongsToDialogRef.current = weeklyDialogOpenRef.current; };
+    window.addEventListener("keydown", noteKey, true);
+    return () => window.removeEventListener("keydown", noteKey, true);
+  }, []);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // a conflict of marks / a running exam is decided in a dialog over the panel: the panel stays
         if (marksOps.conflict || marksOps.liveExams) return;
         // the dialogs of «Изменить / Прекратить» are above the panel and close themselves (the topmost one only): the panel stays
-        if (endingRecurringLesson || editingLesson) return;
+        if (escapeBelongsToDialogRef.current) return;
         if (isRecurringActionsOpen) {
           setIsRecurringActionsOpen(false);
           return;
@@ -439,7 +450,7 @@ export default function TeacherSchedulePage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, endingRecurringLesson, editingLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
+  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
 
   // Add conflict check (overlapping lessons)
   const addConflict = useMemo(() => {
