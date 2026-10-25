@@ -343,6 +343,9 @@ test("labels and time: Russian statuses, the Tashkent clock for the server's UTC
   assert.equal(labels.isFinalRequest("approved"), true);
   assert.equal(labels.isFinalRequest("new"), false);
   assert.equal(labels.orgStatus("blocked").label, "Заблокирован");
+  assert.deepEqual(labels.orgStatus("suspended"), { label: "Приостановлен", tone: "amber" });
+  assert.match(read("console/src/components/centres.tsx"), /value: "suspended", label: "Приостановленные"/);
+  assert.match(read("console/src/lib/types.ts"), /OrgStatus = [^;]*"suspended"/);
   assert.equal(labels.userStatus("never_logged_in").label, "Не входил");
   assert.equal(fmt.fmtDateTime("2026-10-25T09:30:00Z"), "25.10.2026 14:30");
   assert.equal(fmt.fmtDateTime("2026-10-25T20:30:00Z"), "26.10.2026 01:30", "the day changes at Tashkent midnight, not UTC");
@@ -375,7 +378,12 @@ test("the console is a static export: no server code, no data of its own", () =>
     const source = read(file);
     assert.doesNotMatch(source, /["']use server["']|next\/headers|getServerSideProps|NextResponse|from "next\/server"/, file);
     assert.doesNotMatch(source, /process\.env\.(?!NEXT_PUBLIC_)/, `${file}: only NEXT_PUBLIC_ values exist in a static page`);
-    assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie/, `${file}: the session lives in the HttpOnly cookie, nothing is stored by the page`);
+    assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie|\bcaches\.|zustand|persist\(/, `${file}: the session lives in the HttpOnly cookie, nothing (no API answer either) is stored by the page`);
+  }
+  // every call of the shared client asks the network, never a cache; and no kit / shared module the console loads writes to browser storage
+  assert.match(read("src/lib/http-json.ts"), /cache: "no-store"/);
+  for (const shared of ["src/lib/http-json.ts", "src/lib/demo-request.ts", "src/lib/business-time.ts", "src/lib/phone.ts", "src/lib/form-fields.ts", ...fs.readdirSync(path.join(root, "src/components/ui")).filter((f) => /\.tsx?$/.test(f)).map((f) => `src/components/ui/${f}`)]) {
+    assert.doesNotMatch(read(shared), /localStorage|sessionStorage|indexedDB/, shared);
   }
   assert.equal(consoleSources.some((f) => /route\.ts$/.test(f)), false, "no route handlers");
   assert.equal(consoleSources.some((f) => /middleware\.ts$/.test(f)), false);

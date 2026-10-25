@@ -307,8 +307,15 @@ test("the pages render: the form has every field, the honeypot is out of reach, 
   for (const label of ["ФИО", "Название центра", "Город", "Телефон", "Почта", "Комментарий"]) assert.ok(html.includes(label), label);
   assert.match(html, /Сколько у вас учеников/);
   assert.match(html, /value="\+998 "/, "the phone starts with its prefix");
-  // the honeypot: aria-hidden, no tab stop, autocomplete off, named «website»
-  assert.match(html, /<div aria-hidden="true"[^>]*data-testid="demo-honeypot"[\s\S]*?name="website"[^>]*tabindex="-1"|<div aria-hidden="true"[^>]*data-testid="demo-honeypot"[\s\S]*?tabindex="-1"[^>]*name="website"/);
+  // the honeypot: aria-hidden, no tab stop, autocomplete off, a name no autofill knows, no site/url/mail words in name, id or label
+  const trap = html.slice(html.indexOf('data-testid="demo-honeypot"'));
+  assert.match(trap, /name="hp_extra"/);
+  assert.match(trap, /tabindex="-1"/);
+  assert.match(trap, /autoComplete="off"|autocomplete="off"/);
+  assert.match(html.slice(html.lastIndexOf("<div", html.indexOf('data-testid="demo-honeypot"'))), /^<div aria-hidden="true"/);
+  const trapMarkup = trap.slice(0, trap.indexOf("</div>"));
+  assert.doesNotMatch(trapMarkup, /site|url|website|web|mail|phone|name="(?!hp_extra)/i, "nothing an autofill heuristic keys on");
+  assert.equal(D.buildDemoBody(filled()).website, "", "the key the server expects is still `website`");
   const source = read("src/components/onboarding/demo-request-page.tsx");
   assert.match(source, /Заявка принята/);
   assert.match(source, /data-testid="demo-success"/);

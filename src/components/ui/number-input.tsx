@@ -59,7 +59,7 @@ export const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(functi
           }
         }}
         className={cn(
-          "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400",
+          "w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-[border-color,background-color,box-shadow] placeholder:text-slate-400",
           "focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-60",
           className,
           (invalid || outOfRange) && "border-red-400 focus:border-red-500 focus:ring-red-500/20",

@@ -27,6 +27,7 @@ export function orgStatus(status: OrgStatus | string): { label: string; tone: To
     case "active": return { label: "Активен", tone: "green" };
     case "blocked": return { label: "Заблокирован", tone: "red" };
     case "pending": return { label: "Ожидает", tone: "amber" };
+    case "suspended": return { label: "Приостановлен", tone: "amber" };
     case "rejected": return { label: "Отклонён", tone: "slate" };
     default: return { label: status, tone: "slate" };
   }

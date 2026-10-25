@@ -93,7 +93,7 @@ export interface ApproveResult {
   invite: { expires_at: string; email_sent: boolean };
 }
 
-export type OrgStatus = "active" | "blocked" | "pending" | "rejected";
+export type OrgStatus = "active" | "blocked" | "pending" | "rejected" | "suspended";
 
 export interface Org {
   id: string;

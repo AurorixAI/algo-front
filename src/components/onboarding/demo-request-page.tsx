@@ -282,6 +282,7 @@ export function DemoRequestPage() {
                           max={STUDENTS_MAX}
                           placeholder="150"
                           invalid={Boolean(errors.studentsCount)}
+                          className="bg-white/80 px-4 text-base backdrop-blur-sm"
                         />
                         {errors.studentsCount && <p className="mt-1.5 text-xs text-red-500">{errors.studentsCount}</p>}
                       </div>
@@ -296,12 +297,13 @@ export function DemoRequestPage() {
                         error={errors.comment}
                       />
 
-                      {/* The honeypot: out of sight and out of the tab order. A person never fills it; a script that fills every field does. */}
+                      {/* The honeypot: out of sight, out of the tab order, named so that no browser autofill or password manager recognises it.
+                          A person never fills it; a script that fills every field does.  The server's key for it stays `website` (API_CONTRACT §1). */}
                       <div aria-hidden="true" className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden" data-testid="demo-honeypot">
                         <Input
-                          id="demo-website"
-                          label="Ваш сайт"
-                          name="website"
+                          id="demo-hp"
+                          label="Оставьте это поле пустым"
+                          name="hp_extra"
                           tabIndex={-1}
                           autoComplete="off"
                           value={values.website}

@@ -27,6 +27,7 @@ const STATUS_OPTIONS = [
   { value: "", label: "Все статусы" },
   { value: "active", label: "Активные" },
   { value: "blocked", label: "Заблокированные" },
+  { value: "suspended", label: "Приостановленные" },
   { value: "pending", label: "Ожидают" },
   { value: "rejected", label: "Отклонённые" },
 ];
