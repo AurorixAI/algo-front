@@ -211,6 +211,22 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
   }
 }
 
+/**
+ * The line under the teacher of a record the system made (no request of the teacher): a lesson moved straight from its sheet says who moved it,
+ * anything else is «Запрос создан системой»; null for a request of the teacher.
+ */
+export function originLine(item: SubstitutionItem): string | null {
+  if (item.origin !== "system") return null;
+  if (item.status === "rescheduled") return item.decision?.via === "teacher_move" ? "Перенёс сам, без запроса" : "Перенёс администратор, без запроса";
+  return "Запрос создан системой";
+}
+
+/** The reason chip: a move without a request is «Перенос» (its machine reason «other» says nothing); otherwise the teacher's reason. */
+export function reasonChipText(item: SubstitutionItem): string {
+  if (item.origin === "system" && item.status === "rescheduled") return "Перенос";
+  return item.reasonLabel || reasonLabelOf(item.reasonCode);
+}
+
 /** «Решил(а) Каримова Н., 21.10 14:12» in the list of decided requests. */
 export function decidedByLine(item: SubstitutionItem): string {
   const decision = item.decision;

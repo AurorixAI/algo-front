@@ -136,3 +136,14 @@ test("both week grids write the head of a day with the one component: weekday, t
   assert.doesNotMatch(owner + teacher, /text-\[10px\] bg-white\/20 px-2 py-1 rounded-md font-bold/, "no second copy of the pill");
   assert.ok(teacher.split("\n").length < 3210, "the teacher page did not grow");
 });
+
+test("the journal: a move without a request says who moved it and its chip is «Перенос»; a teacher's request keeps its reason", () => {
+  const moved = (via) => ({ origin: "system", status: "rescheduled", reasonCode: "other", reasonLabel: "Другое", decision: { via } });
+  assert.equal(S.originLine(moved("teacher_move")), "Перенёс сам, без запроса");
+  assert.equal(S.originLine(moved("request")), "Перенёс администратор, без запроса");
+  assert.equal(S.reasonChipText(moved("teacher_move")), "Перенос");
+  assert.equal(S.originLine({ origin: "system", status: "pending", decision: null }), "Запрос создан системой");
+  const asked = { origin: "teacher", status: "rescheduled", reasonCode: "sick", reasonLabel: "", decision: { via: "request" } };
+  assert.equal(S.originLine(asked), null);
+  assert.equal(S.reasonChipText(asked), "Болезнь");
+});

@@ -18,13 +18,14 @@ import {
   batchSiblings,
   bulkToast,
   decidedByLine,
+  originLine,
+  reasonChipText,
   deadlineChips,
   decisionResultText,
   decisionToast,
   itemLessonLine,
   lessonWhen,
   moreLessonsText,
-  reasonLabelOf,
   suggestedLine,
   tabLabel,
   type DeadlineChip,
@@ -238,7 +239,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <div className="min-w-0">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Замены</h1>
-        <p className="text-sm text-slate-500">Запросы преподавателей, которые не смогут провести урок</p>
+        <p className="text-sm text-slate-500">Запросы преподавателей, которые не смогут провести урок, и переносы уроков</p>
       </div>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -361,12 +362,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       ) : (
                         <p className="break-words font-medium text-slate-800">{item.teacher.name}</p>
                       )}
-                      {item.origin === "system" && <p className="text-xs text-slate-500">Запрос создан системой</p>}
+                      {originLine(item) && <p className="text-xs text-slate-500">{originLine(item)}</p>}
                     </div>
 
                     {/* Причина */}
                     <div className="min-w-0">
-                      <span className={`${CHIP_BASE_CLASS} border-slate-200 bg-slate-50 text-slate-700`}>{item.reasonLabel || reasonLabelOf(item.reasonCode)}</span>
+                      <span className={`${CHIP_BASE_CLASS} border-slate-200 bg-slate-50 text-slate-700`}>{reasonChipText(item)}</span>
                       {item.comment && <p className="mt-1 line-clamp-3 break-words text-sm text-slate-700" title={item.comment}>{item.comment}</p>}
                       {pendingTab && suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
                     </div>
