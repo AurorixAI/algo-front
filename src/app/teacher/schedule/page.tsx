@@ -1799,7 +1799,7 @@ export default function TeacherSchedulePage() {
                   onClick={() => setWeekOffset(0)}
                   className="text-xs font-semibold text-primary-600 hover:text-primary-700 px-2 py-1 bg-primary-50 rounded-lg transition-colors ml-1"
                 >
-                  Текущая неделя
+                  К текущей неделе
                 </button>
               )}
             </div>
