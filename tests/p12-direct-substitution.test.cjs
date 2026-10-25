@@ -28,7 +28,7 @@ const S = require(path.join(root, "src/lib/substitutions.ts"));
 const AT = "2026-10-21T09:12:00";                                    // 14:12 in Tashkent
 const person = (name) => ({ id: name, name });
 const direct = (patch = {}) => ({
-  id: "r1", origin: "system", status: "substituted", reasonCode: "other", reasonLabel: "Другое", teacher: person("Иванов А."),
+  id: "r1", origin: "system", trigger: "manager_assign", status: "substituted", reasonCode: "other", reasonLabel: "Другое", teacher: person("Иванов А."),
   decision: { kind: "substitute", via: "lesson_teacher_put", by: person("Каримова Н."), at: AT, substitute: person("Петров Б."), note: null }, ...patch,
 });
 const cleared = (patch = {}) => direct({
@@ -57,11 +57,14 @@ test("[2] a request of a teacher decided from the sheet or on the page reads the
   }
 });
 
-test("a request the system reopened and the administrator decided on the page is still «Запрос создан системой»; a system request that waits too", () => {
-  const reopened = direct({ decision: { ...direct().decision, via: "request" } });
-  assert.equal(S.isDirectSubstitution(reopened), false);
-  assert.equal(S.originLine(reopened), "Запрос создан системой");
-  assert.equal(S.reasonChipText(reopened), "Другое");
+test("a request the system reopened is still «Запрос создан системой» - decided on the page AND decided from the sheet (R3: the mark is the server's trigger, not the way it was decided)", () => {
+  for (const via of ["request", "lesson_teacher_put"]) {
+    const reopened = direct({ trigger: null, decision: { ...direct().decision, via } });
+    assert.equal(S.isDirectSubstitution(reopened), false, via);
+    assert.equal(S.originLine(reopened), "Запрос создан системой", via);
+    assert.equal(S.reasonChipText(reopened), "Другое", via);
+    assert.deepEqual(S.teacherStatusLine(reopened), { text: "Замена: Петров Б.", tone: "green" }, via);
+  }
   assert.equal(S.originLine({ origin: "system", status: "pending", decision: null }), "Запрос создан системой");
 });
 
@@ -72,16 +75,20 @@ test("a move keeps its lines (P1.1) and is not a substitution", () => {
   assert.equal(S.reasonChipText(moved), "Перенос");
 });
 
-test("[3] a substitute replaced by another: the old record says who took over, the new one is the one in force; a page that shows only the new one hints nothing", () => {
-  const first = direct({ id: "r1" });
-  const second = direct({ id: "r2", decision: { ...direct().decision, substitute: person("Сидоров В.") },
-                          previous: { id: "r1", status: "substituted", teacherName: "Иванов А.", substituteName: "Петров Б." } });
-  const map = S.supersededBy([second, first]);
-  assert.deepEqual([...map], [["r1", "Сидоров В."]]);
-  assert.equal(S.supersededBy([second]).get("r2"), undefined);
-  assert.deepEqual([...S.supersededBy([first])], []);
-  const afterRemoval = direct({ id: "r3", previous: { id: "r1", status: "closed", teacherName: "Иванов А.", substituteName: "Петров Б." } });
-  assert.deepEqual([...S.supersededBy([afterRemoval])], [], "a taken-off substitution is not «replaced»");
+test("[3] what became of a substitution is said under the decision, from the server's `cleared*` (not from the other rows of the page)", () => {
+  const at = "2026-10-22T04:30:00";                                  // 09:30 in Tashkent
+  const gone = (patch) => direct({ clearedAt: at, clearedBy: person("Каримова Н."), clearedTo: null, clearedTrigger: "put", ...patch });
+  assert.equal(S.clearedLine(direct()), null, "it stands");
+  assert.equal(S.clearedLine(direct({ clearedAt: null })), null);
+  assert.equal(S.clearedLine(gone({})), "Замена снята: Каримова Н., 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTo: person("Сидоров В.") })), "Заменена на Сидоров В., 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTrigger: "move" })), "Урок позже перенесён, 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTrigger: "cancel" })), "Урок позже отменён, 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTrigger: "member_removed" })), "Замена снята: заменяющий больше не работает в центре, 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTrigger: "group_teacher_changed" })), "Замена снята: стал преподавателем группы, 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedBy: null })), "Замена снята: система, 22.10 09:30");
+  assert.equal(S.clearedLine({ ...cleared(), clearedAt: at }), null, "a record the removal closed says it in its result already");
+  assert.equal(S.supersededBy, undefined, "the page-dependent hint is gone");
 });
 
 test("[4] a substitution taken off: «Замена снята: Петров Б.», «Снял(а) Каримова Н., дата»; the other closings keep their words", () => {
@@ -107,12 +114,44 @@ test("without names the line does not invent one", () => {
   assert.equal(S.decisionResultText(direct({ teacher: { id: "x", name: "" } })), "Замена: Петров Б.");
 });
 
-test("the page wires the lines of the journal: the origin under the teacher, the chip, the result, the hint of a replaced substitution; the new code is a known closing", () => {
+test("[R3 #5] «Мои запросы» of the teacher: a substitution or a move he did not ask for says the administrator did it", () => {
+  assert.deepEqual(S.teacherStatusLine(direct()), { text: "Администратор заменил: Петров Б.", tone: "green" });
+  assert.deepEqual(S.teacherStatusLine(direct({ decision: { ...direct().decision, substitute: null } })), { text: "Администратор назначил замену", tone: "green" });
+  const moved = (trigger, via) => ({ origin: "system", trigger, status: "rescheduled", decision: { kind: "reschedule", via, movedTo: { date: "2026-10-28", startTime: "14:00", endTime: "15:30" } } });
+  assert.match(S.teacherStatusLine(moved("manager_move", "request")).text, /^Администратор перенёс: урок перенесён на /);
+  assert.equal(S.teacherStatusLine(moved("teacher_move", "teacher_move")).text.startsWith("Урок перенесён на "), true, "his own move keeps its words");
+  assert.equal(S.teacherStatusLine({ origin: "teacher", status: "rescheduled", decision: moved("x", "request").decision }).text.startsWith("Урок перенесён на "), true);
+  assert.deepEqual(S.teacherStatusLine(direct({ origin: "teacher", trigger: null })), { text: "Замена: Петров Б.", tone: "green" });
+});
+
+test("[R3 #3] «Ведёт: …» - the lesson of a group without a main teacher is not a «Замена», in the toast and on the chip", () => {
+  assert.equal(S.directAssignToast({ isSubstitution: false, teacherName: "Петров Б.", defaultTeacherId: null }), "Ведёт: Петров Б.");
+  assert.equal(S.directAssignToast({ isSubstitution: false, teacherName: "Иванов А.", defaultTeacherId: "u1" }), "Преподаватель урока возвращён");
+  assert.equal(S.directAssignToast({ isSubstitution: true, teacherName: "Петров Б.", defaultTeacherId: "u1" }), "Замена назначена: Петров Б.");
+  const lesson = { groupName: "9-А", isSubstitution: false, teacherId: "t2", teacherName: "Петров Б.", defaultTeacherId: null };
+  assert.deepEqual(S.occurrenceChips(lesson, "boss", { manager: true }).map((c) => c.text), ["Ведёт: Петров Б."]);
+  assert.deepEqual(S.occurrenceChips({ ...lesson, defaultTeacherId: "t1", teacherId: "t1", teacherName: "Иванов А." }, "boss").map((c) => c.text), []);
+  assert.deepEqual(S.occurrenceChips({ groupName: "9-А", teacherId: "t2", teacherName: "Петров Б." }, "boss").map((c) => c.text), [], "an answer that does not say the main teacher shows no chip");
+});
+
+test("[R3 #6] the rows of the journal, rendered: the line under the teacher, the chip, the result, who decided and what became of the substitution", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const cells = require(path.join(root, "src/components/substitutions/journal-cells.tsx"));
+  const text = (html) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+  const render = (Component, item) => text(renderToStaticMarkup(React.createElement(Component, { item })));
+  const stood = { ...direct(), comment: "Болезнь у основного преподавателя" };
+  assert.equal(render(cells.OriginLine, stood), "|Заменил администратор, без запроса|");
+  assert.equal(render(cells.ReasonCell, stood), "|Замена|Болезнь у основного преподавателя|");
+  assert.equal(render(cells.DecisionCell, stood), "|Иванов А. → Петров Б.|Решил(а) Каримова Н., 21.10 14:12|");
+  const replaced = { ...stood, clearedAt: "2026-10-22T04:30:00", clearedBy: person("Каримова Н."), clearedTo: person("Сидоров В."), clearedTrigger: "put" };
+  assert.equal(render(cells.DecisionCell, replaced), "|Иванов А. → Петров Б.|Решил(а) Каримова Н., 21.10 14:12|Заменена на Сидоров В., 22.10 09:30|");
+  const removed = render(cells.DecisionCell, cleared());
+  assert.equal(removed, "|Замена снята: Петров Б.|Снял(а) Каримова Н., 21.10 14:12|");
+  const asked = { ...direct({ origin: "teacher", trigger: null, reasonLabel: "Болезнь", reasonCode: "sick" }) };
+  assert.equal(render(cells.OriginLine, asked), "");
+  assert.equal(render(cells.ReasonCell, asked), "|Болезнь|");
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /originLine\(item\)/);
-  assert.match(page, /reasonChipText\(item\)/);
-  assert.match(page, /decisionResultText\(item\)/);
-  assert.match(page, /supersededBy\(items\)/);
-  assert.match(page, /Позже заменена на/);
+  for (const name of ["OriginLine", "ReasonCell", "DecisionCell"]) assert.match(page, new RegExp(`<${name} item=\\{item\\} />`), `the page renders ${name}`);
   assert.match(read("src/lib/substitution-types.ts"), /\| "ASSIGNMENT_CLEARED"/);
 });

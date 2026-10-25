@@ -197,10 +197,13 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
     case "pending": return { text: "Ждёт решения", tone: "amber" };
     case "substituted": {
       const name = (decision?.substitute?.name ?? "").trim();
+      if (isDirectSubstitution(item)) return { text: name ? `Администратор заменил: ${name}` : "Администратор назначил замену", tone: "green" };       // he did not ask: say who did it
       return { text: name ? `Замена: ${name}` : "Замена назначена", tone: "green" };
     }
-    case "rescheduled":
-      return { text: decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён", tone: "blue" };
+    case "rescheduled": {
+      const text = decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён";
+      return { text: isManagerMove(item) ? `Администратор перенёс: ${text.charAt(0).toLowerCase()}${text.slice(1)}` : text, tone: "blue" };
+    }
     case "cancelled": return { text: LESSON_CANCELLED_LABEL, tone: "gray" };
     case "rejected": {
       const reason = (decision?.note ?? "").trim();
@@ -213,13 +216,16 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
 }
 
 /**
- * P1.2: a substitution the administrator set on the lesson sheet with no request of the teacher (the record is the system's, decided through the sheet), also after he
- * took it off.  A request of a teacher decided through the sheet is not one (its origin is the teacher), nor is a reopened one decided on the page (`via` is `request`).
+ * P1.2: a substitution the administrator set on the lesson sheet with no request of the teacher, also after he took it off.  The server marks it (`trigger`): neither the origin
+ * nor the way it was decided tells it from a request the system reopened and the administrator decided from the sheet.
  */
-export function isDirectSubstitution(item: Pick<SubstitutionItem, "origin" | "status" | "decision">): boolean {
-  const decision = item.decision;
-  if (item.origin !== "system" || decision?.via !== "lesson_teacher_put") return false;
-  return item.status === "substituted" || (item.status === "closed" && decision.closedReason === "ASSIGNMENT_CLEARED");
+export function isDirectSubstitution(item: Pick<SubstitutionItem, "origin" | "trigger">): boolean {
+  return item.origin === "system" && item.trigger === "manager_assign";
+}
+
+/** A lesson the administrator moved from its sheet with no request of the teacher (P1.1 / #124). */
+export function isManagerMove(item: Pick<SubstitutionItem, "origin" | "trigger">): boolean {
+  return item.origin === "system" && item.trigger === "manager_move";
 }
 
 /**
@@ -275,17 +281,25 @@ export function closedResultText(item: SubstitutionItem): string {
   return substitute ? `${closedReasonText(item)}: ${substitute}` : closedReasonText(item);
 }
 
+const CLEARED_BY_THE_LESSON: Record<string, string> = { cancel: "Урок позже отменён", move: "Урок позже перенесён" };
+const CLEARED_WHY: Record<string, string> = {
+  member_removed: "заменяющий больше не работает в центре",
+  group_teacher_changed: "стал преподавателем группы",
+};
+
 /**
- * The substituted records of the shown page that a later one has taken over (the administrator set another substitute on the lesson): `{id of the old record -> the new
- * substitute}`.  Only what the page shows is known (the new record points to the old by `previous`), so the hint is a hint, not a rule.
+ * P1.2: what became of the substitution of a decided record - the record keeps its status, the journal says the rest under the decision: «Замена снята: Каримова Н., 22.10 09:30»,
+ * «Заменена на Сидоров В., 22.10 09:30», «Урок позже перенесён, 22.10 09:30».  Null while the substitution stands, and for a record the removal itself closed (its result already says so).
  */
-export function supersededBy(items: readonly SubstitutionItem[]): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const item of items) {
-    const name = (item.decision?.substitute?.name ?? "").trim();
-    if (item.status === "substituted" && item.previous?.status === "substituted" && name) out.set(item.previous.id, name);
-  }
-  return out;
+export function clearedLine(item: SubstitutionItem): string | null {
+  if (!item.clearedAt || (item.status === "closed" && item.decision?.closedReason === "ASSIGNMENT_CLEARED")) return null;
+  const when = formatUtcNaiveAsBusinessDateTime(item.clearedAt).replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+  const trigger = String(item.clearedTrigger ?? "");
+  const by = (item.clearedBy?.name ?? "").trim();
+  const to = (item.clearedTo?.name ?? "").trim();
+  const head = CLEARED_BY_THE_LESSON[trigger]
+    ?? (to ? `Заменена на ${to}` : `Замена снята: ${CLEARED_WHY[trigger] ?? (by || "система")}`);
+  return [head, when].filter(Boolean).join(", ");
 }
 
 /** What the administrator decided, in a few words (the chip of a decided row). */
@@ -951,8 +965,10 @@ export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number;
  * The toast after «Заменить преподавателя» (a direct assignment): the request of the teacher that this assignment answered is closed by it,
  * and the administrator is told so.
  */
-export function directAssignToast(result: { isSubstitution?: boolean; teacherName?: string | null; requestClosed?: { id: string; status: string } | null }): string {
-  const head = result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : "Преподаватель урока возвращён";
+export function directAssignToast(result: { isSubstitution?: boolean; teacherName?: string | null; defaultTeacherId?: string | null; requestClosed?: { id: string; status: string } | null }): string {
+  // a lesson of a group without a main teacher has nobody to replace: it is simply led by the one assigned
+  const leads = !result.isSubstitution && result.defaultTeacherId === null && result.teacherName;
+  const head = result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : leads ? `Ведёт: ${result.teacherName}` : "Преподаватель урока возвращён";
   return result.requestClosed ? `${head}${head.endsWith(".") ? "" : "."} Запрос преподавателя закрыт.` : head;
 }
 
@@ -1028,6 +1044,7 @@ export function occurrenceChips(
       else chips.push({ text: name ? `Замена: ${name}` : "Замена", tone: "violet" });
     }
   }
+  else if (occurrence.teacherId && occurrence.defaultTeacherId === null && (occurrence.teacherName ?? "").trim()) chips.push({ text: `Ведёт: ${occurrence.teacherName!.trim()}`, tone: "violet" });     // a group without a main teacher: nobody to replace
   const mark = occurrence.substitutionRequest;
   // the teacher who asked reads «Вы запросили замену», the administrator «Ждёт замены» (a link to the request)
   if (mark?.status === "pending") chips.push({ text: options.manager ? WAITING_MARK : REQUESTED_LABEL, tone: "amber", requestId: mark.id });

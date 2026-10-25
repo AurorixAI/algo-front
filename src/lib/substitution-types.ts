@@ -117,6 +117,14 @@ export interface SubstitutionItem {
   overdue: boolean;
   decision?: SubstitutionDecision | null;
   previous?: SubstitutionPrevious | null;
+  /** P1.2: how a record the system made came to be: `manager_assign` (a substitution set on the lesson sheet), `manager_move`, `teacher_move`; null for a request of a teacher. */
+  trigger?: "manager_assign" | "manager_move" | "teacher_move" | string | null;
+  /** P1.2: the substitution of the record stopped later (taken off, replaced, released, the lesson cancelled / moved); the status of the record does not change. Naive UTC. */
+  clearedAt?: string | null;
+  clearedBy?: PersonRef | null;
+  /** The teacher who took the lesson over; null = the main teacher leads again. */
+  clearedTo?: PersonRef | null;
+  clearedTrigger?: "put" | "member_removed" | "group_teacher_changed" | "cancel" | "move" | "release" | string | null;
 }
 
 // ── teacher ───────────────────────────────────────────────────────────────────

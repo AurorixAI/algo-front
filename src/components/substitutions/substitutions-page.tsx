@@ -17,21 +17,17 @@ import {
   applyFreshItem,
   batchSiblings,
   bulkToast,
-  decidedByLine,
-  originLine,
-  reasonChipText,
   deadlineChips,
-  decisionResultText,
   decisionToast,
   itemLessonLine,
   lessonWhen,
   moreLessonsText,
   suggestedLine,
-  supersededBy,
   tabLabel,
   type DeadlineChip,
 } from "@/lib/substitutions";
 import type { DecideBulkOut, DecideOut, SubstitutionItem } from "@/lib/substitution-types";
+import { DecisionCell, OriginLine, ReasonCell } from "@/components/substitutions/journal-cells";
 import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance/table-chrome";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
@@ -228,7 +224,6 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
   const selectedItems = items.filter((item) => selected.has(item.id));
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
-  const superseded = useMemo(() => supersededBy(items), [items]);
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "pending", label: tabLabel("pending", pendingTotal) },
@@ -364,13 +359,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       ) : (
                         <p className="break-words font-medium text-slate-800">{item.teacher.name}</p>
                       )}
-                      {originLine(item) && <p className="text-xs text-slate-500">{originLine(item)}</p>}
+                      <OriginLine item={item} />
                     </div>
 
                     {/* Причина */}
                     <div className="min-w-0">
-                      <span className={`${CHIP_BASE_CLASS} border-slate-200 bg-slate-50 text-slate-700`}>{reasonChipText(item)}</span>
-                      {item.comment && <p className="mt-1 line-clamp-3 break-words text-sm text-slate-700" title={item.comment}>{item.comment}</p>}
+                      <ReasonCell item={item} />
                       {pendingTab && suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
                     </div>
 
@@ -383,10 +377,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       </div>
                     ) : (
                       <div className="min-w-0 xl:text-center">
-                        <p className="break-words text-sm font-medium text-slate-800">{decisionResultText(item)}</p>
-                        {item.decision?.note && item.status !== "substituted" && <p className="break-words text-xs text-slate-500">{item.decision.note}</p>}
-                        <p className="text-xs text-slate-500">{decidedByLine(item)}</p>
-                        {superseded.get(item.id) && <p className="text-xs text-slate-500">Позже заменена на {superseded.get(item.id)}</p>}
+                        <DecisionCell item={item} />
                       </div>
                     )}
 
