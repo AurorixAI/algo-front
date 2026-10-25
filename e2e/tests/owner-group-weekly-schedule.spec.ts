@@ -361,7 +361,7 @@ test("teacher: «Ещё -> Прекратить» opens the stop dialog above th
   await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(d1), startTime: "15:00", endTime: "16:30", topic: "Для остановки" });
   const page = await signIn(teacher);
   await page.goto("/teacher/schedule");
-  await page.getByRole("button", { name: /Неделя/ }).first().click();
+  await page.getByRole("button", { name: /На неделю/ }).click();
   if (mondayOf(d1) !== mondayOf(today())) await page.getByTitle("Следующая неделя").click();
   await page.getByText("Группа П1-Ост").first().click();
   const panel = page.getByRole("dialog").first();
@@ -409,7 +409,8 @@ test("teacher screenshots: the add form with Пн+Ср+Пт and the week after s
   await shot(page, `11-teacher-add-days-${info.project.name}`);
   await form.getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
-  await page.getByRole("button", { name: /Неделя/ }).first().click();
+  await page.getByRole("button", { name: /На неделю/ }).click();
+  await page.getByTitle("Следующая неделя").click(); // from today on: the next week shows all three days
   await expect(page.getByText("Группа П1-Ш").first()).toBeVisible();
   await shot(page, `12-teacher-added-week-${info.project.name}`);
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
