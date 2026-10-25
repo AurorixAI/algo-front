@@ -1824,7 +1824,7 @@ export default function TeacherSchedulePage() {
                 {/* Day Header */}
                 <div
                   title={day.name}
-                  className={`min-h-[58px] p-3 border-b flex items-center ${
+                  className={`min-h-[58px] md:min-h-[88px] p-3 border-b flex items-center ${
                     isToday
                       ? "bg-primary-600 text-white rounded-t-2xl border-primary-600"
                       : "bg-slate-50/70 border-slate-100 text-slate-800 rounded-t-2xl"
