@@ -254,7 +254,8 @@ test.describe("monthly centre", () => {
     const teacherPage = await signIn(teacher);
     await teacherPage.goto("/teacher/schedule");
     await teacherPage.getByRole("button", { name: /На неделю/ }).click();
-    await teacherPage.getByTitle("Следующая неделя").click();
+    // the old week stays on the screen until the next one is read (its journal is asked once the lessons are on the screen): wait for that (a card of the old week is a lesson of THIS week)
+    await Promise.all([teacherPage.waitForResponse((r) => r.url().includes(`/attendance?date_from=${nextMonday}`)), teacherPage.getByTitle("Следующая неделя").click()]);
     await teacherPage.getByRole("heading", { name: group.name, level: 4 }).last().click();
     await teacherPage.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
     await teacherPage.getByRole("menuitem", { name: /Отменить этот урок/ }).click();

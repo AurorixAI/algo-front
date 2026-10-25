@@ -39,7 +39,8 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   const page = await signIn(teacher);
   await page.goto("/teacher/schedule");
   await page.getByRole("button", { name: /На неделю/ }).click();
-  await page.getByTitle("Следующая неделя").click();
+  // the old week stays on the screen until the next one is read (its journal is asked once the lessons are on the screen): wait for that, a card of the old week would be the lesson of TODAY
+  await Promise.all([page.waitForResponse((r) => r.url().includes(`/attendance?date_from=${nextMonday}`)), page.getByTitle("Следующая неделя").click()]);
   await page.getByRole("heading", { name: group.name, level: 4 }).click();
   const panelButton = page.getByRole("button", { name: "Не смогу провести" });
   await expect(panelButton).toBeVisible();
@@ -93,6 +94,7 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
 
   // --- 6. the student's card: the lesson moved
   await ownerPage.goto(`/owner/students/${pupil.id}`);
+  if (nextMonday.slice(0, 7) !== businessNow().date.slice(0, 7)) await ownerPage.getByRole("button", { name: "Следующий месяц" }).click(); // the lesson is in the next month
   await expect(ownerPage.getByText(/Урок перенесён на/).first()).toBeVisible();
   await shot(ownerPage, `05-student-${project}`);
 });

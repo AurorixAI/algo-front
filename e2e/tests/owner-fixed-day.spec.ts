@@ -31,8 +31,8 @@ test("fixed payment day: the new mode waits for the next period; the running one
   // --- the setting, through the settings page
   await page.goto("/owner/settings?section=payments");
   const section = page.getByRole("region", { name: "Оплаты" });
-  await section.getByRole("radio", { name: /Единый день оплаты/ }).check();
-  await pickOption(page, section.getByRole("combobox", { name: "Единый день оплаты" }), String(billingDay));
+  await section.getByRole("radio", { name: /Общий месяц для всех/ }).check();
+  await pickOption(page, section.getByRole("combobox", { name: "День, с которого начинается общий месяц" }), String(billingDay));
   await section.getByRole("button", { name: "Сохранить" }).click();
   await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible(); // the button itself confirms
   const saved = await org.owner.api.get("/auth/org/settings/payments");
