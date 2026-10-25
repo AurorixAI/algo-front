@@ -182,7 +182,9 @@ export default function TeacherSchedulePage() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [lessons, setLessons] = useState<LessonEvent[]>([]);
   const [todayOccurrences, setTodayOccurrences] = useState<LessonOccurrence[]>([]);
-  const [weekOccurrences, setWeekOccurrences] = useState<LessonOccurrence[]>([]);
+  // The lessons of the week are kept WITH the week they belong to: while the next week loads, the cards of the previous one are not shown
+  // (a click on such a card opened the lesson of the old week under the dates of the new one).
+  const [loadedWeek, setLoadedWeek] = useState<{ start: string; lessons: LessonOccurrence[] } | null>(null);
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all");
   const [isGroupFilterOpen, setIsGroupFilterOpen] = useState(false);
   const groupFilterTriggerRef = useRef<HTMLButtonElement>(null);
@@ -190,6 +192,12 @@ export default function TeacherSchedulePage() {
   const recurringActionsButtonRef = useRef<HTMLButtonElement>(null);
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
   const [weekOffset, setWeekOffset] = useState(0);
+  const weekPeriod = useMemo(() => ({
+    start: businessWeekdayDate(1, weekOffset),
+    end: businessWeekdayDate(7, weekOffset),
+  }), [weekOffset]);
+  const weekLoading = loadedWeek?.start !== weekPeriod.start;
+  const weekOccurrences = useMemo(() => (loadedWeek && !weekLoading ? loadedWeek.lessons : []), [loadedWeek, weekLoading]);
   const [lessonAttendanceMap, setLessonAttendanceMap] = useState<Record<string, boolean>>({});
   const [completedLessonsMap, setCompletedLessonsMap] = useState<Record<string, boolean>>({});
   const [lessonStatusMap, setLessonStatusMap] = useState<Record<string, LessonAttendanceStatus>>({});
@@ -1076,7 +1084,7 @@ export default function TeacherSchedulePage() {
           { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
           isOrgManager ? undefined : user?.id,
         );
-        setWeekOccurrences(refreshedWeek);
+        setLoadedWeek({ start: weekPeriod.start, lessons: refreshedWeek });
       } catch (error) {
         setWeekLoadError(getDataLoadErrorMessage(error));
       }
@@ -1155,17 +1163,13 @@ export default function TeacherSchedulePage() {
         { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
         isOrgManager ? undefined : user?.id,
       );
-      setWeekOccurrences(refreshedWeek);
+      setLoadedWeek({ start: weekPeriod.start, lessons: refreshedWeek });
     } catch (error) {
       setWeekLoadError(getDataLoadErrorMessage(error));
     }
     return true;
   };
 
-  const weekPeriod = useMemo(() => ({
-    start: businessWeekdayDate(1, weekOffset),
-    end: businessWeekdayDate(7, weekOffset),
-  }), [weekOffset]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1197,7 +1201,7 @@ export default function TeacherSchedulePage() {
           }),
         );
         if (isCurrent) {
-          setWeekOccurrences(occurrences);
+          setLoadedWeek({ start: weekPeriod.start, lessons: occurrences });
           setWeekLessonStatusMap(weeklyStatuses);
         }
       } catch (error) {
@@ -1493,7 +1497,7 @@ export default function TeacherSchedulePage() {
         <DataLoadError
           compact
           title="Неделя не обновлена"
-          message={`${weekLoadError} Показаны последние успешно загруженные данные недели.`}
+          message={weekLoading ? weekLoadError : `${weekLoadError} Показаны последние успешно загруженные данные недели.`}
           onRetry={() => setWeekRefreshNonce((current) => current + 1)}
         />
       )}
@@ -1843,7 +1847,7 @@ export default function TeacherSchedulePage() {
                 <div className="p-2 space-y-2 flex-1">
                   {dayLessons.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center p-4 text-slate-300">
-                      <p className="text-xs">Нет занятий</p>
+                      <p className="text-xs">{weekLoading ? (weekLoadError ? "Неделя не загружена" : "Загружаем…") : "Нет занятий"}</p>
                     </div>
                   ) : (
                     dayLessons.map((l) => {

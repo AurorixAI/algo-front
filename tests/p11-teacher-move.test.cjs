@@ -147,3 +147,11 @@ test("the journal: a move without a request says who moved it and its chip is «
   assert.equal(S.originLine(asked), null);
   assert.equal(S.reasonChipText(asked), "Болезнь");
 });
+
+test("the teacher's week grid never shows the cards of another week while the next one loads (a click acted on the old week's lesson)", () => {
+  const page = read("src/app/teacher/schedule/page.tsx");
+  assert.match(page, /const weekLoading = loadedWeek\?\.start !== weekPeriod\.start;/);
+  assert.match(page, /loadedWeek && !weekLoading \? loadedWeek\.lessons : \[\]/);
+  assert.doesNotMatch(page, /setWeekOccurrences/, "the lessons of a week are always stored with their week");
+  assert.match(page, /weekLoading \? \(weekLoadError \? "Неделя не загружена" : "Загружаем…"\) : "Нет занятий"/);
+});
