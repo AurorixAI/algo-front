@@ -54,6 +54,15 @@ services:
       INTERNAL_SERVICE_TOKEN: e2e-internal-service-token
       EXAM_SERVICE_URL: http://exam:8003/api/v1
       CORS_ORIGINS: '["${E2E_FRONT_ORIGIN:-http://localhost:13000}"]'
+      # Self-registration is CLOSED in the product (POST /auth/apply -> 410, access comes from a demo request approved in the
+      # console).  Only the e2e SEED still uses the old path to create a throw-away centre per spec file (support/api.ts), so
+      # this stack reopens it.  The closed behaviour itself is covered by the backend tests and by console-k1.spec.ts (the
+      # public pages have no registration link, /register leads to /request-demo).
+      SELF_REGISTRATION_CLOSED: "false"
+      AUTO_APPROVE_ORGANIZATIONS: "true"
+      # The one host the platform API answers on.  The console server of the K1 spec (support/console.ts) proxies
+      # /api/v1/platform here with `Host: console.e2e.test`, the way nginx does for console.algolab.me.
+      CONSOLE_HOSTS: "console.e2e.test"
     ports:
       - "127.0.0.1:${E2E_AUTH_PORT:-18000}:8000"
     depends_on:
