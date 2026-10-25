@@ -262,7 +262,8 @@ test("the week plan counts only the lessons of the plan: a lesson moved away or 
   assert.equal(Plan.timeRange("11:00", "12:00"), "11:00–12:00");
   assert.equal(Plan.placeText({ room: null }), null);
   assert.equal(Plan.placeText({ room: "  " }), null);
-  assert.equal(Plan.placeText({ room: "204" }), "204");
+  assert.equal(Plan.placeText({ room: "204" }), "каб. 204");
+  assert.equal(Plan.placeText({ room: "Малый зал" }), "Малый зал");
   assert.equal(Plan.placeText({ format: "online", room: null }), "Онлайн");
 });
 

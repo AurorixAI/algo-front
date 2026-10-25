@@ -8,6 +8,7 @@
  */
 import type { SubstitutionMovedTo, SubstitutionOutcome } from "./substitution-types";
 import { movedToLabel } from "./substitutions";
+import { roomWithPrefix } from "./lesson-slot-form";
 
 /** The original of a move: the server's outcome says it («rescheduled»); the status of such an original is «cancelled», but the outcome is the proof. */
 export function isMovedAway(outcome: Pick<SubstitutionOutcome, "kind"> | null | undefined): boolean {
@@ -71,11 +72,11 @@ export function weekPlanDescription(plan: Pick<WeekPlan, "planned" | "completed"
   return plan.completed === plan.planned ? "План недели выполнен" : progress(plan.completed, plan.planned);
 }
 
-/** The place of a lesson, only when there is one to say: «Онлайн» or the room; never «Кабинет не указан». */
+/** The place of a lesson, only when there is one to say: «Онлайн» or the room («каб. 12»; a room that begins with a word stays as it is); never «Кабинет не указан». */
 export function placeText(lesson: { format?: string | null; room?: string | null }): string | null {
   if (lesson.format === "online") return "Онлайн";
   const room = (lesson.room ?? "").trim();
-  return room || null;
+  return room ? roomWithPrefix(room) : null;
 }
 
 /** The title of the group's «today» strip when no lesson of the plan is left: everything was moved away («перенесено») or cancelled / a mix. */
