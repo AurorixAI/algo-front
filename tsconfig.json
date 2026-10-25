@@ -25,5 +25,5 @@
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", ".next-e2e/types/**/*.ts", "demo/**/*.ts"],
-  "exclude": ["node_modules", "e2e", ".next-e2e"]
+  "exclude": ["node_modules", "e2e", ".next-e2e", "console"]
 }

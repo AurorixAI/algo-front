@@ -119,6 +119,9 @@ export function errorFromBody(status: number, body: unknown, retryAfter?: number
     takeFields(entry.errors);
   }
   takeFields(root.fields);
+  // The accounting server's new endpoints put `code` / `fields` / `retry_after` next to `detail` (API_CONTRACT.md §0).
+  if (typeof root.code === "string") code = root.code;
+  if (retryAfter === undefined && typeof root.retry_after === "number" && root.retry_after > 0) retryAfter = root.retry_after;
 
   if (status === 429 && !message) message = fallbackMessage(429, retryAfter);
   // A message that is not Russian (a framework default such as «Not Found») is never shown to a person.
@@ -131,6 +134,8 @@ export interface JsonRequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   headers?: Record<string, string>;
+  /** A 401 of this call is its own answer (a wrong password on the sign-in form), not a lost session: `onUnauthorized` stays quiet. */
+  skipUnauthorizedHook?: boolean;
   /** Query string values; `undefined`, `null` and "" are dropped. */
   query?: Record<string, string | number | boolean | null | undefined>;
 }
@@ -184,7 +189,7 @@ export function createJsonClient(config: JsonClientConfig) {
     if (!response.ok) {
       const body = await response.json().catch(() => null);
       const error = errorFromBody(response.status, body, retryAfterSeconds(response));
-      if (response.status === 401) config.onUnauthorized?.(error);
+      if (response.status === 401 && !options.skipUnauthorizedHook) config.onUnauthorized?.(error);
       throw error;
     }
     if (response.status === 204) return undefined as T;

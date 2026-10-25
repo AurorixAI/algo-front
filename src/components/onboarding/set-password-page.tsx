@@ -72,7 +72,7 @@ export function SetPasswordPage({ token }: { token: string }) {
       }
     } catch (error) {
       const state = linkStateFromError(error);
-      if (state.kind === "used" || state.kind === "expired" || state.kind === "invalid") {
+      if (state.kind === "used" || state.kind === "expired" || state.kind === "invalid" || state.kind === "revoked" || state.kind === "blocked") {
         setLink(state);
       } else if (error instanceof HttpError && error.fields.password) {
         setFormError(error.fields.password);
@@ -108,7 +108,15 @@ export function SetPasswordPage({ token }: { token: string }) {
           </div>
         )}
 
-        {(link.kind === "used" || link.kind === "expired" || link.kind === "invalid") && (
+        {link.kind === "blocked" && (
+          <div className="py-4 text-center" role="alert" data-testid="link-blocked">
+            <AlertCircle className="mx-auto h-10 w-10 text-amber-500" aria-hidden />
+            <h2 className="mt-4 text-xl font-bold text-slate-900">Доступ приостановлен</h2>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">{link.message}</p>
+          </div>
+        )}
+
+        {(link.kind === "used" || link.kind === "expired" || link.kind === "invalid" || link.kind === "revoked") && (
           <div className="py-4 text-center" data-testid={`link-${link.kind}`}>
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-100">
               {link.kind === "invalid" ? (
@@ -134,12 +142,12 @@ export function SetPasswordPage({ token }: { token: string }) {
               {link.name ? `Здравствуйте, ${link.name}!` : "Здравствуйте!"}
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              {link.centre ? (
+              {link.purpose === "centre_invite" && link.centre ? (
                 <>
                   Центр <span className="font-semibold text-slate-800">«{link.centre}»</span> подключён к ALGO.{" "}
                 </>
               ) : null}
-              Задайте пароль — и вы сразу войдёте в кабинет.
+              {link.purpose === "reset" ? "Задайте новый пароль — и вы сразу войдёте в кабинет." : "Задайте пароль — и вы сразу войдёте в кабинет."}
             </p>
             {link.email && (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">

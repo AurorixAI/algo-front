@@ -32,7 +32,7 @@ export const EMPTY_DEMO_FORM: DemoFormValues = {
 export type DemoField = "fullName" | "centreName" | "city" | "phone" | "email" | "studentsCount" | "comment";
 export type DemoErrors = Partial<Record<DemoField, string>>;
 
-export const COMMENT_MAX = 1000;
+export const COMMENT_MAX = 2000;
 export const STUDENTS_MAX = 100000;
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@.]{2,}$/;
@@ -60,45 +60,47 @@ export function validateDemoForm(values: DemoFormValues): DemoErrors {
   else if (name.length > 120) errors.fullName = "Слишком длинное имя";
   const centre = values.centreName.trim();
   if (centre.length < 2) errors.centreName = "Укажите название центра";
-  else if (centre.length > 160) errors.centreName = "Слишком длинное название";
+  else if (centre.length > 200) errors.centreName = "Слишком длинное название";
   const city = values.city.trim();
   if (city.length < 2) errors.city = "Укажите город";
-  else if (city.length > 80) errors.city = "Слишком длинное название города";
+  else if (city.length > 100) errors.city = "Слишком длинное название города";
   if (!isValidUzPhone(values.phone)) errors.phone = "Введите номер полностью: +998 XX XXX XX XX";
   if (!values.email.trim()) errors.email = "Укажите почту";
   else if (!isValidEmail(values.email)) errors.email = "Проверьте почту: например, name@center.uz";
   if (values.studentsCount !== "") {
     const n = Number(values.studentsCount);
-    if (!Number.isInteger(n) || n < 1 || n > STUDENTS_MAX) errors.studentsCount = `Число от 1 до ${STUDENTS_MAX}`;
+    if (!Number.isInteger(n) || n < 0 || n > STUDENTS_MAX) errors.studentsCount = `Число от 0 до ${STUDENTS_MAX}`;
   }
   if (values.comment.length > COMMENT_MAX) errors.comment = `Не больше ${COMMENT_MAX} символов`;
   return errors;
 }
 
-/** UTM tags and where the visit came from. Only what marketing needs; nothing personal. */
+/** UTM tags and where the visit came from (the `source` object of API_CONTRACT.md §1: strings of at most 300 characters). */
 export interface DemoSource {
   utm_source?: string;
   utm_medium?: string;
   utm_campaign?: string;
   utm_term?: string;
   utm_content?: string;
-  /** `?ref=` / `?source=` of an invitation link. */
-  ref?: string;
   /** Host of the page the visitor came from (no path, no query: those may carry personal data). */
-  referrer_host?: string;
+  referrer?: string;
   /** The page of the form. */
   landing?: string;
 }
 
 const SOURCE_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
-const SOURCE_VALUE_MAX = 120;
+const SOURCE_VALUE_MAX = 300;
 
 function cleanTag(value: string | null | undefined): string | undefined {
+  // eslint-disable-next-line no-control-regex
   const text = (value ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim().slice(0, SOURCE_VALUE_MAX);
   return text || undefined;
 }
 
-/** Read the source from the address (`?utm_source=...`) and the referrer.  `previous` (kept for the visit) fills what the address lacks. */
+/**
+ * Read the source from the address (`?utm_source=...`; `?ref=` / `?source=` of an invitation link count as `utm_source`
+ * when it is absent) and the referrer.  `previous` (kept for the visit) fills what the address lacks.
+ */
 export function captureSource(search: string, referrer: string, ownHost: string, previous?: DemoSource | null): DemoSource {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const out: DemoSource = { ...(previous ?? {}) };
@@ -107,11 +109,11 @@ export function captureSource(search: string, referrer: string, ownHost: string,
     if (value) out[key] = value;
   }
   const ref = cleanTag(params.get("ref") ?? params.get("source"));
-  if (ref) out.ref = ref;
-  if (!out.referrer_host && referrer) {
+  if (ref && !out.utm_source) out.utm_source = ref;
+  if (!out.referrer && referrer) {
     try {
       const host = new URL(referrer).host;
-      if (host && host !== ownHost) out.referrer_host = host.slice(0, SOURCE_VALUE_MAX);
+      if (host && host !== ownHost) out.referrer = host.slice(0, SOURCE_VALUE_MAX);
     } catch {
       /* a referrer that is not a URL is ignored */
     }
