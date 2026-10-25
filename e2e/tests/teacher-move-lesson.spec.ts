@@ -102,7 +102,9 @@ test("both week grids carry the date under the day name; the status chip of the 
   const project = info.project.name;
   const teacher = await org.addStaff("teacher", "Сеткин");
   const group = await org.createGroup({ name: "Группа П11-С", teacherId: teacher.userId });
+  const todayDow = weekdayOf(businessNow().date);
   for (let day = 1; day <= 7; day++) {
+    if (day === todayDow) continue; // a lesson of today earlier than «now» is refused; the column of today is still the highlighted one
     await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: day, startTime: "16:00", endTime: "17:30", topic: "Геометрия", room: day % 2 ? "Кабинет 5" : "21" });
   }
   const dateOf = (iso: string) => `${Number(iso.slice(8, 10))} ${["", "янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."][Number(iso.slice(5, 7))]}`;
@@ -123,7 +125,7 @@ test("both week grids carry the date under the day name; the status chip of the 
   // --- the owner's group schedule: the same head; the chip «Запланирован» is whole in its cell
   const ownerPage = await signIn(org.owner);
   await ownerPage.goto(`/owner/groups/${group.id}?tab=schedule`);
-  await expect(ownerPage.getByTestId("schedule-card")).toHaveCount(7);
+  await expect(ownerPage.getByTestId("schedule-card")).toHaveCount(6);
   await expect(ownerPage.getByText("каб. 5").first()).toBeVisible();
   await expect(ownerPage.getByText("Кабинет 5")).toHaveCount(0);
   const sizes = project === "mobile" ? [null] : [{ width: 1280, height: 900 }, { width: 1440, height: 900 }];
