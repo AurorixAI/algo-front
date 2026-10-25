@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import { useRef } from "react";
 import { Select } from "@/components/ui/select";
 import { TimeInput } from "@/components/ui/time-input";
@@ -30,12 +29,11 @@ export interface SlotFormValue {
  * расписание» always had, now also the owner's and the administrator's (group page).  `idPrefix` keeps the ids of the fields
  * (`<prefix>-nachalo`, `-okonchanie`, `-format`, `-auditoriya`, `-tema-zanyatiya`, `-color-label`).  A new start time moves the end 90 minutes after it.
  */
-export function LessonSlotFields({ idPrefix, value, onChange, afterTopic, disabled = false, endInvalid = false }: {
+export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, endInvalid = false }: {
   idPrefix: string;
   value: SlotFormValue;
   onChange: (patch: Partial<SlotFormValue>) => void;
   /** Rendered between the topic and the colour (the edit dialog's «Причина изменения»). */
-  afterTopic?: ReactNode;
   disabled?: boolean;
   endInvalid?: boolean;
 }) {
@@ -100,8 +98,6 @@ export function LessonSlotFields({ idPrefix, value, onChange, afterTopic, disabl
           className={SLOT_FIELD_CLASS}
         />
       </div>
-
-      {afterTopic}
 
       <div>
         <span id={`${idPrefix}-color-label`} className="block text-xs font-semibold text-slate-700 mb-1.5">Цветовая метка</span>

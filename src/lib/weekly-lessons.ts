@@ -7,7 +7,7 @@ import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, 
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
 import { addIsoDays } from "./business-time";
-import { LESSON_SUBJECT, firstOccurrenceOf, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson } from "./lesson-slot-form";
+import { LESSON_SUBJECT, firstOccurrenceOf, patchFor, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson } from "./lesson-slot-form";
 
 export interface WeeklyDraft {
   startTime: string;
@@ -106,6 +106,9 @@ export function weeklyResolver(groupId: string, lessonId: string): (date: string
   };
 }
 
+/** The server's refusal of a revision that changes nothing (`revise_recurring_lesson`). */
+const NO_DIFFERENCE = /хотя бы одно изменение/;
+
 export interface WeeklyRevisionResult {
   /** Weekdays (of the lessons) that were changed. */
   done: number[];
@@ -115,21 +118,25 @@ export interface WeeklyRevisionResult {
 
 /**
  * The same change applied to several weekly lessons from one date, one request each, in the order of the week; a refusal of one does not
- * stop the others and is named with its weekday.  `patch` never carries a day (the callers pass `sharedRevisionPatch`).
+ * stop the others and is named with its weekday.  `shared` never carries a day (the callers pass `sharedRevisionPatch`); a lesson that
+ * already is so counts as done without a request, and so does the server's «no difference» refusal (a revision of it already scheduled).
  */
 export async function reviseWeeklyLessons(
-  targets: ReadonlyArray<{ id: string; dayOfWeek: number }>,
+  targets: ReadonlyArray<Pick<WeeklyLesson, "id" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "topic">>,
   effectiveFrom: string,
   reason: string,
-  patch: Record<string, unknown>,
+  shared: Parameters<typeof patchFor>[1],
 ): Promise<WeeklyRevisionResult> {
   const result: WeeklyRevisionResult = { done: [], failed: [], notices: [] };
   for (const target of [...targets].sort((a, b) => a.dayOfWeek - b.dayOfWeek)) {
+    const patch = patchFor(target, shared);
+    if (Object.keys(patch).length === 0) { result.done.push(target.dayOfWeek); continue; }
     try {
       const revised = await orgApi.reviseRecurringLesson(target.id, { ...patch, effectiveFrom, reason });
       result.done.push(target.dayOfWeek);
       for (const note of warningTexts(revised)) if (!result.notices.includes(note)) result.notices.push(note);
     } catch (failure) {
+      if (failure instanceof Error && NO_DIFFERENCE.test(failure.message)) { result.done.push(target.dayOfWeek); continue; }
       result.failed.push({
         id: target.id,
         day: target.dayOfWeek,

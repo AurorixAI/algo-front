@@ -262,13 +262,32 @@ export function isEndTyped(endTime: string): boolean {
   return endTime !== "";
 }
 
-/** What a change applied to the other weekly lessons of the group may carry: the time, the room, the format, the topic - never the day or the colour. */
-export function sharedRevisionPatch(patch: ReturnType<typeof revisionPatch>): { startTime?: string; endTime?: string; room?: string; format?: LessonFormat; topic?: string } {
+/**
+ * What a change applied to the other weekly lessons of the group may carry: the time, the room, the format, the topic - never the day or the
+ * colour.  The time goes as a pair (a new start alone could fall after the end of another day's lesson).
+ */
+export function sharedRevisionPatch(
+  patch: ReturnType<typeof revisionPatch>,
+  time: { startTime: string; endTime: string },
+): { startTime?: string; endTime?: string; room?: string; format?: LessonFormat; topic?: string } {
   const out: ReturnType<typeof sharedRevisionPatch> = {};
-  if (patch.startTime !== undefined) out.startTime = patch.startTime;
-  if (patch.endTime !== undefined) out.endTime = patch.endTime;
+  if (patch.startTime !== undefined || patch.endTime !== undefined) { out.startTime = time.startTime; out.endTime = time.endTime; }
   if (patch.room !== undefined) out.room = patch.room;
   if (patch.format !== undefined) out.format = patch.format;
   if (patch.topic !== undefined) out.topic = patch.topic;
+  return out;
+}
+
+/** The part of a shared change that is really new for this lesson (the server refuses a revision without a difference). */
+export function patchFor(
+  target: Pick<WeeklyLesson, "startTime" | "endTime" | "room" | "format" | "topic">,
+  shared: ReturnType<typeof sharedRevisionPatch>,
+): ReturnType<typeof sharedRevisionPatch> {
+  const current = { startTime: target.startTime, endTime: target.endTime, room: target.room ?? "", format: target.format || "offline", topic: target.topic || "" };
+  const out: ReturnType<typeof sharedRevisionPatch> = {};
+  if (shared.startTime !== undefined && (shared.startTime !== current.startTime || shared.endTime !== current.endTime)) { out.startTime = shared.startTime; out.endTime = shared.endTime; }
+  if (shared.room !== undefined && (shared.room ?? "") !== current.room) out.room = shared.room;
+  if (shared.format !== undefined && shared.format !== current.format) out.format = shared.format;
+  if (shared.topic !== undefined && (shared.topic ?? "") !== current.topic) out.topic = shared.topic;
   return out;
 }

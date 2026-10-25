@@ -295,7 +295,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   const automaticReason = hasChanges ? `Изменены: ${changedNames.join(", ")}` : "Изменено постоянное расписание";
 
   // the other weekly lessons of THIS group: the same time / room / format / topic can go to them too (never the day)
-  const shared = sharedRevisionPatch(changed);
+  const shared = sharedRevisionPatch(changed, value);
   const groupOthers = useMemo(
     () => siblings
       .filter((item) => item.id !== lesson.id && Boolean(lesson.groupId) && item.groupId === lesson.groupId)
@@ -403,24 +403,6 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
           onChange={patch}
           disabled={busy || mainSaved}
           endInvalid={Boolean(timeProblem)}
-          afterTopic={(
-            <div>
-              <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
-                Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
-              </label>
-              <textarea
-                id="sched-edit-prichina-izmeneniya"
-                value={reason}
-                onChange={(event) => setReason(event.target.value)}
-                maxLength={500}
-                rows={2}
-                disabled={busy}
-                placeholder="Например: постоянная смена аудитории"
-                className={`${SLOT_FIELD_CLASS} resize-none`}
-              />
-              <p className="mt-1 text-[11px] text-slate-500">Если оставить поле пустым, система автоматически зафиксирует изменённые параметры.</p>
-            </div>
-          )}
         />
 
         {showOthers && (
@@ -438,6 +420,22 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
           </fieldset>
         )}
 
+        <div>
+          <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
+            Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
+          </label>
+          <textarea
+            id="sched-edit-prichina-izmeneniya"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            maxLength={500}
+            rows={2}
+            disabled={busy}
+            placeholder="Например: постоянная смена аудитории"
+            className={`${SLOT_FIELD_CLASS} resize-none`}
+          />
+          <p className="mt-1 text-[11px] text-slate-500">Если оставить поле пустым, система автоматически зафиксирует изменённые параметры.</p>
+        </div>
         {overlap && <OverlapNote lesson={overlap} />}
         {targetOverlaps.map((item) => item.clash && (
           <Problem key={item.target.id}>{dayShort(item.target.dayOfWeek)}: после изменения пересечение по времени с уроком группы «{item.clash.groupName}» ({item.clash.startTime} — {item.clash.endTime}).</Problem>

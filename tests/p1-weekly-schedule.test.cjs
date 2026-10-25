@@ -179,15 +179,18 @@ test("«Применить также к другим дням»: the ticked les
     { day: 3, startTime: "15:00", endTime: "16:30", room: "12", format: "online", topic: "Тема", color: "rose" },
   );
   assert.equal(changed.dayOfWeek, 3);
-  const shared = F.sharedRevisionPatch(changed);
+  const shared = F.sharedRevisionPatch(changed, { startTime: "15:00", endTime: "16:30" });
   assert.deepEqual(shared, { startTime: "15:00", endTime: "16:30", room: "12", format: "online", topic: "Тема" });
+  // a new start alone goes with the end of the edited lesson: the pair, never a start after another day's end
+  assert.deepEqual(F.sharedRevisionPatch({ startTime: "14:30" }, { startTime: "14:30", endTime: "15:30" }), { startTime: "14:30", endTime: "15:30" });
   assert.ok(!("dayOfWeek" in shared) && !("color" in shared), "never the day, never the colour");
   calls.length = 0;
   behaviour.revise = (id) => {
     if (id === "fri") throw busy("2026-11-06");
     return { id, warnings: [{ code: "ROOM_BUSY", message: "Кабинет «12» занят" }] };
   };
-  const result = await W.reviseWeeklyLessons([{ id: "fri", dayOfWeek: 5 }, { id: "wed", dayOfWeek: 3 }], "2026-11-02", "Изменены: время", shared);
+  const lessonOf = (id, dayOfWeek) => ({ id, dayOfWeek, startTime: "14:00", endTime: "15:30", room: null, format: "offline", topic: "" });
+  const result = await W.reviseWeeklyLessons([lessonOf("fri", 5), lessonOf("wed", 3)], "2026-11-02", "Изменены: время", shared);
   assert.deepEqual(calls.map((call) => call[1]), ["wed", "fri"], "in the order of the week");
   for (const call of calls) {
     assert.equal(call[2].effectiveFrom, "2026-11-02");
@@ -198,6 +201,16 @@ test("«Применить также к другим дням»: the ticked les
   assert.deepEqual(result.failed.map((item) => [item.id, item.day, item.reason]), [["fri", 5, "преподаватель занят"]]);
   assert.deepEqual(result.notices, ["Кабинет «12» занят"]);
   assert.equal(F.weeklyResultText([1, ...result.done], result.failed, F.CHANGED_WORDS), "Пн и Ср изменены, Пт — преподаватель занят");
+
+  // a lesson that already is so is done without a request; the server's «no difference» refusal counts as done too
+  calls.length = 0;
+  behaviour.revise = () => { const error = new Error("Укажите хотя бы одно изменение постоянного расписания"); throw error; };
+  const same = await W.reviseWeeklyLessons(
+    [{ ...lessonOf("thu", 4), room: "12" }, lessonOf("sat", 6)], "2026-11-02", "Изменены: кабинет", F.sharedRevisionPatch({ room: "12" }, { startTime: "14:00", endTime: "15:30" }),
+  );
+  assert.deepEqual(calls.map((call) => call[1]), ["sat"], "the lesson already in room 12 is not sent");
+  assert.deepEqual(same.done, [4, 6]);
+  assert.deepEqual(same.failed, []);
   behaviour.revise = () => ({ id: "rev" });
 });
 
