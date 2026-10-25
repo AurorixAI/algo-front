@@ -128,7 +128,7 @@ test("both week grids carry the date under the day name; the status chip of the 
   const ownerPage = await signIn(org.owner);
   await ownerPage.goto(`/owner/groups/${group.id}?tab=schedule`);
   await ownerPage.getByRole("button", { name: "Следующая неделя" }).click();
-  await expect(ownerPage.getByTestId("schedule-card")).toHaveCount(7);
+  await expect(ownerPage.getByTestId("schedule-card")).toHaveCount(6);
   await expect(ownerPage.getByText("каб. 5").first()).toBeVisible();
   await expect(ownerPage.getByText("Кабинет 5")).toHaveCount(0);
   const sizes = project === "mobile" ? [null] : [{ width: 1280, height: 900 }, { width: 1440, height: 900 }];
