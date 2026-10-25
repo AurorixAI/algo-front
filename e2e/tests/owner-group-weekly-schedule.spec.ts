@@ -23,6 +23,7 @@ test.beforeAll(async () => {
 async function shot(page: Page, name: string) {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
+  await page.waitForTimeout(450); // let the dialog finish sliding in
   await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 }
 
@@ -221,6 +222,7 @@ test("a busy teacher names the refused day and keeps the added ones; a busy room
   await expect(dialog).toBeVisible(); // nothing is lost silently: the dialog stays with the refused day chosen
   await expect(dialog.getByRole("button", { name: DAY_NAMES[busyDay], exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(dialog.getByRole("button", { name: DAY_NAMES[okDay], exact: true })).toHaveAttribute("aria-pressed", "false");
+  await error.scrollIntoViewIfNeeded();
   await shot(page, "09-teacher-busy");
   await dialog.getByRole("button", { name: "Отмена" }).click();
   const saved = (await org.owner.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === g2.id);
