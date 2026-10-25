@@ -117,9 +117,11 @@ test("the login page gives ONE answer to every refused sign-in (no account enume
   assert.match(page, /const errorMessage = roleMismatch \? INVALID_CREDENTIALS_MESSAGE : error;/);
   // nothing branches on "no such account" / "blocked" any more
   assert.doesNotMatch(page, /ACCOUNT_NOT_FOUND|ACCOUNT_INACTIVE|INVALID_PASSWORD|errorCode|accountNotFound|не найден/);
-  // the only registration link is the footer's, shown whatever the server answered (not inside the error box)
-  assert.equal((page.match(/href="\/register"/g) || []).length, 1);
-  assert.ok(page.indexOf('href="/register"') > page.indexOf("Footer hint"));
+  // the only onboarding link is the footer's «Запросить демо» (registration is closed, access is by invitation), shown
+  // whatever the server answered (not inside the error box)
+  assert.equal((page.match(/href="\/request-demo"/g) || []).length, 1);
+  assert.ok(page.indexOf('href="/request-demo"') > page.indexOf("Footer hint"));
+  assert.doesNotMatch(page, /href="\/register"|Зарегистрировать организацию/);
 });
 
 // ---- 2. the middleware ----------------------------------------------------------------------

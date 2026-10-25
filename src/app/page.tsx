@@ -33,10 +33,10 @@ export default function HomePage() {
               Войти
             </Link>
             <Link 
-              href="/register"
+              href="/request-demo"
               className="px-5 py-2.5 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-xl font-medium shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30 transition-all"
             >
-              Начать бесплатно
+              Запросить демо
             </Link>
           </div>
         </nav>
@@ -70,10 +70,10 @@ export default function HomePage() {
           
           <div className="flex items-center justify-center gap-4">
             <Link 
-              href="/register"
+              href="/request-demo"
               className="group inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-primary-600 to-primary-700 text-white rounded-2xl font-semibold text-lg shadow-xl shadow-primary-500/25 hover:shadow-2xl hover:shadow-primary-500/30 transition-all"
             >
-              Попробовать бесплатно
+              Запросить демо
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
             <Link 

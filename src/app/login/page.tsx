@@ -181,8 +181,8 @@ export default function LoginPage() {
           {isOwner ? (
             <>
               Нет аккаунта?{" "}
-              <Link href="/register" className="text-primary-600 font-medium hover:underline">
-                Зарегистрировать организацию
+              <Link href="/request-demo" className="text-primary-600 font-medium hover:underline">
+                Запросить демо
               </Link>
             </>
           ) : (

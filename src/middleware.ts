@@ -16,7 +16,8 @@ import { loginReturnTarget } from "./lib/safe-redirect";
 const PUBLIC_PATHS = [
   "/",
   "/login",
-  "/register",
+  "/register",     // closed: redirects to /request-demo (the tags of the link travel with it)
+  "/request-demo", // «Запросить демо»: access to ALGO is by invitation, the request form is open to everyone
   "/activate", // the activation link of an e-mail opens for a signed-out user
   "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
@@ -26,6 +27,7 @@ const OPEN_PATHS = [
   "/d/",       // Diagnostic by code
   "/e/",       // Exam by code
   "/invite/",  // Invite acceptance
+  "/set-password/", // «Задать пароль» link of an approved centre's owner (one-time token)
   "/diagnostic/",
 ];
 
