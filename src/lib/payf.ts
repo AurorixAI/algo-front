@@ -225,13 +225,28 @@ export function dayOffWarning(day: Pick<DayOffOut, "reason"> | null | undefined)
   return day ? `Это выходной день центра («${day.reason}»). Урок всё равно можно добавить.` : null;
 }
 
+/** The days off of the journal in two lists: the live ones (today and later, by date) and the cancelled / gone by ones (newest first). */
+export function splitDaysOff<T extends Pick<DayOffOut, "dateFrom" | "dateTo" | "active">>(days: ReadonlyArray<T>, today: string): { current: T[]; past: T[] } {
+  const current = days.filter((day) => day.active && day.dateTo >= today).sort((a, b) => a.dateFrom.localeCompare(b.dateFrom));
+  const past = days.filter((day) => !(day.active && day.dateTo >= today)).sort((a, b) => b.dateFrom.localeCompare(a.dateFrom));
+  return { current, past };
+}
+
 /** «Хайит · 21.10: 4 урока отменено, 1 нельзя» for the journal. */
 export function dayOffLine(day: DayOffOut): string {
   return `${day.reason} · ${dayOffSpan(day)}${day.active ? "" : " · отменён"}`;
 }
 
-/** «Группа 5 · 21.10 10:00 — идёт экзамен» for a lesson in a list. */
+/** «Группа 5 · 21.10 · 10:00–11:00» (+ « — идёт экзамен» for a lesson that is not cancelled) for a lesson in a list. */
 export function dayOffLessonLine(lesson: DayOffLesson): string {
-  const when = [dayMonth(lesson.date), lesson.startTime].filter(Boolean).join(" ");
+  const time = lesson.startTime ? (lesson.endTime ? `${lesson.startTime}–${lesson.endTime}` : lesson.startTime) : "";
+  const when = [dayMonth(lesson.date), time].filter(Boolean).join(" · ");
   return `${lesson.groupName} · ${when}${lesson.reason ? ` — ${lesson.reason}` : ""}`;
+}
+
+/** The sentence of a dry run without the names of the groups after the colon («Будут отменены 4 урока в 4 группах»): the lessons are listed under it one by one. */
+export function dayOffSummary(plan: Pick<DayOffPlan, "text">): string {
+  const text = plan.text ?? "";
+  const colon = text.indexOf(":");
+  return colon > 0 ? text.slice(0, colon) : text;
 }

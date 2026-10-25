@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
+import { EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
 
@@ -127,8 +127,9 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
           {checking && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
           {!checking && plan && (
             <>
-              <p className="text-sm font-medium text-slate-900" data-testid="day-off-plan-text">{plan.text}</p>
+              <p className="text-sm font-medium text-slate-900" data-testid="day-off-plan-text">{dayOffSummary(plan)}</p>
               {plan.alreadyCancelled > 0 && <p className="text-xs text-slate-500">Уже отменено раньше: {plan.alreadyCancelled}</p>}
+              <DayOffLessonList title="Будут отменены" lessons={plan.cancellable} tone="ok" testId="day-off-cancellable" />
               <DayOffLessonList title="Отмена будет переведена в праздник" lessons={plan.convertible ?? []} tone="ok" testId="day-off-convertible" />
               <DayOffLessonList title="Не будут отменены" lessons={plan.blocked} tone="warn" testId="day-off-blocked" />
               <p className="text-xs text-slate-500" data-testid="day-off-exams-note">{plan.examsNote ?? EXAMS_NOTE}</p>

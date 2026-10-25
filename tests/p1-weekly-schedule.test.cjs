@@ -116,7 +116,7 @@ test("createWeeklyLessons: the days go in the order of the week; a refused day i
   assert.deepEqual(result.added, [1, 5]);
   assert.deepEqual(result.failed.map((item) => [item.day, item.reason]), [[3, "преподаватель занят"]]);
   assert.match(result.failed[0].detail, /У преподавателя в это время уже есть урок/);
-  assert.deepEqual(result.notices, ["Кабинет «7» занят"], "the same note of two days is shown once");
+  assert.deepEqual(result.notices, ["Кабинет «7» занят: пн, пт"], "the same note of two days is one line with the days");
   assert.equal(F.weeklyResultText(result.added, result.failed), "Пн и Пт добавлены, Ср — преподаватель занят");
   // the payload: the fixed subject, a blank room is null, a blank topic is none, the date of the start
   const sent = calls[0][1];
@@ -199,7 +199,7 @@ test("«Применить также к другим дням»: the ticked les
   }
   assert.deepEqual(result.done, [3]);
   assert.deepEqual(result.failed.map((item) => [item.id, item.day, item.reason]), [["fri", 5, "преподаватель занят"]]);
-  assert.deepEqual(result.notices, ["Кабинет «12» занят"]);
+  assert.deepEqual(result.notices, ["Кабинет «12» занят: ср"]);
   assert.equal(F.weeklyResultText([1, ...result.done], result.failed, F.CHANGED_WORDS), "Пн и Ср изменены, Пт — преподаватель занят");
 
   // a lesson that already is so is done without a request; the server's «no difference» refusal counts as done too

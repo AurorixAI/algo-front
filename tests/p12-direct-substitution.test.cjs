@@ -80,8 +80,9 @@ test("[3] what became of a substitution is said under the decision, from the ser
   const gone = (patch) => direct({ clearedAt: at, clearedBy: person("Каримова Н."), clearedTo: null, clearedTrigger: "put", ...patch });
   assert.equal(S.clearedLine(direct()), null, "it stands");
   assert.equal(S.clearedLine(direct({ clearedAt: null })), null);
-  assert.equal(S.clearedLine(gone({})), "Замена снята: Каримова Н., 22.10 09:30");
-  assert.equal(S.clearedLine(gone({ clearedTo: person("Сидоров В.") })), "Заменена на Сидоров В., 22.10 09:30");
+  assert.equal(S.clearedLine(gone({})), "Замену снял(а) Каримова Н., 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTo: person("Сидоров В.") })), "Заменена на Сидоров В. — решил(а) Каримова Н., 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTo: person("Сидоров В."), clearedBy: null })), "Заменена на Сидоров В., 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "move" })), "Урок позже перенесён, 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "cancel" })), "Урок позже отменён, 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "member_removed" })), "Замена снята: заменяющий больше не работает в центре, 22.10 09:30");
@@ -91,18 +92,21 @@ test("[3] what became of a substitution is said under the decision, from the ser
   assert.equal(S.supersededBy, undefined, "the page-dependent hint is gone");
 });
 
-test("[4] a substitution taken off: «Замена снята: Петров Б.», «Снял(а) Каримова Н., дата»; the other closings keep their words", () => {
+test("[4] a substitution taken off: «Замену снял(а) Каримова Н., дата», «Заменял(а): Петров Б.»; the other closings keep their words", () => {
   const item = cleared();
   assert.equal(S.CLOSED_REASON_TEXT.ASSIGNMENT_CLEARED, "Замена снята");
   assert.equal(S.closedReasonText(item), "Замена снята");
-  assert.equal(S.decisionResultText(item), "Замена снята: Петров Б.");
-  assert.equal(S.decidedByLine(item), "Снял(а) Каримова Н., 21.10 14:12");
+  assert.equal(S.decisionResultText(item), "Замену снял(а) Каримова Н., 21.10 14:12");
+  assert.equal(S.decidedByLine(item), "Заменял(а): Петров Б.");
   assert.equal(S.isDirectSubstitution(item), true);
   assert.equal(S.originLine(item), "Заменил администратор, без запроса");
   assert.equal(S.reasonChipText(item), "Замена");
-  assert.deepEqual(S.teacherStatusLine(cleared({ origin: "teacher" })), { text: "Замена снята: Петров Б.", tone: "gray" });
+  assert.deepEqual(S.teacherStatusLine(cleared({ origin: "teacher" })), { text: "Замену снял(а) Каримова Н., 21.10 14:12", tone: "gray" });
   const noName = cleared({ decision: { ...cleared().decision, substitute: null } });
-  assert.equal(S.decisionResultText(noName), "Замена снята");
+  assert.equal(S.decisionResultText(noName), "Замену снял(а) Каримова Н., 21.10 14:12");
+  assert.equal(S.decidedByLine(noName), "");
+  const noWho = cleared({ decision: { ...cleared().decision, by: null } });
+  assert.equal(S.decisionResultText(noWho), "Замена снята, 21.10 14:12");
   const system = { origin: "teacher", status: "closed", teacher: person("Иванов А."), decision: { kind: "closed", via: "system", by: null, at: AT, closedReason: "GROUP_ARCHIVED", closedReasonText: "Группа закрыта" } };
   assert.equal(S.decisionResultText(system), "Закрыт: Группа закрыта");
   assert.equal(S.decidedByLine(system), "Закрыто системой, 21.10 14:12");
@@ -145,13 +149,27 @@ test("[R3 #6] the rows of the journal, rendered: the line under the teacher, the
   assert.equal(render(cells.ReasonCell, stood), "|Замена|Болезнь у основного преподавателя|");
   assert.equal(render(cells.DecisionCell, stood), "|Иванов А. → Петров Б.|Решил(а) Каримова Н., 21.10 14:12|");
   const replaced = { ...stood, clearedAt: "2026-10-22T04:30:00", clearedBy: person("Каримова Н."), clearedTo: person("Сидоров В."), clearedTrigger: "put" };
-  assert.equal(render(cells.DecisionCell, replaced), "|Иванов А. → Петров Б.|Решил(а) Каримова Н., 21.10 14:12|Заменена на Сидоров В., 22.10 09:30|");
+  assert.equal(render(cells.DecisionCell, replaced), "|Иванов А. → Петров Б.|Решил(а) Каримова Н., 21.10 14:12|Заменена на Сидоров В. — решил(а) Каримова Н., 22.10 09:30|");
   const removed = render(cells.DecisionCell, cleared());
-  assert.equal(removed, "|Замена снята: Петров Б.|Снял(а) Каримова Н., 21.10 14:12|");
+  assert.equal(removed, "|Замену снял(а) Каримова Н., 21.10 14:12|Заменял(а): Петров Б.|");
   const asked = { ...direct({ origin: "teacher", trigger: null, reasonLabel: "Болезнь", reasonCode: "sick" }) };
   assert.equal(render(cells.OriginLine, asked), "");
   assert.equal(render(cells.ReasonCell, asked), "|Болезнь|");
   const page = read("src/components/substitutions/substitutions-page.tsx");
   for (const name of ["OriginLine", "ReasonCell", "DecisionCell"]) assert.match(page, new RegExp(`<${name} item=\\{item\\} />`), `the page renders ${name}`);
   assert.match(read("src/lib/substitution-types.ts"), /\| "ASSIGNMENT_CLEARED"/);
+});
+
+test("[batch 25.10] the teacher's list after A → B → C and the removal: no stale «Администратор заменил», each row says what became of its substitution", () => {
+  const at = "2026-10-22T04:30:00";                                  // 09:30 in Tashkent
+  // the record of B: replaced by C
+  const replaced = direct({ origin: "system", trigger: "manager_assign", clearedAt: at, clearedBy: person("Каримова Н."), clearedTo: person("Сидоров В."), clearedTrigger: "put" });
+  assert.deepEqual(S.teacherStatusLine(replaced), { text: "Заменена на Сидоров В. — решил(а) Каримова Н., 22.10 09:30", tone: "gray" });
+  // the record of C: taken off
+  assert.deepEqual(S.teacherStatusLine(cleared({ decision: { ...cleared().decision, substitute: person("Сидоров В.") } })), { text: "Замену снял(а) Каримова Н., 21.10 14:12", tone: "gray" });
+  // a request of the teacher that was substituted and then taken off says it too
+  const asked = direct({ origin: "teacher", trigger: null, clearedAt: at, clearedBy: person("Каримова Н."), clearedTo: null, clearedTrigger: "put" });
+  assert.equal(S.teacherStatusLine(asked).text, "Замену снял(а) Каримова Н., 22.10 09:30");
+  // a standing substitution keeps its words
+  assert.deepEqual(S.teacherStatusLine(direct()), { text: "Администратор заменил: Петров Б.", tone: "green" });
 });

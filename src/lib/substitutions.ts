@@ -196,6 +196,9 @@ export function teacherStatusLine(item: SubstitutionItem): { text: string; tone:
   switch (item.status) {
     case "pending": return { text: "Ждёт решения", tone: "amber" };
     case "substituted": {
+      // P1.2: a substitution that was replaced / taken off / dropped says what became of it (the same words as the owner's journal), not the stale «Администратор заменил»
+      const gone = clearedLine(item);
+      if (gone) return { text: gone, tone: "gray" };
       const name = (decision?.substitute?.name ?? "").trim();
       if (isDirectSubstitution(item)) return { text: name ? `Администратор заменил: ${name}` : "Администратор назначил замену", tone: "green" };       // he did not ask: say who did it
       return { text: name ? `Замена: ${name}` : "Замена назначена", tone: "green" };
@@ -246,16 +249,22 @@ export function reasonChipText(item: SubstitutionItem): string {
   return item.reasonLabel || reasonLabelOf(item.reasonCode);
 }
 
+/** «ДД.ММ ЧЧ:ММ» of a moment the server sends as UTC without a zone. */
+function shortWhen(at: string | null | undefined): string {
+  return formatUtcNaiveAsBusinessDateTime(at).replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+}
+
 /** «Решил(а) Каримова Н., 21.10 14:12» in the list of decided requests. */
 export function decidedByLine(item: SubstitutionItem): string {
   const decision = item.decision;
   if (!decision) return "";
-  const when = formatUtcNaiveAsBusinessDateTime(decision.at);
-  // «ДД.ММ.ГГГГ ЧЧ:ММ» -> «ДД.ММ ЧЧ:ММ»
-  const short = when.replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+  const short = shortWhen(decision.at);
   const by = (decision.by?.name ?? "").trim();
-  // P1.2: a substitution taken off is the administrator's act, not the system's
-  if (decision.closedReason === "ASSIGNMENT_CLEARED") return [by ? `Снял(а) ${by}` : "Снята", short].filter(Boolean).join(", ");
+  // a substitution taken off: the result says who and when («Замену снял(а) Каримова Н., 22.10 09:30»), this line says whose substitution it was
+  if (decision.closedReason === "ASSIGNMENT_CLEARED") {
+    const substitute = (decision.substitute?.name ?? "").trim();
+    return substitute ? `Заменял(а): ${substitute}` : "";
+  }
   if (decision.via === "system" || decision.kind === "closed") return short ? `Закрыто системой, ${short}` : "Закрыто системой";
   if (decision.kind === "withdraw" || item.status === "withdrawn") return short ? `Отозван учителем, ${short}` : "Отозван учителем";
   // P1.1: a move says WHO moved the lesson: the teacher himself or an administrator
@@ -274,11 +283,13 @@ export function substitutionArrowText(item: Pick<SubstitutionItem, "teacher" | "
   return teacher ? `${teacher} → ${substitute}` : `Замена: ${substitute}`;
 }
 
-/** A substitution taken off says so and whom it was: «Замена снята: Петров Б.»; any other closing keeps «Закрыт: <причина>». */
+/** A substitution taken off says who took it off and when: «Замену снял(а) Каримова Н., 22.10 09:30»; any other closing keeps «Закрыт: <причина>». */
 export function closedResultText(item: SubstitutionItem): string {
   if (item.decision?.closedReason !== "ASSIGNMENT_CLEARED") return `Закрыт: ${closedReasonText(item)}`;
-  const substitute = (item.decision.substitute?.name ?? "").trim();
-  return substitute ? `${closedReasonText(item)}: ${substitute}` : closedReasonText(item);
+  const by = (item.decision.by?.name ?? "").trim();
+  const when = shortWhen(item.decision.at);
+  if (!by) return when ? `${closedReasonText(item)}, ${when}` : closedReasonText(item);
+  return [`Замену снял(а) ${by}`, when].filter(Boolean).join(", ");
 }
 
 const CLEARED_BY_THE_LESSON: Record<string, string> = { cancel: "Урок позже отменён", move: "Урок позже перенесён" };
@@ -288,18 +299,20 @@ const CLEARED_WHY: Record<string, string> = {
 };
 
 /**
- * P1.2: what became of the substitution of a decided record - the record keeps its status, the journal says the rest under the decision: «Замена снята: Каримова Н., 22.10 09:30»,
- * «Заменена на Сидоров В., 22.10 09:30», «Урок позже перенесён, 22.10 09:30».  Null while the substitution stands, and for a record the removal itself closed (its result already says so).
+ * P1.2: what became of the substitution of a decided record - the record keeps its status, the journal says the rest under the decision: «Замену снял(а) Каримова Н., 22.10 09:30»,
+ * «Заменена на Сидоров В. — решил(а) Каримова Н., 22.10 09:30», «Урок позже перенесён, 22.10 09:30».  Null while the substitution stands, and for a record the removal itself closed (its result already says so).
  */
 export function clearedLine(item: SubstitutionItem): string | null {
   if (!item.clearedAt || (item.status === "closed" && item.decision?.closedReason === "ASSIGNMENT_CLEARED")) return null;
-  const when = formatUtcNaiveAsBusinessDateTime(item.clearedAt).replace(/^(\d{2}\.\d{2})\.\d{4}/, "$1");
+  const when = shortWhen(item.clearedAt);
   const trigger = String(item.clearedTrigger ?? "");
   const by = (item.clearedBy?.name ?? "").trim();
   const to = (item.clearedTo?.name ?? "").trim();
-  const head = CLEARED_BY_THE_LESSON[trigger]
-    ?? (to ? `Заменена на ${to}` : `Замена снята: ${CLEARED_WHY[trigger] ?? (by || "система")}`);
-  return [head, when].filter(Boolean).join(", ");
+  const lesson = CLEARED_BY_THE_LESSON[trigger];
+  if (lesson) return [lesson, when].filter(Boolean).join(", ");
+  if (to) return [by ? `Заменена на ${to} — решил(а) ${by}` : `Заменена на ${to}`, when].filter(Boolean).join(", ");
+  if (by && !CLEARED_WHY[trigger]) return [`Замену снял(а) ${by}`, when].filter(Boolean).join(", ");
+  return [`Замена снята: ${CLEARED_WHY[trigger] ?? "система"}`, when].filter(Boolean).join(", ");
 }
 
 /** What the administrator decided, in a few words (the chip of a decided row). */

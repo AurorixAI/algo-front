@@ -1827,7 +1827,9 @@ export const orgApi = {
     return api<BalancesPage>(`/auth/org/payments/balances?${params.toString()}`).then(normalizeBalances);
   },
   getPaymentReceipt: (paymentId: string) =>
-    api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt`),
+    !paymentId || paymentId === "undefined" || paymentId === "null"
+      ? Promise.reject(Object.assign(new Error("Квитанция не найдена"), { status: 404 }))      // never ask the server for the receipt of «undefined»
+      : api<ReceiptOut>(`/auth/org/payments/${encodePathId(paymentId)}/receipt`),
   uploadPaymentFile: (paymentId: string, file: Blob, filename: string) =>
     uploadMultipart<PaymentFileOut>(
       `/auth/org/payments/${encodePathId(paymentId)}/files`,

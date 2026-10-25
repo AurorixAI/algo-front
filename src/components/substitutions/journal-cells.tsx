@@ -21,11 +21,12 @@ export function ReasonCell({ item }: { item: SubstitutionItem }) {
 /** The decision of a decided row: the result, the note, who decided and when, and what became of the substitution afterwards (P1.2). */
 export function DecisionCell({ item }: { item: SubstitutionItem }) {
   const cleared = clearedLine(item);
+  const decidedBy = decidedByLine(item);
   return (
     <>
       <p className="break-words text-sm font-medium text-slate-800">{decisionResultText(item)}</p>
       {item.decision?.note && item.status !== "substituted" && <p className="break-words text-xs text-slate-500">{item.decision.note}</p>}
-      <p className="text-xs text-slate-500">{decidedByLine(item)}</p>
+      {decidedBy && <p className="text-xs text-slate-500">{decidedBy}</p>}
       {cleared && <p className="text-xs text-slate-500" data-testid="substitution-cleared">{cleared}</p>}
     </>
   );

@@ -100,9 +100,9 @@ test.describe("package centre", () => {
     const group = await org.createGroup({ name: "Группа ПФ-1", teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
     const days = await threeWeekdays(org, group);
-    // the accounting of the centre starts tomorrow: the switch below is then in force for the student from his first day (a mode saved today is
-    // deferred to the next period of a student who already counts today - LOGIC-A F12)
-    await org.setPaymentSettings({ accounting_start_date: addDays(today(), 1) });
+    // the accounting starts today and the student joins AFTER the switch, the same day: he has no running period, so his first period is a package
+    // (stage walk 25.10: it used to stay a calendar month, and the walk had to move the start of the accounting to get a package)
+    await org.setPaymentSettings({ accounting_start_date: today() });
     const page = await signIn(org.owner);
 
     // --- 1. the owner switches on «Пакет уроков: 12» in the settings
@@ -122,7 +122,7 @@ test.describe("package centre", () => {
 
     // --- 2. a payment: the package is paid
     const membership = await org.membershipId(student.id, group.id);
-    await page.goto(`/owner/payments/statement/${membership}`);   // nothing is due before the accounting starts: the payment is made from the statement
+    await page.goto(`/owner/payments/statement/${membership}`);   // a package has no debt before a lesson is held: the payment is made from the statement
     await page.getByTestId("statement-pay").click();
     const dialog = page.getByRole("dialog", { name: "Внести оплату" });
     await expect(dialog).toBeVisible();

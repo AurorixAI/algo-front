@@ -41,6 +41,13 @@ export function lacksTeacher(info: LessonTeacherInfo | null | undefined): boolea
   return Boolean(info) && !info?.teacherId;
 }
 
+/** The role of a person in the list of the dialog: «Владелец» / «Администратор» / «Преподаватель» (a person who is also a teacher is told apart from a namesake). */
+export function roleLabel(orgRole: string | null | undefined): string {
+  if (orgRole === "owner") return "Владелец";
+  if (orgRole === "admin") return "Администратор";
+  return "Преподаватель";
+}
+
 export function candidateBusyText(candidate: LessonTeacherCandidate): string | null {
   if (!candidate.busy) return null;
   const busy = candidate.busyWith;

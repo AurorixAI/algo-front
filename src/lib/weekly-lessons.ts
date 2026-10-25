@@ -55,8 +55,25 @@ export function shortRefusal(failure: unknown): string {
   }
 }
 
+const DAY_SHORT = ["", "пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+
+/**
+ * The warnings of a save of several weekdays, one request each: the same warning of different days is ONE line with the days («Кабинет «12» в это время занят группой «X»: пн, ср, пт»);
+ * a save of one day keeps the server's sentence as it is.
+ */
+export function mergeNotices(items: ReadonlyArray<{ note: string; day: number }>, daysInSave: number): string[] {
+  const byNote = new Map<string, number[]>();
+  for (const { note, day } of items) {
+    const days = byNote.get(note) ?? [];
+    if (!days.includes(day)) days.push(day);
+    byNote.set(note, days);
+  }
+  return [...byNote.entries()].map(([note, days]) => (daysInSave <= 1 ? note : `${note}: ${days.sort((a, b) => a - b).map((d) => DAY_SHORT[d] ?? String(d)).join(", ")}`));
+}
+
 export async function createWeeklyLessons(groupId: string, days: readonly number[], draft: WeeklyDraft): Promise<WeeklyAddResult> {
   const result: WeeklyAddResult = { added: [], failed: [], notices: [] };
+  const found: Array<{ note: string; day: number }> = [];
   for (const day of [...days].sort((a, b) => a - b)) {
     try {
       const created = await orgApi.createLesson({
@@ -73,11 +90,12 @@ export async function createWeeklyLessons(groupId: string, days: readonly number
       });
       if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
       result.added.push(day);
-      for (const note of warningTexts(created)) if (!result.notices.includes(note)) result.notices.push(note);
+      for (const note of warningTexts(created)) found.push({ note, day });
     } catch (failure) {
       result.failed.push({ day, reason: shortRefusal(failure), detail: refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку.") });
     }
   }
+  result.notices = mergeNotices(found, days.length);
   return result;
 }
 
@@ -113,7 +131,9 @@ export interface WeeklyRevisionResult {
   /** Weekdays (of the lessons) that were changed. */
   done: number[];
   failed: Array<WeeklyFailure & { id: string }>;
+  /** The merged warning lines (see `mergeNotices`) and the raw ones (a caller that saved one more lesson of its own merges them all). */
   notices: string[];
+  found: Array<{ note: string; day: number }>;
 }
 
 /**
@@ -127,14 +147,15 @@ export async function reviseWeeklyLessons(
   reason: string,
   shared: Parameters<typeof patchFor>[1],
 ): Promise<WeeklyRevisionResult> {
-  const result: WeeklyRevisionResult = { done: [], failed: [], notices: [] };
+  const found: Array<{ note: string; day: number }> = [];
+  const result: WeeklyRevisionResult = { done: [], failed: [], notices: [], found };
   for (const target of [...targets].sort((a, b) => a.dayOfWeek - b.dayOfWeek)) {
     const patch = patchFor(target, shared);
     if (Object.keys(patch).length === 0) { result.done.push(target.dayOfWeek); continue; }
     try {
       const revised = await orgApi.reviseRecurringLesson(target.id, { ...patch, effectiveFrom, reason });
       result.done.push(target.dayOfWeek);
-      for (const note of warningTexts(revised)) if (!result.notices.includes(note)) result.notices.push(note);
+      for (const note of warningTexts(revised)) found.push({ note, day: target.dayOfWeek });
     } catch (failure) {
       if (failure instanceof Error && NO_DIFFERENCE.test(failure.message)) { result.done.push(target.dayOfWeek); continue; }
       result.failed.push({
@@ -145,5 +166,6 @@ export async function reviseWeeklyLessons(
       });
     }
   }
+  result.notices = mergeNotices(found, targets.length);
   return result;
 }

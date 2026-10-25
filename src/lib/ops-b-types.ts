@@ -46,6 +46,8 @@ export interface LessonTeacherInfo {
 export interface LessonTeacherCandidate {
   teacherId: string;
   name: string;
+  /** `owner` | `admin` | `teacher`: the line under the name says who it is. */
+  orgRole?: string;
   busy?: boolean;
   busyWith?: { groupName: string; startTime: string; endTime: string } | null;
 }

@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
-import { createOneOff, createWeeklyLessons, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
+import { createOneOff, createWeeklyLessons, mergeNotices, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
 import {
   DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastTimeProblem,
   timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type WeeklyLesson,
@@ -68,6 +68,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   const [validFrom, setValidFrom] = useState(formatBusinessDate());
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);       // a second submit in the same tick (double click, Enter + click) sees the state of the first one: the state alone is not read yet
   const [error, setError] = useState<string | null>(null);
   const [details, setDetails] = useState<string[]>([]);
 
@@ -112,10 +113,11 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || sending.current) return;
     setTouched(true);
     if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); return; }
     if (blocking) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     setDetails([]);
@@ -144,6 +146,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
     } catch (failure) {
       setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -260,6 +263,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   const [effectiveFrom, setEffectiveFrom] = useState(initialFrom);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);
   const [error, setError] = useState<string | null>(null);
   // «Применить также к другим дням группы»: the ids of the other weekly lessons of the group the same change goes to
   const [tickedIds, setTickedIds] = useState<string[]>([]);
@@ -314,24 +318,28 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || sending.current) return;
     if (!day) { setError(DAY_REQUIRED_TEXT); return; }
     if (timeProblem) { setError(timeProblem); return; }
     if (!mainSaved && !hasChanges) { setError("Измените хотя бы один параметр расписания."); return; }
     if (!effectiveFrom || effectiveFrom <= formatBusinessDate()) { setError("Постоянное расписание можно менять только начиная с будущей даты."); return; }
+    sending.current = true;
     setBusy(true);
     setError(null);
     setDetails([]);
     const text = reason.trim() || automaticReason;
-    const notices: string[] = [];
+    let notices: string[] = [];
+    const mainFound: Array<{ note: string; day: number }> = [];
     try {
       if (!mainSaved) {
         const revised = await orgApi.reviseRecurringLesson(lesson.id, { effectiveFrom, reason: text, ...changed });
-        notices.push(...warningTexts(revised));
+        for (const note of warningTexts(revised)) mainFound.push({ note, day: Number(lesson.dayOfWeek) });
+        notices = mergeNotices(mainFound, 1);
         setMainSaved(true);
       }
     } catch (failure) {
       setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
+      sending.current = false;
       setBusy(false);
       return;
     }
@@ -342,7 +350,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
       }
       // the same change for the ticked days, one by one: a refusal names its day and leaves the others done; only the refused stay ticked
       const result = await reviseWeeklyLessons(targets, effectiveFrom, text, shared);
-      for (const note of result.notices) if (!notices.includes(note)) notices.push(note);
+      notices = mergeNotices([...mainFound, ...result.found], targets.length + 1);
       if (result.failed.length === 0) {
         await onSaved(notices, effectiveFrom);
         return;
@@ -354,6 +362,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
     } catch (failure) {
       setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

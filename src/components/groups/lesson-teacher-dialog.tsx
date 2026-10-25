@@ -18,6 +18,7 @@ import {
   isSelectable,
   lessonTeacherDialogTitle,
   reasonError,
+  roleLabel,
 } from "@/lib/lesson-teacher";
 import { Radio } from "@/components/ui/radio";
 
@@ -57,6 +58,7 @@ export function LessonTeacherDialog({
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
   const requestRef = useRef(0);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
 
   const load = useCallback(async () => {
     if (!target) return;
@@ -93,7 +95,8 @@ export function LessonTeacherDialog({
   const send = async (teacherId: string | null) => {
     if (busy) return;
     setTouched(true);
-    if (problem) return;
+    // the reason is missing: the field says so under itself and takes the cursor (it may lie below the list), nothing is sent
+    if (problem) { reasonRef.current?.focus(); reasonRef.current?.scrollIntoView({ block: "nearest" }); return; }
     setBusy(true);
     setError(null);
     try {
@@ -146,6 +149,7 @@ export function LessonTeacherDialog({
         pick={pick}
         reason={reason}
         reasonProblem={touched ? problem : null}
+        reasonRef={reasonRef}
         busy={busy}
         error={error}
         onPick={(id) => { setPick(id); setError(null); }}
@@ -158,7 +162,7 @@ export function LessonTeacherDialog({
 
 /** The inside of the dialog: the candidates (the busy ones off) and the reason. */
 export function LessonTeacherBody({
-  list, loadError, current, pick, reason, reasonProblem, busy, error, onPick, onReason, onRetry,
+  list, loadError, current, pick, reason, reasonProblem, reasonRef, busy, error, onPick, onReason, onRetry,
 }: {
   list: LessonTeacherCandidates | null;
   loadError: string | null;
@@ -166,6 +170,7 @@ export function LessonTeacherBody({
   pick: string | null;
   reason: string;
   reasonProblem: string | null;
+  reasonRef?: React.Ref<HTMLTextAreaElement>;
   busy: boolean;
   error: string | null;
   onPick: (teacherId: string) => void;
@@ -190,7 +195,7 @@ export function LessonTeacherBody({
   const candidates = list.candidates ?? [];
   return (
     <div className="space-y-4 pb-1">
-      <ul role="radiogroup" aria-label="Преподаватель урока" className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200">
+      <ul role="radiogroup" aria-label="Преподаватель урока" className="max-h-[min(40vh,20rem)] divide-y divide-slate-100 overflow-y-auto rounded-xl border border-slate-200">
         {candidates.map((candidate) => {
           const busyText = candidateBusyText(candidate);
           const isCurrent = candidate.teacherId === current;
@@ -209,6 +214,7 @@ export function LessonTeacherBody({
                 />
                 <span className="min-w-0">
                   <span className={`block font-medium ${selectable ? "text-slate-900" : "text-slate-400"}`}>{candidate.name}</span>
+                  <span className="block text-xs text-slate-500" data-testid="candidate-role">{roleLabel(candidate.orgRole)}</span>
                   {isCurrent && <span className="block text-xs text-slate-500">Ведёт этот урок сейчас</span>}
                   {busyText && <span className="block text-xs font-medium text-amber-700">{busyText}</span>}
                 </span>
@@ -223,6 +229,7 @@ export function LessonTeacherBody({
         <label htmlFor="lesson-teacher-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{REASON_LABEL}</label>
         <textarea
           id="lesson-teacher-reason"
+          ref={reasonRef}
           value={reason}
           rows={2}
           maxLength={REASON_MAX}

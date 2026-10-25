@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
-import { EXAMS_NOTE, dayOffLine, dayOffSpan, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { formatBusinessDate } from "@/lib/business-time";
+import { EXAMS_NOTE, dayOffLine, dayOffSpan, splitDaysOff, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
 
@@ -131,16 +132,31 @@ export function DaysOffPanel() {
       {error && <p role="alert" className="text-xs font-medium text-rose-700">{error}</p>}
       {days === null && !error && <p className="flex items-center gap-1.5 text-xs text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Загрузка…</p>}
       {days !== null && days.length === 0 && <p className="text-sm text-slate-500">Выходных пока нет.</p>}
-      {days !== null && days.length > 0 && (
-        <ul className="divide-y divide-slate-100" data-testid="days-off-list">
-          {days.map((day) => (
-            <li key={day.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-              <span className={day.active ? "text-slate-900" : "text-slate-400 line-through"}>{dayOffLine(day)}</span>
-              {day.active && <button type="button" onClick={() => setVoiding(day)} className="text-xs font-semibold text-primary-700 hover:underline">Отменить выходной</button>}
-            </li>
-          ))}
-        </ul>
-      )}
+      {days !== null && days.length > 0 && (() => {
+        const { current, past } = splitDaysOff(days, formatBusinessDate());
+        const row = (day: DayOffOut) => (
+          <li key={day.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span className={day.active && day.dateTo >= formatBusinessDate() ? "text-slate-900" : "text-slate-400 line-through"}>{dayOffLine(day)}</span>
+            {day.active && day.dateTo >= formatBusinessDate() && <button type="button" onClick={() => setVoiding(day)} className="text-xs font-semibold text-primary-700 hover:underline">Отменить выходной</button>}
+          </li>
+        );
+        return (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Действующие</h3>
+              {current.length === 0
+                ? <p className="py-2 text-sm text-slate-500" data-testid="days-off-current-empty">Действующих выходных нет.</p>
+                : <ul className="divide-y divide-slate-100" data-testid="days-off-list">{current.map(row)}</ul>}
+            </div>
+            {past.length > 0 && (
+              <details className="group" data-testid="days-off-past">
+                <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-slate-500">Отменённые и прошедшие ({past.length})</summary>
+                <ul className="divide-y divide-slate-100" data-testid="days-off-past-list">{past.map(row)}</ul>
+              </details>
+            )}
+          </>
+        );
+      })()}
       <DayOffDialog open={creating} onClose={() => setCreating(false)} onDone={created} />
       <VoidDialog day={voiding} onClose={() => setVoiding(null)} onDone={voided} />
     </section>
