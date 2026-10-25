@@ -119,15 +119,19 @@ test.describe("package centre", () => {
     const student = await org.addStudent(group, "Анвар", "Пакетный");
 
     // --- 2. a payment: the package is paid
-    const { dialog, amount } = await openPayDialog(page, "Пакетный");
-    expect(amount).toBe(fee);
+    const membership = await org.membershipId(student.id, group.id);
+    await page.goto(`/owner/payments/statement/${membership}`);   // nothing is due before the accounting starts: the payment is made from the statement
+    await page.getByTestId("statement-pay").click();
+    const dialog = page.getByRole("dialog", { name: "Внести оплату" });
+    await expect(dialog).toBeVisible();
+    expect(Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""))).toBe(fee);
+    await shot(page, `01b-pay-package-${project}`);
     await dialog.getByRole("radio", { name: "Карта" }).click();
     await dialog.getByRole("button", { name: new RegExp(`^Внести\\s*${grouped(fee)}`) }).click();
     await expect(toast(page, "Оплата внесена")).toBeVisible();
 
     // --- 3. «хватит до ~ДД.ММ (по расписанию)» = the day of the 12th lesson of the schedule
     const twelfth = upcoming(days, 12)[11].date;
-    const membership = await org.membershipId(student.id, group.id);
     const row = (await org.owner.api.get(`/auth/org/students/${student.id}/memberships`)).find((r: any) => r.membership_id === membership);
     expect(row).toMatchObject({ period_mode: "lessons", lessons_left: 12, paid_through_forecast: twelfth });
     await page.goto(`/owner/students/${student.id}`);
