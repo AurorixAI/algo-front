@@ -1,0 +1,11 @@
+{
+  "name": "algo-console",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Консоль ALGO (console.algolab.me): статический экспорт Next.js, без своего сервера и данных. Зависимости и UI-кит — из корня репозитория (../node_modules, ../src/components/ui): одна копия React.",
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  }
+}
