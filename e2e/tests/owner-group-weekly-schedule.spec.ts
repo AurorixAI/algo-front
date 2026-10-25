@@ -23,6 +23,10 @@ async function shot(page: import("@playwright/test").Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 }
 
+const plus90 = (time: string) => {
+  const total = Number(time.slice(0, 2)) * 60 + Number(time.slice(3)) + 90;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+};
 const tomorrow = () => addDays(businessNow().date, 1);
 
 /** Opens «Добавить в расписание» and fills the day and the time (the day first: choosing it suggests a time). */
@@ -31,7 +35,11 @@ async function openAdd(page: import("@playwright/test").Page, opts: { day?: numb
   const dialog = page.getByRole("dialog", { name: "Добавить в расписание" });
   await expect(dialog).toBeVisible();
   if (opts.day) await pickOption(page, dialog.getByRole("combobox", { name: "День недели" }), DAY_NAMES[opts.day]);
-  if (opts.start) await fillTime(dialog.getByLabel("Начало"), opts.start);
+  if (opts.start) {
+    await fillTime(dialog.getByLabel("Начало"), opts.start);
+    // a new start moves the end 90 minutes after it: wait for it before typing the end of our own
+    await expect(dialog.getByLabel("Окончание")).toHaveValue(plus90(opts.start));
+  }
   if (opts.end) await fillTime(dialog.getByLabel("Окончание"), opts.end);
   if (opts.room) await dialog.getByLabel(/Кабинет/).fill(opts.room);
   return dialog;
@@ -163,7 +171,9 @@ test("validation: no day, the end before the start; the form says it and saves n
 
   await pickOption(page, dialog.getByRole("combobox", { name: "День недели" }), DAY_NAMES[weekdayOf(tomorrow())]);
   await fillTime(dialog.getByLabel("Начало"), "15:00");
+  await expect(dialog.getByLabel("Окончание")).toHaveValue("16:30");
   await fillTime(dialog.getByLabel("Окончание"), "14:00");
+  await expect(dialog.getByLabel("Окончание")).toHaveValue("14:00");
   await expect(dialog.getByRole("alert").filter({ hasText: "Окончание должно быть позже начала" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
   await dialog.getByRole("button", { name: "Отмена" }).click();
