@@ -274,13 +274,13 @@ test("a group without a teacher can be scheduled; the hint stands by the button 
   await expectNoHorizontalScroll(page);
 });
 
-test("the teacher's own form is the same: two weekdays at once, a one-off lesson, the refused day named @mobile", async ({ signIn }) => {
+test("the teacher's own form is the same: two weekdays at once, an own overlap is stopped before the click @mobile", async ({ signIn }) => {
   const teacher = await org.addStaff("teacher", "Свой");
   const group = await org.createGroup({ name: "Группа П1-Т", teacherId: teacher.userId });
-  const busyGroup = await org.createGroup({ name: "Группа П1-Т2", teacherId: teacher.userId });
+  const other = await org.createGroup({ name: "Группа П1-Т2", teacherId: teacher.userId });
   const d1 = tomorrow();
   const d2 = addDays(d1, 1);
-  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: busyGroup.id, dayOfWeek: weekdayOf(d2), startTime: "15:00", endTime: "16:30" });
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: other.id, dayOfWeek: weekdayOf(d2), startTime: "15:00", endTime: "16:30" });
   const page = await signIn(teacher);
   await page.goto("/teacher/schedule");
   await page.getByRole("button", { name: "Добавить в расписание" }).click();
@@ -292,10 +292,14 @@ test("the teacher's own form is the same: two weekdays at once, a one-off lesson
   for (const day of [weekdayOf(d1), weekdayOf(d2)]) await form.getByRole("button", { name: DAY_NAMES[day], exact: true }).click();
   await fillTime(form.getByLabel("Начало"), "15:30");
   await expect(form.getByLabel("Окончание")).toHaveValue("17:00");
+  // the teacher already has 15:00-16:30 on the second weekday: the form says so and does not save
+  await expect(form.getByText(/накладка по времени/).first()).toBeVisible();
+  await expect(form.getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
+  // later in the day the two weekdays go through
+  await fillTime(form.getByLabel("Начало"), "17:00");
+  await expect(form.getByLabel("Окончание")).toHaveValue("18:30");
   await form.getByRole("button", { name: "Сохранить урок" }).click();
-  // the first weekday is saved, the second is refused: the form says which, and keeps only the refused one
-  await expect(form.getByRole("alert")).toContainText(`${SHORT[weekdayOf(d1)]} добавлен, ${SHORT[weekdayOf(d2)]} — преподаватель занят`);
-  await expect(form.getByRole("button", { name: DAY_NAMES[weekdayOf(d2)], exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
-  expect(saved.map((l: any) => l.dayOfWeek)).toEqual([weekdayOf(d1)]);
+  expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([weekdayOf(d1), weekdayOf(d2)].sort());
 });
