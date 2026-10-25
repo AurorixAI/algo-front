@@ -17,6 +17,7 @@
  *   E2E_SKIP_BUILD=1    do not rebuild the front when .next-e2e exists
  *   E2E_FRONT_PORT / E2E_AUTH_PORT / E2E_EXAM_PORT   host ports (13000 / 18000 / 18003)
  *   E2E_WORKERS         parallel Playwright workers (default 3 locally, 2 in CI)
+ *   E2E_CONSOLE_PORT    the port console-k1.spec.ts serves the console on (13100)
  *
  * Flags starting with `--` before the first path are passed to Playwright (`--headed`, `--project=mobile`, `--grep ...`).
  */
@@ -187,6 +188,16 @@ try {
     const build = spawnSync("npx", ["next", "build"], { cwd: repoDir, env: frontEnv, stdio: ["ignore", "ignore", "inherit"] });
     if (build.status !== 0) throw new Error("next build failed");
     writeFileSync(buildStamp, wantStamp);
+  }
+
+  // The console is a static export (console/out): console-k1.spec.ts serves it on its own port and proxies the platform API.
+  const consoleOut = path.join(repoDir, "console", "out", "index.html");
+  if ((env.E2E_SKIP_BUILD === "1" || REUSE) && existsSync(consoleOut)) {
+    log("console: reusing console/out");
+  } else {
+    log("console: next build (static export -> console/out)");
+    const consoleBuild = spawnSync("npm", ["run", "console:build"], { cwd: repoDir, env: { ...env, NEXT_TELEMETRY_DISABLED: "1" }, stdio: ["ignore", "ignore", "inherit"] });
+    if (consoleBuild.status !== 0) throw new Error("console build failed");
   }
 
   if (await portBusy(FRONT_PORT)) {
