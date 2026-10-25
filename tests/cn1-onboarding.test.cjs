@@ -60,6 +60,9 @@ test("the phone mask: digits typed one by one, a paste in any shape, Backspace d
   assert.equal(D.maskPhone("+998"), "+998 ");                // Backspace on «+998 » never leaves the prefix half-erased
   assert.equal(D.maskPhone("abc"), "+998 ");
   assert.equal(D.maskPhone("99890123456789999"), "+998 90 123 45 67"); // digits beyond the number are dropped
+  // the caret was at the START of the field: a digit typed in front of the prefix is still the first digit of the number
+  assert.equal(D.maskPhone("9+998 "), "+998 9");
+  assert.equal(D.maskPhone("0+998 9"), "+998 09");
 });
 
 test("the phone is valid only when complete, and goes to the server as +998XXXXXXXXX", () => {

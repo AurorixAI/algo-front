@@ -70,7 +70,7 @@ export function DemoRequestPage() {
   const [errors, setErrors] = useState<DemoErrors>({});
   const [banner, setBanner] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "submitting" | "success">("idle");
-  const [accepted, setAccepted] = useState<{ name: string; email: string } | null>(null);
+  const [accepted, setAccepted] = useState<{ email: string } | null>(null);
   const source = useRef<DemoSource>({});
   const inFlight = useRef(false);
 
@@ -111,7 +111,7 @@ export function DemoRequestPage() {
     setStatus("submitting");
     try {
       await onboardingApi.submitDemoRequest(buildDemoBody(values, source.current));
-      setAccepted({ name: values.fullName.trim().split(/\s+/)[0] ?? "", email: values.email.trim() });
+      setAccepted({ email: values.email.trim() });
       setStatus("success");
     } catch (error) {
       const failure = classifyDemoFailure(error);
@@ -183,8 +183,8 @@ export function DemoRequestPage() {
                     </div>
                     <h2 className="mt-5 text-2xl font-bold text-slate-900">Заявка принята</h2>
                     <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">
-                      {accepted.name ? `${accepted.name}, спасибо!` : "Спасибо!"} Подтверждение отправлено на{" "}
-                      <span className="font-medium text-slate-800 break-all">{accepted.email}</span>.
+                      Спасибо! Подтверждение отправлено на{" "}
+                      <span className="font-medium text-slate-800 break-words">{accepted.email}</span>.
                     </p>
                     <ol className="mx-auto mt-6 max-w-sm space-y-3 text-left">
                       {SUCCESS_STEPS.map((step, index) => (
@@ -253,6 +253,8 @@ export function DemoRequestPage() {
                           placeholder="+998 90 123 45 67"
                           value={values.phone}
                           onChange={(e) => set("phone", maskPhone(e.target.value))}
+                          // The «+998 » prefix is part of the value: entering the field puts the caret after it, so a digit is never typed in front of it.
+                          onFocus={(e) => { const field = e.currentTarget; requestAnimationFrame(() => field.setSelectionRange(field.value.length, field.value.length)); }}
                           error={errors.phone}
                         />
                       </div>

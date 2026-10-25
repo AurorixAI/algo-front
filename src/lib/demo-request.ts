@@ -44,7 +44,12 @@ export function isValidEmail(value: string): boolean {
 
 /** What the field shows while a person types or pastes a phone: «+998 90 123 45 67». */
 export function maskPhone(typed: string): string {
-  return formatUzPhone(typed);
+  // A digit typed IN FRONT of the «+998 » prefix (the caret was at the start of the field) must not end up inside the number:
+  // «9+998 » is «9» typed after the prefix.
+  const text = typed.trimStart();
+  const prefixAt = text.indexOf("+998");
+  const withoutPrefix = prefixAt > 0 ? text.slice(0, prefixAt) + text.slice(prefixAt + 4) : text;
+  return formatUzPhone(withoutPrefix);
 }
 
 /** The phone the server gets: «+998901234567». "" for an incomplete number. */

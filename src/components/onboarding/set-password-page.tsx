@@ -144,7 +144,7 @@ export function SetPasswordPage({ token }: { token: string }) {
             <p className="mt-2 text-sm leading-6 text-slate-600">
               {link.purpose === "centre_invite" && link.centre ? (
                 <>
-                  Центр <span className="font-semibold text-slate-800">«{link.centre}»</span> подключён к ALGO.{" "}
+                  Ваш центр подключён к ALGO: <span className="font-semibold text-slate-800">{link.centre}</span>.{" "}
                 </>
               ) : null}
               {link.purpose === "reset" ? "Задайте новый пароль — и вы сразу войдёте в кабинет." : "Задайте пароль — и вы сразу войдёте в кабинет."}
