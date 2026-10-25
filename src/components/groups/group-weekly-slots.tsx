@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, CalendarPlus, Clock3, MapPin, Pencil, RefreshCw, Video, X } from "lucide-react";
 import { orgApi, type LessonEvent } from "@/lib/api";
-import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { addIsoDays, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { roomLabel, validFromBadge } from "@/lib/schedule-slots";
 import { DAYS, NO_TEACHER_SCHEDULE_HINT } from "@/lib/lesson-slot-form";
 import { AddWeeklyLessonDialog, EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
@@ -22,6 +22,8 @@ export function GroupWeeklySlots({ groupId, groupName, teacherAssigned, onChange
   onMessage: (text: string) => void;
 }) {
   const [slots, setSlots] = useState<LessonEvent[] | null>(null);
+  /** template id -> the next lesson of it within two weeks (date, time); a template without one in that window has been stopped. */
+  const [nextByLesson, setNextByLesson] = useState<Record<string, { date: string; startTime: string; endTime: string }> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
@@ -31,8 +33,24 @@ export function GroupWeeklySlots({ groupId, groupName, teacherAssigned, onChange
   const load = useCallback(async () => {
     setError(null);
     try {
-      const all = await orgApi.getSchedule();
+      const from = formatBusinessDate();
+      const [all, journal] = await Promise.all([
+        orgApi.getSchedule(),
+        // the next lessons of the weekly ones tell what the schedule WILL be (a change or a stop acts from a future date); a failure only hides that line
+        orgApi.getGroupAttendance(groupId, { dateFrom: from, dateTo: addIsoDays(from, 13) }).catch(() => null),
+      ]);
       setSlots(all.filter((lesson) => lesson.groupId === groupId));
+      if (journal) {
+        const next: Record<string, { date: string; startTime: string; endTime: string }> = {};
+        for (const lesson of [...(journal.lessons ?? [])].sort((a, b) => a.date.localeCompare(b.date))) {
+          const state = journal.statuses?.[lesson.instanceKey || `${lesson.date}_${lesson.id}`] || lesson.status;
+          if (state === "cancelled" || next[lesson.id]) continue;
+          next[lesson.id] = { date: lesson.date, startTime: lesson.startTime || lesson.start_time || "", endTime: lesson.endTime || "" };
+        }
+        setNextByLesson(next);
+      } else {
+        setNextByLesson(null);
+      }
     } catch (failure) {
       setSlots(null);
       setError(failure instanceof Error && failure.message ? failure.message : "Не удалось загрузить еженедельные уроки группы");
@@ -94,6 +112,9 @@ export function GroupWeeklySlots({ groupId, groupName, teacherAssigned, onChange
             {sorted.map((lesson) => {
               const dayName = DAYS.find((day) => day.id === lesson.dayOfWeek)?.name ?? "";
               const badge = validFromBadge(lesson.validFrom, today);
+              const next = nextByLesson?.[lesson.id];
+              // no lesson of it within two weeks although it already acts: it has been stopped from a coming date
+              const stopped = nextByLesson !== null && !next && !badge;
               return (
                 <li key={lesson.id} data-testid="weekly-slot" className="flex flex-col gap-2.5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 space-y-1">
@@ -106,15 +127,21 @@ export function GroupWeeklySlots({ groupId, groupName, teacherAssigned, onChange
                       <span className="inline-flex items-center gap-1.5">{lesson.format === "online" ? <Video className="h-3.5 w-3.5 text-violet-600" /> : <MapPin className="h-3.5 w-3.5" />}{roomLabel(lesson)}</span>
                       {lesson.topic && <span className="break-words">{lesson.topic}</span>}
                     </p>
+                    {next && (next.startTime !== lesson.startTime || next.endTime !== lesson.endTime) && (
+                      <p data-testid="weekly-slot-next" className="text-xs font-medium text-sky-800">
+                        Ближайший урок: {formatIsoDateLabel(next.date, { weekday: "short", day: "numeric", month: "short" }).replace(".", "")}, {next.startTime}–{next.endTime}
+                      </p>
+                    )}
+                    {stopped && <p data-testid="weekly-slot-stopped" className="text-xs font-medium text-amber-800">Занятия прекращены: новых уроков в расписании не будет.</p>}
                   </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
+                  {!stopped && <div className="flex shrink-0 flex-wrap gap-2">
                     <button type="button" onClick={() => setEditing(lesson)} aria-label={`Изменить урок: ${dayName} ${lesson.startTime}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50">
                       <Pencil className="h-3.5 w-3.5" /> Изменить
                     </button>
                     <button type="button" onClick={() => setEnding(lesson)} aria-label={`Прекратить урок: ${dayName} ${lesson.startTime}`} className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-50">
                       <X className="h-3.5 w-3.5" /> Прекратить
                     </button>
-                  </div>
+                  </div>}
                 </li>
               );
             })}
