@@ -10,7 +10,7 @@ import { MARK_CELL_LABEL, MARK_MENU_LABEL } from "@/lib/attendance-marks";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
-import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type RecurringLessonEndImpact, type ScheduleOccurrence } from "@/lib/api";
+import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
 import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil, isoDateDayOfWeek } from "@/lib/business-time";
 import Link from "next/link";
@@ -32,7 +32,6 @@ import {
   BookOpen,
   Check,
   Sparkles,
-  ArrowLeft,
   ArrowRight,
   X,
   GraduationCap,
@@ -47,7 +46,7 @@ import {
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
 import {
-  ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, roomForSave, validFromBadge, validFromBounds, validFromError,
+  VALID_FROM_HINT, roomForSave, validFromBadge, validFromBounds, validFromError,
 } from "@/lib/schedule-slots";
 import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
@@ -63,66 +62,9 @@ import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-error
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
-import { Checkbox } from "@/components/ui/checkbox";
-
-const COLOR_CLASSES = {
-  blue: {
-    bg: "bg-blue-50/90 hover:bg-blue-100/90 border-blue-200/80 text-blue-900",
-    badge: "bg-blue-100 text-blue-700",
-    dot: "bg-blue-500",
-    border: "border-l-blue-500",
-  },
-  indigo: {
-    bg: "bg-indigo-50/90 hover:bg-indigo-100/90 border-indigo-200/80 text-indigo-900",
-    badge: "bg-indigo-100 text-indigo-700",
-    dot: "bg-indigo-500",
-    border: "border-l-indigo-500",
-  },
-  purple: {
-    bg: "bg-purple-50/90 hover:bg-purple-100/90 border-purple-200/80 text-purple-900",
-    badge: "bg-purple-100 text-purple-700",
-    dot: "bg-purple-500",
-    border: "border-l-purple-500",
-  },
-  emerald: {
-    bg: "bg-emerald-50/90 hover:bg-emerald-100/90 border-emerald-200/80 text-emerald-900",
-    badge: "bg-emerald-100 text-emerald-700",
-    dot: "bg-emerald-500",
-    border: "border-l-emerald-500",
-  },
-  amber: {
-    bg: "bg-amber-50/90 hover:bg-amber-100/90 border-amber-200/80 text-amber-900",
-    badge: "bg-amber-100 text-amber-700",
-    dot: "bg-amber-500",
-    border: "border-l-amber-500",
-  },
-  rose: {
-    bg: "bg-rose-50/90 hover:bg-rose-100/90 border-rose-200/80 text-rose-900",
-    badge: "bg-rose-100 text-rose-700",
-    dot: "bg-rose-500",
-    border: "border-l-rose-500",
-  },
-};
-
-// Accessible names of the colour dots (the dots themselves carry no text).
-const COLOR_NAMES: Record<string, string> = {
-  blue: "Синий",
-  indigo: "Индиго",
-  purple: "Фиолетовый",
-  emerald: "Зелёный",
-  amber: "Янтарный",
-  rose: "Розовый",
-};
-
-const DAYS = [
-  { id: 1, name: "Понедельник", short: "Пн" },
-  { id: 2, name: "Вторник", short: "Вт" },
-  { id: 3, name: "Среда", short: "Ср" },
-  { id: 4, name: "Четверг", short: "Чт" },
-  { id: 5, name: "Пятница", short: "Пт" },
-  { id: 6, name: "Суббота", short: "Сб" },
-  { id: 7, name: "Воскресенье", short: "Вс" },
-];
+import { LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
+import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
+import { COLOR_CLASSES, DAYS, overlappingLesson, suggestedTimes } from "@/lib/lesson-slot-form";
 
 function russianPlural(count: number, one: string, few: string, many: string) {
   const absolute = Math.abs(count) % 100;
@@ -145,16 +87,6 @@ function completedLessonsProgressLabel(completed: number, total: number) {
 }
 
 type LessonOccurrence = ScheduleOccurrence;
-
-type ScheduleEditSnapshot = {
-  day: number;
-  startTime: string;
-  endTime: string;
-  room: string;
-  format: "offline" | "online";
-  topic: string;
-  color: "blue" | "indigo" | "purple" | "emerald" | "amber" | "rose";
-};
 
 function getLessonTimeStatus(
   lesson?: { startTime?: string; endTime?: string; dayOfWeek?: number } | null,
@@ -236,12 +168,6 @@ function getLessonTimeStatus(
       isPastEndTime,
     };
   }
-}
-
-/** First calendar date on which a regular schedule change may take effect. */
-function nextBusinessDate(): string {
-  const todayDay = businessDayOfWeek();
-  return businessWeekdayDate(todayDay === 7 ? 1 : todayDay + 1, todayDay === 7 ? 1 : 0);
 }
 
 export default function TeacherSchedulePage() {
@@ -389,34 +315,9 @@ export default function TeacherSchedulePage() {
   const [newTopic, setNewTopic] = useState("");
   const [newColor, setNewColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
 
-  // Edit lesson modal
-  const [editingLesson, setEditingLesson] = useState<LessonEvent | null>(null);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editDay, setEditDay] = useState(1);
-  const [editStartTime, setEditStartTime] = useState("10:00");
-  const [editEndTime, setEditEndTime] = useState("11:30");
-  const [editRoom, setEditRoom] = useState("");
-  const [editFormat, setEditFormat] = useState<"offline" | "online">("offline");
-  const [editTopic, setEditTopic] = useState("");
-  const [editColor, setEditColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
-  const [editEffectiveFrom, setEditEffectiveFrom] = useState("");
-  const [editReason, setEditReason] = useState("");
-  // Keep a normalised, immutable form snapshot. Schedule occurrences come from
-  // a server resolver and must not be used as a live form baseline.
-  const [editSnapshot, setEditSnapshot] = useState<ScheduleEditSnapshot | null>(null);
-
-  // Stopping a recurrence is intentionally independent from editing its
-  // fields. It has a separate preflight because future exam deliveries may
-  // need an explicit return to draft before the schedule can stop.
-  const [isEndRecurringModalOpen, setIsEndRecurringModalOpen] = useState(false);
+  // Changing / stopping a weekly lesson: the shared dialogs (components/schedule/weekly-lesson-dialogs) own their forms.
+  const [editingLesson, setEditingLesson] = useState<LessonOccurrence | null>(null);
   const [endingRecurringLesson, setEndingRecurringLesson] = useState<LessonOccurrence | null>(null);
-  const [endRecurringEffectiveFrom, setEndRecurringEffectiveFrom] = useState("");
-  const [endRecurringReason, setEndRecurringReason] = useState("");
-  const [endRecurringImpact, setEndRecurringImpact] = useState<RecurringLessonEndImpact | null>(null);
-  const [isLoadingEndRecurringImpact, setIsLoadingEndRecurringImpact] = useState(false);
-  const [isEndingRecurring, setIsEndingRecurring] = useState(false);
-  const [releaseAffectedExams, setReleaseAffectedExams] = useState(false);
-  const [endRecurringError, setEndRecurringError] = useState<string | null>(null);
 
   // Load only the organisation's approved schedule. A teacher must never fall
   // back to all groups or generate a fictitious lesson plan in the browser.
@@ -510,7 +411,7 @@ export default function TeacherSchedulePage() {
   }, [activeLesson]);
 
   // ─── Background scroll lock while any dialog is open (shared hook: counts stacked layers, keeps the page width) ───
-  useScrollLock(isAddModalOpen || isEditModalOpen || isEndRecurringModalOpen || isWeekPlanOpen || !!activeLesson);
+  useScrollLock(isAddModalOpen || isWeekPlanOpen || !!activeLesson);
 
   // ─── Close Modal on Escape Key ───
   useEffect(() => {
@@ -523,11 +424,6 @@ export default function TeacherSchedulePage() {
           return;
         }
         if (isAddModalOpen) setIsAddModalOpen(false);
-        if (isEditModalOpen) setIsEditModalOpen(false);
-        if (isEndRecurringModalOpen) {
-          closeEndRecurringModal();
-          return;
-        }
         if (isWeekPlanOpen) {
           setIsWeekPlanOpen(false);
           return;
@@ -537,19 +433,7 @@ export default function TeacherSchedulePage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isEditModalOpen, isEndRecurringModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
-
-  // Conflict detection helper
-  const getConflictingLesson = useCallback(
-    (dayOfWeek: number, startTime: string, endTime: string, excludeId?: string) => {
-      return lessons.find((l) => {
-        if (excludeId && l.id === excludeId) return false;
-        if (l.dayOfWeek !== dayOfWeek) return false;
-        return startTime < l.endTime && endTime > l.startTime;
-      });
-    },
-    [lessons],
-  );
+  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
 
   // Add conflict check (overlapping lessons)
   const addConflict = useMemo(() => {
@@ -560,49 +444,8 @@ export default function TeacherSchedulePage() {
         && newEndTime > lesson.startTime,
       );
     }
-    return getConflictingLesson(newDay, newStartTime, newEndTime);
-  }, [getConflictingLesson, newDay, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
-
-  // Edit conflict check (overlapping lessons)
-  const editConflict = useMemo(() => {
-    if (!editingLesson) return null;
-    return getConflictingLesson(editDay, editStartTime, editEndTime, editingLesson.id);
-  }, [getConflictingLesson, editDay, editStartTime, editEndTime, editingLesson]);
-
-  // The backend rightly rejects a versioned update without any actual
-  // difference. Compare the draft with the normalised snapshot created when
-  // the dialog opens, rather than with a server-resolved occurrence object.
-  // Every editable parameter (including colour) is therefore a valid change.
-  const hasEditChanges = Boolean(editSnapshot && (
-    Number(editDay) !== editSnapshot.day
-    || editStartTime !== editSnapshot.startTime
-    || editEndTime !== editSnapshot.endTime
-    || editRoom.trim() !== editSnapshot.room.trim()
-    || editFormat !== editSnapshot.format
-    || editColor !== editSnapshot.color
-    || editTopic.trim() !== editSnapshot.topic.trim()
-  ));
-
-  // A short free-text reason is useful when a teacher has additional context,
-  // but it must never prevent a valid timetable change.  The API still
-  // receives an auditable reason even when the teacher leaves the field blank.
-  const automaticEditReason = useMemo(() => {
-    if (!editSnapshot) return "Изменено постоянное расписание";
-
-    const changedFields: string[] = [];
-    if (Number(editDay) !== editSnapshot.day) changedFields.push("день недели");
-    if (editStartTime !== editSnapshot.startTime || editEndTime !== editSnapshot.endTime) {
-      changedFields.push("время занятия");
-    }
-    if (editRoom.trim() !== editSnapshot.room.trim()) changedFields.push("аудиторию");
-    if (editFormat !== editSnapshot.format) changedFields.push("формат проведения");
-    if (editTopic.trim() !== editSnapshot.topic.trim()) changedFields.push("тему занятия");
-    if (editColor !== editSnapshot.color) changedFields.push("цветовую метку");
-
-    return changedFields.length > 0
-      ? `Изменены: ${changedFields.join(", ")}`
-      : "Изменено постоянное расписание";
-  }, [editColor, editDay, editEndTime, editFormat, editRoom, editSnapshot, editStartTime, editTopic]);
+    return overlappingLesson(lessons, newDay, newStartTime, newEndTime);
+  }, [lessons, newDay, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
 
   // Current real day of week: 1=Mon .. 7=Sun
   const todayDayOfWeek = businessDayOfWeek();
@@ -1318,21 +1161,9 @@ export default function TeacherSchedulePage() {
     setNewLessonScope("one_off");
     setNewLessonDate(businessWeekdayDate(day, weekOffset));
 
-    const dayLessons = lessons.filter((l) => l.dayOfWeek === day);
-    if (dayLessons.length > 0) {
-      const sorted = [...dayLessons].sort((a, b) => b.endTime.localeCompare(a.endTime));
-      const latestEnd = sorted[0].endTime;
-      const [h, m] = latestEnd.split(":").map(Number);
-      const nextStartTime = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      const endMinutes = (h || 0) * 60 + (m || 0) + 90;
-      const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
-      const endM = String(endMinutes % 60).padStart(2, "0");
-      setNewStartTime(nextStartTime);
-      setNewEndTime(`${endH}:${endM}`);
-    } else {
-      setNewStartTime("10:00");
-      setNewEndTime("11:30");
-    }
+    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
+    setNewStartTime(times.startTime);
+    setNewEndTime(times.endTime);
 
     if (groups.length > 0) {
       setNewGroupId(groups[0].id);
@@ -1346,229 +1177,37 @@ export default function TeacherSchedulePage() {
 
   const handleAddDayChange = (day: number) => {
     setNewDay(day);
-    const dayLessons = lessons.filter((l) => l.dayOfWeek === day);
-    if (dayLessons.length > 0) {
-      const sorted = [...dayLessons].sort((a, b) => b.endTime.localeCompare(a.endTime));
-      const latestEnd = sorted[0].endTime;
-      const [h, m] = latestEnd.split(":").map(Number);
-      const nextStartTime = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      const endMinutes = (h || 0) * 60 + (m || 0) + 90;
-      const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
-      const endM = String(endMinutes % 60).padStart(2, "0");
-      setNewStartTime(nextStartTime);
-      setNewEndTime(`${endH}:${endM}`);
-    } else {
-      setNewStartTime("10:00");
-      setNewEndTime("11:30");
-    }
+    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
+    setNewStartTime(times.startTime);
+    setNewEndTime(times.endTime);
   };
 
-  const handleStartTimeChange = (val: string) => {
-    setNewStartTime(val);
-    if (val && val.includes(":")) {
-      const [h, m] = val.split(":").map(Number);
-      const endMinutes = (h || 0) * 60 + (m || 0) + 90;
-      const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
-      const endM = String(endMinutes % 60).padStart(2, "0");
-      setNewEndTime(`${endH}:${endM}`);
-    }
-  };
-
-  const handleEditStartTimeChange = (val: string) => {
-    setEditStartTime(val);
-    if (val && val.includes(":")) {
-      const [h, m] = val.split(":").map(Number);
-      const endMinutes = (h || 0) * 60 + (m || 0) + 90;
-      const endH = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
-      const endM = String(endMinutes % 60).padStart(2, "0");
-      setEditEndTime(`${endH}:${endM}`);
-    }
-  };
-
-  // Open Edit Modal
+  // Changing / stopping a weekly lesson is the shared dialogs' job; the page only reloads the canonical schedule afterwards.
   const openEditModal = (lesson: LessonOccurrence) => {
     if (lesson.isOneOff) return;
-    const snapshot: ScheduleEditSnapshot = {
-      day: Number(lesson.dayOfWeek),
-      startTime: lesson.startTime,
-      endTime: lesson.endTime,
-      room: lesson.room ?? "",
-      format: lesson.format || "offline",
-      topic: lesson.topic || "",
-      color: lesson.color || "blue",
-    };
     setEditingLesson(lesson);
-    setEditSnapshot(snapshot);
-    setEditDay(snapshot.day);
-    setEditStartTime(snapshot.startTime);
-    setEditEndTime(snapshot.endTime);
-    setEditRoom(snapshot.room);
-    setEditFormat(snapshot.format);
-    setEditTopic(snapshot.topic);
-    setEditColor(snapshot.color);
-    setEditEffectiveFrom(nextBusinessDate());
-    setEditReason("");
-    setIsEditModalOpen(true);
     setActiveLesson(null);
-  };
-
-  const closeEndRecurringModal = (force = false) => {
-    if (isEndingRecurring && !force) return;
-    setIsEndRecurringModalOpen(false);
-    setEndingRecurringLesson(null);
-    setEndRecurringImpact(null);
-    setEndRecurringError(null);
-    setReleaseAffectedExams(false);
   };
 
   const openEndRecurringModal = (lesson: LessonOccurrence) => {
     if (lesson.isOneOff) return;
     setEndingRecurringLesson(lesson);
-    setEndRecurringEffectiveFrom(nextBusinessDate());
-    setEndRecurringReason("");
-    setEndRecurringImpact(null);
-    setEndRecurringError(null);
-    setReleaseAffectedExams(false);
-    setIsEndRecurringModalOpen(true);
-    setIsEditModalOpen(false);
   };
 
-  useEffect(() => {
-    if (!isEndRecurringModalOpen || !endingRecurringLesson || !endRecurringEffectiveFrom) return;
-    if (endRecurringEffectiveFrom <= formatBusinessDate()) {
-      setEndRecurringImpact(null);
-      setEndRecurringError("Выберите будущую дату прекращения занятий.");
-      return;
-    }
-
-    let cancelled = false;
-    setIsLoadingEndRecurringImpact(true);
-    setEndRecurringError(null);
-    setEndRecurringImpact(null);
-    setReleaseAffectedExams(false);
-    void orgApi.getRecurringLessonEndImpact(endingRecurringLesson.id, endRecurringEffectiveFrom)
-      .then((impact) => {
-        if (!cancelled) setEndRecurringImpact(impact);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setEndRecurringError(
-            error instanceof Error && error.message
-              ? error.message
-              : "Не удалось проверить связанные экзамены. Для безопасности прекращение сейчас недоступно.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoadingEndRecurringImpact(false);
-      });
-    return () => { cancelled = true; };
-  }, [isEndRecurringModalOpen, endingRecurringLesson, endRecurringEffectiveFrom]);
-
-  // Update lesson handler
-  const handleUpdateLesson = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingLesson) return;
-    const reason = editReason.trim() || automaticEditReason;
-    if (!hasEditChanges) {
-      setScheduleError("Измените хотя бы один параметр расписания.");
-      return;
-    }
-    if (!editEffectiveFrom || editEffectiveFrom <= formatBusinessDate()) {
-      setScheduleError("Постоянное расписание можно менять только начиная с будущей даты.");
-      return;
-    }
-
+  const reloadAfterWeeklyChange = async (): Promise<boolean> => {
+    const reloaded = await loadData();
+    if (!reloaded) return false;
+    const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
     try {
-      setScheduleError(null);
-      const revised = await orgApi.reviseRecurringLesson(editingLesson.id, {
-        effectiveFrom: editEffectiveFrom,
-        reason,
-        dayOfWeek: Number(editDay),
-        startTime: editStartTime,
-        endTime: editEndTime,
-        room: roomForSave(editRoom),
-        format: editFormat,
-        color: editColor,
-        topic: editTopic || undefined,
-      });
-      setScheduleNotices(warningTexts(revised));
-      // A recurring change has an effective date. Reload server-resolved data
-      // instead of optimistically rewriting the old schedule template.
-      const reloaded = await loadData();
-      if (!reloaded) {
-        setIsEditModalOpen(false);
-        setEditingLesson(null);
-        setEditSnapshot(null);
-        return;
-      }
-      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-      try {
-        const refreshedWeek = await orgApi.getScheduleOccurrences(
-          { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-          isOrgManager ? undefined : user?.id,
-        );
-        setWeekOccurrences(refreshedWeek);
-      } catch (error) {
-        setWeekLoadError(getDataLoadErrorMessage(error));
-      }
-      setIsEditModalOpen(false);
-      setEditingLesson(null);
-      setEditSnapshot(null);
-    } catch (err) {
-      console.error("Failed to revise recurring lesson on backend:", err);
-      setScheduleError(scheduleErrorText(err, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
-    }
-  };
-
-  const handleEndRecurringLesson = async () => {
-    if (!endingRecurringLesson || !endRecurringImpact) return;
-    const reason = endRecurringReason.trim();
-    if (reason.length < 3) {
-      setEndRecurringError("Укажите понятную причину прекращения регулярных занятий.");
-      return;
-    }
-    if (!endRecurringImpact.canEnd) {
-      setEndRecurringError("Сначала завершите или разберите экзамены, которые уже нельзя вернуть в черновик.");
-      return;
-    }
-    if (endRecurringImpact.affectedExamCount > 0 && !releaseAffectedExams) {
-      setEndRecurringError("Подтвердите, что затронутые экзамены будут возвращены в черновики.");
-      return;
-    }
-
-    setIsEndingRecurring(true);
-    setEndRecurringError(null);
-    try {
-      await orgApi.endRecurringLesson(endingRecurringLesson.id, {
-        effectiveFrom: endRecurringEffectiveFrom,
-        reason,
-        releaseAffectedExams,
-      });
-      // Recurrences are resolved on the server. Do not locally hide a card:
-      // reload both canonical schedule reads after the operation succeeded.
-      const reloaded = await loadData();
-      if (!reloaded) return;
-      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-      try {
-        const refreshedWeek = await orgApi.getScheduleOccurrences(
-          { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-          isOrgManager ? undefined : user?.id,
-        );
-        setWeekOccurrences(refreshedWeek);
-      } catch (error) {
-        setWeekLoadError(getDataLoadErrorMessage(error));
-      }
-      closeEndRecurringModal(true);
-    } catch (error) {
-      setEndRecurringError(
-        error instanceof Error && error.message
-          ? error.message
-          : "Не удалось прекратить регулярные занятия. Расписание не изменено.",
+      const refreshedWeek = await orgApi.getScheduleOccurrences(
+        { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
+        isOrgManager ? undefined : user?.id,
       );
-    } finally {
-      setIsEndingRecurring(false);
+      setWeekOccurrences(refreshedWeek);
+    } catch (error) {
+      setWeekLoadError(getDataLoadErrorMessage(error));
     }
+    return true;
   };
 
   const weekPeriod = useMemo(() => ({
@@ -3485,98 +3124,18 @@ export default function TeacherSchedulePage() {
                   </div>
                 )}
 
-                {/* Time range */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="sched-add-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Начало
-                    </label>
-                    <TimeInput
-                      id="sched-add-nachalo"
-                      value={newStartTime}
-                      onChange={(next) => handleStartTimeChange(next)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sched-add-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Окончание
-                    </label>
-                    <TimeInput
-                      id="sched-add-okonchanie"
-                      value={newEndTime}
-                      onChange={(next) => setNewEndTime(next)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Format & Room */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="sched-add-format" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Формат
-                    </label>
-                    <Select
-                      id="sched-add-format"
-                      value={newFormat}
-                      onChange={(e) => setNewFormat(e.target.value as "offline" | "online")}
-                      options={[{ value: "offline", label: "Офлайн в классе" }, { value: "online", label: "Онлайн (Zoom)" }]}
-                      buttonClassName="px-3 py-2 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sched-add-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
-                      {ROOM_LABEL}
-                    </label>
-                    <input
-                      id="sched-add-auditoriya"
-                      type="text"
-                      value={newRoom}
-                      onChange={(e) => setNewRoom(e.target.value)}
-                      placeholder={ROOM_PLACEHOLDER}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Topic */}
-                <div>
-                  <label htmlFor="sched-add-tema-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Тема занятия (необязательно)
-                  </label>
-                  <input
-                    id="sched-add-tema-zanyatiya"
-                    type="text"
-                    value={newTopic}
-                    onChange={(e) => setNewTopic(e.target.value)}
-                    placeholder="Например: Квадратные уравнения"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  />
-                </div>
-
-                {/* Color tag */}
-                <div>
-                  <span id="sched-add-color-label" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Цветовая метка
-                  </span>
-                  <div role="group" aria-labelledby="sched-add-color-label" className="flex items-center gap-2">
-                    {(["blue", "indigo", "purple", "emerald", "amber", "rose"] as const).map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        aria-label={COLOR_NAMES[c]}
-                        aria-pressed={newColor === c}
-                        onClick={() => setNewColor(c)}
-                        className={`w-7 h-7 rounded-full border-2 transition-all ${COLOR_CLASSES[c].dot} ${
-                          newColor === c ? "border-slate-900 scale-110 shadow-xs" : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
+                <LessonSlotFields
+                  idPrefix="sched-add"
+                  value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
+                  onChange={(patch) => {
+                    if (patch.startTime !== undefined) setNewStartTime(patch.startTime);
+                    if (patch.endTime !== undefined) setNewEndTime(patch.endTime);
+                    if (patch.format !== undefined) setNewFormat(patch.format);
+                    if (patch.room !== undefined) setNewRoom(patch.room);
+                    if (patch.topic !== undefined) setNewTopic(patch.topic);
+                    if (patch.color !== undefined) setNewColor(patch.color);
+                  }}
+                />
 
                 {/* Conflict warning / Past time warning */}
                 {(addConflict || addPastTimeConflict) && (
@@ -3625,389 +3184,26 @@ export default function TeacherSchedulePage() {
       document.body
     )}
 
-      {/* MODAL: END RECURRING LESSON */}
-      {mounted &&
-        createPortal(
-          <AnimatePresence>
-            {isEndRecurringModalOpen && endingRecurringLesson && (
-              <div
-                onClick={(event) => {
-                  if (event.target === event.currentTarget) closeEndRecurringModal();
-                }}
-                className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-md"
-              >
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                  className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl ring-1 ring-black/5 sm:p-7"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-labelledby="end-recurring-title"
-                >
-                  <div className="mb-5 flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-rose-500">Постоянное расписание</p>
-                      <h3 id="end-recurring-title" className="mt-1 text-lg font-bold text-slate-950">Прекратить занятия</h3>
-                      <p className="mt-1 text-xs leading-relaxed text-slate-500">
-                        Прошедшие уроки, посещаемость и журнал останутся без изменений. Новые экземпляры этого занятия перестанут появляться с выбранной даты.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => closeEndRecurringModal()}
-                      disabled={isEndingRecurring}
-                      aria-label="Закрыть"
-                      className="rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                    <p className="text-sm font-semibold text-slate-900">{endingRecurringLesson.groupName}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {DAYS.find((day) => day.id === Number(endingRecurringLesson.dayOfWeek))?.name ?? "Регулярное занятие"} · {endingRecurringLesson.startTime}—{endingRecurringLesson.endTime}
-                    </p>
-                  </div>
-
-                  <div className="space-y-4">
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Прекратить с даты
-                      <DateInput
-                        value={endRecurringEffectiveFrom}
-                        min={nextBusinessDate()}
-                        onChange={(next) => setEndRecurringEffectiveFrom(next)}
-                        disabled={isEndingRecurring}
-                        wrapperClassName="mt-1.5"
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
-                      />
-                    </label>
-
-                    <label className="block text-xs font-semibold text-slate-700">
-                      Причина
-                      <textarea
-                        value={endRecurringReason}
-                        onChange={(event) => setEndRecurringReason(event.target.value)}
-                        maxLength={500}
-                        rows={2}
-                        disabled={isEndingRecurring}
-                        placeholder="Например: группа закончила курс"
-                        className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-900 outline-none transition placeholder:font-normal placeholder:text-slate-400 focus:border-rose-400 focus:ring-2 focus:ring-rose-100 disabled:cursor-not-allowed disabled:bg-slate-50"
-                      />
-                    </label>
-
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-                      <p className="text-sm font-bold text-slate-900">Проверка будущих экзаменов</p>
-                      {isLoadingEndRecurringImpact ? (
-                        <p className="mt-2 text-xs text-slate-500">Проверяем привязанные экзамены…</p>
-                      ) : endRecurringImpact ? (
-                        <div className="mt-2 space-y-3">
-                          {endRecurringImpact.affectedExamCount === 0 ? (
-                            <p className="text-xs leading-relaxed text-emerald-700">Связанных будущих экзаменов нет. Расписание можно безопасно прекратить.</p>
-                          ) : (
-                            <>
-                              <p className="text-xs leading-relaxed text-slate-600">
-                                Найдено: {endRecurringImpact.affectedExamCount}. {endRecurringImpact.canEnd
-                                  ? "После подтверждения они вернутся в черновики, а доступы и печатные комплекты будут закрыты."
-                                  : "Есть экзамены, которые уже нельзя безопасно вернуть в черновики."}
-                              </p>
-                              <div className="max-h-32 space-y-2 overflow-y-auto pr-1">
-                                {endRecurringImpact.exams.map((exam) => (
-                                  <div key={exam.examId} className={`rounded-xl border px-3 py-2 ${exam.canRelease ? "border-slate-200 bg-white" : "border-rose-200 bg-rose-50"}`}>
-                                    <div className="flex items-start justify-between gap-3">
-                                      <div className="min-w-0">
-                                        <p className="truncate text-xs font-semibold text-slate-800">{exam.title}</p>
-                                        <p className="mt-0.5 text-[11px] text-slate-500">{formatIsoDateLabel(exam.lessonDate, { day: "numeric", month: "long", year: "numeric" })} · {exam.deliveryMode === "print" ? "Печатный" : "Онлайн"}</p>
-                                      </div>
-                                      <span className={`shrink-0 text-[11px] font-semibold ${exam.canRelease ? "text-emerald-700" : "text-rose-700"}`}>
-                                        {exam.canRelease ? "Вернётся в черновик" : exam.blockerReason ?? "Требует разбора"}
-                                      </span>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                              {endRecurringImpact.canEnd && (
-                                <label className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900">
-                                  <Checkbox
-                                    checked={releaseAffectedExams}
-                                    onChange={(event) => setReleaseAffectedExams(event.target.checked)}
-                                    disabled={isEndingRecurring}
-                                  />
-                                  <span>Подтверждаю возврат затронутых экзаменов в черновики.</span>
-                                </label>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="mt-2 text-xs text-slate-500">Выберите будущую дату, чтобы проверить последствия.</p>
-                      )}
-                    </div>
-
-                    {endRecurringError && (
-                      <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-700">
-                        {endRecurringError}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-5 flex items-center justify-between gap-2 border-t border-slate-100 pt-4">
-                    <button
-                      type="button"
-                      onClick={() => closeEndRecurringModal()}
-                      disabled={isEndingRecurring}
-                      className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-100 disabled:opacity-50"
-                    >
-                      <ArrowLeft className="h-3.5 w-3.5" />
-                      Назад
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleEndRecurringLesson}
-                      disabled={isEndingRecurring || isLoadingEndRecurringImpact || !endRecurringImpact || !endRecurringImpact.canEnd || endRecurringReason.trim().length < 3 || (endRecurringImpact.affectedExamCount > 0 && !releaseAffectedExams)}
-                      className="rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isEndingRecurring ? "Прекращаем…" : "Прекратить занятия"}
-                    </button>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body,
-        )}
-
-      {/* MODAL: EDIT LESSON */}
-      {mounted &&
-        createPortal(
-          <AnimatePresence>
-            {isEditModalOpen && editingLesson && (
-              <div
-                onClick={(e) => {
-                  if (e.target === e.currentTarget) setIsEditModalOpen(false);
-                }}
-                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-md transition-all"
-              >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 ring-1 ring-black/5 max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-900">Изменить постоянное расписание</h3>
-                  <p className="mt-0.5 text-xs text-slate-500">Текущее и прошлые занятия не меняются. Новые правила начнут действовать с выбранной даты.</p>
-                </div>
-                <button
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleUpdateLesson} className="space-y-4">
-                {/* Conflict warning banner */}
-                {editConflict && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5">
-                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div className="text-xs text-amber-800">
-                      <span className="font-bold">Внимание, накладка по времени:</span> в этот день уже есть урок группы «{editConflict.groupName}» ({editConflict.startTime} - {editConflict.endTime}).
-                    </div>
-                  </div>
-                )}
-
-                {/* A recurring revision cannot silently move a lesson to a different group. */}
-                <div>
-                  <p className="block text-xs font-semibold text-slate-700 mb-1">
-                    Группа
-                  </p>
-                  <div className="w-full px-3 py-2 text-xs bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-medium">
-                    {editingLesson.groupName} ({editingLesson.classLevel} класс)
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="sched-edit-izmeneniya-deystvuyut-s" className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
-                    <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={editEffectiveFrom} min={nextBusinessDate()} onChange={(next) => setEditEffectiveFrom(next)} required className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none" />
-                  </div>
-                  <div className="flex items-end">
-                    <p className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-[11px] leading-relaxed text-primary-800">Уроки до этой даты сохраняют прежнее время и посещаемость.</p>
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="sched-edit-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-                  <Select
-                    id="sched-edit-den-nedeli"
-                    value={String(editDay)}
-                    onChange={(e) => setEditDay(Number(e.target.value))}
-                    options={DAYS.map((d) => ({ value: String(d.id), label: d.name }))}
-                    buttonClassName="px-3 py-2 text-xs"
-                  />
-                </div>
-
-                {/* Time range */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="sched-edit-nachalo" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Начало
-                    </label>
-                    <TimeInput
-                      id="sched-edit-nachalo"
-                      value={editStartTime}
-                      onChange={(next) => handleEditStartTimeChange(next)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sched-edit-okonchanie" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Окончание
-                    </label>
-                    <TimeInput
-                      id="sched-edit-okonchanie"
-                      value={editEndTime}
-                      onChange={(next) => setEditEndTime(next)}
-                      required
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Format & Room */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="sched-edit-format" className="block text-xs font-semibold text-slate-700 mb-1">
-                      Формат
-                    </label>
-                    <Select
-                      id="sched-edit-format"
-                      value={editFormat}
-                      onChange={(e) => setEditFormat(e.target.value as "offline" | "online")}
-                      options={[{ value: "offline", label: "Офлайн в классе" }, { value: "online", label: "Онлайн (Zoom)" }]}
-                      buttonClassName="px-3 py-2 text-xs"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="sched-edit-auditoriya" className="block text-xs font-semibold text-slate-700 mb-1">
-                      {ROOM_LABEL}
-                    </label>
-                    <input
-                      id="sched-edit-auditoriya"
-                      type="text"
-                      value={editRoom}
-                      onChange={(e) => setEditRoom(e.target.value)}
-                      placeholder={ROOM_PLACEHOLDER}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Topic */}
-                <div>
-                  <label htmlFor="sched-edit-tema-zanyatiya" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Тема занятия (необязательно)
-                  </label>
-                  <input
-                    id="sched-edit-tema-zanyatiya"
-                    type="text"
-                    value={editTopic}
-                    onChange={(e) => setEditTopic(e.target.value)}
-                    placeholder="Например: Квадратные уравнения"
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
-                  </label>
-                  <textarea
-                    id="sched-edit-prichina-izmeneniya"
-                    value={editReason}
-                    onChange={(e) => setEditReason(e.target.value)}
-                    maxLength={500}
-                    rows={2}
-                    placeholder="Например: постоянная смена аудитории"
-                    className="w-full resize-none px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-primary-500 focus:outline-none"
-                  />
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Если оставить поле пустым, система автоматически зафиксирует изменённые параметры.
-                  </p>
-                </div>
-
-                {/* Color tag */}
-                <div>
-                  <span id="sched-edit-color-label" className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Цветовая метка
-                  </span>
-                  <div role="group" aria-labelledby="sched-edit-color-label" className="flex items-center gap-2">
-                    {(["blue", "indigo", "purple", "emerald", "amber", "rose"] as const).map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        aria-label={COLOR_NAMES[c]}
-                        aria-pressed={editColor === c}
-                        onClick={() => setEditColor(c)}
-                        className={`w-7 h-7 rounded-full border-2 transition-all ${COLOR_CLASSES[c].dot} ${
-                          editColor === c ? "border-slate-900 scale-110 shadow-xs" : "border-transparent opacity-60 hover:opacity-100"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* The change is versioned for a future date, so only a real schedule overlap matters here. */}
-                {editConflict && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold">
-                        Внимание: пересечение по времени!
-                      </p>
-                      <p className="mt-0.5">
-                        В это время уже назначен урок группы «{editConflict.groupName}» ({editConflict.startTime} — {editConflict.endTime}).
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {scheduleError && (
-                  <p role="alert" className="flex items-start gap-2 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-semibold text-rose-700">
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{scheduleError}</span>
-                  </p>
-                )}
-
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  {!hasEditChanges && (
-                    <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsEditModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
-                  >
-                    Отмена
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={!!editConflict || !hasEditChanges || !editEffectiveFrom}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
-                  >
-                    Изменить расписание
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>,
-      document.body
-    )}
+      {/* Stop / change the weekly lesson: the dialogs shared with the group page of the owner and the administrator */}
+      <EndWeeklyLessonDialog
+        lesson={endingRecurringLesson}
+        onClose={() => setEndingRecurringLesson(null)}
+        onEnded={async () => {
+          // Recurrences are resolved on the server: reload both canonical schedule reads, never hide a card locally.
+          if (await reloadAfterWeeklyChange()) setEndingRecurringLesson(null);
+        }}
+      />
+      <EditWeeklyLessonDialog
+        lesson={editingLesson}
+        siblings={lessons}
+        onClose={() => setEditingLesson(null)}
+        onSaved={async (notices) => {
+          setScheduleNotices(notices);
+          // A recurring change has an effective date: reload the server-resolved data instead of rewriting the old template.
+          await reloadAfterWeeklyChange();
+          setEditingLesson(null);
+        }}
+      />
 
       {/* LOGIC-B: two editors saved the same lesson (O7) / a running exam at the finish (O8) / the teacher of a lesson (O5): over the lesson panel */}
       <AttendanceConflictDialog

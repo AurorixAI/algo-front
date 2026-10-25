@@ -228,11 +228,13 @@ test("the excuse reason field is rendered once per student: ids from useId are u
 });
 
 test("a group of buttons is labelled as a group, not by a <label> that names no field", () => {
+  // P1: the colour group is one shared component (idPrefix «sched-add» / «sched-edit»), also used by the group page
   const schedule = fs.readFileSync(src("app/teacher/schedule/page.tsx"), "utf8");
-  for (const kind of ["add", "edit"]) {
-    assert.match(schedule, new RegExp(`id="sched-${kind}-color-label"`));
-    assert.match(schedule, new RegExp(`role="group" aria-labelledby="sched-${kind}-color-label"`));
-  }
+  const fields = fs.readFileSync(src("components/schedule/lesson-slot-fields.tsx"), "utf8");
+  assert.match(fields, /id=\{`\$\{idPrefix\}-color-label`\}/);
+  assert.match(fields, /role="group" aria-labelledby=\{`\$\{idPrefix\}-color-label`\}/);
+  assert.match(schedule, /idPrefix="sched-add"/);
+  assert.match(fs.readFileSync(src("components/schedule/weekly-lesson-dialogs.tsx"), "utf8"), /idPrefix="sched-edit"/);
   const exams = fs.readFileSync(src("app/teacher/exams/new/page.tsx"), "utf8");
   assert.match(exams, /role="group" aria-labelledby="exam-new-duration-label"/);
   const invite = fs.readFileSync(src("app/owner/teachers/page.tsx"), "utf8");
