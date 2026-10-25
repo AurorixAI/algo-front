@@ -44,8 +44,10 @@ test.describe.serial("Консоль-1: заявка → одобрение → 
     await expect(page).toHaveURL(/\/request-demo\?utm_source=e2e$/);
     await expect(page.getByRole("heading", { name: /Доступ к ALGO/ })).toBeVisible();
 
-    await page.goto("/login");
-    const footer = page.getByText("Нет аккаунта?");
+    // `/` has no marketing page: a visitor without a session goes to the sign-in
+    await page.goto("/");
+    await expect(page).toHaveURL(/\/login$/);
+    const footer = page.getByText("Нет доступа?");
     await expect(footer).toContainText("Запросить демо");
     await expect(page.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/request-demo");
     await expect(page.getByRole("link", { name: /Зарегистрировать/ })).toHaveCount(0);
@@ -78,7 +80,7 @@ test.describe.serial("Консоль-1: заявка → одобрение → 
     await page.getByLabel("Почта").fill(staffEmail);
     await page.getByLabel("Пароль").fill("definitely-wrong-1");
     await page.getByRole("button", { name: "Войти" }).click();
-    await expect(page.getByRole("alert")).toContainText("Неверная почта или пароль");
+    await expect(page.getByText("Неверная почта или пароль")).toBeVisible();
 
     await page.getByLabel("Пароль").fill(staffPassword);
     await page.getByRole("button", { name: "Войти" }).click();

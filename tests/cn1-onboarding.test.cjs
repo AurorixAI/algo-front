@@ -281,13 +281,26 @@ test("/register is closed: it redirects to /request-demo and carries the campaig
   assert.doesNotMatch(read("src/app/register/page.tsx"), /applyOrg|use client/);
 });
 
+function walkSrc(dir) {
+  return fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => {
+    const rel = `${dir}/${e.name}`;
+    return e.isDirectory() ? walkSrc(rel) : /\.(tsx?|ts)$/.test(e.name) ? [rel] : [];
+  });
+}
+
 test("the login page points to «Запросить демо»; the landing no longer promises a free start", () => {
   const login = read("src/app/login/page.tsx");
-  assert.match(login, /Нет аккаунта\?[\s\S]{0,200}href="\/request-demo"[\s\S]{0,120}Запросить демо/);
+  assert.match(login, /Нет доступа\?[\s\S]{0,200}href="\/request-demo"[\s\S]{0,120}Запросить демо/);
   assert.doesNotMatch(login, /Зарегистрировать организацию|href="\/register"/);
-  const landing = read("src/app/page.tsx");
-  assert.doesNotMatch(landing, /href="\/register"|Начать бесплатно|Попробовать бесплатно/);
-  assert.match(landing, /href="\/request-demo"/);
+  // `/` has no marketing page any more: no cookie -> /login; the only way to /request-demo is the sign-in's footer (until the new landing, K3)
+  const home = read("src/app/page.tsx");
+  assert.match(home, /redirect\("\/login"\)/);
+  assert.doesNotMatch(home, /request-demo|register|motion|use client/);
+  assert.match(read("src/components/auth/home-redirect.tsx"), /loginHome\(user\.org_role \|\| user\.role\)/);
+  for (const file of walkSrc("src")) {
+    if (file === "src/app/login/page.tsx" || file === "src/app/register/page.tsx" || file === "src/lib/demo-request.ts") continue;
+    if (/\/request-demo/.test(read(file))) assert.ok(/onboarding|request-demo\/page|middleware|demo-request/.test(file), `${file}: an extra door to /request-demo`);
+  }
 });
 
 test("middleware: /request-demo, /register and /set-password/<token> open without a session; the cabinets still do not", () => {

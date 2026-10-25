@@ -180,7 +180,7 @@ export default function LoginPage() {
         <p className="text-center mt-6 text-sm text-slate-500">
           {isOwner ? (
             <>
-              Нет аккаунта?{" "}
+              Нет доступа?{" "}
               <Link href="/request-demo" className="text-primary-600 font-medium hover:underline">
                 Запросить демо
               </Link>
