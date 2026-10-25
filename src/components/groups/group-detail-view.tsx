@@ -527,7 +527,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
 
         {tab === "schedule" && (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            <GroupScheduleOverview groupId={groupId} groupName={group.name} viewerRole={paths.viewerRole} archived={group.status === "archived"} />
+            <GroupScheduleOverview groupId={groupId} groupName={group.name} viewerRole={paths.viewerRole} archived={group.status === "archived"} teacherAssigned={Boolean(group.teacher_id || group.teacher_name)} />
           </motion.div>
         )}
 

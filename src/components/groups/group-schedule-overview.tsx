@@ -31,6 +31,7 @@ import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
+import { GroupWeeklySlots } from "@/components/groups/group-weekly-slots";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
 import { assignActionLabel, lessonHasStarted, lessonTitle, roomLabel, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
@@ -132,7 +133,7 @@ function periodLabel(start: string, end: string): string {
  * recurring slots, one-off transfers, cancellations and factual states are
  * therefore represented once and never reconstructed in the frontend.
  */
-export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = null, archived = false }: {
+export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = null, archived = false, teacherAssigned = true }: {
   groupId: string;
   /** The title of a lesson without a topic. */
   groupName?: string | null;
@@ -140,6 +141,8 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
   viewerRole?: string | null;
   /** The group is in the archive: nothing changes there. */
   archived?: boolean;
+  /** The group has a teacher; without one the weekly lessons are still saved, with a hint (P1). */
+  teacherAssigned?: boolean;
 }) {
   const today = formatBusinessDate();
   const { user } = useAuthStore();
@@ -268,6 +271,17 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
           Обновить
         </button>
       </section>
+
+      {/* P1: the owner and the administrator add, change and stop the weekly lessons right here (not on an archived group) */}
+      {(viewerRole === "owner" || viewerRole === "admin") && !archived && (
+        <GroupWeeklySlots
+          groupId={groupId}
+          groupName={groupName || "Группа"}
+          teacherAssigned={teacherAssigned}
+          onChanged={() => void loadSchedule()}
+          onMessage={(text) => showToast(text)}
+        />
+      )}
 
       <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-xs sm:p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
