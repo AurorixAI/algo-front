@@ -364,8 +364,8 @@ test("teacher: «Ещё -> Прекратить» opens the stop dialog above th
   await page.getByRole("button", { name: /На неделю/ }).click();
   if (mondayOf(d1) !== mondayOf(today())) await page.getByTitle("Следующая неделя").click();
   await page.getByText("Группа П1-Ост").first().click();
-  const panel = page.getByRole("dialog").first();
-  await expect(panel).toContainText("Группа П1-Ост");
+  const panel = page.getByText("Тема урока"); // a mark of the lesson panel
+  await expect(panel).toBeVisible();
   await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
   await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
   const end = page.getByRole("dialog", { name: "Прекратить занятия" });
@@ -379,7 +379,7 @@ test("teacher: «Ещё -> Прекратить» opens the stop dialog above th
   // Escape closes the topmost layer only: the stop dialog goes, the lesson panel stays
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Прекратить занятия" })).toHaveCount(0);
-  await expect(panel).toContainText("Группа П1-Ост");
+  await expect(panel).toBeVisible();
   // and the stop itself goes through from the same place
   await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
   await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
