@@ -71,7 +71,8 @@ test("wiring: the group form creates a weekly lesson of THIS group through the s
   const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
   assert.match(dialogs, /orgApi\.createLesson\(\{\s*groupId: group\.id/);
   assert.match(dialogs, /validFrom: validFrom \|\| today/);
-  assert.match(dialogs, /scheduleErrorText\(failure/);
+  assert.match(dialogs, /refusalText\(failure/);
+  assert.match(dialogs, /scheduleErrorText\(failure, fallback\)/);
   assert.match(dialogs, /warningTexts\(created\)/);
   assert.match(dialogs, /orgApi\.reviseRecurringLesson\(lesson\.id/);
   assert.match(dialogs, /orgApi\.endRecurringLesson\(lesson\.id/);

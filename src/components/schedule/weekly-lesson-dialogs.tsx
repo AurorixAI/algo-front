@@ -8,7 +8,8 @@ import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { VALID_FROM_HINT, roomForSave, validFromBounds, validFromError } from "@/lib/schedule-slots";
-import { scheduleErrorText, warningTexts } from "@/lib/ops-errors";
+import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, warningTexts } from "@/lib/ops-errors";
+import type { TeacherBusyDetail } from "@/lib/ops-b-types";
 import {
   DAYS, DAY_REQUIRED_TEXT, LESSON_SUBJECT, NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, overlappingLesson, pastTimeProblem,
   suggestedTimes, timeRangeProblem,
@@ -20,6 +21,15 @@ export type WeeklyLesson = Pick<LessonEvent, "id" | "groupName" | "classLevel" |
 
 const CANCEL_BUTTON = "px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50";
 const PRIMARY_BUTTON = "inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm";
+
+/** A refusal of the schedule in calm words; a busy teacher is told by the clashes alone (the server's own sentence repeats the first one with an ISO date). */
+function refusalText(failure: unknown, fallback: string): string {
+  if (opsErrorCode(failure) === "TEACHER_BUSY") {
+    const lines = teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(failure), 2);
+    if (lines.length) return `У преподавателя в это время уже есть урок. ${lines.join("; ")}`;
+  }
+  return scheduleErrorText(failure, fallback);
+}
 
 function Problem({ children, tone = "rose" }: { children: React.ReactNode; tone?: "rose" | "amber" }) {
   const palette = tone === "amber" ? "border-amber-200 bg-amber-50 text-amber-800" : "border-rose-200 bg-rose-50 text-rose-700";
@@ -111,7 +121,7 @@ export function AddWeeklyLessonDialog({ open, group, teacherAssigned, siblings, 
       if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
       onCreated(created, warningTexts(created));
     } catch (failure) {
-      setError(scheduleErrorText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
+      setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
     } finally {
       setBusy(false);
     }
@@ -254,7 +264,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved }: {
       });
       await onSaved(warningTexts(revised), effectiveFrom);
     } catch (failure) {
-      setError(scheduleErrorText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
+      setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
     } finally {
       setBusy(false);
     }
