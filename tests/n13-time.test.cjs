@@ -253,7 +253,10 @@ const RULES = [
   {
     name: "Date.parse / date libraries",
     pattern: /\bDate\.parse\s*\(|from\s+["'](?:date-fns|dayjs|moment|luxon)|require\(["'](?:date-fns|dayjs|moment|luxon)/,
-    allow: { "lib/api.ts": "Retry-After may be an HTTP-date: it always ends in GMT, so Date.parse gives the same instant on every device and only the seconds left are kept" },
+    allow: {
+      "lib/api.ts": "Retry-After may be an HTTP-date: it always ends in GMT, so Date.parse gives the same instant on every device and only the seconds left are kept",
+      "lib/http-json.ts": "Retry-After may be an HTTP-date: it always ends in GMT, so Date.parse gives the same instant on every device and only the seconds left are kept",
+    },
   },
 ];
 
