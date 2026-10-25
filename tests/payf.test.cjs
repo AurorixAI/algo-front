@@ -332,3 +332,12 @@ test("4. the names are the frozen contract with the server: PAYMENT_MODELS = tes
   const contract = JSON.parse(read("tests/fixtures/payf-mode-names.json"));
   assert.deepEqual(P.PAYMENT_MODELS.map((m) => ({ key: m.key, title: m.title, hint: m.hint })), contract);
 });
+
+test("3. the sheet of a cancelled lesson offers «Изменить причину отмены» by the kind the journal sends", () => {
+  assert.equal(F.CHANGE_KIND_LABEL, "Изменить причину отмены");
+  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /cancellationKind=\{lessonState === "cancelled" \? attendance\?\.cancellationKinds\?\.\[key\] \?\? null : null\}/);
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /orgApi\.changeCancellationKind\(groupId/);
+  assert.match(sheet, /data-testid="sheet-change-kind"/);
+  assert.match(read("src/lib/api.ts"), /\/attendance\/cancellation-kind`, \{ method: "PUT"/);
+});
