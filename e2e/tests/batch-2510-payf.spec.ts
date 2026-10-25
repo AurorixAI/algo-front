@@ -84,8 +84,10 @@ async function openPayDialog(page: Page, lastName: string) {
   await row.getByRole("button", { name: "Внести оплату" }).click();
   const dialog = page.getByRole("dialog", { name: "Внести оплату" });
   await expect(dialog).toBeVisible();
-  const amount = Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""));
-  return { dialog, amount };
+  // the sum is filled in when the plan of the payment has been read: wait for it, a late value is not a different one
+  const amountNow = async () => Number((await dialog.getByLabel("Сумма", { exact: true }).inputValue()).replace(/\D/g, ""));
+  await expect.poll(amountNow, { message: "the dialog proposes a sum" }).toBeGreaterThan(0);
+  return { dialog, amountNow };
 }
 
 test.describe("package centre", () => {
@@ -205,9 +207,8 @@ test.describe("monthly centre", () => {
 
     // --- 2. before any cancellation: no lines, the dialog proposes the amount A0
     const before = await openPayDialog(page, "Помесячный");
-    expect(before.amount).toBeGreaterThan(0);
     await expect(before.dialog.getByTestId("recalc-note")).toHaveCount(0);
-    const A0 = before.amount;
+    const A0 = await before.amountNow();
     await page.keyboard.press("Escape");
 
     // --- 3. the owner cancels the first coming lesson, the kind is «По вине центра» (the default)
@@ -239,7 +240,7 @@ test.describe("monthly centre", () => {
     await expectNoHorizontalScroll(page);
     await shot(page, `08-statement-recalc-${project}`);
     const after = await openPayDialog(page, "Помесячный");
-    expect(after.amount).toBe(A0 - X);
+    await expect.poll(after.amountNow).toBe(A0 - X);
     await expect(after.dialog.getByTestId("recalc-note")).toContainText(`урок ${dm(first.date)} отменён центром`);
     await expectNoHorizontalScroll(page);
     await shot(page, `09-pay-dialog-recalc-${project}`);
@@ -289,7 +290,7 @@ test.describe("monthly centre", () => {
     await expect(page.getByText(/Перерасчёт: урок/)).toHaveCount(0);
     await shot(page, `13-statement-no-recalc-${project}`);
     const back = await openPayDialog(page, "Помесячный");
-    expect(back.amount).toBe(A0);
+    await expect.poll(back.amountNow).toBe(A0);
     await expect(back.dialog.getByTestId("recalc-note")).toHaveCount(0);
     await shot(page, `14-pay-dialog-back-${project}`);
   });
