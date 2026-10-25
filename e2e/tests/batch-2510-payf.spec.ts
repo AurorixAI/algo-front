@@ -148,7 +148,7 @@ test.describe("package centre", () => {
     const off = page.getByRole("dialog", { name: "Выходной день центра" });
     await fillDate(off.getByLabel("Первый день"), second.date);
     await off.getByLabel("Причина").fill("Хайит");
-    await expect(off.getByTestId("day-off-plan-text")).toContainText(/Будут отменены 1 урок в 1 группе/);
+    await expect(off.getByTestId("day-off-plan-text")).toContainText(/Будет отменён 1 урок в 1 группе/);
     await expect(off.getByTestId("day-off-plan")).toContainText("Группа ПФ-1");
     await expectNoHorizontalScroll(page);
     await shot(page, `03-day-off-dialog-${project}`);
