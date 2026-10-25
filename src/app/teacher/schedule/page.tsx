@@ -55,9 +55,7 @@ import { narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster,
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { RequestControl } from "@/components/substitutions/request-control";
-import { TeacherMoveControl } from "@/components/substitutions/teacher-move-control";
-import { useToast } from "@/components/ui/toast";
+import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
@@ -174,7 +172,6 @@ function getLessonTimeStatus(
 
 export default function TeacherSchedulePage() {
   const { user } = useAuthStore();
-  const { showToast } = useToast();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupInfo[]>([]);
@@ -417,8 +414,8 @@ export default function TeacherSchedulePage() {
   // closing before this window listener runs: the state would then already say «no dialog» and the panel would close with the same key.
   // So the question «is a dialog above the panel?» is asked in the capture phase, before any of them has reacted.
   const weeklyDialogOpenRef = useRef(false);
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson || moveDialogOpen);
+  const moveHoldsEscape = useRef(false);       // the move dialog (TeacherMoveControl) is above the panel
+  weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson);
   const escapeBelongsToDialogRef = useRef(false);
   useEffect(() => {
     const noteKey = (e: KeyboardEvent) => { if (e.key === "Escape") escapeBelongsToDialogRef.current = weeklyDialogOpenRef.current; };
@@ -431,7 +428,7 @@ export default function TeacherSchedulePage() {
         // a conflict of marks / a running exam is decided in a dialog over the panel: the panel stays
         if (marksOps.conflict || marksOps.liveExams) return;
         // the dialogs of «Изменить / Прекратить» are above the panel and close themselves (the topmost one only): the panel stays
-        if (escapeBelongsToDialogRef.current) return;
+        if (escapeBelongsToDialogRef.current || moveHoldsEscape.current) return;
         if (isRecurringActionsOpen) {
           setIsRecurringActionsOpen(false);
           return;
@@ -2330,41 +2327,19 @@ export default function TeacherSchedulePage() {
 
               {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
               {!loadingStudents && (
-                <>
-                  <RequestControl
-                    lesson={{
-                      groupId: activeLesson.groupId,
-                      groupName: activeLesson.groupName,
-                      lessonId: activeLesson.id,
-                      lessonDate: activeLesson.occurrenceDate,
-                      startTime: activeLesson.startTime,
-                      endTime: activeLesson.endTime,
-                    }}
-                    mark={activeRequestMark}
-                    lessonTeacherId={activeTeacherInfo?.teacherId}
-                    lessonStatus={activeLessonStatus}
-                    onChanged={() => { void loadData(); }}
-                  />
-                  {/* P1.1: the teacher moves his own lesson ahead of time (the administrator's dialog) */}
-                  <TeacherMoveControl
-                    lesson={{
-                      groupId: activeLesson.groupId,
-                      groupName: activeLesson.groupName,
-                      lessonId: activeLesson.id,
-                      lessonDate: activeLesson.occurrenceDate,
-                      startTime: activeLesson.startTime,
-                      endTime: activeLesson.endTime,
-                      room: activeLesson.room,
-                      format: activeLesson.format,
-                      topic: activeLesson.topic,
-                    }}
-                    lessonTeacherId={activeTeacherInfo?.teacherId}
-                    isSubstitution={activeTeacherInfo?.isSubstitution}
-                    lessonStatus={activeLessonStatus}
-                    onDialogChange={setMoveDialogOpen}
-                    onMoved={(text) => { setActiveLesson(null); if (text) showToast(text); void reloadAfterWeeklyChange(); }}
-                  />
-                </>
+                <TeacherLessonControls
+                  lesson={{
+                    groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate,
+                    startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
+                  }}
+                  mark={activeRequestMark}
+                  lessonTeacherId={activeTeacherInfo?.teacherId}
+                  isSubstitution={activeTeacherInfo?.isSubstitution}
+                  lessonStatus={activeLessonStatus}
+                  onChanged={() => { void loadData(); }}
+                  onMoved={() => { setActiveLesson(null); void reloadAfterWeeklyChange(); }}
+                  onDialogChange={(open) => { moveHoldsEscape.current = open; }}
+                />
               )}
 
               {/* Attendance Section */}

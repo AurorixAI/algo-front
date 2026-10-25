@@ -71,7 +71,12 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   const page = read("src/app/teacher/schedule/page.tsx");
   const control_ = read("src/components/substitutions/teacher-move-control.tsx");
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
-  assert.match(page, /<TeacherMoveControl/);
+  const dashboard = read("src/app/teacher/dashboard/page.tsx");
+  assert.match(page, /<TeacherLessonControls/);
+  assert.match(dashboard, /<TeacherLessonControls/, "the dashboard's panel has the same controls");
+  assert.doesNotMatch(dashboard, /<RequestControl/);
+  assert.ok(dashboard.split("\n").length <= 2842, "the dashboard did not grow");
+  assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /<RequestControl[\s\S]*<TeacherMoveControl/);
   assert.doesNotMatch(page, /только на сегодня|canRescheduleToday|rescheduleLessonOccurrence|isReschedulingLesson|rescheduleReason/, "the same-day-only move is gone from the page");
   assert.doesNotMatch(read("src/lib/api.ts"), /rescheduleLessonOccurrence/);
   assert.ok(page.split("\n").length < 3210, "the page did not grow");
@@ -80,14 +85,22 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   assert.match(sheet, /moveOnly/);
   assert.match(sheet, /lessonMove\(groupId/, "the sheet posts the one lesson-move");
   assert.equal((sheet.match(/substitutionsApi\.lessonMove\(/g) || []).length, 1);
-  // the page holds its own Escape key while the dialog is open
-  assert.match(page, /moveDialogOpen/);
-  assert.match(page, /onMoved=\{\(text\) => \{ setActiveLesson\(null\);/);
+  // both pages hold their Escape key while the dialog is open
+  for (const source of [page, dashboard]) {
+    assert.match(source, /moveHoldsEscape\.current\) return/);
+    assert.match(source, /onDialogChange=\{\(open\) => \{ moveHoldsEscape\.current = open; \}\}/);
+    assert.match(source, /onMoved=\{\(\) => \{ setActiveLesson\(null\);/);
+  }
 });
 
 test("the hint for the last hour is shown instead of the button, next to «Не смогу провести»", () => {
   const control_ = read("src/components/substitutions/teacher-move-control.tsx");
   assert.match(control_, /control\.kind === "late"[\s\S]*MOVE_TOO_LATE_HINT/);
+  // an open dialog is not replaced by the hint and not unmounted when the 60-minute line is crossed: the hint is shown only while the dialog is closed
+  assert.match(control_, /if \(!open\) \{\s*if \(control\.kind === "none"\) return null;\s*if \(control\.kind === "late"\)/);
+  assert.match(control_, /control\.kind === "button" && \(\s*<button/);
+  // the page's Escape key is released when the control goes away with the dialog open
+  assert.match(control_, /useEffect\(\(\) => \(\) => \{ window\.setTimeout\(\(\) => onDialogChange\?\.\(false\), 0\); \}, \[\]\)/);
   assert.match(control_, /data-testid="teacher-move"/);
 });
 

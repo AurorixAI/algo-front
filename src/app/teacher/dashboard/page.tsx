@@ -69,7 +69,7 @@ import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { RequestControl } from "@/components/substitutions/request-control";
+import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
 
@@ -372,12 +372,13 @@ export default function TeacherDashboardPage() {
   // The dialogs are portalled to <body>: lock the page scroll while any of them is open (shared hook).
   useScrollLock(Boolean(activeLesson || isActionCenterOpen || missedLessonAction || isExamQueueOpen));
 
-  // Escape key handler
+  // Escape key handler (the move dialog of TeacherMoveControl, above the panel, keeps the key to itself)
+  const moveHoldsEscape = useRef(false);
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // a conflict of marks / a running exam is being decided in a dialog over the panel: the panel stays
-        if (marksOps.conflict || marksOps.liveExams) return;
+        if (marksOps.conflict || marksOps.liveExams || moveHoldsEscape.current) return;
         if (isExamQueueOpen) setIsExamQueueOpen(false);
         else if (missedLessonAction) setMissedLessonAction(null);
         else if (isActionCenterOpen) setIsActionCenterOpen(false);
@@ -2281,21 +2282,20 @@ export default function TeacherDashboardPage() {
                   </button>
                 </div>
 
-                {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
+                {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену»; P1.1: «Перенести урок» */}
                 {!loadingStudents && (
-                  <RequestControl
+                  <TeacherLessonControls
                     lesson={{
-                      groupId: activeLesson.groupId,
-                      groupName: activeLesson.groupName,
-                      lessonId: activeLesson.id,
-                      lessonDate: activeLesson.occurrenceDate || businessDate,
-                      startTime: activeLesson.startTime,
-                      endTime: activeLesson.endTime,
+                      groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate || businessDate,
+                      startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
                     }}
                     mark={activeRequestMark}
                     lessonTeacherId={activeTeacherInfo?.teacherId}
+                    isSubstitution={activeTeacherInfo?.isSubstitution}
                     lessonStatus={activeInstanceStatus}
                     onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+                    onMoved={() => { setActiveLesson(null); setDashboardRefreshNonce((current) => current + 1); }}
+                    onDialogChange={(open) => { moveHoldsEscape.current = open; }}
                   />
                 )}
 

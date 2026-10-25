@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import type { Lesson } from "@/lib/api";
 import { businessWallTimeToInstant, formatIsoDateLabel } from "@/lib/business-time";
@@ -13,7 +13,7 @@ import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
 /** The lesson the control moves (the fields of the teacher's schedule occurrence). */
 export interface MovableLesson {
   groupId: string;
-  groupName?: string | null;
+  groupName: string;
   lessonId: string;
   lessonDate: string;
   startTime: string;
@@ -48,7 +48,8 @@ export function TeacherMoveControl({
   const { user } = useAuthStore();
   const now = useNow(30_000, true);
   const [open, setOpenState] = useState(false);
-  const setOpen = (next: boolean) => { setOpenState(next); onDialogChange?.(next); };
+  // The page's Escape key leaves the panel alone while the dialog is above it; «closed» is told one tick later, after the same key press has passed the page's own listener.
+  const setOpen = (next: boolean) => { setOpenState(next); if (next) onDialogChange?.(true); else window.setTimeout(() => onDialogChange?.(false), 0); };
   const control = teacherMoveControl({
     role: user?.org_role ?? user?.role ?? null,
     userId: user?.id,
@@ -58,23 +59,30 @@ export function TeacherMoveControl({
     startsAtMs: lessonStartMs(lesson.lessonDate, lesson.startTime, businessWallTimeToInstant),
     nowMs: now,
   });
-  if (control.kind === "none") return null;
-  if (control.kind === "late") return <p role="status" data-testid="move-late-hint" className="mb-4 text-xs font-medium text-slate-500">{MOVE_TOO_LATE_HINT}</p>;
+  // the page's Escape key must not stay held when the control goes away (the panel closes, the lesson changes) with the dialog open
+  useEffect(() => () => { window.setTimeout(() => onDialogChange?.(false), 0); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // an open dialog is never taken away by the clock: crossing the 60-minute line makes the SERVER answer MOVE_TOO_LATE in the dialog, with its own words
+  if (!open) {
+    if (control.kind === "none") return null;
+    if (control.kind === "late") return <p role="status" data-testid="move-late-hint" className="mb-4 text-xs font-medium text-slate-500">{MOVE_TOO_LATE_HINT}</p>;
+  }
 
   const sheetLesson: Lesson = {
     id: lesson.lessonId, date: lesson.lessonDate, startTime: lesson.startTime, endTime: lesson.endTime, room: lesson.room, format: lesson.format, topic: lesson.topic ?? undefined,
   };
   return (
-    <div className="mb-4">
-      <button
-        type="button"
-        data-testid="teacher-move"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800"
-      >
-        <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
-        {SCHEDULE_ACTION_LABEL.reschedule}
-      </button>
+    <div className={open && control.kind !== "button" ? undefined : "mb-4"}>
+      {control.kind === "button" && (
+        <button
+          type="button"
+          data-testid="teacher-move"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800"
+        >
+          <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
+          {SCHEDULE_ACTION_LABEL.reschedule}
+        </button>
+      )}
       <LessonActionSheet
         moveOnly
         aboveLessonPanel

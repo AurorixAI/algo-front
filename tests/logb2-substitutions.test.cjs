@@ -694,7 +694,7 @@ test("[T1] the lesson panels carry the control and the teacher's dashboard carri
   const dashboard = read("src/app/teacher/dashboard/page.tsx");
   const schedule = read("src/app/teacher/schedule/page.tsx");
   for (const [name, page] of [["dashboard", dashboard], ["schedule", schedule]]) {
-    assert.match(page, /<RequestControl/, name);
+    assert.match(page, /<TeacherLessonControls/, name);          // «Не смогу провести» (RequestControl) + P1.1 «Перенести урок»
     assert.match(page, /mark=\{activeRequestMark\}/, name);
     assert.match(page, /att\?\.substitutionRequests\?\.\[lessonKey\]/, name);
     assert.match(page, /substituteGroupLabel\(activeLesson\.groupName\)/, name);
