@@ -12,7 +12,7 @@ import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
-import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
+import { businessDayOfWeek, businessTimeMinutes, businessWeekdayDate, capitalizeFirst, formatBusinessDate, isoDateDayOfWeek, formatBusinessDateLabel, formatIsoDateLabel, formatMinutesUntil } from "@/lib/business-time";
 import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
@@ -42,6 +42,7 @@ import {
   Play,
   CheckCheck,
   Radio,
+  Loader2,
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
 import { useScrollLock } from "@/components/ui/modal";
@@ -62,9 +63,9 @@ import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-error
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { TimeInput } from "@/components/ui/time-input";
 import { LessonScopeFields, LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
-import { createOneOff, createWeeklyLessons } from "@/lib/weekly-lessons";
+import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
-import { COLOR_CLASSES, DAYS, DAY_REQUIRED_TEXT, dayShort, overlappingLesson, suggestedTimes, weeklyResultText } from "@/lib/lesson-slot-form";
+import { COLOR_CLASSES, DAYS, nextBusinessDate, DAY_REQUIRED_TEXT, dayShort, overlappingLesson, suggestedTimes, weeklyResultText } from "@/lib/lesson-slot-form";
 
 function russianPlural(count: number, one: string, few: string, many: string) {
   const absolute = Math.abs(count) % 100;
@@ -306,6 +307,9 @@ export default function TeacherSchedulePage() {
   const [newLessonScope, setNewLessonScope] = useState<"one_off" | "recurring">("one_off");
   const [newLessonDate, setNewLessonDate] = useState(formatBusinessDate());
   const [newDays, setNewDays] = useState<number[]>([]);
+  const [savingLesson, setSavingLesson] = useState(false);
+  /** The times were typed by the user: the suggested times of the first chosen day no longer follow the days. */
+  const [timesEdited, setTimesEdited] = useState(false);
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("11:30");
   const [newRoom, setNewRoom] = useState("");
@@ -419,6 +423,8 @@ export default function TeacherSchedulePage() {
       if (e.key === "Escape") {
         // a conflict of marks / a running exam is decided in a dialog over the panel: the panel stays
         if (marksOps.conflict || marksOps.liveExams) return;
+        // the dialogs of «Изменить / Прекратить» are above the panel and close themselves (the topmost one only): the panel stays
+        if (endingRecurringLesson || editingLesson) return;
         if (isRecurringActionsOpen) {
           setIsRecurringActionsOpen(false);
           return;
@@ -433,7 +439,7 @@ export default function TeacherSchedulePage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
+  }, [isAddModalOpen, isWeekPlanOpen, activeLesson, endingRecurringLesson, editingLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
 
   // Add conflict check (overlapping lessons)
   const addConflict = useMemo(() => {
@@ -1058,6 +1064,7 @@ export default function TeacherSchedulePage() {
   // Add lesson handler
   const handleAddLesson = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savingLesson) return; // a repeated click or Enter while the first save is on its way
     if (
       newLessonScope === "one_off"
       && (newLessonDate < formatBusinessDate() || newLessonDate < weekPeriod.start || newLessonDate > weekPeriod.end)
@@ -1080,6 +1087,7 @@ export default function TeacherSchedulePage() {
     const draft = { startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor };
 
     try {
+      setSavingLesson(true);
       setScheduleError(null);
       setScheduleNotices([]);
       // A one-off is one request; a weekly lesson is one request per chosen weekday, and the answer names the days that were refused.
@@ -1128,6 +1136,8 @@ export default function TeacherSchedulePage() {
     } catch (err) {
       console.error("Failed to persist lesson on backend:", err);
       setScheduleError(scheduleErrorText(err, "Не удалось создать урок. Расписание не изменено — повторите попытку."));
+    } finally {
+      setSavingLesson(false);
     }
   };
 
@@ -1149,19 +1159,39 @@ export default function TeacherSchedulePage() {
     setNewRoom("");
     setNewValidFrom(formatBusinessDate());
     setScheduleError(null);
+    setTimesEdited(false);
+    setSavingLesson(false);
     setIsAddModalOpen(true);
   };
 
+  // The suggested times follow the first chosen weekday (or the date of a one-off lesson) until the user types times of his own.
+  useEffect(() => {
+    if (!isAddModalOpen || timesEdited) return;
+    const day = newLessonScope === "recurring" ? newDays[0] : isoDateDayOfWeek(newLessonDate);
+    if (!day) return;
+    const times = suggestedTimes(lessons.filter((l) => l.dayOfWeek === day));
+    setNewStartTime(times.startTime);
+    setNewEndTime(times.endTime);
+  }, [isAddModalOpen, timesEdited, newLessonScope, newDays, newLessonDate, lessons]);
+
   // Changing / stopping a weekly lesson is the shared dialogs' job; the page only reloads the canonical schedule afterwards.
-  const openEditModal = (lesson: LessonOccurrence) => {
+  // The weekly lesson as it stands on the day the change starts from (an occurrence that was moved carries the time of the move).
+  const weeklyStateOf = async (lesson: LessonOccurrence): Promise<LessonOccurrence> => {
+    const state = await weeklyResolver(lesson.groupId, lesson.id)(nextBusinessDate()).catch(() => null);
+    return state ? { ...lesson, ...state } : lesson;
+  };
+
+  const openEditModal = async (lesson: LessonOccurrence) => {
     if (lesson.isOneOff) return;
-    setEditingLesson(lesson);
+    const state = await weeklyStateOf(lesson);
+    setEditingLesson(state);
     setActiveLesson(null);
   };
 
-  const openEndRecurringModal = (lesson: LessonOccurrence) => {
+  // «Прекратить» opens above the lesson panel (the panel stays under it, as for the dialogs of the marks)
+  const openEndRecurringModal = async (lesson: LessonOccurrence) => {
     if (lesson.isOneOff) return;
-    setEndingRecurringLesson(lesson);
+    setEndingRecurringLesson(await weeklyStateOf(lesson));
   };
 
   const reloadAfterWeeklyChange = async (): Promise<boolean> => {
@@ -3014,6 +3044,7 @@ export default function TeacherSchedulePage() {
                     id="sched-add-gruppa"
                     value={newGroupId}
                     onChange={(e) => setNewGroupId(e.target.value)}
+                    disabled={savingLesson}
                     options={groups.length === 0
                       ? [{ value: "default-grp", label: "Основная группа (5 класс)" }]
                       : groups.map((g) => ({ value: g.id, label: `${g.name} (${g.class_level || 5} класс)` }))}
@@ -3038,12 +3069,15 @@ export default function TeacherSchedulePage() {
                   dateMax={weekPeriod.end}
                   validFrom={newValidFrom}
                   onValidFrom={(next) => { setNewValidFrom(next); setScheduleError(null); }}
+                  disabled={savingLesson}
                 />
 
                 <LessonSlotFields
                   idPrefix="sched-add"
                   value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
+                  disabled={savingLesson}
                   onChange={(patch) => {
+                    if (patch.startTime !== undefined || patch.endTime !== undefined) setTimesEdited(true);
                     if (patch.startTime !== undefined) setNewStartTime(patch.startTime);
                     if (patch.endTime !== undefined) setNewEndTime(patch.endTime);
                     if (patch.format !== undefined) setNewFormat(patch.format);
@@ -3080,16 +3114,18 @@ export default function TeacherSchedulePage() {
                   <button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
-                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                    disabled={savingLesson}
+                    className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50 rounded-xl transition-colors"
                   >
                     Отмена
                   </button>
                   <button
                     type="submit"
-                    disabled={!!addConflict || !!addPastTimeConflict}
-                    className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
+                    disabled={!!addConflict || !!addPastTimeConflict || savingLesson}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm"
                   >
-                    Сохранить урок
+                    {savingLesson && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    {savingLesson ? "Сохраняем…" : "Сохранить урок"}
                   </button>
                 </div>
               </form>
@@ -3103,6 +3139,8 @@ export default function TeacherSchedulePage() {
       {/* Stop / change the weekly lesson: the dialogs shared with the group page of the owner and the administrator */}
       <EndWeeklyLessonDialog
         lesson={endingRecurringLesson}
+        aboveLessonPanel
+        resolveAt={endingRecurringLesson ? weeklyResolver(endingRecurringLesson.groupId, endingRecurringLesson.id) : undefined}
         onClose={() => setEndingRecurringLesson(null)}
         onEnded={async () => {
           // Recurrences are resolved on the server: reload both canonical schedule reads, never hide a card locally.
@@ -3111,7 +3149,10 @@ export default function TeacherSchedulePage() {
       />
       <EditWeeklyLessonDialog
         lesson={editingLesson}
+        aboveLessonPanel
         siblings={lessons}
+        resolveAt={editingLesson ? weeklyResolver(editingLesson.groupId, editingLesson.id) : undefined}
+        onProgress={() => void reloadAfterWeeklyChange()}
         onClose={() => setEditingLesson(null)}
         onSaved={async (notices) => {
           setScheduleNotices(notices);

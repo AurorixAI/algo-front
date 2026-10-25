@@ -14,6 +14,7 @@ import { expectNoHorizontalScroll, fillDate, fillTime, pickOption, toast } from 
  */
 const DAY_NAMES = ["", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 const SHORT = ["", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const chipName = (day: number) => `${SHORT[day]} ${DAY_NAMES[day]}`; // the accessible name of a day chip: the visible text first
 const SHOTS = process.env.P1_SHOTS;
 let org: Org;
 test.beforeAll(async () => {
@@ -58,7 +59,7 @@ async function openAdd(page: Page, opts: Draft) {
     await dialog.getByRole("button", { name: /Разовое занятие/ }).click();
     await fillDate(dialog.getByLabel("Дата занятия"), opts.oneOff);
   }
-  for (const day of opts.days ?? []) await dialog.getByRole("button", { name: DAY_NAMES[day], exact: true }).click();
+  for (const day of opts.days ?? []) await dialog.getByRole("button", { name: chipName(day), exact: true }).click();
   if (opts.start) {
     await fillTime(dialog.getByLabel("Начало"), opts.start);
     await expect(dialog.getByLabel("Окончание")).toHaveValue(plus90(opts.start));
@@ -81,7 +82,7 @@ test("the owner adds Mon+Wed-style lessons at once, changes one weekly lesson fr
   await shot(page, `01-schedule-${info.project.name}`);
 
   const dialog = await openAdd(page, { days: [weekdayOf(d1), weekdayOf(d2)], start: "15:00", room: "12", topic: "Алгебра" });
-  await expect(dialog.getByRole("button", { name: DAY_NAMES[weekdayOf(d1)], exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.getByRole("button", { name: chipName(weekdayOf(d1)), exact: true })).toHaveAttribute("aria-pressed", "true");
   await shot(page, `02-add-form-${info.project.name}`);
   await dialog.getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -106,6 +107,7 @@ test("the owner adds Mon+Wed-style lessons at once, changes one weekly lesson fr
   const firstCard = page.getByTestId("schedule-card").filter({ hasText: "15:00–16:30" }).first();
   await firstCard.click();
   const sheet = page.getByRole("dialog", { name: "Алгебра" });
+  await expect(sheet).toContainText("каб. 12");
   await expect(sheet.getByRole("button", { name: "Перенести урок" })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Отменить урок" })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Изменить постоянный урок" })).toBeVisible();
@@ -220,8 +222,8 @@ test("a busy teacher names the refused day and keeps the added ones; a busy room
   await expect(error).toContainText(`${SHORT[okDay]} добавлен, ${SHORT[busyDay]} — преподаватель занят`);
   await expect(error).toContainText("У преподавателя в это время уже есть урок");
   await expect(dialog).toBeVisible(); // nothing is lost silently: the dialog stays with the refused day chosen
-  await expect(dialog.getByRole("button", { name: DAY_NAMES[busyDay], exact: true })).toHaveAttribute("aria-pressed", "true");
-  await expect(dialog.getByRole("button", { name: DAY_NAMES[okDay], exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.getByRole("button", { name: chipName(busyDay), exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(dialog.getByRole("button", { name: chipName(okDay), exact: true })).toHaveAttribute("aria-pressed", "false");
   await error.scrollIntoViewIfNeeded();
   await shot(page, "09-teacher-busy");
   await dialog.getByRole("button", { name: "Отмена" }).click();
@@ -242,12 +244,18 @@ test("validation: no day says «Выберите день»; the end before the 
   await page.goto(`/owner/groups/${group.id}?tab=schedule`);
   const dialog = await openAdd(page, {});
   await expect(dialog.getByTestId("weekly-add-days-hint")).toHaveText("Выберите день");
+  await expect(dialog.getByRole("group", { name: "Дни недели" })).toBeVisible();
   await dialog.getByRole("button", { name: "Сохранить урок" }).click();
   await expect(dialog.getByRole("alert").filter({ hasText: "Выберите день недели" })).toBeVisible();
 
-  await dialog.getByRole("button", { name: DAY_NAMES[weekdayOf(tomorrow())], exact: true }).click();
+  await dialog.getByRole("button", { name: chipName(weekdayOf(tomorrow())), exact: true }).click();
   await fillTime(dialog.getByLabel("Начало"), "15:00");
   await expect(dialog.getByLabel("Окончание")).toHaveValue("16:30");
+  // an empty date of a one-off lesson asks for a date, it does not call it a past one
+  await dialog.getByRole("button", { name: /Разовое занятие/ }).click();
+  await dialog.getByLabel("Дата занятия").fill("");
+  await expect(dialog.getByRole("alert").filter({ hasText: "Выберите дату" })).toBeVisible();
+  await dialog.getByRole("button", { name: /Еженедельный урок/ }).click();
   await fillTime(dialog.getByLabel("Окончание"), "14:00");
   await expect(dialog.getByRole("alert").filter({ hasText: "Окончание должно быть позже начала" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
@@ -291,7 +299,7 @@ test("the teacher's own form is the same: two weekdays at once, an own overlap i
   await pickOption(page, form.getByRole("combobox", { name: "Группа" }), "Группа П1-Т (7 класс)");
   await form.getByRole("button", { name: /Еженедельный урок/ }).click();
   await expect(form.getByTestId("sched-add-days-hint")).toHaveText("Выберите день");
-  for (const day of [weekdayOf(d1), weekdayOf(d2)]) await form.getByRole("button", { name: DAY_NAMES[day], exact: true }).click();
+  for (const day of [weekdayOf(d1), weekdayOf(d2)]) await form.getByRole("button", { name: chipName(day), exact: true }).click();
   await fillTime(form.getByLabel("Начало"), "15:30");
   await expect(form.getByLabel("Окончание")).toHaveValue("17:00");
   // the teacher already has 15:00-16:30 on the second weekday: the form says so and does not save
@@ -304,4 +312,106 @@ test("the teacher's own form is the same: two weekdays at once, an own overlap i
   await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
   expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([weekdayOf(d1), weekdayOf(d2)].sort());
+});
+
+test("«Изменить постоянный урок»: the day as chips; the same change goes to the ticked days of the group, a refused one is named and stays ticked", async ({ signIn }, info) => {
+  const teacher = await org.addStaff("teacher", "Мультидневный");
+  const group = await org.createGroup({ name: "Группа П1-М", teacherId: teacher.userId });
+  const other = await org.createGroup({ name: "Группа П1-М2", teacherId: teacher.userId });
+  const d1 = tomorrow();
+  const d2 = addDays(d1, 1);
+  const from = addDays(d1, 7);
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(d1), startTime: "14:00", endTime: "15:30", topic: "Первый" });
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(d2), startTime: "14:00", endTime: "15:30", topic: "Второй" });
+  // the teacher teaches another group on the second weekday at 16:00-17:00: moving that lesson to 16:00 will be refused
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: other.id, dayOfWeek: weekdayOf(d2), startTime: "16:00", endTime: "17:00" });
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}?tab=schedule`);
+  await weeks(page).to(d1);
+  await page.getByTestId("schedule-card").filter({ hasText: "Первый" }).click();
+  await page.getByRole("dialog", { name: "Первый" }).getByRole("button", { name: "Изменить постоянный урок" }).click();
+  const edit = page.getByRole("dialog", { name: "Изменить постоянное расписание" });
+  // the day is a radio group of chips; the block of the other days does not show while nothing but the day could change
+  await expect(edit.getByRole("radiogroup", { name: "День недели" })).toBeVisible();
+  await expect(edit.getByRole("radio", { name: chipName(weekdayOf(d1)), exact: true })).toHaveAttribute("aria-checked", "true");
+  await expect(edit.getByTestId("apply-to-others")).toHaveCount(0);
+  await fillDate(edit.getByLabel("Изменения действуют с"), from);
+  await fillTime(edit.getByLabel("Начало"), "16:00");
+  const block = edit.getByTestId("apply-to-others");
+  await expect(block).toContainText("Применить также к другим дням группы");
+  await expect(block).toContainText(`${SHORT[weekdayOf(d2)]} 14:00–15:30`);
+  await expect(block.getByRole("checkbox")).not.toBeChecked(); // off by default
+  await block.getByRole("checkbox").check();
+  await shot(page, `13-edit-series-chips-${info.project.name}`);
+  await edit.getByRole("button", { name: "Изменить расписание" }).click();
+  const error = edit.getByTestId("weekly-edit-error");
+  await expect(error).toContainText(`${SHORT[weekdayOf(d1)]} изменён, ${SHORT[weekdayOf(d2)]} — преподаватель занят`);
+  await expect(block.getByRole("checkbox")).toBeChecked(); // only the refused one stays ticked
+  const at = async (date: string) => (await org.owner.api.get("/auth/org/schedule/occurrences", { date_from: date, date_to: date })).filter((l: any) => l.groupId === group.id).map((l: any) => l.startTime);
+  expect(await at(d1)).toEqual(["14:00"]); // before the date: untouched
+  expect(await at(from)).toEqual(["16:00"]); // from the date: the first lesson moved
+  expect(await at(addDays(d2, 7))).toEqual(["14:00"]); // the refused one stays as it was
+  await edit.getByRole("button", { name: "Отмена" }).click();
+});
+
+test("teacher: «Ещё -> Прекратить» opens the stop dialog above the lesson panel; Escape closes only the dialog @mobile", async ({ signIn }, info) => {
+  const teacher = await org.addStaff("teacher", "Останавливающий");
+  const group = await org.createGroup({ name: "Группа П1-Ост", teacherId: teacher.userId });
+  const d1 = tomorrow();
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: weekdayOf(d1), startTime: "15:00", endTime: "16:30", topic: "Для остановки" });
+  const page = await signIn(teacher);
+  await page.goto("/teacher/schedule");
+  await page.getByRole("button", { name: /Неделя/ }).first().click();
+  if (mondayOf(d1) !== mondayOf(today())) await page.getByTitle("Следующая неделя").click();
+  await page.getByText("Для остановки").first().click();
+  const panel = page.getByRole("dialog").first();
+  await expect(panel).toContainText("Для остановки");
+  await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
+  await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
+  const end = page.getByRole("dialog", { name: "Прекратить занятия" });
+  await expect(end).toBeVisible();
+  // it is ON TOP: a click on its field reaches it (under the panel the click would be intercepted)
+  await end.getByLabel("Причина").click();
+  await end.getByLabel("Причина").fill("Группа закончила курс");
+  await expect(end).toContainText("Связанных будущих экзаменов нет");
+  await expect(end.getByRole("button", { name: "Прекратить занятия" })).toBeEnabled();
+  await shot(page, `14-teacher-end-over-panel-${info.project.name}`);
+  // Escape closes the topmost layer only: the stop dialog goes, the lesson panel stays
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Прекратить занятия" })).toHaveCount(0);
+  await expect(panel).toContainText("Для остановки");
+  // and the stop itself goes through from the same place
+  await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
+  await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
+  const again = page.getByRole("dialog", { name: "Прекратить занятия" });
+  await again.getByLabel("Причина").fill("Группа закончила курс");
+  await expect(again).toContainText("Связанных будущих экзаменов нет");
+  await again.getByRole("button", { name: "Прекратить занятия" }).click();
+  await expect(page.getByRole("dialog", { name: "Прекратить занятия" })).toHaveCount(0);
+  const left = (await org.owner.api.get("/auth/org/schedule/occurrences", { date_from: d1, date_to: addDays(d1, 14) })).filter((l: any) => l.groupId === group.id);
+  expect(left).toHaveLength(0);
+});
+
+test("teacher screenshots: the add form with Пн+Ср+Пт and the week after saving @mobile", async ({ signIn }, info) => {
+  const teacher = await org.addStaff("teacher", "Скриншотный");
+  const group = await org.createGroup({ name: "Группа П1-Ш", teacherId: teacher.userId });
+  const page = await signIn(teacher);
+  await page.goto("/teacher/schedule");
+  await page.getByRole("button", { name: "Добавить в расписание" }).click();
+  const form = page.locator("form").filter({ hasText: "Как добавить занятие" });
+  await expect(form).toBeVisible();
+  await pickOption(page, form.getByRole("combobox", { name: "Группа" }), "Группа П1-Ш (7 класс)");
+  await form.getByRole("button", { name: /Еженедельный урок/ }).click();
+  for (const day of [1, 3, 5]) await form.getByRole("button", { name: chipName(day), exact: true }).click();
+  await fillTime(form.getByLabel("Начало"), "22:00");
+  await expect(form.getByLabel("Окончание")).toHaveValue("23:30");
+  await form.getByLabel(/Тема занятия/).fill("Алгебра");
+  await shot(page, `11-teacher-add-days-${info.project.name}`);
+  await form.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
+  await page.getByRole("button", { name: /Неделя/ }).first().click();
+  await expect(page.getByText("Алгебра").first()).toBeVisible();
+  await shot(page, `12-teacher-added-week-${info.project.name}`);
+  const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
+  expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([1, 3, 5]);
 });

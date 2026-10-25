@@ -19,6 +19,25 @@ Module._resolveFilename = function (request, ...rest) {
 const root = path.join(__dirname, "..");
 const read = (p) => fs.readFileSync(path.join(root, p), "utf8");
 const F = require(path.join(root, "src/lib/lesson-slot-form.ts"));
+// the real api module is replaced by a recorder: the weekly-lesson helpers are run against it (no network)
+const apiPath = path.join(root, "src/lib/api.ts");
+const calls = [];
+const behaviour = { create: () => ({ id: "new" }), revise: () => ({ id: "rev" }), oneOff: () => ({ id: "one" }) };
+require.cache[apiPath] = {
+  id: apiPath, filename: apiPath, loaded: true,
+  exports: {
+    orgApi: {
+      createLesson: async (body) => { calls.push(["create", body]); return behaviour.create(body); },
+      createOneOffLesson: async (body) => { calls.push(["oneOff", body]); return behaviour.oneOff(body); },
+      reviseRecurringLesson: async (id, body) => { calls.push(["revise", id, body]); return behaviour.revise(id, body); },
+    },
+  },
+};
+const W = require(path.join(root, "src/lib/weekly-lessons.ts"));
+const busy = (date) => Object.assign(new Error("У преподавателя уже есть урок"), {
+  status: 409, code: "TEACHER_BUSY", detail: { code: "TEACHER_BUSY", message: "x", conflicts: [{ date, startTime: "15:00", endTime: "16:30", groupName: "A", withGroupName: "B" }], total: 1 },
+});
+const DRAFT = { startTime: "15:00", endTime: "16:30", format: "offline", room: " ", topic: " ", color: "blue", validFrom: "2026-10-26" };
 
 test("the end of a lesson follows its start by 90 minutes; a half-typed start changes nothing", () => {
   assert.equal(F.endTimeAfter("10:00"), "11:30");
@@ -86,6 +105,131 @@ test("the sheet of a weekly lesson also changes / stops the weekly lesson; a one
   assert.equal(C.SCHEDULE_ACTION_LABEL.endSeries, "Прекратить урок");
 });
 
+test("createWeeklyLessons: the days go in the order of the week; a refused day is named, the others are saved", async () => {
+  calls.length = 0;
+  behaviour.create = (body) => {
+    if (body.dayOfWeek === 3) throw busy("2026-10-28");
+    return { id: `l${body.dayOfWeek}`, warnings: [{ code: "ROOM_BUSY", message: "Кабинет «7» занят" }] };
+  };
+  const result = await W.createWeeklyLessons("g1", [5, 3, 1], DRAFT);
+  assert.deepEqual(calls.map((call) => call[1].dayOfWeek), [1, 3, 5], "one request per weekday, Monday first");
+  assert.deepEqual(result.added, [1, 5]);
+  assert.deepEqual(result.failed.map((item) => [item.day, item.reason]), [[3, "преподаватель занят"]]);
+  assert.match(result.failed[0].detail, /У преподавателя в это время уже есть урок/);
+  assert.deepEqual(result.notices, ["Кабинет «7» занят"], "the same note of two days is shown once");
+  assert.equal(F.weeklyResultText(result.added, result.failed), "Пн и Пт добавлены, Ср — преподаватель занят");
+  // the payload: the fixed subject, a blank room is null, a blank topic is none, the date of the start
+  const sent = calls[0][1];
+  assert.equal(sent.subject, "Математика");
+  assert.equal(sent.room, null);
+  assert.equal(sent.topic, undefined);
+  assert.equal(sent.validFrom, "2026-10-26");
+  assert.equal(sent.groupId, "g1");
+});
+
+test("createWeeklyLessons: any failure of one day (even a network one) does not stop the others; a refused day alone leaves only itself to retry", async () => {
+  calls.length = 0;
+  behaviour.create = (body) => {
+    if (body.dayOfWeek === 1) throw new Error("network down");
+    if (body.dayOfWeek === 2) return {};
+    return { id: "ok" };
+  };
+  const result = await W.createWeeklyLessons("g1", [1, 2, 3], DRAFT);
+  assert.equal(calls.length, 3, "every day was tried");
+  assert.deepEqual(result.added, [3]);
+  assert.deepEqual(result.failed.map((item) => item.day), [1, 2], "the days left to fix are exactly the refused ones");
+  assert.equal(result.failed[0].reason, "network down");
+  assert.equal(result.failed[1].reason, "Сервер не вернул идентификатор урока");
+  // the dialog keeps only those days chosen after a partial save
+  assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /setDays\(failed\.map\(\(item\) => item\.day\)\)/);
+  behaviour.create = () => ({ id: "new" });
+});
+
+test("a one-off lesson goes to its date through the occurrences endpoint with the blank room as null", async () => {
+  calls.length = 0;
+  behaviour.oneOff = () => ({ id: "one", warnings: [{ code: "ROOM_BUSY", message: "Кабинет «7» занят" }] });
+  const notices = await W.createOneOff("g1", "2026-10-30", { ...DRAFT, room: "7", topic: "Разовое" });
+  assert.deepEqual(notices, ["Кабинет «7» занят"]);
+  assert.deepEqual(calls[0], ["oneOff", { groupId: "g1", lessonDate: "2026-10-30", startTime: "15:00", endTime: "16:30", room: "7", format: "offline", color: "blue", topic: "Разовое" }]);
+});
+
+test("a revision already scheduled is not undone: the owner opens 8 Nov (a revision 10:00 -> 12:00 acts from 1 Nov) and changes only the room", () => {
+  // the weekly lesson as the schedule has it TODAY is 10:00-11:30; on 8 Nov the occurrence says 12:00-13:30
+  const todays = { id: "l1", groupId: "g1", groupName: "Г", classLevel: 7, dayOfWeek: 6, startTime: "10:00", endTime: "11:30", room: null, format: "offline", color: "blue" };
+  const onNov8 = { ...todays, startTime: "12:00", endTime: "13:30", occurrenceDate: "2026-11-08" };
+  const snapshot = F.snapshotFromOccurrence(onNov8);
+  const form = { day: 6, startTime: snapshot.startTime, endTime: snapshot.endTime, room: "12", format: "offline", topic: "", color: "blue" };
+  const patch = F.revisionPatch(snapshot, form);
+  assert.deepEqual(patch, { room: "12" });
+  assert.ok(!("startTime" in patch) && !("endTime" in patch), "no 10:00 in the payload");
+  // the old way (compare with today's template) would have sent the time back
+  assert.deepEqual(F.revisionPatch(todays, form), { startTime: "12:00", endTime: "13:30", room: "12" });
+  // nothing touched = nothing to send
+  assert.deepEqual(F.revisionPatch(snapshot, { ...form, room: "" }), {});
+  // a moved occurrence carries the time of the move: the weekly lesson keeps the planned one
+  const moved = F.snapshotFromOccurrence({ ...onNov8, startTime: "16:00", endTime: "17:30", isRescheduled: true, originalStartTime: "12:00", originalEndTime: "13:30", originalRoom: null });
+  assert.equal(moved.startTime, "12:00");
+  assert.equal(F.firstOccurrenceOf([{ ...onNov8, occurrenceDate: "2026-11-15" }, onNov8], "g1", "l1").occurrenceDate, "2026-11-08");
+  assert.equal(F.firstOccurrenceOf([onNov8], "g2", "l1"), null);
+});
+
+test("«Применить также к другим дням»: the ticked lessons get the same fields without the day, one by one; a refusal names its day", async () => {
+  const changed = F.revisionPatch(
+    { id: "a", dayOfWeek: 1, startTime: "14:00", endTime: "15:30", room: null, format: "offline", color: "blue", topic: "" },
+    { day: 3, startTime: "15:00", endTime: "16:30", room: "12", format: "online", topic: "Тема", color: "rose" },
+  );
+  assert.equal(changed.dayOfWeek, 3);
+  const shared = F.sharedRevisionPatch(changed);
+  assert.deepEqual(shared, { startTime: "15:00", endTime: "16:30", room: "12", format: "online", topic: "Тема" });
+  assert.ok(!("dayOfWeek" in shared) && !("color" in shared), "never the day, never the colour");
+  calls.length = 0;
+  behaviour.revise = (id) => {
+    if (id === "fri") throw busy("2026-11-06");
+    return { id, warnings: [{ code: "ROOM_BUSY", message: "Кабинет «12» занят" }] };
+  };
+  const result = await W.reviseWeeklyLessons([{ id: "fri", dayOfWeek: 5 }, { id: "wed", dayOfWeek: 3 }], "2026-11-02", "Изменены: время", shared);
+  assert.deepEqual(calls.map((call) => call[1]), ["wed", "fri"], "in the order of the week");
+  for (const call of calls) {
+    assert.equal(call[2].effectiveFrom, "2026-11-02");
+    assert.equal(call[2].startTime, "15:00");
+    assert.ok(!("dayOfWeek" in call[2]), "the day is never sent to the other lessons");
+  }
+  assert.deepEqual(result.done, [3]);
+  assert.deepEqual(result.failed.map((item) => [item.id, item.day, item.reason]), [["fri", 5, "преподаватель занят"]]);
+  assert.deepEqual(result.notices, ["Кабинет «12» занят"]);
+  assert.equal(F.weeklyResultText([1, ...result.done], result.failed, F.CHANGED_WORDS), "Пн и Ср изменены, Пт — преподаватель занят");
+  behaviour.revise = () => ({ id: "rev" });
+});
+
+test("the end follows the start (+90) only while the end was not typed: a typed or pasted end is never overwritten", () => {
+  const start = (current, next, typed) => F.startTimePatch({ startTime: current }, next, typed);
+  assert.deepEqual(start("10:00", "15:00", false), { startTime: "15:00", endTime: "16:30" });
+  assert.deepEqual(start("10:00", "15:00", true), { startTime: "15:00" }, "a typed end stays");
+  assert.equal(start("15:00", "15:00", false), null, "a repeated start (a blur) changes nothing");
+  assert.deepEqual(start("15:00", "", false), { startTime: "" }, "a half-typed start has no end to follow");
+  assert.equal(F.isEndTyped("14:00"), true);
+  assert.equal(F.isEndTyped(""), false, "an emptied end gives the start its say again");
+  const fields = read("src/components/schedule/lesson-slot-fields.tsx");
+  assert.match(fields, /startTimePatch\(value, startTime, endTyped\.current\)/);
+  assert.match(fields, /endTyped\.current = isEndTyped\(endTime\)/);
+});
+
+test("the day chips: label-in-name, a hint tied to the group, the invalid state marked; one day for a change, with the other days of the group offered", () => {
+  const fields = read("src/components/schedule/lesson-slot-fields.tsx");
+  assert.doesNotMatch(fields, /aria-label=\{day\.name\}/);
+  assert.match(fields, /\{day\.short\}<span className="sr-only"> \{day\.name\}<\/span>/);
+  assert.match(fields, /aria-describedby=\{hintId\}/);
+  assert.match(fields, /aria-invalid=\{invalid \|\| undefined\}/);
+  assert.match(fields, /role=\{invalid \? "alert" : undefined\}/);
+  assert.match(fields, /role=\{single \? "radiogroup" : "group"\}/);
+  assert.match(fields, /role: "radio" as const, "aria-checked": on/);
+  const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
+  assert.match(dialogs, /<WeekdayChips idPrefix="sched-edit" single/);
+  assert.match(dialogs, /Применить также к другим дням группы/);
+  assert.match(dialogs, /reviseWeeklyLessons\(targets, effectiveFrom, text, shared\)/);
+  assert.match(dialogs, /Object\.keys\(shared\)\.length > 0/, "hidden when only the day was changed");
+});
+
 test("wiring: «Добавить в расписание» is in the header of «Расписание группы» for the owner and the administrator, not on an archived group", () => {
   const overview = read("src/components/groups/group-schedule-overview.tsx");
   assert.match(overview, /const canManage = \(viewerRole === "owner" \|\| viewerRole === "admin"\) && !archived/);
@@ -99,48 +243,72 @@ test("wiring: «Добавить в расписание» is in the header of �
   assert.ok(!fs.existsSync(path.join(root, "src/components/groups/group-weekly-slots.tsx")), "no separate «Еженедельные уроки» block");
   assert.doesNotMatch(overview, /Еженедельные уроки/);
   assert.match(read("src/components/groups/group-detail-view.tsx"), /teacherAssigned=\{Boolean\(group\.teacher_id \|\| group\.teacher_name\)\}/);
+  // the sheet stays open while the weekly lesson is read; a failure is said in it; a stopped series offers nothing
+  assert.match(overview, /setSeriesError\("Не удалось загрузить постоянное расписание/);
+  assert.match(overview, /seriesPending=\{opening === "edit" \|\| opening === "end" \? opening : null\}/);
+  assert.match(overview, /templates === null \|\| templates\.some\(\(item\) => item\.id === lesson\.id\)/);
+  assert.match(overview, /Не удалось загрузить расписание группы\. Повторите попытку\./, "the add dialog does not open on an empty list of lessons");
+  assert.match(overview, /void loadTemplates\(\); \/\/ also after a partial save/);
+  assert.match(overview, /roomLine\(lesson\)/);
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /case "editSeries"/);
   assert.match(sheet, /case "endSeries"/);
   assert.match(sheet, /case "reschedule"/);
   assert.match(sheet, /case "cancel"/);
+  assert.match(sheet, /data-testid="series-error"/);
+});
+
+test("the room reads «каб. 12»; a room that begins with a word stays as it is; online and no room are not touched", () => {
+  const C = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  assert.equal(F.roomWithPrefix("12"), "каб. 12");
+  assert.equal(F.roomWithPrefix(" 3-А "), "каб. 3-А");
+  assert.equal(F.roomWithPrefix("Зал"), "Зал");
+  assert.equal(F.roomWithPrefix("Малый зал"), "Малый зал");
+  assert.equal(C.roomLine({ room: "12" }), "каб. 12");
+  assert.equal(C.roomLine({ room: "Зал" }), "Зал");
+  assert.equal(C.roomLine({ room: "12", format: "online" }), "Онлайн");
+  assert.equal(C.roomLine({ room: null }), null);
 });
 
 test("wiring: the group form is the teacher's one (scope, weekdays, fields) and saves through the same endpoints, with the same refusals", () => {
   const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
   const helper = read("src/lib/weekly-lessons.ts");
   assert.match(dialogs, /<LessonScopeFields/);
-  assert.match(dialogs, /createWeeklyLessons\(group\.id, days/);
+  assert.match(dialogs, /createWeeklyLessons\(group\.id, sendDays/);
   assert.match(dialogs, /createOneOff\(group\.id, date/);
+  assert.match(dialogs, /DATE_REQUIRED_TEXT/);
+  assert.match(dialogs, /isoDateDayOfWeek\(date\)/, "a one-off lesson is checked against the lessons of its weekday");
+  assert.match(dialogs, /время уже прошло/, "only the past weekday of today is refused and named");
   assert.match(helper, /orgApi\.createLesson\(\{\s*groupId/);
   assert.match(helper, /orgApi\.createOneOffLesson\(\{\s*groupId/);
   assert.match(helper, /validFrom: draft\.validFrom/);
   assert.match(helper, /scheduleErrorText\(failure/);
   assert.match(helper, /warningTexts\(created\)/);
-  assert.match(dialogs, /orgApi\.reviseRecurringLesson\(lesson\.id/);
+  assert.match(dialogs, /orgApi\.reviseRecurringLesson\(lesson\.id, \{ effectiveFrom, reason: text, \.\.\.changed \}/);
   assert.match(dialogs, /orgApi\.endRecurringLesson\(lesson\.id/);
   assert.match(dialogs, /getRecurringLessonEndImpact\(lesson\.id/);
+  assert.match(read("src/lib/lesson-slot-form.ts"), /const room = roomForSave\(form\.room\)/);
   // the old direct PUT / DELETE answer 410, and a one-off lesson cannot be deleted on the server: never used
   assert.doesNotMatch(dialogs + helper, /orgApi\.updateLesson|orgApi\.deleteLesson/);
   assert.doesNotMatch(read("src/components/groups/lesson-action-sheet.tsx"), /Удалить разовое/);
 });
 
-test("the end follows the start (+90) only while the end was not typed; the day field says «Выберите день»", () => {
-  const fields = read("src/components/schedule/lesson-slot-fields.tsx");
-  assert.match(fields, /endTyped\.current = endTime !== ""/);
-  assert.match(fields, /onChange\(endTime && !endTyped\.current \? \{ startTime, endTime \} : \{ startTime \}\)/);
-  assert.match(fields, /if \(startTime === value\.startTime\) return/);
-  assert.match(fields, /placeholder="Выберите день"/);
-  assert.match(fields, /DAYS_REQUIRED_HINT/);
-});
-
-test("wiring: the teacher's schedule uses the shared scope switch, fields and dialogs instead of its own copies", () => {
+test("wiring: the teacher's schedule uses the shared scope switch, fields and dialogs; the stop dialog is above the lesson panel", () => {
   const page = read("src/app/teacher/schedule/page.tsx");
   assert.match(page, /<EditWeeklyLessonDialog/);
   assert.match(page, /<EndWeeklyLessonDialog/);
+  assert.match(page, /<EndWeeklyLessonDialog\s+lesson=\{endingRecurringLesson\}\s+aboveLessonPanel/);
+  assert.match(page, /<EditWeeklyLessonDialog\s+lesson=\{editingLesson\}\s+aboveLessonPanel/);
+  assert.match(page, /if \(endingRecurringLesson \|\| editingLesson\) return;/, "Escape closes the topmost layer only");
+  assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /aboveLessonPanel=\{aboveLessonPanel\}/);
   assert.match(page, /<LessonSlotFields/);
   assert.match(page, /<LessonScopeFields/);
   assert.match(page, /createWeeklyLessons\(groupId, newDays/);
+  // a repeated click or Enter while the save is on its way does nothing; the button says it
+  assert.match(page, /if \(savingLesson\) return;/);
+  assert.match(page, /savingLesson \? "Сохраняем…" : "Сохранить урок"/);
+  // the suggested times follow the first chosen day until the times are typed
+  assert.match(page, /if \(!isAddModalOpen \|\| timesEdited\) return;/);
   assert.doesNotMatch(page, /orgApi\.reviseRecurringLesson|orgApi\.endRecurringLesson|getRecurringLessonEndImpact|orgApi\.createLesson/);
   assert.ok(page.split("\n").length < 3400, "the teacher page must not grow back (was 4046 lines)");
 });

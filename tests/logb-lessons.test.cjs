@@ -90,13 +90,28 @@ test("[O5.R7] a busy teacher at a schedule write: the server head and the first 
 });
 
 test("the schedule page is wired: «Действует с», the optional room without «Кабинет 204», the errors inside the dialogs, the notices", () => {
-  // P1: the fields of the weekly lesson (room label / placeholder) live in the shared component, used by the teacher's add and edit forms
-  const page = read("src/app/teacher/schedule/page.tsx") + read("src/components/schedule/lesson-slot-fields.tsx") + read("src/lib/weekly-lessons.ts");
-  for (const needle of [/Действует с/, /VALID_FROM_HINT/, /ROOM_LABEL/, /ROOM_PLACEHOLDER/, /roomForSave\(draft\.room\)/, /validFrom: newValidFrom/, /scheduleErrorText\(err/, /warningTexts\(created\)/, /validFromBadge\(l\.validFrom/, /placeText\(l\)/, /placeText\(activeLesson\)/]) {
-    assert.match(page, needle, String(needle));
+  // P1: the fields of the weekly lesson live in shared files; every needle is asserted against the file that owns it
+  const page = read("src/app/teacher/schedule/page.tsx");
+  const fields = read("src/components/schedule/lesson-slot-fields.tsx");
+  const helper = read("src/lib/weekly-lessons.ts");
+  const form = read("src/lib/lesson-slot-form.ts");
+  assert.match(fields, /Действует с/);
+  assert.match(fields, /VALID_FROM_HINT/);
+  assert.match(fields, /ROOM_LABEL/);
+  assert.match(fields, /ROOM_PLACEHOLDER/);
+  assert.match(helper, /roomForSave\(draft\.room\)/);
+  assert.match(helper, /validFrom: draft\.validFrom/);
+  assert.match(helper, /scheduleErrorText\(failure/);
+  assert.match(helper, /warningTexts\(created\)/);
+  assert.match(form, /roomForSave\(form\.room\)/, "the change of a weekly lesson sends the room the same way");
+  assert.match(page, /scheduleErrorText\(err/);
+  assert.match(page, /validFromBadge\(l\.validFrom/);
+  assert.match(page, /placeText\(l\)/);
+  assert.match(page, /placeText\(activeLesson\)/);
+  for (const [name, text] of Object.entries({ page, fields, helper, form })) {
+    assert.doesNotMatch(text, /Кабинет 204/, name);
+    assert.doesNotMatch(text, /Аудитория не указана/, name);
   }
-  assert.doesNotMatch(page, /Кабинет 204/);
-  assert.doesNotMatch(page, /Аудитория не указана/);
   assert.doesNotMatch(read("src/app/teacher/dashboard/page.tsx"), /\{l\.room\}/);
 });
 

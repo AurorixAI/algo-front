@@ -8,7 +8,7 @@ import { DateInput } from "@/components/ui/date-input";
 import { formatBusinessDate } from "@/lib/business-time";
 import { ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, validFromBounds } from "@/lib/schedule-slots";
 import {
-  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, endTimeAfter, toggleDay,
+  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, isEndTyped, startTimePatch, toggleDay,
   type LessonColor, type LessonFormat,
 } from "@/lib/lesson-slot-form";
 
@@ -23,29 +23,6 @@ export interface SlotFormValue {
   room: string;
   topic: string;
   color: LessonColor;
-}
-
-/** «День недели»: a select of the seven days (`value` null = nothing chosen yet, the field then asks to choose). */
-export function WeekdayField({ id, value, onChange, disabled, invalid = false }: {
-  id: string;
-  value: number | null;
-  onChange: (day: number) => void;
-  disabled?: boolean;
-  /** The form asked for a day and none is chosen. */
-  invalid?: boolean;
-}) {
-  return (
-    <Select
-      id={id}
-      value={value ? String(value) : ""}
-      placeholder="Выберите день"
-      onChange={(event) => onChange(Number(event.target.value))}
-      options={DAYS.map((day) => ({ value: String(day.id), label: day.name }))}
-      buttonClassName="px-3 py-2 text-xs"
-      disabled={disabled}
-      invalid={invalid}
-    />
-  );
 }
 
 /**
@@ -65,13 +42,11 @@ export function LessonSlotFields({ idPrefix, value, onChange, afterTopic, disabl
   // The end follows the start (+90 min) only while nobody has typed an end of his own: a typed or pasted end is never overwritten.
   const endTyped = useRef(false);
   const setStart = (startTime: string) => {
-    if (startTime === value.startTime) return;
-    const endTime = endTimeAfter(startTime);
-    onChange(endTime && !endTyped.current ? { startTime, endTime } : { startTime });
+    const next = startTimePatch(value, startTime, endTyped.current);
+    if (next) onChange(next);
   };
   const setEnd = (endTime: string) => {
-    // clearing the end gives the start its say again
-    endTyped.current = endTime !== "";
+    endTyped.current = isEndTyped(endTime);
     onChange({ endTime });
   };
   return (
@@ -151,41 +126,43 @@ export function LessonSlotFields({ idPrefix, value, onChange, afterTopic, disabl
 }
 
 /** «Дни недели»: Пн..Вс as chips, several at once.  Nothing chosen says «Выберите день» (a hint, never something that looks like a chosen day). */
-export function WeekdayChips({ idPrefix, days, onChange, disabled = false, invalid = false }: {
+export function WeekdayChips({ idPrefix, days, onChange, disabled = false, invalid = false, single = false }: {
   idPrefix: string;
+  /** One day only (a radio group): picking another day moves the lesson to it. */
+  single?: boolean;
   days: readonly number[];
   onChange: (days: number[]) => void;
   disabled?: boolean;
   invalid?: boolean;
 }) {
+  const hintId = `${idPrefix}-days-hint-text`;
   return (
     <div>
-      <span id={`${idPrefix}-days-label`} className="block text-xs font-semibold text-slate-700 mb-1.5">Дни недели</span>
-      <div role="group" aria-labelledby={`${idPrefix}-days-label`} className="flex flex-wrap gap-1.5">
+      <span id={`${idPrefix}-days-label`} className="block text-xs font-semibold text-slate-700 mb-1.5">{single ? "День недели" : "Дни недели"}</span>
+      <div role={single ? "radiogroup" : "group"} aria-labelledby={`${idPrefix}-days-label`} aria-describedby={hintId} aria-invalid={invalid || undefined} className="flex flex-wrap gap-1.5">
         {DAYS.map((day) => {
           const on = days.includes(day.id);
           return (
             <button
               key={day.id}
               type="button"
-              aria-pressed={on}
-              aria-label={day.name}
-              title={day.name}
+              {...(single ? { role: "radio" as const, "aria-checked": on } : { "aria-pressed": on })}
               disabled={disabled}
-              onClick={() => onChange(toggleDay(days, day.id))}
+              onClick={() => onChange(single ? [day.id] : toggleDay(days, day.id))}
               className={`h-9 min-w-[2.5rem] rounded-xl border px-2.5 text-xs font-semibold transition-colors ${
                 on ? "border-primary-500 bg-primary-600 text-white shadow-xs" : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
               }`}
             >
-              {day.short}
+              {/* the name begins with the visible text («Пн Понедельник»): what is seen is what is said */}
+              {day.short}<span className="sr-only"> {day.name}</span>
             </button>
           );
         })}
       </div>
       {days.length === 0 ? (
-        <p data-testid={`${idPrefix}-days-hint`} className={`mt-1 text-[11px] leading-4 ${invalid ? "font-semibold text-rose-600" : "text-slate-500"}`}>{DAYS_REQUIRED_HINT}</p>
+        <p id={hintId} data-testid={`${idPrefix}-days-hint`} role={invalid ? "alert" : undefined} className={`mt-1 text-[11px] leading-4 ${invalid ? "font-semibold text-rose-600" : "text-slate-500"}`}>{DAYS_REQUIRED_HINT}</p>
       ) : (
-        <p className="mt-1 text-[11px] leading-4 text-slate-500">Урок будет повторяться в эти дни каждую неделю.</p>
+        <p id={hintId} className="mt-1 text-[11px] leading-4 text-slate-500">{single ? "Выберите другой день, чтобы перенести урок на него." : "Урок будет повторяться в эти дни каждую неделю."}</p>
       )}
     </div>
   );

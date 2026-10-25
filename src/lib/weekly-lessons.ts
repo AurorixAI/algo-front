@@ -6,7 +6,8 @@ import { orgApi } from "./api";
 import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, warningTexts } from "./ops-errors";
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
-import { LESSON_SUBJECT, type LessonColor, type LessonFormat } from "./lesson-slot-form";
+import { addIsoDays } from "./business-time";
+import { LESSON_SUBJECT, firstOccurrenceOf, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson } from "./lesson-slot-form";
 
 export interface WeeklyDraft {
   startTime: string;
@@ -94,4 +95,48 @@ export async function createOneOff(groupId: string, date: string, draft: Omit<We
   });
   if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
   return warningTexts(created);
+}
+
+/** «The weekly lesson as it stands on this date» for the change / stop dialogs (a revision already scheduled counts); null when no lesson of it falls in the next 7 days. */
+export function weeklyResolver(groupId: string, lessonId: string): (date: string) => Promise<WeeklyLesson | null> {
+  return async (date) => {
+    const occurrences = await orgApi.getScheduleOccurrences({ dateFrom: date, dateTo: addIsoDays(date, 6) });
+    const first = firstOccurrenceOf(occurrences, groupId, lessonId);
+    return first ? snapshotFromOccurrence(first) : null;
+  };
+}
+
+export interface WeeklyRevisionResult {
+  /** Weekdays (of the lessons) that were changed. */
+  done: number[];
+  failed: Array<WeeklyFailure & { id: string }>;
+  notices: string[];
+}
+
+/**
+ * The same change applied to several weekly lessons from one date, one request each, in the order of the week; a refusal of one does not
+ * stop the others and is named with its weekday.  `patch` never carries a day (the callers pass `sharedRevisionPatch`).
+ */
+export async function reviseWeeklyLessons(
+  targets: ReadonlyArray<{ id: string; dayOfWeek: number }>,
+  effectiveFrom: string,
+  reason: string,
+  patch: Record<string, unknown>,
+): Promise<WeeklyRevisionResult> {
+  const result: WeeklyRevisionResult = { done: [], failed: [], notices: [] };
+  for (const target of [...targets].sort((a, b) => a.dayOfWeek - b.dayOfWeek)) {
+    try {
+      const revised = await orgApi.reviseRecurringLesson(target.id, { ...patch, effectiveFrom, reason });
+      result.done.push(target.dayOfWeek);
+      for (const note of warningTexts(revised)) if (!result.notices.includes(note)) result.notices.push(note);
+    } catch (failure) {
+      result.failed.push({
+        id: target.id,
+        day: target.dayOfWeek,
+        reason: shortRefusal(failure),
+        detail: refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."),
+      });
+    }
+  }
+  return result;
 }

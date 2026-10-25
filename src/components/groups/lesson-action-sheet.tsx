@@ -40,7 +40,7 @@ type Mode = "menu" | "reschedule" | "cancel";
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onEditSeries, onEndSeries, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, teacherLine, notes, marks, actions, assignLabel, requestHref, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
 }: {
   lesson: Lesson | null;
   groupId: string;
@@ -62,6 +62,9 @@ export function LessonActionSheet({
   /** «Изменить постоянный урок» / «Прекратить урок»: the weekly lesson of this one (the page opens its dialogs). */
   onEditSeries?: () => void;
   onEndSeries?: () => void;
+  /** The weekly lesson of the sheet is being read (a button shows it) / could not be read (the sheet says it and stays open). */
+  seriesPending?: "edit" | "end" | null;
+  seriesError?: string | null;
   /** After a move or a cancellation was saved: the toast text. */
   onChanged: (text: string) => void;
   /** «Урок уже изменили — обновите»: the schedule is read again and the sheet closes. */
@@ -245,9 +248,9 @@ export function LessonActionSheet({
                     case "mark":
                       return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
                     case "editSeries":
-                      return <button key={action} type="button" onClick={onEditSeries} className={ACTION_BUTTON}><Pencil className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.editSeries}</button>;
+                      return <button key={action} type="button" onClick={onEditSeries} disabled={seriesPending !== null} className={`${ACTION_BUTTON} disabled:cursor-wait disabled:opacity-70`}>{seriesPending === "edit" ? <Loader2 className="h-4 w-4 animate-spin text-primary-600" /> : <Pencil className="h-4 w-4 text-primary-600" />}{SCHEDULE_ACTION_LABEL.editSeries}</button>;
                     case "endSeries":
-                      return <button key={action} type="button" onClick={onEndSeries} className={ACTION_BUTTON}><X className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.endSeries}</button>;
+                      return <button key={action} type="button" onClick={onEndSeries} disabled={seriesPending !== null} className={`${ACTION_BUTTON} disabled:cursor-wait disabled:opacity-70`}>{seriesPending === "end" ? <Loader2 className="h-4 w-4 animate-spin text-rose-600" /> : <X className="h-4 w-4 text-rose-600" />}{SCHEDULE_ACTION_LABEL.endSeries}</button>;
                     case "journal":
                       return <button key={action} type="button" onClick={onJournal} className={ACTION_BUTTON}><ExternalLink className="h-4 w-4 text-slate-500" />{SCHEDULE_ACTION_LABEL.journal}</button>;
                   }
@@ -255,6 +258,8 @@ export function LessonActionSheet({
               </div>
             )
           )}
+
+          {mode === "menu" && seriesError && <p role="alert" data-testid="series-error" className="text-sm font-medium text-rose-700">{seriesError}</p>}
 
           {mode === "reschedule" && (
             <div className="space-y-3">

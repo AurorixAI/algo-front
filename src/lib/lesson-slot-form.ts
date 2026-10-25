@@ -4,6 +4,10 @@
  */
 import type { LessonEvent } from "./api";
 import { businessDayOfWeek, businessWeekdayDate } from "./business-time";
+import { roomForSave } from "./schedule-slots";
+
+/** The weekly lesson as the schedule screens and the shared dialogs know it (`LessonEvent` of the schedule, or an occurrence of it). */
+export type WeeklyLesson = Pick<LessonEvent, "id" | "groupName" | "classLevel" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "color"> & { topic?: string; groupId?: string };
 
 export type LessonColor = LessonEvent["color"];
 export type LessonFormat = LessonEvent["format"];
@@ -161,9 +165,110 @@ export function toggleDay(days: readonly number[], day: number): number[] {
  * What a save of several weekly lessons says, with no silent partial success: «Пн и Ср добавлены, Пт — преподаватель занят».
  * "" when nothing failed (the caller then shows its plain success text).
  */
-export function weeklyResultText(added: readonly number[], failed: ReadonlyArray<{ day: number; reason: string }>): string {
+export function weeklyResultText(
+  added: readonly number[],
+  failed: ReadonlyArray<{ day: number; reason: string }>,
+  words: { one: string; many: string; none: string } = { one: "добавлен", many: "добавлены", none: "Не добавлено" },
+): string {
   if (failed.length === 0) return "";
   const bad = [...failed].sort((a, b) => a.day - b.day).map((item) => `${dayShort(item.day)} — ${item.reason}`).join("; ");
-  if (added.length === 0) return `Не добавлено: ${bad}`;
-  return `${dayList(added)} ${added.length > 1 ? "добавлены" : "добавлен"}, ${bad}`;
+  if (added.length === 0) return `${words.none}: ${bad}`;
+  return `${dayList(added)} ${added.length > 1 ? words.many : words.one}, ${bad}`;
+}
+
+/** The words of «изменено» for the same sentence («Пн и Ср изменены, Пт — преподаватель занят»). */
+export const CHANGED_WORDS = { one: "изменён", many: "изменены", none: "Не изменено" };
+
+// ── the state of a weekly lesson on a date, and what a change of it really changes ───────────────────────────────
+
+/**
+ * The weekly lesson as it stands ON a date (a revision that is already scheduled counts), from the occurrence of that date.  A moved
+ * occurrence carries the time of the move: the weekly lesson itself keeps the planned one.
+ */
+export function snapshotFromOccurrence(
+  occurrence: WeeklyLesson & { isRescheduled?: boolean; originalStartTime?: string | null; originalEndTime?: string | null; originalRoom?: string | null },
+): WeeklyLesson {
+  const moved = Boolean(occurrence.isRescheduled);
+  return {
+    id: occurrence.id,
+    groupId: occurrence.groupId,
+    groupName: occurrence.groupName,
+    classLevel: occurrence.classLevel,
+    dayOfWeek: occurrence.dayOfWeek,
+    startTime: moved && occurrence.originalStartTime ? occurrence.originalStartTime : occurrence.startTime,
+    endTime: moved && occurrence.originalEndTime ? occurrence.originalEndTime : occurrence.endTime,
+    room: moved ? (occurrence.originalRoom ?? occurrence.room ?? null) : (occurrence.room ?? null),
+    format: occurrence.format,
+    color: occurrence.color,
+    topic: occurrence.topic,
+  };
+}
+
+/** The first occurrence of the weekly lesson `lessonId` (of `groupId`) in a list of occurrences, by date; null when there is none. */
+export function firstOccurrenceOf<T extends { id: string; groupId: string; occurrenceDate: string }>(occurrences: readonly T[], groupId: string, lessonId: string): T | null {
+  const own = occurrences.filter((item) => item.id === lessonId && item.groupId === groupId);
+  if (own.length === 0) return null;
+  return [...own].sort((a, b) => a.occurrenceDate.localeCompare(b.occurrenceDate))[0];
+}
+
+export interface RevisionForm {
+  day: number;
+  startTime: string;
+  endTime: string;
+  room: string;
+  format: LessonFormat;
+  topic: string;
+  color: LessonColor;
+}
+
+/**
+ * Only the fields that differ from the lesson as it stands on the date of the change.  The server applies the patch to its own state
+ * on that date, so a field that was not touched can never undo a revision that is already scheduled.
+ */
+export function revisionPatch(snapshot: WeeklyLesson, form: RevisionForm): {
+  dayOfWeek?: number; startTime?: string; endTime?: string; room?: string; format?: LessonFormat; color?: LessonColor; topic?: string;
+} {
+  const patch: ReturnType<typeof revisionPatch> = {};
+  if (form.day !== Number(snapshot.dayOfWeek)) patch.dayOfWeek = form.day;
+  if (form.startTime !== snapshot.startTime) patch.startTime = form.startTime;
+  if (form.endTime !== snapshot.endTime) patch.endTime = form.endTime;
+  const room = roomForSave(form.room);
+  if (room !== null && room !== (snapshot.room ?? "").trim()) patch.room = room;
+  if (form.format !== (snapshot.format || "offline")) patch.format = form.format;
+  if (form.color !== (snapshot.color || "blue")) patch.color = form.color;
+  const topic = form.topic.trim();
+  if (topic !== (snapshot.topic ?? "").trim() && topic) patch.topic = topic;
+  return patch;
+}
+
+/** «каб. 12» for a room given as a number or a code; a room that begins with a word («Зал», «Малый зал») is shown as it is. */
+export function roomWithPrefix(room: string): string {
+  const text = room.trim();
+  return /^\p{L}/u.test(text) ? text : `каб. ${text}`;
+}
+
+/**
+ * The patch of a new start time: the end follows it (+90 minutes) only while nobody has typed an end of his own, and a start that did
+ * not change (a blur repeats it) changes nothing.  null: no change at all.
+ */
+export function startTimePatch(current: { startTime: string }, startTime: string, endTyped: boolean): { startTime: string; endTime?: string } | null {
+  if (startTime === current.startTime) return null;
+  const endTime = endTimeAfter(startTime);
+  return endTime && !endTyped ? { startTime, endTime } : { startTime };
+}
+
+/** An end that is not empty was typed (or pasted) by the user; an emptied one gives the start its say again. */
+export function isEndTyped(endTime: string): boolean {
+  return endTime !== "";
+}
+
+/** What a change applied to the other weekly lessons of the group may carry: the time, the room, the format, the topic - never the day or the colour. */
+export function sharedRevisionPatch(patch: ReturnType<typeof revisionPatch>): { startTime?: string; endTime?: string; room?: string; format?: LessonFormat; topic?: string } {
+  const out: ReturnType<typeof sharedRevisionPatch> = {};
+  if (patch.startTime !== undefined) out.startTime = patch.startTime;
+  if (patch.endTime !== undefined) out.endTime = patch.endTime;
+  if (patch.room !== undefined) out.room = patch.room;
+  if (patch.format !== undefined) out.format = patch.format;
+  if (patch.topic !== undefined) out.topic = patch.topic;
+  return out;
 }

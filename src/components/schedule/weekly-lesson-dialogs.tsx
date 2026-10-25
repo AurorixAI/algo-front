@@ -1,25 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { orgApi, type LessonEvent, type RecurringLessonEndImpact } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
-import { roomForSave, validFromError } from "@/lib/schedule-slots";
+import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
+import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
-import { createOneOff, createWeeklyLessons, refusalText } from "@/lib/weekly-lessons";
+import { createOneOff, createWeeklyLessons, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
 import {
   DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastTimeProblem,
-  timeRangeProblem, weeklyResultText,
+  timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type WeeklyLesson,
 } from "@/lib/lesson-slot-form";
-import { LessonScopeFields, LessonSlotFields, SLOT_FIELD_CLASS, WeekdayField, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+import { LessonScopeFields, LessonSlotFields, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+
+const DATE_REQUIRED_TEXT = "Выберите дату";
 
 const DEFAULT_VALUE: SlotFormValue = { startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" };
 
-/** The weekly lesson as both screens know it (`LessonEvent` of the schedule, or an occurrence of it). */
-export type WeeklyLesson = Pick<LessonEvent, "id" | "groupName" | "classLevel" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "color"> & { topic?: string };
+export type { WeeklyLesson };
 
 const CANCEL_BUTTON = "px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors disabled:opacity-50";
 const PRIMARY_BUTTON = "inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors shadow-sm";
@@ -86,24 +87,35 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   const today = formatBusinessDate();
   const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
 
+  const timeProblem = timeRangeProblem(value.startTime, value.endTime);
+  // a clash inside the group: every chosen weekday for a weekly lesson, the weekday of the date for a one-off one
   const overlaps = scope === "recurring"
     ? days.map((day) => ({ day, lesson: overlappingLesson(siblings, day, value.startTime, value.endTime) })).filter((item) => item.lesson)
-    : [];
-  const timeProblem = timeRangeProblem(value.startTime, value.endTime);
-  // the server: a lesson of today whose start has gone is refused - say it before the click
-  const startsToday = scope === "one_off"
-    ? date === today
-    : (validFrom || today) === today && days.includes(businessDayOfWeek());
-  const pastProblem = startsToday && !timeProblem ? pastTimeProblem(value.startTime, businessTimeMinutes()) : null;
-  const dateProblem = scope === "recurring" ? validFromError(validFrom, today) : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
-  const blocking = timeProblem || pastProblem || dateProblem || overlaps.length > 0;
+    : /^\d{4}-\d{2}-\d{2}$/.test(date)
+      ? [{
+          day: isoDateDayOfWeek(date),
+          // a weekly lesson that does not act yet on that date is no clash
+          lesson: overlappingLesson(siblings.filter((item) => !item.validFrom || item.validFrom <= date), isoDateDayOfWeek(date), value.startTime, value.endTime),
+        }].filter((item) => item.lesson)
+      : [];
+  // the server: a lesson of today whose start has gone is refused.  A weekly lesson loses only that weekday (the others are saved and
+  // the day is named); a one-off lesson of today is blocked as a whole
+  const nowPast = !timeProblem && pastTimeProblem(value.startTime, businessTimeMinutes()) !== null;
+  const pastDays = scope === "recurring" && nowPast && (validFrom || today) === today && days.includes(businessDayOfWeek()) ? [businessDayOfWeek()] : [];
+  const sendDays = days.filter((day) => !pastDays.includes(day));
+  const pastOneOff = scope === "one_off" && nowPast && date === today ? pastTimeProblem(value.startTime, businessTimeMinutes()) : null;
+  const dateProblem = scope === "recurring"
+    ? validFromError(validFrom, today)
+    : !date ? DATE_REQUIRED_TEXT : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
+  const allPast = scope === "recurring" && days.length > 0 && sendDays.length === 0;
+  const blocking = timeProblem || pastOneOff || dateProblem || allPast || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (busy) return;
     setTouched(true);
     if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); return; }
-    if (!date && scope === "one_off") { setError("Выберите дату занятия"); return; }
-    if (blocking || busy) return;
+    if (blocking) return;
     setBusy(true);
     setError(null);
     setDetails([]);
@@ -113,8 +125,10 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
         onAdded({ text: "Разовое занятие добавлено в расписание группы", notices, closed: true });
         return;
       }
-      const result = await createWeeklyLessons(group.id, days, { ...value, validFrom: validFrom || today });
-      if (result.failed.length === 0) {
+      const result = await createWeeklyLessons(group.id, sendDays, { ...value, validFrom: validFrom || today });
+      const skipped = pastDays.map((day) => ({ day, reason: "время уже прошло", detail: `${dayShort(day)}: время уже прошло — на этот день урок не добавлен.` }));
+      const failed = [...result.failed, ...skipped];
+      if (failed.length === 0) {
         onAdded({
           text: result.added.length > 1 ? `Уроки добавлены в расписание группы: ${dayList(result.added)}` : "Урок добавлен в расписание группы",
           notices: result.notices,
@@ -123,9 +137,9 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
         return;
       }
       // no silent partial success: say which days were added and which were not; only the refused days stay chosen
-      setError(weeklyResultText(result.added, result.failed));
-      setDetails(result.failed.map((item) => `${dayShort(item.day)}: ${item.detail}`));
-      setDays(result.failed.map((item) => item.day));
+      setError(weeklyResultText(result.added, failed));
+      setDetails(failed.map((item) => item.detail.startsWith(`${dayShort(item.day)}:`) ? item.detail : `${dayShort(item.day)}: ${item.detail}`));
+      setDays(failed.map((item) => item.day));
       if (result.added.length > 0) onAdded({ text: `${dayList(result.added)} — добавлено`, notices: result.notices, closed: false });
     } catch (failure) {
       setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
@@ -175,7 +189,9 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
 
         {overlaps.map((item) => item.lesson && <OverlapNote key={item.day} lesson={item.lesson} />)}
         {timeProblem && <Problem>{timeProblem}</Problem>}
-        {pastProblem && <Problem>{pastProblem}</Problem>}
+        {pastOneOff && <Problem>{pastOneOff}</Problem>}
+        {pastDays.length > 0 && !allPast && <Problem tone="amber">{dayShort(pastDays[0])}: время уже прошло — этот день не будет добавлен, остальные сохранятся.</Problem>}
+        {allPast && <Problem>{dayShort(pastDays[0])}: время уже прошло. Выберите более позднее время или другие дни.</Problem>}
         {dateProblem && <Problem>{dateProblem}</Problem>}
         {error && (
           <div role="alert" data-testid="weekly-add-error" className="space-y-1.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
@@ -190,88 +206,151 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
 
 // ── change the weekly lesson from a future date (owner / administrator / teacher) ───────────────────────────────────────────
 
-type EditSnapshot = { day: number; startTime: string; endTime: string; room: string; format: LessonEvent["format"]; topic: string; color: LessonEvent["color"] };
+/** The weekly lesson as it stands on a date (a revision already scheduled counts); null when it cannot be told. */
+export type ResolveWeeklyLesson = (date: string) => Promise<WeeklyLesson | null>;
 
-function snapshotOf(lesson: WeeklyLesson): EditSnapshot {
-  return {
-    day: Number(lesson.dayOfWeek),
-    startTime: lesson.startTime,
-    endTime: lesson.endTime,
-    room: lesson.room ?? "",
-    format: lesson.format || "offline",
-    topic: lesson.topic || "",
-    color: lesson.color || "blue",
-  };
-}
+const CHANGED_FIELD_NAME: Record<string, string> = {
+  dayOfWeek: "день недели", startTime: "время занятия", endTime: "время занятия", room: "аудиторию", format: "формат проведения", topic: "тему занятия", color: "цветовую метку",
+};
 
 /**
  * «Изменить постоянное расписание»: a new time / day / room from a FUTURE date.  The lessons before that date keep their time and
- * their attendance (the server versions the schedule; it never rewrites a past lesson).
+ * their attendance (the server versions the schedule; it never rewrites a past lesson).  The form starts from the lesson as it stands
+ * ON that date, and only the fields that were really changed are sent: a revision already scheduled is never undone by a field nobody touched.
  */
-export function EditWeeklyLessonDialog({ lesson, siblings, onClose, onSaved, defaultEffectiveFrom }: {
+export function EditWeeklyLessonDialog({ lesson, siblings, onClose, onSaved, onProgress, defaultEffectiveFrom, resolveAt, aboveLessonPanel = false }: {
   lesson: WeeklyLesson | null;
   /** The date the change starts from when the dialog opens (a future one; default: tomorrow). */
   defaultEffectiveFrom?: string;
   /** The weekly lessons that may clash with the new time (the teacher's, or the group's). */
   siblings: readonly WeeklyLesson[];
+  /** The lesson as it stands on another date, when the user moves «Изменения действуют с». */
+  resolveAt?: ResolveWeeklyLesson;
+  /** Over the lesson panel of the teacher's cabinet (z 99999). */
+  aboveLessonPanel?: boolean;
   onClose: () => void;
   onSaved: (notices: string[], effectiveFrom: string) => void | Promise<void>;
+  /** Some of the lessons were changed and the dialog stays open (a refused one is left to fix): read the schedule again. */
+  onProgress?: () => void;
 }) {
-  return lesson ? <EditWeeklyLessonForm key={lesson.id} lesson={lesson} siblings={siblings} onClose={onClose} onSaved={onSaved} defaultEffectiveFrom={defaultEffectiveFrom} /> : null;
+  return lesson ? (
+    <EditWeeklyLessonForm key={lesson.id} lesson={lesson} siblings={siblings} onClose={onClose} onSaved={onSaved} onProgress={onProgress} defaultEffectiveFrom={defaultEffectiveFrom} resolveAt={resolveAt} aboveLessonPanel={aboveLessonPanel} />
+  ) : null;
 }
 
-function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffectiveFrom }: {
+function startingFrom(defaultEffectiveFrom?: string): string {
+  return defaultEffectiveFrom && defaultEffectiveFrom >= nextBusinessDate() ? defaultEffectiveFrom : nextBusinessDate();
+}
+
+function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, defaultEffectiveFrom, resolveAt, aboveLessonPanel }: {
   lesson: WeeklyLesson;
   defaultEffectiveFrom?: string;
   siblings: readonly WeeklyLesson[];
+  resolveAt?: ResolveWeeklyLesson;
+  aboveLessonPanel: boolean;
   onClose: () => void;
   onSaved: (notices: string[], effectiveFrom: string) => void | Promise<void>;
+  onProgress?: () => void;
 }) {
-  const snapshot = useMemo(() => snapshotOf(lesson), [lesson]);
-  const [day, setDay] = useState<number | null>(snapshot.day);
-  const [value, setValue] = useState<SlotFormValue>({ startTime: snapshot.startTime, endTime: snapshot.endTime, format: snapshot.format, room: snapshot.room, topic: snapshot.topic, color: snapshot.color });
-  const [effectiveFrom, setEffectiveFrom] = useState(defaultEffectiveFrom && defaultEffectiveFrom >= nextBusinessDate() ? defaultEffectiveFrom : nextBusinessDate());
+  const fieldsOf = (source: WeeklyLesson): SlotFormValue => ({ startTime: source.startTime, endTime: source.endTime, format: source.format || "offline", room: source.room ?? "", topic: source.topic || "", color: source.color || "blue" });
+  const initialFrom = useMemo(() => startingFrom(defaultEffectiveFrom), [defaultEffectiveFrom]);
+  const [baseline, setBaseline] = useState<WeeklyLesson>(lesson);
+  const [day, setDay] = useState<number | null>(Number(lesson.dayOfWeek));
+  const [value, setValue] = useState<SlotFormValue>(fieldsOf(lesson));
+  const [effectiveFrom, setEffectiveFrom] = useState(initialFrom);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // «Применить также к другим дням группы»: the ids of the other weekly lessons of the group the same change goes to
+  const [tickedIds, setTickedIds] = useState<string[]>([]);
+  const [mainSaved, setMainSaved] = useState(false);
+  const [details, setDetails] = useState<string[]>([]);
+  const latest = useRef({ baseline, day, value });
+  latest.current = { baseline, day, value };
 
-  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); };
+  const formOf = (d: number, v: SlotFormValue) => ({ day: d, ...v });
+  // The lesson as it stands on the chosen date: a revision already scheduled for it counts.  A form nobody has touched takes the new state;
+  // a form with edits keeps them and is compared with the new state.
+  useEffect(() => {
+    if (!resolveAt || effectiveFrom === initialFrom || effectiveFrom < nextBusinessDate()) return undefined;
+    let cancelled = false;
+    void resolveAt(effectiveFrom).then((snapshot) => {
+      if (cancelled || !snapshot) return;
+      const now = latest.current;
+      const untouched = now.day !== null && Object.keys(revisionPatch(now.baseline, formOf(now.day, now.value))).length === 0;
+      setBaseline(snapshot);
+      if (untouched) { setDay(Number(snapshot.dayOfWeek)); setValue(fieldsOf(snapshot)); }
+    }).catch(() => undefined);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveFrom]);
+
+  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
   const overlap = day ? overlappingLesson(siblings, day, value.startTime, value.endTime, lesson.id) : undefined;
   const timeProblem = timeRangeProblem(value.startTime, value.endTime);
-  // The server refuses an update without a real difference: compare with the normalised snapshot taken when the dialog opened.
-  const changes = [
-    day !== null && day !== snapshot.day && "день недели",
-    (value.startTime !== snapshot.startTime || value.endTime !== snapshot.endTime) && "время занятия",
-    value.room.trim() !== snapshot.room.trim() && "аудиторию",
-    value.format !== snapshot.format && "формат проведения",
-    value.topic.trim() !== snapshot.topic.trim() && "тему занятия",
-    value.color !== snapshot.color && "цветовую метку",
-  ].filter(Boolean) as string[];
-  const hasChanges = changes.length > 0;
-  const automaticReason = hasChanges ? `Изменены: ${changes.join(", ")}` : "Изменено постоянное расписание";
+  // The server refuses an update without a real difference: compare with the lesson as it stands on the date of the change.
+  const changed = day !== null ? revisionPatch(baseline, formOf(day, value)) : {};
+  const changedNames = Array.from(new Set(Object.keys(changed).map((key) => CHANGED_FIELD_NAME[key]).filter(Boolean)));
+  const hasChanges = changedNames.length > 0;
+  const automaticReason = hasChanges ? `Изменены: ${changedNames.join(", ")}` : "Изменено постоянное расписание";
+
+  // the other weekly lessons of THIS group: the same time / room / format / topic can go to them too (never the day)
+  const shared = sharedRevisionPatch(changed);
+  const groupOthers = useMemo(
+    () => siblings
+      .filter((item) => item.id !== lesson.id && Boolean(lesson.groupId) && item.groupId === lesson.groupId)
+      .sort((a, b) => a.dayOfWeek - b.dayOfWeek || a.startTime.localeCompare(b.startTime)),
+    [siblings, lesson.id, lesson.groupId],
+  );
+  const showOthers = groupOthers.length > 0 && Object.keys(shared).length > 0;
+  const targets = showOthers ? groupOthers.filter((item) => tickedIds.includes(item.id)) : [];
+  // each ticked lesson with its new time must not touch another lesson (the edited one at its new place included)
+  const targetOverlaps = day === null ? [] : targets.map((target) => {
+    const asEdited = { id: lesson.id, groupName: lesson.groupName, dayOfWeek: day, startTime: value.startTime, endTime: value.endTime };
+    const others = [...siblings.filter((item) => item.id !== lesson.id && item.id !== target.id), asEdited];
+    return { target, clash: overlappingLesson(others, target.dayOfWeek, shared.startTime ?? target.startTime, shared.endTime ?? target.endTime) };
+  }).filter((item) => item.clash);
+  const toggleTarget = (id: string) => { setTickedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id])); setError(null); setDetails([]); };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (busy) return;
     if (!day) { setError(DAY_REQUIRED_TEXT); return; }
     if (timeProblem) { setError(timeProblem); return; }
-    if (!hasChanges) { setError("Измените хотя бы один параметр расписания."); return; }
+    if (!mainSaved && !hasChanges) { setError("Измените хотя бы один параметр расписания."); return; }
     if (!effectiveFrom || effectiveFrom <= formatBusinessDate()) { setError("Постоянное расписание можно менять только начиная с будущей даты."); return; }
     setBusy(true);
     setError(null);
+    setDetails([]);
+    const text = reason.trim() || automaticReason;
+    const notices: string[] = [];
     try {
-      const revised = await orgApi.reviseRecurringLesson(lesson.id, {
-        effectiveFrom,
-        reason: reason.trim() || automaticReason,
-        dayOfWeek: day,
-        startTime: value.startTime,
-        endTime: value.endTime,
-        room: roomForSave(value.room),
-        format: value.format,
-        color: value.color,
-        topic: value.topic || undefined,
-      });
-      await onSaved(warningTexts(revised), effectiveFrom);
+      if (!mainSaved) {
+        const revised = await orgApi.reviseRecurringLesson(lesson.id, { effectiveFrom, reason: text, ...changed });
+        notices.push(...warningTexts(revised));
+        setMainSaved(true);
+      }
+    } catch (failure) {
+      setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
+      setBusy(false);
+      return;
+    }
+    try {
+      if (targets.length === 0) {
+        await onSaved(notices, effectiveFrom);
+        return;
+      }
+      // the same change for the ticked days, one by one: a refusal names its day and leaves the others done; only the refused stay ticked
+      const result = await reviseWeeklyLessons(targets, effectiveFrom, text, shared);
+      for (const note of result.notices) if (!notices.includes(note)) notices.push(note);
+      if (result.failed.length === 0) {
+        await onSaved(notices, effectiveFrom);
+        return;
+      }
+      setError(weeklyResultText([day, ...result.done], result.failed, CHANGED_WORDS));
+      setDetails(result.failed.map((item) => `${dayShort(item.day)}: ${item.detail}`));
+      setTickedIds(result.failed.map((item) => item.id));
+      onProgress?.();
     } catch (failure) {
       setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
     } finally {
@@ -286,11 +365,12 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffec
       description="Текущее и прошлые занятия не меняются. Новые правила начнут действовать с выбранной даты."
       onClose={onClose}
       busy={busy}
+      aboveLessonPanel={aboveLessonPanel}
       footer={
         <>
-          {!hasChanges && <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>}
+          {!hasChanges && !mainSaved && <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>}
           <button type="button" onClick={onClose} disabled={busy} className={CANCEL_BUTTON}>Отмена</button>
-          <button type="submit" form="weekly-lesson-edit-form" disabled={busy || Boolean(overlap) || !hasChanges || !effectiveFrom || Boolean(timeProblem)} className={PRIMARY_BUTTON}>
+          <button type="submit" form="weekly-lesson-edit-form" disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem)} className={PRIMARY_BUTTON}>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Изменить расписание
           </button>
         </>
@@ -315,16 +395,13 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffec
           </div>
         </div>
 
-        <div>
-          <label htmlFor="sched-edit-den-nedeli" className="block text-xs font-semibold text-slate-700 mb-1">День недели</label>
-          <WeekdayField id="sched-edit-den-nedeli" value={day} onChange={(next) => { setDay(next); setError(null); }} disabled={busy} />
-        </div>
+        <WeekdayChips idPrefix="sched-edit" single days={day ? [day] : []} onChange={(next) => { setDay(next[0] ?? null); setError(null); setDetails([]); }} disabled={busy || mainSaved} />
 
         <LessonSlotFields
           idPrefix="sched-edit"
           value={value}
           onChange={patch}
-          disabled={busy}
+          disabled={busy || mainSaved}
           endInvalid={Boolean(timeProblem)}
           afterTopic={(
             <div>
@@ -346,9 +423,32 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffec
           )}
         />
 
+        {showOthers && (
+          <fieldset data-testid="apply-to-others" className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+            <legend className="px-1 text-xs font-semibold text-slate-700">Применить также к другим дням группы</legend>
+            <p className="mb-2 text-[11px] leading-4 text-slate-500">Изменённые время, кабинет, формат и тема пойдут и в выбранные уроки с той же даты. День у них не меняется.</p>
+            <div className="flex flex-wrap gap-2">
+              {groupOthers.map((item) => (
+                <label key={item.id} className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700">
+                  <Checkbox checked={tickedIds.includes(item.id)} onChange={() => toggleTarget(item.id)} disabled={busy} />
+                  {dayShort(item.dayOfWeek)} {item.startTime}–{item.endTime}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
+
         {overlap && <OverlapNote lesson={overlap} />}
+        {targetOverlaps.map((item) => item.clash && (
+          <Problem key={item.target.id}>{dayShort(item.target.dayOfWeek)}: после изменения пересечение по времени с уроком группы «{item.clash.groupName}» ({item.clash.startTime} — {item.clash.endTime}).</Problem>
+        ))}
         {timeProblem && <Problem>{timeProblem}</Problem>}
-        {error && <Problem>{error}</Problem>}
+        {error && (
+          <div role="alert" data-testid="weekly-edit-error" className="space-y-1.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
+            <p className="flex items-start gap-2 font-semibold"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span>{error}</span></p>
+            {details.map((line) => <p key={line} className="pl-6 font-normal leading-relaxed">{line}</p>)}
+          </div>
+        )}
       </form>
     </Modal>
   );
@@ -359,30 +459,49 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, defaultEffec
 /**
  * «Прекратить занятия»: the lesson stops from a future date; the past lessons, the attendance and the journal stay as they are.
  * Before it the dialog asks the server what the stop would do to the future exams of the lesson (they return to drafts only after an
- * explicit tick), exactly as the teacher's screen always did.
+ * explicit tick), exactly as the teacher's screen always did.  The line of the lesson shows its time on the chosen date.
  */
-export function EndWeeklyLessonDialog({ lesson, onClose, onEnded, defaultEffectiveFrom }: {
+export function EndWeeklyLessonDialog({ lesson, onClose, onEnded, defaultEffectiveFrom, resolveAt, aboveLessonPanel = false }: {
   lesson: WeeklyLesson | null;
   defaultEffectiveFrom?: string;
+  resolveAt?: ResolveWeeklyLesson;
+  /** Over the lesson panel of the teacher's cabinet (z 99999). */
+  aboveLessonPanel?: boolean;
   onClose: () => void;
   onEnded: () => void | Promise<void>;
 }) {
-  return lesson ? <EndWeeklyLessonForm key={lesson.id} lesson={lesson} onClose={onClose} onEnded={onEnded} defaultEffectiveFrom={defaultEffectiveFrom} /> : null;
+  return lesson ? (
+    <EndWeeklyLessonForm key={lesson.id} lesson={lesson} onClose={onClose} onEnded={onEnded} defaultEffectiveFrom={defaultEffectiveFrom} resolveAt={resolveAt} aboveLessonPanel={aboveLessonPanel} />
+  ) : null;
 }
 
-function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom }: {
+function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, resolveAt, aboveLessonPanel }: {
   lesson: WeeklyLesson;
   defaultEffectiveFrom?: string;
+  resolveAt?: ResolveWeeklyLesson;
+  aboveLessonPanel: boolean;
   onClose: () => void;
   onEnded: () => void | Promise<void>;
 }) {
-  const [effectiveFrom, setEffectiveFrom] = useState(defaultEffectiveFrom && defaultEffectiveFrom >= nextBusinessDate() ? defaultEffectiveFrom : nextBusinessDate());
+  const initialFrom = useMemo(() => startingFrom(defaultEffectiveFrom), [defaultEffectiveFrom]);
+  const [effectiveFrom, setEffectiveFrom] = useState(initialFrom);
+  const [shown, setShown] = useState<WeeklyLesson>(lesson);
   const [reason, setReason] = useState("");
   const [impact, setImpact] = useState<RecurringLessonEndImpact | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
   const [busy, setBusy] = useState(false);
   const [release, setRelease] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const resolveRef = useRef(resolveAt);
+  resolveRef.current = resolveAt;
+  useEffect(() => {
+    const resolve = resolveRef.current;
+    if (!resolve || effectiveFrom === initialFrom || effectiveFrom < nextBusinessDate()) return undefined;
+    let cancelled = false;
+    void resolve(effectiveFrom).then((snapshot) => { if (!cancelled && snapshot) setShown(snapshot); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [effectiveFrom, initialFrom]);
 
   useEffect(() => {
     if (!effectiveFrom) return;
@@ -427,7 +546,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom }:
     }
   };
 
-  const dayName = DAYS.find((day) => day.id === Number(lesson.dayOfWeek))?.name ?? "Регулярное занятие";
+  const dayName = DAYS.find((day) => day.id === Number(shown.dayOfWeek))?.name ?? "Регулярное занятие";
   return (
     <Modal
       open
@@ -435,6 +554,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom }:
       description="Прошедшие уроки, посещаемость и журнал останутся без изменений. Новые экземпляры этого занятия перестанут появляться с выбранной даты."
       onClose={onClose}
       busy={busy}
+      aboveLessonPanel={aboveLessonPanel}
       maxWidthClassName="max-w-lg"
       footer={
         <>
@@ -454,10 +574,9 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom }:
     >
       <div className="space-y-4 pb-1">
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-sm font-semibold text-slate-900">{lesson.groupName}</p>
-          <p className="mt-0.5 text-xs text-slate-500">{dayName} · {lesson.startTime}—{lesson.endTime}</p>
+          <p className="text-sm font-semibold text-slate-900">{shown.groupName}</p>
+          <p className="mt-0.5 text-xs text-slate-500">{dayName} · {shown.startTime}—{shown.endTime}</p>
         </div>
-
         <label className="block text-xs font-semibold text-slate-700">
           Прекратить с даты
           <DateInput

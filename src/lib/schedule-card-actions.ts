@@ -1,5 +1,6 @@
 import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from "./lesson-teacher";
 import { businessWallTimeToInstant } from "./business-time";
+import { roomWithPrefix } from "./lesson-slot-form";
 import { GROUP_ARCHIVED_SCHEDULE_TEXT, dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
 import { examDraftCancelText, examRunningText, movedFromLabel, substitutionErrorText } from "./substitutions";
 import type { ExamBinding, MoveCheckOut } from "./substitution-types";
@@ -113,6 +114,12 @@ export function roomLabel(lesson: { room?: string | null; format?: string | null
   if (lesson.format === "online") return "Онлайн";
   const room = (lesson.room ?? "").trim();
   return room || null;
+}
+
+/** The room as the lines of the schedule say it: «каб. 12» (a room that begins with a word stays as it is), «Онлайн»; null: nothing to show. */
+export function roomLine(lesson: { room?: string | null; format?: string | null }): string | null {
+  const room = roomLabel(lesson);
+  return room && lesson.format !== "online" ? roomWithPrefix(room) : room;
 }
 
 /**
