@@ -98,7 +98,6 @@ test.describe("package centre", () => {
     const group = await org.createGroup({ name: "Группа ПФ-1", teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
     const days = await threeWeekdays(org, group);
-    const student = await org.addStudent(group, "Анвар", "Пакетный");
     await org.setPaymentSettings({ accounting_start_date: today() });
     const page = await signIn(org.owner);
 
@@ -113,6 +112,9 @@ test.describe("package centre", () => {
     await section.getByRole("button", { name: "Сохранить" }).click();
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ period_mode: "lessons", lessons_per_payment: 12 });
+
+    // a mode never touches a running period: the student joins after the switch, so his first period is a package
+    const student = await org.addStudent(group, "Анвар", "Пакетный");
 
     // --- 2. a payment: the package is paid
     const { dialog, amount } = await openPayDialog(page, "Пакетный");
