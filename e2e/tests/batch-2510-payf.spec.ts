@@ -135,6 +135,7 @@ test.describe("package centre", () => {
     const row = (await org.owner.api.get(`/auth/org/students/${student.id}/memberships`)).find((r: any) => r.membership_id === membership);
     expect(row).toMatchObject({ period_mode: "lessons", lessons_left: 12, paid_through_forecast: twelfth });
     await page.goto(`/owner/students/${student.id}`);
+    await page.getByRole("tab", { name: "Оплаты" }).click();
     await expect(page.getByText(`хватит до ~${dm(twelfth)} (по расписанию)`).first()).toBeVisible();
     await expect(page.getByText(/осталось 12 уроков из 12/).first()).toBeVisible();
     await expectNoHorizontalScroll(page);
@@ -160,10 +161,16 @@ test.describe("package centre", () => {
     expect(moved).not.toBe(twelfth);
     await expect.poll(async () => (await org.owner.api.get(`/auth/org/students/${student.id}/memberships`)).find((r: any) => r.membership_id === membership).paid_through_forecast).toBe(moved);
     await page.goto(`/owner/students/${student.id}`);
+    await page.getByRole("tab", { name: "Оплаты" }).click();
     await expect(page.getByText(`хватит до ~${dm(moved)} (по расписанию)`).first()).toBeVisible();
+    await expectNoHorizontalScroll(page);
+    await shot(page, `05-student-forecast-moved-${project}`);
+    // the attendance of the student says why the lesson did not take place (the month of the day off)
+    await page.getByRole("tab", { name: "Обучение" }).click();
+    if (second.date.slice(0, 7) !== today().slice(0, 7)) await page.getByRole("button", { name: /Следующий месяц|Вперёд/ }).first().click();
     await expect(page.getByText(/Урок отменён: выходной \(Хайит\)/).first()).toBeVisible();
     await expectNoHorizontalScroll(page);
-    await shot(page, `05-student-day-off-${project}`);
+    await shot(page, `05b-student-day-off-${project}`);
   });
 });
 
