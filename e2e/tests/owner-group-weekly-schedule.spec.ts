@@ -363,9 +363,9 @@ test("teacher: «Ещё -> Прекратить» opens the stop dialog above th
   await page.goto("/teacher/schedule");
   await page.getByRole("button", { name: /Неделя/ }).first().click();
   if (mondayOf(d1) !== mondayOf(today())) await page.getByTitle("Следующая неделя").click();
-  await page.getByText("Для остановки").first().click();
+  await page.getByText("Группа П1-Ост").first().click();
   const panel = page.getByRole("dialog").first();
-  await expect(panel).toContainText("Для остановки");
+  await expect(panel).toContainText("Группа П1-Ост");
   await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
   await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
   const end = page.getByRole("dialog", { name: "Прекратить занятия" });
@@ -379,7 +379,7 @@ test("teacher: «Ещё -> Прекратить» opens the stop dialog above th
   // Escape closes the topmost layer only: the stop dialog goes, the lesson panel stays
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Прекратить занятия" })).toHaveCount(0);
-  await expect(panel).toContainText("Для остановки");
+  await expect(panel).toContainText("Группа П1-Ост");
   // and the stop itself goes through from the same place
   await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
   await page.getByRole("menuitem", { name: /Прекратить регулярные занятия/ }).click();
@@ -410,7 +410,7 @@ test("teacher screenshots: the add form with Пн+Ср+Пт and the week after s
   await form.getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.locator("form").filter({ hasText: "Как добавить занятие" })).toHaveCount(0);
   await page.getByRole("button", { name: /Неделя/ }).first().click();
-  await expect(page.getByText("Алгебра").first()).toBeVisible();
+  await expect(page.getByText("Группа П1-Ш").first()).toBeVisible();
   await shot(page, `12-teacher-added-week-${info.project.name}`);
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
   expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([1, 3, 5]);
