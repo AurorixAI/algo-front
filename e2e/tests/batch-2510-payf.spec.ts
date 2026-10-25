@@ -98,7 +98,9 @@ test.describe("package centre", () => {
     const group = await org.createGroup({ name: "Группа ПФ-1", teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
     const days = await threeWeekdays(org, group);
-    await org.setPaymentSettings({ accounting_start_date: today() });
+    // the accounting of the centre starts tomorrow: the switch below is then in force for the student from his first day (a mode saved today is
+    // deferred to the next period of a student who already counts today - LOGIC-A F12)
+    await org.setPaymentSettings({ accounting_start_date: addDays(today(), 1) });
     const page = await signIn(org.owner);
 
     // --- 1. the owner switches on «Пакет уроков: 12» in the settings
@@ -113,7 +115,7 @@ test.describe("package centre", () => {
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ period_mode: "lessons", lessons_per_payment: 12 });
 
-    // a mode never touches a running period: the student joins after the switch, so his first period is a package
+    // the student joins after the switch
     const student = await org.addStudent(group, "Анвар", "Пакетный");
 
     // --- 2. a payment: the package is paid
