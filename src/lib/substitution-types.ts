@@ -381,6 +381,8 @@ export interface StudentNotice {
   groupName: string;
   kind: "cancelled" | "rescheduled";
   movedTo?: SubstitutionMovedTo | null;
+  /** PAY-F: the reason of the day off of the centre that cancelled the lesson («Хайит»); the reason of any other cancellation is never sent. */
+  holiday?: string | null;
 }
 
 export interface RequestClosed {

@@ -10,6 +10,7 @@ import { useAuthStore } from "@/lib/store";
 import { Settings, Building2, Save, CheckCircle, Shield, Key, Wallet, ClipboardCheck, Banknote, Loader2, LucideIcon } from "lucide-react";
 import {
   ATTENDANCE_SCOPE_KEYS,
+  BILLING_DAY_LABEL,
   BILLING_DAY_RANGE,
   billingDayHint,
   DEFAULT_PAYMENT_SETTINGS,
@@ -42,6 +43,8 @@ import {
 import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpeningsToReview, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { OpeningsChecklist } from "@/components/payments/openings-widgets";
+import { CentreCancelSetting } from "@/components/payments/centre-cancel-setting";
+import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
 import { buildDivisorBody, DIVISOR_FROM_LABEL, DIVISOR_HELP, divisorChangeText, divisorFor, divisorHistoryRows, divisorMonthTitle } from "@/lib/payroll-logica";
@@ -402,7 +405,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
 
       {model === "fixed_day" && (
         <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
-          <label htmlFor="payments-billing-day" className={labelClasses}>Единый день оплаты</label>
+          <label htmlFor="payments-billing-day" className={labelClasses}>{BILLING_DAY_LABEL}</label>
           <div className="flex flex-wrap items-center gap-3">
             <Select
               id="payments-billing-day"
@@ -445,6 +448,8 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           onChange={(value) => patch({ expiring_days: value })}
         />
       )}
+
+      {model !== "lessons" && <CentreCancelSetting value={form.centre_cancel_recalc} onChange={(next) => patch({ centre_cancel_recalc: next })} />}
 
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>
@@ -834,6 +839,7 @@ function OwnerSettingsContent() {
 
           {!waitingForPaymentSettings && section === "payments" && <PaymentsSettingsSection draft={paymentSettings} />}
           {!waitingForPaymentSettings && section === "attendance" && <AttendanceSettingsSection draft={paymentSettings} />}
+          {section === "days_off" && <DaysOffPanel />}
           {section === "payroll" && <PayrollSettingsSection draft={payrollSettings} />}
 
           {!waitingForPaymentSettings && section === "profile" && (

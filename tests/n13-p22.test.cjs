@@ -80,7 +80,7 @@ function fakeServer() {
 // ---- 4. settings: models, sections ----------------------------------------------------------
 
 test("three cards map to period_mode + billing_anchor", () => {
-  assert.deepEqual(P.PAYMENT_MODELS.map((m) => m.title), ["От даты оплаты", "Единый день оплаты", "Пакет уроков"]);
+  assert.deepEqual(P.PAYMENT_MODELS.map((m) => m.title), ["Свой месяц у каждого ученика", "Общий месяц для всех", "Пакет уроков"]);
   assert.equal(P.paymentModelOf({ period_mode: "calendar", billing_anchor: "payment_date" }), "payment_date");
   assert.equal(P.paymentModelOf({ period_mode: "calendar", billing_anchor: "fixed_day" }), "fixed_day");
   assert.equal(P.paymentModelOf({ period_mode: "lessons", billing_anchor: "fixed_day" }), "lessons");
@@ -96,7 +96,7 @@ test("the billing day is 1..28, with a hint in words", () => {
   const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
   assert.equal(P.validatePaymentSettings({ ...ok, billing_day: 1 }), null);
   assert.equal(P.validatePaymentSettings({ ...ok, billing_day: 28 }), null);
-  for (const bad of [0, 29, 31, 1.5, NaN, -1]) assert.match(P.validatePaymentSettings({ ...ok, billing_day: bad }), /Единый день оплаты/, String(bad));
+  for (const bad of [0, 29, 31, 1.5, NaN, -1]) assert.match(P.validatePaymentSettings({ ...ok, billing_day: bad }), /День, с которого начинается общий месяц/, String(bad));
   assert.equal(P.billingDayHint(1), "Период: с 1-го по последнее число месяца");
   assert.equal(P.billingDayHint(10), "Период: с 10-го числа по 9-е число следующего месяца");
   assert.equal(P.billingDayHint(28), "Период: с 28-го числа по 27-е число следующего месяца");
@@ -118,16 +118,16 @@ test("each settings section validates and saves only its own fields", () => {
 });
 
 test("?section= falls back to «Организация» for anything unknown or not shown", () => {
-  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "payroll", "profile", "security"]);
+  assert.deepEqual(sections.SETTINGS_SECTIONS.map((s) => s.key), ["organization", "payments", "attendance", "days_off", "payroll", "profile", "security"]);
   assert.equal(sections.DEFAULT_SETTINGS_SECTION, "organization");
-  for (const key of ["organization", "payments", "attendance", "payroll", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
+  for (const key of ["organization", "payments", "attendance", "days_off", "payroll", "profile", "security"]) assert.equal(sections.parseSettingsSection(key), key);
   for (const bad of [null, undefined, "", "salary", "Payments", "payments ", "../x", "constructor"]) assert.equal(sections.parseSettingsSection(bad), "organization", String(bad));
   // a section the user may not see is not opened by a link either
   const noPayments = sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: false });
-  assert.deepEqual(noPayments, ["organization", "payroll", "profile", "security"]);
+  assert.deepEqual(noPayments, ["organization", "days_off", "payroll", "profile", "security"]);
   assert.equal(sections.parseSettingsSection("payments", noPayments), "organization");
   assert.equal(sections.parseSettingsSection("attendance", noPayments), "organization");
-  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 6);
+  assert.deepEqual(sections.visibleSettingsSections({ isOwner: true, paymentSettingsReadable: true }).length, 7);
   assert.deepEqual(sections.visibleSettingsSections({ isOwner: false, paymentSettingsReadable: true }), ["organization", "profile", "security"]);
   assert.equal(sections.settingsSectionHref("payments"), "?section=payments");
   // «Зарплата» exists since N13 P3 (the owner's alone) and is never offered as «скоро»
@@ -340,15 +340,15 @@ test("the printed receipt: sheet text, void stamp with reason, replaced / replac
 
 test("«Оплаты» validates and sends only the fields its card shows", () => {
   const ok = { ...P.DEFAULT_PAYMENT_SETTINGS };
-  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "expiring_days"]);
-  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "billing_day", "expiring_days"]);
+  assert.deepEqual(P.paymentsScopeKeys("payment_date"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "expiring_days", "centre_cancel_recalc"]);
+  assert.deepEqual(P.paymentsScopeKeys("fixed_day"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "billing_day", "expiring_days", "centre_cancel_recalc"]);
   assert.deepEqual(P.paymentsScopeKeys("lessons"), ["period_mode", "billing_anchor", "admin_can_manage", "accounting_start_date", "lessons_per_payment", "expiring_lessons"]);
   const junk = { lessons_per_payment: NaN, expiring_lessons: 99, expiring_days: NaN, billing_day: 40 };
   // a calendar card: the package fields and the day are hidden, a leftover in them does not block
   assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), null);
   assert.match(P.validatePaymentSettings({ ...ok, ...junk, period_mode: "calendar", billing_anchor: "payment_date" }, "payments"), /в днях/);
   // fixed day: the day counts
-  assert.match(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "fixed_day" }, "payments"), /Единый день оплаты/);
+  assert.match(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, period_mode: "calendar", billing_anchor: "fixed_day" }, "payments"), /День, с которого начинается общий месяц/);
   assert.equal(P.validatePaymentSettings({ ...ok, ...junk, expiring_days: 3, billing_day: 10, period_mode: "calendar", billing_anchor: "fixed_day" }, "payments"), null);
   // a package: the days are hidden
   assert.equal(P.validatePaymentSettings({ ...ok, ...junk, lessons_per_payment: 12, expiring_lessons: 3, period_mode: "lessons" }, "payments"), null);

@@ -26,6 +26,7 @@ import { statementHref } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
+import { RecalcNote } from "./recalc-note";
 
 /**
  * The printed sheet.  The page chrome (menu, header strip, buttons) has `print:hidden`; the sheet is
@@ -132,6 +133,7 @@ export function ReceiptSheet({ receipt }: { receipt: ReceiptOut }) {
               ))}
             </ul>
           )}
+          <RecalcNote lines={receipt.recalc} testId="receipt-recalc" />
           <div className="mt-2 space-y-0.5 text-xs text-slate-600">
             {facts.debtBefore && <p>{facts.debtBefore}</p>}
             {facts.after && <p className="font-medium text-slate-800">{facts.after}</p>}

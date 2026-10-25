@@ -850,7 +850,7 @@ export function regimeChanges(changes: Record<string, unknown>): Record<string, 
 }
 
 /** The decision 3 sentence of «Настройки оплат» and of the payroll help. */
-export const CANCELLED_LESSON_TEXT = "Отменённый центром урок не уменьшает оплату месяца; в пакетах он не списывается. Зарплата считается только за проведённые уроки; списанные центром дни оплачены для зарплаты.";
+export const CANCELLED_LESSON_TEXT = "Отменённый центром урок не уменьшает оплату месяца, пока не включён перерасчёт (ниже); в пакетах он не списывается. Зарплата считается только за проведённые уроки; списанные центром дни оплачены для зарплаты.";
 
 // ── Import: the opening balances of the template (columns F-H of the sheet «Ученики») ──────────
 

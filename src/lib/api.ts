@@ -27,6 +27,7 @@ import type {
   WithdrawBatchOut,
 } from "./substitution-types";
 import { loginUrlForPage } from "./safe-redirect";
+import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
 import type {
   EnrolPriceOverride,
@@ -1618,6 +1619,8 @@ export const orgApi = {
       records: Record<string, AttendanceStatus>;
       correctionReason?: string;
       cancellationReason?: string;
+      /** PAY-F: only with a cancellation; absent = «по вине центра». */
+      cancellationKind?: CancellationKind;
       /** student_id -> reason (3..300) for every newly "excused" student. */
       excuseReasons?: Record<string, string>;
       /** LOGIC-B (O7): the version this screen saw; another one on the server answers 409 ATTENDANCE_CONFLICT. */
@@ -1642,9 +1645,19 @@ export const orgApi = {
 
   cancelMissedGroupAttendance: (
     groupId: string,
-    data: { lessonDate: string; lessonId: string; cancellationReason: string },
+    data: { lessonDate: string; lessonId: string; cancellationReason: string; cancellationKind?: CancellationKind },
   ) =>
     api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+
+  // ── PAY-F: «Выходной день центра» (owner / admin) ───────────────────────
+  previewDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo" | "reason">) =>
+    api<DayOffPlan>("/auth/org/days-off/preview", { method: "POST", body }),
+  createDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo" | "reason">) =>
+    api<DayOffApplied>("/auth/org/days-off", { method: "POST", body }),
+  listDaysOff: () => api<DayOffOut[]>("/auth/org/days-off"),
+  dayOffForDate: (date: string) => api<DayOffForDate>(`/auth/org/days-off/for-date?date=${encodeURIComponent(date)}`),
+  voidDayOff: (id: string, dryRun = false) =>
+    api<DayOffVoided>(`/auth/org/days-off/${encodePathId(id)}/void${dryRun ? "?dry_run=true" : ""}`, { method: "POST" }),
 
   // ── Excused absences (admin / owner) ──────────────────────────────────
   listAttendanceExcuses: (q: AttendanceExcuseQuery = {}) => {

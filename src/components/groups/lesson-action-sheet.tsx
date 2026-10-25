@@ -20,6 +20,8 @@ import {
 } from "@/lib/schedule-card-actions";
 import type { LessonMark } from "@/lib/substitutions";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
+import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
 
@@ -72,6 +74,7 @@ export function LessonActionSheet({
 }) {
   const [mode, setMode] = useState<Mode>("menu");
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const [newDate, setNewDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
@@ -175,7 +178,7 @@ export function LessonActionSheet({
         setMode("menu");
         onChanged("Урок перенесён");
       } else {
-        await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed });
+        await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, cancellationKind: kind });
         setMode("menu");
         onChanged("Урок отменён");
       }
@@ -312,6 +315,7 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-reason" className={LABEL}>Причина отмены</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
+              <CancellationKindField value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} />
               {examState.loading && <p role="status" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Проверяем экзамены группы…</p>}
               {examState.message && (
                 <div data-testid="exam-binding">
