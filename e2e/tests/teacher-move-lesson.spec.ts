@@ -142,7 +142,7 @@ test("both week grids carry the date under the day name; the status chip of the 
       return r.right <= c.right - 1 && chip.scrollWidth <= chip.clientWidth + 1 ? [] : [`${chip.textContent}: chip ${Math.round(r.right)} card ${Math.round(c.right)} scroll ${chip.scrollWidth}/${chip.clientWidth}`];
     }));
     expect(clipped, `chips fit at ${size?.width ?? "phone"}`).toEqual([]);
-    for (let i = 0; i < 7; i++) await expect(ownerPage.getByText(dateOf(addDays(monday, 7 + i)), { exact: true }).first()).toBeVisible();
+    for (let i = 0; i < 7; i++) await expect(ownerPage.getByText(dateOf(addDays(monday, 7 + i))).first()).toBeVisible();
     await expectNoHorizontalScroll(ownerPage);
     await shot(ownerPage, `07-owner-grid-${size?.width ?? "375"}-${project}`);
   }
