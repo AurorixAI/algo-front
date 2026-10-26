@@ -9,7 +9,7 @@ function Bar({ p, thin }: { p: Progress; thin?: boolean }) {
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={p.total}
-      aria-valuenow={p.used}
+      aria-valuenow={p.left}
       aria-label={p.ariaLabel}
       data-testid="package-bar"
       data-tone={p.tone}

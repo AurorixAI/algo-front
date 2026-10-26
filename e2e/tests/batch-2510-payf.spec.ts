@@ -153,7 +153,7 @@ test.describe("package centre", () => {
     await expect(progress).toContainText("Осталось 12 из 12 уроков");
     await expect(progress.getByTestId("package-forecast")).toHaveText(`Хватит примерно до ${dm(twelfth)} по расписанию`);
     const bar = progress.getByRole("progressbar");
-    await expect(bar).toHaveAttribute("aria-valuenow", "0");
+    await expect(bar).toHaveAttribute("aria-valuenow", "12"); // the bar shows what is LEFT: full when bought
     await expect(bar).toHaveAttribute("aria-valuemax", "12");
     await expect(bar).toHaveAttribute("data-tone", "ok");
     // nothing is pushed aside: the chip is one line, the teacher line of the heading is not broken, no sideways scroll (long group name)

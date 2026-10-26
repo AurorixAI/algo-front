@@ -11,7 +11,7 @@ export interface PackageProgress {
   total: number;
   left: number;
   used: number;
-  /** 0..100, the share of the package that is used. */
+  /** 0..100, the share of the package that is LEFT (the bar reads like its words «Осталось 8 из 12»: full when bought, empty when used up). */
   percent: number;
   tone: PackageTone;
   /** «Осталось 8 из 12 уроков». */
@@ -45,12 +45,12 @@ export function packageProgress(row: Row): PackageProgress | null {
   else if (row.paid_through_forecast === null) forecastLine = "Прогноз недоступен";
   const verb = left === 1 ? "Остался" : "Осталось";
   return {
-    total, left, used, percent: Math.round((used / total) * 100), tone,
+    total, left, used, percent: Math.round((left / total) * 100), tone,
     leftText: `${verb} ${left} из ${total} уроков`,
     forecastLine,
     forecastDay: left > 0 ? day : null,
     shortText: `${left}/${total} уроков`,
-    ariaLabel: `Пакет уроков: использовано ${used} из ${total}`,
+    ariaLabel: `Пакет уроков: осталось ${left} из ${total}`,
   };
 }
 

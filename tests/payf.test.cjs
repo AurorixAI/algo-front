@@ -53,7 +53,7 @@ test("1. the amber chip of a package that runs out is short too; its progress li
   const chip = P.membershipChip({ ...PACKAGE, status: "expiring", lessons_left: 2, debt: 0, last_payment: { id: "p" }, paid_through_forecast: "2026-10-23" });
   assert.equal(chip.label, "Скоро закончится");
   const p = require(path.join(root, "src/lib/package-progress.ts")).packageProgress({ ...PACKAGE, status: "expiring", lessons_left: 2, paid_through_forecast: "2026-10-23" });
-  assert.deepEqual([p.tone, p.leftText, p.forecastLine, p.shortText, p.percent], ["warning", "Осталось 2 из 12 уроков", "Хватит примерно до 23.10 по расписанию", "2/12 уроков", 83]);
+  assert.deepEqual([p.tone, p.leftText, p.forecastLine, p.shortText, p.percent], ["warning", "Осталось 2 из 12 уроков", "Хватит примерно до 23.10 по расписанию", "2/12 уроков", 17]);
   assert.equal(chip.tone, "warning");
 });
 
@@ -349,10 +349,10 @@ test("3. the sheet of a cancelled lesson offers «Изменить причин�
 test("the package as a progress line: the text, the share used, the forecast line, the tone of the state, the bar for the screen reader", () => {
   const { packageProgress } = require(path.join(root, "src/lib/package-progress.ts"));
   const p = packageProgress({ ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" });
-  assert.deepEqual([p.leftText, p.percent, p.tone, p.forecastLine, p.forecastDay, p.shortText], ["Осталось 8 из 12 уроков", 33, "ok", "Хватит примерно до 21.11 по расписанию", "21.11", "8/12 уроков"]);
+  assert.deepEqual([p.leftText, p.percent, p.tone, p.forecastLine, p.forecastDay, p.shortText], ["Осталось 8 из 12 уроков", 67, "ok", "Хватит примерно до 21.11 по расписанию", "21.11", "8/12 уроков"]);
   assert.equal(packageProgress({ ...PACKAGE, lessons_left: 1 }).leftText, "Остался 1 из 12 уроков");
   const over = packageProgress({ ...PACKAGE, status: "expired", lessons_left: 0, paid_through_forecast: null });
-  assert.deepEqual([over.tone, over.forecastLine, over.percent, over.forecastDay], ["danger", "Пакет закончился", 100, null]);
+  assert.deepEqual([over.tone, over.forecastLine, over.percent, over.forecastDay], ["danger", "Пакет закончился", 0, null]);
   assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: null }).forecastLine, "Прогноз недоступен");
   assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: undefined }).forecastLine, null);          // an older server: no line
   assert.equal(packageProgress({ ...PACKAGE, period_mode: "calendar" }), null);                                  // a monthly mode: nothing changes
@@ -363,9 +363,9 @@ test("the package as a progress line: the text, the share used, the forecast lin
   const { PackageProgress } = require(path.join(root, "src/components/payments/package-progress.tsx"));
   const card = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" } }));
   assert.match(card, /role="progressbar"/);
-  assert.match(card, /aria-valuenow="4"/);
+  assert.match(card, /aria-valuenow="8"/);
   assert.match(card, /aria-valuemax="12"/);
-  assert.match(card, /aria-label="Пакет уроков: использовано 4 из 12"/);
+  assert.match(card, /aria-label="Пакет уроков: осталось 8 из 12"/);
   assert.match(card, /Осталось 8 из 12 уроков/);
   assert.match(card, /Хватит примерно до 21\.11 по расписанию/);
   const small = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" }, variant: "compact" }));
