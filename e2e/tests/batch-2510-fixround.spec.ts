@@ -246,7 +246,8 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   // the cards carry ONE short line each
   await expect(section.getByText("Месяц считается с первого занятия ученика")).toBeVisible();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
-  const before = (await line.boundingBox())!;
+  const gap = async () => (await section.getByRole("radio", { name: /Свой месяц/ }).boundingBox())!.y - (await line.boundingBox())!.y;   // the page may scroll; what stands between the line and the cards must not change
+  const before = await gap();
   await expectNoHorizontalScroll(page);
   await shot(page, `28-settings-payments-calm-monthly-${project}`);
 
@@ -265,8 +266,7 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expect(section.getByTestId("regime-hint")).toBeVisible();
   await expect(section.getByTestId("package-cancel-hint")).toBeVisible();
   await expect(section.getByTestId("centre-cancel-setting")).toHaveCount(0);
-  const after = (await line.boundingBox())!;
-  expect(Math.abs(after.y - before.y), "the line at the top does not jump").toBeLessThan(2);
+  expect(Math.abs((await gap()) - before), "the line at the top does not jump").toBeLessThan(2);
   await expectNoHorizontalScroll(page);
   await shot(page, `28-settings-payments-calm-package-${project}`);
 
