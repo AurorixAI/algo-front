@@ -177,12 +177,18 @@ test.describe("package centre", () => {
     await expect(small).toContainText(`до ${dm(twelfth)}`);
     await expect(small.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
     await expectNoHorizontalScroll(page);
-    await shot(page, `22-package-table-group-${project}`);
+    await shot(page, `26-group-payments-table-${project}`);
+    if (project === "desktop") {                                              // the columns have room at 1440 too
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await expectNoHorizontalScroll(page);
+      await shot(page, `26-group-payments-table-1440`);
+      await page.setViewportSize({ width: 1280, height: 800 });
+    }
     await page.goto("/owner/payments");
     await page.getByRole("tab", { name: /Без долга/ }).click();
     await expect(page.getByTestId("package-progress-compact").first()).toContainText("12/12 уроков");
     await expectNoHorizontalScroll(page);
-    await shot(page, `22-package-table-list-${project}`);
+    await shot(page, `26-payments-list-${project}`);
 
     // --- 4. a day off of the centre on the second lesson: the dry run says what happens, then «Отменить уроки»
     const [, second] = upcoming(days, 2);
