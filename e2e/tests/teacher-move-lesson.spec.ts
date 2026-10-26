@@ -33,7 +33,7 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   const pupil = await org.addStudent(group, "Анвар", "Ученик");
   const nextMonday = addDays(mondayOf(businessNow().date), 7);
   const nextWednesday = addDays(nextMonday, 2);
-  const lesson = await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: 1, startTime: "10:00", endTime: "11:30", topic: "Алгебра" });
+  const lesson = await org.owner.api.post("/auth/org/schedule/lessons", { groupId: group.id, dayOfWeek: 1, startTime: "10:00", endTime: "11:30", topic: "Алгебра", validFrom: nextMonday });   // from next Monday: a Monday run after 10:00 would refuse a lesson of today that has started
 
   // --- 1. the teacher: the week -> next week -> the Monday lesson -> «Перенести урок»
   const page = await signIn(teacher);

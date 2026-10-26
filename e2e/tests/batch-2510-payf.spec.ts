@@ -168,6 +168,7 @@ test.describe("package centre", () => {
     await expectNoHorizontalScroll(page);
     await shot(page, `22-package-table-group-${project}`);
     await page.goto("/owner/payments");
+    await page.getByRole("tab", { name: /^Оплачено/ }).click();
     await expect(page.getByTestId("package-progress-compact").first()).toContainText("12/12 уроков");
     await expectNoHorizontalScroll(page);
     await shot(page, `22-package-table-list-${project}`);
