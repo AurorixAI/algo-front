@@ -97,8 +97,24 @@ test("[3][4] the words of a taken off / replaced substitution are the same in th
 
 test("the teacher's lesson panel: «Не смогу провести» and «Перенести урок» are ONE flex row, an empty row takes no room", () => {
   const src = read("src/components/substitutions/teacher-lesson-controls.tsx");
-  assert.match(src, /className="mb-4 flex flex-wrap items-start gap-2 empty:hidden"/);
+  assert.match(src, /className="mb-4 flex flex-wrap items-start gap-1.5 empty:hidden sm:gap-2"/);
   assert.doesNotMatch(read("src/components/substitutions/request-control.tsx"), /<div className="mb-4">/);
   assert.doesNotMatch(read("src/components/substitutions/teacher-move-control.tsx"), /"mb-4"/);
   for (const page of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(page), /<TeacherLessonControls/);
+});
+
+test("settings, package mode: «Уроки, отменённые центром» is not rendered, one quiet hint is (the words from payf-settings.ts)", () => {
+  const { PACKAGE_CANCEL_HINT_TEXT, PACKAGE_CANCEL_HINT_TITLE } = require(path.join(root, "src/lib/payf-settings.ts"));
+  assert.equal(PACKAGE_CANCEL_HINT_TITLE, "Отменённые уроки считаются автоматически");
+  assert.equal(PACKAGE_CANCEL_HINT_TEXT, "Из пакета списываются только проведённые уроки. Урок, отменённый по вине центра или в праздник, пакет не тратит — пакет продлится на следующий урок.");
+  const page = read("src/app/owner/settings/page.tsx");
+  assert.match(page, /model === "lessons" \? <PackageCancelHint \/> : <CentreCancelSetting /);                // a package: the hint, not the block; the monthly modes: the block
+  assert.doesNotMatch(page, /PACKAGE_CANCEL_HINT|Отменённые уроки считаются/, "the words are not typed into the page");
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PackageCancelHint, CentreCancelSetting } = require(path.join(root, "src/components/payments/centre-cancel-setting.tsx"));
+  const hint = renderToStaticMarkup(React.createElement(PackageCancelHint));
+  assert.ok(hint.includes(PACKAGE_CANCEL_HINT_TITLE) && hint.includes(PACKAGE_CANCEL_HINT_TEXT));
+  assert.ok(!hint.includes("Не пересчитывать") && !hint.includes('type="radio"'));
+  assert.match(renderToStaticMarkup(React.createElement(CentreCancelSetting, { value: false, onChange() {} })), /data-testid="centre-cancel-setting"/);
 });

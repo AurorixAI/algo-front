@@ -25,7 +25,7 @@ export function TeacherLessonControls({
 }) {
   return (
     // ONE row (wraps only when the phone is too narrow); an empty row takes no room
-    <div data-testid="teacher-lesson-controls" className="mb-4 flex flex-wrap items-start gap-2 empty:hidden">
+    <div data-testid="teacher-lesson-controls" className="mb-4 flex flex-wrap items-start gap-1.5 empty:hidden sm:gap-2">
       <RequestControl lesson={lesson} mark={mark} lessonTeacherId={lessonTeacherId} lessonStatus={lessonStatus} onChanged={onChanged} />
       <TeacherMoveControl lesson={lesson} lessonTeacherId={lessonTeacherId} isSubstitution={isSubstitution} lessonStatus={lessonStatus} onDialogChange={onDialogChange} onMoved={onMoved} />
     </div>

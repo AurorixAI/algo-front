@@ -116,6 +116,11 @@ test.describe("package centre", () => {
     await section.getByRole("radio", { name: /Пакет уроков/ }).check();
     await section.getByLabel("Уроков в одной оплате").fill("12");
     await shot(page, `01-settings-package-${project}`);
+    // a package never charges a cancelled lesson: no setting «Уроки, отменённые центром», one quiet hint instead
+    await expect(section.getByTestId("centre-cancel-setting")).toHaveCount(0);
+    await expect(section.getByTestId("package-cancel-hint")).toContainText("Отменённые уроки считаются автоматически");
+    await expect(section.getByTestId("package-cancel-hint")).toContainText("пакет продлится на следующий урок");
+    await shot(page, `24-settings-package-hint-${project}`);
     await section.getByRole("button", { name: "Сохранить" }).click();
     await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible();
     expect(await org.owner.api.get("/auth/org/settings/payments")).toMatchObject({ period_mode: "lessons", lessons_per_payment: 12 });
@@ -168,7 +173,7 @@ test.describe("package centre", () => {
     await expectNoHorizontalScroll(page);
     await shot(page, `22-package-table-group-${project}`);
     await page.goto("/owner/payments");
-    await page.getByRole("tab", { name: /^Оплачено/ }).click();
+    await page.getByRole("tab", { name: /Без долга/ }).click();
     await expect(page.getByTestId("package-progress-compact").first()).toContainText("12/12 уроков");
     await expectNoHorizontalScroll(page);
     await shot(page, `22-package-table-list-${project}`);

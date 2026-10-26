@@ -1,6 +1,6 @@
 "use client";
 
-import { CENTRE_CANCEL_OPTIONS, CENTRE_CANCEL_TITLE } from "@/lib/payf-settings";
+import { CENTRE_CANCEL_OPTIONS, CENTRE_CANCEL_TITLE, PACKAGE_CANCEL_HINT_TEXT, PACKAGE_CANCEL_HINT_TITLE } from "@/lib/payf-settings";
 import { Radio } from "@/components/ui/radio";
 
 /**
@@ -26,5 +26,15 @@ export function CentreCancelSetting({ value, onChange }: { value: boolean; onCha
         ))}
       </div>
     </fieldset>
+  );
+}
+
+/** In the package mode: no setting, only the reason there is none. */
+export function PackageCancelHint() {
+  return (
+    <div className="space-y-0.5 px-1" data-testid="package-cancel-hint">
+      <p className="text-sm font-semibold text-slate-900">{PACKAGE_CANCEL_HINT_TITLE}</p>
+      <p className="text-xs text-slate-500">{PACKAGE_CANCEL_HINT_TEXT}</p>
+    </div>
   );
 }

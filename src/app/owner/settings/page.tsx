@@ -43,7 +43,7 @@ import {
 import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpeningsToReview, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { OpeningsChecklist } from "@/components/payments/openings-widgets";
-import { CentreCancelSetting } from "@/components/payments/centre-cancel-setting";
+import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
 import { CANCELLED_LESSON_TEXT, REGIME_HINT, regimeChanges, regimeImpactLines } from "@/lib/payments-logica";
@@ -449,7 +449,7 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
         />
       )}
 
-      {model !== "lessons" && <CentreCancelSetting value={form.centre_cancel_recalc} onChange={(next) => patch({ centre_cancel_recalc: next })} />}
+      {model === "lessons" ? <PackageCancelHint /> : <CentreCancelSetting value={form.centre_cancel_recalc} onChange={(next) => patch({ centre_cancel_recalc: next })} />}
 
       <div className="flex items-start justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
         <div>

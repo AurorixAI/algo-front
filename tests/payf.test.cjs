@@ -94,7 +94,7 @@ test("3. the setting «Уроки, отменённые центром» belongs
   assert.match(settings, /Уроки, отменённые центром, при помесячной оплате/);
   assert.match(settings, /label: "Не пересчитывать"/);
   assert.match(settings, /label: "Вычитать из следующей оплаты"/);
-  assert.match(read("src/app/owner/settings/page.tsx"), /model !== "lessons" && <CentreCancelSetting/);
+  assert.match(read("src/app/owner/settings/page.tsx"), /model === "lessons" \? <PackageCancelHint \/> : <CentreCancelSetting/);
 });
 
 test("3. the dialog of a cancellation asks «По вине центра» (default) or «Праздник, выходной» and sends it", () => {
