@@ -64,7 +64,7 @@ import { OpeningsBanner, OpeningsHeaderLink } from "./openings-widgets";
 const PAGE_SIZE = 50;
 
 /** Column templates of the wide layout (cards below `xl`). */
-const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_136px_minmax(0,1.4fr)_132px_196px] xl:items-center xl:gap-x-4";
+const GRID_DEFAULT = "xl:grid xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_128px_minmax(11.5rem,1.4fr)_132px_196px] xl:items-center xl:gap-x-6";
 
 const EMPTY_TEXT: Record<PaymentBucket, string> = {
   debt: "Должников нет",
@@ -397,8 +397,8 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
           <div className={`hidden border-b border-slate-100 bg-slate-50 px-5 py-2.5 text-[13px] font-semibold text-slate-500 ${GRID_DEFAULT}`}>
             <span>Ученик</span>
             <span className="text-center">Группа</span>
-            <span className="text-right">{priceLabelOf(periodMode)}</span>
-            <span className="text-center">Статус</span>
+            <span>{priceLabelOf(periodMode)}</span>
+            <span>Статус</span>
             <span className="text-center">Последняя оплата</span>
             <span className="text-right"><span className="sr-only">Действия</span></span>
           </div>
@@ -532,21 +532,21 @@ function PaymentRow({
       {student}
       {group}
 
-          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-right">
+          <div className="flex items-baseline justify-between gap-3 text-sm xl:block xl:text-left">
             <span className="text-xs text-slate-400 xl:hidden">{priceLabelOf(periodMode)}</span>
             {price.amount === null || price.amount === undefined ? (
               <Link href={groupPriceHref(groupsBasePath, row.group_id)} className="text-xs font-medium text-amber-800 hover:underline" title="Открыть группу и задать цену">
                 цена группы не задана
               </Link>
             ) : (
-              <span className="text-right">
+              <span className="text-right xl:text-left">
                 <span className="font-medium tabular-nums text-slate-800">{price.amount === 0 ? FREE_WORD : formatMoney(price.amount)}</span>
                 {tag && <span className="block text-[11px] text-primary-700" title={price.reason ?? undefined}>{tag}</span>}
               </span>
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-left">
             <Chip tone={moneyChipTone(chip.tone)}>{chip.label}</Chip>
             {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
             {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}

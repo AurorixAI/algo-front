@@ -572,12 +572,12 @@ test("F22 / F23 / F24: «Прикрепить» + object, «Настройки»
 
 test("F25: money is right-aligned, dates and counts are centred - the list of «Оплаты», «Цены групп», the payroll sheet", () => {
   const page = read("src/components/payments/payments-page.tsx");
-  assert.match(page, /<span className="text-right">\{priceLabelOf\(periodMode\)\}<\/span>/);
+  assert.match(page, /<span>\{priceLabelOf\(periodMode\)\}<\/span>/);          // 26.10: the price stands further left (left-aligned), the status has room for the chip and the bar
   assert.match(page, /<span className="text-center">Последняя оплата<\/span>/); // inc12: the date / amount / «—» of this column are centred
-  assert.match(page, /<span className="text-center">Статус<\/span>/);
+  assert.match(page, /<span>Статус<\/span>/);
   assert.match(read("src/components/payments/group-prices-page.tsx"), /aligns=\{\["left", "right", "right", "center", "right"\]\}/);
   assert.match(read("src/components/payroll/sheet-table.tsx"), /aria-label=\{priceColumn\} className=\{`\$\{HEAD\} text-right/);
-  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<span className="text-center">\{label\}<\/span>/); // inc12: price + «индивидуальная» chip are centred in their own column
+  assert.match(read("src/components/groups/group-payments-tab.tsx"), /<span>\{label\}<\/span>/); // 26.10: price + «индивидуальная» chip are left-aligned in their own column
 });
 
 // ── F14 / F17 / F34 / F36 ─────────────────────────────────────────────────────────────────────────────

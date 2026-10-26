@@ -50,7 +50,7 @@ import { MembershipRowActions } from "@/components/payments/membership-row-actio
 import { PaymentDialog } from "@/components/payments/payment-dialog";
 
 /** Student takes what is left; «price» and «payment» have their own fixed columns (their header and cells are centred), the actions stay right. */
-const GRID_COLS = "lg:grid-cols-[minmax(12rem,22rem)_152px_168px_minmax(272px,1fr)]"; // the student column is capped so «Цена в месяц» and «Оплата» sit close to the names (owner 23.10); the actions take the rest and stay right
+const GRID_COLS = "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]"; // the student column is capped so the price sits near the names (owner 23.10); «Цена» is left-aligned and «Оплата» has room for the chip and the bar (owner 26.10); the actions take the rest and stay right
 const PAGE = 500;
 const MAX_PAGES = 5;
 /** At most this many `price-override` calls at once (an older server: the author of an individual price is not in the list). */
@@ -273,10 +273,10 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
         </div>
       ) : (
         <section aria-label="Оплаты учеников группы" className="lg:overflow-hidden lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:shadow-sm">
-          <div role="presentation" className={`hidden items-center gap-x-4 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>
+          <div role="presentation" className={`hidden items-center gap-x-6 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>
             <span>Ученик</span>
-            <span className="text-center">{label}</span>
-            <span className="text-center">Оплата</span>
+            <span>{label}</span>
+            <span>Оплата</span>
             <span className="sr-only">Действия</span>
           </div>
           <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100">
@@ -329,7 +329,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
 function ChipView({ view }: { view: GroupPaymentRowView }) {
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center">
+    <div className="flex min-w-0 flex-col items-start gap-1.5">
       <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>
       <PackageProgress row={view.row} variant="compact" />
     </div>
@@ -347,7 +347,7 @@ function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; st
   );
 }
 
-const ROW = `flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-center lg:gap-x-4 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${GRID_COLS}`;
+const ROW = `flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 lg:grid lg:items-center lg:gap-x-6 lg:gap-y-0 lg:rounded-none lg:border-0 lg:bg-transparent lg:px-4 lg:py-3 ${GRID_COLS}`;
 
 function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, onPay }: {
   view: GroupPaymentRowView;
@@ -362,10 +362,10 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
     <li className={ROW} data-testid="group-payment-row" data-membership-id={view.membershipId} data-individual={view.individual ? "true" : "false"}>
       <StudentCell view={view} studentsBasePath={studentsBasePath} />
 
-      <div className="flex items-start justify-between gap-3 lg:block lg:text-center">
+      <div className="flex items-start justify-between gap-3 lg:block lg:text-left">
         <span className="shrink-0 text-xs text-slate-400 lg:hidden">{label}</span>
-        <div className="min-w-0 text-right lg:text-center">
-          <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 lg:flex-col lg:items-center lg:justify-center lg:gap-y-0.5">
+        <div className="min-w-0 text-right lg:text-left">
+          <p className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 lg:flex-col lg:items-start lg:justify-center lg:gap-y-0.5">
             <span className={`text-sm font-semibold tabular-nums ${view.priceMissing ? "text-amber-700" : "text-slate-900"}`} data-testid="group-payment-price">{view.priceText}</span>
             {view.individual && view.individualHint && (
               <Hint text={view.individualHint} side="below" width={280} className="inline-flex">
@@ -377,7 +377,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
         </div>
       </div>
 
-      <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
+      <div className="min-w-0 lg:flex lg:justify-start"><ChipView view={view} /></div>
 
       <div className="flex items-center gap-2 lg:justify-end">
         <button
@@ -410,8 +410,8 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
         <StudentCell view={view} studentsBasePath={studentsBasePath} />
         <p className="text-xs text-slate-400">ушёл из группы</p>
       </div>
-      <span className="text-center text-sm text-slate-400 max-lg:hidden">—</span>
-      <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
+      <span className="text-sm text-slate-400 max-lg:hidden">—</span>
+      <div className="min-w-0 lg:flex lg:justify-start"><ChipView view={view} /></div>
       <div className="flex items-center gap-2 lg:justify-end">
         {canPayLeftDebt(view.row) && (
           <button type="button" onClick={onPay} className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-3.5 py-2 text-center text-xs font-semibold text-white hover:bg-primary-700 lg:flex-none lg:py-1.5">

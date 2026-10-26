@@ -18,6 +18,8 @@ export interface PackageProgress {
   leftText: string;
   /** «Хватит примерно до 21.11 по расписанию» / «Пакет закончился» / «Прогноз недоступен»; null when the server sent no forecast field at all (an older server). */
   forecastLine: string | null;
+  /** The small line under the bar: «по расписанию» / «Пакет закончился» / «Прогноз недоступен»; null for an older server (no forecast field). */
+  forecastNote: string | null;
   /** «21.11» for the compact view (grey, secondary); null when there is none. */
   forecastDay: string | null;
   /** «8/12 уроков». */
@@ -48,6 +50,7 @@ export function packageProgress(row: Row): PackageProgress | null {
     total, left, used, percent: Math.round((left / total) * 100), tone,
     leftText: `${verb} ${left} из ${total} уроков`,
     forecastLine,
+    forecastNote: left === 0 ? "Пакет закончился" : day ? "по расписанию" : row.paid_through_forecast === null ? "Прогноз недоступен" : null,
     forecastDay: left > 0 ? day : null,
     shortText: `${left}/${total} уроков`,
     ariaLabel: `Пакет уроков: осталось ${left} из ${total}`,
@@ -55,6 +58,8 @@ export function packageProgress(row: Row): PackageProgress | null {
 }
 
 /** The classes of the bar by tone: the tones of the status chips (green normal, amber when it runs out, red when used up). */
-export const PACKAGE_FILL_CLASS: Record<PackageTone, string> = { ok: "bg-emerald-500", warning: "bg-amber-500", danger: "bg-rose-500", muted: "bg-slate-400" };
-export const PACKAGE_TEXT_CLASS: Record<PackageTone, string> = { ok: "text-emerald-700", warning: "text-amber-800", danger: "text-rose-700", muted: "text-slate-600" };
+export const PACKAGE_FILL_CLASS: Record<PackageTone, string> = { ok: "bg-emerald-500 dark:bg-emerald-400", warning: "bg-amber-500 dark:bg-amber-400", danger: "bg-rose-500 dark:bg-rose-400", muted: "bg-slate-400" };
+export const PACKAGE_TEXT_CLASS: Record<PackageTone, string> = { ok: "text-emerald-700 dark:text-emerald-300", warning: "text-amber-800 dark:text-amber-300", danger: "text-rose-700 dark:text-rose-300", muted: "text-slate-600 dark:text-slate-300" };
+/** Up to this many lessons the bar has one segment per lesson; a bigger package gets a solid bar. */
+export const PACKAGE_SEGMENTS_MAX = 24;
 

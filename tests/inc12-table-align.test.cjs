@@ -39,20 +39,20 @@ test("inc12-1: every row of «Незакрытые уроки» has the same act
   assert.ok(labels.includes("Открыть") && labels.includes("Отметить"));
 });
 
-test("inc12-2: group «Оплаты» - price and payment have their own fixed centred columns, student left, actions right", () => {
+test("inc12-2 (26.10): group «Оплаты» - the price is left-aligned and the payment column has room for the chip and the bar; student left, actions right", () => {
   const src = read("src/components/groups/group-payments-tab.tsx");
   const grid = const_(src, "GRID_COLS");
-  assert.equal(grid, "lg:grid-cols-[minmax(12rem,22rem)_152px_168px_minmax(272px,1fr)]");
+  assert.equal(grid, "lg:grid-cols-[minmax(12rem,19rem)_minmax(8.5rem,10rem)_minmax(11.5rem,14rem)_minmax(272px,1fr)]");
   const cols = grid.match(/\[(.*)\]/)[1].split("_");
   assert.equal(cols.length, 4);
-  assert.match(cols[1], /^\d+px$/, "price: fixed");
-  assert.match(cols[2], /^\d+px$/, "payment: fixed");
-  assert.match(src, /<span>Ученик<\/span>\s*<span className="text-center">\{label\}<\/span>\s*<span className="text-center">Оплата<\/span>/);
-  // the price cell: amount and the «индивидуальная» chip are a centred column on a desktop; the payment chip is centred
-  assert.match(src, /lg:block lg:text-center">\s*<span[^>]*lg:hidden">\{label\}/);
-  assert.match(src, /lg:flex-col lg:items-center lg:justify-center/);
-  assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-center"><ChipView view=\{view\} \/><\/div>/g) || []).length, 2, "payment chip centred in both row kinds");
-  assert.match(src, /<span className="text-center text-sm text-slate-400 max-lg:hidden">—<\/span>/, "the left-student dash is centred too");
+  assert.match(cols[2], /^minmax\(11\.5rem,/, "payment: room for the chip and the compact bar");
+  assert.match(src, /<span>Ученик<\/span>\s*<span>\{label\}<\/span>\s*<span>Оплата<\/span>/);
+  // the price cell: amount and the «индивидуальная» chip stand at the left of their column on a desktop; the payment chip and the bar too
+  assert.match(src, /lg:block lg:text-left">\s*<span[^>]*lg:hidden">\{label\}/);
+  assert.match(src, /lg:flex-col lg:items-start lg:justify-center/);
+  assert.equal((src.match(/<div className="min-w-0 lg:flex lg:justify-start"><ChipView view=\{view\} \/><\/div>/g) || []).length, 2, "payment chip at the left in both row kinds");
+  assert.match(src, /<span className="text-sm text-slate-400 max-lg:hidden">—<\/span>/);
+  assert.match(src, /lg:gap-x-6/, "the columns breathe: 24px between them");
   // the actions stay right
   assert.match(src, /<div className="flex items-center gap-2 lg:justify-end">/);
 });
@@ -64,7 +64,7 @@ test("inc12-3: «Оплаты» list - «Последняя оплата» heade
   assert.match(src, /<span className="text-right tabular-nums xl:block xl:text-center" title=\{lastPaymentLabel\(last\)\}>/);
   assert.match(src, /<span className="text-slate-400 xl:block xl:text-center" data-testid="last-payment-empty">—<\/span>/);
   // nothing else of the table moved
-  assert.match(src, /xl:grid-cols-\[minmax\(0,1\.2fr\)_minmax\(0,1fr\)_136px_minmax\(0,1\.4fr\)_132px_196px\]/);
+  assert.match(src, /xl:grid-cols-\[minmax\(0,1\.2fr\)_minmax\(0,1fr\)_128px_minmax\(11\.5rem,1\.4fr\)_132px_196px\]/);      // 26.10: the status column has room for the chip and the bar
 });
 
 test("inc12-4: journal «Оплаты» - Группа and Способ centred, Сумма a narrower fixed column to the left, right-aligned and tabular", () => {

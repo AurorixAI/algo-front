@@ -162,13 +162,13 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <p className="text-xs text-slate-500" data-testid="opening-summary">{openingSummary(row.opening)}</p>
       )}
 
-      {/* Row 2: what the student pays */}
-      <MembershipPriceLine row={row} periodMode={periodMode} groupsBasePath={groupsBasePath} />
-      {/* a package: the count, the bar and what the schedule promises (nothing for a monthly mode) */}
-      {editable && <PackageProgress row={row} />}
-
-      {/* IA audit F10: the one line left of the payment history; the history is «Выписка» */}
-      {lastLine && <p className="text-xs text-slate-500" data-testid="membership-last-payment">{lastLine}</p>}
+      {/* Row 2: what the student pays (left) and, for a package, what is left of it (right, under the chip and the buttons; on a phone under the price) */}
+      <div className="grid gap-y-2.5 lg:grid-cols-[minmax(0,1fr)_minmax(14rem,19rem)] lg:gap-x-8 [grid-template-areas:'price'_'progress'_'last'] lg:[grid-template-areas:'price_progress'_'last_progress']">
+        <div className="min-w-0 [grid-area:price]"><MembershipPriceLine row={row} periodMode={periodMode} groupsBasePath={groupsBasePath} /></div>
+        {editable && <PackageProgress row={row} className="[grid-area:progress] lg:self-start" />}
+        {/* IA audit F10: the one line left of the payment history; the history is «Выписка» */}
+        {lastLine && <p className="min-w-0 text-xs text-slate-500 [grid-area:last]" data-testid="membership-last-payment">{lastLine}</p>}
+      </div>
 
       <PaymentDialog
         open={form !== null}

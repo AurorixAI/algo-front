@@ -151,10 +151,12 @@ test.describe("package centre", () => {
     await expect(chip).toHaveText("Оплачено");
     const progress = page.getByTestId("package-progress");
     await expect(progress).toContainText("Осталось 12 из 12 уроков");
-    await expect(progress.getByTestId("package-forecast")).toHaveText(`Хватит примерно до ${dm(twelfth)} по расписанию`);
+    await expect(progress.getByTestId("package-forecast-day")).toHaveText(`до ~${dm(twelfth)}`);
+    await expect(progress.getByTestId("package-forecast")).toHaveText("по расписанию");
     const bar = progress.getByRole("progressbar");
     await expect(bar).toHaveAttribute("aria-valuenow", "12"); // the bar shows what is LEFT: full when bought
     await expect(bar).toHaveAttribute("aria-valuemax", "12");
+    await expect(bar).toHaveAttribute("data-segments", "12");                // one segment per lesson
     await expect(bar).toHaveAttribute("data-tone", "ok");
     // nothing is pushed aside: the chip is one line, the teacher line of the heading is not broken, no sideways scroll (long group name)
     expect((await chip.boundingBox())!.height).toBeLessThan(32);
@@ -162,7 +164,11 @@ test.describe("package centre", () => {
     expect((await teacherLine.boundingBox())!.height).toBeLessThan(project === "mobile" ? 60 : 32);
     await expect(page.getByText(/осталось 12 уроков из 12|хватит до ~/)).toHaveCount(0);       // the old long chip is gone
     await expectNoHorizontalScroll(page);
-    await shot(page, `22-package-card-${project}`);
+    // desktop: the progress block stands on the RIGHT, under the chip and the buttons; a phone: under the price
+    const where = (await progress.boundingBox())!, price = (await page.getByText(/за пакет/).first().boundingBox())!;
+    if (project === "mobile") expect(where.y).toBeGreaterThan(price.y);
+    else { expect(where.x).toBeGreaterThan(price.x + 200); expect(where.x + where.width).toBeLessThanOrEqual(page.viewportSize()!.width); }
+    await shot(page, `25-package-card-${project}`);
 
     // the tables: the group's «Оплаты» tab and the list of payments show the same package as a compact line
     await page.goto(`/owner/groups/${group.id}?tab=payments`);
@@ -199,7 +205,7 @@ test.describe("package centre", () => {
     await expect.poll(async () => (await org.owner.api.get(`/auth/org/students/${student.id}/memberships`)).find((r: any) => r.membership_id === membership).paid_through_forecast).toBe(moved);
     await page.goto(`/owner/students/${student.id}`);
     await page.getByRole("tab", { name: "Оплаты" }).click();
-    await expect(page.getByTestId("package-forecast")).toHaveText(`Хватит примерно до ${dm(moved)} по расписанию`);
+    await expect(page.getByTestId("package-forecast-day")).toHaveText(`до ~${dm(moved)}`);
     await expectNoHorizontalScroll(page);
     await shot(page, `05-student-forecast-moved-${project}`);
     // the attendance of the student says why the lesson did not take place (the month of the day off)

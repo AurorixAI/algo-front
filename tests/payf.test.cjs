@@ -352,7 +352,7 @@ test("the package as a progress line: the text, the share used, the forecast lin
   assert.deepEqual([p.leftText, p.percent, p.tone, p.forecastLine, p.forecastDay, p.shortText], ["Осталось 8 из 12 уроков", 67, "ok", "Хватит примерно до 21.11 по расписанию", "21.11", "8/12 уроков"]);
   assert.equal(packageProgress({ ...PACKAGE, lessons_left: 1 }).leftText, "Остался 1 из 12 уроков");
   const over = packageProgress({ ...PACKAGE, status: "expired", lessons_left: 0, paid_through_forecast: null });
-  assert.deepEqual([over.tone, over.forecastLine, over.percent, over.forecastDay], ["danger", "Пакет закончился", 0, null]);
+  assert.deepEqual([over.tone, over.forecastLine, over.percent, over.forecastDay, over.forecastNote], ["danger", "Пакет закончился", 0, null, "Пакет закончился"]);
   assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: null }).forecastLine, "Прогноз недоступен");
   assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: undefined }).forecastLine, null);          // an older server: no line
   assert.equal(packageProgress({ ...PACKAGE, period_mode: "calendar" }), null);                                  // a monthly mode: nothing changes
@@ -367,7 +367,13 @@ test("the package as a progress line: the text, the share used, the forecast lin
   assert.match(card, /aria-valuemax="12"/);
   assert.match(card, /aria-label="Пакет уроков: осталось 8 из 12"/);
   assert.match(card, /Осталось 8 из 12 уроков/);
-  assert.match(card, /Хватит примерно до 21\.11 по расписанию/);
+  assert.match(card, /до ~21\.11/);                                                                       // the date on the right of the count
+  assert.match(card, />по расписанию</);                                                                  // the small line under the bar
+  assert.equal((card.match(/data-filled="1"/g) || []).length, 8);                                        // one segment per lesson: 8 left are filled, 4 used are quiet
+  assert.equal((card.match(/data-filled="0"/g) || []).length, 4);
+  const big = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_total: 30, lessons_left: 15 } }));
+  assert.doesNotMatch(big, /data-filled/);                                                               // a bigger package (> 24): a solid bar
+  assert.match(big, /width:50%/);
   const small = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" }, variant: "compact" }));
   assert.match(small, /8\/12 уроков/);
   assert.match(small, /до 21\.11/);
