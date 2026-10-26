@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { Org, type GroupInfo } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { expectNoHorizontalScroll, expectWithinViewport, fillDate, fillTime, toast } from "../support/ui";
+import { expectNoHorizontalScroll, expectWithinViewport, fillDate, fillTime, openLessonMenu, toast } from "../support/ui";
 
 /**
  * «Пакет 25.10», the round after the stage walk:
@@ -198,4 +198,28 @@ test("three weekdays at once: one request per weekday and ONE line about a busy 
   expect(posts).toHaveLength(3);
   await expectNoHorizontalScroll(page);
   await shot(page, `21-room-busy-one-line-${project}`);
+});
+
+test("the last hour: «Перенести урок» is a disabled row of the «⋯» menu with the reason; «Не смогу провести» and the cancellation stay; the menu is grouped @mobile", async ({ signIn }, info) => {
+  test.setTimeout(180_000);
+  const project = info.project.name;
+  const org = await Org.create("Меню 25.10");
+  const teacher = await org.addStaff("teacher", "Меню");
+  const group = await org.createGroup({ name: "Группа М-1", teacherId: teacher.userId });
+  await org.addStudent(group, "Анвар", "Ученик");
+  await org.createLessonStartingNow(group.id, org.owner, 20, 3);          // starts in 3 minutes: inside the last hour
+  const page = await signIn(teacher);
+  await page.goto("/teacher/schedule");
+  await page.getByText(group.name, { exact: true }).first().click();
+  await expect(page.getByTestId("teacher-lesson-controls")).toHaveCount(1);
+  const menu = await openLessonMenu(page);
+  const move = menu.getByTestId("lesson-menu-move");
+  await expect(move).toHaveAttribute("aria-disabled", "true");
+  await expect(move).toContainText("Перенести можно не позднее чем за 60 минут до начала");
+  await move.click();                                                       // an off row does nothing
+  await expect(page.getByRole("dialog").filter({ has: page.getByLabel("Новая дата") })).toHaveCount(0);
+  await expect(menu.getByTestId("lesson-menu-request")).not.toHaveAttribute("aria-disabled", "true");
+  await expect(menu.getByTestId("lesson-menu-cancel")).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await shot(page, `27-teacher-panel-menu-last-hour-${project}`);
 });

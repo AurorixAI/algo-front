@@ -58,7 +58,7 @@ import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { DayHeading } from "@/components/schedule/day-heading";
-import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
+import { LessonActionsMenu, TeacherLessonControls, type LessonMenuGroup, teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
 import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
@@ -188,8 +188,8 @@ export default function TeacherSchedulePage() {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all");
   const [isGroupFilterOpen, setIsGroupFilterOpen] = useState(false);
   const groupFilterTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isRecurringActionsOpen, setIsRecurringActionsOpen] = useState(false);
-  const recurringActionsButtonRef = useRef<HTMLButtonElement>(null);
+  const lessonActions = useTeacherLessonActions();
+  const { menuOpen: isRecurringActionsOpen, setMenuOpen: setIsRecurringActionsOpen } = lessonActions;      // «Перенести урок» / «Не смогу провести»: rows of the «⋯» menu below
   const [viewMode, setViewMode] = useState<"today" | "week">("today");
   const [weekOffset, setWeekOffset] = useState(0);
   const weekPeriod = useMemo(() => ({
@@ -430,6 +430,8 @@ export default function TeacherSchedulePage() {
   // closing before this window listener runs: the state would then already say «no dialog» and the panel would close with the same key.
   // So the question «is a dialog above the panel?» is asked in the capture phase, before any of them has reacted.
   const weeklyDialogOpenRef = useRef(false);
+  const { reset: resetLessonActions } = lessonActions;
+  useEffect(() => { resetLessonActions(); }, [activeLesson?.id, activeLesson?.occurrenceDate, resetLessonActions]);   // a new lesson starts with no dialog and no stale menu rows
   const moveHoldsEscape = useRef(false);       // the move dialog (TeacherMoveControl) is above the panel
   weeklyDialogOpenRef.current = Boolean(endingRecurringLesson || editingLesson);
   const escapeBelongsToDialogRef = useRef(false);
@@ -1438,6 +1440,39 @@ export default function TeacherSchedulePage() {
     );
   }
 
+  // the «⋯» menu of the lesson panel: ONE place for what can be done with the lesson, in groups by meaning
+  const lessonMenuGroups: LessonMenuGroup[] = [
+              {
+                label: "Этот урок",
+                items: [
+                  ...teacherLessonMenuItems(lessonActions, () => setIsRecurringActionsOpen(false)),
+                  ...(isManager && activeLesson && canReplaceTeacher(user?.org_role ?? null, activeLessonStatus) ? [{
+                    key: "replace", label: REPLACE_TEACHER_ACTION, hint: "Только на выбранную дату.", icon: GraduationCap,
+                    onSelect: () => {
+                      setIsRecurringActionsOpen(false);
+                      setTeacherTarget({
+                        groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate,
+                        startTime: activeLesson.startTime, endTime: activeLesson.endTime, info: activeLesson,
+                      });
+                      // the lesson panel is a layer of its own above the dialogs: it gives way to the dialog
+                      setActiveLesson(null);
+                    },
+                  }] : []),
+                  ...(activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson ? [{
+                    key: "cancel", label: "Отменить этот урок", hint: "Только выбранная дата; потребуется причина.", icon: X, tone: "danger" as const,
+                    onSelect: () => { setIsRecurringActionsOpen(false); void openCancelLessonPanel(); },
+                  }] : []),
+                ],
+              },
+              {
+                label: "Постоянное расписание",
+                items: canReviseRecurringSchedule ? [{
+                  key: "end-series", label: "Прекратить регулярные занятия", hint: "Будущие уроки остановятся с выбранной даты.", icon: X, tone: "danger" as const,
+                  onSelect: () => { setIsRecurringActionsOpen(false); if (activeLesson) openEndRecurringModal(activeLesson); },
+                }] : [],
+              },
+            ];
+
   return (
     <div className="space-y-6 w-full max-w-[1600px] mx-auto pb-16">
       {/* Header */}
@@ -2333,7 +2368,7 @@ export default function TeacherSchedulePage() {
                     groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate,
                     startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
                   }}
-                  mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeLessonStatus}
+                  mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeLessonStatus} actions={lessonActions}
                   onChanged={() => { void loadData(); }}
                   onMoved={(text) => { setActiveLesson(null); showToast(text); void reloadAfterWeeklyChange(); }}
                   onDialogChange={(open) => { moveHoldsEscape.current = open; }}
@@ -2769,20 +2804,7 @@ export default function TeacherSchedulePage() {
                   )}
 
                   {(canReviseRecurringSchedule || (activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson)) && (
-                    <div className="shrink-0">
-                      <button
-                        type="button"
-                        ref={recurringActionsButtonRef}
-                        onClick={() => setIsRecurringActionsOpen((isOpen) => !isOpen)}
-                        aria-label="Дополнительные действия с уроком"
-                        aria-haspopup="menu"
-                        aria-expanded={isRecurringActionsOpen}
-                        aria-controls={isRecurringActionsOpen ? "lesson-actions-menu" : undefined}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </button>
-                    </div>
+                    <LessonActionsMenu open={isRecurringActionsOpen} onOpenChange={setIsRecurringActionsOpen} groups={lessonMenuGroups} />
                   )}
                 </div>
 
@@ -2816,84 +2838,6 @@ export default function TeacherSchedulePage() {
         document.body
       )}
 
-      {/* This menu is portalled out of the scrollable lesson dialog.  It can
-          therefore open downward without creating horizontal scrollbars or
-          being clipped by the modal's own overflow boundary. */}
-      <FloatingPanel
-        id="lesson-actions-menu"
-        open={Boolean(mounted && activeLesson && isRecurringActionsOpen)}
-        triggerRef={recurringActionsButtonRef}
-        onClose={() => setIsRecurringActionsOpen(false)}
-        width={256}
-        role="menu"
-        label="Дополнительные действия с уроком"
-        zIndexClass="z-[100001]"
-        className="rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5"
-      >
-            {activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsRecurringActionsOpen(false);
-                  openCancelLessonPanel();
-                }}
-                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-rose-700 transition-colors hover:bg-rose-50"
-              >
-                <X className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  <span className="block font-semibold">Отменить этот урок</span>
-                  <span className="mt-0.5 block leading-relaxed text-rose-600/80">Только выбранная дата; потребуется причина.</span>
-                </span>
-              </button>
-            )}
-            {isManager && activeLesson && canReplaceTeacher(user?.org_role ?? null, activeLessonStatus) && (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsRecurringActionsOpen(false);
-                  setTeacherTarget({
-                    groupId: activeLesson.groupId,
-                    lessonId: activeLesson.id,
-                    lessonDate: activeLesson.occurrenceDate,
-                    startTime: activeLesson.startTime,
-                    endTime: activeLesson.endTime,
-                    info: activeLesson,
-                  });
-                  // the lesson panel is a layer of its own above the dialogs: it gives way to the dialog
-                  setActiveLesson(null);
-                }}
-                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50"
-              >
-                <GraduationCap className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" />
-                <span>
-                  <span className="block font-semibold">{REPLACE_TEACHER_ACTION}</span>
-                  <span className="mt-0.5 block leading-relaxed text-slate-500">Только на выбранную дату.</span>
-                </span>
-              </button>
-            )}
-            {canReviseRecurringSchedule && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && !isCancellingLesson && (
-              <div className="mx-2 my-1 border-t border-slate-100" />
-            )}
-            {canReviseRecurringSchedule && (
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setIsRecurringActionsOpen(false);
-                  if (activeLesson) openEndRecurringModal(activeLesson);
-                }}
-                className="flex w-full items-start gap-2.5 rounded-xl px-3 py-2.5 text-left text-xs text-rose-700 transition-colors hover:bg-rose-50"
-              >
-                <X className="mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  <span className="block font-semibold">Прекратить регулярные занятия</span>
-                  <span className="mt-0.5 block leading-relaxed text-rose-600/80">Будущие уроки остановятся с выбранной даты.</span>
-                </span>
-              </button>
-            )}
-      </FloatingPanel>
 
       {/* MODAL: ADD LESSON */}
       {mounted &&

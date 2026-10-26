@@ -1,14 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, Clock, Loader2, UserMinus } from "lucide-react";
+import { AlertCircle, Clock, Loader2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-time";
 import { useAuthStore } from "@/lib/store";
 import { useNow } from "@/lib/use-now";
 import {
   REQUESTED_LABEL,
-  REQUEST_ACTION,
   REQUEST_REJECTED_LABEL,
   WITHDRAW_ACTION,
   alreadyDecided,
@@ -32,6 +31,9 @@ export function RequestControl({
   lessonTeacherId,
   lessonStatus,
   onChanged,
+  dialogOpen,
+  onDialogOpenChange,
+  onKind,
 }: {
   lesson: RequestLesson;
   mark: SubstitutionRequestMark | null | undefined;
@@ -39,12 +41,16 @@ export function RequestControl({
   lessonStatus: string | null | undefined;
   /** After a request was sent or withdrawn: the panel's page refreshes its own numbers. */
   onChanged?: () => void;
+  /** The dialog «Не смогу провести» is opened from the «⋯» menu of the panel (the page holds the state); this control keeps the plates and the dialog itself. */
+  dialogOpen: boolean;
+  onDialogOpenChange: (open: boolean) => void;
+  /** What the control is now (`button` = the menu offers «Не смогу провести»). */
+  onKind?: (kind: "none" | "button" | "pending" | "rejected") => void;
 }) {
   const { user } = useAuthStore();
   const role = user?.org_role ?? user?.role ?? null;
   const now = useNow(30_000, true);
   const [local, setLocal] = useState<{ mark: SubstitutionRequestMark | null } | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   /** The answer to the teacher's own action, in the panel itself (a toast would sit under the panel's layer). */
@@ -93,24 +99,17 @@ export function RequestControl({
     setNotice({ text: toast.text, tone: toast.type });
     const first = out.created[0] ?? out.alreadyRequested[0];
     if (first) setLocal({ mark: { id: first.id, status: first.status, reasonCode: first.reasonCode } });
-    setDialogOpen(false);
+    onDialogOpenChange(false);
     onChanged?.();
   };
 
-  if (control.kind === "none" && !error && !notice) return null;
+  const kind = control.kind;
+  useEffect(() => { onKind?.(kind); }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (control.kind === "none" && !error && !notice && !dialogOpen) return null;
 
   return (
     <div className="min-w-0">
-      {control.kind === "button" && (
-        <button
-          type="button"
-          onClick={() => setDialogOpen(true)}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold whitespace-nowrap text-slate-700 shadow-2xs sm:px-3.5 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900"
-        >
-          <UserMinus className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />
-          {REQUEST_ACTION}
-        </button>
-      )}
       {control.kind === "pending" && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5">
           <span className="inline-flex items-center gap-2 text-xs font-bold text-amber-900">
@@ -143,7 +142,7 @@ export function RequestControl({
         today={formatBusinessDate()}
         viewerId={user?.id}
         aboveLessonPanel
-        onClose={() => setDialogOpen(false)}
+        onClose={() => onDialogOpenChange(false)}
         onSent={sent}
       />
     </div>

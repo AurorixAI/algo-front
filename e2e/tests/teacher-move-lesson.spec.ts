@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "../support/fixtures";
 import { Org } from "../support/api";
 import { addDays, businessNow, weekdayOf } from "../support/time";
-import { dm, expectNoHorizontalScroll, fillDate, fillTime, toast } from "../support/ui";
+import { dm, expectNoHorizontalScroll, fillDate, fillTime, lessonMenuItem, openLessonMenu, toast } from "../support/ui";
 
 /**
  * P1.1: the teacher moves HIS OWN lesson ahead of time (the administrator's dialog): next Monday -> Wednesday 15:00.  The dialog stands above the lesson
@@ -42,35 +42,39 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   // the old week stays on the screen until the next one is read (its journal is asked once the lessons are on the screen): wait for that, a card of the old week would be the lesson of TODAY
   await Promise.all([page.waitForResponse((r) => r.url().includes(`/attendance?date_from=${nextMonday}`)), page.getByTitle("Следующая неделя").click()]);
   await page.getByRole("heading", { name: group.name, level: 4 }).click();
-  const panelButton = page.getByRole("button", { name: "Не смогу провести" });
+  // the panel has no row of buttons: «Перенести урок» and «Не смогу провести» are rows of its «⋯» menu, grouped under «Этот урок»
+  const panelButton = page.getByRole("button", { name: "Дополнительные действия с уроком" });
   await expect(panelButton).toBeVisible();
-  await expect(page.getByTestId("teacher-move")).toBeVisible();
-  // «Не смогу провести» and «Перенести урок» stand in ONE row (they wrap only when a phone is too narrow for both)
-  await expect(async () => {
-    const [request, move] = [await panelButton.boundingBox(), await page.getByTestId("teacher-move").boundingBox()];
-    expect(request && move, "both buttons are laid out").toBeTruthy();
-    expect(Math.abs(request!.y - move!.y), "the two buttons share a row").toBeLessThan(4);
-    expect(move!.x).toBeGreaterThan(request!.x + request!.width - 1);
-  }).toPass({ timeout: 5000 });
+  await expect(page.getByTestId("teacher-move")).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   mkdirSync("/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots", { recursive: true });
   await page.waitForTimeout(450);
-  await page.screenshot({ path: `/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots/23-teacher-panel-buttons-row-${project}.png` });
+  await page.screenshot({ path: `/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots/27-teacher-panel-menu-closed-${project}.png` });
+  const menu = await openLessonMenu(page);
+  await expect(menu.getByTestId("lesson-menu-group-0")).toContainText("Этот урок");
+  await expect(menu.getByTestId("lesson-menu-move")).toBeVisible();
+  await expect(menu.getByTestId("lesson-menu-request")).toBeVisible();
+  await expect(menu.getByTestId("lesson-menu-cancel")).toBeVisible();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots/27-teacher-panel-menu-open-${project}.png` });
+  await page.keyboard.press("Escape");                       // the menu closes first, the panel stays
+  await expect(menu).toHaveCount(0);
+  await expect(panelButton).toBeVisible();
   await shot(page, `01-panel-${project}`);
 
   // --- 2. the dialog stands ABOVE the panel; Escape closes only the dialog
-  await page.getByTestId("teacher-move").click();
+  await lessonMenuItem(page, /Перенести урок/);
   const sheet = page.getByRole("dialog").filter({ has: page.getByLabel("Новая дата") });
   await expect(sheet).toBeVisible();
   const box = await sheet.boundingBox();
-  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[role="dialog"]')?.textContent?.includes("Новая дата") ?? false, { x: box!.x + box!.width / 2, y: box!.y + 40 });
+  const hit = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('[role="dialog"]')?.textContent?.includes("Новая дата") ?? false, { x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 });
   expect(hit, "the dialog is the top layer at its own centre").toBe(true);
   await page.keyboard.press("Escape");
   await expect(sheet).toHaveCount(0);
   await expect(panelButton).toBeVisible(); // the lesson panel is still there
 
   // --- 3. fill it in: Wednesday 15:00-16:30, a reason; the live check says the time is free
-  await page.getByTestId("teacher-move").click();
+  await lessonMenuItem(page, /Перенести урок/);
   await fillDate(sheet.getByLabel("Новая дата"), nextWednesday);
   await fillTime(sheet.getByLabel("Начало"), "15:00");
   await fillTime(sheet.getByLabel("Окончание"), "16:30");

@@ -305,7 +305,7 @@ test("no hand-placed absolute dropdown remains: menus go through FloatingPanel /
   }
   // the lesson dialog's «⋯» and the exam table's popover were already fixed-positioned, but opened downward only
   const schedule = read("src/app/teacher/schedule/page.tsx");
-  assert.match(schedule, /triggerRef=\{recurringActionsButtonRef\}/);
+  assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /triggerRef=\{buttonRef\}/);       // 26.10: the «⋯» of both lesson panels is ONE component
   assert.doesNotMatch(schedule, /recurringActionsPosition/);
   const exam = read("src/app/teacher/exams/[id]/page.tsx");
   assert.match(exam, /triggerRef=\{activeStudentMenuBtnRef\}/);
@@ -529,7 +529,7 @@ test("menus: panels are role=group, so no aria-haspopup=true; triggers point to 
   const pairs = [
     ["src/app/teacher/exams/[id]/page.tsx", "exam-actions-menu"], ["src/app/teacher/exams/[id]/page.tsx", "exam-student-popover"],
     ["src/app/teacher/exams/[id]/draft/page.tsx", "draft-actions-menu"], ["src/app/teacher/schedule/page.tsx", "schedule-group-filter-menu"],
-    ["src/app/teacher/schedule/page.tsx", "lesson-actions-menu"], ["src/components/layout/header.tsx", "language-menu"],
+    ["src/components/substitutions/teacher-lesson-controls.tsx", "lesson-actions-menu"], ["src/components/layout/header.tsx", "language-menu"],
     ["src/components/layout/sidebar.tsx", "sidebar-profile-menu"],
   ];
   for (const [f, id] of pairs) {
@@ -542,5 +542,5 @@ test("menus: panels are role=group, so no aria-haspopup=true; triggers point to 
   assert.match(list, /aria-controls=\{menuOpen \? menuId : undefined\}/);
   assert.match(list, /id=\{menuId\}/);
   // the lesson dialog menu really has menu / menuitem roles, so aria-haspopup="menu" stays
-  assert.match(read("src/app/teacher/schedule/page.tsx"), /aria-haspopup="menu"/);
+  assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /aria-haspopup="menu"/);
 });

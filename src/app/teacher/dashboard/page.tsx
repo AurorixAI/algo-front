@@ -71,7 +71,7 @@ import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { TeacherLessonControls } from "@/components/substitutions/teacher-lesson-controls";
+import { LessonActionsMenu, TeacherLessonControls, teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
@@ -383,11 +383,15 @@ export default function TeacherDashboardPage() {
 
   // Escape key handler (the move dialog of TeacherMoveControl, above the panel, keeps the key to itself)
   const moveHoldsEscape = useRef(false);
+  const teacherActions = useTeacherLessonActions();                  // «Перенести урок» / «Не смогу провести»: rows of the «⋯» menu of the panel
+  const { menuOpen: isLessonMenuOpen, setMenuOpen: setIsLessonMenuOpen, reset: resetLessonActions } = teacherActions;
+  useEffect(() => { resetLessonActions(); }, [activeLesson?.id, activeLesson?.occurrenceDate, resetLessonActions]);   // a new lesson starts with no dialog and no stale menu rows
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         // a conflict of marks / a running exam is being decided in a dialog over the panel: the panel stays
         if (marksOps.conflict || marksOps.liveExams || moveHoldsEscape.current) return;
+        if (isLessonMenuOpen) { setIsLessonMenuOpen(false); return; }
         if (isExamQueueOpen) setIsExamQueueOpen(false);
         else if (missedLessonAction) setMissedLessonAction(null);
         else if (isActionCenterOpen) setIsActionCenterOpen(false);
@@ -396,7 +400,7 @@ export default function TeacherDashboardPage() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isActionCenterOpen, isExamQueueOpen, missedLessonAction, marksOps.conflict, marksOps.liveExams]);
+  }, [isActionCenterOpen, isExamQueueOpen, isLessonMenuOpen, missedLessonAction, marksOps.conflict, marksOps.liveExams]);
 
   const todayDayOfWeek = businessDayOfWeek();
 
@@ -2301,7 +2305,7 @@ export default function TeacherDashboardPage() {
                       groupId: activeLesson.groupId, groupName: activeLesson.groupName, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate || businessDate,
                       startTime: activeLesson.startTime, endTime: activeLesson.endTime, room: activeLesson.room, format: activeLesson.format, topic: activeLesson.topic,
                     }}
-                    mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeInstanceStatus}
+                    mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeInstanceStatus} actions={teacherActions}
                     onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
                     onMoved={(text) => { setActiveLesson(null); showToast(text); setDashboardRefreshNonce((current) => current + 1); }}
                     onDialogChange={(open) => { moveHoldsEscape.current = open; }}
@@ -2766,14 +2770,7 @@ export default function TeacherDashboardPage() {
 
                   <div className="flex items-center gap-2">
                     {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && (
-                      <button
-                        type="button"
-                        onClick={openCancelLessonPanel}
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 transition-colors hover:bg-rose-100"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                        Отменить урок
-                      </button>
+                      <LessonActionsMenu open={isLessonMenuOpen} onOpenChange={setIsLessonMenuOpen} groups={[{ label: "Этот урок", items: teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), () => void openCancelLessonPanel()) }]} />
                     )}
                     {canFinishLesson ? (
                       <button

@@ -99,15 +99,13 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   }
 });
 
-test("the hint for the last hour is shown instead of the button, next to «Не смогу провести»", () => {
+test("the last hour: «Перенести урок» is a disabled row of the «⋯» menu with the reason, next to «Не смогу провести»", () => {
   const control_ = read("src/components/substitutions/teacher-move-control.tsx");
-  assert.match(control_, /control\.kind === "late"[\s\S]*MOVE_TOO_LATE_HINT/);
-  // an open dialog is not replaced by the hint and not unmounted when the 60-minute line is crossed: the hint is shown only while the dialog is closed
-  assert.match(control_, /if \(!open\) \{\s*if \(control\.kind === "none"\) return null;\s*if \(control\.kind === "late"\)/);
-  assert.match(control_, /control\.kind === "button" && \(\s*<button/);
+  assert.match(control_, /onKind\?\.\(kind\)/);                      // the control says «button» / «late» / «none»; the menu draws the row
+  const menu = read("src/components/substitutions/teacher-lesson-controls.tsx");
+  assert.match(menu, /actions\.moveKind === "late"[\s\S]*disabledReason: MOVE_TOO_LATE_HINT/);
   // the page's Escape key is released when the control goes away with the dialog open
   assert.match(control_, /useEffect\(\(\) => \(\) => \{ window\.setTimeout\(\(\) => onDialogChange\?\.\(false\), 0\); \}, \[\]\)/);
-  assert.match(control_, /data-testid="teacher-move"/);
 });
 
 test("the journal of «Замены и переносы» types the new via", () => {

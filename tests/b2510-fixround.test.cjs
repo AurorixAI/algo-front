@@ -95,12 +95,34 @@ test("[3][4] the words of a taken off / replaced substitution are the same in th
   assert.doesNotMatch(S.decisionResultText(removed), /Замена снята: Тарасов/);
 });
 
-test("the teacher's lesson panel: «Не смогу провести» and «Перенести урок» are ONE flex row, an empty row takes no room", () => {
-  const src = read("src/components/substitutions/teacher-lesson-controls.tsx");
-  assert.match(src, /className="mb-4 flex flex-wrap items-start gap-1.5 empty:hidden sm:gap-2"/);
-  assert.doesNotMatch(read("src/components/substitutions/request-control.tsx"), /<div className="mb-4">/);
-  assert.doesNotMatch(read("src/components/substitutions/teacher-move-control.tsx"), /"mb-4"/);
-  for (const page of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(page), /<TeacherLessonControls/);
+test("the teacher's lesson panel: «Перенести урок» and «Не смогу провести» are rows of the «⋯» menu, grouped by meaning; no row of buttons any more", () => {
+  const C = require(path.join(root, "src/components/substitutions/teacher-lesson-controls.tsx"));
+  const act = (patch) => ({ moveKind: "none", requestKind: "none", setMoveOpen() {}, setRequestOpen() {}, ...patch });
+  const labels = (items) => items.map((i) => [i.label, i.disabledReason ?? null]);
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button", requestKind: "button" }), () => {})), [["Перенести урок", null], ["Не смогу провести", null]]);
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "late", requestKind: "button" }), () => {})), [["Перенести урок", "Перенести можно не позднее чем за 60 минут до начала"], ["Не смогу провести", null]]);
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "none", requestKind: "pending" }), () => {})), []);                       // a waiting request is a plate in the panel, not a row
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button" }), () => {}, () => {})), [["Перенести урок", null], ["Отменить этот урок", null]]);
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const icon = () => null;
+  const html = renderToStaticMarkup(React.createElement(C.LessonMenuGroups, { groups: [
+    { label: "Этот урок", items: [{ key: "move", label: "Перенести урок", icon, disabledReason: "не позднее чем за 60 минут", onSelect() {} }, { key: "cancel", label: "Отменить этот урок", icon, tone: "danger", onSelect() {} }] },
+    { label: "Постоянное расписание", items: [{ key: "end", label: "Прекратить регулярные занятия", icon, tone: "danger", onSelect() {} }] },
+    { label: "Пустая", items: [] },
+  ] }));
+  assert.match(html, /Этот урок[\s\S]*Постоянное расписание/);
+  assert.match(html, /aria-disabled="true"/);
+  assert.doesNotMatch(html, /Пустая/);                                                                                   // a group with no rows is not drawn
+  assert.match(html, /border-t border-slate-100/);                                                                       // the thin line between the groups
+  for (const page of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) {
+    const src = read(page);
+    assert.match(src, /<TeacherLessonControls/);
+    assert.match(src, /LessonActionsMenu/);
+    assert.doesNotMatch(src, /data-testid="teacher-move"/);
+  }
+  assert.doesNotMatch(read("src/components/substitutions/request-control.tsx"), /REQUEST_ACTION/);
+  assert.doesNotMatch(read("src/components/substitutions/teacher-move-control.tsx"), /<button/);
 });
 
 test("settings, package mode: «Уроки, отменённые центром» is not rendered, one quiet hint is (the words from payf-settings.ts)", () => {

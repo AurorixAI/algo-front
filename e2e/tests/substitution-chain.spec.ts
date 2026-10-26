@@ -1,7 +1,7 @@
 import { test, expect } from "../support/fixtures";
 import { ApiError, Org, clockReaches, runLesson } from "../support/api";
 import { businessNow, payrollLine } from "../support/time";
-import { groupedDigits } from "../support/ui";
+import { groupedDigits, lessonMenuItem } from "../support/ui";
 
 /**
  * LOGIC-B2, the chain of a substitution: the teacher says «Не смогу провести» on a lesson that has not begun -> the
@@ -48,7 +48,7 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   const teacherPage = await signIn(asker);
   await teacherPage.goto("/teacher/schedule");
   await teacherPage.getByText(group.name, { exact: true }).first().click();
-  await teacherPage.getByRole("button", { name: "Не смогу провести" }).click();
+  await lessonMenuItem(teacherPage, /Не смогу провести/);
   const request = teacherPage.getByRole("dialog", { name: "Не смогу провести урок" });
   await request.getByText("Болезнь", { exact: true }).click();
   await request.getByRole("textbox", { name: /Комментарий/ }).fill("Температура");

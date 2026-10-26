@@ -179,3 +179,16 @@ export async function groupMenuItem(page: Page, groupName: string, name: string 
     }
   }
 }
+
+/** The «⋯» menu of a lesson panel (teacher): opens it and returns it; `lessonMenuItem` chooses a row.  «Перенести урок», «Не смогу провести», «Отменить этот урок» live here. */
+export async function openLessonMenu(page: Page) {
+  await page.getByRole("button", { name: "Дополнительные действия с уроком" }).click();
+  const menu = page.getByRole("menu", { name: "Дополнительные действия с уроком" });
+  await expect(menu).toBeVisible();
+  return menu;
+}
+
+export async function lessonMenuItem(page: Page, name: string | RegExp) {
+  const menu = await openLessonMenu(page);
+  await menu.getByRole("menuitem", { name }).click();
+}
