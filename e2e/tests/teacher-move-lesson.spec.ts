@@ -46,9 +46,12 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   await expect(panelButton).toBeVisible();
   await expect(page.getByTestId("teacher-move")).toBeVisible();
   // «Не смогу провести» and «Перенести урок» stand in ONE row (they wrap only when a phone is too narrow for both)
-  const [request, move] = [await panelButton.boundingBox(), await page.getByTestId("teacher-move").boundingBox()];
-  expect(Math.abs(request!.y - move!.y), "the two buttons share a row").toBeLessThan(4);
-  expect(move!.x).toBeGreaterThan(request!.x + request!.width - 1);
+  await expect(async () => {
+    const [request, move] = [await panelButton.boundingBox(), await page.getByTestId("teacher-move").boundingBox()];
+    expect(request && move, "both buttons are laid out").toBeTruthy();
+    expect(Math.abs(request!.y - move!.y), "the two buttons share a row").toBeLessThan(4);
+    expect(move!.x).toBeGreaterThan(request!.x + request!.width - 1);
+  }).toPass({ timeout: 5000 });
   await expectNoHorizontalScroll(page);
   mkdirSync("/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots", { recursive: true });
   await page.waitForTimeout(450);
