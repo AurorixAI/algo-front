@@ -31,15 +31,16 @@ test("fixed payment day: the new mode waits for the next period; the running one
   // --- the setting, through the settings page
   await page.goto("/owner/settings?section=payments");
   const section = page.getByRole("region", { name: "Оплаты" });
+  await expect(section.getByTestId("regime-hint")).toHaveCount(0);                    // a calm section: the warning is only for a change that is not saved yet
   await section.getByRole("radio", { name: /Общий месяц для всех/ }).check();
+  await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();   // the screen says when the new mode starts: not for the running periods
   await pickOption(page, section.getByRole("combobox", { name: "День, с которого начинается общий месяц" }), String(billingDay));
   await section.getByRole("button", { name: "Сохранить" }).click();
   await expect(section.getByRole("button", { name: "Сохранено" })).toBeVisible(); // the button itself confirms
   const saved = await org.owner.api.get("/auth/org/settings/payments");
   expect(saved).toMatchObject({ billing_anchor: "fixed_day", billing_day: billingDay });
 
-  // --- the screen says when the new mode starts: not for the running periods
-  await expect(section.getByText(/Новый режим начнёт действовать/).first()).toBeVisible();
+  await expect(section.getByTestId("regime-hint")).toHaveCount(0);                    // saved: the warning is gone
 
   // --- the running period is not touched: the whole price of the period is due, the amount starts as that
   const expectedAmount = fee;

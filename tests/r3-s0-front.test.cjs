@@ -55,7 +55,8 @@ test("settings: the dry run of the accounting start says how many openings to re
   assert.equal(P.accountingStartOpeningsToReview(null), 0);
   const page = read("src/app/owner/settings/page.tsx");
   assert.match(page, /toReview: accountingStartOpeningsToReview\(answer\.impact\)/);
-  assert.match(page, /href=\{openingsHref\("\/owner\/payments"\)\}[^>]*accounting-start-openings-link/);
+  assert.match(page, /openingsHref=\{openingsHref\("\/owner\/payments"\)\}/);
+  assert.match(read("src/components/payments/accounting-start-line.tsx"), /href=\{openingsHref\}[^>]*accounting-start-openings-link/);       // the hint of the date names «Остатки на начало» and links there
 });
 
 const rowsOf = () => O.flatRows(O.normalizeList(fixture("O01_list_pending")).groups);

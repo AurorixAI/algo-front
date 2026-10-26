@@ -787,7 +787,7 @@ test("settings: the start of the accounting is an owner's date with the impact o
   assert.deepEqual(P.accountingStartImpactLines({ memberships_with_new_debt: 0, debt_delta: 0 }), ["Долг и аванс ни у кого не изменятся"]);
   assert.equal(P.validatePaymentSettings({ ...P.DEFAULT_PAYMENT_SETTINGS, accounting_start_date: "2019-12-31" }, "payments"), "Начало учёта оплат — не раньше 01.01.2020");
   // the server's refusal («Есть оплаты до этой даты») is shown under the field
-  assert.match(read("src/app/owner/settings/page.tsx"), /role="alert" className="text-xs font-medium text-rose-700">\{impact\.error\}/);
+  assert.match(read("src/components/payments/accounting-start-line.tsx"), /role="alert" className="text-xs font-medium text-rose-700">\{mine\.error\}/);      // 26.10: the line «ALGO ведёт оплаты…», the date opens with «Изменить»
   assert.equal(P.accountingStartImpactText(null), "");
   assert.equal(L.balanceView({ debt: 0, advance: 0 }).kind, "none");
   assert.match(read("src/app/owner/settings/page.tsx"), /orgApi\.previewPaymentSettings\(/);

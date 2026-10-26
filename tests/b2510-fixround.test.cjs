@@ -140,3 +140,35 @@ test("settings, package mode: «Уроки, отменённые центром�
   assert.ok(!hint.includes("Не пересчитывать") && !hint.includes('type="radio"'));
   assert.match(renderToStaticMarkup(React.createElement(CentreCancelSetting, { value: false, onChange() {} })), /data-testid="centre-cancel-setting"/);
 });
+
+test("settings «Оплаты» (calm): ONE line for the start of the accounting, «Изменить» opens the date, no duplicate block, the mode warning only on a change, the long words behind «?»", () => {
+  const page = read("src/app/owner/settings/page.tsx");
+  const S = require(path.join(root, "src/lib/payf-settings.ts"));
+  assert.equal(S.accountingLineText("26.10.2026"), "ALGO ведёт оплаты центра с 26.10.2026");
+  assert.equal(S.ACCOUNTING_CHANGE_LABEL, "Изменить");
+  assert.equal(S.ACCOUNTING_HINT.before + S.ACCOUNTING_HINT.link + S.ACCOUNTING_HINT.after, "До этой даты ничего не начисляется. Что ученики оплатили или были должны раньше — внесите в «Остатки на начало» (по одному или одним файлом Excel).");
+  // the duplicate is gone: neither the checklist line («Учёт оплат запущен … Подробнее») nor the old block «Начало учёта оплат»
+  assert.doesNotMatch(page, /OpeningsChecklist|Начало учёта оплат|С этого дня центр считает деньги/);
+  assert.equal((page.match(/<AccountingStartLine/g) || []).length, 1);
+  assert.ok(page.indexOf("<AccountingStartLine") < page.indexOf("<fieldset>"), "the line is at the TOP of the section");
+  // the warning about the new mode is for an unsaved change only
+  assert.match(page, /\{regimeChanged && <p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">\{REGIME_HINT\}<\/p>\}/);
+  assert.doesNotMatch(page, /<p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">\{REGIME_HINT\}<\/p>\n/);
+  // the order: mode cards -> the parameters of the chosen mode -> the cancelled lessons (monthly) / the hint (package) -> the administrator
+  const order = ["PAYMENT_MODEL_SHORT_HINT[option.key]", 'model === "fixed_day" && (', 'model === "lessons" ? (', "<PackageCancelHint />", "payments-admin-label"].map((marker) => page.indexOf(marker));
+  assert.ok(order.every((at) => at > 0) && order.every((at, i) => i === 0 || at > order[i - 1]), `order ${order}`);
+  // the cards say ONE short line each; the long hints are behind the «?»
+  for (const key of ["payment_date", "fixed_day", "lessons"]) assert.ok(S.PAYMENT_MODEL_SHORT_HINT[key].length <= 60, key);
+  assert.match(page, /<HelpToggle label=\{HELP_LABEL\} testId="payments-help">/);
+  // the component: the line, «Изменить», the date with the hint and the link to the openings, «Не менять»
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { AccountingStartLine } = require(path.join(root, "src/components/payments/accounting-start-line.tsx"));
+  const html = renderToStaticMarkup(React.createElement(AccountingStartLine, { loaded: "2026-10-26", value: "2026-10-26", onChange() {}, impact: null, openingsHref: "/owner/payments/openings", minDate: "2020-01-01", formatDate: (iso) => iso.split("-").reverse().join("."), inputClassName: "" }));
+  assert.match(html, /ALGO ведёт оплаты центра с 26\.10\.2026/);
+  assert.match(html, /data-testid="accounting-start-change"[^>]*>Изменить</);
+  assert.doesNotMatch(html, /accounting-start-editor|Остатки на начало/);                                           // closed: nothing but the line
+  const help = renderToStaticMarkup(React.createElement(require(path.join(root, "src/components/ui/help-toggle.tsx")).HelpToggle, null, "Подробности"));
+  assert.match(help, /aria-expanded="false"/);
+  assert.doesNotMatch(help, /Подробности/);                                                                          // closed: one short line stays
+});

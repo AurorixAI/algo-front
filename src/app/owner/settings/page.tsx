@@ -40,9 +40,11 @@ import {
   payrollFormulaText,
   type PayrollSettings,
 } from "@/lib/payroll";
-import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpeningsToReview, formatMoney, isIsoDate } from "@/lib/payments";
+import { ACCOUNTING_START_MIN, accountingStartImpactLines, accountingStartOpeningsToReview, formatDateRu, formatMoney, isIsoDate } from "@/lib/payments";
 import { usePaymentsSummary } from "@/lib/payments-summary";
-import { OpeningsChecklist } from "@/components/payments/openings-widgets";
+import { AccountingStartLine } from "@/components/payments/accounting-start-line";
+import { HelpToggle } from "@/components/ui/help-toggle";
+import { HELP_LABEL, PAYMENTS_SECTION_DESCRIPTION, PAYMENTS_SECTION_HELP, PAYMENT_MODEL_SHORT_HINT, BILLING_DAY_SHORT_HINT } from "@/lib/payf-settings";
 import { CentreCancelSetting, PackageCancelHint } from "@/components/payments/centre-cancel-setting";
 import { DaysOffPanel } from "@/components/schedule/days-off-panel";
 import { openingsHref } from "@/lib/openings";
@@ -333,14 +335,31 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
   return (
     <SettingsSection
       title="Оплаты"
-      description={`Как центр считает оплаченный период, с какого дня ведётся учёт и кто может вносить оплаты. Внесённые оплаты не меняются: сумма долга и аванса пересчитывается по новым настройкам. ${CANCELLED_LESSON_TEXT}`}
+      description={PAYMENTS_SECTION_DESCRIPTION}
       icon={Wallet}
       onSave={() => void draft.save("payments")}
       saving={state.saving}
       saved={state.saved}
     >
+      <AccountingStartLine
+        loaded={loaded.accounting_start_date ?? null}
+        value={form.accounting_start_date ?? null}
+        onChange={(next) => patch({ accounting_start_date: next || loaded.accounting_start_date || null })}
+        impact={impact}
+        openingsHref={openingsHref("/owner/payments")}
+        minDate={ACCOUNTING_START_MIN}
+        formatDate={formatDateRu}
+        inputClassName={inputClasses}
+      />
+
       <fieldset>
-        <legend className={labelClasses}>Как считать оплату</legend>
+        <legend className={labelClasses}>
+          Как считать оплату
+          <HelpToggle label={HELP_LABEL} testId="payments-help">
+            <span className="block">{PAYMENTS_SECTION_HELP} {CANCELLED_LESSON_TEXT}</span>
+            {PAYMENT_MODELS.map((option) => <span key={option.key} className="mt-0.5 block"><b className="font-semibold">{option.title}.</b> {option.hint}</span>)}
+          </HelpToggle>
+        </legend>
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-3">
           {PAYMENT_MODELS.map((option) => (
             <label
@@ -355,12 +374,13 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
               />
               <span className="min-w-0">
                 <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
-                <span className="block text-xs text-slate-500">{option.hint}</span>
+                <span className="block text-xs text-slate-500">{PAYMENT_MODEL_SHORT_HINT[option.key]}</span>
               </span>
             </label>
           ))}
         </div>
-        <p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">{REGIME_HINT}</p>
+        {/* the warning is for the moment of a CHANGE (unsaved): it says when the new mode starts and whom it touches */}
+        {regimeChanged && <p className="mt-2 text-xs text-slate-500" data-testid="regime-hint">{REGIME_HINT}</p>}
         {regimeChanged && regime && regime.key === regimeKey && regime.error && (
           <p role="alert" className="mt-1 text-xs font-medium text-rose-700">{regime.error}</p>
         )}
@@ -370,38 +390,6 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
           </ul>
         )}
       </fieldset>
-
-      <OpeningsChecklist paymentsBase="/owner/payments" onChangeDate={() => document.getElementById("payments-accounting-start")?.focus()} />
-
-      <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
-        <label htmlFor="payments-accounting-start" className={labelClasses}>Начало учёта оплат</label>
-        <DateInput
-          id="payments-accounting-start"
-          min={ACCOUNTING_START_MIN}
-          value={form.accounting_start_date ?? ""}
-          onChange={(next) => patch({ accounting_start_date: next || loaded.accounting_start_date || null })}
-          wrapperClassName="w-48"
-          className={inputClasses}
-        />
-        <p className="text-xs text-slate-500">
-          С этого дня центр считает деньги: до него стоимость обучения не считается, задним числом долга не будет. Не позже чем через 31 день от сегодня.
-        </p>
-        {impact && impact.date === form.accounting_start_date && impact.error && (
-          <p role="alert" className="text-xs font-medium text-rose-700">{impact.error}</p>
-        )}
-        {impact && impact.date === form.accounting_start_date && impact.lines.length > 0 && (
-          <ul role="status" className="space-y-0.5 text-xs font-medium text-amber-800">
-            {impact.lines.map((line, index) => (
-              <li key={line}>
-                {line}
-                {impact.toReview > 0 && index === impact.lines.length - 1 && (
-                  <>{" "}<Link href={openingsHref("/owner/payments")} data-testid="accounting-start-openings-link" className="font-semibold underline">Открыть остатки</Link></>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
 
       {model === "fixed_day" && (
         <div className="space-y-2 rounded-xl bg-slate-50 px-4 py-3">
@@ -417,8 +405,10 @@ function PaymentsSettingsSection({ draft }: { draft: PaymentSettingsDraft }) {
             />
             <span className="text-sm text-slate-600">{billingDayHint(form.billing_day)}</span>
           </div>
-          <p className="text-xs text-slate-500">{FIXED_DAY_HINT}</p>
-          <p className="text-xs text-slate-400">Число от 1 до 28, чтобы период не зависел от длины месяца.</p>
+          <p className="text-xs text-slate-500">
+            {BILLING_DAY_SHORT_HINT}
+            <HelpToggle label={HELP_LABEL}>{FIXED_DAY_HINT} Число от 1 до 28, чтобы период не зависел от длины месяца.</HelpToggle>
+          </p>
         </div>
       )}
 

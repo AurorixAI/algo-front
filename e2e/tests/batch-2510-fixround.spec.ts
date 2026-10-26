@@ -223,3 +223,58 @@ test("the last hour: «Перенести урок» is a disabled row of the «
   await expectNoHorizontalScroll(page);
   await shot(page, `27-teacher-panel-menu-last-hour-${project}`);
 });
+
+test("«Настройки → Оплаты» is calm: one line for the accounting start («Изменить» opens the date), the mode warning only on a change, nothing jumps @mobile", async ({ signIn }, info) => {
+  test.setTimeout(180_000);
+  const project = info.project.name;
+  const org = await Org.create("Настройки 25.10");
+  const teacher = await org.addStaff("teacher", "Настроев");
+  const group = await org.createGroup({ name: "Группа Н-1", teacherId: teacher.userId });
+  await org.addStudent(group, "Анвар", "Ученик");
+  const page = await signIn(org.owner);
+  await page.goto("/owner/settings?section=payments");
+  const section = page.getByRole("region", { name: "Оплаты" });
+
+  // ONE quiet line at the top; no second block, no checklist with «Подробнее»
+  const line = section.getByTestId("accounting-start-line");
+  await expect(line).toContainText(/^ALGO ведёт оплаты центра с \d{2}\.\d{2}\.\d{4}/);
+  await expect(section.getByText("Запуск учёта оплат")).toHaveCount(0);
+  await expect(section.getByText("Начало учёта оплат")).toHaveCount(0);
+  await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(1);           // only the «?» of the section; no checklist
+  await expect(section.getByTestId("accounting-start-editor")).toHaveCount(0);
+  const cards = section.getByRole("radio");
+  await expect(cards).toHaveCount(3);
+  // the cards carry ONE short line each
+  await expect(section.getByText("Месяц считается с первого занятия ученика")).toBeVisible();
+  await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
+  const before = (await line.boundingBox())!;
+  await expectNoHorizontalScroll(page);
+  await shot(page, `28-settings-payments-calm-monthly-${project}`);
+
+  // «Изменить» opens the date with the hint and the link to «Остатки на начало»
+  await section.getByTestId("accounting-start-change").click();
+  const editor = section.getByTestId("accounting-start-editor");
+  await expect(editor).toContainText("До этой даты ничего не начисляется");
+  await expect(editor.getByTestId("accounting-start-openings-link")).toHaveAttribute("href", /openings/);
+  await expect(editor.getByRole("button", { name: "Не менять" })).toBeVisible();
+  await shot(page, `28-settings-payments-calm-date-${project}`);
+  await editor.getByRole("button", { name: "Не менять" }).click();
+  await expect(editor).toHaveCount(0);
+
+  // a change of the mode (not saved): the warning appears; the line above does not move
+  await section.getByRole("radio", { name: /Пакет уроков/ }).check();
+  await expect(section.getByTestId("regime-hint")).toBeVisible();
+  await expect(section.getByTestId("package-cancel-hint")).toBeVisible();
+  await expect(section.getByTestId("centre-cancel-setting")).toHaveCount(0);
+  const after = (await line.boundingBox())!;
+  expect(Math.abs(after.y - before.y), "the line at the top does not jump").toBeLessThan(2);
+  await expectNoHorizontalScroll(page);
+  await shot(page, `28-settings-payments-calm-package-${project}`);
+
+  // back to the saved mode: the warning goes
+  await section.getByRole("radio", { name: /Свой месяц у каждого ученика/ }).check();
+  await expect(section.getByTestId("regime-hint")).toHaveCount(0);
+  await expect(section.getByTestId("centre-cancel-setting")).toBeVisible();
+  await section.getByRole("button", { name: "Подробнее" }).first().click();                  // the long words are behind «?»
+  await expect(section.getByTestId("payments-help").locator("xpath=following-sibling::span[@role='note']")).toContainText("Внесённые оплаты не меняются");
+});
