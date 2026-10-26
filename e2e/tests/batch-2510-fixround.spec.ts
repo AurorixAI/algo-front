@@ -216,7 +216,7 @@ test("the last hour: «Перенести урок» is a disabled row of the «
   const move = menu.getByTestId("lesson-menu-move");
   await expect(move).toHaveAttribute("aria-disabled", "true");
   await expect(move).toContainText("Перенести можно не позднее чем за 60 минут до начала");
-  await move.click();                                                       // an off row does nothing
+  await move.dispatchEvent("click");                                         // an off row does nothing (a real click would wait for it to be enabled)
   await expect(page.getByRole("dialog").filter({ has: page.getByLabel("Новая дата") })).toHaveCount(0);
   await expect(menu.getByTestId("lesson-menu-request")).not.toHaveAttribute("aria-disabled", "true");
   await expect(menu.getByTestId("lesson-menu-cancel")).toBeVisible();
@@ -242,8 +242,7 @@ test("«Настройки → Оплаты» is calm: one line for the accounti
   await expect(section.getByText("Начало учёта оплат")).toHaveCount(0);
   await expect(section.getByRole("button", { name: "Подробнее" })).toHaveCount(1);           // only the «?» of the section; no checklist
   await expect(section.getByTestId("accounting-start-editor")).toHaveCount(0);
-  const cards = section.getByRole("radio");
-  await expect(cards).toHaveCount(3);
+  await expect(section.getByRole("radio", { name: /Свой месяц|Общий месяц|Пакет уроков/ })).toHaveCount(3);
   // the cards carry ONE short line each
   await expect(section.getByText("Месяц считается с первого занятия ученика")).toBeVisible();
   await expect(section.getByTestId("regime-hint")).toHaveCount(0);                            // nothing changed: no warning
