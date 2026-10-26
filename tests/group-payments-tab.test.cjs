@@ -112,18 +112,18 @@ test("rows: the price is the server's price.amount (what the statement charges);
   for (const r of ROWS) {
     const v = G.paymentRowViews([r], { periodMode: "calendar", today: TODAY })[0];
     const p = GP.priceOfRow(r);
-    assert.equal(v.priceText, p.amount === null ? "Не задана" : GP.formatPrice(p.amount, "Цена в месяц"), r.student_name);
+    assert.equal(v.priceText, p.amount === null ? "Не задана" : GP.formatPriceAmount(p.amount), r.student_name);
   }
-  assert.equal(plain(view(1).priceText), "500 000 сум/мес");
+  assert.equal(plain(view(1).priceText), "500 000 сум"); // the column header says «Цена в месяц»
   assert.equal(view(8).priceText, "бесплатно");
   assert.equal(view(7).priceText, "Не задана");
   assert.equal(view(7).priceMissing, true);
 });
 
-test("lessons mode: «Цена пакета», the price is «за пакет», the chip says the lessons left", () => {
+test("lessons mode: «Цена пакета» in the header, the cell is the sum alone, the chip says the lessons left", () => {
   const r = row(1, "Алиев", { period_mode: "lessons", lessons_total: 12, lessons_left: 9, lessons_used: 3, paid_until: null });
   const v = G.paymentRowViews([r], { periodMode: "lessons", today: TODAY })[0];
-  assert.equal(plain(v.priceText), "500 000 сум за пакет");
+  assert.equal(plain(v.priceText), "500 000 сум");
   assert.equal(v.chip.label, "Оплачено");                       // the header chip is short; the count is the progress line of the package
   assert.equal(require(path.join(root, "src/lib/package-progress.ts")).packageProgress(r).leftText, "Осталось 9 из 12 уроков");
   assert.equal(plain(G.scheduledLine({ amount: 400000, valid_from: "2026-12-01" }, TODAY, "Цена пакета")), "с 01.12 — 400 000 сум за пакет");

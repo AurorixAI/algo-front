@@ -242,6 +242,12 @@ export function formatPrice(amount: number | null | undefined, label: string): s
 
 export const FREE_WORD = "бесплатно";
 
+/** The sum alone («600 000 сум» / «бесплатно») for a cell whose column header already names the unit («Цена пакета», «Цена в месяц»). */
+export function formatPriceAmount(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined) return "не задана";
+  return amount === 0 ? FREE_WORD : formatMoney(amount);
+}
+
 /** The first day of the prices the migration made from the old fees: «always so». */
 export const PRICE_EPOCH = "2000-01-01";
 

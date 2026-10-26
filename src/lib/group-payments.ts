@@ -10,7 +10,7 @@
  */
 import {
   activeOverrideFrom,
-  formatPrice,
+  formatPriceAmount,
   priceLabelOf,
   priceOfRow,
   scheduledOverrides,
@@ -156,7 +156,7 @@ export function paymentRowView(row: MembershipPaymentRow, options: { label: stri
     studentId: row.student_id,
     name: row.student_name,
     displayId: row.display_id ?? null,
-    priceText: missing ? "Не задана" : formatPrice(price.amount, options.label),
+    priceText: missing ? "Не задана" : formatPriceAmount(price.amount), // the header says «Цена пакета» / «Цена в месяц»
     priceSource: price.source,
     priceMissing: missing,
     individual,
