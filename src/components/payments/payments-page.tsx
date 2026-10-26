@@ -46,6 +46,7 @@ import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
+import { PackageProgress } from "./package-progress";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { ScrollHint } from "@/components/ui/scroll-hint";
@@ -548,7 +549,7 @@ function PaymentRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 xl:block xl:text-center">
             <Chip tone={moneyChipTone(chip.tone)}>{chip.label}</Chip>
             {bucket === "debt" && reason && <p className="w-full text-xs font-medium text-rose-700" data-testid="debt-reason">{reason}</p>}
-            {detail && <p className="text-xs text-slate-500">{detail}</p>}
+            {row.period_mode === "lessons" ? <PackageProgress row={row} variant="compact" /> : detail && <p className="text-xs text-slate-500">{detail}</p>}
             <BalanceNote row={row} className="w-full" />
           </div>
 

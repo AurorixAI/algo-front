@@ -87,8 +87,8 @@ test("status wording: calendar mode (UX-1 A: human words, plurals, no abbreviati
 
 test("status wording: lessons mode", () => {
   const base = { period_mode: "lessons", paid_until: null, days_overdue: null, days_left: null, lessons_total: 12, lessons_left: 3 };
-  assert.equal(rules.statusLabel({ ...base, status: "expiring" }), "Осталось 3 урока из 12");
-  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Остался 1 урок из 12");
+  assert.equal(rules.statusLabel({ ...base, status: "expiring" }), "Скоро закончится");            // the count is the progress line of the package
+  assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: 1 }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "expiring", lessons_left: null }), "Скоро закончится");
   assert.equal(rules.statusLabel({ ...base, status: "expired", lessons_left: 0 }), "Уроки закончились");
   // a package that is paid and not running out: «Оплачено», the lessons left are the second line

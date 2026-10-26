@@ -100,7 +100,7 @@ export function RequestControl({
   if (control.kind === "none" && !error && !notice) return null;
 
   return (
-    <div className="mb-4">
+    <div className="min-w-0">
       {control.kind === "button" && (
         <button
           type="button"

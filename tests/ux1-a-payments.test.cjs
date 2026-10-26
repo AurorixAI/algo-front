@@ -77,7 +77,8 @@ test("status chip: «Просрочено на N …» and «Осталось N 
     "Остался 1 день", "Осталось 2 дня", "Осталось 3 дня", "Осталось 4 дня", "Осталось 5 дней", "Осталось 11 дней", "Остался 21 день", "Осталось 22 дня",
   ]);
   const lessonsLeft = (n) => rules.statusLabel({ ...calendar, period_mode: "lessons", lessons_total: 12, status: "expiring", lessons_left: n });
-  assert.deepEqual([1, 2, 5, 21].map(lessonsLeft), ["Остался 1 урок из 12", "Осталось 2 урока из 12", "Осталось 5 уроков из 12", "Остался 21 урок из 12"]);
+  // the chip of a package is «Скоро закончится» for every count; the count is the progress line of the package (lib/package-progress.ts)
+  assert.deepEqual([1, 2, 5, 21].map(lessonsLeft), ["Скоро закончится", "Скоро закончится", "Скоро закончится", "Скоро закончится"]);
   for (const text of [overdue(1), overdue(31), soon(1), soon(5), rules.statusLabel({ ...calendar, status: "ends_today" })]) {
     assert.doesNotMatch(text, /дн\./);
   }
@@ -187,7 +188,7 @@ test("membershipChip: one line per state - «Оплачено до 30.11», «Д
   assert.equal(chip({ status: "ends_today" }).label, "Сегодня последний день");
   assert.equal(chip({ status: "none", paid_until: null, last_payment: null }).label, "Без оплат");
   assert.equal(chip({ status: "free", paid_until: null }).label, "Бесплатно");
-  assert.equal(chip({ period_mode: "lessons", lessons_total: 12, lessons_left: 9, paid_until: null }).label, "Оплачено · осталось 9 уроков из 12");
+  assert.equal(chip({ period_mode: "lessons", lessons_total: 12, lessons_left: 9, paid_until: null }).label, "Оплачено");          // a package: the short status, the count is the progress line
   // every label is one line: no line breaks
   for (const patch of [{}, { status: "expired", debt: 5, days_overdue: 2 }, { status: "paused" }]) assert.ok(!/\n/.test(chip(patch).label));
   // the shared moneyChip (the tabs of «Оплаты») is unchanged
@@ -212,5 +213,5 @@ test("the card of a membership: one chip, the actions in one row «Внести 
   // the rows of the «Оплаты» tabs keep their layout and their chip
   const page = read("src/components/payments/payments-page.tsx");
   assert.match(page, /const chip = moneyChip\(row\);/);
-  assert.match(page, /\{detail && <p className="text-xs text-slate-500">\{detail\}<\/p>\}/);
+  assert.match(page, /detail && <p className="text-xs text-slate-500">\{detail\}<\/p>/);
 });

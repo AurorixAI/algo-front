@@ -36,7 +36,7 @@ test("1. a package says «хватит до ~30.10 (по расписанию)»
   assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: "2026-11-02" }), "осталось 12 уроков из 12 · хватит до ~02.11 (по расписанию)");      // scenario 2
   assert.equal(P.statusDetail({ ...PACKAGE, paid_through_forecast: "2026-11-06" }), "осталось 12 уроков из 12 · хватит до ~06.11 (по расписанию)");      // scenario 3
   const chip = P.membershipChip({ ...PACKAGE, debt: 0, last_payment: { id: "p" } });
-  assert.equal(chip.label, "Оплачено · осталось 12 уроков из 12 · хватит до ~30.10 (по расписанию)");
+  assert.equal(chip.label, "Оплачено");                       // the chip is short: the count, the bar and the forecast are `PackageProgress`
   assert.equal(chip.tone, "ok");
 });
 
@@ -49,9 +49,11 @@ test("1. N = 0: «пакет закончился»; no forecast from an older s
   assert.equal(P.statusDetail({ status: "active", period_mode: "calendar", paid_until: "2026-11-04" }), "оплачено до 04.11.2026");
 });
 
-test("1. the amber chip of a package that runs out keeps the forecast too", () => {
+test("1. the amber chip of a package that runs out is short too; its progress line is amber and carries the forecast", () => {
   const chip = P.membershipChip({ ...PACKAGE, status: "expiring", lessons_left: 2, debt: 0, last_payment: { id: "p" }, paid_through_forecast: "2026-10-23" });
-  assert.equal(chip.label, "Осталось 2 урока из 12 · хватит до ~23.10 (по расписанию)");
+  assert.equal(chip.label, "Скоро закончится");
+  const p = require(path.join(root, "src/lib/package-progress.ts")).packageProgress({ ...PACKAGE, status: "expiring", lessons_left: 2, paid_through_forecast: "2026-10-23" });
+  assert.deepEqual([p.tone, p.leftText, p.forecastLine, p.shortText, p.percent], ["warning", "Осталось 2 из 12 уроков", "Хватит примерно до 23.10 по расписанию", "2/12 уроков", 83]);
   assert.equal(chip.tone, "warning");
 });
 
@@ -342,4 +344,34 @@ test("3. the sheet of a cancelled lesson offers «Изменить причин�
   assert.match(sheet, /orgApi\.changeCancellationKind\(groupId/);
   assert.match(sheet, /data-testid="sheet-change-kind"/);
   assert.match(read("src/lib/api.ts"), /\/attendance\/cancellation-kind`, \{ method: "PUT"/);
+});
+
+test("the package as a progress line: the text, the share used, the forecast line, the tone of the state, the bar for the screen reader", () => {
+  const { packageProgress } = require(path.join(root, "src/lib/package-progress.ts"));
+  const p = packageProgress({ ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" });
+  assert.deepEqual([p.leftText, p.percent, p.tone, p.forecastLine, p.forecastDay, p.shortText], ["Осталось 8 из 12 уроков", 33, "ok", "Хватит примерно до 21.11 по расписанию", "21.11", "8/12 уроков"]);
+  assert.equal(packageProgress({ ...PACKAGE, lessons_left: 1 }).leftText, "Остался 1 из 12 уроков");
+  const over = packageProgress({ ...PACKAGE, status: "expired", lessons_left: 0, paid_through_forecast: null });
+  assert.deepEqual([over.tone, over.forecastLine, over.percent, over.forecastDay], ["danger", "Пакет закончился", 100, null]);
+  assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: null }).forecastLine, "Прогноз недоступен");
+  assert.equal(packageProgress({ ...PACKAGE, paid_through_forecast: undefined }).forecastLine, null);          // an older server: no line
+  assert.equal(packageProgress({ ...PACKAGE, period_mode: "calendar" }), null);                                  // a monthly mode: nothing changes
+  assert.equal(packageProgress({ ...PACKAGE, lessons_total: null, lessons_left: null }), null);                  // nothing is paid yet
+  assert.equal(packageProgress({ ...PACKAGE, status: "expiring", lessons_left: 2 }).tone, "warning");
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const { PackageProgress } = require(path.join(root, "src/components/payments/package-progress.tsx"));
+  const card = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" } }));
+  assert.match(card, /role="progressbar"/);
+  assert.match(card, /aria-valuenow="4"/);
+  assert.match(card, /aria-valuemax="12"/);
+  assert.match(card, /aria-label="Пакет уроков: использовано 4 из 12"/);
+  assert.match(card, /Осталось 8 из 12 уроков/);
+  assert.match(card, /Хватит примерно до 21\.11 по расписанию/);
+  const small = renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, lessons_left: 8, paid_through_forecast: "2026-11-21" }, variant: "compact" }));
+  assert.match(small, /8\/12 уроков/);
+  assert.match(small, /до 21\.11/);
+  assert.equal(renderToStaticMarkup(React.createElement(PackageProgress, { row: { ...PACKAGE, period_mode: "calendar" } })), "");
+  // one component in all four places, no copy
+  for (const file of ["src/components/payments/membership-payments.tsx", "src/components/payments/payments-page.tsx", "src/components/groups/group-payments-tab.tsx"]) assert.match(read(file), /<PackageProgress /, file);
 });

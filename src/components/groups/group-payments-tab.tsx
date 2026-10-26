@@ -40,6 +40,7 @@ import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { studentHref } from "@/lib/ia-links";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
+import { PackageProgress } from "@/components/payments/package-progress";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
 import { useToast } from "@/components/ui/toast";
@@ -327,7 +328,12 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 }
 
 function ChipView({ view }: { view: GroupPaymentRowView }) {
-  return <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="tabular-nums">{view.chip.label}</Chip>;
+  return (
+    <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center">
+      <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>
+      <PackageProgress row={view.row} variant="compact" />
+    </div>
+  );
 }
 
 function StudentCell({ view, studentsBasePath }: { view: GroupPaymentRowView; studentsBasePath: string }) {

@@ -45,6 +45,14 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   const panelButton = page.getByRole("button", { name: "Не смогу провести" });
   await expect(panelButton).toBeVisible();
   await expect(page.getByTestId("teacher-move")).toBeVisible();
+  // «Не смогу провести» and «Перенести урок» stand in ONE row (they wrap only when a phone is too narrow for both)
+  const [request, move] = [await panelButton.boundingBox(), await page.getByTestId("teacher-move").boundingBox()];
+  expect(Math.abs(request!.y - move!.y), "the two buttons share a row").toBeLessThan(4);
+  expect(move!.x).toBeGreaterThan(request!.x + request!.width - 1);
+  await expectNoHorizontalScroll(page);
+  mkdirSync("/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots", { recursive: true });
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: `/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots/23-teacher-panel-buttons-row-${project}.png` });
   await shot(page, `01-panel-${project}`);
 
   // --- 2. the dialog stands ABOVE the panel; Escape closes only the dialog

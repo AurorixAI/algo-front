@@ -1098,7 +1098,7 @@ export function statusLabel(
       if (lessons) return "Уроки закончились";
       return row.days_overdue ? `Просрочено на ${daysLabel(row.days_overdue)}` : "Оплата просрочена";
     case "expiring":
-      if (lessons) return lessonsLeftText(row) || "Скоро закончится";
+      if (lessons) return "Скоро закончится";        // the count and the date are the progress line of the package (`lib/package-progress.ts`)
       return row.days_left ? leftPhrase(row.days_left, "день", "дня", "дней") : "Скоро закончится";
     case "active":
       return "Оплачено";
@@ -1164,9 +1164,8 @@ export function membershipChip(row: MoneyChipRow & Partial<Pick<MembershipPaymen
     return { label: `Долг ${formatMoney(debt)}`, tone: base.tone, title: base.label };
   }
   if (row.period_mode === "lessons") {
-    // PAY-F: next to «осталось N уроков из M» the forecast «хватит до ~ДД.ММ (по расписанию)» (amber too: that is when it matters most)
-    const extra = base.tone === "ok" ? statusDetail(row) : base.tone === "warning" ? forecastText(row) : "";
-    return { ...base, label: extra ? `${base.label} · ${extra}` : base.label, title: null };
+    // a package: only the short status here («Оплачено» / «Скоро закончится»), the count, the bar and the forecast are `PackageProgress` under the price
+    return { ...base, title: null };
   }
   if (row.status === "active" && until) return { label: `Оплачено до ${dayMonth(until)}`, tone: "ok", title: `оплачено до ${formatDateRu(until)}` };
   if (row.status === "expiring" && until) return { label: `${base.label} · до ${dayMonth(until)}`, tone: base.tone, title: `оплачено до ${formatDateRu(until)}` };

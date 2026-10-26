@@ -26,6 +26,9 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: `${SHOTS}/${name}.png`, fullPage: false });
 }
 
+/** ~40 characters: a long name must not push the chip or the teacher line aside. */
+const LONG_NAME = "Группа ПФ-1 углублённая математика 7 А";
+
 const today = () => businessNow().date;
 const wrap = (weekday: number) => ((weekday - 1 + 7) % 7) + 1;
 const grouped = (amount: number) => String(amount).replace(/\B(?=(\d{3})+(?!\d))/g, "\\s");
@@ -91,13 +94,13 @@ async function openPayDialog(page: Page, lastName: string) {
 }
 
 test.describe("package centre", () => {
-  test("the package of 12: a payment, «хватит до ~…»; a day off of the centre moves the forecast and the student's card says «выходной» @mobile", async ({ signIn }, info) => {
+  test("the package of 12: a payment, the progress line of the package «Осталось 12 из 12 уроков» + «Хватит примерно до …»; a day off of the centre moves the forecast and the student's card says «выходной» @mobile", async ({ signIn }, info) => {
     test.setTimeout(240_000);
     const project = info.project.name;
     const org = await Org.create("Пакет 25.10");
     const fee = 600000;
     const teacher = await org.addStaff("teacher", "Пакетов");
-    const group = await org.createGroup({ name: "Группа ПФ-1", teacherId: teacher.userId });
+    const group = await org.createGroup({ name: LONG_NAME, teacherId: teacher.userId });
     await org.setGroupPrice(group.id, fee);
     const days = await threeWeekdays(org, group);
     // the accounting starts today and the student joins AFTER the switch, the same day: he has no running period, so his first period is a package
@@ -138,10 +141,36 @@ test.describe("package centre", () => {
     expect(row).toMatchObject({ period_mode: "lessons", lessons_left: 12, paid_through_forecast: twelfth });
     await page.goto(`/owner/students/${student.id}`);
     await page.getByRole("tab", { name: "Оплаты" }).click();
-    await expect(page.getByText(`хватит до ~${dm(twelfth)} (по расписанию)`).first()).toBeVisible();
-    await expect(page.getByText(/осталось 12 уроков из 12/).first()).toBeVisible();
+    // the header chip is short; under the price the progress line of the package: the count, the bar, what the schedule promises
+    const chip = page.getByTestId("membership-chip");
+    await expect(chip).toHaveText("Оплачено");
+    const progress = page.getByTestId("package-progress");
+    await expect(progress).toContainText("Осталось 12 из 12 уроков");
+    await expect(progress.getByTestId("package-forecast")).toHaveText(`Хватит примерно до ${dm(twelfth)} по расписанию`);
+    const bar = progress.getByRole("progressbar");
+    await expect(bar).toHaveAttribute("aria-valuenow", "0");
+    await expect(bar).toHaveAttribute("aria-valuemax", "12");
+    await expect(bar).toHaveAttribute("data-tone", "ok");
+    // nothing is pushed aside: the chip is one line, the teacher line of the heading is not broken, no sideways scroll (long group name)
+    expect((await chip.boundingBox())!.height).toBeLessThan(32);
+    const teacherLine = page.getByText(/Преподаватель:/).first();
+    expect((await teacherLine.boundingBox())!.height).toBeLessThan(project === "mobile" ? 60 : 32);
+    await expect(page.getByText(/осталось 12 уроков из 12|хватит до ~/)).toHaveCount(0);       // the old long chip is gone
     await expectNoHorizontalScroll(page);
-    await shot(page, `02-forecast-${project}`);
+    await shot(page, `22-package-card-${project}`);
+
+    // the tables: the group's «Оплаты» tab and the list of payments show the same package as a compact line
+    await page.goto(`/owner/groups/${group.id}?tab=payments`);
+    const small = page.getByTestId("package-progress-compact");
+    await expect(small).toContainText("12/12 уроков");
+    await expect(small).toContainText(`до ${dm(twelfth)}`);
+    await expect(small.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "12");
+    await expectNoHorizontalScroll(page);
+    await shot(page, `22-package-table-group-${project}`);
+    await page.goto("/owner/payments");
+    await expect(page.getByTestId("package-progress-compact").first()).toContainText("12/12 уроков");
+    await expectNoHorizontalScroll(page);
+    await shot(page, `22-package-table-list-${project}`);
 
     // --- 4. a day off of the centre on the second lesson: the dry run says what happens, then «Отменить уроки»
     const [, second] = upcoming(days, 2);
@@ -164,7 +193,7 @@ test.describe("package centre", () => {
     await expect.poll(async () => (await org.owner.api.get(`/auth/org/students/${student.id}/memberships`)).find((r: any) => r.membership_id === membership).paid_through_forecast).toBe(moved);
     await page.goto(`/owner/students/${student.id}`);
     await page.getByRole("tab", { name: "Оплаты" }).click();
-    await expect(page.getByText(`хватит до ~${dm(moved)} (по расписанию)`).first()).toBeVisible();
+    await expect(page.getByTestId("package-forecast")).toHaveText(`Хватит примерно до ${dm(moved)} по расписанию`);
     await expectNoHorizontalScroll(page);
     await shot(page, `05-student-forecast-moved-${project}`);
     // the attendance of the student says why the lesson did not take place (the month of the day off)

@@ -18,6 +18,7 @@ import { canPayLeftDebt, openingSummary } from "@/lib/payments-logica";
 import { savedPaymentDetails } from "@/lib/payments-ledger";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
+import { PackageProgress } from "./package-progress";
 import { Chip } from "@/components/ui/chip";
 import { moneyChipTone } from "@/lib/status-registry";
 import { BalanceNote } from "./balance-note";
@@ -102,7 +103,7 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
         <div className="min-w-0 [grid-area:heading]">{heading}</div>
         {editable && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 [grid-area:status] lg:pt-1">
-            <Chip tone={moneyChipTone(chip.tone, true)} title={chip.title ?? undefined} testId="membership-chip" className="tabular-nums">{chip.label}</Chip>
+            <Chip tone={moneyChipTone(chip.tone, true)} title={chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{chip.label}</Chip>
             {/* IA audit F2: a pause is managed in «Обучение»; here it is only the chip «На паузе до …» and the way there */}
             {row.paused && (
               <Link href={`${pathname ?? ""}?tab=learning`} data-testid="membership-pause-link" className="text-[11px] font-semibold text-primary-700 hover:underline">Пауза — в «Обучении»</Link>
@@ -163,6 +164,8 @@ export function MembershipPayments({ row, heading, studentName, periodMode, paym
 
       {/* Row 2: what the student pays */}
       <MembershipPriceLine row={row} periodMode={periodMode} groupsBasePath={groupsBasePath} />
+      {/* a package: the count, the bar and what the schedule promises (nothing for a monthly mode) */}
+      {editable && <PackageProgress row={row} />}
 
       {/* IA audit F10: the one line left of the payment history; the history is «Выписка» */}
       {lastLine && <p className="text-xs text-slate-500" data-testid="membership-last-payment">{lastLine}</p>}

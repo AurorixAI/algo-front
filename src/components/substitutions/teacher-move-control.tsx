@@ -64,14 +64,14 @@ export function TeacherMoveControl({
   // an open dialog is never taken away by the clock: crossing the 60-minute line makes the SERVER answer MOVE_TOO_LATE in the dialog, with its own words
   if (!open) {
     if (control.kind === "none") return null;
-    if (control.kind === "late") return <p role="status" data-testid="move-late-hint" className="mb-4 text-xs font-medium text-slate-500">{MOVE_TOO_LATE_HINT}</p>;
+    if (control.kind === "late") return <p role="status" data-testid="move-late-hint" className="text-xs font-medium text-slate-500">{MOVE_TOO_LATE_HINT}</p>;
   }
 
   const sheetLesson: Lesson = {
     id: lesson.lessonId, date: lesson.lessonDate, startTime: lesson.startTime, endTime: lesson.endTime, room: lesson.room, format: lesson.format, topic: lesson.topic ?? undefined,
   };
   return (
-    <div className={open && control.kind !== "button" ? undefined : "mb-4"}>
+    <div className="min-w-0">
       {control.kind === "button" && (
         <button
           type="button"

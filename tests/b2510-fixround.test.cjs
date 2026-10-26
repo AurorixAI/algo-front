@@ -94,3 +94,11 @@ test("[3][4] the words of a taken off / replaced substitution are the same in th
   assert.equal(S.teacherStatusLine(removed).text, S.decisionResultText(removed));
   assert.doesNotMatch(S.decisionResultText(removed), /Замена снята: Тарасов/);
 });
+
+test("the teacher's lesson panel: «Не смогу провести» and «Перенести урок» are ONE flex row, an empty row takes no room", () => {
+  const src = read("src/components/substitutions/teacher-lesson-controls.tsx");
+  assert.match(src, /className="mb-4 flex flex-wrap items-start gap-2 empty:hidden"/);
+  assert.doesNotMatch(read("src/components/substitutions/request-control.tsx"), /<div className="mb-4">/);
+  assert.doesNotMatch(read("src/components/substitutions/teacher-move-control.tsx"), /"mb-4"/);
+  for (const page of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(page), /<TeacherLessonControls/);
+});

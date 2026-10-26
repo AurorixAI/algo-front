@@ -312,7 +312,7 @@ test("leftPhrase: the verb agrees with the number, in the payments chip and in t
   const payments = lib("payments.ts");
   const row = { status: "expiring", period_mode: "calendar", days_overdue: null, days_left: 21, lessons_total: null, lessons_left: null };
   assert.equal(payments.statusLabel(row), "Остался 21 день");
-  assert.equal(payments.statusLabel({ ...row, period_mode: "lessons", lessons_total: 12, lessons_left: 1 }), "Остался 1 урок из 12");
+  assert.equal(payments.statusLabel({ ...row, period_mode: "lessons", lessons_total: 12, lessons_left: 1 }), "Скоро закончится");
   assert.equal(payments.statusDetail({ status: "active", period_mode: "lessons", paid_until: null, lessons_total: 12, lessons_left: 1 }), "остался 1 урок из 12");
   assert.equal(lib("excuse-deadline.ts").excuseDeadlineCell({ lesson_date: "2026-10-03", status: "pending", deadline: { kind: "date", date: "2026-10-26", overdue: false, days_left: 1 } }, "2026-10-25").headline, "Остался 1 день");
   assert.doesNotMatch(read("src/lib/excuse-deadline.ts"), /\bfunction (daysWord|lessonsWord)\b/);
