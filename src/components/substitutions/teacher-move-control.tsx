@@ -79,7 +79,7 @@ export function TeacherMoveControl({
           onClick={() => setOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold whitespace-nowrap text-slate-700 shadow-2xs sm:px-3.5 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-800"
         >
-          <CalendarClock className="h-3.5 w-3.5 text-slate-400" />
+          <CalendarClock className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />
           {SCHEDULE_ACTION_LABEL.reschedule}
         </button>
       )}

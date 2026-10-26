@@ -107,7 +107,7 @@ export function RequestControl({
           onClick={() => setDialogOpen(true)}
           className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs font-semibold whitespace-nowrap text-slate-700 shadow-2xs sm:px-3.5 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900"
         >
-          <UserMinus className="h-3.5 w-3.5 text-slate-400" />
+          <UserMinus className="hidden h-3.5 w-3.5 text-slate-400 sm:block" />
           {REQUEST_ACTION}
         </button>
       )}
