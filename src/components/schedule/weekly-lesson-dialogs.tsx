@@ -558,7 +558,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
     <Modal
       open
       title="Прекратить занятия"
-      description="Прошедшие уроки, посещаемость и журнал останутся без изменений. Новые экземпляры этого занятия перестанут появляться с выбранной даты."
+      description="Прошедшие уроки, посещаемость и журнал останутся без изменений. С выбранной даты этот урок больше не будет появляться в расписании."
       onClose={onClose}
       busy={busy}
       aboveLessonPanel={aboveLessonPanel}

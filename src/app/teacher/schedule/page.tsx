@@ -2380,10 +2380,10 @@ export default function TeacherSchedulePage() {
                           </div>
                           <div>
                             <p className="text-sm font-bold text-slate-900">
-                              Запланированное занятие ({DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name})
+                              Запланированное занятие
                             </p>
                             <p className="text-xs text-slate-500 mt-0.5">
-                              Урок запланирован на {DAYS.find((d) => d.id === activeLesson.dayOfWeek)?.name?.toLowerCase()} с {activeLesson.startTime} до {activeLesson.endTime}. Начать урок и отметить посещаемость можно будет в день занятия.
+                              Урок: {formatIsoDateLabel(activeLesson.occurrenceDate, { weekday: "long", day: "numeric", month: "long" })}, {activeLesson.startTime}–{activeLesson.endTime}. Начать урок и отметить посещаемость можно будет в день занятия.
                             </p>
                           </div>
                         </div>
@@ -2718,8 +2718,8 @@ export default function TeacherSchedulePage() {
               {isCancellingLesson && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && (
                 <div className="mb-5 rounded-2xl border border-rose-200 bg-rose-50 p-4 space-y-3">
                   <div>
-                    <p className="text-sm font-bold text-rose-900">Отменить урок {activeLesson.occurrenceDate}</p>
-                    <p className="text-xs text-rose-700 mt-0.5">Отметки этого экземпляра будут очищены, а причина и прежнее состояние сохранятся в аудите.</p>
+                    <p className="text-sm font-bold text-rose-900">Отменить урок {formatIsoDateLabel(activeLesson.occurrenceDate, { day: "numeric", month: "long" })}</p>
+                    <p className="text-xs text-rose-700 mt-0.5">Отметки посещаемости этого урока будут сброшены. Причина отмены сохранится в истории урока.</p>
                   </div>
                   {lessonExamBinding?.loading && (
                     <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">Проверяем связанный экзамен…</p>

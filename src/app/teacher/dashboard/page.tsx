@@ -2180,7 +2180,7 @@ export default function TeacherDashboardPage() {
                     <div className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
                       <div>
                         <p className="text-sm font-bold text-rose-900">Причина отмены</p>
-                        <p className="mt-1 text-xs leading-5 text-rose-700">Это действие останется в аудите и закроет урок без отметок посещаемости.</p>
+                        <p className="mt-1 text-xs leading-5 text-rose-700">Урок закроется без отметок посещаемости; это действие сохранится в истории урока.</p>
                       </div>
                       <textarea
                         value={missedLessonCancellationReason}
@@ -2703,7 +2703,7 @@ export default function TeacherDashboardPage() {
                   <div className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
                     <div>
                       <p className="text-sm font-bold text-rose-900">Отменить урок</p>
-                      <p className="mt-0.5 text-xs text-rose-700">Отметки этого занятия будут очищены, а причина и прежнее состояние сохранятся в аудите.</p>
+                      <p className="mt-0.5 text-xs text-rose-700">Отметки посещаемости этого урока будут сброшены. Причина отмены сохранится в истории урока.</p>
                     </div>
                     {lessonExamBinding?.loading && (
                       <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">Проверяем связанный экзамен…</p>
