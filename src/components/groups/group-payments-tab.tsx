@@ -276,7 +276,7 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
           <div role="presentation" className={`hidden items-center gap-x-6 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-[13px] font-semibold text-slate-500 lg:grid ${GRID_COLS}`}>
             <span>Ученик</span>
             <span>{label}</span>
-            <span>Оплата</span>
+            <span className="text-center">Оплата</span>
             <span className="sr-only">Действия</span>
           </div>
           <ul className="space-y-2.5 lg:space-y-0 lg:divide-y lg:divide-slate-100">
@@ -329,9 +329,10 @@ export function GroupPaymentsTab({ groupId, groupName, groupPrice, groupsBasePat
 
 function ChipView({ view }: { view: GroupPaymentRowView }) {
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1.5">
+    // the status and the package bar on ONE axis, centred under the «Оплата» header (owner 26.10)
+    <div className="flex min-w-0 flex-col items-start gap-1.5 lg:items-center">
       <Chip tone={moneyChipTone(view.chip.tone, true)} title={view.chip.title ?? undefined} testId="membership-chip" className="whitespace-nowrap tabular-nums">{view.chip.label}</Chip>
-      <PackageProgress row={view.row} variant="compact" />
+      <PackageProgress row={view.row} variant="compact" className="lg:[&>p]:justify-center" />
     </div>
   );
 }
@@ -377,7 +378,7 @@ function PaymentRow({ view, label, studentsBasePath, paymentsBasePath, actions, 
         </div>
       </div>
 
-      <div className="min-w-0 lg:flex lg:justify-start"><ChipView view={view} /></div>
+      <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
 
       <div className="flex items-center gap-2 lg:justify-end">
         <button
@@ -411,7 +412,7 @@ function LeftRow({ view, studentsBasePath, paymentsBasePath, onPay }: { view: Gr
         <p className="text-xs text-slate-400">ушёл из группы</p>
       </div>
       <span className="text-sm text-slate-400 max-lg:hidden">—</span>
-      <div className="min-w-0 lg:flex lg:justify-start"><ChipView view={view} /></div>
+      <div className="min-w-0 lg:flex lg:justify-center"><ChipView view={view} /></div>
       <div className="flex items-center gap-2 lg:justify-end">
         {canPayLeftDebt(view.row) && (
           <button type="button" onClick={onPay} className="min-w-0 flex-1 whitespace-nowrap rounded-lg border border-primary-600 bg-primary-600 px-3.5 py-2 text-center text-xs font-semibold text-white hover:bg-primary-700 lg:flex-none lg:py-1.5">
