@@ -76,6 +76,19 @@ export function lessonHasStarted(input: { date: string; today: string; startTime
   return start !== null && start.getTime() <= (input.now ?? new Date()).getTime();
 }
 
+/**
+ * «The lesson is over» (business time, Tashkent) - the rule of the server for a missed lesson (`_resolve_reconcilable_missed_occurrence`: a lesson of today is reconciled only when the
+ * current MINUTE is later than the minute of its end).  A past day is over; a later day never is; a lesson of today without a readable end is not (the server has the last word).
+ * ONE helper (rule 38): «Урока не было» of the teacher asks it, not `lessonHasStarted` (a lesson that has begun but not ended is the teacher's to start and hold).
+ */
+export function lessonHasEnded(input: { date: string; today: string; endTime?: string | null; now?: Date }): boolean {
+  if (input.date < input.today) return true;
+  if (input.date > input.today) return false;
+  const end = businessWallTimeToInstant(input.date, input.endTime);
+  // the minute of the end is still «not over»: the first moment after it is the start of the next minute
+  return end !== null && end.getTime() + 60_000 <= (input.now ?? new Date()).getTime();
+}
+
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
   const base = lessonActions(input);
@@ -138,14 +151,18 @@ export function teacherCancelOffer(input: {
   role: string | null | undefined;
   /** Somebody else leads this lesson now (the substitute of a replaced lesson; for the replaced teacher too): not his to cancel.  The substitute himself leads it and is offered. */
   otherLeads?: boolean;
-  state: string | null | undefined; date: string; today: string; startTime?: string | null; rosterEmpty?: boolean; now?: Date; ownOneOff?: boolean;
+  state: string | null | undefined; date: string; today: string; startTime?: string | null;
+  /** «HH:MM» of the end: «Урока не было» comes only after it (`lessonHasEnded`, the server's rule). */
+  endTime?: string | null;
+  rosterEmpty?: boolean; now?: Date; ownOneOff?: boolean;
 }): TeacherCancelOffer | null {
   if (input.role !== "teacher" || input.otherLeads) return null;
   const state = input.state || "scheduled";
   const notHeld = (route: TeacherCancelOffer["route"]): TeacherCancelOffer => ({ route, variant: "not_held", label: CANCEL_PAST_LESSON_LABEL });
   if (state === "in_progress") return input.rosterEmpty ? notHeld("attendance") : null;
   if (state !== "scheduled") return null;
-  if (lessonHasStarted(input)) return notHeld("missed");
+  if (lessonHasEnded(input)) return notHeld("missed");
+  // (a lesson that has begun but not ended is held, not «missed»: the teacher starts it as usual - nothing new on the panel)
   // W1 S27: a lesson to come is not his to cancel - except the one-off lesson he created himself (the server: 403 for every other)
   return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL } : null;
 }

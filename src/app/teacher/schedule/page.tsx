@@ -1460,7 +1460,7 @@ export default function TeacherSchedulePage() {
   // W1 F10: a lesson of his that a substitute leads stays in his schedule («Замена: имя»), but the lesson is not his to start, mark, move or cancel
   const ledByOther = Boolean(activeLesson?.replacedBy) || lessonBelongsToOther(activeTeacherInfo, user?.id);
   const cancelOffer = activeLesson && !isCancellingLesson
-    ? teacherCancelOffer({ role: user?.org_role ?? user?.role ?? null, otherLeads: ledByOther, state: activeLessonStatus, date: activeLesson.occurrenceDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
+    ? teacherCancelOffer({ role: user?.org_role ?? user?.role ?? null, otherLeads: ledByOther, state: activeLessonStatus, date: activeLesson.occurrenceDate, today: businessDate, startTime: activeLesson.startTime, endTime: activeLesson.endTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
     : null;
   // the «⋯» menu of the lesson panel: ONE place for what can be done with the lesson, in groups by meaning
   const lessonMenuGroups: LessonMenuGroup[] = [

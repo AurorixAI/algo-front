@@ -54,11 +54,11 @@ test("F1: a teacher is offered «Урока не было» only for a lesson th
   const today = "2026-10-22";
   const after = new Date("2026-10-22T06:00:00Z");   // 11:00 in Tashkent
   const before = new Date("2026-10-22T04:30:00Z");  // 09:30
-  const offer = (patch) => A.teacherCancelOffer({ role: "teacher", state: "scheduled", date: "2026-10-20", today, startTime: "10:00", now: after, ...patch });
+  const offer = (patch) => A.teacherCancelOffer({ role: "teacher", state: "scheduled", date: "2026-10-20", today, startTime: "10:00", endTime: "10:45", now: after, ...patch });
   assert.deepEqual(offer({}), { route: "missed", variant: "not_held", label: "Урока не было" }, "a past lesson nobody started: one line, no second line in the menu");
   assert.equal(offer({ date: "2026-10-24" }), null, "a lesson to come: he asks «Не смогу провести», the administrator cancels");
   assert.equal(offer({ date: today, now: before }), null, "today, not started yet");
-  assert.equal(offer({ date: today, now: after })?.route, "missed", "today, the start has passed");
+  assert.equal(offer({ date: today, now: after })?.route, "missed", "today, the lesson is over (10:45 passed)");
   assert.equal(offer({ state: "completed" }), null);
   assert.equal(offer({ state: "cancelled" }), null);
   assert.equal(offer({ state: "in_progress" }), null, "a started lesson with a roster is finished, not cancelled");
@@ -697,4 +697,31 @@ test("phone: the search placeholder is just «Поиск», the accessible name 
   assert.match(page, /aria-label="Группа или преподаватель"/);
   assert.match(page, /useMediaQuery\(PHONE_QUERY\)/);
   assert.match(read("src/lib/use-media-query.ts"), /\(max-width: 639px\)/, "below Tailwind's `sm`, like the other phone rules of the page");
+});
+
+test("stage 17: «Урока не было» only after the lesson END (business time) - the server's rule; during the lesson nothing new, O6 stays", () => {
+  const today = "2026-10-22";
+  // the lesson 10:00-10:45 Tashkent = 05:00-05:45 UTC; instants are injected, the real clock is never read
+  const at = (hhmm) => new Date(`2026-10-22T${hhmm}:00+05:00`);
+  const offer = (now, patch = {}) => A.teacherCancelOffer({ role: "teacher", state: "scheduled", date: today, today, startTime: "10:00", endTime: "10:45", now, ...patch });
+  assert.equal(offer(at("09:59")), null, "before the start: nothing");
+  assert.equal(offer(at("10:01")), null, "start + 1 min: the lesson is held, the teacher starts it as usual");
+  assert.equal(offer(at("10:44")), null, "end - 1 min: still held");
+  assert.equal(offer(at("10:45")), null, "the minute of the end is not over yet (the server: current minute <= end minute is refused)");
+  assert.equal(offer(at("10:46"))?.route, "missed", "end + 1 min: «Урока не было»");
+  assert.equal(offer(at("10:46"))?.label, "Урока не было");
+  assert.equal(offer(at("10:01"), { endTime: null }), null, "no readable end today: nothing (the server decides)");
+  assert.equal(offer(at("10:46"), { endTime: null }), null);
+  assert.equal(offer(at("10:01"), { date: "2026-10-21" })?.route, "missed", "a past day is over whatever the clock says");
+  assert.equal(offer(at("10:01"), { date: "2026-10-23" }), null, "a later day never");
+  // O6 stays: a lesson started in the journal with an empty roster can still be cancelled during its time
+  assert.equal(offer(at("10:20"), { state: "in_progress", rosterEmpty: true })?.route, "attendance");
+  assert.equal(offer(at("10:20"), { state: "in_progress", rosterEmpty: false }), null);
+  // one helper for «ended» (rule 38), next to «started»
+  assert.equal(A.lessonHasEnded({ date: today, today, endTime: "10:45", now: at("10:45") }), false);
+  assert.equal(A.lessonHasEnded({ date: today, today, endTime: "10:45", now: at("10:46") }), true);
+  assert.equal(A.lessonHasEnded({ date: "2026-10-21", today, endTime: "10:45", now: at("00:00") }), true);
+  assert.equal(A.lessonHasEnded({ date: "2026-10-23", today, endTime: "10:45", now: at("23:59") }), false);
+  assert.equal(A.lessonHasStarted({ date: today, today, startTime: "10:00", now: at("10:01") }), true, "«started» is a different question and keeps its own answer");
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /endTime: activeLesson\.endTime, rosterEmpty/, file);
 });
