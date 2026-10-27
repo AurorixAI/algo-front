@@ -725,3 +725,17 @@ test("stage 17: «Урока не было» only after the lesson END (business
   assert.equal(A.lessonHasStarted({ date: today, today, startTime: "10:00", now: at("10:01") }), true, "«started» is a different question and keeps its own answer");
   for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /endTime: activeLesson\.endTime, rosterEmpty/, file);
 });
+
+test("journal: PersonRef.role (owner / admin / teacher) from the server names the owner «владелец»; no role = «администратор» (a fixture of the server's shape)", () => {
+  const items = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/w1/journal_items.json"), "utf8"));
+  assert.equal(S.decidedByLine(items.ownerCancelled), "Отменил владелец Юсупова Н., 27.10 17:00");
+  assert.equal(S.decidedByLine(items.adminRestored), "Вернул урок администратор Каримова Н., 27.10 17:05");
+  assert.equal(S.decidedByLine(items.noRole), "Отменил администратор Старова С., 27.10 17:00", "an older answer without a role: the neutral word");
+  assert.match(read("src/lib/substitution-types.ts"), /role\?: string \| null;\n\}/, "PersonRef carries the role");
+});
+
+test("lead note 375: the teacher's «Изменить постоянное расписание» button is never cut with an ellipsis: a short label on a phone, the full one from `sm`", () => {
+  const page = read("src/app/teacher/schedule/page.tsx");
+  assert.match(page, /<span className="sm:hidden">Изменить расписание<\/span><span className="hidden sm:inline">Изменить постоянное расписание<\/span>/);
+  assert.doesNotMatch(page, /<span className="truncate">Изменить постоянное расписание<\/span>/, "no truncate on an action");
+});

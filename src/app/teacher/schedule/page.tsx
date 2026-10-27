@@ -2800,7 +2800,7 @@ export default function TeacherSchedulePage() {
                       className="inline-flex min-w-0 items-center gap-1.5 rounded-xl bg-primary-50 px-3.5 py-2 text-xs font-semibold text-primary-700 transition-colors hover:bg-primary-100"
                     >
                       <Edit2 className="h-3.5 w-3.5 shrink-0" />
-                      <span className="truncate">Изменить постоянное расписание</span>
+                      <span className="text-left leading-tight"><span className="sm:hidden">Изменить расписание</span><span className="hidden sm:inline">Изменить постоянное расписание</span></span>
                     </button>
                   ) : (
                     showsGroupLinks(activeRosterSource) ? (

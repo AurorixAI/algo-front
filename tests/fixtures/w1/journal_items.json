@@ -1,0 +1,14 @@
+{
+  "ownerCancelled": { "id": "s1", "status": "cancelled", "origin": "system", "trigger": "manager_cancel",
+    "group": { "id": "g1", "name": "9-А" }, "lesson": { "lessonId": "l1", "date": "2026-11-10", "startTime": "10:00", "endTime": "10:45" },
+    "teacher": { "id": "t1", "name": "Иванов И.", "role": "teacher" }, "reasonCode": "other", "minutesToStart": 9000, "urgent": false, "overdue": false,
+    "decision": { "kind": "cancel", "via": "request", "by": { "id": "o1", "name": "Юсупова Н.", "role": "owner" }, "at": "2026-10-27T12:00:00" } },
+  "adminRestored": { "id": "s2", "status": "closed", "origin": "system", "trigger": "manager_restore",
+    "group": { "id": "g1", "name": "9-А" }, "lesson": { "lessonId": "l1", "date": "2026-11-10", "startTime": "10:00", "endTime": "10:45" },
+    "teacher": { "id": "t1", "name": "Иванов И.", "role": "teacher" }, "reasonCode": "other", "minutesToStart": 9000, "urgent": false, "overdue": false,
+    "decision": { "kind": "closed", "via": "manager_restore", "closedReason": "LESSON_RESTORED", "by": { "id": "a1", "name": "Каримова Н.", "role": "admin" }, "at": "2026-10-27T12:05:00" } },
+  "noRole": { "id": "s3", "status": "cancelled", "origin": "system", "trigger": "manager_cancel",
+    "group": { "id": "g1", "name": "9-А" }, "lesson": { "lessonId": "l1", "date": "2026-11-10", "startTime": "10:00", "endTime": "10:45" },
+    "teacher": { "id": "t1", "name": "Иванов И." }, "reasonCode": "other", "minutesToStart": 9000, "urgent": false, "overdue": false,
+    "decision": { "kind": "cancel", "by": { "id": "x", "name": "Старова С." }, "at": "2026-10-27T12:00:00" } }
+}
