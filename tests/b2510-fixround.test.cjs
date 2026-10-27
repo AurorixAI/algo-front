@@ -186,3 +186,17 @@ test("today's start has gone: the SAME rule for the owner and the teacher (pastD
   for (const src of [teacher, owner]) assert.match(src, /pastDayPlan\(\{/, "both screens use the one rule");
   assert.match(teacher, /data-testid="add-past-day-note"/);
 });
+
+test("a move says what happens to the exam of the lesson BEFORE it is made: a draft is released (warning), a live one blocks the move", () => {
+  const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const draft = A.examMoveState({ state: "ok", title: "Контрольная 7А", canCancel: true });
+  assert.equal(draft.blocked, false);
+  assert.match(draft.message, /привязан экзамен «Контрольная 7А».*вернётся в черновик.*новый урок/);
+  const live = A.examMoveState({ state: "ok", title: "Контрольная 7А", canCancel: false });
+  assert.equal(live.blocked, true);
+  assert.match(live.message, /нельзя перенести/);
+  assert.equal(A.examMoveState({ state: "none" }).message, null);
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /if \(next === "cancel" \|\| next === "reschedule"\) loadBinding\(\);/);
+  assert.equal((sheet.match(/<ExamBindingNote state=\{examState\} onRetry=\{loadBinding\} \/>/g) || []).length, 2, "one note for the cancel and the move forms");
+});

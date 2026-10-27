@@ -2,7 +2,7 @@ import { ASSIGN_TEACHER_ACTION, REPLACE_TEACHER_ACTION, canReplaceTeacher } from
 import { businessWallTimeToInstant } from "./business-time";
 import { roomWithPrefix } from "./lesson-slot-form";
 import { GROUP_ARCHIVED_SCHEDULE_TEXT, dayAndDateLabel, opsErrorCode, opsErrorDetail } from "./ops-errors";
-import { examDraftCancelText, examRunningText, movedFromLabel, substitutionErrorText } from "./substitutions";
+import { examDraftCancelText, examDraftMoveText, examRunningText, movedFromLabel, substitutionErrorText } from "./substitutions";
 import type { ExamBinding, MoveCheckOut } from "./substitution-types";
 import type { TeacherBusyDetail } from "./ops-b-types";
 
@@ -272,6 +272,17 @@ export interface ExamCancelState {
 }
 
 /** What the exam bound to the lesson means for «Отменить урок» (`lesson-exam-binding`). `null` = not read yet. */
+/** The same answer for a MOVE: a live exam blocks it (the server refuses with LESSON_HAS_LIVE_EXAM), a draft one is released - warn before. */
+export function examMoveState(binding: ExamBinding | null | undefined): ExamCancelState {
+  const state = examCancelState(binding);
+  const title = (binding?.title ?? "").trim();
+  if (!state.blocked && state.tone === "warn" && title) return { ...state, message: examDraftMoveText(title) };
+  if (state.blocked && state.tone === "error" && binding && binding.state !== "unavailable" && !(binding.message ?? "").trim()) {
+    return { ...state, message: title ? `Идёт экзамен «${title}» — урок нельзя перенести, пока экзамен не закончится.` : "Идёт экзамен — урок нельзя перенести, пока экзамен не закончится." };
+  }
+  return state;
+}
+
 export function examCancelState(binding: ExamBinding | null | undefined): ExamCancelState {
   if (!binding) return { loading: true, blocked: true, message: null, tone: "info", retry: false };
   const title = (binding.title ?? "").trim();

@@ -798,6 +798,8 @@ export function rejectConsequence(teacherName: string): string {
 }
 export const examDraftText = (title: string): string => `Экзамен «${title}» вернётся в черновик — привяжите его к новому уроку.`;
 export const examDraftCancelText = (title: string): string => `Экзамен «${title}» вернётся в черновик, код доступа будет закрыт.`;
+/** A move releases a draft exam bound to the lesson (the server, #124): say it before, not after. */
+export const examDraftMoveText = (title: string): string => `К уроку привязан экзамен «${title}». После переноса он вернётся в черновик — назначьте его на новый урок.`;
 export const examRunningText = (title: string): string => `Экзамен «${title}» уже идёт — отменить урок нельзя`;
 
 /** «{Имя} не сможет провести урок». */

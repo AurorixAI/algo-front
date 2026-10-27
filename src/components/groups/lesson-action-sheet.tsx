@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, Pencil, RefreshCw, UserRoundCheck, X } from "lucide-react";
 import { orgApi, substitutionsApi, type Lesson } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
+import { ExamBindingNote } from "./exam-binding-note";
 import { Modal } from "@/components/ui/modal";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { opsErrorCode, scheduleErrorText } from "@/lib/ops-errors";
@@ -11,6 +12,7 @@ import { roomForSave } from "@/lib/schedule-slots";
 import {
   SCHEDULE_ACTION_LABEL,
   examCancelState,
+  examMoveState,
   isLessonChanged,
   lessonMoveCheckLines,
   lessonMoveErrorText,
@@ -129,7 +131,7 @@ export function LessonActionSheet({
       setEnd(lessonEnd);
       setRoom(lesson.room || "");
     }
-    if (next === "cancel") loadBinding();
+    if (next === "cancel" || next === "reschedule") loadBinding();
     dispatch({ type: "open", mode: next, kind: next === "kind" && changeKind ? (changeKind === "centre" ? "holiday" : "centre") : undefined });      // «Изменить причину»: starts from the OTHER kind
   };
 
@@ -171,7 +173,8 @@ export function LessonActionSheet({
 
   const trimmed = reason.trim();
   const reasonProblem = trimmed.length < REASON_MIN ? `Укажите причину (не короче ${REASON_MIN} символов)` : trimmed.length > REASON_MAX ? `Причина — не более ${REASON_MAX} символов` : null;
-  const examState = examCancelState(mode === "cancel" ? binding : { state: "none" });
+  // the exam bound to the lesson matters for a cancellation AND a move (a move releases a draft exam, a live one blocks it)
+  const examState = mode === "cancel" ? examCancelState(binding) : mode === "reschedule" ? examMoveState(binding) : examCancelState({ state: "none" });
   const checkLines = check ? lessonMoveCheckLines(check) : null;
   const confirmDisabled = moveConfirmDisabled({ checking: pending, failed: checkError !== null, check });
   const notRunHint = !pending && !check && !checkError ? (sameSlot ? "Выберите другую дату или время" : !validNew ? "Укажите новую дату и время: начало и окончание, конец позже начала" : null) : null;
@@ -241,7 +244,7 @@ export function LessonActionSheet({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || (mode === "cancel" && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
+            disabled={busy || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -325,6 +328,7 @@ export function LessonActionSheet({
                   {checkLines.stale && onRefresh && refreshButton}
                 </div>
               )}
+              <ExamBindingNote state={examState} onRetry={loadBinding} />
               <div>
                 <label htmlFor="sheet-reason" className={LABEL}>Причина переноса</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
@@ -349,15 +353,7 @@ export function LessonActionSheet({
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
               <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} />
-              {examState.loading && <p role="status" className="flex items-center gap-1.5 text-xs text-slate-500"><Loader2 className="h-3 w-3 animate-spin" /> Проверяем экзамены группы…</p>}
-              {examState.message && (
-                <div data-testid="exam-binding">
-                  <p role={examState.tone === "error" ? "alert" : "status"} className={`text-xs font-semibold ${examState.tone === "error" ? "text-rose-700" : "text-amber-800"}`}>{examState.message}</p>
-                  {examState.retry && (
-                    <button type="button" onClick={loadBinding} className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-3 w-3" />Повторить</button>
-                  )}
-                </div>
-              )}
+              <ExamBindingNote state={examState} onRetry={loadBinding} />
               <p className="text-xs leading-relaxed text-slate-500">Урок будет отменён и не вернётся. Ученики на нём не отмечаются, заработок преподавателя за него не засчитывается.</p>
             </div>
           )}
