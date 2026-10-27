@@ -172,3 +172,17 @@ test("settings «Оплаты» (calm): ONE line for the start of the accounting
   assert.match(help, /aria-expanded="false"/);
   assert.doesNotMatch(help, /Подробности/);                                                                          // closed: one short line stays
 });
+
+test("today's start has gone: the SAME rule for the owner and the teacher (pastDayPlan) - only today's weekday drops, a one-off of today is blocked", () => {
+  const F = require(path.join(root, "src/lib/lesson-slot-form.ts"));
+  const base = { scope: "recurring", days: [2, 4, 6], validFrom: "", date: "", startTime: "10:00", today: "2026-10-27", todayDay: 2, nowMinutes: 12 * 60 + 29 };
+  assert.deepEqual(F.pastDayPlan(base), { pastDays: [2], sendDays: [4, 6], allPast: false, pastOneOff: null });
+  assert.equal(F.pastDayPlan({ ...base, days: [2] }).allPast, true);
+  assert.deepEqual(F.pastDayPlan({ ...base, validFrom: "2026-11-02" }).pastDays, [], "a weekly lesson that starts later loses nothing");
+  assert.deepEqual(F.pastDayPlan({ ...base, startTime: "15:00" }).pastDays, [], "a later start loses nothing");
+  assert.match(F.pastDayPlan({ ...base, scope: "one_off", date: "2026-10-27" }).pastOneOff, /прошедшее время/);
+  assert.equal(F.pastDayPlan({ ...base, scope: "one_off", date: "2026-10-28" }).pastOneOff, null);
+  const teacher = read("src/app/teacher/schedule/page.tsx"), owner = read("src/components/schedule/weekly-lesson-dialogs.tsx");
+  for (const src of [teacher, owner]) assert.match(src, /pastDayPlan\(\{/, "both screens use the one rule");
+  assert.match(teacher, /data-testid="add-past-day-note"/);
+});

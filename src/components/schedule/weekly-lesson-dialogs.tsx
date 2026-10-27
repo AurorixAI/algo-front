@@ -11,7 +11,7 @@ import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
 import { createOneOff, createWeeklyLessons, mergeNotices, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
 import {
-  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastTimeProblem,
+  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastDayPlan,
   timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type WeeklyLesson,
 } from "@/lib/lesson-slot-form";
 import { LessonScopeFields, LessonSlotFields, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
@@ -101,14 +101,14 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
       : [];
   // the server: a lesson of today whose start has gone is refused.  A weekly lesson loses only that weekday (the others are saved and
   // the day is named); a one-off lesson of today is blocked as a whole
-  const nowPast = !timeProblem && pastTimeProblem(value.startTime, businessTimeMinutes()) !== null;
-  const pastDays = scope === "recurring" && nowPast && (validFrom || today) === today && days.includes(businessDayOfWeek()) ? [businessDayOfWeek()] : [];
-  const sendDays = days.filter((day) => !pastDays.includes(day));
-  const pastOneOff = scope === "one_off" && nowPast && date === today ? pastTimeProblem(value.startTime, businessTimeMinutes()) : null;
+  const plan = timeProblem
+    ? { pastDays: [] as number[], sendDays: days, allPast: false, pastOneOff: null }
+    : pastDayPlan({ scope, days, validFrom, date, startTime: value.startTime, today, todayDay: businessDayOfWeek(), nowMinutes: businessTimeMinutes() });
+  const { pastDays, sendDays, pastOneOff } = plan;
   const dateProblem = scope === "recurring"
     ? validFromError(validFrom, today)
     : !date ? DATE_REQUIRED_TEXT : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
-  const allPast = scope === "recurring" && days.length > 0 && sendDays.length === 0;
+  const { allPast } = plan;
   const blocking = timeProblem || pastOneOff || dateProblem || allPast || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {

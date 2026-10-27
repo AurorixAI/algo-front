@@ -133,6 +133,25 @@ export function pastTimeProblem(startTime: string, nowMinutes: number): string |
   return `Нельзя назначить урок на прошедшее время сегодняшнего дня (текущее время: ${now})`;
 }
 
+/**
+ * Today's start has gone (the server refuses a lesson of today in the past) - the SAME rule for every role: a weekly lesson loses only
+ * today's weekday (the other chosen days are saved and the day is named); a one-off lesson of today is blocked as a whole.
+ */
+export function pastDayPlan(o: {
+  scope: "recurring" | "one_off"; days: ReadonlyArray<number>; validFrom: string; date: string; startTime: string;
+  today: string; todayDay: number; nowMinutes: number;
+}): { pastDays: number[]; sendDays: number[]; allPast: boolean; pastOneOff: string | null } {
+  const gone = pastTimeProblem(o.startTime, o.nowMinutes);
+  const pastDays = o.scope === "recurring" && gone && (o.validFrom || o.today) === o.today && o.days.includes(o.todayDay) ? [o.todayDay] : [];
+  const sendDays = o.days.filter((day) => !pastDays.includes(day));
+  return {
+    pastDays,
+    sendDays,
+    allPast: o.scope === "recurring" && o.days.length > 0 && sendDays.length === 0,
+    pastOneOff: o.scope === "one_off" && o.date === o.today ? gone : null,
+  };
+}
+
 /** null when the times are fine; else the sentence under the fields (empty, or the end is not after the start). */
 export function timeRangeProblem(startTime: string, endTime: string): string | null {
   if (!startTime || !endTime) return TIME_REQUIRED_TEXT;

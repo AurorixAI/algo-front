@@ -317,7 +317,7 @@ test("wiring: the teacher's schedule uses the shared scope switch, fields and di
   assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /aboveLessonPanel=\{aboveLessonPanel\}/);
   assert.match(page, /<LessonSlotFields/);
   assert.match(page, /<LessonScopeFields/);
-  assert.match(page, /createWeeklyLessons\(groupId, newDays/);
+  assert.match(page, /createWeeklyLessons\(groupId, addPastPlan\.sendDays/);
   // a repeated click or Enter while the save is on its way does nothing; the button says it
   assert.match(page, /if \(savingLesson\) return;/);
   assert.match(page, /savingLesson \? "Сохраняем…" : "Сохранить урок"/);
