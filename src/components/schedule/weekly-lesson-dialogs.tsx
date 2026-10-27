@@ -11,10 +11,10 @@ import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
 import { createOneOff, createWeeklyLessons, mergeNotices, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
 import {
-  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, dayList, dayShort, nextBusinessDate, overlappingLesson, pastDayPlan,
-  timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type WeeklyLesson,
+  DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, canVaryTimes, dayList, dayShort, dayTimeProblem, dayTimesOf, nextBusinessDate, overlappingLesson, pastDayPlan,
+  reconcileDayTimes, timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type DayTimes, type WeeklyLesson,
 } from "@/lib/lesson-slot-form";
-import { LessonScopeFields, LessonSlotFields, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
+import { LessonScopeFields, LessonSlotFields, ShiftedDayNote, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
 
 const DATE_REQUIRED_TEXT = "Выберите дату";
 
@@ -34,10 +34,10 @@ function Problem({ children, tone = "rose" }: { children: React.ReactNode; tone?
   );
 }
 
-function OverlapNote({ lesson }: { lesson: { groupName: string; startTime: string; endTime: string } }) {
+function OverlapNote({ lesson, day }: { lesson: { groupName: string; startTime: string; endTime: string }; day?: number }) {
   return (
     <Problem>
-      Пересечение по времени: в это время уже назначен урок группы «{lesson.groupName}» ({lesson.startTime} — {lesson.endTime}).
+      {day ? `${dayShort(day)}: пересечение` : "Пересечение"} по времени: в это время уже назначен урок группы «{lesson.groupName}» ({lesson.startTime} — {lesson.endTime}).
     </Problem>
   );
 }
@@ -65,6 +65,8 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   const [days, setDays] = useState<number[]>([]);
   const [date, setDate] = useState(formatBusinessDate());
   const [value, setValue] = useState<SlotFormValue>(DEFAULT_VALUE);
+  /** «Разное время по дням»: the time of each chosen day; null = one time for all days. */
+  const [dayTimes, setDayTimes] = useState<DayTimes | null>(null);
   const [validFrom, setValidFrom] = useState(formatBusinessDate());
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -78,6 +80,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
     setDays([]);
     setDate(formatBusinessDate());
     setValue(DEFAULT_VALUE);
+    setDayTimes(null);
     setValidFrom(formatBusinessDate());
     setTouched(false);
     setBusy(false);
@@ -88,28 +91,39 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   const today = formatBusinessDate();
   const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
 
-  const timeProblem = timeRangeProblem(value.startTime, value.endTime);
-  // a clash inside the group: every chosen weekday for a weekly lesson, the weekday of the date for a one-off one
-  const overlaps = scope === "recurring"
-    ? days.map((day) => ({ day, lesson: overlappingLesson(siblings, day, value.startTime, value.endTime) })).filter((item) => item.lesson)
-    : /^\d{4}-\d{2}-\d{2}$/.test(date)
-      ? [{
-          day: isoDateDayOfWeek(date),
-          // a weekly lesson that does not act yet on that date is no clash
-          lesson: overlappingLesson(siblings.filter((item) => !item.validFrom || item.validFrom <= date), isoDateDayOfWeek(date), value.startTime, value.endTime),
-        }].filter((item) => item.lesson)
-      : [];
-  // the server: a lesson of today whose start has gone is refused.  A weekly lesson loses only that weekday (the others are saved and
-  // the day is named); a one-off lesson of today is blocked as a whole
-  const plan = timeProblem
-    ? { pastDays: [] as number[], sendDays: days, allPast: false, pastOneOff: null }
-    : pastDayPlan({ scope, days, validFrom, date, startTime: value.startTime, today, todayDay: businessDayOfWeek(), nowMinutes: businessTimeMinutes() });
-  const { pastDays, sendDays, pastOneOff } = plan;
+  // the days changed: with fewer than two days the times are one again (what was typed for the single day is kept)
+  const applyDays = (next: number[]) => {
+    const kept = reconcileDayTimes(next, dayTimes, value);
+    setDays(next);
+    setDayTimes(kept.perDay);
+    if (kept.shared !== value) setValue((current) => ({ ...current, ...kept.shared }));
+  };
+
+  // the time of each chosen weekday (one for all, or - «Разное время по дням» - its own); a one-off lesson has one
+  const byDay = canVaryTimes(scope, days) && dayTimes !== null;
+  const dateDay = scope === "one_off" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? isoDateDayOfWeek(date) : 0;
+  const times = scope === "recurring" ? dayTimesOf(days, value, byDay ? dayTimes : null) : [{ day: dateDay, ...value }];
+  const timeProblems = (times.length ? times : [{ day: 0, ...value }])
+    .map((time) => ({ day: time.day, text: dayTimeProblem(time.day, time, byDay) }))
+    .filter((item): item is { day: number; text: string } => item.text !== null);
+  const timeProblem = timeProblems[0]?.text ?? null;
+  // a clash inside the group: every chosen weekday (with the time of that day) for a weekly lesson, the weekday of the date for a one-off one
+  const overlaps = times
+    .map((time) => ({
+      day: time.day,
+      // a weekly lesson that does not act yet on a one-off date is no clash
+      lesson: time.day === 0 ? undefined : overlappingLesson(scope === "recurring" ? siblings : siblings.filter((item) => !item.validFrom || item.validFrom <= date), time.day, time.startTime, time.endTime),
+    }))
+    .filter((item) => item.lesson);
+  // the server refuses a lesson of today whose start has gone: a weekly lesson of today's weekday starts a week later (named, nothing blocked),
+  // a one-off lesson of today is blocked
+  const plan = pastDayPlan({ scope, times, validFrom, date, today, todayDay: businessDayOfWeek(), nowMinutes: businessTimeMinutes() });
+  const { slots, pastOneOff } = plan;
+  const shifted = timeProblem ? null : plan.shifted;
   const dateProblem = scope === "recurring"
     ? validFromError(validFrom, today)
     : !date ? DATE_REQUIRED_TEXT : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
-  const { allPast } = plan;
-  const blocking = timeProblem || pastOneOff || dateProblem || allPast || overlaps.length > 0;
+  const blocking = timeProblem || pastOneOff || dateProblem || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -127,9 +141,8 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
         onAdded({ text: "Разовое занятие добавлено в расписание группы", notices, closed: true });
         return;
       }
-      const result = await createWeeklyLessons(group.id, sendDays, { ...value, validFrom: validFrom || today });
-      const skipped = pastDays.map((day) => ({ day, reason: "время уже прошло", detail: `${dayShort(day)}: время уже прошло — на этот день урок не добавлен.` }));
-      const failed = [...result.failed, ...skipped];
+      const result = await createWeeklyLessons(group.id, slots, value);
+      const failed = result.failed;
       if (failed.length === 0) {
         onAdded({
           text: result.added.length > 1 ? `Уроки добавлены в расписание группы: ${dayList(result.added)}` : "Урок добавлен в расписание группы",
@@ -141,7 +154,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
       // no silent partial success: say which days were added and which were not; only the refused days stay chosen
       setError(weeklyResultText(result.added, failed));
       setDetails(failed.map((item) => item.detail.startsWith(`${dayShort(item.day)}:`) ? item.detail : `${dayShort(item.day)}: ${item.detail}`));
-      setDays(failed.map((item) => item.day));
+      applyDays(failed.map((item) => item.day));
       if (result.added.length > 0) onAdded({ text: `${dayList(result.added)} — добавлено`, notices: result.notices, closed: false });
     } catch (failure) {
       setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
@@ -179,7 +192,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
           scope={scope}
           onScope={(next) => { setScope(next); setError(null); setDetails([]); }}
           days={days}
-          onDays={(next) => { setDays(next); setError(null); setDetails([]); }}
+          onDays={(next) => { applyDays(next); setError(null); setDetails([]); }}
           daysInvalid={touched && scope === "recurring" && days.length === 0}
           date={date}
           onDate={(next) => { setDate(next); setError(null); }}
@@ -188,13 +201,19 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
           disabled={busy}
         />
 
-        <LessonSlotFields idPrefix="weekly-add" value={value} onChange={patch} disabled={busy} endInvalid={Boolean(timeProblem)} />
+        <LessonSlotFields
+          idPrefix="weekly-add"
+          value={value}
+          onChange={patch}
+          disabled={busy}
+          endInvalid={Boolean(timeProblem)}
+          perDay={scope === "recurring" ? { days, times: dayTimes, onTimes: setDayTimes, invalidDays: timeProblems.map((item) => item.day) } : undefined}
+        />
 
-        {overlaps.map((item) => item.lesson && <OverlapNote key={item.day} lesson={item.lesson} />)}
-        {timeProblem && <Problem>{timeProblem}</Problem>}
+        {overlaps.map((item) => item.lesson && <OverlapNote key={item.day} lesson={item.lesson} day={byDay ? item.day : undefined} />)}
+        {timeProblems.map((item) => <Problem key={item.day}>{item.text}</Problem>)}
         {pastOneOff && <Problem>{pastOneOff}</Problem>}
-        {pastDays.length > 0 && !allPast && <Problem tone="amber">{dayShort(pastDays[0])}: время уже прошло — этот день не будет добавлен, остальные сохранятся.</Problem>}
-        {allPast && <Problem>{dayShort(pastDays[0])}: время уже прошло. Выберите более позднее время или другие дни.</Problem>}
+        {shifted && <ShiftedDayNote shifted={shifted} />}
         {dateProblem && <Problem>{dateProblem}</Problem>}
         {error && (
           <div role="alert" data-testid="weekly-add-error" className="space-y-1.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">

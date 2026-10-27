@@ -418,3 +418,125 @@ test("teacher screenshots: the add form with Пн+Ср+Пт and the week after s
   const saved = (await teacher.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
   expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([1, 3, 5]);
 });
+
+// «Разное время по дням» and «today's start has gone» (Пакет 25.10, final round): the shared add form; the screenshots go to B2510_SHOTS_29.
+const SHOTS_29 = process.env.B2510_SHOTS_29;
+async function shot29(page: Page, name: string) {
+  if (!SHOTS_29) return;
+  mkdirSync(SHOTS_29, { recursive: true });
+  await page.waitForTimeout(450);
+  await page.screenshot({ path: `${SHOTS_29}/${name}.png`, fullPage: false });
+}
+
+test("«Разное время по дням»: the toggle needs two days; each day is saved with its own time; off, one time for all @mobile", async ({ signIn }, info) => {
+  const teacher = await org.addStaff("teacher", "Разное время");
+  const group = await org.createGroup({ name: "Группа П1-Р", teacherId: teacher.userId });
+  const d1 = addDays(tomorrow(), 1);
+  const d2 = addDays(d1, 2);
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}?tab=schedule`);
+  const dialog = await openAdd(page, { days: [weekdayOf(d1)] });
+  const toggle = dialog.getByLabel("Разное время по дням");
+  await expect(toggle).toHaveCount(0);                                              // one day: no toggle
+  await dialog.getByRole("button", { name: chipName(weekdayOf(d2)), exact: true }).click();
+  await expect(toggle).toBeVisible();
+  await expect(toggle).not.toBeChecked();                                           // off by default: the single pair
+  await expect(dialog.getByLabel("Начало", { exact: true })).toBeVisible();
+  await toggle.check({ force: true });
+  const rows = dialog.getByTestId("weekly-add-day-times");
+  await expect(rows.locator("[data-testid^=weekly-add-day-time-]")).toHaveCount(2); // one row per chosen day
+  await expect(dialog.getByLabel("Начало", { exact: true })).toHaveCount(0);
+  await fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d1)]}: начало`), "09:00");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d1)]}: окончание`)).toHaveValue("10:30");   // +90 minutes as ever
+  await fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: начало`), "14:00");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: окончание`)).toHaveValue("15:30");
+  await dialog.getByLabel(/Кабинет/).fill("21");
+  await shot29(page, `29-times-by-day-${info.project.name}`);
+  await expectNoHorizontalScroll(page);
+  // the end before the start of ONE day names that day and blocks the save
+  await fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: окончание`), "13:00");
+  await expect(dialog.getByRole("alert").filter({ hasText: `${SHORT[weekdayOf(d2)]}: Окончание должно быть позже начала` })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Сохранить урок" })).toBeDisabled();
+  await fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: окончание`), "15:30");
+  await dialog.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  for (const [date, start, end] of [[d1, "09:00", "10:30"], [d2, "14:00", "15:30"]]) {
+    const mine = (await teacher.api.get("/auth/org/schedule/occurrences", { date_from: date, date_to: date })).filter((l: any) => l.groupId === group.id);
+    expect(mine.map((l: any) => [l.startTime, l.endTime, l.room])).toEqual([[start, end, "21"]]);
+  }
+
+  // off: one time for all days, as always
+  const second = await org.createGroup({ name: "Группа П1-Р2", teacherId: teacher.userId });
+  await page.goto(`/owner/groups/${second.id}?tab=schedule`);
+  const again = await openAdd(page, { days: [weekdayOf(d1), weekdayOf(d2)], start: "17:00" });
+  await again.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  const same = (await org.owner.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === second.id);
+  expect(same.map((l: any) => [l.startTime, l.endTime])).toEqual([["17:00", "18:30"], ["17:00", "18:30"]]);
+});
+
+test("today's start has gone: the weekday of today is NOT dropped - it starts next week and the form says so @mobile", async ({ signIn }, info) => {
+  test.skip(businessNow().minutes === 0, "midnight sharp: nothing has gone yet");
+  const teacher = await org.addStaff("teacher", "Сегодня прошло");
+  const group = await org.createGroup({ name: "Группа П1-С", teacherId: teacher.userId });
+  const t = today();
+  const next = addDays(t, 7);
+  const other = tomorrow();
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}?tab=schedule`);
+  const dialog = await openAdd(page, { days: [weekdayOf(t), weekdayOf(other)], start: "00:00" });
+  const note = dialog.getByTestId("add-past-day-note");
+  const dayName = DAY_NAMES[weekdayOf(t)].toLowerCase();
+  await expect(note).toContainText(`${SHORT[weekdayOf(t)]}: сегодняшний урок уже прошёл — ${dayName} начнётся с ${Number(next.slice(8))} `);
+  await expect(dialog.getByRole("button", { name: "Сохранить урок" })).toBeEnabled();   // nothing is blocked
+  await note.scrollIntoViewIfNeeded();
+  await shot29(page, `29-today-gone-note-${info.project.name}`);
+  await dialog.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(toast(page, /Уроки добавлены в расписание группы/)).toBeVisible();
+  const has = async (date: string) => (await teacher.api.get("/auth/org/schedule/occurrences", { date_from: date, date_to: date })).filter((l: any) => l.groupId === group.id).length;
+  expect(await has(t)).toBe(0);        // today's start has gone: no lesson today
+  expect(await has(next)).toBe(1);     // but the weekly lesson of that weekday is there from next week
+  expect(await has(other)).toBe(1);    // the other day as usual
+  const saved = (await org.owner.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
+  expect(saved.map((l: any) => l.dayOfWeek).sort()).toEqual([weekdayOf(t), weekdayOf(other)].sort());
+});
+
+test("«Разное время по дням»: after a partial save only the refused days stay, each with ITS OWN time; then a retry saves them", async ({ signIn }) => {
+  const teacher = await org.addStaff("teacher", "Повтор");
+  const busyGroup = await org.createGroup({ name: "Группа П1-П1", teacherId: teacher.userId });
+  const group = await org.createGroup({ name: "Группа П1-П2", teacherId: teacher.userId });
+  const d1 = tomorrow();
+  const d2 = addDays(d1, 1);
+  const d3 = addDays(d1, 2);
+  // the teacher is busy on d1's weekday at 15:00-16:30 and on d2's at 16:00-17:30; d3 at 09:00 is free
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: busyGroup.id, dayOfWeek: weekdayOf(d1), startTime: "15:00", endTime: "16:30" });
+  await org.owner.api.post("/auth/org/schedule/lessons", { groupId: busyGroup.id, dayOfWeek: weekdayOf(d2), startTime: "16:00", endTime: "17:30" });
+  const page = await signIn(org.owner);
+  await page.goto(`/owner/groups/${group.id}?tab=schedule`);
+  const dialog = await openAdd(page, { days: [weekdayOf(d1), weekdayOf(d2), weekdayOf(d3)] });
+  await dialog.getByLabel("Разное время по дням").check({ force: true });
+  const set = async (date: string, start: string) => fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(date)]}: начало`), start);
+  await set(d1, "15:00");
+  await set(d2, "16:00");
+  await set(d3, "09:00");
+  await dialog.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(dialog.getByTestId("weekly-add-error")).toContainText(`${SHORT[weekdayOf(d3)]} добавлен`);
+  // only the two refused days stay chosen, the toggle stays on, each row keeps its own time
+  await expect(dialog.getByRole("button", { name: chipName(weekdayOf(d3)), exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(dialog.getByLabel("Разное время по дням")).toBeChecked();
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d1)]}: начало`)).toHaveValue("15:00");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d1)]}: окончание`)).toHaveValue("16:30");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: начало`)).toHaveValue("16:00");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d2)]}: окончание`)).toHaveValue("17:30");
+  await expect(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d3)]}: начало`)).toHaveCount(0);
+  // fix ONE of them and retry: one refused day is left, and it keeps the time it had
+  await fillTime(dialog.getByLabel(`${DAY_NAMES[weekdayOf(d1)]}: начало`), "12:00");
+  await dialog.getByRole("button", { name: "Сохранить урок" }).click();
+  await expect(dialog.getByTestId("weekly-add-error")).toContainText(`${SHORT[weekdayOf(d1)]} добавлен`);
+  await expect(dialog.getByLabel("Разное время по дням")).toHaveCount(0);           // one day left: no toggle, one pair
+  await expect(dialog.getByLabel("Начало", { exact: true })).toHaveValue("16:00");
+  await expect(dialog.getByLabel("Окончание", { exact: true })).toHaveValue("17:30");
+  const saved = (await org.owner.api.get("/auth/org/schedule")).filter((l: any) => l.groupId === group.id);
+  expect(saved.map((l: any) => [l.dayOfWeek, l.startTime]).sort()).toEqual([[weekdayOf(d1), "12:00"], [weekdayOf(d3), "09:00"]].sort());
+});

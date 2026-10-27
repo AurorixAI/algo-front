@@ -1,15 +1,17 @@
 "use client";
 
 import { useRef } from "react";
+import { Info } from "lucide-react";
 import { Select } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TimeInput } from "@/components/ui/time-input";
 import { DateInput } from "@/components/ui/date-input";
 import { formatBusinessDate } from "@/lib/business-time";
 import { DayOffWarning } from "./day-off-warning";
 import { ROOM_LABEL, ROOM_PLACEHOLDER, VALID_FROM_HINT, validFromBounds } from "@/lib/schedule-slots";
 import {
-  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, isEndTyped, startTimePatch, toggleDay,
-  type LessonColor, type LessonFormat,
+  COLOR_CLASSES, COLOR_NAMES, DAYS, DAYS_REQUIRED_HINT, FORMAT_OPTIONS, LESSON_COLORS, dayShort, isEndTyped, seedDayTimes, shiftedDayNote, startTimePatch, timeOfDay, toggleDay,
+  type DayTimes, type LessonColor, type LessonFormat, type TimeRange,
 } from "@/lib/lesson-slot-form";
 
 export const SLOT_FIELD_CLASS =
@@ -30,13 +32,18 @@ export interface SlotFormValue {
  * расписание» always had, now also the owner's and the administrator's (group page).  `idPrefix` keeps the ids of the fields
  * (`<prefix>-nachalo`, `-okonchanie`, `-format`, `-auditoriya`, `-tema-zanyatiya`, `-color-label`).  A new start time moves the end 90 minutes after it.
  */
-export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, endInvalid = false }: {
+export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, endInvalid = false, perDay }: {
   idPrefix: string;
   value: SlotFormValue;
   onChange: (patch: Partial<SlotFormValue>) => void;
   /** Rendered between the topic and the colour (the edit dialog's «Причина изменения»). */
   disabled?: boolean;
   endInvalid?: boolean;
+  /**
+   * «Разное время по дням» - only for the add form of a weekly lesson (the other forms pass nothing).  The toggle is shown for two days or
+   * more; switched on, each chosen day has its own row of times in place of the single pair.  `times` null = one time for all days.
+   */
+  perDay?: { days: readonly number[]; times: DayTimes | null; onTimes: (times: DayTimes | null) => void; invalidDays?: readonly number[] };
 }) {
   // The end follows the start (+90 min) only while nobody has typed an end of his own: a typed or pasted end is never overwritten.
   const endTyped = useRef(false);
@@ -48,18 +55,37 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
     endTyped.current = isEndTyped(endTime);
     onChange({ endTime });
   };
+  const varying = Boolean(perDay && perDay.days.length >= 2);
+  const byDay = varying && perDay?.times != null;
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label htmlFor={`${idPrefix}-nachalo`} className="block text-xs font-semibold text-slate-700 mb-1">Начало</label>
-          <TimeInput id={`${idPrefix}-nachalo`} value={value.startTime} onChange={setStart} required disabled={disabled} className={SLOT_FIELD_CLASS} />
+      {varying && perDay && (
+        <label className="flex w-fit cursor-pointer items-center gap-2 text-xs font-semibold text-slate-700">
+          <Checkbox
+            size="sm"
+            checked={byDay}
+            disabled={disabled}
+            data-testid={`${idPrefix}-times-by-day`}
+            onChange={(event) => perDay.onTimes(event.target.checked ? seedDayTimes(perDay.days, value) : null)}
+          />
+          Разное время по дням
+        </label>
+      )}
+
+      {byDay && perDay?.times ? (
+        <DayTimeRows idPrefix={idPrefix} days={perDay.days} shared={value} times={perDay.times} onTimes={perDay.onTimes} disabled={disabled} invalidDays={perDay.invalidDays} />
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label htmlFor={`${idPrefix}-nachalo`} className="block text-xs font-semibold text-slate-700 mb-1">Начало</label>
+            <TimeInput id={`${idPrefix}-nachalo`} value={value.startTime} onChange={setStart} required disabled={disabled} className={SLOT_FIELD_CLASS} />
+          </div>
+          <div>
+            <label htmlFor={`${idPrefix}-okonchanie`} className="block text-xs font-semibold text-slate-700 mb-1">Окончание</label>
+            <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid} className={SLOT_FIELD_CLASS} />
+          </div>
         </div>
-        <div>
-          <label htmlFor={`${idPrefix}-okonchanie`} className="block text-xs font-semibold text-slate-700 mb-1">Окончание</label>
-          <TimeInput id={`${idPrefix}-okonchanie`} value={value.endTime} onChange={setEnd} required disabled={disabled} invalid={endInvalid} className={SLOT_FIELD_CLASS} />
-        </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -119,6 +145,74 @@ export function LessonSlotFields({ idPrefix, value, onChange, disabled = false, 
         </div>
       </div>
     </>
+  );
+}
+
+/** «Разное время по дням»: one row «Пн · начало · окончание» per chosen day (a column of rows, one under another on a phone as well). */
+function DayTimeRows({ idPrefix, days, shared, times, onTimes, disabled, invalidDays = [] }: {
+  idPrefix: string;
+  days: readonly number[];
+  shared: TimeRange;
+  times: DayTimes;
+  onTimes: (times: DayTimes) => void;
+  disabled: boolean;
+  invalidDays?: readonly number[];
+}) {
+  return (
+    <div role="group" aria-label="Время по дням" className="space-y-2" data-testid={`${idPrefix}-day-times`}>
+      {[...days].sort((a, b) => a - b).map((day) => (
+        <DayTimeRow
+          key={day}
+          idPrefix={idPrefix}
+          day={day}
+          time={timeOfDay(shared, times, day)}
+          onChange={(time) => onTimes({ ...times, [day]: time })}
+          disabled={disabled}
+          invalid={invalidDays.includes(day)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DayTimeRow({ idPrefix, day, time, onChange, disabled, invalid }: {
+  idPrefix: string; day: number; time: TimeRange; onChange: (time: TimeRange) => void; disabled: boolean; invalid: boolean;
+}) {
+  // the same behaviour as the single pair: the end follows the start (+90 min) until an end is typed
+  const endTyped = useRef(false);
+  const name = DAYS.find((item) => item.id === day)?.name ?? dayShort(day);
+  return (
+    <div className="grid grid-cols-[2rem_1fr_1fr] items-center gap-2" data-testid={`${idPrefix}-day-time-${day}`}>
+      <span className="text-xs font-bold text-slate-700" aria-hidden>{dayShort(day)}</span>
+      <TimeInput
+        id={`${idPrefix}-nachalo-${day}`}
+        aria-label={`${name}: начало`}
+        value={time.startTime}
+        onChange={(startTime) => { const next = startTimePatch(time, startTime, endTyped.current); if (next) onChange({ ...time, ...next }); }}
+        required
+        disabled={disabled}
+        className={SLOT_FIELD_CLASS}
+      />
+      <TimeInput
+        id={`${idPrefix}-okonchanie-${day}`}
+        aria-label={`${name}: окончание`}
+        value={time.endTime}
+        onChange={(endTime) => { endTyped.current = isEndTyped(endTime); onChange({ ...time, endTime }); }}
+        required
+        disabled={disabled}
+        invalid={invalid}
+        className={SLOT_FIELD_CLASS}
+      />
+    </div>
+  );
+}
+
+/** The quiet note «Пн: сегодняшний урок уже прошёл — понедельник начнётся с 2 ноября» (amber, nothing is blocked): the same on every screen. */
+export function ShiftedDayNote({ shifted }: { shifted: { day: number; from: string } }) {
+  return (
+    <p role="status" data-testid="add-past-day-note" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+      <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> <span>{shiftedDayNote(shifted)}</span>
+    </p>
   );
 }
 

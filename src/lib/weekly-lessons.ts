@@ -7,7 +7,7 @@ import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, 
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
 import { addIsoDays } from "./business-time";
-import { LESSON_SUBJECT, firstOccurrenceOf, patchFor, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson } from "./lesson-slot-form";
+import { LESSON_SUBJECT, firstOccurrenceOf, patchFor, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
 
 export interface WeeklyDraft {
   startTime: string;
@@ -71,22 +71,26 @@ export function mergeNotices(items: ReadonlyArray<{ note: string; day: number }>
   return [...byNote.entries()].map(([note, days]) => (daysInSave <= 1 ? note : `${note}: ${days.sort((a, b) => a - b).map((d) => DAY_SHORT[d] ?? String(d)).join(", ")}`));
 }
 
-export async function createWeeklyLessons(groupId: string, days: readonly number[], draft: WeeklyDraft): Promise<WeeklyAddResult> {
+/**
+ * One request per weekly lesson (`slots`: its weekday, its own time and its own «Действует с»), in the order of the week.  What the days
+ * share (format, room, topic, colour) comes once; the plan of the days (`pastDayPlan`, «Разное время по дням») decides the rest.
+ */
+export async function createWeeklyLessons(groupId: string, slots: readonly WeeklySlot[], draft: Omit<WeeklyDraft, "startTime" | "endTime" | "validFrom">): Promise<WeeklyAddResult> {
   const result: WeeklyAddResult = { added: [], failed: [], notices: [] };
   const found: Array<{ note: string; day: number }> = [];
-  for (const day of [...days].sort((a, b) => a - b)) {
+  for (const { day, startTime, endTime, validFrom } of [...slots].sort((a, b) => a.day - b.day)) {
     try {
       const created = await orgApi.createLesson({
         groupId,
         dayOfWeek: day,
-        startTime: draft.startTime,
-        endTime: draft.endTime,
+        startTime,
+        endTime,
         subject: LESSON_SUBJECT,
         room: roomForSave(draft.room),
         format: draft.format,
         color: draft.color,
         topic: draft.topic.trim() || undefined,
-        validFrom: draft.validFrom,
+        validFrom,
       });
       if (!created?.id) throw new Error("Сервер не вернул идентификатор урока");
       result.added.push(day);
@@ -95,7 +99,7 @@ export async function createWeeklyLessons(groupId: string, days: readonly number
       result.failed.push({ day, reason: shortRefusal(failure), detail: refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку.") });
     }
   }
-  result.notices = mergeNotices(found, days.length);
+  result.notices = mergeNotices(found, slots.length);
   return result;
 }
 

@@ -3,7 +3,8 @@
  * Pure helpers: no React, no network.  The words and the rules are the ones the teacher's screen always had.
  */
 import type { LessonEvent } from "./api";
-import { businessDayOfWeek, businessWeekdayDate } from "./business-time";
+import { addIsoDays, businessDayOfWeek, businessWeekdayDate } from "./business-time";
+import { MONTHS_RU_GENITIVE } from "./form-fields";
 import { roomForSave } from "./schedule-slots";
 
 /** The weekly lesson as the schedule screens and the shared dialogs know it (`LessonEvent` of the schedule, or an occurrence of it). */
@@ -133,22 +134,88 @@ export function pastTimeProblem(startTime: string, nowMinutes: number): string |
   return `Нельзя назначить урок на прошедшее время сегодняшнего дня (текущее время: ${now})`;
 }
 
+/** The time of one lesson: a weekly lesson of the form has one for all days, or - «Разное время по дням» - one of its own for each day. */
+export interface TimeRange { startTime: string; endTime: string }
+/** The time of each chosen weekday («Разное время по дням»); `null` = one time for all days. */
+export type DayTimes = Record<number, TimeRange>;
+
+/** One weekly lesson to save: its weekday, its time and the date it starts acting. */
+export interface WeeklySlot extends TimeRange { day: number; validFrom: string }
+
+/** «Разное время по дням» is offered for a weekly lesson on two days or more. */
+export function canVaryTimes(scope: "recurring" | "one_off", days: readonly number[]): boolean {
+  return scope === "recurring" && days.length >= 2;
+}
+
+/** The time of a day: its own when the times differ by day (and the day has one), else the shared one. */
+export function timeOfDay(shared: TimeRange, perDay: DayTimes | null, day: number): TimeRange {
+  return perDay?.[day] ?? { startTime: shared.startTime, endTime: shared.endTime };
+}
+
+/** The time of every chosen day, in the order of the week (the shared time for each when the times do not differ by day). */
+export function dayTimesOf(days: readonly number[], shared: TimeRange, perDay: DayTimes | null): Array<TimeRange & { day: number }> {
+  return [...days].sort((a, b) => a - b).map((day) => ({ day, ...timeOfDay(shared, perDay, day) }));
+}
+
+/** The toggle goes on: every chosen day starts with the time typed so far. */
+export function seedDayTimes(days: readonly number[], shared: TimeRange): DayTimes {
+  return Object.fromEntries(days.map((day) => [day, { startTime: shared.startTime, endTime: shared.endTime }]));
+}
+
 /**
- * Today's start has gone (the server refuses a lesson of today in the past) - the SAME rule for every role: a weekly lesson loses only
- * today's weekday (the other chosen days are saved and the day is named); a one-off lesson of today is blocked as a whole.
+ * The days changed: with fewer than two days the toggle disappears and the single day's own time becomes THE time (nothing typed is lost);
+ * a day added later takes the shared time until it gets one of its own.
+ */
+export function reconcileDayTimes(days: readonly number[], perDay: DayTimes | null, shared: TimeRange): { perDay: DayTimes | null; shared: TimeRange } {
+  if (!perDay || days.length >= 2) return { perDay, shared };
+  const own = days.length === 1 ? perDay[days[0]] : undefined;
+  return { perDay: null, shared: own ? { startTime: own.startTime, endTime: own.endTime } : shared };
+}
+
+/** The sentence about the time of a day, with its weekday when the times differ by day; null when the time is fine. */
+export function dayTimeProblem(day: number, range: TimeRange, withDay: boolean): string | null {
+  const problem = timeRangeProblem(range.startTime, range.endTime);
+  return problem ? (withDay ? `${dayShort(day)}: ${problem}` : problem) : null;
+}
+
+/** «2 ноября» for «2026-11-02». */
+export function dayMonthWords(iso: string): string {
+  const [, month, day] = iso.split("-").map(Number);
+  return `${day} ${MONTHS_RU_GENITIVE[(month || 1) - 1]}`;
+}
+
+/** The quiet note under the form: today's lesson of that weekday has gone, the weekday starts a week later. */
+export function shiftedDayNote(shifted: { day: number; from: string }): string {
+  const name = (DAYS.find((item) => item.id === shifted.day)?.name ?? "").toLowerCase();
+  return `${dayShort(shifted.day)}: сегодняшний урок уже прошёл — ${name} начнётся с ${dayMonthWords(shifted.from)}`;
+}
+
+/**
+ * «Today's start has gone» - the ONE rule of the owner's, the administrator's and the teacher's form.  The server refuses a lesson of today
+ * in the past, so a weekly lesson of today's weekday whose start has gone (and which acts from today) is sent with «Действует с» = the next
+ * date of that weekday (today + 7 days): its first lesson is the next week's, nothing is dropped and nothing is blocked.  Every other chosen
+ * day goes as it is.  A one-off lesson of today in the past stays blocked (`pastOneOff` is the sentence).
+ * `times`: the time of each chosen day (for a one-off lesson - one entry with its time).
  */
 export function pastDayPlan(o: {
-  scope: "recurring" | "one_off"; days: ReadonlyArray<number>; validFrom: string; date: string; startTime: string;
+  scope: "recurring" | "one_off"; times: ReadonlyArray<TimeRange & { day: number }>; validFrom: string; date: string;
   today: string; todayDay: number; nowMinutes: number;
-}): { pastDays: number[]; sendDays: number[]; allPast: boolean; pastOneOff: string | null } {
-  const gone = pastTimeProblem(o.startTime, o.nowMinutes);
-  const pastDays = o.scope === "recurring" && gone && (o.validFrom || o.today) === o.today && o.days.includes(o.todayDay) ? [o.todayDay] : [];
-  const sendDays = o.days.filter((day) => !pastDays.includes(day));
+}): { slots: WeeklySlot[]; shifted: { day: number; from: string } | null; pastOneOff: string | null } {
+  const from = o.validFrom || o.today;
+  const slots: WeeklySlot[] = [];
+  let shifted: { day: number; from: string } | null = null;
+  if (o.scope === "recurring") {
+    for (const time of [...o.times].sort((a, b) => a.day - b.day)) {
+      const gone = from === o.today && time.day === o.todayDay && pastTimeProblem(time.startTime, o.nowMinutes);
+      const validFrom = gone ? addIsoDays(o.today, 7) : from;
+      if (gone) shifted = { day: time.day, from: validFrom };
+      slots.push({ ...time, validFrom });
+    }
+  }
   return {
-    pastDays,
-    sendDays,
-    allPast: o.scope === "recurring" && o.days.length > 0 && sendDays.length === 0,
-    pastOneOff: o.scope === "one_off" && o.date === o.today ? gone : null,
+    slots,
+    shifted,
+    pastOneOff: o.scope === "one_off" && o.date === o.today && o.times[0] ? pastTimeProblem(o.times[0].startTime, o.nowMinutes) : null,
   };
 }
 

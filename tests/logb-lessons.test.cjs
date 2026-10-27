@@ -100,7 +100,7 @@ test("the schedule page is wired: «Действует с», the optional room w
   assert.match(fields, /ROOM_LABEL/);
   assert.match(fields, /ROOM_PLACEHOLDER/);
   assert.match(helper, /roomForSave\(draft\.room\)/);
-  assert.match(helper, /validFrom: draft\.validFrom/);
+  assert.match(helper, /validFrom,\s+\}\)/);
   assert.match(helper, /scheduleErrorText\(failure/);
   assert.match(helper, /warningTexts\(created\)/);
   assert.match(form, /roomForSave\(form\.room\)/, "the change of a weekly lesson sends the room the same way");

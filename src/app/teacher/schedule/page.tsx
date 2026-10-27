@@ -65,10 +65,10 @@ import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/at
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
-import { LessonScopeFields, LessonSlotFields } from "@/components/schedule/lesson-slot-fields";
+import { LessonScopeFields, LessonSlotFields, ShiftedDayNote } from "@/components/schedule/lesson-slot-fields";
 import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
-import { COLOR_CLASSES, DAYS, nextBusinessDate, DAY_REQUIRED_TEXT, dayShort, overlappingLesson, pastDayPlan, suggestedTimes, weeklyResultText } from "@/lib/lesson-slot-form";
+import { COLOR_CLASSES, DAYS, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
 
 function russianPlural(count: number, one: string, few: string, many: string) {
   const absolute = Math.abs(count) % 100;
@@ -320,6 +320,8 @@ export default function TeacherSchedulePage() {
   const [timesEdited, setTimesEdited] = useState(false);
   const [newStartTime, setNewStartTime] = useState("10:00");
   const [newEndTime, setNewEndTime] = useState("11:30");
+  /** «Разное время по дням»: the time of each chosen day; null = one time for all days. */
+  const [newDayTimes, setNewDayTimes] = useState<DayTimes | null>(null);
   const [newRoom, setNewRoom] = useState("");
   /** O1: the date a new recurring slot starts acting («Действует с»); the journal has no lessons before it. */
   const [newValidFrom, setNewValidFrom] = useState(formatBusinessDate());
@@ -463,7 +465,26 @@ export default function TeacherSchedulePage() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isAddModalOpen, isWeekPlanOpen, activeLesson, isRecurringActionsOpen, marksOps.conflict, marksOps.liveExams]);
 
-  // Add conflict check (overlapping lessons)
+  // Current real day of week: 1=Mon .. 7=Sun
+  const todayDayOfWeek = businessDayOfWeek();
+
+  // The time of each chosen weekday: one for all days, or - «Разное время по дням» - its own; a one-off lesson has one.
+  const addByDay = canVaryTimes(newLessonScope, newDays) && newDayTimes !== null;
+  const addTimes = useMemo(
+    () => newLessonScope === "recurring"
+      ? dayTimesOf(newDays, { startTime: newStartTime, endTime: newEndTime }, addByDay ? newDayTimes : null)
+      : [{ day: 0, startTime: newStartTime, endTime: newEndTime }],
+    [addByDay, newDayTimes, newDays, newEndTime, newLessonScope, newStartTime],
+  );
+  // a day that ends before it starts (the same words as the owner's form)
+  const addTimeProblems = useMemo(
+    () => (addTimes.length ? addTimes : [{ day: 0, startTime: newStartTime, endTime: newEndTime }])
+      .map((time) => ({ day: time.day, text: dayTimeProblem(time.day, time, addByDay) }))
+      .filter((item): item is { day: number; text: string } => item.text !== null),
+    [addByDay, addTimes, newEndTime, newStartTime],
+  );
+
+  // Add conflict check (overlapping lessons): every chosen weekday with the time of that day
   const addConflict = useMemo(() => {
     if (newLessonScope === "one_off") {
       return weekOccurrences.find((lesson) =>
@@ -472,23 +493,18 @@ export default function TeacherSchedulePage() {
         && newEndTime > lesson.startTime,
       );
     }
-    return newDays.map((day) => overlappingLesson(lessons, day, newStartTime, newEndTime)).find(Boolean);
-  }, [lessons, newDays, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
+    return addTimes.map((time) => overlappingLesson(lessons, time.day, time.startTime, time.endTime)).find(Boolean);
+  }, [addTimes, lessons, newEndTime, newLessonDate, newLessonScope, newStartTime, weekOccurrences]);
 
-  // Current real day of week: 1=Mon .. 7=Sun
-  const todayDayOfWeek = businessDayOfWeek();
-
-  // Today's start has gone: the same rule as the owner's dialog (pastDayPlan) - a weekly lesson loses only today's weekday, the other
-  // chosen days are saved; a one-off lesson of today (or only today chosen) is blocked
+  // Today's start has gone: the same rule as the owner's dialog (pastDayPlan) - a weekly lesson of today's weekday starts a week later (named,
+  // nothing is blocked); a one-off lesson of today is blocked
   const addPastPlan = useMemo(() => pastDayPlan({
-    scope: newLessonScope === "one_off" ? "one_off" : "recurring", days: newDays, validFrom: newValidFrom, date: newLessonDate,
-    startTime: newStartTime, today: formatBusinessDate(), todayDay: todayDayOfWeek, nowMinutes: businessTimeMinutes(),
-  }), [newDays, newLessonDate, newLessonScope, newStartTime, newValidFrom, todayDayOfWeek]);
-  const addPastTimeConflict = addPastPlan.pastOneOff
-    ?? (addPastPlan.allPast ? `${dayShort(addPastPlan.pastDays[0])}: время уже прошло. Выберите более позднее время или другие дни.` : null);
-  const addPastDayNote = !addPastTimeConflict && addPastPlan.pastDays.length > 0
-    ? `${dayShort(addPastPlan.pastDays[0])}: время уже прошло — этот день не будет добавлен, остальные сохранятся.`
-    : null;
+    scope: newLessonScope === "one_off" ? "one_off" : "recurring", times: addTimes, validFrom: newValidFrom, date: newLessonDate,
+    today: formatBusinessDate(), todayDay: todayDayOfWeek, nowMinutes: businessTimeMinutes(),
+  }), [addTimes, newLessonDate, newLessonScope, newValidFrom, todayDayOfWeek]);
+  const addTimeProblem = addTimeProblems[0]?.text ?? null;
+  const addPastTimeConflict = addTimeProblem ?? addPastPlan.pastOneOff;
+  const addShifted = addPastTimeConflict ? null : addPastPlan.shifted;
 
   const filteredWeekLessons = useMemo(() => {
     return weekOccurrences.filter((l) => {
@@ -1018,6 +1034,14 @@ export default function TeacherSchedulePage() {
     [activeLesson, activeLessonIsToday, activeLessonStatus, getSubsequentStartedLesson],
   );
 
+  // The chosen days changed: with fewer than two days the times are one again (what was typed for the single day is kept).
+  const applyAddDays = (next: number[]) => {
+    const kept = reconcileDayTimes(next, newDayTimes, { startTime: newStartTime, endTime: newEndTime });
+    setNewDays(next);
+    setNewDayTimes(kept.perDay);
+    if (kept.perDay === null && newDayTimes !== null) { setNewStartTime(kept.shared.startTime); setNewEndTime(kept.shared.endTime); }
+  };
+
   // Add lesson handler
   const handleAddLesson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1054,14 +1078,13 @@ export default function TeacherSchedulePage() {
       if (newLessonScope === "one_off") {
         notices = await createOneOff(groupId, newLessonDate, draft);
       } else {
-        const result = await createWeeklyLessons(groupId, addPastPlan.sendDays, { ...draft, validFrom: newValidFrom || formatBusinessDate() });
+        const result = await createWeeklyLessons(groupId, addPastPlan.slots, draft);
         notices = result.notices;
-        // today's weekday whose start has gone was not sent: it is named like a refused day (the same words as the owner's dialog)
-        failed = [...addPastPlan.pastDays.map((day) => ({ day, reason: "время уже прошло", detail: "время уже прошло — на этот день урок не добавлен" })), ...result.failed];
+        failed = result.failed;
         added = result.added;
         if (failed.length > 0) {
           setScheduleError([weeklyResultText(added, failed), ...failed.map((item) => `${dayShort(item.day)}: ${item.detail}`)].join("\n"));
-          setNewDays(failed.map((item) => item.day));
+          applyAddDays(failed.map((item) => item.day));
           if (added.length === 0) return;
         }
       }
@@ -1103,6 +1126,7 @@ export default function TeacherSchedulePage() {
   const openAddModal = (targetDay?: number) => {
     const day = targetDay !== undefined ? targetDay : (todayDayOfWeek || 1);
     setNewDays(targetDay !== undefined ? [targetDay] : []);
+    setNewDayTimes(null);
     setNewLessonScope("one_off");
     setNewLessonDate(businessWeekdayDate(day, weekOffset));
 
@@ -2900,7 +2924,7 @@ export default function TeacherSchedulePage() {
                     if (next === "one_off" && newDays.length > 0) setNewLessonDate(businessWeekdayDate(newDays[0], weekOffset));
                   }}
                   days={newDays}
-                  onDays={(next) => { setNewDays(next); setScheduleError(null); }}
+                  onDays={(next) => { applyAddDays(next); setScheduleError(null); }}
                   daysInvalid={newLessonScope === "recurring" && newDays.length === 0 && Boolean(scheduleError)}
                   date={newLessonDate}
                   onDate={(next) => setNewLessonDate(next)}
@@ -2914,6 +2938,13 @@ export default function TeacherSchedulePage() {
                   idPrefix="sched-add"
                   value={{ startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor }}
                   disabled={savingLesson}
+                  endInvalid={addTimeProblem !== null}
+                  perDay={newLessonScope === "recurring" ? {
+                    days: newDays,
+                    times: newDayTimes,
+                    onTimes: (times) => { setNewDayTimes(times); setScheduleError(null); },
+                    invalidDays: addTimeProblems.map((item) => item.day),
+                  } : undefined}
                   onChange={(patch) => {
                     if (patch.startTime !== undefined || patch.endTime !== undefined) setTimesEdited(true);
                     if (patch.startTime !== undefined) setNewStartTime(patch.startTime);
@@ -2925,12 +2956,7 @@ export default function TeacherSchedulePage() {
                   }}
                 />
 
-                {addPastDayNote && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start gap-2" data-testid="add-past-day-note">
-                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>{addPastDayNote}</p>
-                  </div>
-                )}
+                {addShifted && <ShiftedDayNote shifted={addShifted} />}
                 {/* Conflict warning / Past time warning */}
                 {(addConflict || addPastTimeConflict) && (
                   <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
@@ -2941,7 +2967,7 @@ export default function TeacherSchedulePage() {
                       </p>
                       {addConflict && !addPastTimeConflict && (
                         <p className="mt-0.5">
-                          В это время уже назначен урок группы «{addConflict.groupName}» ({addConflict.startTime} — {addConflict.endTime}).
+                          {addByDay ? `${dayShort(addConflict.dayOfWeek)}: в` : "В"} это время уже назначен урок группы «{addConflict.groupName}» ({addConflict.startTime} — {addConflict.endTime}).
                         </p>
                       )}
                     </div>
