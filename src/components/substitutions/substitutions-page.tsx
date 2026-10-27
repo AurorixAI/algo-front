@@ -8,6 +8,7 @@ import { journalHref } from "@/lib/open-lessons";
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
 import { CHIP_BASE_CLASS } from "@/lib/chip-tone";
+import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createQueueGuard, afterDecision, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, createOncePer } from "@/lib/queue-guard";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import {
@@ -60,6 +61,7 @@ const CHIP_TONE: Record<DeadlineChip["tone"], string> = {
  * is re-read after every action.
  */
 function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
+  const phone = useMediaQuery(PHONE_QUERY);
   const bases = workspaceBases(role);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -280,7 +282,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
               type="search"
               value={searchInput}
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="Группа или преподаватель"
+              placeholder={phone ? "Поиск" : "Группа или преподаватель"}
+              aria-label="Группа или преподаватель"
               className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64"
             />
           </label>

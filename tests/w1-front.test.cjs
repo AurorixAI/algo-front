@@ -690,3 +690,11 @@ test("R3 6 (phone): the filters are ONE row (search, «Срочные» chip, ic
   assert.match(phone, /class="min-w-0 truncate hidden sm:inline"/, "the label is for tablets and up");
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(CascadingFilter, props)), /hidden sm:inline/, "every other page keeps the full pill");
 });
+
+test("phone: the search placeholder is just «Поиск», the accessible name stays the full one", () => {
+  const page = read("src/components/substitutions/substitutions-page.tsx");
+  assert.match(page, /placeholder=\{phone \? "Поиск" : "Группа или преподаватель"\}/);
+  assert.match(page, /aria-label="Группа или преподаватель"/);
+  assert.match(page, /useMediaQuery\(PHONE_QUERY\)/);
+  assert.match(read("src/lib/use-media-query.ts"), /\(max-width: 639px\)/, "below Tailwind's `sm`, like the other phone rules of the page");
+});
