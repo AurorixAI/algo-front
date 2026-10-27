@@ -60,7 +60,7 @@ test("on a phone the toolbar rows never cut text: search on its own row, tabs fu
   assert.match(page, /<div className="min-w-0">\s*<h1/);                                  // the title may shrink
   const filter = read("components/ui/cascading-filter.tsx");
   assert.match(filter, /relative inline-block max-w-full/);                               // a long group name truncates
-  assert.match(filter, /<span className="min-w-0 truncate">\{getActiveFilterLabel\(\)\}<\/span>/);
+  assert.match(filter, /<span className=\{`min-w-0 truncate \$\{iconOnPhone \? "hidden sm:inline" : ""\}`\}>\{getActiveFilterLabel\(\)\}<\/span>/);
 });
 
 test("lists show a full Uzbek phone as «+998 90 123 45 67» and anything else as stored", () => {

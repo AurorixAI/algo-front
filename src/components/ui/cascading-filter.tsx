@@ -37,6 +37,8 @@ interface CascadingFilterProps {
   onChange: (value: { teacherId: string; groupId: string }) => void;
   /** The words for «nothing chosen» (the pill and the first row): the students of the attendance pages by default. */
   allLabel?: string;
+  /** A phone (below `sm`): only the icon is shown (the label opens inside the panel anyway), a dot says a filter is on - the row of filters stays ONE row. */
+  iconOnPhone?: boolean;
 }
 
 const PANEL_WIDTH = 256; // w-64
@@ -50,7 +52,7 @@ const ROW_SELECTOR = "button:not([disabled])";
  * Escape closes and returns focus to the trigger).  The panel aligns to the trigger's nearer viewport edge,
  * opens upward when there is no room below and scrolls inside a ~60vh cap (`useFloatingPlacement`).
  */
-export function CascadingFilter({ teachers, groups, value, onChange, allLabel = "Все ученики" }: CascadingFilterProps) {
+export function CascadingFilter({ teachers, groups, value, onChange, allLabel = "Все ученики", iconOnPhone = false }: CascadingFilterProps) {
   const [panel, setPanel] = useState<FilterPanelState>(CLOSED_FILTER_PANEL);
   const isOpen = panel.open;
 
@@ -178,17 +180,21 @@ export function CascadingFilter({ teachers, groups, value, onChange, allLabel = 
           aria-controls={isOpen ? panelId : undefined}
           onClick={() => dispatch({ type: "toggle" })}
           onKeyDown={handleTriggerKeyDown}
-          className={`flex min-w-0 flex-1 items-center gap-2 py-2.5 pl-4 rounded-xl text-left outline-none ${hasSelection ? "pr-3" : "pr-4"}`}
+          aria-label={iconOnPhone ? getActiveFilterLabel() : undefined}
+          className={`flex min-w-0 flex-1 items-center gap-2 py-2.5 rounded-xl text-left outline-none ${iconOnPhone ? "pl-3 sm:pl-4" : "pl-4"} ${hasSelection ? "pr-3" : iconOnPhone ? "pr-3 sm:pr-4" : "pr-4"}`}
         >
-          <Filter className="w-4 h-4 shrink-0 text-slate-400" />
-          <span className="min-w-0 truncate">{getActiveFilterLabel()}</span>
+          <span className="relative shrink-0">
+            <Filter className="w-4 h-4 text-slate-400" />
+            {iconOnPhone && hasSelection && <span data-testid="filter-dot" className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-primary-600 sm:hidden" />}
+          </span>
+          <span className={`min-w-0 truncate ${iconOnPhone ? "hidden sm:inline" : ""}`}>{getActiveFilterLabel()}</span>
         </button>
         {hasSelection && (
           <button
             type="button"
             aria-label="Сбросить фильтр"
             title="Сбросить фильтр"
-            className="mr-4 shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+            className={`${iconOnPhone ? "mr-2 sm:mr-4 hidden sm:inline-flex" : "mr-4"} shrink-0 p-0.5 rounded-full hover:bg-slate-200 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary-500`}
             onClick={() => {
               closePanel();
               onChange({ teacherId: "", groupId: "" });

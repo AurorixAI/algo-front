@@ -675,3 +675,18 @@ test("R3 ops: the group coming back from the archive shows the notes of the serv
   assert.match(dlg, /sending\.current = true/);
   assert.match(read("src/components/groups/group-detail-view.tsx"), /showToast\(message, notes\?\.length \? "warning" : "success", notes\)/);
 });
+
+test("R3 6 (phone): the filters are ONE row (search, «Срочные» chip, icon filter) and «Выбрать все» sits beside the tabs; the desktop table keeps its own rows", () => {
+  const page = read("src/components/substitutions/substitutions-page.tsx");
+  assert.match(page, /flex flex-nowrap items-center gap-2 sm:flex-wrap/, "one row on a phone");
+  assert.match(page, /<CascadingFilter iconOnPhone /);
+  assert.match(page, /<span className="sm:hidden">Срочные<\/span><span className="hidden sm:inline">Только срочные<\/span>/);
+  assert.match(page, /data-testid="select-all-compact"[^>]*xl:hidden|xl:hidden[^>]*data-testid="select-all-compact"/, "beside the tabs below the wide table");
+  assert.match(page, /className="hidden cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:flex/, "the wide table keeps its own «Выбрать все» row");
+  const { CascadingFilter } = require(path.join(root, "src/components/ui/cascading-filter.tsx"));
+  const props = { teachers: [], groups: [], value: { teacherId: "", groupId: "" }, onChange() {}, allLabel: "Все группы и преподаватели" };
+  const phone = renderToStaticMarkup(React.createElement(CascadingFilter, { ...props, iconOnPhone: true }));
+  assert.match(phone, /aria-label="Все группы и преподаватели"/, "an icon button still has its name");
+  assert.match(phone, /class="min-w-0 truncate hidden sm:inline"/, "the label is for tablets and up");
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(CascadingFilter, props)), /hidden sm:inline/, "every other page keeps the full pill");
+});

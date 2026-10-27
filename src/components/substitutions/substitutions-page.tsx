@@ -249,7 +249,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       {pendingTab && expiringLine(expiringTotal) && <p role="status" data-testid="expiring-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">{expiringLine(expiringTotal)}</p>}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">
+        <div className="flex w-full items-center gap-2 lg:w-fit">
+        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:flex-none" role="tablist">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
@@ -263,8 +264,16 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="relative block">
+        {/* below the wide table the «select all» lives beside the tabs (a phone keeps its first screen for the requests) */}
+        {pendingTab && items.length > 0 && (
+          <label data-testid="select-all-compact" className="flex shrink-0 cursor-pointer items-center gap-1.5 px-1 text-xs font-medium text-slate-500 xl:hidden" title="Выбрать все">
+            <Checkbox aria-label="Выбрать все" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} />
+            <span className="hidden sm:inline">Выбрать все</span>
+          </label>
+        )}
+        </div>
+        <div className="flex flex-nowrap items-center gap-2 sm:flex-wrap">
+          <label className="relative block min-w-0 flex-1 sm:flex-none">
             <span className="sr-only">Группа или преподаватель</span>
             <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
@@ -276,12 +285,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             />
           </label>
           {pendingTab && (
-            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <label className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Checkbox checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} />
-              Только срочные
+              <span className="sm:hidden">Срочные</span><span className="hidden sm:inline">Только срочные</span>
             </label>
           )}
-          <CascadingFilter allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
+          <CascadingFilter iconOnPhone allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
         </div>
       </div>
 
@@ -318,7 +327,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
               aligns={pendingTab ? PENDING_ALIGNS : DECIDED_ALIGNS}
             />
             {pendingTab && (
-              <label className="mb-2 flex cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:mb-0 xl:border-b xl:border-slate-100 xl:px-4 xl:py-2">
+              <label className="hidden cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:flex xl:border-b xl:border-slate-100 xl:px-4 xl:py-2">
                 <Checkbox checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} />
                 Выбрать все
               </label>
