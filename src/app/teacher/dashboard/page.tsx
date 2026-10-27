@@ -53,8 +53,9 @@ import Link from "next/link";
 import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
-import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
-import { cancellationKindBody, canChooseCancellationKind, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
+import { sendTeacherCancel } from "@/lib/teacher-cancel";
+import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
@@ -69,7 +70,7 @@ import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_S
 import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
-import type { SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
+import type { MovedFrom, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { LessonActionsMenu, TeacherLessonControls, teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
@@ -107,6 +108,10 @@ interface LessonSummary {
   defaultTeacherId?: string | null;
   substitutionRequest?: SubstitutionRequestMark | null;
   substitutionOutcome?: SubstitutionOutcome | null;
+  /** W1 S26 / S27: a one-off lesson, who added it, and whether it is the copy of a move - the teacher cancels only the one-off lesson he added himself. */
+  isOneOff?: boolean;
+  createdBy?: { id?: string | null } | null;
+  movedFrom?: MovedFrom | null;
 }
 
 type LessonAction = {
@@ -308,18 +313,11 @@ export default function TeacherDashboardPage() {
   const [attendanceError, setAttendanceError] = useState<string | null>(null);
   const [isCancellingLesson, setIsCancellingLesson] = useState(false);
   const [cancellationReason, setCancellationReason] = useState("");
-  const [cancellationKind, setCancellationKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
-  const canChooseKind = canChooseCancellationKind(user);
-  const [missedLessonKind, setMissedLessonKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
-  useEffect(() => { if (!isCancellingLesson) setCancellationKind(DEFAULT_CANCELLATION_KIND); }, [isCancellingLesson]);       // every cancellation starts with «по вине центра»
-  useEffect(() => { if (!isCancellingMissedLesson) setMissedLessonKind(DEFAULT_CANCELLATION_KIND); }, [isCancellingMissedLesson]);
-  const [lessonExamBinding, setLessonExamBinding] = useState<{
-    loading: boolean;
-    attached: boolean;
-    canCancel: boolean;
-    examTitle?: string;
-    message?: string | null;
-  } | null>(null);
+  /** W1 F1: how «Урока не было» is sent (see `teacherCancelOffer`); a double press is closed by the ref, not only by `savingAttendance` (rule 27). */
+  const [cancelRoute, setCancelRoute] = useState<TeacherCancelOffer["route"]>("missed");
+  const cancelSending = useRef(false);
+  const missedSending = useRef(false);
+  const [lessonExamBinding, setLessonExamBinding] = useState<LessonCancelBinding | null>(null);
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
   const [clockTick, setClockTick] = useState(0);
   const [liveExamTick, setLiveExamTick] = useState(0);
@@ -746,21 +744,18 @@ export default function TeacherDashboardPage() {
   };
 
   const handleCancelMissedLesson = async () => {
-    if (!missedLessonAction) return;
+    if (!missedLessonAction || missedSending.current) return;
     const reason = missedLessonCancellationReason.trim();
     if (reason.length < 3) {
       setMissedLessonError("Укажите причину отмены — не менее 3 символов.");
       return;
     }
+    missedSending.current = true;
     setMissedLessonError(null);
     setIsResolvingMissedLesson(true);
     try {
-      await orgApi.cancelMissedGroupAttendance(missedLessonAction.groupId, {
-        lessonDate: missedLessonAction.lessonDate,
-        lessonId: missedLessonAction.lessonId,
-        cancellationReason: reason,
-        ...cancellationKindBody(missedLessonKind, canChooseKind),
-      });
+      const notes = await sendTeacherCancel("missed", { groupId: missedLessonAction.groupId, lessonId: missedLessonAction.lessonId, lessonDate: missedLessonAction.lessonDate }, reason);
+      if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
       setOpenAttendanceActions((previous) => previous.filter((action) => !(
         action.actionType === "missed"
         && action.groupId === missedLessonAction.groupId
@@ -773,8 +768,9 @@ export default function TeacherDashboardPage() {
       setDashboardRefreshNonce((value) => value + 1);
     } catch (err) {
       console.error("Failed to cancel missed lesson:", err);
-      setMissedLessonError(lessonFailure(err, "cancel", "Не удалось отменить пропущенный урок. Данные не изменены.").text);
+      setMissedLessonError(lessonFailure(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.").text);
     } finally {
+      missedSending.current = false;
       setIsResolvingMissedLesson(false);
     }
   };
@@ -952,26 +948,23 @@ export default function TeacherDashboardPage() {
   };
 
   const handleCancelLesson = async () => {
-    if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled") return;
+    if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled" || cancelSending.current) return;
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     if (reason.length < 3) {
-      setAttendanceError("Укажите понятную причину отмены урока.");
+      setAttendanceError("Укажите понятную причину.");
       return;
     }
+    cancelSending.current = true;
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
-      await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate || businessDate,
-        lessonId: activeLesson.id,
-        topic: activeLesson.topic,
-        status: "cancelled",
-        records: {},
-        cancellationReason: reason,
-        ...cancellationKindBody(cancellationKind, canChooseKind),
-        ...marksOps.versionBody(),
-      });
+      const notes = await sendTeacherCancel(
+        cancelRoute,
+        { groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate || businessDate, topic: activeLesson.topic },
+        reason,
+        marksOps.versionBody(),
+      );
       setActiveInstanceStatus("cancelled");
       setActiveCancellationReason(reason);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
@@ -988,18 +981,21 @@ export default function TeacherDashboardPage() {
       setIsMarkingAttendance(false);
       setIsCancellingLesson(false);
       setLessonExamBinding(null);
+      if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      const failure = marksOps.refused(err, "cancel", "Не удалось отменить урок. Данные не изменены.", attendance);
+      const failure = marksOps.refused(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.", attendance);
       if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
+      cancelSending.current = false;
       setSavingAttendance(false);
     }
   };
 
-  const openCancelLessonPanel = async () => {
+  const openCancelLessonPanel = async (route: TeacherCancelOffer["route"]) => {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled") return;
     setAttendanceError(null);
+    setCancelRoute(route);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
 
@@ -1303,6 +1299,12 @@ export default function TeacherDashboardPage() {
       : null,
     [activeLesson, activeInstanceStatus, getSubsequentStartedLesson],
   );
+
+  // W1 F1: a teacher does not cancel a lesson to come; «Урока не было» is offered for a lesson that has passed (one rule with the schedule: `teacherCancelOffer`)
+  const cancelOffer = activeLesson && !isCancellingLesson
+    ? teacherCancelOffer({ state: activeInstanceStatus, date: activeLesson.occurrenceDate || businessDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
+    : null;
+  const lessonMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer.route); } });
 
   if (loading) {
     return (
@@ -2176,7 +2178,7 @@ export default function TeacherDashboardPage() {
                         }}
                         className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-left text-sm font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        <span className="block">Отменить урок</span>
+                        <span className="block">Урока не было</span>
                         <span className="mt-1 block text-xs font-medium text-rose-600">Причина обязательно сохранится в журнале</span>
                       </button>
                     </div>
@@ -2195,7 +2197,6 @@ export default function TeacherDashboardPage() {
                         placeholder="Например: урок не состоялся по болезни преподавателя"
                         className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
                       />
-                      <CancellationKindField canChooseKind={canChooseKind} value={missedLessonKind} onChange={setMissedLessonKind} name="missed-cancellation-kind" disabled={isResolvingMissedLesson} />
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"
@@ -2215,7 +2216,7 @@ export default function TeacherDashboardPage() {
                           onClick={handleCancelMissedLesson}
                           className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                          {isResolvingMissedLesson ? "Сохранение…" : "Подтвердить отмену"}
+                          {isResolvingMissedLesson ? "Сохранение…" : "Урока не было"}
                         </button>
                       </div>
                     </div>
@@ -2307,7 +2308,7 @@ export default function TeacherDashboardPage() {
                     }}
                     mark={activeRequestMark} lessonTeacherId={activeTeacherInfo?.teacherId} isSubstitution={activeTeacherInfo?.isSubstitution} lessonStatus={activeInstanceStatus} actions={teacherActions}
                     onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
-                    onMoved={(text) => { setActiveLesson(null); showToast(text); setDashboardRefreshNonce((current) => current + 1); }}
+                    onMoved={(text, notes) => { setActiveLesson(null); showToast(text, notes?.length ? "warning" : "success", notes); setDashboardRefreshNonce((current) => current + 1); }}
                     onDialogChange={(open) => { moveHoldsEscape.current = open; }}
                   />
                 )}
@@ -2704,51 +2705,16 @@ export default function TeacherDashboardPage() {
                 </div>
 
                 {isCancellingLesson && activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isMarkingAttendance && (
-                  <div className="mb-5 space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                    <div>
-                      <p className="text-sm font-bold text-rose-900">Отменить урок</p>
-                      <p className="mt-0.5 text-xs text-rose-700">Отметки посещаемости этого урока будут сброшены. Причина отмены сохранится в истории урока.</p>
-                    </div>
-                    {lessonExamBinding?.loading && (
-                      <p className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600">Проверяем связанный экзамен…</p>
-                    )}
-                    {!lessonExamBinding?.loading && lessonExamBinding?.attached && lessonExamBinding.canCancel && (
-                      <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-900">Экзамен «{lessonExamBinding.examTitle}» вернётся в черновик, а код доступа будет закрыт.</p>
-                    )}
-                    {!lessonExamBinding?.loading && lessonExamBinding && !lessonExamBinding.canCancel && (
-                      <p className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-medium leading-5 text-rose-800">{lessonExamBinding.message || "Отмена недоступна."}</p>
-                    )}
-                    <textarea
-                      value={cancellationReason}
-                      onChange={(event) => setCancellationReason(event.target.value)}
-                      maxLength={500}
-                      rows={3}
-                      placeholder="Причина отмены (обязательно)"
-                      className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
-                    />
-                    <CancellationKindField canChooseKind={canChooseKind} value={cancellationKind} onChange={setCancellationKind} name="dashboard-cancellation-kind" disabled={savingAttendance} />
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsCancellingLesson(false);
-                          setCancellationReason("");
-                          setLessonExamBinding(null);
-                        }}
-                        className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white"
-                      >
-                        Не отменять
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleCancelLesson}
-                        disabled={savingAttendance || !lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel || cancellationReason.trim().length < 3}
-                        className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {savingAttendance ? "Сохранение..." : "Подтвердить отмену"}
-                      </button>
-                    </div>
-                  </div>
+                  <LessonCancelPanel
+                  oneOff={cancelRoute === "attendance" && isOwnOneOff(activeLesson, user?.id)}
+                    date={activeLesson.occurrenceDate || businessDate}
+                    binding={lessonExamBinding}
+                    reason={cancellationReason}
+                    onReason={setCancellationReason}
+                    busy={savingAttendance}
+                    onConfirm={() => void handleCancelLesson()}
+                    onBack={() => { setIsCancellingLesson(false); setCancellationReason(""); setLessonExamBinding(null); }}
+                  />
                 )}
 
                 {/* The marking list shows its own copy of the error; every other step shows it here. */}
@@ -2769,8 +2735,8 @@ export default function TeacherDashboardPage() {
                   ) : <span />}
 
                   <div className="flex items-center gap-2">
-                    {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && (
-                      <LessonActionsMenu open={isLessonMenuOpen} onOpenChange={setIsLessonMenuOpen} groups={[{ label: "Этот урок", items: teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), () => void openCancelLessonPanel()) }]} />
+                    {activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isCancellingLesson && !isMarkingAttendance && lessonMenuItems.length > 0 && (
+                      <LessonActionsMenu open={isLessonMenuOpen} onOpenChange={setIsLessonMenuOpen} groups={[{ label: "Этот урок", items: lessonMenuItems }]} />
                     )}
                     {canFinishLesson ? (
                       <button

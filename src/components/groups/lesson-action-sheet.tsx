@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, Pencil, RefreshCw, UserRoundCheck, X } from "lucide-react";
+import { Ban, CalendarClock, ClipboardCheck, ExternalLink, Loader2, Pencil, RefreshCw, RotateCcw, UserRoundCheck, X } from "lucide-react";
 import { orgApi, substitutionsApi, type Lesson } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { ExamBindingNote } from "./exam-binding-note";
 import { Modal } from "@/components/ui/modal";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { opsErrorCode, scheduleErrorText } from "@/lib/ops-errors";
+import { opsErrorCode, warningTexts } from "@/lib/ops-errors";
 import { roomForSave } from "@/lib/schedule-slots";
 import {
   SCHEDULE_ACTION_LABEL,
@@ -20,7 +20,8 @@ import {
   normalizeTime,
   type ScheduleCardAction,
 } from "@/lib/schedule-card-actions";
-import type { LessonMark } from "@/lib/substitutions";
+import { substitutionErrorText, type LessonMark } from "@/lib/substitutions";
+import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
 import { FRESH_DRAFT, sheetReducer, type SheetMode } from "@/lib/cancel-sheet";
@@ -80,8 +81,8 @@ export function LessonActionSheet({
   /** The weekly lesson of the sheet is being read (a button shows it) / could not be read (the sheet says it and stays open). */
   seriesPending?: "edit" | "end" | null;
   seriesError?: string | null;
-  /** After a move or a cancellation was saved: the toast text. */
-  onChanged: (text: string) => void;
+  /** After a move, a cancellation or a return was saved: the toast text and the notes of the server (`warnings`) to show under it - nothing is lost silently. */
+  onChanged: (text: string, notes?: string[]) => void;
   /** «Урок уже изменили — обновите»: the schedule is read again and the sheet closes. */
   onRefresh?: () => void;
 }) {
@@ -98,6 +99,7 @@ export function LessonActionSheet({
   const [end, setEnd] = useState("");
   const [room, setRoom] = useState("");
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);           // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const [stale, setStale] = useState(false);
   // the answer of the live check, tagged with the date and time it was asked for: an answer for other values is no answer
@@ -180,7 +182,7 @@ export function LessonActionSheet({
   const notRunHint = !pending && !check && !checkError ? (sameSlot ? "Выберите другую дату или время" : !validNew ? "Укажите новую дату и время: начало и окончание, конец позже начала" : null) : null;
 
   const submit = async () => {
-    if (!lesson || busy) return;
+    if (!lesson || busy || sending.current) return;
     if (mode === "reschedule") {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) { setError("Укажите новую дату урока"); return; }
       if (newDate < today) { setError("Новое время урока уже прошло"); return; }
@@ -188,25 +190,30 @@ export function LessonActionSheet({
       if (sameSlot) { setError("Выберите другую дату или время"); return; }
     }
     if (reasonProblem) { setError(reasonProblem); return; }
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
       if (mode === "reschedule" && from && to) {
-        await substitutionsApi.lessonMove(groupId, {
+        const moved = await substitutionsApi.lessonMove(groupId, {
           lessonId: lesson.id, lessonDate: lesson.date, newDate, startTime: from, endTime: to,
           room: roomForSave(room) ?? null, format: lesson.format || "offline", reason: trimmed,
           expectedStartTime: lessonStart || null, expectedEndTime: lessonEnd || null,
         });
         setMode("menu");
-        onChanged("Урок перенесён");
+        onChanged("Урок перенесён", warningTexts(moved?.result));
       } else if (mode === "kind") {
         await orgApi.changeCancellationKind(groupId, { lessonDate: lesson.date, lessonId: lesson.id, cancellationKind: kind, reason: trimmed });
         setMode("menu");
         onChanged("Причина отмены изменена");
-      } else {
-        await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, canChooseKind) });
+      } else if (mode === "restore") {
+        const restored = await orgApi.restoreLesson(groupId, { lessonId: lesson.id, lessonDate: lesson.date, reason: trimmed });
         setMode("menu");
-        onChanged("Урок отменён");
+        onChanged("Урок возвращён", [...warningTexts(restored), ...((restored.examsNote ?? "").trim() ? [(restored.examsNote ?? "").trim()] : [])]);
+      } else {
+        const cancelled = await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, canChooseKind) });
+        setMode("menu");
+        onChanged("Урок отменён", warningTexts(cancelled));
       }
       dispatch({ type: "reset" });
     } catch (cause) {
@@ -214,9 +221,10 @@ export function LessonActionSheet({
       if (mode === "reschedule") {
         setError(lessonMoveErrorText(cause));
       } else {
-        setError(scheduleErrorText(cause, "Не удалось отменить урок. Данные не изменены."));
+        setError(substitutionErrorText(cause, mode === "restore" ? "Не удалось вернуть урок. Данные не изменены." : mode === "kind" ? "Не удалось изменить причину. Данные не изменены." : "Не удалось отменить урок. Данные не изменены."));
       }
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -248,7 +256,7 @@ export function LessonActionSheet({
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : mode === "kind" ? CHANGE_KIND_BUTTON : SCHEDULE_ACTION_LABEL.reschedule}
+            {mode === "cancel" ? SCHEDULE_ACTION_LABEL.cancel : mode === "kind" ? CHANGE_KIND_BUTTON : mode === "restore" ? SCHEDULE_ACTION_LABEL.restore : SCHEDULE_ACTION_LABEL.reschedule}
           </button>
         </>
       )}
@@ -275,6 +283,8 @@ export function LessonActionSheet({
                       return <button key={action} type="button" onClick={() => open("reschedule")} className={ACTION_BUTTON}><CalendarClock className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.reschedule}</button>;
                     case "cancel":
                       return <button key={action} type="button" onClick={() => open("cancel")} className={ACTION_BUTTON}><Ban className="h-4 w-4 text-rose-600" />{SCHEDULE_ACTION_LABEL.cancel}</button>;
+                    case "restore":
+                      return <button key={action} type="button" data-testid="sheet-restore" onClick={() => open("restore")} className={ACTION_BUTTON}><RotateCcw className="h-4 w-4 text-emerald-600" />{SCHEDULE_ACTION_LABEL.restore}</button>;
                     case "mark":
                       return <button key={action} type="button" onClick={() => onJournal?.()} className={ACTION_BUTTON}><ClipboardCheck className="h-4 w-4 text-primary-600" />{SCHEDULE_ACTION_LABEL.mark}</button>;
                     case "editSeries":
@@ -345,6 +355,16 @@ export function LessonActionSheet({
           )}
 
           {mode === "kind" && <ChangeKindForm kind={kind} onKind={setKind} reason={reason} onReason={(next) => { setError(null); setReason(next); }} busy={busy} />}
+
+          {mode === "restore" && (
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="sheet-reason" className={LABEL}>{RESTORE_REASON_LABEL}</label>
+                <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
+              </div>
+              <p className="text-xs leading-relaxed text-slate-500">{cancellationKind === "centre" ? RESTORE_NOTE_CENTRE : RESTORE_NOTE}</p>
+            </div>
+          )}
 
           {mode === "cancel" && (
             <div className="space-y-3">

@@ -160,6 +160,7 @@ import type {
   OrgMemberRow,
   RemoveMemberResult,
   RemovalImpact,
+  RestoreLessonResult,
   SaveAttendanceResult,
 } from "./ops-b-types";
 
@@ -776,6 +777,8 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   substitutionOutcome?: SubstitutionOutcome | null;
   /** #124: the new lesson of a move says where it came from («Перенесён с 25.10, 10:00»). */
   movedFrom?: MovedFrom | null;
+  /** W1 S26: who added this one-off lesson. */
+  createdBy?: LessonAuthor | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -822,6 +825,16 @@ export interface RecurringLessonEndImpact {
 export interface EndRecurringLessonResult extends RecurringLessonEndImpact {
   ended: boolean;
   releasedExamIds: string[];
+  /** W1 S9: what the stop closed - waiting requests / substitutes of the lessons that are gone, and cancellations set ahead on dates after the stop (numbers). */
+  closedRequests?: number;
+  releasedSubstitutes?: number;
+  removedCancellations?: number;
+}
+
+/** W1 S8: more than the changed lesson - the later revisions that got the same change, and the exams that went back to drafts. */
+export interface RecurringRevisionNotes {
+  laterRevisions?: Array<{ effectiveFrom: string; fields: string[] }>;
+  releasedExamIds?: string[];
 }
 
 export type ExcuseReviewStatus = "pending" | "confirmed" | "rejected";
@@ -963,6 +976,15 @@ export interface Lesson {
   substitutionOutcome?: SubstitutionOutcome | null;
   /** #124: the new lesson of a move says where it came from. */
   movedFrom?: MovedFrom | null;
+  /** W1 S26: who added a ONE-OFF lesson (null / absent for a lesson of the weekly schedule). */
+  createdBy?: LessonAuthor | null;
+}
+
+/** W1 S26: the author of a one-off lesson. */
+export interface LessonAuthor {
+  id: string;
+  name: string;
+  role: "owner" | "admin" | "teacher" | string;
 }
 
 export interface AttendanceRecord {
@@ -1561,8 +1583,8 @@ export const orgApi = {
     api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}`, { method: "PUT", body: data }),
   reviseRecurringLesson: (
     lessonId: string,
-    data: Partial<LessonEvent> & { effectiveFrom: string; reason: string },
-  ) => api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence`, { method: "PUT", body: data }),
+    data: Omit<Partial<LessonEvent>, "topic"> & { topic?: string | null; effectiveFrom: string; reason: string; releaseAffectedExams?: boolean },
+  ) => api<LessonEvent & RecurringRevisionNotes>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence`, { method: "PUT", body: data }),
   getRecurringLessonEndImpact: (lessonId: string, effectiveFrom: string) => {
     const query = new URLSearchParams({ effective_from: effectiveFrom });
     return api<RecurringLessonEndImpact>(
@@ -1637,7 +1659,11 @@ export const orgApi = {
     groupId: string,
     data: { lessonDate: string; lessonId: string; cancellationReason: string; cancellationKind?: CancellationKind },
   ) =>
-    api<{ ok: boolean; cancelled: boolean; version?: number }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+    api<{ ok: boolean; cancelled: boolean; version?: number; warnings?: OpsWarning[] }>(`/auth/org/groups/${encodePathId(groupId)}/attendance/reconcile/cancel`, { method: "POST", body: data }),
+
+  /** W1 F3 (S5): «Вернуть урок» - a cancelled lesson that has not started is planned again (owner / administrator). */
+  restoreLesson: (groupId: string, body: { lessonId: string; lessonDate: string; reason: string }) =>
+    api<RestoreLessonResult>(`/auth/org/groups/${encodePathId(groupId)}/lessons/restore`, { method: "POST", body }),
 
   // ── PAY-F: «Выходной день центра» (owner / admin) ───────────────────────
   previewDayOff: (body: Pick<DayOffForm, "dateFrom" | "dateTo">) =>

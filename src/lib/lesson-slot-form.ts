@@ -312,18 +312,19 @@ export interface RevisionForm {
  * on that date, so a field that was not touched can never undo a revision that is already scheduled.
  */
 export function revisionPatch(snapshot: WeeklyLesson, form: RevisionForm): {
-  dayOfWeek?: number; startTime?: string; endTime?: string; room?: string; format?: LessonFormat; color?: LessonColor; topic?: string;
+  dayOfWeek?: number; startTime?: string; endTime?: string; room?: string | null; format?: LessonFormat; color?: LessonColor; topic?: string | null;
 } {
   const patch: ReturnType<typeof revisionPatch> = {};
   if (form.day !== Number(snapshot.dayOfWeek)) patch.dayOfWeek = form.day;
   if (form.startTime !== snapshot.startTime) patch.startTime = form.startTime;
   if (form.endTime !== snapshot.endTime) patch.endTime = form.endTime;
+  // W1 F12 (S25): an emptied room / topic that the lesson had is REMOVED (explicit null); an empty one that it never had is no change
   const room = roomForSave(form.room);
-  if (room !== null && room !== (snapshot.room ?? "").trim()) patch.room = room;
+  if (room !== null ? room !== (snapshot.room ?? "").trim() : (snapshot.room ?? "").trim() !== "") patch.room = room;
   if (form.format !== (snapshot.format || "offline")) patch.format = form.format;
   if (form.color !== (snapshot.color || "blue")) patch.color = form.color;
   const topic = form.topic.trim();
-  if (topic !== (snapshot.topic ?? "").trim() && topic) patch.topic = topic;
+  if (topic !== (snapshot.topic ?? "").trim()) patch.topic = topic || null;
   return patch;
 }
 
@@ -362,7 +363,7 @@ export function isEndTyped(endTime: string): boolean {
 export function sharedRevisionPatch(
   patch: ReturnType<typeof revisionPatch>,
   time: { startTime: string; endTime: string },
-): { startTime?: string; endTime?: string; room?: string; format?: LessonFormat; topic?: string } {
+): { startTime?: string; endTime?: string; room?: string | null; format?: LessonFormat; topic?: string | null } {
   const out: ReturnType<typeof sharedRevisionPatch> = {};
   if (patch.startTime !== undefined || patch.endTime !== undefined) { out.startTime = time.startTime; out.endTime = time.endTime; }
   if (patch.room !== undefined) out.room = patch.room;
@@ -371,16 +372,3 @@ export function sharedRevisionPatch(
   return out;
 }
 
-/** The part of a shared change that is really new for this lesson (the server refuses a revision without a difference). */
-export function patchFor(
-  target: Pick<WeeklyLesson, "startTime" | "endTime" | "room" | "format" | "topic">,
-  shared: ReturnType<typeof sharedRevisionPatch>,
-): ReturnType<typeof sharedRevisionPatch> {
-  const current = { startTime: target.startTime, endTime: target.endTime, room: target.room ?? "", format: target.format || "offline", topic: target.topic || "" };
-  const out: ReturnType<typeof sharedRevisionPatch> = {};
-  if (shared.startTime !== undefined && (shared.startTime !== current.startTime || shared.endTime !== current.endTime)) { out.startTime = shared.startTime; out.endTime = shared.endTime; }
-  if (shared.room !== undefined && (shared.room ?? "") !== current.room) out.room = shared.room;
-  if (shared.format !== undefined && shared.format !== current.format) out.format = shared.format;
-  if (shared.topic !== undefined && (shared.topic ?? "") !== current.topic) out.topic = shared.topic;
-  return out;
-}

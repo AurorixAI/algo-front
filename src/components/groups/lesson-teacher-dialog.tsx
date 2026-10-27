@@ -14,6 +14,7 @@ import {
   buildAssign,
   canReturnToGroupTeacher,
   candidateBusyText,
+  candidateMoneyLines,
   currentCandidate,
   isSelectable,
   lessonTeacherDialogTitle,
@@ -21,6 +22,7 @@ import {
   roleLabel,
 } from "@/lib/lesson-teacher";
 import { Radio } from "@/components/ui/radio";
+import { useAuthStore } from "@/lib/store";
 
 export interface LessonTeacherTarget {
   groupId: string;
@@ -55,8 +57,10 @@ export function LessonTeacherDialog({
   const [pick, setPick] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const [touched, setTouched] = useState(false);
+  const { user } = useAuthStore();
   const requestRef = useRef(0);
   const reasonRef = useRef<HTMLTextAreaElement>(null);
 
@@ -93,10 +97,11 @@ export function LessonTeacherDialog({
   const canReturn = canReturnToGroupTeacher(target.info) || Boolean(list && list.currentTeacherId && list.currentTeacherId !== list.defaultTeacherId);
 
   const send = async (teacherId: string | null) => {
-    if (busy) return;
+    if (busy || sending.current) return;
     setTouched(true);
     // the reason is missing: the field says so under itself and takes the cursor (it may lie below the list), nothing is sent
     if (problem) { reasonRef.current?.focus(); reasonRef.current?.scrollIntoView({ block: "nearest" }); return; }
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -111,6 +116,7 @@ export function LessonTeacherDialog({
       const code = opsErrorCode(failure);
       if (code === "LESSON_TEACHER_CHANGED" || code === "TEACHER_BUSY") { setPick(null); void load(); }
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -152,6 +158,7 @@ export function LessonTeacherDialog({
         reasonRef={reasonRef}
         busy={busy}
         error={error}
+        role={user?.org_role ?? user?.role ?? null}
         onPick={(id) => { setPick(id); setError(null); }}
         onReason={(value) => { setReason(value); setError(null); }}
         onRetry={() => void load()}
@@ -162,7 +169,7 @@ export function LessonTeacherDialog({
 
 /** The inside of the dialog: the candidates (the busy ones off) and the reason. */
 export function LessonTeacherBody({
-  list, loadError, current, pick, reason, reasonProblem, reasonRef, busy, error, onPick, onReason, onRetry,
+  list, loadError, current, pick, reason, reasonProblem, reasonRef, busy, error, role, onPick, onReason, onRetry,
 }: {
   list: LessonTeacherCandidates | null;
   loadError: string | null;
@@ -173,6 +180,8 @@ export function LessonTeacherBody({
   reasonRef?: React.Ref<HTMLTextAreaElement>;
   busy: boolean;
   error: string | null;
+  /** The viewer: the words of «Ставка не задана» depend on whether he can set the rate himself. */
+  role?: string | null;
   onPick: (teacherId: string) => void;
   onReason: (value: string) => void;
   onRetry: () => void;
@@ -217,6 +226,7 @@ export function LessonTeacherBody({
                   <span className="block text-xs text-slate-500" data-testid="candidate-role">{roleLabel(candidate.orgRole)}</span>
                   {isCurrent && <span className="block text-xs text-slate-500">Ведёт этот урок сейчас</span>}
                   {busyText && <span className="block text-xs font-medium text-amber-700">{busyText}</span>}
+                  {candidateMoneyLines(candidate, role).map((line) => <span key={line} className="block text-xs text-slate-500">{line}</span>)}
                 </span>
               </label>
             </li>

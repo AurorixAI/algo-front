@@ -100,11 +100,15 @@ test("3. the setting «Уроки, отменённые центром» belongs
 test("3. the dialog of a cancellation asks «По вине центра» (default) or «Праздник, выходной» and sends it", () => {
   assert.deepEqual(F.CANCELLATION_KINDS.map((k) => [k.key, k.label]), [["centre", "По вине центра"], ["holiday", "Праздник, выходной"]]);
   assert.equal(F.DEFAULT_CANCELLATION_KIND, "centre");
-  for (const file of ["src/components/groups/lesson-action-sheet.tsx", "src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx", "src/components/attendance/cancel-missed-lesson-modal.tsx"]) {
+  for (const file of ["src/components/groups/lesson-action-sheet.tsx", "src/components/attendance/cancel-missed-lesson-modal.tsx"]) {
     const source = read(file);
     assert.match(source, /<CancellationKindField canChooseKind=\{canChooseKind\}/, file);          // the field gets the right to choose
     assert.match(source, /cancellationKindBody\(/, file);                                            // and what is sent goes through the one rule below
   }
+  // W1 F4: the decision about a request and the pack decision choose the kind too (administrator / owner only: the page is theirs), and send it
+  for (const file of ["src/components/substitutions/decision-dialog.tsx", "src/components/substitutions/bulk-dialog.tsx"]) assert.match(read(file), /<CancellationKindField canChooseKind value=\{cancelKind\}/, file);
+  // W1 F1: the teacher's pages (teacher only: the layout lets nobody else in) never ask for a kind - a teacher does not cancel, «Урока не было» is always «по вине центра»
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.doesNotMatch(read(file), /CancellationKindField/, file);
   const api = read("src/lib/api.ts");
   assert.equal((api.match(/cancellationKind\?: CancellationKind/g) || []).length, 2);              // the lesson cancel and «Урока не было»
 });
@@ -251,7 +255,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
     "src/app/admin/settings/page.tsx": 107 + 6, "src/components/payments/payment-dialog.tsx": 459 + 3, "src/components/payments/receipt-view.tsx": 297 + 3,
-    "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10
+    "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3)
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
 

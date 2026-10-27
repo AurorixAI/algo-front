@@ -6,6 +6,7 @@ import { businessWallTimeToInstant, formatIsoDateLabel } from "@/lib/business-ti
 import { useAuthStore } from "@/lib/store";
 import { useNow } from "@/lib/use-now";
 import { lessonStartMs, teacherMoveControl } from "@/lib/substitutions";
+import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonActionSheet } from "@/components/groups/lesson-action-sheet";
 
 /** The lesson the control moves (the fields of the teacher's schedule occurrence). */
@@ -31,6 +32,7 @@ export function TeacherMoveControl({
   lessonTeacherId,
   isSubstitution,
   lessonStatus,
+  mark,
   open,
   onOpenChange,
   onKind,
@@ -41,15 +43,17 @@ export function TeacherMoveControl({
   lessonTeacherId?: string | null;
   isSubstitution?: boolean;
   lessonStatus: string | null | undefined;
+  /** The request of this lesson as the panel knows it (a rejected one switches the move off, W1 F2). */
+  mark?: SubstitutionRequestMark | null;
   /** The dialog is opened from the «⋯» menu of the panel (the page holds the state); this control keeps the dialog itself. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** What the control is now: `button` = the menu offers «Перенести урок», `late` = the menu shows it off with the reason, `none` = no item. */
-  onKind?: (kind: "none" | "button" | "late") => void;
+  onKind?: (kind: "none" | "button" | "late" | "rejected") => void;
   /** The page holds its own Escape key while a dialog is above it. */
   onDialogChange?: (open: boolean) => void;
-  /** After the lesson was moved (the toast text; the page shows it - this control goes away with the panel): the panel closes and the schedule is read again. */
-  onMoved: (text: string) => void;
+  /** After the lesson was moved (the toast text and the notes of the server, e.g. a student busy at the new time; the page shows them - this control goes away with the panel): the panel closes and the schedule is read again. */
+  onMoved: (text: string, notes?: string[]) => void;
 }) {
   const { user } = useAuthStore();
   const now = useNow(30_000, true);
@@ -61,6 +65,7 @@ export function TeacherMoveControl({
     lessonStatus,
     startsAtMs: lessonStartMs(lesson.lessonDate, lesson.startTime, businessWallTimeToInstant),
     nowMs: now,
+    mark,
   });
   const kind = control.kind;
   useEffect(() => { onKind?.(kind); }, [kind]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -88,7 +93,7 @@ export function TeacherMoveControl({
       teacherLine={null}
       actions={["reschedule"]}
       onClose={() => onOpenChange(false)}
-      onChanged={(text) => { onOpenChange(false); onMoved(text); }}
+      onChanged={(text, notes) => { onOpenChange(false); onMoved(text, notes); }}
       onRefresh={() => { onOpenChange(false); onMoved(""); }}
     />
   );

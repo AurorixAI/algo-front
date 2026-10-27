@@ -717,7 +717,8 @@ test("schedule cards of the group (owner/admin): information only; the actions b
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "scheduled", date: "2026-10-20" }), ["mark", "assign"], "past, nobody marked");
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "completed", date: "2026-10-20" }), ["journal"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "in_progress", date: "2026-10-22" }), ["journal"]);
-  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", date: "2026-10-24" }), []);
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", date: "2026-10-24" }), ["restore"], "W1 F3: a cancelled lesson to come can be returned");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", date: "2026-10-20" }), [], "a cancelled lesson that has passed has nothing to offer");
   assert.deepEqual(C.scheduleCardActions({ ...base, role: "admin", state: "scheduled", date: "2026-10-24" }), ["assign", "reschedule", "cancel"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, role: "teacher", state: "scheduled", date: "2026-10-24" }), []);
   assert.deepEqual(C.scheduleCardActions({ ...base, archived: true, state: "scheduled", date: "2026-10-24" }), []);

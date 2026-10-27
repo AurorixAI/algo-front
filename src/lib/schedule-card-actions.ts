@@ -13,6 +13,7 @@ export type ScheduleCardAction =
   | "cancel"          // «Отменить урок»
   | "mark"            // «Отметить посещаемость»: a past lesson nobody marked (the journal)
   | "journal"        // «Открыть в журнале»: a lesson that is held or going on
+  | "restore"        // «Вернуть урок»: a cancelled lesson that has not started is planned again (W1 F3)
   | "editSeries"     // «Изменить постоянный урок»: the weekly lesson this one belongs to, from a future date
   | "endSeries";     // «Прекратить урок»: stop the weekly lesson from a future date
 
@@ -20,6 +21,7 @@ export const SCHEDULE_ACTION_LABEL: Record<Exclude<ScheduleCardAction, "assign">
   reschedule: "Перенести урок",
   cancel: "Отменить урок",
   mark: "Отметить посещаемость",
+  restore: "Вернуть урок",
   journal: "Открыть в журнале",
   editSeries: "Изменить постоянный урок",
   endSeries: "Прекратить урок",
@@ -56,6 +58,10 @@ export interface ScheduleCardInput {
   recurring?: boolean;
   /** The moment of the decision (business clock is applied to it); the real now by default, a test passes its own. */
   now?: Date;
+  /** A cancelled lesson that is the ORIGINAL of a move (it went to another date): it is not «returned», the copy is cancelled instead. */
+  moved?: boolean;
+  /** How a cancelled lesson was cancelled as the journal sends it (`centre` | `holiday` | `day_off`); `day_off` is undone by the day off itself. */
+  cancelKind?: string | null;
 }
 
 /**
@@ -74,13 +80,14 @@ export function lessonHasStarted(input: { date: string; today: string; startTime
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
   const base = lessonActions(input);
   // the weekly lesson itself is changed / stopped from a future date, whatever happened to this one occurrence (a cancelled one has no sheet)
-  return input.recurring && base.length > 0 ? [...base, "editSeries", "endSeries"] : base;
+  // (a cancelled lesson offers only «Вернуть урок»: the weekly lesson is changed from a lesson that is held)
+  return input.recurring && base.length > 0 && input.state !== "cancelled" ? [...base, "editSeries", "endSeries"] : base;
 }
 
 function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
   if (input.archived || (input.role !== "owner" && input.role !== "admin")) return [];
   const { state, date, today } = input;
-  if (state === "cancelled") return [];
+  if (state === "cancelled") return canRestoreLesson(input) ? ["restore"] : [];
   if (state === "completed") return ["journal"];
   if (state === "in_progress") return ["journal"];
   const out: ScheduleCardAction[] = [];
@@ -95,6 +102,49 @@ function lessonActions(input: ScheduleCardInput): ScheduleCardAction[] {
   return out;
 }
 
+/**
+ * W1 F3, ONE rule for «Вернуть урок» (the server: S5): the owner / administrator, a lesson cancelled on its own (not the original of a move - its copy is cancelled
+ * instead, not by a day off - the day off is undone itself) that has not started yet, in a group that is not archived.  The server has the last word (RESTORE_*).
+ */
+export function canRestoreLesson(input: Pick<ScheduleCardInput, "role" | "archived" | "state" | "date" | "today" | "startTime" | "now" | "moved" | "cancelKind">): boolean {
+  if (input.archived || (input.role !== "owner" && input.role !== "admin")) return false;
+  if (input.state !== "cancelled" || input.moved || input.cancelKind === "day_off") return false;
+  return !lessonHasStarted({ date: input.date, today: input.today, startTime: input.startTime, now: input.now });
+}
+
+/** What the TEACHER's lesson panel offers instead of «Отменить этот урок» (W1 F1; the server: S3 - a teacher does not cancel, he asks «Не смогу провести»). */
+export interface TeacherCancelOffer {
+  /** `missed`: «Урока не было» of a past lesson nobody started; `attendance`: the lesson was started and its roster is empty (the one thing the server still lets him cancel). */
+  route: "missed" | "attendance";
+  /** `own_one_off`: a one-off lesson HE added himself (W1 S27) - the one lesson to come he may cancel. */
+  variant: "not_held" | "own_one_off";
+  label: string;
+  hint: string;
+}
+
+export const TEACHER_NOT_HELD_HINT = "Урок не состоялся. Потребуется причина.";
+export const CANCEL_ONE_OFF_LABEL = "Отменить разовый урок";
+export const CANCEL_ONE_OFF_HINT = "Урок исчезнет из расписания. Потребуется причина.";
+
+/** W1 S27: a one-off lesson the teacher added himself and that is not a copy of a move (`createdBy` comes with the occurrence). */
+export function isOwnOneOff(lesson: { isOneOff?: boolean; movedFrom?: unknown; createdBy?: { id?: string | null } | null }, userId: string | null | undefined): boolean {
+  return Boolean(userId && lesson.isOneOff && !lesson.movedFrom && lesson.createdBy?.id === userId);
+}
+
+/**
+ * «Урока не было» for the teacher: only for a lesson that has passed and was never started (or, started with nobody on its roster, which cannot be finished).
+ * A lesson to come is never offered: he asks «Не смогу провести» (the administrator decides).  ONE function for the schedule and the dashboard.
+ */
+export function teacherCancelOffer(input: { state: string | null | undefined; date: string; today: string; startTime?: string | null; rosterEmpty?: boolean; now?: Date; ownOneOff?: boolean }): TeacherCancelOffer | null {
+  const state = input.state || "scheduled";
+  const notHeld = (route: TeacherCancelOffer["route"]): TeacherCancelOffer => ({ route, variant: "not_held", label: CANCEL_PAST_LESSON_LABEL, hint: TEACHER_NOT_HELD_HINT });
+  if (state === "in_progress") return input.rosterEmpty ? notHeld("attendance") : null;
+  if (state !== "scheduled") return null;
+  if (lessonHasStarted(input)) return notHeld("missed");
+  // W1 S27: a lesson to come is not his to cancel - except the one-off lesson he created himself (the server: 403 for every other)
+  return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL, hint: CANCEL_ONE_OFF_HINT } : null;
+}
+
 /** The label of «assign» by situation: a future lesson «Назначить замену» (or «Заменить преподавателя» when a substitute is already there), a past one «Назначить того, кто провёл». */
 export function assignActionLabel(input: { past: boolean; lacksTeacher: boolean; isSubstitution: boolean }): string {
   if (input.lacksTeacher) return ASSIGN_TEACHER_ACTION;
@@ -107,6 +157,14 @@ export function assignActionLabel(input: { past: boolean; lacksTeacher: boolean;
 /** The title of a lesson: its topic, else the name of the group (never the bare word «Занятие»). */
 export function lessonTitle(lesson: { topic?: string | null }, groupName: string | null | undefined): string {
   return (lesson.topic ?? "").trim() || (groupName ?? "").trim() || "Урок";
+}
+
+/** W1 S26: «Добавил: Каримов Р., преподаватель» on a one-off lesson (the sheet of the owner / administrator); null for a lesson of the weekly schedule. */
+export function addedByLine(lesson: { createdBy?: { name?: string | null; role?: string | null } | null }): string | null {
+  const name = (lesson.createdBy?.name ?? "").trim();
+  if (!name) return null;
+  const role = lesson.createdBy?.role === "owner" ? "владелец" : lesson.createdBy?.role === "admin" ? "администратор" : lesson.createdBy?.role === "teacher" ? "преподаватель" : "";
+  return `Добавил: ${name}${role ? `, ${role}` : ""}`;
 }
 
 /** The room of a lesson, only when it is set («Онлайн» for an online one); null: nothing to show. */
@@ -222,7 +280,7 @@ export function lessonMoveCheckLines(check: MoveCheckOut, teacherLabel?: string 
   // a refusal of the ORIGIN lesson (ok:false with a code): LESSON_ALREADY_STARTED, LESSON_CANCELLED, GROUP_ARCHIVED, LESSON_NOT_FOUND
   const code = check.ok ? null : (check.code ?? "").trim() || null;
   if (code) {
-    const known = lessonMoveErrorText({ code }, "");
+    const known = lessonMoveErrorText({ code, detail: { code, message: check.message ?? "" } }, "");
     const text = known || (check.message ?? "").trim() || "Этот урок перенести нельзя";
     return { ok: false, lines: [text], warnings, code, stale: isStaleLessonCode(code) };
   }

@@ -4,6 +4,7 @@
  * answers with the old shape and the screens must read it without surprises.
  */
 import type { OpsErrorDetail, TeacherConflict } from "./ops-b-types";
+import type { CancellationKind } from "./payf";
 
 export type SubstitutionReasonCode = "sick" | "personal" | "other";
 
@@ -26,7 +27,11 @@ export type ClosedReasonCode =
   | "GROUP_TEACHER_CHANGED"
   | "TEACHER_REMOVED"
   | "LESSON_OUTSIDE_WINDOW"
-  | "ASSIGNMENT_CLEARED";
+  | "ASSIGNMENT_CLEARED"
+  | "LESSON_RESTORED"
+  | "KIND_CHANGED"
+  | "ONE_OFF_ADDED"
+  | "ROLE_CHANGED";
 
 export interface PersonRef {
   id: string;
@@ -190,10 +195,24 @@ export interface AssignedToMe {
   assignedAt?: string | null;
 }
 
+/** W1 S22 (F11): a lesson where the person WAS the substitute and the assignment was taken off in the last 14 days - who did it and when. */
+export interface ClearedForMe {
+  groupId: string;
+  groupName: string;
+  lessonId: string;
+  lessonDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  /** UTC naive */
+  clearedAt: string;
+  clearedBy?: PersonRef | null;
+}
+
 export interface MineOut {
   items: SubstitutionItem[];
   pendingTotal: number;
   assignedToMe: AssignedToMe[];
+  clearedForMe?: ClearedForMe[];
 }
 
 export interface WithdrawBatchOut {
@@ -207,6 +226,8 @@ export interface SubstitutionSummary {
   pendingTotal: number;
   urgentTotal: number;
   overdueTotal: number;
+  /** W1 S20: see `SubstitutionListOut`. */
+  expiringTotal?: number;
 }
 
 export type SubstitutionListStatus = "pending" | "decided" | "all";
@@ -228,6 +249,8 @@ export interface SubstitutionListOut {
   total: number;
   pendingTotal: number;
   urgentTotal: number;
+  /** W1 S20: waiting requests of the last month that drop out of the window on the 1st - non-zero only in the last 3 days before it. */
+  expiringTotal?: number;
 }
 
 export interface SubstitutionEvent {
@@ -268,8 +291,11 @@ export interface SubstitutionCandidate {
   isDefaultTeacher?: boolean;
   busy?: boolean;
   busyWith?: CandidateBusy | null;
-  /** Only for the owner. */
+  /** W1: the owner and the administrator both read the yes / no (the rates themselves are the owner's alone). */
   rateMissing?: boolean | null;
+  /** W1 F5: an estimate in sum of what the lesson would pay him; null / absent - nothing to show. */
+  substitutePayEstimate?: number | null;
+  substitutePayEstimateReason?: string | null;
 }
 
 export interface CandidatesOut {
@@ -309,16 +335,18 @@ export type DecideBody =
       reason: string;
       expectedStatus?: "pending";
     }
-  | { decision: "cancel"; reason: string; expectedStatus?: "pending" }
+  | { decision: "cancel"; reason: string; cancellationKind?: CancellationKind; expectedStatus?: "pending" }
   | { decision: "reject"; reason: string; expectedStatus?: "pending" };
 
 export interface DecideResult {
   kind: SubstitutionDecisionKind;
+  /** W1 S2: what the cancellation became (a date under a day off is a holiday whatever was asked); `null` for the other decisions. */
+  cancellationKind?: CancellationKind | null;
   teacherId?: string | null;
   teacherName?: string | null;
   isSubstitution?: boolean | null;
   attendanceUpdated?: boolean | null;
-  payrollSheetsAffected?: unknown[] | null;
+  payrollSheetsAffected?: Array<{ sheet_id?: string | null; teacher_id?: string; month?: string | null; status?: string | null }> | null;
   cancelledVersion?: number | null;
   newLesson?: { id: string; groupId: string; date: string; startTime: string; endTime: string; room?: string | null; format?: string | null } | null;
   warnings?: Array<{ code: string; message: string }> | null;
@@ -333,6 +361,8 @@ export interface DecideOut {
 export interface DecideBulkBody {
   ids: string[];
   decision: "substitute" | "cancel" | "reject";
+  /** W1 F4: only with `cancel` - one kind for the whole pack (default `centre`). */
+  cancellationKind?: CancellationKind;
   teacherId?: string | null;
   reason?: string | null;
   note?: string | null;

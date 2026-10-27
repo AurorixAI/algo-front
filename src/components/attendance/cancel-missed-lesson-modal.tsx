@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatDateRu } from "@/lib/attendance-excuses";
 import { Modal } from "@/components/ui/modal";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
+import { warningTexts } from "@/lib/ops-errors";
+import { substitutionErrorText } from "@/lib/substitutions";
 import { CancellationKindField } from "./cancellation-kind-field";
 
 export interface CancelMissedTarget {
@@ -28,14 +30,15 @@ export function CancelMissedLessonModal({
 }: {
   target: CancelMissedTarget | null;
   onClose: () => void;
-  /** After the server accepted the cancellation (the dialog is already closed). */
-  onCancelled: (target: CancelMissedTarget) => void | Promise<void>;
+  /** After the server accepted the cancellation (the dialog is already closed); `notes` are what the server said besides (a day off made it a holiday, a substitute was released). */
+  onCancelled: (target: CancelMissedTarget, notes: string[]) => void | Promise<void>;
 }) {
   const [reason, setReason] = useState("");
   const [kind, setKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const canChooseKind = useCanChooseCancellationKind();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
 
   // A fresh form for every lesson.
   useEffect(() => {
@@ -45,25 +48,27 @@ export function CancelMissedLessonModal({
   }, [target?.groupId, target?.lessonId, target?.lessonDate]);
 
   const submit = async () => {
-    if (!target || busy) return;
+    if (!target || busy || sending.current) return;
     const text = reason.trim();
     if (text.length < 3) {
       setError("Укажите причину — не менее 3 символов.");
       return;
     }
+    sending.current = true;
     setBusy(true);
     try {
-      await orgApi.cancelMissedGroupAttendance(target.groupId, {
+      const out = await orgApi.cancelMissedGroupAttendance(target.groupId, {
         lessonDate: target.lessonDate,
         lessonId: target.lessonId,
         cancellationReason: text,
         ...cancellationKindBody(kind, canChooseKind),
       });
       onClose();
-      await onCancelled(target);
+      await onCancelled(target, warningTexts(out));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Не удалось сохранить. Данные не изменены.");
+      setError(substitutionErrorText(err, "Не удалось сохранить. Данные не изменены."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

@@ -77,7 +77,7 @@ import {
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { useAuthStore } from "@/lib/store";
-import { directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
   conflictHeadline,
   examSyncNotice,
@@ -1889,7 +1889,7 @@ export function GroupAttendanceJournal({
         onClose={() => setTeacherTarget(null)}
         onChanged={(result) => {
           setTeacherTarget(null);
-          showToast(directAssignToast(result));
+          { const notes = assignmentNotes(result); showToast(directAssignToast(result), notes.length ? "warning" : "success", notes); }
           void loadAttendanceRef.current(true);
         }}
       />
@@ -1944,9 +1944,9 @@ export function GroupAttendanceJournal({
       <CancelMissedLessonModal
         target={cancelMissed}
         onClose={() => setCancelMissed(null)}
-        onCancelled={async (done) => {
+        onCancelled={async (done, notes) => {
           await loadAttendanceRef.current(true);
-          showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`);
+          showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
         }}
       />
 

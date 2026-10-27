@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
-import { createOneOff, createWeeklyLessons, mergeNotices, refusalText, reviseWeeklyLessons } from "@/lib/weekly-lessons";
+import { removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterChangeNote, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, weeklyLaterChange, type ExamsToConfirm } from "@/lib/weekly-lessons";
 import {
   DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, canVaryTimes, dayList, dayShort, dayTimeProblem, dayTimesOf, nextBusinessDate, overlappingLesson, pastDayPlan,
   reconcileDayTimes, timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type DayTimes, type WeeklyLesson,
@@ -288,6 +288,11 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   const [tickedIds, setTickedIds] = useState<string[]>([]);
   const [mainSaved, setMainSaved] = useState(false);
   const [details, setDetails] = useState<string[]>([]);
+  /** W1 S8: the exams of the lessons a change of day / time would move - the server asks for a tick before it returns them to drafts. */
+  const [exams, setExams] = useState<ExamsToConfirm[] | null>(null);
+  const [releaseExams, setReleaseExams] = useState(false);
+  /** W1 F6: the date from which a change planned LATER already exists (it gets the same new values). */
+  const [laterFrom, setLaterFrom] = useState<string | null>(null);
   const latest = useRef({ baseline, day, value });
   latest.current = { baseline, day, value };
 
@@ -308,13 +313,23 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveFrom]);
 
-  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
+  useEffect(() => {
+    setLaterFrom(null);
+    if (!lesson.groupId || !effectiveFrom || effectiveFrom < nextBusinessDate()) return undefined;
+    let cancelled = false;
+    void weeklyLaterChange(lesson.groupId, lesson.id, effectiveFrom, baseline).then((date) => { if (!cancelled) setLaterFrom(date); });
+    return () => { cancelled = true; };
+  }, [effectiveFrom, baseline, lesson.groupId, lesson.id]);
+
+  const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); setExams(null); setReleaseExams(false); };
   const overlap = day ? overlappingLesson(siblings, day, value.startTime, value.endTime, lesson.id) : undefined;
   const timeProblem = timeRangeProblem(value.startTime, value.endTime);
   // The server refuses an update without a real difference: compare with the lesson as it stands on the date of the change.
   const changed = day !== null ? revisionPatch(baseline, formOf(day, value)) : {};
   const changedNames = Array.from(new Set(Object.keys(changed).map((key) => CHANGED_FIELD_NAME[key]).filter(Boolean)));
   const hasChanges = changedNames.length > 0;
+  // W1 F12 (S25): an emptied room / topic is REMOVED from this date on - said while it is true, not as a permanent hint
+  const removedNote = removalNote(changed, effectiveFrom);
   const automaticReason = hasChanges ? `Изменены: ${changedNames.join(", ")}` : "Изменено постоянное расписание";
 
   // the other weekly lessons of THIS group: the same time / room / format / topic can go to them too (never the day)
@@ -342,6 +357,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
     if (timeProblem) { setError(timeProblem); return; }
     if (!mainSaved && !hasChanges) { setError("Измените хотя бы один параметр расписания."); return; }
     if (!effectiveFrom || effectiveFrom <= formatBusinessDate()) { setError("Постоянное расписание можно менять только начиная с будущей даты."); return; }
+    if (exams && !releaseExams) { setError("Подтвердите, что экзамены вернутся в черновики."); return; }
     sending.current = true;
     setBusy(true);
     setError(null);
@@ -351,13 +367,15 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
     const mainFound: Array<{ note: string; day: number }> = [];
     try {
       if (!mainSaved) {
-        const revised = await orgApi.reviseRecurringLesson(lesson.id, { effectiveFrom, reason: text, ...changed });
-        for (const note of warningTexts(revised)) mainFound.push({ note, day: Number(lesson.dayOfWeek) });
+        const revised = await orgApi.reviseRecurringLesson(lesson.id, { effectiveFrom, reason: text, ...changed, ...(releaseExams ? { releaseAffectedExams: true } : {}) });
+        for (const note of [...warningTexts(revised), ...laterRevisionNotes(revised)]) mainFound.push({ note, day: Number(lesson.dayOfWeek) });
         notices = mergeNotices(mainFound, 1);
         setMainSaved(true);
       }
     } catch (failure) {
-      setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
+      const needed = examsToConfirm(failure);
+      if (needed) { setExams(needed); setReleaseExams(false); setError(null); }
+      else setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
       sending.current = false;
       setBusy(false);
       return;
@@ -368,7 +386,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
         return;
       }
       // the same change for the ticked days, one by one: a refusal names its day and leaves the others done; only the refused stay ticked
-      const result = await reviseWeeklyLessons(targets, effectiveFrom, text, shared);
+      const result = await reviseWeeklyLessons(targets, effectiveFrom, text, shared, { releaseAffectedExams: releaseExams });
       notices = mergeNotices([...mainFound, ...result.found], targets.length + 1);
       if (result.failed.length === 0) {
         await onSaved(notices, effectiveFrom);
@@ -377,6 +395,8 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
       setError(weeklyResultText([day, ...result.done], result.failed, CHANGED_WORDS));
       setDetails(result.failed.map((item) => `${dayShort(item.day)}: ${item.detail}`));
       setTickedIds(result.failed.map((item) => item.id));
+      const needed = result.failed.flatMap((item) => item.exams ?? []);
+      if (needed.length > 0) { setExams(needed); setReleaseExams(false); }
       onProgress?.();
     } catch (failure) {
       setError(refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."));
@@ -416,12 +436,14 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label htmlFor="sched-edit-izmeneniya-deystvuyut-s" className="block text-xs font-semibold text-slate-700 mb-1">Изменения действуют с</label>
-            <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={effectiveFrom} min={nextBusinessDate()} onChange={(next) => { setEffectiveFrom(next); setError(null); }} required disabled={busy} className={SLOT_FIELD_CLASS} />
+            <DateInput id="sched-edit-izmeneniya-deystvuyut-s" value={effectiveFrom} min={nextBusinessDate()} onChange={(next) => { setEffectiveFrom(next); setError(null); setExams(null); setReleaseExams(false); }} required disabled={busy || mainSaved} className={SLOT_FIELD_CLASS} />
           </div>
           <div className="flex items-end">
             <p className="rounded-xl border border-primary-100 bg-primary-50 px-3 py-2 text-[11px] leading-relaxed text-primary-800">Уроки до этой даты сохраняют прежнее время и посещаемость.</p>
           </div>
         </div>
+
+        {laterFrom && hasChanges && <p role="status" data-testid="later-change-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">{laterChangeNote(laterFrom)}</p>}
 
         <WeekdayChips idPrefix="sched-edit" single days={day ? [day] : []} onChange={(next) => { setDay(next[0] ?? null); setError(null); setDetails([]); }} disabled={busy || mainSaved} />
 
@@ -432,6 +454,8 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
           disabled={busy || mainSaved}
           endInvalid={Boolean(timeProblem)}
         />
+
+        {removedNote && <p role="status" data-testid="removed-note" className="text-xs font-medium text-slate-600">{removedNote}</p>}
 
         {showOthers && (
           <fieldset data-testid="apply-to-others" className="rounded-xl border border-slate-200 bg-slate-50/70 p-3">
@@ -448,6 +472,17 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
           </fieldset>
         )}
 
+        {exams && (
+          <div role="alert" data-testid="exams-confirm" className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+            <p className="font-semibold">К урокам, которые сдвинутся, привязаны экзамены. Они вернутся в черновики — назначьте их заново.</p>
+            {exams.length > 0 && <ul className="list-disc space-y-0.5 pl-4">{exams.map((exam) => <li key={exam.examId}>{exam.title} — {formatIsoDateLabel(exam.lessonDate, { day: "numeric", month: "long" })}</li>)}</ul>}
+            <label className="flex cursor-pointer items-start gap-2.5 font-medium">
+              <Checkbox checked={releaseExams} onChange={(event) => setReleaseExams(event.target.checked)} disabled={busy} />
+              <span>Вернуть экзамены в черновики</span>
+            </label>
+          </div>
+        )}
+
         <div>
           <label htmlFor="sched-edit-prichina-izmeneniya" className="block text-xs font-semibold text-slate-700 mb-1">
             Причина изменения <span className="font-normal text-slate-400">(необязательно)</span>
@@ -458,7 +493,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
             onChange={(event) => setReason(event.target.value)}
             maxLength={500}
             rows={2}
-            disabled={busy}
+            disabled={busy || mainSaved}
             placeholder="Например: постоянная смена аудитории"
             className={`${SLOT_FIELD_CLASS} resize-none`}
           />
@@ -494,7 +529,8 @@ export function EndWeeklyLessonDialog({ lesson, onClose, onEnded, defaultEffecti
   /** Over the lesson panel of the teacher's cabinet (z 99999). */
   aboveLessonPanel?: boolean;
   onClose: () => void;
-  onEnded: () => void | Promise<void>;
+  /** After the stop; `notes` say what it closed (waiting requests, substitutes, cancellations set ahead) - nothing is lost silently. */
+  onEnded: (notes: string[]) => void | Promise<void>;
 }) {
   return lesson ? (
     <EndWeeklyLessonForm key={lesson.id} lesson={lesson} onClose={onClose} onEnded={onEnded} defaultEffectiveFrom={defaultEffectiveFrom} resolveAt={resolveAt} aboveLessonPanel={aboveLessonPanel} />
@@ -507,7 +543,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
   resolveAt?: ResolveWeeklyLesson;
   aboveLessonPanel: boolean;
   onClose: () => void;
-  onEnded: () => void | Promise<void>;
+  onEnded: (notes: string[]) => void | Promise<void>;
 }) {
   const initialFrom = useMemo(() => startingFrom(defaultEffectiveFrom), [defaultEffectiveFrom]);
   const [effectiveFrom, setEffectiveFrom] = useState(initialFrom);
@@ -516,6 +552,7 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
   const [impact, setImpact] = useState<RecurringLessonEndImpact | null>(null);
   const [loadingImpact, setLoadingImpact] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [release, setRelease] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -555,19 +592,21 @@ function EndWeeklyLessonForm({ lesson, onClose, onEnded, defaultEffectiveFrom, r
   }, [lesson.id, effectiveFrom]);
 
   const confirm = async () => {
-    if (!impact || busy) return;
+    if (!impact || busy || sending.current) return;
     const text = reason.trim();
     if (text.length < 3) { setError("Укажите понятную причину прекращения регулярных занятий."); return; }
     if (!impact.canEnd) { setError("Сначала завершите или разберите экзамены, которые уже нельзя вернуть в черновик."); return; }
     if (impact.affectedExamCount > 0 && !release) { setError("Подтвердите, что затронутые экзамены будут возвращены в черновики."); return; }
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      await orgApi.endRecurringLesson(lesson.id, { effectiveFrom, reason: text, releaseAffectedExams: release });
-      await onEnded();
+      const ended = await orgApi.endRecurringLesson(lesson.id, { effectiveFrom, reason: text, releaseAffectedExams: release });
+      await onEnded(endSeriesNotes(ended));
     } catch (failure) {
       setError(failure instanceof Error && failure.message ? failure.message : "Не удалось прекратить регулярные занятия. Расписание не изменено.");
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

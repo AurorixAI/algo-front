@@ -13,6 +13,7 @@ import {
   opsErrorDetail,
   errorMessageOf,
 } from "./ops-errors";
+import { substitutionErrorText } from "./substitutions";
 import type { AttendanceConflictDetail, ExamSync, LiveExamDetail, LiveExamItem } from "./ops-b-types";
 
 // ── the window of 7 days (decision 7) ───────────────────────────────────────────────────────────
@@ -229,6 +230,14 @@ export function lessonFailure(error: unknown, operation: LessonOperation, fallba
       return { kind: "not_lesson_teacher", text: errorMessageOf(error, "Этот урок ведёт другой преподаватель") };
     case "GROUP_ARCHIVED":
       return { kind: "archived", text: errorMessageOf(error, "Группа в архиве: изменить её нельзя. Верните её из архива") };
+    // W1 (S2-S7): the refusals of a cancellation have one wording on every screen
+    case "TEACHER_CANNOT_CANCEL":
+    case "ALREADY_CANCELLED":
+    case "ALREADY_MOVED":
+    case "LESSON_HAS_MARKS":
+    case "LESSON_CHANGED":
+    case "LESSON_ALREADY_STARTED":
+      return { kind: "other", text: substitutionErrorText(error, fallback) };
     default:
       break;
   }

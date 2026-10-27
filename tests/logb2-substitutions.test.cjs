@@ -122,6 +122,7 @@ test("the labels of the contract are the words of the front (reasons, closing re
   for (const [code, label] of Object.entries(contract["x-labels"].reasons)) assert.equal(S.reasonLabelOf(code), label);
   for (const [code, label] of Object.entries(contract["x-labels"].closedReasons)) {
     assert.ok(S.CLOSED_REASON_TEXT[code], code);
+    if (code === "LESSON_OUTSIDE_WINDOW") { assert.equal(S.CLOSED_REASON_TEXT[code], "Не решено вовремя", "W1 S20: the frozen contract says «Срок разбора истёк», the server now says this"); continue; }
     assert.ok(S.CLOSED_REASON_TEXT[code].startsWith(label), `${code}: ${S.CLOSED_REASON_TEXT[code]} / ${label}`);
   }
 });
@@ -240,8 +241,14 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   const decided = fx("b2c3_decide_cancel");
   assert.equal(S.decisionToast(decided), "Урок отменён");
   assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Урок отменён", tone: "gray" });
-  assert.equal(S.CANCEL_CONSEQUENCES, "Урок будет отменён и не вернётся. Ученики на нём не отмечаются. При помесячной оплате стоимость месяца не меняется. В пакете занятий урок не списывается. Заработок преподавателя за этот урок не засчитывается.");
-  assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", expectedStatus: "pending" });
+  // W1 F4 (D18): no «стоимость месяца не меняется» (a cancellation «по вине центра» may be deducted - the kind field says so); a cancelled lesson CAN be returned (F3)
+  assert.equal(S.CANCEL_CONSEQUENCES, "На отменённом уроке ученики не отмечаются, в пакете занятий он не списывается, заработок преподавателя за него не засчитывается. Вернуть урок можно в расписании группы, пока он не начался.");
+  assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется|не вернётся/);
+  assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", cancellationKind: "centre", expectedStatus: "pending" }, "the default kind is «по вине центра»");
+  assert.deepEqual(S.buildDecide("cancel", { reason: "Праздник", cancellationKind: "holiday" }), { decision: "cancel", reason: "Праздник", cancellationKind: "holiday", expectedStatus: "pending" });
+  assert.deepEqual(S.buildBulk(["a", "b"], "cancel", { reason: "Праздник", cancellationKind: "holiday" }), { ids: ["a", "b"], decision: "cancel", reason: "Праздник", cancellationKind: "holiday" });
+  assert.deepEqual(S.buildBulk(["a"], "cancel", { reason: "Болен" }), { ids: ["a"], decision: "cancel", reason: "Болен", cancellationKind: "centre" });
+  assert.equal("cancellationKind" in S.buildBulk(["a"], "reject", { reason: "Нет" }), false, "only a cancellation carries a kind");
   assert.equal(S.decisionReasonError("cancel", "ок"), "Укажите причину — не менее 3 символов");
   assert.equal(S.decisionReasonError("cancel", "Болен"), null);
   assert.equal(S.studentNoticeLabel({ kind: "cancelled" }), "Урок отменён");
@@ -427,12 +434,20 @@ test("[M3] the decision dialog: the head, the four cards, and the substitute lis
   assert.ok(text.indexOf("Рахимов Т.") < text.indexOf("Сидоров С."), "the suggested colleague is first");
   assert.ok(text.indexOf("Сидоров С.") < text.indexOf("Петров П."), "the busy one is last");
   assert.ok(/value="[^"]+" disabled=""/.test(html) || html.includes('disabled=""'), "the busy one cannot be picked");
-  assert.doesNotMatch(text, /Ставка не задана/, "the administrator sees no money hints");
-  // the owner sees the hint for a colleague without a rate
+  assert.doesNotMatch(text, /Ставка не задана/, "no candidate lacks a rate in this fixture");
+  // W1 F5: the owner AND the administrator see the hint for a colleague without a rate (the server sends the yes / no to both), each in his own words
   const owner = fx("b2c1_candidates_admin");
   owner.candidates = owner.candidates.map((c) => (c.name === "Сидоров С." ? { ...c, rateMissing: true } : c));
   const ownerText = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { role: "owner", candidates: owner }))));
   assert.match(ownerText, /Ставка не задана — заработок за урок не будет посчитан, пока вы её не зададите/);
+  const adminText = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { role: "admin", candidates: owner }))));
+  assert.match(adminText, /Ставка не задана — заработок за урок не будет посчитан, пока владелец не задаст ставку/);
+  // the estimate of the lesson for a candidate, when the server counted one (an estimate, said so); nothing for null / absent
+  const priced = { ...fx("b2c1_candidates_admin") };
+  priced.candidates = priced.candidates.map((c) => (c.name === "Сидоров С." ? { ...c, substitutePayEstimate: 46000 } : c.name === "Рахимов Т." ? { ...c, substitutePayEstimate: null } : c));
+  const pricedText = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { role: "admin", candidates: priced }))));
+  assert.match(pricedText, /≈ 46.000.сум за урок, ориентировочно/);
+  assert.equal((pricedText.match(/ориентировочно/g) || []).length, 1);
   // nobody free
   const none = { ...fx("b2c1_candidates_admin"), candidates: fx("b2c1_candidates_admin").candidates.map((c) => ({ ...c, busy: true, busyWith: c.busyWith ?? { kind: "lesson", groupName: "8-В", startTime: "10:00", endTime: "11:30", pendingRequest: false } })) };
   assert.match(textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { candidates: none, pick: null })))), /Свободных преподавателей на это время нет\. Перенесите или отмените урок\./);
@@ -453,7 +468,9 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
   }
   const cancel = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "cancel", binding: { state: "ok", title: "Контрольная №3", canCancel: false } }))));
   assert.match(cancel, /Причина отмены/);
-  assert.match(cancel, /Урок будет отменён и не вернётся\. Ученики на нём не отмечаются\./);
+  assert.match(cancel, /На отменённом уроке ученики не отмечаются/);
+  assert.match(cancel, /Причина отмены с точки зрения оплаты/);                       // W1 F4: the kind of the cancellation is asked here too
+  assert.match(cancel, /По вине центра/);
   assert.match(cancel, /Экзамен «Контрольная №3» уже идёт — отменить урок нельзя/);
   const reject = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "reject" }))));
   assert.match(reject, /Причина отказа \(её увидит преподаватель\)/);
@@ -530,7 +547,7 @@ test("[T1] who sees «Не смогу провести»: the teacher on his own
 test("[S1/S2] the chips on a lesson: «Замена: 9-А» for the substitute, «Вы запросили замену» for the asker, «Ждёт замены» (a link) for the manager", () => {
   const occ = { groupName: "9-А", isSubstitution: true, teacherId: "sub", teacherName: "Рахимов Т.", defaultTeacherId: "main" };
   assert.deepEqual(S.occurrenceChips(occ, "sub").map((c) => c.text), ["Замена: 9-А"]);
-  assert.deepEqual(S.occurrenceChips(occ, "main").map((c) => c.text), ["Заменяет Рахимов Т."]);
+  assert.deepEqual(S.occurrenceChips(occ, "main").map((c) => c.text), ["Замена: Рахимов Т."]);
   assert.deepEqual(S.occurrenceChips(occ, "boss", { manager: true }).map((c) => c.text), ["Замена: Рахимов Т."]);
   const asked = { groupName: "9-А", substitutionRequest: { id: "r1", status: "pending", reasonCode: "sick" } };
   assert.deepEqual(S.occurrenceChips(asked, "t1").map((c) => c.text), ["Вы запросили замену"]);

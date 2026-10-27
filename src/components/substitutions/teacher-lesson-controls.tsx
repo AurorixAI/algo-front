@@ -4,13 +4,13 @@ import { useCallback, useRef, useState, type ComponentType } from "react";
 import { CalendarClock, MoreHorizontal, UserMinus, X } from "lucide-react";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
-import { MOVE_TOO_LATE_HINT, REQUEST_ACTION } from "@/lib/substitutions";
-import { SCHEDULE_ACTION_LABEL } from "@/lib/schedule-card-actions";
+import { MOVE_REJECTED_HINT, MOVE_TOO_LATE_HINT, REQUEST_ACTION } from "@/lib/substitutions";
+import { SCHEDULE_ACTION_LABEL, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { RequestControl } from "@/components/substitutions/request-control";
 import { TeacherMoveControl, type MovableLesson } from "@/components/substitutions/teacher-move-control";
 
 type RequestKind = "none" | "button" | "pending" | "rejected";
-type MoveKind = "none" | "button" | "late";
+type MoveKind = "none" | "button" | "late" | "rejected";
 
 /** The state of the two actions on the lesson panel of the teacher: which dialog is open and what each action is now (the «⋯» menu of the page offers them). */
 export function useTeacherLessonActions() {
@@ -38,13 +38,17 @@ export interface LessonMenuItem {
 }
 export interface LessonMenuGroup { label: string; items: LessonMenuItem[] }
 
-/** The teacher's own actions on his lesson as menu rows: «Перенести урок» (off with the reason in the last hour), «Не смогу провести» (only while it can be asked). */
-export function teacherLessonMenuItems(actions: TeacherLessonActions, close: () => void, cancel?: () => void): LessonMenuItem[] {
+/**
+ * The teacher's own actions on his lesson as menu rows: «Перенести урок» (off with the reason in the last hour or after the administrator rejected his request),
+ * «Не смогу провести» (only while it can be asked) and, for a lesson that has passed, «Урока не было» (`teacherCancelOffer`; a teacher never cancels a lesson to come - W1 F1).
+ */
+export function teacherLessonMenuItems(actions: TeacherLessonActions, close: () => void, cancel?: { offer: TeacherCancelOffer | null; open: () => void }): LessonMenuItem[] {
   const items: LessonMenuItem[] = [];
   if (actions.moveKind === "button") items.push({ key: "move", label: SCHEDULE_ACTION_LABEL.reschedule, hint: "На любую дату и время", icon: CalendarClock, onSelect: () => { close(); actions.setMoveOpen(true); } });
   else if (actions.moveKind === "late") items.push({ key: "move", label: SCHEDULE_ACTION_LABEL.reschedule, icon: CalendarClock, disabledReason: MOVE_TOO_LATE_HINT, onSelect: () => {} });
+  else if (actions.moveKind === "rejected") items.push({ key: "move", label: SCHEDULE_ACTION_LABEL.reschedule, icon: CalendarClock, disabledReason: MOVE_REJECTED_HINT, onSelect: () => {} });
   if (actions.requestKind === "button") items.push({ key: "request", label: REQUEST_ACTION, hint: "Администратор подберёт замену", icon: UserMinus, onSelect: () => { close(); actions.setRequestOpen(true); } });
-  if (cancel) items.push({ key: "cancel", label: "Отменить этот урок", hint: "Только выбранная дата; потребуется причина.", icon: X, tone: "danger", onSelect: () => { close(); cancel(); } });
+  if (cancel?.offer) items.push({ key: "cancel", label: cancel.offer.label, hint: cancel.offer.hint, icon: X, tone: "danger", onSelect: () => { close(); cancel.open(); } });
   return items;
 }
 
@@ -137,7 +141,7 @@ export function TeacherLessonControls({
   /** A request was sent or withdrawn: the panel's page refreshes its numbers. */
   onChanged: () => void;
   /** The lesson was moved (the toast text; the page shows it - this control goes away with the panel): the panel closes and the page reads the schedule again. */
-  onMoved: (text: string) => void;
+  onMoved: (text: string, notes?: string[]) => void;
   /** The move dialog is above the panel: the page's Escape key leaves the panel alone. */
   onDialogChange: (open: boolean) => void;
 }) {
@@ -145,7 +149,7 @@ export function TeacherLessonControls({
     <div data-testid="teacher-lesson-controls" className="empty:hidden [&:not(:empty)]:mb-4">
       <RequestControl lesson={lesson} mark={mark} lessonTeacherId={lessonTeacherId} lessonStatus={lessonStatus} onChanged={onChanged}
         dialogOpen={actions.requestOpen} onDialogOpenChange={actions.setRequestOpen} onKind={actions.setRequestKind} />
-      <TeacherMoveControl lesson={lesson} lessonTeacherId={lessonTeacherId} isSubstitution={isSubstitution} lessonStatus={lessonStatus} onDialogChange={onDialogChange} onMoved={onMoved}
+      <TeacherMoveControl lesson={lesson} lessonTeacherId={lessonTeacherId} isSubstitution={isSubstitution} lessonStatus={lessonStatus} mark={mark} onDialogChange={onDialogChange} onMoved={onMoved}
         open={actions.moveOpen} onOpenChange={actions.setMoveOpen} onKind={actions.setMoveKind} />
     </div>
   );

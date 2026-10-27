@@ -10,13 +10,17 @@ import {
   STATUS_TONE_CLASS,
   WITHDRAW_ACTION,
   alreadyDecided,
+  assignedAhead,
   assignedLine,
+  clearedForMeLine,
   itemLessonLine,
   recentRequests,
   substitutionErrorText,
   teacherStatusLine,
 } from "@/lib/substitutions";
-import type { MineOut } from "@/lib/substitution-types";
+import type { AssignedToMe, ClearedForMe, MineOut } from "@/lib/substitution-types";
+import { businessWallTimeToInstant } from "@/lib/business-time";
+import { useNow } from "@/lib/use-now";
 
 /**
  * T2 (LOGIC-B2): on the teacher's dashboard - «Запросы на замену» (waiting ones with «Отозвать», the decided ones of the last 14 days
@@ -37,6 +41,7 @@ export function TeacherRequestsBlock({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const token = useRef(0);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
 
   const load = useCallback(async () => {
     const mine = ++token.current;
@@ -51,7 +56,8 @@ export function TeacherRequestsBlock({
   useEffect(() => { void load(); }, [load, refreshKey]);
 
   const withdraw = async (requestId: string) => {
-    if (busyId) return;
+    if (busyId || sending.current) return;
+    sending.current = true;
     setBusyId(requestId);
     setError(null);
     try {
@@ -63,13 +69,16 @@ export function TeacherRequestsBlock({
       setError(decided ? decided.message : substitutionErrorText(failure));
       await load();
     } finally {
+      sending.current = false;
       setBusyId(null);
     }
   };
 
   const items = data ? recentRequests(data.items ?? [], Date.now()) : [];
-  const assigned = data?.assignedToMe ?? [];
-  if (items.length === 0 && assigned.length === 0) return null;
+  const now = useNow(30_000, true);
+  const assigned = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
+  const cleared = data?.clearedForMe ?? [];
+  if (items.length === 0 && assigned.length === 0 && cleared.length === 0) return null;
 
   return (
     <section aria-label={MY_REQUESTS_TITLE} className={`grid gap-5 ${items.length > 0 && assigned.length > 0 ? "lg:grid-cols-2" : ""}`}>
@@ -109,16 +118,47 @@ export function TeacherRequestsBlock({
           {error && <p role="alert" className="mt-3 text-xs font-medium text-rose-700">{error}</p>}
         </div>
       )}
-      {assigned.length > 0 && (
-        <div className="rounded-3xl border border-violet-100 bg-violet-50/50 p-5 shadow-xs sm:p-6">
-          <h2 className="mb-3 text-base font-bold text-violet-950">{ASSIGNED_TITLE}</h2>
-          <ul className="space-y-2">
-            {assigned.map((entry) => (
-              <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}`} className="text-sm font-medium text-violet-950">{assignedLine(entry)}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {(assigned.length > 0 || cleared.length > 0) && <AssignedLessons entries={assigned} cleared={cleared} />}
     </section>
   );
+}
+
+/** «Вам назначена замена»: the lessons the person takes over - one block for the teacher (dashboard) and for the owner / administrator (page «Замены»). */
+export function AssignedLessons({ entries, cleared = [] }: { entries: AssignedToMe[]; cleared?: ClearedForMe[] }) {
+  return (
+    <div data-testid="assigned-lessons" className="rounded-3xl border border-violet-100 bg-violet-50/50 p-5 shadow-xs sm:p-6">
+      <h2 className="mb-3 text-base font-bold text-violet-950">{ASSIGNED_TITLE}</h2>
+      {entries.length > 0 && (
+        <ul className="space-y-2">
+          {entries.map((entry) => (
+            <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}`} className="text-sm font-medium text-violet-950">{assignedLine(entry)}</li>
+          ))}
+        </ul>
+      )}
+      {cleared.length > 0 && (
+        <ul data-testid="cleared-lessons" className={`space-y-1.5 ${entries.length > 0 ? "mt-3 border-t border-violet-100 pt-3" : ""}`}>
+          {cleared.map((entry) => (
+            <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}-${entry.clearedAt}`} className="text-xs font-medium text-slate-500">{clearedForMeLine(entry)}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * W1 F9 (S13): the owner / administrator can be the substitute of a lesson too: the same block on the page «Замены» (`/mine` is open to them now; their own requests are
+ * none - they assign a substitute themselves).  Quiet: nothing is shown while it loads, fails or is empty.
+ */
+export function ManagerAssignedBlock() {
+  const [data, setData] = useState<MineOut | null>(null);
+  const now = useNow(30_000, true);
+  useEffect(() => {
+    let cancelled = false;
+    substitutionsApi.mine("all").then((out) => { if (!cancelled) setData(out); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+  const entries = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
+  const cleared = data?.clearedForMe ?? [];
+  return entries.length > 0 || cleared.length > 0 ? <AssignedLessons entries={entries} cleared={cleared} /> : null;
 }

@@ -4,7 +4,7 @@
  */
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 
-export type SheetMode = "menu" | "reschedule" | "cancel" | "kind";
+export type SheetMode = "menu" | "reschedule" | "cancel" | "kind" | "restore";
 
 export interface SheetDraft {
   mode: SheetMode;

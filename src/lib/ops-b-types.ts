@@ -50,6 +50,11 @@ export interface LessonTeacherCandidate {
   orgRole?: string;
   busy?: boolean;
   busyWith?: { groupName: string; startTime: string; endTime: string } | null;
+  /** W1 F5: no payroll rate for this type of lessons in the month of the lesson (owner and administrator both read the yes / no). */
+  rateMissing?: boolean | null;
+  /** W1 F5: an estimate in sum of what the lesson would pay him; null / absent - nothing to show (`substitutePayEstimateReason`: `RATE_MISSING` | `NO_STUDENTS`). */
+  substitutePayEstimate?: number | null;
+  substitutePayEstimateReason?: string | null;
 }
 
 export interface LessonTeacherCandidates {
@@ -95,6 +100,8 @@ export interface ExamSync {
 export interface SaveAttendanceResult {
   ok?: boolean;
   saved?: boolean;
+  /** W1: the notes of a cancellation (`CANCELLED_AS_HOLIDAY`, `SUBSTITUTE_RELEASED`): shown, never lost. */
+  warnings?: OpsWarning[];
   /** Version of the lesson record after this write; send it back as `expectedVersion` of the next save. */
   version?: number;
   examSync?: ExamSync | null;
@@ -306,4 +313,16 @@ export interface ImportCountsB {
   students_unchanged?: number;
   teachers_existing?: number;
   teachers_new?: number;
+}
+
+/** W1 F3 (S5): the answer of «Вернуть урок». */
+export interface RestoreLessonResult {
+  ok: boolean;
+  restored: boolean;
+  lessonId: string;
+  lessonDate: string;
+  previousKind: "centre" | "holiday" | null;
+  /** «Экзамены, снятые с урока при его отмене, не вернутся — назначьте их заново» */
+  examsNote?: string | null;
+  warnings?: OpsWarning[];
 }

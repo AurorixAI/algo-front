@@ -16,9 +16,11 @@ import {
   PAGE_SIZE,
   applyFreshItem,
   batchSiblings,
+  assignmentNotes,
   bulkToast,
   deadlineChips,
   decisionToast,
+  expiringLine,
   itemLessonLine,
   lessonWhen,
   moreLessonsText,
@@ -32,6 +34,7 @@ import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
+import { ManagerAssignedBlock } from "@/components/substitutions/teacher-requests-block";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -73,6 +76,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [items, setItems] = useState<SubstitutionItem[]>([]);
   const [total, setTotal] = useState(0);
   const [pendingTotal, setPendingTotal] = useState(0);
+  const [expiringTotal, setExpiringTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -136,10 +140,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       setItems(data.items ?? []);
       setTotal(data.total ?? 0);
       setPendingTotal(data.pendingTotal ?? 0);
+      setExpiringTotal(data.expiringTotal ?? 0);
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -203,7 +208,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   const decided = (out: DecideOut) => {
     // non-blocking notes of a move (the room is busy at that time) are shown, not hidden
-    const notes = (out.result?.warnings ?? []).map((warning) => (warning.message ?? "").trim()).filter(Boolean);
+    const notes = assignmentNotes(out.result ?? {});
     showToast(decisionToast(out), notes.length > 0 ? "warning" : "success", notes.length > 0 ? notes : undefined);
     setDialogItem(null);
     void afterDecision(() => patchItem(out.item), refreshBadge);
@@ -238,6 +243,10 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Замены</h1>
         <p className="text-sm text-slate-500">Запросы преподавателей, которые не смогут провести урок, и переносы уроков</p>
       </div>
+
+      <ManagerAssignedBlock />
+
+      {pendingTab && expiringLine(expiringTotal) && <p role="status" data-testid="expiring-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">{expiringLine(expiringTotal)}</p>}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex w-full gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">

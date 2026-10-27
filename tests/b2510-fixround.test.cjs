@@ -102,7 +102,11 @@ test("the teacher's lesson panel: «Перенести урок» and «Не с�
   assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button", requestKind: "button" }), () => {})), [["Перенести урок", null], ["Не смогу провести", null]]);
   assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "late", requestKind: "button" }), () => {})), [["Перенести урок", "Перенести можно не позднее чем за 60 минут до начала"], ["Не смогу провести", null]]);
   assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "none", requestKind: "pending" }), () => {})), []);                       // a waiting request is a plate in the panel, not a row
-  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button" }), () => {}, () => {})), [["Перенести урок", null], ["Отменить этот урок", null]]);
+  // W1 F1: a teacher does not cancel a lesson - the row is «Урока не было», only when the page has an offer for a lesson that has passed
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button" }), () => {}, { offer: { route: "missed", label: "Урока не было", hint: "x" }, open() {} })), [["Перенести урок", null], ["Урока не было", null]]);
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "button" }), () => {}, { offer: null, open() {} })), [["Перенести урок", null]], "no offer - no row (a lesson to come is not cancelled by a teacher)");
+  // W1 F2: the administrator rejected the request - «Перенести урок» is off with the reason
+  assert.deepEqual(labels(C.teacherLessonMenuItems(act({ moveKind: "rejected" }), () => {})), [["Перенести урок", "Администратор отклонил заявку по этому уроку"]]);
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
   const icon = () => null;

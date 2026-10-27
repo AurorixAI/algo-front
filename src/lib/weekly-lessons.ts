@@ -2,12 +2,12 @@
  * Saving weekly lessons of one group for one or several weekdays (the teacher's form and the group page of the owner / administrator).
  * One request per weekday, in the order of the week; the answer says which days were added and which were refused and why.
  */
-import { orgApi } from "./api";
+import { orgApi, type RecurringRevisionNotes } from "./api";
 import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, warningTexts } from "./ops-errors";
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
 import { addIsoDays } from "./business-time";
-import { LESSON_SUBJECT, firstOccurrenceOf, patchFor, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
+import { LESSON_SUBJECT, firstOccurrenceOf, sharedRevisionPatch, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
 
 export interface WeeklyDraft {
   startTime: string;
@@ -128,13 +128,70 @@ export function weeklyResolver(groupId: string, lessonId: string): (date: string
   };
 }
 
-/** The server's refusal of a revision that changes nothing (`revise_recurring_lesson`). */
+/** The server's refusal of a revision that changes nothing (`revise_recurring_lesson`): 400 `NO_CHANGES` (an older server: the same sentence without a code). */
 const NO_DIFFERENCE = /хотя бы одно изменение/;
+export function isNoChanges(failure: unknown): boolean {
+  return opsErrorCode(failure) === "NO_CHANGES" || (failure instanceof Error && NO_DIFFERENCE.test(failure.message));
+}
+
+// ── W1 F6 (S8): a revision already scheduled LATER takes the same change ────────────────────────────────────────────────────────
+
+/** One later revision of the weekly lesson that the save also updated (`laterRevisions[]` of the answer). */
+type LaterRevision = NonNullable<RecurringRevisionNotes["laterRevisions"]>[number];
+
+const LATER_FIELD_NAME: Record<string, string> = { dayOfWeek: "день", startTime: "время", endTime: "время", room: "кабинет", format: "формат", topic: "тема", color: "цвет" };
+
+function dayMonth(iso: string): string {
+  return /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}` : iso;
+}
+
+/** «Есть изменение с 12.11 — оно тоже обновлено (кабинет)»: said after the save, one line per later revision; nothing without any. */
+export function laterRevisionNotes(result: { laterRevisions?: readonly LaterRevision[] | null } | null | undefined): string[] {
+  return (result?.laterRevisions ?? []).map((later) => {
+    const fields = Array.from(new Set((later.fields ?? []).map((field) => LATER_FIELD_NAME[field]).filter(Boolean)));
+    return `Есть изменение с ${dayMonth(later.effectiveFrom)} — оно тоже обновлено${fields.length ? ` (${fields.join(", ")})` : ""}`;
+  });
+}
+
+/** Said BEFORE the save, from the schedule: a change that is already planned from this date on will get the same new values. */
+export function laterChangeNote(date: string): string {
+  return `С ${dayMonth(date)} у этого урока уже есть своё изменение — оно тоже обновится`;
+}
+
+/**
+ * The first date after the one in the schedule where an ordinary occurrence of the weekly lesson differs from `base` (its state on the date of the change):
+ * that is where a revision planned later begins.  A moved copy or a one-off lesson is not the series.  Null when the schedule shows none.
+ */
+export function laterChangeDate(
+  occurrences: ReadonlyArray<{ id: string; groupId: string; occurrenceDate: string; dayOfWeek: number; startTime: string; endTime: string; room?: string | null; format?: string | null; isRescheduled?: boolean; isOneOff?: boolean }>,
+  groupId: string,
+  lessonId: string,
+  base: { dayOfWeek: number; startTime: string; endTime: string; room?: string | null; format?: string | null },
+  after: string,
+): string | null {
+  const room = (value: string | null | undefined) => (value ?? "").trim();
+  const own = occurrences
+    .filter((item) => item.id === lessonId && item.groupId === groupId && !item.isRescheduled && !item.isOneOff && item.occurrenceDate > after)
+    .sort((a, b) => a.occurrenceDate.localeCompare(b.occurrenceDate));
+  const differs = own.find((item) => Number(item.dayOfWeek) !== Number(base.dayOfWeek) || item.startTime !== base.startTime || item.endTime !== base.endTime
+    || room(item.room) !== room(base.room) || (item.format || "offline") !== (base.format || "offline"));
+  return differs ? differs.occurrenceDate : null;
+}
+
+/** Reads the schedule ahead (12 weeks) for `laterChangeDate`; a failed read says nothing (the answer after the save names it anyway). */
+export async function weeklyLaterChange(groupId: string, lessonId: string, from: string, base: WeeklyLesson): Promise<string | null> {
+  try {
+    const occurrences = await orgApi.getScheduleOccurrences({ dateFrom: addIsoDays(from, 7), dateTo: addIsoDays(from, 12 * 7) });
+    return laterChangeDate(occurrences, groupId, lessonId, base, from);
+  } catch {
+    return null;
+  }
+}
 
 export interface WeeklyRevisionResult {
   /** Weekdays (of the lessons) that were changed. */
   done: number[];
-  failed: Array<WeeklyFailure & { id: string }>;
+  failed: Array<WeeklyFailure & { id: string; exams?: ExamsToConfirm[] }>;
   /** The merged warning lines (see `mergeNotices`) and the raw ones (a caller that saved one more lesson of its own merges them all). */
   notices: string[];
   found: Array<{ note: string; day: number }>;
@@ -149,22 +206,25 @@ export async function reviseWeeklyLessons(
   targets: ReadonlyArray<Pick<WeeklyLesson, "id" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "topic">>,
   effectiveFrom: string,
   reason: string,
-  shared: Parameters<typeof patchFor>[1],
+  shared: ReturnType<typeof sharedRevisionPatch>,
+  /** W1 S8: the person confirmed that the exams of the lessons that move go back to drafts. */
+  options: { releaseAffectedExams?: boolean } = {},
 ): Promise<WeeklyRevisionResult> {
   const found: Array<{ note: string; day: number }> = [];
   const result: WeeklyRevisionResult = { done: [], failed: [], notices: [], found };
   for (const target of [...targets].sort((a, b) => a.dayOfWeek - b.dayOfWeek)) {
-    const patch = patchFor(target, shared);
-    if (Object.keys(patch).length === 0) { result.done.push(target.dayOfWeek); continue; }
+    // W1 S14: the server alone decides «nothing to change» (it sees the state on that date AND the later revisions); no local filter here
     try {
-      const revised = await orgApi.reviseRecurringLesson(target.id, { ...patch, effectiveFrom, reason });
+      const revised = await orgApi.reviseRecurringLesson(target.id, { ...shared, effectiveFrom, reason, ...(options.releaseAffectedExams ? { releaseAffectedExams: true } : {}) });
       result.done.push(target.dayOfWeek);
-      for (const note of warningTexts(revised)) found.push({ note, day: target.dayOfWeek });
+      for (const note of [...warningTexts(revised), ...laterRevisionNotes(revised)]) found.push({ note, day: target.dayOfWeek });
     } catch (failure) {
-      if (failure instanceof Error && NO_DIFFERENCE.test(failure.message)) { result.done.push(target.dayOfWeek); continue; }
+      if (isNoChanges(failure)) { result.done.push(target.dayOfWeek); continue; }
+      const needed = examsToConfirm(failure);
       result.failed.push({
         id: target.id,
         day: target.dayOfWeek,
+        ...(needed ? { exams: needed } : {}),
         reason: shortRefusal(failure),
         detail: refusalText(failure, "Не удалось изменить постоянное расписание. Данные не изменены — повторите попытку."),
       });
@@ -172,4 +232,30 @@ export async function reviseWeeklyLessons(
   }
   result.notices = mergeNotices(found, targets.length);
   return result;
+}
+
+/** What the stop of a weekly lesson closed (W1 S9), as short lines: nothing for a stop that touched nothing. */
+export function endSeriesNotes(result: { closedRequests?: number; releasedSubstitutes?: number; removedCancellations?: number } | null | undefined): string[] {
+  const lines: string[] = [];
+  if ((result?.closedRequests ?? 0) > 0) lines.push(`Закрыто запросов на замену: ${result?.closedRequests}`);
+  if ((result?.releasedSubstitutes ?? 0) > 0) lines.push(`Снято замен: ${result?.releasedSubstitutes}`);
+  if ((result?.removedCancellations ?? 0) > 0) lines.push(`Снято отмен, поставленных заранее: ${result?.removedCancellations}`);
+  return lines;
+}
+
+/** The exams of the lessons that a change of day / time would move: the server asks for a tick (`EXAMS_NEED_CONFIRMATION`, W1 S8). */
+export interface ExamsToConfirm { examId: string; title: string; lessonDate: string; status?: string | null }
+
+export function examsToConfirm(failure: unknown): ExamsToConfirm[] | null {
+  if (opsErrorCode(failure) !== "EXAMS_NEED_CONFIRMATION") return null;
+  const exams = (opsErrorDetail(failure) as { exams?: ExamsToConfirm[] } | null)?.exams;
+  return Array.isArray(exams) ? exams : [];
+}
+
+/** W1 F12 (S25): «Кабинет и тема будут убраны с 12 ноября»; null when nothing is emptied.  The lesson keeps them before that date. */
+export function removalNote(changed: { room?: string | null; topic?: string | null }, effectiveFrom: string): string | null {
+  const what = [changed.room === null ? "Кабинет" : "", changed.topic === null ? "тема" : ""].filter(Boolean);
+  if (what.length === 0) return null;
+  const text = what.length === 2 ? "Кабинет и тема будут убраны" : what[0] === "Кабинет" ? "Кабинет будет убран" : "Тема будет убрана";
+  return `${text} с ${dayMonth(effectiveFrom)}`;
 }

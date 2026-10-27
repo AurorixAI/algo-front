@@ -4,6 +4,8 @@
  * so node:test loads this file directly.
  */
 import type { GroupDetail, StudentInGroup } from "./api";
+import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
+import { payrollSheetsNote } from "./lesson-teacher";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
@@ -170,8 +172,12 @@ export const CLOSED_REASON_TEXT: Record<ClosedReasonCode, string> = {
   GROUP_ARCHIVED: "Группа закрыта",
   GROUP_TEACHER_CHANGED: "Преподаватель группы изменён",
   TEACHER_REMOVED: "Преподаватель больше не работает в центре",
-  LESSON_OUTSIDE_WINDOW: "Срок разбора истёк",
+  LESSON_OUTSIDE_WINDOW: "Не решено вовремя",
   ASSIGNMENT_CLEARED: "Замена снята",
+  LESSON_RESTORED: "Урок возвращён",
+  KIND_CHANGED: "Вид отмены изменён",
+  ONE_OFF_ADDED: "Разовый урок добавил преподаватель",
+  ROLE_CHANGED: "Сотрудник стал администратором",
 };
 
 /** The words of a closing: the server's own text, else the table (`GROUP_TEACHER_CHANGED` names the new teacher when known). */
@@ -379,6 +385,24 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "NOT_REQUEST_OWNER": return "Это запрос другого преподавателя";
     case "MANAGER_ASSIGNS_DIRECTLY": return "Вы можете назначить замену сами: меню урока «Заменить преподавателя»";
     case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл. Обратитесь к администратору";
+    // W1 (S2-S7): one road of a cancellation, in the words of the screen (the server texts are the same; these stay if an older answer has none)
+    case "TEACHER_CANNOT_CANCEL": return "Отменить урок может администратор. Нажмите «Не смогу провести»";
+    case "ALREADY_CANCELLED": return "Урок уже отменён. Обновите страницу";
+    case "ALREADY_MOVED": return detail?.message?.trim() || "Урок уже перенесён: отменить его нельзя. Отмените урок на новой дате";
+    case "LESSON_HAS_MARKS": return "У урока есть отметки или справки. Сначала снимите отметки";
+    case "LESSON_CHANGED": return "Урок уже изменили: обновите страницу и повторите";
+    case "REQUEST_REJECTED": return MOVE_REJECTED_HINT;
+    case "LESSON_IN_PROGRESS": return "Урок идёт: сначала завершите его, затем назначьте того, кто провёл";
+    case "LESSON_TOO_OLD": return "Урок старше 7 дней — его закрывает администратор или владелец.";
+    case "SERIES_ENDED": return detail?.message?.trim() || "Постоянный урок прекращается раньше этой даты: перенесите на более раннюю дату";
+    case "CANCELLED_BY_DAY_OFF": return "Урок отменён выходным днём: чтобы изменить причину, измените сам выходной";
+    case "REASON_CHANGE_TOO_OLD": return "Причину можно изменить только у недавней отмены: урок вне окна «Незакрытых»";
+    // «Вернуть урок» (S5)
+    case "RESTORE_NOT_CANCELLED": return "Урок уже не отменён. Обновите страницу";
+    case "RESTORE_MOVED": return detail?.message?.trim() || "Урок перенесён: чтобы вернуть его, отмените урок на новой дате и перенесите его обратно";
+    case "RESTORE_PAST": return "Урок уже должен был начаться: вернуть его нельзя";
+    case "RESTORE_DAY_OFF": return "Урок отменён выходным днём: чтобы вернуть его, отмените сам выходной";
+    case "RESTORE_LESSON_GONE": return "Этого урока больше нет в расписании: серию изменили или прекратили";
     case "NO_LESSONS_REQUESTABLE": return "Ни один из выбранных уроков нельзя запросить";
     case "TOO_MANY_LESSONS": return "Не более 60 уроков в одном запросе";
     case "LESSON_TOO_FAR": return "Запрос можно подать не дальше чем на 90 дней вперёд";
@@ -529,7 +553,10 @@ export function requestControl(input: {
 export const TEACHER_MOVE_LEAD_MS = 60 * 60_000;
 export const MOVE_TOO_LATE_HINT = "Перенести можно не позднее чем за 60 минут до начала";
 
-export type TeacherMoveControl = { kind: "none" } | { kind: "button" } | { kind: "late" };
+/** W1 F2 (S4): the administrator rejected the teacher's request for this lesson - he does not move it himself afterwards (the server: 409 REQUEST_REJECTED). */
+export const MOVE_REJECTED_HINT = "Администратор отклонил заявку по этому уроку";
+
+export type TeacherMoveControl = { kind: "none" } | { kind: "button" } | { kind: "late" } | { kind: "rejected" };
 
 /**
  * «Перенести урок» is on the teacher's own future lesson (not a substitution of one lesson, not started, not cancelled): a button while more than
@@ -544,11 +571,14 @@ export function teacherMoveControl(input: {
   lessonStatus: string | null | undefined;
   startsAtMs: number | null;
   nowMs: number;
+  /** The request of this lesson as the panel knows it: a rejected one switches «Перенести урок» off with the reason (W1 F2). */
+  mark?: Pick<SubstitutionRequestMark, "status"> | null;
 }): TeacherMoveControl {
   if (input.role !== "teacher" || input.isSubstitution) return { kind: "none" };
   if (input.lessonTeacherId && input.userId && input.lessonTeacherId !== input.userId) return { kind: "none" };
   if (input.lessonStatus && input.lessonStatus !== "scheduled") return { kind: "none" };
   if (input.startsAtMs === null || input.startsAtMs <= input.nowMs) return { kind: "none" };
+  if (input.mark?.status === "rejected") return { kind: "rejected" };
   return input.startsAtMs - input.nowMs > TEACHER_MOVE_LEAD_MS ? { kind: "button" } : { kind: "late" };
 }
 
@@ -618,6 +648,26 @@ export function assignedLine(entry: { groupName: string; lessonDate: string; sta
   if (!who) return head;
   const genitive = genitiveShortName(who);
   return genitive ? `${head} (вместо ${genitive})` : `${head} (вместо: ${who})`;
+}
+
+/**
+ * W1 F11 (S22): «Вам назначена замена» stays until the lesson STARTS (not all day: the server keeps the whole date), at the horizon the server gives (the same as the schedule).
+ * The start is the planned one in the business clock; a lesson without a readable start stays (the server has the last word).
+ */
+export function assignedAhead<T extends { lessonDate: string; startTime?: string | null }>(entries: readonly T[], nowMs: number, parse: (date: string, time: string) => Date | null): T[] {
+  return entries.filter((entry) => {
+    const start = entry.startTime ? parse(entry.lessonDate, entry.startTime) : null;
+    return start === null || start.getTime() > nowMs;
+  });
+}
+
+/** «Вас сняли с замены: 9-А — пн, 28.10, 10:00–11:30 (снял(а) Каримова Н., 26.10 09:30)» - the new event of the substitute: the assignment was taken off. */
+export function clearedForMeLine(entry: { groupName: string; lessonDate: string; startTime?: string | null; endTime?: string | null; clearedAt?: string | null; clearedBy?: { name?: string | null } | null }): string {
+  const time = entry.startTime ? `, ${entry.startTime}${entry.endTime ? `–${entry.endTime}` : ""}` : "";
+  const by = (entry.clearedBy?.name ?? "").trim();
+  const when = shortWhen(entry.clearedAt);
+  const tail = [by ? `снял(а) ${by}` : "", when].filter(Boolean).join(", ");
+  return `Замена снята: ${entry.groupName} — ${dayAndDateLabel(entry.lessonDate)}${time}${tail ? ` (${tail})` : ""}`;
 }
 
 // ── who reads which roster ───────────────────────────────────────────────────────────────────────
@@ -775,8 +825,7 @@ export function availableDecisions(item: Pick<SubstitutionItem, "status" | "over
 
 export const SUBSTITUTE_NOTE_HINT = "Заменяющий ничего не подтверждает: договоритесь с ним сами. Урок появится у него в расписании.";
 export const NO_FREE_TEACHERS_TEXT = "Свободных преподавателей на это время нет. Перенесите или отмените урок.";
-export const RATE_MISSING_TEXT = "Ставка не задана — заработок за урок не будет посчитан, пока вы её не зададите";
-export const CANCEL_CONSEQUENCES = "Урок будет отменён и не вернётся. Ученики на нём не отмечаются. При помесячной оплате стоимость месяца не меняется. В пакете занятий урок не списывается. Заработок преподавателя за этот урок не засчитывается.";
+export const CANCEL_CONSEQUENCES = "На отменённом уроке ученики не отмечаются, в пакете занятий он не списывается, заработок преподавателя за него не засчитывается. Вернуть урок можно в расписании группы, пока он не начался.";
 export const REJECT_REASON_LABEL = "Причина отказа (её увидит преподаватель)";
 export const CANCEL_REASON_LABEL = "Причина отмены";
 export const MOVE_REASON_LABEL = "Причина переноса";
@@ -893,7 +942,7 @@ export function moveCheckLines(check: MoveCheckOut, groupName: string): { ok: bo
 
 export function buildDecide(
   kind: "substitute" | "reschedule" | "cancel" | "reject",
-  form: { teacherId?: string | null; note?: string; reason?: string; move?: MoveForm },
+  form: { teacherId?: string | null; note?: string; reason?: string; move?: MoveForm; cancellationKind?: CancellationKind },
 ): DecideBody {
   const expectedStatus = "pending" as const;
   if (kind === "substitute") {
@@ -914,18 +963,21 @@ export function buildDecide(
       expectedStatus,
     };
   }
+  // W1 F4 (S11): a cancellation says its kind (the default of the server is «по вине центра»; the field is the choice of the administrator)
+  if (kind === "cancel") return { decision: kind, reason: (form.reason ?? "").trim(), cancellationKind: form.cancellationKind ?? DEFAULT_CANCELLATION_KIND, expectedStatus };
   return { decision: kind, reason: (form.reason ?? "").trim(), expectedStatus };
 }
 
 export function buildBulk(
   ids: string[],
   kind: "substitute" | "cancel" | "reject",
-  form: { teacherId?: string | null; reason?: string; note?: string },
+  form: { teacherId?: string | null; reason?: string; note?: string; cancellationKind?: CancellationKind },
 ): DecideBulkBody {
   if (kind === "substitute") {
     const note = (form.note ?? "").trim();
     return { ids, decision: kind, teacherId: form.teacherId ?? null, ...(note ? { note } : {}) };
   }
+  if (kind === "cancel") return { ids, decision: kind, reason: (form.reason ?? "").trim(), cancellationKind: form.cancellationKind ?? DEFAULT_CANCELLATION_KIND };
   return { ids, decision: kind, reason: (form.reason ?? "").trim() };
 }
 
@@ -952,6 +1004,9 @@ export function bulkToast(out: Pick<DecideBulkOut, "updated" | "skipped">, items
   return { text: `Решено: ${out.updated}. Не удалось: ${skipped.length}`, type: skipped.length > 0 ? "warning" : "success", details };
 }
 
+/** W1: the refusals of one pack item that have their own words (the same as the single decision). */
+const BULK_CANCEL_CODES: readonly string[] = ["ALREADY_CANCELLED", "ALREADY_MOVED", "LESSON_HAS_MARKS", "LESSON_CHANGED", "LESSON_ALREADY_STARTED", "LESSON_HAS_LIVE_EXAM", "EXAM_SERVICE_UNAVAILABLE"];
+
 export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): string {
   const prefix = item ? `${item.group.name}, ${dayAndDateLabel(item.lesson.date)} ${item.lesson.startTime}: ` : "";
   let text = entry.message;
@@ -960,6 +1015,7 @@ export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): st
     const first: TeacherConflict = entry.conflicts[0];
     text = `преподаватель занят: ${teacherConflictLine(first)}`;
   } else if (entry.code === "LESSON_OUTSIDE_WINDOW") text = "урок старше окна незакрытых уроков";
+  else if (BULK_CANCEL_CODES.includes(entry.code)) text = substitutionErrorText(Object.assign(new Error(entry.message), { code: entry.code, detail: { code: entry.code, message: entry.message } }));
   else if (entry.code === "PAYROLL_LOCKED") text = "ведомость за месяц уже утверждена";
   return `${prefix}${text}`;
 }
@@ -969,9 +1025,16 @@ export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): st
 export const BADGE_LABEL = "Ждут решения";
 
 /** The tooltip of the menu counter: «Ждут решения: 3, срочных: 1». */
-export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number; overdueTotal?: number }): string {
-  const extra = summary.urgentTotal > 0 ? `, срочных: ${summary.urgentTotal}` : "";
+export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number; overdueTotal?: number; expiringTotal?: number }): string {
+  const extra = (summary.urgentTotal > 0 ? `, срочных: ${summary.urgentTotal}` : "") + ((summary.expiringTotal ?? 0) > 0 ? `, ${EXPIRING_LABEL}: ${summary.expiringTotal}` : "");
   return `${BADGE_LABEL}: ${summary.pendingTotal}${extra}`;
+}
+
+/** W1 S20: the requests of the last month that the server will close on the 1st («Не решено вовремя»). */
+export const EXPIRING_LABEL = "истекают через ≤3 дня";
+export function expiringLine(count: number | null | undefined): string | null {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  return n > 0 ? `Запросов, которые истекают через ≤3 дня: ${n}. Решите их до 1-го числа — потом они закроются как «Не решено вовремя».` : null;
 }
 
 // ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────
@@ -985,6 +1048,13 @@ export function directAssignToast(result: { isSubstitution?: boolean; teacherNam
   const leads = !result.isSubstitution && result.defaultTeacherId === null && result.teacherName;
   const head = result.isSubstitution ? `Замена назначена: ${result.teacherName ?? ""}`.trim() : leads ? `Ведёт: ${result.teacherName}` : "Преподаватель урока возвращён";
   return result.requestClosed ? `${head}${head.endsWith(".") ? "" : "."} Запрос преподавателя закрыт.` : head;
+}
+
+/** W1 F5: the notes under the toast of an assignment - a payroll sheet that is already written changes (`payrollSheetsAffected`); nothing the server said is lost. */
+export function assignmentNotes(result: { payrollSheetsAffected?: ReadonlyArray<{ month?: string | null; status?: string | null }> | null; warnings?: ReadonlyArray<{ message?: string | null }> | null }): string[] {
+  const sheets = payrollSheetsNote(result.payrollSheetsAffected as ReadonlyArray<{ month?: string | null }> | null);
+  const warnings = (result.warnings ?? []).map((warning) => (warning?.message ?? "").trim()).filter(Boolean);
+  return [...warnings, ...(sheets ? [sheets] : [])];
 }
 
 /** The archive dialog of a group: its waiting requests are closed by the archive. */
@@ -1032,7 +1102,7 @@ export const MARK_TONE_CLASS: Record<LessonMark["tone"], string> = {
 };
 
 /**
- * The chips on a lesson of the teacher's own schedule: «Замена: 9-А» on the lesson of a substitute, «Заменяет Рахимов Т.» on the
+ * The chips on a lesson of the teacher's own schedule: «Замена: 9-А» on the lesson of a substitute, «Замена: Рахимов Т.» on the
  * lesson of the teacher who was replaced, «Вы запросили замену» / «Запрос отклонён» for his request, and where a cancelled original went.
  */
 export function occurrenceChips(
@@ -1055,7 +1125,7 @@ export function occurrenceChips(
     if (viewerId && occurrence.teacherId === viewerId) chips.push({ text: substituteGroupLabel(occurrence.groupName), tone: "violet" });
     else {
       const name = (occurrence.teacherName ?? "").trim();
-      if (viewerId && occurrence.defaultTeacherId === viewerId) chips.push({ text: name ? `Заменяет ${name}` : "Заменяет другой преподаватель", tone: "violet" });
+      if (viewerId && occurrence.defaultTeacherId === viewerId) chips.push({ text: name ? `Замена: ${name}` : "Замена: другой преподаватель", tone: "violet" });
       else chips.push({ text: name ? `Замена: ${name}` : "Замена", tone: "violet" });
     }
   }

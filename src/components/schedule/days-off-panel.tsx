@@ -61,6 +61,12 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
         {plan && <p className="text-sm font-medium text-slate-900" data-testid="day-off-void-text">Вернутся уроки: {plan.restored.length}. Останутся отменёнными: {plan.kept.length}.</p>}
         {plan && <DayOffLessonList title="Вернутся в расписание" lessons={plan.restored} tone="ok" testId="day-off-restored" />}
         {plan && <DayOffLessonList title="Останутся отменёнными" lessons={plan.kept} tone="warn" testId="day-off-kept" />}
+        {plan && (plan.warnings ?? []).length > 0 && (
+          <div data-testid="day-off-not-restored" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            <p className="font-semibold">Вернутся без замены — назначьте её заново:</p>
+            <ul className="list-disc space-y-0.5 pl-4 font-medium">{(plan.warnings ?? []).map((warning) => <li key={`${warning.groupId}-${warning.lessonId}-${warning.date}`}>{warning.message}</li>)}</ul>
+          </div>
+        )}
         <p className="text-xs text-slate-500" data-testid="day-off-void-exams-note">{plan?.examsNote ?? EXAMS_NOTE}</p>
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </div>
@@ -77,6 +83,8 @@ export function DaysOffPanel() {
   const [creating, setCreating] = useState(false);
   const [voiding, setVoiding] = useState<DayOffOut | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** What the cancellation of a day off left to do: the lessons that came back without their substitute. */
+  const [noticeLines, setNoticeLines] = useState<string[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -88,10 +96,13 @@ export function DaysOffPanel() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  const [unfinished, setUnfinished] = useState<DayOffOut | null>(null);
+  const [unfinishedLocal, setUnfinished] = useState<DayOffOut | null>(null);
+  // W1 S10: «not finished» is kept on the server (a day off with `incomplete`), so it is still offered after a reload; the answer of the apply tells at once
+  const unfinished = unfinishedLocal ?? (days ?? []).find((day) => day.active && day.incomplete) ?? null;
   const [continuing, setContinuing] = useState(false);
   const created = (result: DayOffApplied) => {
     const converted = result.converted?.length ?? 0;
+    setNoticeLines([]);
     setNotice(`Выходной назначен: отменено уроков ${result.cancelled.length}${converted > 0 ? `, отмена переведена в праздник: ${converted}` : ""}${result.blocked.length > 0 ? `, не отменены ${result.blocked.length}` : ""}.`);
     setUnfinished(result.complete === false ? result.dayOff : null);
     void load();
@@ -109,6 +120,7 @@ export function DaysOffPanel() {
     }
   };
   const voided = (result: DayOffVoided) => {
+    setNoticeLines((result.warnings ?? []).map((warning) => warning.message).filter(Boolean));
     setNotice(`Выходной отменён: вернулось уроков ${result.restored.length}${result.kept.length > 0 ? `, осталось отменёнными ${result.kept.length}` : ""}.`);
     void load();
   };
@@ -122,7 +134,12 @@ export function DaysOffPanel() {
         </div>
         <button type="button" onClick={() => setCreating(true)} data-testid="day-off-new" className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">Назначить выходной</button>
       </div>
-      {notice && <p role="status" className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">{notice}</p>}
+      {notice && (
+        <div role="status" className={`space-y-1 rounded-xl px-3 py-2 text-xs font-medium ${noticeLines.length > 0 ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>
+          <p>{notice}</p>
+          {noticeLines.length > 0 && <ul data-testid="day-off-notice-lines" className="list-disc space-y-0.5 pl-4">{noticeLines.map((line) => <li key={line}>{line}</li>)}</ul>}
+        </div>
+      )}
       {unfinished && (
         <p role="alert" className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900" data-testid="day-off-unfinished">
           Сервис экзаменов не ответил: часть уроков не отменена.

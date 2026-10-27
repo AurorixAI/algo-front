@@ -141,6 +141,8 @@ export interface DayOffOut {
   createdByName: string | null;
   voidedAt: string | null;
   active: boolean;
+  /** W1 S10: the exam-service stopped the apply - some lessons still wait for «Продолжить» (kept on the server, so it survives a reload). */
+  incomplete?: boolean;
 }
 
 export interface DayOffApplied {
@@ -160,6 +162,8 @@ export interface DayOffVoided {
   kept: DayOffLesson[];
   dryRun: boolean;
   examsNote?: string;
+  /** W1: `SUBSTITUTE_NOT_RESTORED` - a lesson that came back WITHOUT the substitute the day off had taken off it (the administrator assigns again). */
+  warnings?: Array<{ code: string; message: string; groupId?: string; lessonId?: string; date?: string; substituteName?: string | null }>;
 }
 
 /** Said in the dialogs of a day off when the server did not send its own sentence. */

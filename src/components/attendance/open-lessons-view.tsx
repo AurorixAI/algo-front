@@ -165,14 +165,14 @@ export function OpenLessonsView({ groupsBasePath }: { groupsBasePath: string }) 
     ];
   };
 
-  const onCancelled = async (done: CancelMissedTarget) => {
+  const onCancelled = async (done: CancelMissedTarget, notes: string[]) => {
     // The row goes away at once; the re-read confirms it and refreshes the badge
     // (the badge catches up by itself, so it must not trigger a second re-read).
     handledBadgeRef.current = useExcuseBadge.getState().openLessons;
     setItems((previous) => previous.filter((row) => !(
       row.actionType === "missed" && row.groupId === done.groupId && row.lessonId === done.lessonId && row.lessonDate === done.lessonDate
     )));
-    showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`);
+    showToast(`Урок ${formatDateRu(done.lessonDate)} отмечен как не состоявшийся`, notes.length ? "warning" : "success", notes);
     await load({ silent: true });
   };
 

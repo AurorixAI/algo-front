@@ -13,7 +13,6 @@ import {
   LATE_BANNER_TEXT,
   MOVE_REASON_LABEL,
   NO_FREE_TEACHERS_TEXT,
-  RATE_MISSING_TEXT,
   REJECT_REASON_LABEL,
   SUBSTITUTE_NOTE_HINT,
   SUGGESTED_CHIP,
@@ -58,6 +57,9 @@ import type {
 import { DateInput } from "@/components/ui/date-input";
 import { TimeInput } from "@/components/ui/time-input";
 import { Radio } from "@/components/ui/radio";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
+import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { candidateMoneyLines } from "@/lib/lesson-teacher";
 
 const FIELD_CLASS =
   "w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10";
@@ -140,9 +142,12 @@ function DecisionDialogInner({
   const [checking, setChecking] = useState(false);
   const [checkError, setCheckError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  /** W1 F4: why the centre cancels - «по вине центра» is the default (it may be deducted from the students), a holiday never is. */
+  const [cancelKind, setCancelKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const [binding, setBinding] = useState<ExamBinding | null>(null);
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   /** Somebody decided first: the item as it is now. */
   const [stale, setStale] = useState<{ item: SubstitutionItem | null; message: string } | null>(null);
@@ -208,13 +213,14 @@ function DecisionDialogInner({
   const blocked = Boolean(problem) || examBlocksCancel || (kind === "reschedule" && check !== null && !check.ok);
 
   const submit = async () => {
-    if (busy) return;
+    if (busy || sending.current) return;
     setTouched(true);
     if (blocked) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const body = buildDecide(kind, { teacherId: pick, note, reason, move });
+      const body = buildDecide(kind, { teacherId: pick, note, reason, move, cancellationKind: cancelKind });
       const out = await substitutionsApi.decide(item.id, body);
       onDecided(out);
     } catch (failure) {
@@ -227,6 +233,7 @@ function DecisionDialogInner({
         if (needsFreshCandidates(failure) || opsErrorCode(failure) === "TEACHER_BUSY") { setPick(null); void loadCandidates(); }
       }
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -278,6 +285,8 @@ function DecisionDialogInner({
           checking={checking}
           checkError={checkError}
           reason={reason}
+          cancelKind={cancelKind}
+          onCancelKind={setCancelKind}
           binding={binding}
           problem={touched ? problem : null}
           busy={busy}
@@ -311,7 +320,7 @@ export function StaleBody({ message, item }: { message: string; item: Substituti
 
 /** The inside of the dialog: the head of the request, the four cards and the form of the chosen one. */
 export function DecisionBody({
-  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, binding,
+  item, role, late, kinds, kind, candidates, candidatesError, pick, note, move, check, checking, checkError, reason, cancelKind, onCancelKind, binding,
   problem, busy, error, onKind, onPick, onNote, onMove, onReason, onRetryCandidates,
 }: {
   item: SubstitutionItem;
@@ -328,6 +337,8 @@ export function DecisionBody({
   checking: boolean;
   checkError: string | null;
   reason: string;
+  cancelKind: CancellationKind;
+  onCancelKind: (kind: CancellationKind) => void;
   binding: ExamBinding | null;
   problem: string | null;
   busy: boolean;
@@ -428,6 +439,7 @@ export function DecisionBody({
             <label htmlFor="substitution-cancel-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{CANCEL_REASON_LABEL}</label>
             <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={500} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
+          <CancellationKindField canChooseKind value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} />
           <p className="text-xs leading-relaxed text-slate-600">{CANCEL_CONSEQUENCES}</p>
           {binding?.state === "ok" && examTitle && (binding.canCancel === false
             ? <p role="alert" className="text-xs font-semibold text-rose-700">{examRunningText(examTitle)}</p>
@@ -520,7 +532,7 @@ export function SubstituteForm({
                       {roleText && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">{roleText}</span>}
                     </span>
                     {candidate.busy && <span className="mt-0.5 block text-xs font-medium text-amber-700">{candidateBusyLine(candidate.busyWith)}</span>}
-                    {role === "owner" && candidate.rateMissing && !candidate.busy && <span className="mt-0.5 block text-xs text-slate-500">{RATE_MISSING_TEXT}</span>}
+                    {candidateMoneyLines(candidate, role).map((line) => <span key={line} className="mt-0.5 block text-xs text-slate-500">{line}</span>)}
                   </span>
                 </label>
               </li>

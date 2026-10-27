@@ -28,7 +28,7 @@ import {
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { directAssignToast, lessonMarks, movedToLabel, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
+import { assignmentNotes, directAssignToast, lessonMarks, movedToLabel, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
 import { NO_LESSON_TEACHER_TEXT, lacksTeacher, lessonKeyOf, substituteLabel } from "@/lib/lesson-teacher";
@@ -38,7 +38,7 @@ import { AddLessonDialog, EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "
 import { NO_TEACHER_SCHEDULE_HINT, nextBusinessDate, type WeeklyLesson } from "@/lib/lesson-slot-form";
 import { weeklyResolver } from "@/lib/weekly-lessons";
 import { outOfPlan, todayPlanLines } from "@/lib/schedule-plan";
-import { assignActionLabel, lessonHasStarted, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
+import { addedByLine, assignActionLabel, lessonHasStarted, lessonTitle, roomLine, scheduleCardActions, movedFromText, sheetNotes, teacherLine } from "@/lib/schedule-card-actions";
 
 type ScheduleStatus = {
   label: string;
@@ -442,7 +442,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const cancellationReason = attendance?.cancellationReasons?.[key];
                         const teacherInfo = attendance?.lessonTeachers?.[lessonKey(lesson) || lessonKeyOf(lesson.date, lesson.id)];
                         const room = roomLine(lesson);
-                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson) });
+                        const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null });
                         // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
                         const marks = lessonMarks(attendance?.substitutionRequests?.[key], null);
                         const manager = viewerRole === "owner" || viewerRole === "admin";
@@ -505,12 +505,13 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const outcome = lesson?.substitutionOutcome;
         const moved = lessonState === "cancelled" && outcome?.kind === "rescheduled";
         const presentation = lesson ? presentationFor(lessonState, lesson.date, today, moved) : null;
-        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson) }) : [];
+        const actions = lesson ? scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(info), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null }) : [];
         const startTime = lesson ? lesson.startTime || lesson.start_time || "—" : "";
         const base = viewerRole === "admin" ? "/admin" : "/owner";
         const reasonText = lesson ? attendance?.cancellationReasons?.[key] : undefined;
         const movedFromLine = lesson ? movedFromText(lesson.movedFrom) : null;
-        const notes = [...(movedFromLine ? [movedFromLine] : []), ...(lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [])];
+        const addedBy = lesson ? addedByLine(lesson) : null;
+        const notes = [...(addedBy ? [addedBy] : []), ...(movedFromLine ? [movedFromLine] : []), ...(lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [])];
         const room = lesson ? roomLine(lesson) : null;
         const subtitle = lesson && presentation
           ? [`${formatIsoDateLabel(lesson.date, { weekday: "short", day: "numeric", month: "long" }).replace(".", "")}`, `${startTime}–${lesson.endTime || "—"}`, presentation.label, ...(room ? [room] : [])].join(" · ")
@@ -542,7 +543,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             onEndSeries={() => void openSeries("end")}
             seriesPending={opening === "edit" || opening === "end" ? opening : null}
             seriesError={seriesError}
-            onChanged={(text) => { setSheetLesson(null); showToast(text); void loadSchedule(); }}
+            onChanged={(text, notes) => { setSheetLesson(null); showToast(text, notes?.length ? "warning" : "success", notes); void loadSchedule(); }}
             onRefresh={() => { setSheetLesson(null); void loadSchedule(); }}
           />
         );
@@ -580,9 +581,9 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         defaultEffectiveFrom={endTemplate?.from}
         resolveAt={resolveSeriesAt}
         onClose={() => setEndTemplate(null)}
-        onEnded={() => {
+        onEnded={(notes) => {
           setEndTemplate(null);
-          showToast("Занятия прекращены с выбранной даты");
+          showToast("Занятия прекращены с выбранной даты", notes.length ? "warning" : "success", notes);
           void loadSchedule();
           void loadTemplates();
         }}
@@ -593,7 +594,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         onClose={() => setTeacherTarget(null)}
         onChanged={(result) => {
           setTeacherTarget(null);
-          showToast(directAssignToast(result));
+          { const notes = assignmentNotes(result); showToast(directAssignToast(result), notes.length ? "warning" : "success", notes); }
           void loadSchedule();
         }}
       />

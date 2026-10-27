@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Repeat2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
+import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
+import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { SubstituteForm } from "@/components/substitutions/decision-dialog";
 import {
   CANCEL_CONSEQUENCES,
@@ -56,8 +58,11 @@ export function BulkDialog({
   const [pick, setPick] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [reason, setReason] = useState("");
+  /** W1 F4 (S11): one kind of cancellation for the whole pack. */
+  const [cancelKind, setCancelKind] = useState<CancellationKind>(DEFAULT_CANCELLATION_KIND);
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   const token = useRef(0);
 
@@ -81,7 +86,7 @@ export function BulkDialog({
   }, [firstId]);
 
   useEffect(() => {
-    setPick(null); setNote(""); setReason(""); setTouched(false); setBusy(false); setError(null); setCandidates(null);
+    setPick(null); setNote(""); setReason(""); setCancelKind(DEFAULT_CANCELLATION_KIND); setTouched(false); setBusy(false); setError(null); setCandidates(null);
     if (kind === "substitute") void loadCandidates();
     else token.current += 1;
   }, [kind, loadCandidates]);
@@ -91,17 +96,19 @@ export function BulkDialog({
   const problem = kind === "substitute" ? (pick ? null : "Выберите преподавателя") : decisionReasonError(kind === "cancel" ? "cancel" : "reject", reason);
 
   const submit = async () => {
-    if (busy) return;
+    if (busy || sending.current) return;
     setTouched(true);
     if (problem) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
-      const out = await substitutionsApi.decideBulk(buildBulk(items.map((item) => item.id), kind, { teacherId: pick, reason, note }));
+      const out = await substitutionsApi.decideBulk(buildBulk(items.map((item) => item.id), kind, { teacherId: pick, reason, note, cancellationKind: cancelKind }));
       onDone(out);
     } catch (failure) {
       setError(substitutionErrorText(failure));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -152,7 +159,12 @@ export function BulkDialog({
               <label htmlFor="substitution-bulk-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{kind === "cancel" ? CANCEL_REASON_LABEL : REJECT_REASON_LABEL}</label>
               <textarea id="substitution-bulk-reason" value={reason} rows={2} maxLength={kind === "cancel" ? 500 : 300} disabled={busy} onChange={(event) => { setReason(event.target.value); setError(null); }} className={FIELD_CLASS} />
             </div>
-            {kind === "cancel" && <p className="text-xs leading-relaxed text-slate-600">{CANCEL_CONSEQUENCES}</p>}
+            {kind === "cancel" && (
+              <>
+                <CancellationKindField canChooseKind value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} />
+                <p className="text-xs leading-relaxed text-slate-600">{CANCEL_CONSEQUENCES}</p>
+              </>
+            )}
           </>
         )}
         {touched && problem && <p role="alert" className="text-xs font-medium text-rose-600">{problem}</p>}

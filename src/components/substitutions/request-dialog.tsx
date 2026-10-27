@@ -86,6 +86,7 @@ export function RequestDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const rangeToken = useRef(0);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
 
   const primaryKey = lesson ? lessonKeyOfRef(lesson) : null;
 
@@ -156,10 +157,11 @@ export function RequestDialog({
   const canSend = total > 0 && !busy;
 
   const send = async () => {
-    if (busy) return;
+    if (busy || sending.current) return;
     setTouched(true);
     if (total === 0) { setError("Выберите хотя бы один урок"); return; }
     if (problem) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -172,6 +174,7 @@ export function RequestDialog({
     } catch (failure) {
       setError(substitutionErrorText(failure, "Не удалось отправить запрос. Повторите попытку."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

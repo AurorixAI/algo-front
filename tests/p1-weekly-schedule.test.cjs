@@ -100,7 +100,11 @@ test("the sheet of a weekly lesson also changes / stops the weekly lesson; a one
   assert.deepEqual(C.scheduleCardActions({ ...base, recurring: false }), ["assign", "reschedule", "cancel"]);
   assert.deepEqual(C.scheduleCardActions(base), ["assign", "reschedule", "cancel"]);
   assert.deepEqual(C.scheduleCardActions({ ...base, state: "completed", recurring: true }), ["journal", "editSeries", "endSeries"]);
-  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", recurring: true }), [], "a cancelled lesson has no sheet");
+  // W1 F3: a cancelled lesson to come can be returned; a past / moved / day-off one has nothing to offer
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", recurring: true }), ["restore"], "a cancelled lesson offers only the return: the weekly lesson is changed from a lesson that is held");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", recurring: true, date: "2026-10-20" }), [], "a lesson that has passed cannot be returned");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", recurring: true, moved: true }), [], "the original of a move is not returned: its copy is cancelled");
+  assert.deepEqual(C.scheduleCardActions({ ...base, state: "cancelled", recurring: true, cancelKind: "day_off" }), [], "a day off is undone by the day off itself");
   assert.deepEqual(C.scheduleCardActions({ ...base, role: "teacher", recurring: true }), []);
   assert.deepEqual(C.scheduleCardActions({ ...base, archived: true, recurring: true }), []);
   assert.equal(C.SCHEDULE_ACTION_LABEL.editSeries, "Изменить постоянный урок");
@@ -210,9 +214,13 @@ test("«Применить также к другим дням»: the ticked les
   const same = await W.reviseWeeklyLessons(
     [{ ...lessonOf("thu", 4), room: "12" }, lessonOf("sat", 6)], "2026-11-02", "Изменены: кабинет", F.sharedRevisionPatch({ room: "12" }, { startTime: "14:00", endTime: "15:30" }),
   );
-  assert.deepEqual(calls.map((call) => call[1]), ["sat"], "the lesson already in room 12 is not sent");
+  assert.deepEqual(calls.map((call) => call[1]), ["thu", "sat"], "W1 S14: no local filter - the server sees the later revisions too and decides «nothing to change» itself");
   assert.deepEqual(same.done, [4, 6]);
   assert.deepEqual(same.failed, []);
+  // the coded refusal (400 NO_CHANGES) is the same «done»
+  behaviour.revise = () => { throw Object.assign(new Error("Укажите хотя бы одно изменение постоянного расписания"), { code: "NO_CHANGES", status: 400 }); };
+  const coded = await W.reviseWeeklyLessons([lessonOf("thu", 4)], "2026-11-02", "Изменены: кабинет", { room: "12" });
+  assert.deepEqual([coded.done, coded.failed], [[4], []]);
   behaviour.revise = () => ({ id: "rev" });
 });
 
@@ -241,7 +249,7 @@ test("the day chips: label-in-name, a hint tied to the group, the invalid state 
   const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
   assert.match(dialogs, /<WeekdayChips idPrefix="sched-edit" single/);
   assert.match(dialogs, /Применить также к другим дням группы/);
-  assert.match(dialogs, /reviseWeeklyLessons\(targets, effectiveFrom, text, shared\)/);
+  assert.match(dialogs, /reviseWeeklyLessons\(targets, effectiveFrom, text, shared, \{ releaseAffectedExams: releaseExams \}\)/);
   assert.match(dialogs, /Object\.keys\(shared\)\.length > 0/, "hidden when only the day was changed");
 });
 
@@ -299,7 +307,7 @@ test("wiring: the group form is the teacher's one (scope, weekdays, fields) and 
   assert.match(helper, /validFrom,\s+\}\)/, "each weekday goes with its own «Действует с»");
   assert.match(helper, /scheduleErrorText\(failure/);
   assert.match(helper, /warningTexts\(created\)/);
-  assert.match(dialogs, /orgApi\.reviseRecurringLesson\(lesson\.id, \{ effectiveFrom, reason: text, \.\.\.changed \}/);
+  assert.match(dialogs, /orgApi\.reviseRecurringLesson\(lesson\.id, \{ effectiveFrom, reason: text, \.\.\.changed, /);
   assert.match(dialogs, /orgApi\.endRecurringLesson\(lesson\.id/);
   assert.match(dialogs, /getRecurringLessonEndImpact\(lesson\.id/);
   assert.match(read("src/lib/lesson-slot-form.ts"), /const room = roomForSave\(form\.room\)/);

@@ -117,14 +117,14 @@ test("the schedule page is wired: «Действует с», the optional room w
 
 // ── O5 / F6: the teacher of a lesson ───────────────────────────────────────────────────────────
 
-test("[O5.R1] the lesson of a substitute: «Замена: Рахимов Т.» for a manager, «Заменяет Рахимов Т.» for the replaced teacher, «Замена» for the substitute himself", () => {
+test("[O5.R1] the lesson of a substitute: «Замена: Рахимов Т.» for a manager, «Замена: Рахимов Т.» for the replaced teacher, «Замена» for the substitute himself", () => {
   const info = fixture("c7_journal_extras").lessonTeachers["2026-10-26_lesson-l1"];
   assert.equal(info.isSubstitution, true);
   assert.equal(LT.substituteLabel(info), "Замена: Рахимов Т.");
-  assert.equal(LT.replacedByLabel(info, info.defaultTeacherId), "Заменяет Рахимов Т.");
+  assert.equal(LT.replacedByLabel(info, info.defaultTeacherId), "Замена: Рахимов Т.");
   assert.equal(LT.replacedByLabel(info, "somebody-else"), null);
   assert.equal(LT.occurrenceTeacherChip(info, "a-manager"), "Замена: Рахимов Т.");
-  assert.equal(LT.occurrenceTeacherChip(info, info.defaultTeacherId), "Заменяет Рахимов Т.");
+  assert.equal(LT.occurrenceTeacherChip(info, info.defaultTeacherId), "Замена: Рахимов Т.");
   assert.equal(LT.occurrenceTeacherChip(info, info.teacherId), "Замена");
   assert.equal(LT.occurrenceTeacherChip({ ...info, isSubstitution: false }, "x"), null);
   assert.equal(LT.occurrenceTeacherChip(null, "x"), null);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertCircle, Clock, Loader2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-time";
@@ -52,6 +52,7 @@ export function RequestControl({
   const now = useNow(30_000, true);
   const [local, setLocal] = useState<{ mark: SubstitutionRequestMark | null } | null>(null);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
   /** The answer to the teacher's own action, in the panel itself (a toast would sit under the panel's layer). */
   const [notice, setNotice] = useState<{ text: string; tone: "success" | "warning" } | null>(null);
@@ -71,7 +72,8 @@ export function RequestControl({
   });
 
   const withdraw = async (requestId: string) => {
-    if (busy) return;
+    if (busy || sending.current) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -90,6 +92,7 @@ export function RequestControl({
         setError(substitutionErrorText(failure));
       }
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
