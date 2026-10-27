@@ -779,6 +779,8 @@ export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherIn
   movedFrom?: MovedFrom | null;
   /** W1 S26: who added this one-off lesson. */
   createdBy?: LessonAuthor | null;
+  /** W1 F10: on the lesson of the MAIN teacher that a substitute leads: who leads it instead (the lesson stays in his schedule, he cannot start or mark it). */
+  replacedBy?: { id: string; name: string } | null;
 }
 
 /** Server-verified attendance state for a concrete lesson on the dashboard. */
@@ -829,6 +831,15 @@ export interface EndRecurringLessonResult extends RecurringLessonEndImpact {
   closedRequests?: number;
   releasedSubstitutes?: number;
   removedCancellations?: number;
+}
+
+/** W1 F6: `GET …/recurrence/revisions`. */
+export interface RecurrenceRevisions {
+  lessonId: string;
+  after: string;
+  revisions: Array<{ effectiveFrom: string; reason?: string | null; fields: string[] }>;
+  /** The date the weekly lesson stops; null when it does not. */
+  endsFrom: string | null;
 }
 
 /** W1 S8: more than the changed lesson - the later revisions that got the same change, and the exams that went back to drafts. */
@@ -1509,7 +1520,7 @@ export const orgApi = {
   archiveGroup: (id: string, body: ArchiveGroupBody = {}) =>
     api<ArchiveGroupResult & GroupInfo>(`/auth/org/groups/${encodePathId(id)}/archive`, { method: "POST", body }),
   unarchiveGroup: (id: string, teacherId?: string | null) =>
-    api<GroupInfo>(`/auth/org/groups/${encodePathId(id)}/restore`, {
+    api<GroupInfo & { warnings?: OpsWarning[] }>(`/auth/org/groups/${encodePathId(id)}/restore`, {
       method: "POST",
       body: teacherId === undefined ? {} : { teacherId },
     }),
@@ -1585,6 +1596,9 @@ export const orgApi = {
     lessonId: string,
     data: Omit<Partial<LessonEvent>, "topic"> & { topic?: string | null; effectiveFrom: string; reason: string; releaseAffectedExams?: boolean },
   ) => api<LessonEvent & RecurringRevisionNotes>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence`, { method: "PUT", body: data }),
+  /** W1 F6 (server R3): the revisions of the weekly lesson planned AFTER a date (default: today) and the date it stops, so the edit dialog can say «уже есть своё изменение» before the save. */
+  getRecurrenceRevisions: (lessonId: string, after?: string) =>
+    api<RecurrenceRevisions>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}/recurrence/revisions${after ? `?after=${encodeURIComponent(after)}` : ""}`),
   getRecurringLessonEndImpact: (lessonId: string, effectiveFrom: string) => {
     const query = new URLSearchParams({ effective_from: effectiveFrom });
     return api<RecurringLessonEndImpact>(

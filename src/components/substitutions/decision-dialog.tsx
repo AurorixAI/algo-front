@@ -350,6 +350,9 @@ export function DecisionBody({
   onReason: (value: string) => void;
   onRetryCandidates: () => void;
 }) {
+  // a phone: the choice of the kind sits under the reason, below the fold of the scrolling body - it is brought into view when «Отменить урок» is chosen, not left to be guessed
+  const kindRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (kind === "cancel") kindRef.current?.scrollIntoView({ block: "nearest" }); }, [kind]);
   const suggested = suggestedLine(item);
   const lines = check ? moveCheckLines(check, item.group.name) : null;
   const examTitle = binding?.state === "ok" ? (binding.title ?? "").trim() : "";
@@ -439,8 +442,7 @@ export function DecisionBody({
             <label htmlFor="substitution-cancel-reason" className="mb-1.5 block text-[13px] font-semibold text-slate-500">{CANCEL_REASON_LABEL}</label>
             <textarea id="substitution-cancel-reason" value={reason} rows={2} maxLength={500} disabled={busy} onChange={(event) => onReason(event.target.value)} className={FIELD_CLASS} />
           </div>
-          <CancellationKindField canChooseKind value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} />
-          <p className="text-xs leading-relaxed text-slate-600">{CANCEL_CONSEQUENCES}</p>
+          <div ref={kindRef}><CancellationKindField canChooseKind value={cancelKind} onChange={onCancelKind} name="decision-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} /></div>
           {binding?.state === "ok" && examTitle && (binding.canCancel === false
             ? <p role="alert" className="text-xs font-semibold text-rose-700">{examRunningText(examTitle)}</p>
             : <p role="status" className="text-xs font-medium text-amber-800">{examDraftCancelText(examTitle)}</p>)}

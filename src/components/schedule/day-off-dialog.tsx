@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
 import { EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
+import { substitutionErrorText } from "@/lib/substitutions";
 
 const FIELD = "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10";
 const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
@@ -38,6 +39,7 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
   const [plan, setPlan] = useState<DayOffPlan | null>(null);
   const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,15 +71,17 @@ export function DayOffDialog({ open, onClose, onDone }: { open: boolean; onClose
   const patch = (next: Partial<DayOffForm>) => { setError(null); setForm((previous) => ({ ...previous, ...next })); };
 
   const submit = async () => {
-    if (busy || problem || checking || !plan) return;
+    if (busy || sending.current || problem || checking || !plan) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
       onDone(await orgApi.createDayOff(dayOffBody(form)));
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Не удалось назначить выходной. Проверьте уроки и повторите.");
+      setError(substitutionErrorText(cause, "Не удалось назначить выходной. Проверьте уроки и повторите."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

@@ -189,9 +189,9 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
     void load(true);
   };
 
-  const handleRestored = (message: string) => {
+  const handleRestored = (message: string, notes?: string[]) => {
     setRestoreOpen(false);
-    showToast(message);
+    showToast(message, notes?.length ? "warning" : "success", notes);
     void load(true);
   };
 

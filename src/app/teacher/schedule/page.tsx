@@ -11,7 +11,7 @@ import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-loa
 import { pollFailure } from "@/lib/staff-busy";
 import { FloatingPanel } from "@/components/ui/floating-panel";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
-import { sendTeacherCancel } from "@/lib/teacher-cancel";
+import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { examsApi, orgApi, type AttendanceStatus, type GroupInfo, type StudentInGroup, type LessonAttendanceStatus, type LessonEvent, type LiveExamDashboardSummary, type ScheduleOccurrence } from "@/lib/api";
 import { isMovedAway, movedAwayChip, outOfPlan, placeText, timeRange, weekPlan, weekPlanDescription } from "@/lib/schedule-plan";
@@ -53,7 +53,7 @@ import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
 import { scheduleErrorText } from "@/lib/ops-errors";
-import { REPLACE_TEACHER_ACTION, canReplaceTeacher } from "@/lib/lesson-teacher";
+import { REPLACE_TEACHER_ACTION, canReplaceTeacher, lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import { assignmentNotes, directAssignToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
@@ -252,6 +252,7 @@ export default function TeacherSchedulePage() {
   const [cancellationReason, setCancellationReason] = useState("");
   /** W1 F1: how «Урока не было» is sent (see `teacherCancelOffer`); a double press is closed by the ref, not only by `savingAttendance` (rule 27). */
   const [cancelRoute, setCancelRoute] = useState<TeacherCancelOffer["route"]>("missed");
+  const [cancelVariant, setCancelVariant] = useState<TeacherCancelOffer["variant"]>("not_held");       // what the panel says: «Урока не было» or the one-off lesson he added
   const cancelSending = useRef(false);
   const [lessonExamBinding, setLessonExamBinding] = useState<LessonCancelBinding | null>(null);
   const [businessDate, setBusinessDate] = useState(() => formatBusinessDate());
@@ -583,6 +584,9 @@ export default function TeacherSchedulePage() {
       return;
     }
     setLoadingStudents(true);
+    // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
+    setActiveTeacherInfo(teacherInfoOfOccurrence(activeLesson));
+    setActiveRequestMark(activeLesson.substitutionRequest ?? null);
     setIsMarkingAttendance(false);
     setIsAttendanceSaved(false);
     setIsAttendanceDirty(false);
@@ -915,8 +919,9 @@ export default function TeacherSchedulePage() {
     if (!activeLesson || activeLessonStatus === "completed" || activeLessonStatus === "cancelled" || cancelSending.current) return;
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
-    if (reason.length < 3) {
-      setAttendanceError("Укажите понятную причину.");
+    const reasonProblem = cancelReasonProblem(reason);
+    if (reasonProblem) {
+      setAttendanceError(reasonProblem);
       return;
     }
 
@@ -951,10 +956,11 @@ export default function TeacherSchedulePage() {
     }
   };
 
-  const openCancelLessonPanel = async (route: TeacherCancelOffer["route"]) => {
+  const openCancelLessonPanel = async (offer: TeacherCancelOffer) => {
     if (!activeLesson || activeLessonStatus === "completed" || activeLessonStatus === "cancelled") return;
     setAttendanceError(null);
-    setCancelRoute(route);
+    setCancelRoute(offer.route);
+    setCancelVariant(offer.variant);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
     try {
@@ -1451,15 +1457,17 @@ export default function TeacherSchedulePage() {
   }
 
   // W1 F1: a teacher does not cancel a lesson to come; «Урока не было» is offered for a lesson that has passed (one rule: `teacherCancelOffer`)
+  // W1 F10: a lesson of his that a substitute leads stays in his schedule («Замена: имя»), but the lesson is not his to start, mark, move or cancel
+  const ledByOther = Boolean(activeLesson?.replacedBy) || lessonBelongsToOther(activeTeacherInfo, user?.id);
   const cancelOffer = activeLesson && !isCancellingLesson
-    ? teacherCancelOffer({ state: activeLessonStatus, date: activeLesson.occurrenceDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
+    ? teacherCancelOffer({ role: user?.org_role ?? user?.role ?? null, otherLeads: ledByOther, state: activeLessonStatus, date: activeLesson.occurrenceDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
     : null;
   // the «⋯» menu of the lesson panel: ONE place for what can be done with the lesson, in groups by meaning
   const lessonMenuGroups: LessonMenuGroup[] = [
               {
                 label: "Этот урок",
                 items: [
-                  ...teacherLessonMenuItems(lessonActions, () => setIsRecurringActionsOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer.route); } }),
+                  ...teacherLessonMenuItems(lessonActions, () => setIsRecurringActionsOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } }),
                   ...(isManager && activeLesson && canReplaceTeacher(user?.org_role ?? null, activeLessonStatus) ? [{
                     key: "replace", label: REPLACE_TEACHER_ACTION, hint: "Только на выбранную дату.", icon: GraduationCap,
                     onSelect: () => {
@@ -2387,7 +2395,11 @@ export default function TeacherSchedulePage() {
 
               {/* Attendance Section */}
               <div className="mb-6">
-                {loadingStudents ? (
+                {ledByOther ? (
+                  <p role="status" data-testid="led-by-other" className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs font-semibold text-violet-900">
+                    {notYourLessonText(activeTeacherInfo ?? { teacherName: activeLesson.replacedBy?.name ?? null })} Отметки, перенос и отмена — у него.
+                  </p>
+                ) : loadingStudents ? (
                   <div className="py-8 text-center text-xs text-slate-400 animate-pulse">
                     Загрузка данных урока...
                   </div>
@@ -2762,7 +2774,7 @@ export default function TeacherSchedulePage() {
 
               {isCancellingLesson && activeLessonStatus !== "completed" && activeLessonStatus !== "cancelled" && (
                 <LessonCancelPanel
-                  oneOff={cancelRoute === "attendance" && isOwnOneOff(activeLesson, user?.id)}
+                  oneOff={cancelVariant === "own_one_off"}
                   date={activeLesson.occurrenceDate}
                   binding={lessonExamBinding}
                   reason={cancellationReason}

@@ -36,6 +36,8 @@ export type ClosedReasonCode =
 export interface PersonRef {
   id: string;
   name: string;
+  /** Where the server says it (`owner` | `admin` | `teacher`): the journal then says «владелец» instead of «администратор». */
+  role?: string | null;
 }
 
 export interface SubstitutionMovedTo {
@@ -86,7 +88,7 @@ export interface SubstitutionDecision {
   by?: PersonRef | null;
   /** Naive UTC. */
   at?: string | null;
-  via?: "request" | "teacher_move" | "lesson_teacher_put" | "system" | "withdraw" | string | null;
+  via?: "request" | "teacher_move" | "lesson_teacher_put" | "system" | "withdraw" | "teacher_cancel" | "manager_restore" | "reason_change" | string | null;
   /** The reason of a rejection / a cancellation / a move, or the comment of a substitution. */
   note?: string | null;
   substitute?: PersonRef | null;
@@ -123,7 +125,7 @@ export interface SubstitutionItem {
   decision?: SubstitutionDecision | null;
   previous?: SubstitutionPrevious | null;
   /** P1.2: how a record the system made came to be: `manager_assign` (a substitution set on the lesson sheet), `manager_move`, `teacher_move`; null for a request of a teacher. */
-  trigger?: "manager_assign" | "manager_move" | "teacher_move" | string | null;
+  trigger?: "manager_assign" | "manager_move" | "teacher_move" | "manager_cancel" | "teacher_cancel" | "manager_restore" | "manager_reason_change" | "teacher_one_off" | "window_expired" | "day_off" | "role_changed" | string | null;
   /** P1.2: the substitution of the record stopped later (taken off, replaced, released, the lesson cancelled / moved); the status of the record does not change. Naive UTC. */
   clearedAt?: string | null;
   clearedBy?: PersonRef | null;
@@ -380,6 +382,9 @@ export interface DecideBulkOut {
   updated: number;
   items: SubstitutionItem[];
   skipped: BulkSkipped[];
+  /** W1 (server R3): one row per decided request, in the order of `items`, with what the server said about it (a holiday instead of «по вине центра», a substitute released). */
+  results?: Array<{ id: string; kind: string; cancellationKind?: CancellationKind | null; warnings?: Array<{ code: string; message: string }> | null }>;
+  warningsTotal?: number;
 }
 
 export interface AlreadyDecidedDetail extends OpsErrorDetail {

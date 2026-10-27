@@ -89,7 +89,7 @@ export function RequestControl({
         setError(decided.message);
         onChanged?.();
       } else {
-        setError(substitutionErrorText(failure));
+        setError(substitutionErrorText(failure, undefined, { role: "teacher" }));
       }
     } finally {
       sending.current = false;

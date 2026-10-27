@@ -8,7 +8,8 @@ import { Modal } from "@/components/ui/modal";
 import { cancellationKindBody, DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
 import { useCanChooseCancellationKind } from "@/lib/use-cancellation-kind";
 import { warningTexts } from "@/lib/ops-errors";
-import { substitutionErrorText } from "@/lib/substitutions";
+import { cancelReasonProblem } from "@/lib/teacher-cancel";
+import { CANCEL_CONSEQUENCES, substitutionErrorText } from "@/lib/substitutions";
 import { CancellationKindField } from "./cancellation-kind-field";
 
 export interface CancelMissedTarget {
@@ -50,8 +51,9 @@ export function CancelMissedLessonModal({
   const submit = async () => {
     if (!target || busy || sending.current) return;
     const text = reason.trim();
-    if (text.length < 3) {
-      setError("Укажите причину — не менее 3 символов.");
+    const problem = cancelReasonProblem(text);
+    if (problem) {
+      setError(problem);
       return;
     }
     sending.current = true;
@@ -86,7 +88,7 @@ export function CancelMissedLessonModal({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || reason.trim().length < 3}
+            disabled={busy || Boolean(cancelReasonProblem(reason))}
             className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -103,12 +105,12 @@ export function CancelMissedLessonModal({
             value={reason}
             onChange={(event) => { setReason(event.target.value); setError(null); }}
             rows={3}
-            maxLength={300}
+            maxLength={500}
             autoFocus
             placeholder="Например: преподаватель заболел, урок не проводился"
             className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/10"
           />
-          <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} />
+          <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="cancel-missed-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
           {error && <p role="alert" className="text-xs font-medium text-rose-600">{error}</p>}
         </div>
       )}

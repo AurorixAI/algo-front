@@ -54,7 +54,7 @@ import { ExcuseReasonField } from "@/components/attendance/excuse-reason-field";
 import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance-excuses";
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
-import { sendTeacherCancel } from "@/lib/teacher-cancel";
+import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
@@ -67,7 +67,7 @@ import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendance-ops";
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
-import { lessonBelongsToOther, notYourLessonText } from "@/lib/lesson-teacher";
+import { lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { MovedFrom, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
@@ -112,6 +112,8 @@ interface LessonSummary {
   isOneOff?: boolean;
   createdBy?: { id?: string | null } | null;
   movedFrom?: MovedFrom | null;
+  /** W1 F10: a substitute leads this lesson of the main teacher. */
+  replacedBy?: { id: string; name: string } | null;
 }
 
 type LessonAction = {
@@ -315,6 +317,7 @@ export default function TeacherDashboardPage() {
   const [cancellationReason, setCancellationReason] = useState("");
   /** W1 F1: how «Урока не было» is sent (see `teacherCancelOffer`); a double press is closed by the ref, not only by `savingAttendance` (rule 27). */
   const [cancelRoute, setCancelRoute] = useState<TeacherCancelOffer["route"]>("missed");
+  const [cancelVariant, setCancelVariant] = useState<TeacherCancelOffer["variant"]>("not_held");       // what the panel says: «Урока не было» or the one-off lesson he added
   const cancelSending = useRef(false);
   const missedSending = useRef(false);
   const [lessonExamBinding, setLessonExamBinding] = useState<LessonCancelBinding | null>(null);
@@ -483,6 +486,9 @@ export default function TeacherDashboardPage() {
       return;
     }
     setLoadingStudents(true);
+    // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
+    setActiveTeacherInfo(teacherInfoOfOccurrence(activeLesson));
+    setActiveRequestMark(activeLesson.substitutionRequest ?? null);
     setIsMarkingAttendance(false);
     setIsAttendanceSaved(false);
     setIsAttendanceDirty(false);
@@ -746,8 +752,9 @@ export default function TeacherDashboardPage() {
   const handleCancelMissedLesson = async () => {
     if (!missedLessonAction || missedSending.current) return;
     const reason = missedLessonCancellationReason.trim();
-    if (reason.length < 3) {
-      setMissedLessonError("Укажите причину отмены — не менее 3 символов.");
+    const reasonProblem = cancelReasonProblem(reason);
+    if (reasonProblem) {
+      setMissedLessonError(reasonProblem);
       return;
     }
     missedSending.current = true;
@@ -951,8 +958,9 @@ export default function TeacherDashboardPage() {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled" || cancelSending.current) return;
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
-    if (reason.length < 3) {
-      setAttendanceError("Укажите понятную причину.");
+    const reasonProblem = cancelReasonProblem(reason);
+    if (reasonProblem) {
+      setAttendanceError(reasonProblem);
       return;
     }
     cancelSending.current = true;
@@ -992,10 +1000,11 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  const openCancelLessonPanel = async (route: TeacherCancelOffer["route"]) => {
+  const openCancelLessonPanel = async (offer: TeacherCancelOffer) => {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled") return;
     setAttendanceError(null);
-    setCancelRoute(route);
+    setCancelRoute(offer.route);
+    setCancelVariant(offer.variant);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
 
@@ -1073,6 +1082,7 @@ export default function TeacherDashboardPage() {
     return sortedTodayLessons.flatMap<LessonAction>((lesson) => {
       const instanceStatus = lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled");
       if (instanceStatus === "completed" || instanceStatus === "cancelled") return [];
+      if (lesson.replacedBy) return [];        // a substitute leads it (W1 F10): nothing to start for the main teacher
 
       const timing = getLessonTimeStatus(
         lesson,
@@ -1301,10 +1311,12 @@ export default function TeacherDashboardPage() {
   );
 
   // W1 F1: a teacher does not cancel a lesson to come; «Урока не было» is offered for a lesson that has passed (one rule with the schedule: `teacherCancelOffer`)
+  // W1 F10: a lesson of his that a substitute leads stays in his schedule («Замена: имя»), but the lesson is not his to start, mark, move or cancel
+  const ledByOther = Boolean(activeLesson?.replacedBy) || lessonBelongsToOther(activeTeacherInfo, user?.id);
   const cancelOffer = activeLesson && !isCancellingLesson
-    ? teacherCancelOffer({ state: activeInstanceStatus, date: activeLesson.occurrenceDate || businessDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
+    ? teacherCancelOffer({ role: user?.org_role ?? user?.role ?? null, otherLeads: ledByOther, state: activeInstanceStatus, date: activeLesson.occurrenceDate || businessDate, today: businessDate, startTime: activeLesson.startTime, rosterEmpty: !loadingStudents && groupStudents.length === 0, ownOneOff: isOwnOneOff(activeLesson, user?.id) })
     : null;
-  const lessonMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer.route); } });
+  const lessonMenuItems = teacherLessonMenuItems(teacherActions, () => setIsLessonMenuOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } });
 
   if (loading) {
     return (
@@ -2183,43 +2195,16 @@ export default function TeacherDashboardPage() {
                       </button>
                     </div>
                   ) : (
-                    <div className="space-y-3 rounded-2xl border border-rose-200 bg-rose-50 p-4">
-                      <div>
-                        <p className="text-sm font-bold text-rose-900">Причина отмены</p>
-                        <p className="mt-1 text-xs leading-5 text-rose-700">Урок закроется без отметок посещаемости; это действие сохранится в истории урока.</p>
-                      </div>
-                      <textarea
-                        value={missedLessonCancellationReason}
-                        onChange={(event) => setMissedLessonCancellationReason(event.target.value)}
-                        maxLength={500}
-                        rows={3}
-                        autoFocus
-                        placeholder="Например: урок не состоялся по болезни преподавателя"
-                        className="w-full resize-none rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm outline-none focus:border-rose-400"
-                      />
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          disabled={isResolvingMissedLesson}
-                          onClick={() => {
-                            setIsCancellingMissedLesson(false);
-                            setMissedLessonCancellationReason("");
-                            setMissedLessonError(null);
-                          }}
-                          className="rounded-xl px-3 py-2 text-xs font-bold text-slate-600 hover:bg-white disabled:opacity-50"
-                        >
-                          Назад
-                        </button>
-                        <button
-                          type="button"
-                          disabled={isResolvingMissedLesson || missedLessonCancellationReason.trim().length < 3}
-                          onClick={handleCancelMissedLesson}
-                          className="rounded-xl bg-rose-600 px-3 py-2 text-xs font-bold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {isResolvingMissedLesson ? "Сохранение…" : "Урока не было"}
-                        </button>
-                      </div>
-                    </div>
+                    // rule 38: the SAME panel as the lesson panel's «Урока не было» (the list of missed lessons asks no exam: the server decides)
+                    <LessonCancelPanel
+                      autoFocus
+                      date={missedLessonAction.lessonDate}
+                      reason={missedLessonCancellationReason}
+                      onReason={setMissedLessonCancellationReason}
+                      busy={isResolvingMissedLesson}
+                      onConfirm={() => void handleCancelMissedLesson()}
+                      onBack={() => { setIsCancellingMissedLesson(false); setMissedLessonCancellationReason(""); setMissedLessonError(null); }}
+                    />
                   )}
                 </div>
                 <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-4 text-right sm:px-7">
@@ -2315,7 +2300,11 @@ export default function TeacherDashboardPage() {
 
                 {/* Attendance Section */}
                 <div className="mb-6">
-                  {loadingStudents ? (
+                  {ledByOther ? (
+                  <p role="status" data-testid="led-by-other" className="rounded-2xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-xs font-semibold text-violet-900">
+                    {notYourLessonText(activeTeacherInfo ?? { teacherName: activeLesson.replacedBy?.name ?? null })} Отметки, перенос и отмена — у него.
+                  </p>
+                ) : loadingStudents ? (
                     <div className="py-8 text-center text-xs text-slate-400 animate-pulse">
                       Загрузка данных урока...
                     </div>
@@ -2706,7 +2695,7 @@ export default function TeacherDashboardPage() {
 
                 {isCancellingLesson && activeInstanceStatus !== "completed" && activeInstanceStatus !== "cancelled" && !isMarkingAttendance && (
                   <LessonCancelPanel
-                  oneOff={cancelRoute === "attendance" && isOwnOneOff(activeLesson, user?.id)}
+                  oneOff={cancelVariant === "own_one_off"}
                     date={activeLesson.occurrenceDate || businessDate}
                     binding={lessonExamBinding}
                     reason={cancellationReason}

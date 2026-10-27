@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { EXAMS_NOTE, dayOffLine, dayOffSpan, splitDaysOff, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffSpan, splitDaysOff, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
 
@@ -12,6 +12,7 @@ import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog"
 function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: () => void; onDone: (result: DayOffVoided) => void }) {
   const [plan, setPlan] = useState<DayOffVoided | null>(null);
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -26,7 +27,8 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
   }, [day]);
 
   const submit = async () => {
-    if (!day || busy) return;
+    if (!day || busy || sending.current) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -35,6 +37,7 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось отменить выходной");
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -85,6 +88,7 @@ export function DaysOffPanel() {
   const [notice, setNotice] = useState<string | null>(null);
   /** What the cancellation of a day off left to do: the lessons that came back without their substitute. */
   const [noticeLines, setNoticeLines] = useState<string[]>([]);
+  const [noticeLabel, setNoticeLabel] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -100,27 +104,33 @@ export function DaysOffPanel() {
   // W1 S10: «not finished» is kept on the server (a day off with `incomplete`), so it is still offered after a reload; the answer of the apply tells at once
   const unfinished = unfinishedLocal ?? (days ?? []).find((day) => day.active && day.incomplete) ?? null;
   const [continuing, setContinuing] = useState(false);
+  const continuingRef = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const created = (result: DayOffApplied) => {
     const converted = result.converted?.length ?? 0;
-    setNoticeLines([]);
+    // W1: the lessons that were NOT cancelled are named with their reasons (started, held, a one-off set on purpose…), not only counted
+    setNoticeLines(result.blocked.map(dayOffLessonLine));
+    setNoticeLabel("Не отменены:");
     setNotice(`Выходной назначен: отменено уроков ${result.cancelled.length}${converted > 0 ? `, отмена переведена в праздник: ${converted}` : ""}${result.blocked.length > 0 ? `, не отменены ${result.blocked.length}` : ""}.`);
     setUnfinished(result.complete === false ? result.dayOff : null);
     void load();
   };
   // exam-service did not answer: the rest of the lessons waits; «Продолжить» tries again (the server skips what is cancelled)
   const proceed = async () => {
-    if (!unfinished || continuing) return;
+    if (!unfinished || continuing || continuingRef.current) return;
+    continuingRef.current = true;
     setContinuing(true);
     try {
       created(await orgApi.applyDayOff(unfinished.id));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Не удалось продолжить");
     } finally {
+      continuingRef.current = false;
       setContinuing(false);
     }
   };
   const voided = (result: DayOffVoided) => {
     setNoticeLines((result.warnings ?? []).map((warning) => warning.message).filter(Boolean));
+    setNoticeLabel("Вернулись без замены — назначьте её заново:");
     setNotice(`Выходной отменён: вернулось уроков ${result.restored.length}${result.kept.length > 0 ? `, осталось отменёнными ${result.kept.length}` : ""}.`);
     void load();
   };
@@ -137,6 +147,7 @@ export function DaysOffPanel() {
       {notice && (
         <div role="status" className={`space-y-1 rounded-xl px-3 py-2 text-xs font-medium ${noticeLines.length > 0 ? "bg-amber-50 text-amber-900" : "bg-emerald-50 text-emerald-800"}`}>
           <p>{notice}</p>
+          {noticeLines.length > 0 && <p className="font-semibold">{noticeLabel}</p>}
           {noticeLines.length > 0 && <ul data-testid="day-off-notice-lines" className="list-disc space-y-0.5 pl-4">{noticeLines.map((line) => <li key={line}>{line}</li>)}</ul>}
         </div>
       )}

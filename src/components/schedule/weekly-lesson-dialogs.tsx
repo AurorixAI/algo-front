@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
-import { removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterChangeNote, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, weeklyLaterChange, type ExamsToConfirm } from "@/lib/weekly-lessons";
+import { laterChangeNote, removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, type ExamsToConfirm } from "@/lib/weekly-lessons";
 import {
   DAYS, DAY_REQUIRED_TEXT, NO_TEACHER_SCHEDULE_HINT, canVaryTimes, dayList, dayShort, dayTimeProblem, dayTimesOf, nextBusinessDate, overlappingLesson, pastDayPlan,
   reconcileDayTimes, timeRangeProblem, weeklyResultText, revisionPatch, sharedRevisionPatch, CHANGED_WORDS, type DayTimes, type WeeklyLesson,
@@ -291,8 +291,8 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   /** W1 S8: the exams of the lessons a change of day / time would move - the server asks for a tick before it returns them to drafts. */
   const [exams, setExams] = useState<ExamsToConfirm[] | null>(null);
   const [releaseExams, setReleaseExams] = useState(false);
-  /** W1 F6: the date from which a change planned LATER already exists (it gets the same new values). */
-  const [laterFrom, setLaterFrom] = useState<string | null>(null);
+  /** W1 F6: the revisions of this weekly lesson already planned after the date of the change (the server's list; they get the same new values). */
+  const [laterRevisions, setLaterRevisions] = useState<Array<{ effectiveFrom: string }>>([]);
   const latest = useRef({ baseline, day, value });
   latest.current = { baseline, day, value };
 
@@ -314,12 +314,14 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
   }, [effectiveFrom]);
 
   useEffect(() => {
-    setLaterFrom(null);
-    if (!lesson.groupId || !effectiveFrom || effectiveFrom < nextBusinessDate()) return undefined;
+    setLaterRevisions([]);
+    if (!effectiveFrom || effectiveFrom < nextBusinessDate() || mainSaved) return undefined;
     let cancelled = false;
-    void weeklyLaterChange(lesson.groupId, lesson.id, effectiveFrom, baseline).then((date) => { if (!cancelled) setLaterFrom(date); });
+    orgApi.getRecurrenceRevisions(lesson.id, effectiveFrom)
+      .then((out) => { if (!cancelled) setLaterRevisions(out.revisions ?? []); })
+      .catch(() => undefined);      // no answer, no note: the answer of the save names them anyway
     return () => { cancelled = true; };
-  }, [effectiveFrom, baseline, lesson.groupId, lesson.id]);
+  }, [effectiveFrom, lesson.id, mainSaved]);
 
   const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); setExams(null); setReleaseExams(false); };
   const overlap = day ? overlappingLesson(siblings, day, value.startTime, value.endTime, lesson.id) : undefined;
@@ -418,7 +420,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
         <>
           {!hasChanges && !mainSaved && <p className="mr-auto text-[11px] text-slate-500">Измените хотя бы один параметр расписания.</p>}
           <button type="button" onClick={onClose} disabled={busy} className={CANCEL_BUTTON}>Отмена</button>
-          <button type="submit" form="weekly-lesson-edit-form" disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem)} className={PRIMARY_BUTTON}>
+          <button type="submit" form="weekly-lesson-edit-form" disabled={busy || Boolean(overlap) || targetOverlaps.length > 0 || (!mainSaved && !hasChanges) || (mainSaved && targets.length === 0) || !effectiveFrom || Boolean(timeProblem) || Boolean(exams && !releaseExams)} className={PRIMARY_BUTTON}>
             {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Изменить расписание
           </button>
         </>
@@ -443,7 +445,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
           </div>
         </div>
 
-        {laterFrom && hasChanges && <p role="status" data-testid="later-change-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">{laterChangeNote(laterFrom)}</p>}
+        {hasChanges && laterChangeNote(laterRevisions) && <p role="status" data-testid="later-change-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">{laterChangeNote(laterRevisions)}</p>}
 
         <WeekdayChips idPrefix="sched-edit" single days={day ? [day] : []} onChange={(next) => { setDay(next[0] ?? null); setError(null); setDetails([]); }} disabled={busy || mainSaved} />
 
@@ -480,6 +482,7 @@ function EditWeeklyLessonForm({ lesson, siblings, onClose, onSaved, onProgress, 
               <Checkbox checked={releaseExams} onChange={(event) => setReleaseExams(event.target.checked)} disabled={busy} />
               <span>Вернуть экзамены в черновики</span>
             </label>
+            {!releaseExams && <p data-testid="exams-confirm-hint" className="font-normal text-amber-800">Отметьте, чтобы сохранить изменение.</p>}
           </div>
         )}
 

@@ -255,7 +255,7 @@ test("the pages grew by an import and a field each: the new screens are componen
   // measured on the production commit 7c616a1 (before PAY-F)
   const limits = { "src/app/owner/settings/page.tsx": 951 + 8, "src/app/teacher/schedule/page.tsx": 3210 + 8, "src/app/teacher/dashboard/page.tsx": 2841 + 12,
     "src/app/admin/settings/page.tsx": 107 + 6, "src/components/payments/payment-dialog.tsx": 459 + 3, "src/components/payments/receipt-view.tsx": 297 + 3,
-    "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3)
+    "src/components/groups/lesson-action-sheet.tsx": 338 + 12 + 26 + 17 + 8 };   // + 12: the sheet of P1.1 (moveOnly), counted after the merge of 25.10; + 17: «Вернуть урок» (W1 F3)
   for (const [file, limit] of Object.entries(limits)) assert.ok(lines(file) <= limit, `${file}: ${lines(file)} > ${limit}`);
 });
 

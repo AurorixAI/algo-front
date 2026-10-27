@@ -37,6 +37,21 @@ export function replacedByLabel(info: LessonTeacherInfo | null | undefined, view
   return name ? `Замена: ${name}` : "Замена: другой преподаватель";
 }
 
+/**
+ * Who leads a lesson, from the occurrence itself (the schedule and the dashboard summary carry it, W1): the panel knows it at once instead of after the journal read -
+ * so the first frame of the panel never offers a move / a cancellation that the journal would then take away.  null when the occurrence says nothing.
+ */
+export function teacherInfoOfOccurrence(occurrence: { teacherId?: string | null; teacherName?: string | null; isSubstitution?: boolean; defaultTeacherId?: string | null; defaultTeacherName?: string | null }): LessonTeacherInfo | null {
+  if (occurrence.teacherId === undefined && occurrence.isSubstitution === undefined) return null;
+  return {
+    teacherId: occurrence.teacherId ?? null,
+    teacherName: occurrence.teacherName ?? null,
+    isSubstitution: Boolean(occurrence.isSubstitution),
+    defaultTeacherId: occurrence.defaultTeacherId ?? null,
+    defaultTeacherName: occurrence.defaultTeacherName ?? null,
+  };
+}
+
 /** A lesson without a teacher at all: the group has none and no substitute is set. */
 export function lacksTeacher(info: LessonTeacherInfo | null | undefined): boolean {
   return Boolean(info) && !info?.teacherId;

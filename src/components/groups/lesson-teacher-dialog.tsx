@@ -158,7 +158,7 @@ export function LessonTeacherDialog({
         reasonRef={reasonRef}
         busy={busy}
         error={error}
-        role={user?.org_role ?? user?.role ?? null}
+        role={user?.org_role ?? null}
         onPick={(id) => { setPick(id); setError(null); }}
         onReason={(value) => { setReason(value); setError(null); }}
         onRetry={() => void load()}

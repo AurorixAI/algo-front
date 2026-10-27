@@ -20,7 +20,7 @@ import {
   normalizeTime,
   type ScheduleCardAction,
 } from "@/lib/schedule-card-actions";
-import { substitutionErrorText, type LessonMark } from "@/lib/substitutions";
+import { CANCEL_CONSEQUENCES, substitutionErrorText, type LessonMark } from "@/lib/substitutions";
 import { RESTORE_NOTE, RESTORE_NOTE_CENTRE, RESTORE_REASON_LABEL } from "@/lib/lesson-restore";
 import type { ExamBinding, MoveCheckOut } from "@/lib/substitution-types";
 import { CHANGE_KIND_BUTTON, CHANGE_KIND_LABEL, canChangeKind, cancellationKindBody, type CancellationKind } from "@/lib/payf";
@@ -50,14 +50,16 @@ const NO_MARKS: LessonMark[] = [];
  * the server what the exam bound to the lesson means (`lesson-exam-binding`).
  */
 export function LessonActionSheet({
-  lesson, groupId, title, subtitle, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
+  lesson, groupId, title, subtitle, badge = null, teacherLine, notes = NO_NOTES, marks = NO_MARKS, actions, assignLabel = "", requestHref, moveOnly = false, aboveLessonPanel = false, cancellationKind = null, onClose, onAssign, onJournal, onEditSeries, onEndSeries, seriesPending = null, seriesError = null, onChanged, onRefresh,
 }: {
   lesson: Lesson | null;
   groupId: string;
   /** The topic of the lesson, else the group. */
   title: string;
-  /** «сб, 24 октября · 10:00–11:00 · Запланирован» (+ the room when it is set). */
+  /** «сб, 24 октября · 10:00–11:00» (+ the room when it is set); the state of the lesson is the badge. */
   subtitle: string;
+  /** W1 lead note: the state («Отменён», «Запланирован») as a badge beside the line, not a word inside it. */
+  badge?: { label: string; className: string } | null;
   /** «Ведёт: Коллега У. — замена за Основной У.» */
   teacherLine: string | null;
   /** Where a moved lesson went, the reason of a move / a cancellation in full. */
@@ -209,7 +211,7 @@ export function LessonActionSheet({
       } else if (mode === "restore") {
         const restored = await orgApi.restoreLesson(groupId, { lessonId: lesson.id, lessonDate: lesson.date, reason: trimmed });
         setMode("menu");
-        onChanged("Урок возвращён", [...warningTexts(restored), ...((restored.examsNote ?? "").trim() ? [(restored.examsNote ?? "").trim()] : [])]);
+        onChanged("Урок возвращён", warningTexts(restored));      // the note about the exams is under the field of the form already (not repeated as a warning)
       } else {
         const cancelled = await orgApi.saveGroupAttendance(groupId, { lessonDate: lesson.date, lessonId: lesson.id, topic: lesson.topic, status: "cancelled", records: {}, cancellationReason: trimmed, ...cancellationKindBody(kind, canChooseKind) });
         setMode("menu");
@@ -252,7 +254,7 @@ export function LessonActionSheet({
           <button
             type="button"
             onClick={() => void submit()}
-            disabled={busy || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
+            disabled={busy || Boolean(reasonProblem) || ((mode === "cancel" || mode === "reschedule") && examState.blocked) || (mode === "reschedule" && confirmDisabled)}
             className={`inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 ${mode === "cancel" ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-600 hover:bg-primary-700"}`}
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -264,7 +266,10 @@ export function LessonActionSheet({
       {lesson && (
         <div className="space-y-4 pb-1">
           <div className="space-y-1 text-sm text-slate-600">
-            <p>{subtitle}</p>
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span>{subtitle}</span>
+              {badge && <span data-testid="sheet-badge" className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span>}
+            </p>
             {teacherLine && <p className="font-medium text-slate-800">{teacherLine}</p>}
             {notes.map((line) => <p key={line} className="break-words text-slate-700">{line}</p>)}
             <LessonChips marks={marks} requestHref={requestHref} className="pt-1" />
@@ -372,11 +377,12 @@ export function LessonActionSheet({
                 <label htmlFor="sheet-reason" className={LABEL}>Причина отмены</label>
                 <textarea id="sheet-reason" rows={2} value={reason} onChange={(event) => { setError(null); setReason(event.target.value); }} className={`${FIELD} resize-none`} />
               </div>
-              <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} />
+              <CancellationKindField canChooseKind={canChooseKind} value={kind} onChange={setKind} name="sheet-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
               <ExamBindingNote state={examState} onRetry={loadBinding} />
-              <p className="text-xs leading-relaxed text-slate-500">Урок будет отменён и не вернётся. Ученики на нём не отмечаются, заработок преподавателя за него не засчитывается.</p>
             </div>
           )}
+
+          {mode !== "menu" && reasonProblem && <p data-testid="reason-hint" className="text-xs text-slate-500">{reasonProblem}</p>}
 
           {error && (
             <div role="alert" className="space-y-1.5">

@@ -54,8 +54,8 @@ test("F1: a teacher is offered «Урока не было» only for a lesson th
   const today = "2026-10-22";
   const after = new Date("2026-10-22T06:00:00Z");   // 11:00 in Tashkent
   const before = new Date("2026-10-22T04:30:00Z");  // 09:30
-  const offer = (patch) => A.teacherCancelOffer({ state: "scheduled", date: "2026-10-20", today, startTime: "10:00", now: after, ...patch });
-  assert.deepEqual(offer({}), { route: "missed", variant: "not_held", label: "Урока не было", hint: A.TEACHER_NOT_HELD_HINT }, "a past lesson nobody started");
+  const offer = (patch) => A.teacherCancelOffer({ role: "teacher", state: "scheduled", date: "2026-10-20", today, startTime: "10:00", now: after, ...patch });
+  assert.deepEqual(offer({}), { route: "missed", variant: "not_held", label: "Урока не было" }, "a past lesson nobody started: one line, no second line in the menu");
   assert.equal(offer({ date: "2026-10-24" }), null, "a lesson to come: he asks «Не смогу провести», the administrator cancels");
   assert.equal(offer({ date: today, now: before }), null, "today, not started yet");
   assert.equal(offer({ date: today, now: after })?.route, "missed", "today, the start has passed");
@@ -190,7 +190,8 @@ test("F3: the words and the call of «Вернуть урок»; every RESTORE_*
   assert.match(api, /restoreLesson: \(groupId: string, body: \{ lessonId: string; lessonDate: string; reason: string \}\) =>\s+api<RestoreLessonResult>\(`\/auth\/org\/groups\/\$\{encodePathId\(groupId\)\}\/lessons\/restore`, \{ method: "POST", body \}\)/);
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /orgApi\.restoreLesson\(groupId, \{ lessonId: lesson\.id, lessonDate: lesson\.date, reason: trimmed \}\)/);
-  assert.match(sheet, /onChanged\("Урок возвращён", \[/, "the toast, with the note about the exams");
+  assert.match(sheet, /onChanged\("Урок возвращён", warningTexts\(restored\)\)/, "the toast; the note about the exams is under the form's field, not repeated as a warning");
+  assert.doesNotMatch(sheet.replace(/\/\/.*$/gm, ""), /examsNote/, "R3 9: no examsNote toast after a restore");
   assert.match(sheet, /data-testid="sheet-restore"/);
   assert.match(read("src/lib/cancel-sheet.ts"), /"restore"/);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /moved, cancelKind: attendance\?\.cancellationKinds\?\.\[key\] \?\? null/, "the card and the sheet pass the same facts to the one rule");
@@ -260,21 +261,21 @@ test("F6: the later revisions are named after the save and before it; «Прим
   assert.deepEqual(W.laterRevisionNotes({ laterRevisions: [{ effectiveFrom: "2026-11-12", fields: ["room", "startTime", "endTime"] }] }), ["Есть изменение с 12.11 — оно тоже обновлено (кабинет, время)"]);
   assert.deepEqual(W.laterRevisionNotes({ laterRevisions: [] }), []);
   assert.deepEqual(W.laterRevisionNotes(null), []);
-  assert.equal(W.laterChangeNote("2026-11-12"), "С 12.11 у этого урока уже есть своё изменение — оно тоже обновится");
-  const occ = (date, patch = {}) => ({ id: "L", groupId: "G", occurrenceDate: date, dayOfWeek: 3, startTime: "10:00", endTime: "11:00", room: "5", format: "offline", ...patch });
-  const base = { dayOfWeek: 3, startTime: "10:00", endTime: "11:00", room: "5", format: "offline" };
-  assert.equal(W.laterChangeDate([occ("2026-11-04"), occ("2026-11-11"), occ("2026-11-18", { room: "7" }), occ("2026-11-25", { room: "7" })], "G", "L", base, "2026-11-03"), "2026-11-18");
-  assert.equal(W.laterChangeDate([occ("2026-11-04"), occ("2026-11-11")], "G", "L", base, "2026-11-03"), null, "nothing planned later");
-  assert.equal(W.laterChangeDate([occ("2026-11-11", { isRescheduled: true, startTime: "15:00" }), occ("2026-11-18", { isOneOff: true, room: "9" })], "G", "L", base, "2026-11-03"), null, "a moved copy and a one-off lesson are not the series");
-  assert.equal(W.laterChangeDate([occ("2026-11-11", { id: "OTHER", room: "9" }), occ("2026-11-11", { groupId: "H", room: "9" })], "G", "L", base, "2026-11-03"), null, "another lesson");
-  assert.equal(W.laterChangeDate([occ("2026-11-11", { room: " 5 " })], "G", "L", base, "2026-11-03"), null, "the same room with spaces is the same");
-  assert.equal(W.laterChangeDate([occ("2026-11-11", { dayOfWeek: 4 })], "G", "L", base, "2026-11-03"), "2026-11-11", "a changed day");
+  // BEFORE the save only from the server's list of the later revisions (no guessing from the schedule)
+  assert.equal(W.laterChangeNote([{ effectiveFrom: "2026-11-12" }]), "С 12.11 у этого урока уже есть своё изменение — оно тоже обновится");
+  assert.equal(W.laterChangeNote([{ effectiveFrom: "2026-11-12" }, { effectiveFrom: "2026-11-20" }]), "С 12.11 и 20.11 у этого урока уже есть своё изменение — оно тоже обновится");
+  assert.equal(W.laterChangeNote([]), null);
+  assert.equal(W.laterChangeNote(undefined), null);
+  assert.equal(typeof W.weeklyLaterChange, "undefined", "R3 5/7: the 11-week schedule heuristic is gone");
+  assert.equal(typeof W.laterChangeDate, "undefined");
   assert.equal(W.isNoChanges(coded("NO_CHANGES", "Укажите хотя бы одно изменение постоянного расписания")), true);
   assert.equal(W.isNoChanges(new Error("Укажите хотя бы одно изменение постоянного расписания")), true, "an older server: the sentence");
   assert.equal(W.isNoChanges(coded("TEACHER_BUSY")), false);
   const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
   assert.match(dialogs, /laterRevisionNotes\(revised\)/);
   assert.match(dialogs, /data-testid="later-change-note"/);
+  assert.match(dialogs, /orgApi\.getRecurrenceRevisions\(lesson\.id, effectiveFrom\)/, "the note comes from the server's revisions");
+  assert.match(read("src/lib/api.ts"), /recurrence\/revisions\$\{after \?/);
   assert.match(dialogs, /disabled=\{busy \|\| mainSaved\} className=\{SLOT_FIELD_CLASS\}/, "after a partial refusal the date is locked");
   assert.match(dialogs, /disabled=\{busy \|\| mainSaved\}\s+placeholder="Например: постоянная смена аудитории"/, "... and the reason");
   assert.doesNotMatch(read("src/lib/weekly-lessons.ts"), /patchFor\(/, "no local filter of «Применить также»");
@@ -325,7 +326,7 @@ test("F9: «Вам назначена замена» is one block for the teache
   const page = read("src/components/substitutions/substitutions-page.tsx");
   assert.match(page, /<ManagerAssignedBlock \/>/);
   assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /export function ManagerAssignedBlock\(\)/);
-  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{assigned\} cleared=\{cleared\} \/>/, "the teacher's block is the same one");
+  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{assigned\} \/>/, "the teacher's block is the same one");
   const types = read("src/lib/substitution-types.ts");
   assert.match(types, /assignedToMe: AssignedToMe\[\]/);
 });
@@ -366,9 +367,12 @@ test("F11: «Вам назначена замена» stays until the lesson STA
   assert.match(line, /^Замена снята: 9-А — .*28\.10, 10:00–11:30 \(снял\(а\) Каримова Н\., 27\.10 09:30\)$/);
   assert.equal(S.clearedForMeLine({ groupName: "9-А", lessonDate: "2026-10-28" }).endsWith("28.10"), true, "no author, no time: nothing invented");
   const { AssignedLessons } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
-  const html = textOf(renderToStaticMarkup(React.createElement(AssignedLessons, { entries: [], cleared: [{ groupId: "g", groupName: "9-А", lessonId: "l", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", clearedAt: "2026-10-27T04:30:00", clearedBy: { id: "x", name: "Каримова Н." } }] })));
-  assert.match(html, /Вам назначена замена/);
-  assert.match(html, /Замена снята: 9-А/);
+  const { ClearedLessons } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
+  const cleared = [{ groupId: "g", groupName: "9-А", lessonId: "l", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", clearedAt: "2026-10-27T04:30:00", clearedBy: { id: "x", name: "Каримова Н." } }];
+  const eventHtml = renderToStaticMarkup(React.createElement(ClearedLessons, { entries: cleared }));
+  assert.match(textOf(eventHtml), /Замена снята: 9-А/);
+  assert.doesNotMatch(eventHtml, /<details/, "the event is a line of its own, not inside the card of the lessons he still has");
+  assert.equal(renderToStaticMarkup(React.createElement(AssignedLessons, { entries: [] })), "", "nothing assigned - no card");
 });
 
 test("F12: an emptied room / topic the lesson had is REMOVED (explicit null) and said so; one never had is no change", () => {
@@ -389,7 +393,7 @@ test("F12: an emptied room / topic the lesson had is REMOVED (explicit null) and
 test("S20: the requests that drop out on the 1st are named («истекают через ≤3 дня»); the closing is «Не решено вовремя»", () => {
   assert.equal(S.expiringLine(0), null);
   assert.equal(S.expiringLine(undefined), null);
-  assert.match(S.expiringLine(3), /^Запросов, которые истекают через ≤3 дня: 3\./);
+  assert.match(S.expiringLine(3), /^Истекают через ≤3 дня: 3\./);
   assert.equal(S.badgeTitle({ pendingTotal: 4, urgentTotal: 1, expiringTotal: 2 }), "Ждут решения: 4, срочных: 1, истекают через ≤3 дня: 2");
   assert.equal(S.CLOSED_REASON_TEXT.LESSON_OUTSIDE_WINDOW, "Не решено вовремя");
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /data-testid="expiring-note"/);
@@ -406,15 +410,16 @@ test("S26 / S27: «Добавил: <имя>» on a one-off lesson; the teacher c
   assert.equal(A.isOwnOneOff({ ...mine, movedFrom: { date: "2026-10-20" } }, "t1"), false, "the copy of a move: only the administrator");
   assert.equal(A.isOwnOneOff({ ...mine, isOneOff: false }, "t1"), false);
   assert.equal(A.isOwnOneOff(mine, null), false);
-  const base = { state: "scheduled", date: "2026-10-24", today: "2026-10-22", startTime: "10:00", now: new Date("2026-10-22T06:00:00Z") };
+  const base = { role: "teacher", state: "scheduled", date: "2026-10-24", today: "2026-10-22", startTime: "10:00", now: new Date("2026-10-22T06:00:00Z") };
   assert.equal(A.teacherCancelOffer({ ...base }), null, "every other lesson to come: no cancel item (F1)");
-  assert.deepEqual(A.teacherCancelOffer({ ...base, ownOneOff: true }), { route: "attendance", variant: "own_one_off", label: "Отменить разовый урок", hint: A.CANCEL_ONE_OFF_HINT });
+  assert.deepEqual(A.teacherCancelOffer({ ...base, ownOneOff: true }), { route: "attendance", variant: "own_one_off", label: "Отменить разовый урок" });
   assert.equal(A.teacherCancelOffer({ ...base, ownOneOff: true, date: "2026-10-20" })?.variant, "not_held", "once it has passed it is «Урока не было» like any lesson");
   assert.equal(A.teacherCancelOffer({ ...base, ownOneOff: true, state: "completed" }), null);
   const { LessonCancelPanel } = require(path.join(root, "src/components/substitutions/lesson-cancel-panel.tsx"));
   const html = textOf(renderToStaticMarkup(React.createElement(LessonCancelPanel, { date: "2026-10-24", oneOff: true, binding: { loading: false, attached: false, canCancel: true }, reason: "x", onReason() {}, busy: false, onConfirm() {}, onBack() {} })));
   assert.match(html, /Отменить разовый урок: 24 октября/);
-  assert.match(html, /Разовый урок исчезнет из расписания группы/);
+  assert.match(html, /Разовый урок будет отменён/);
+  assert.doesNotMatch(html, /исчезнет/, "R3 10: the lesson is cancelled, it does not «vanish»");
   for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /ownOneOff: isOwnOneOff\(activeLesson, user\?\.id\)/, file);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /addedByLine\(lesson\)/);
 });
@@ -440,4 +445,233 @@ test("R3 round: an administrator's estimate is hidden (null / HIDDEN) - nothing 
   assert.match(S.substitutionErrorText(coded("REASON_CHANGE_TOO_OLD")), /Причину можно изменить только у недавней отмены/);
   const sheet = read("src/components/groups/lesson-action-sheet.tsx");
   assert.match(sheet, /substitutionErrorText\(cause, mode === "restore"/, "the sheet words both through the one function");
+});
+
+// ── the fix round after the front R3 (27.10) ─────────────────────────────────────────────────────────────────────
+
+const J = (item) => ({ origin: "system", status: "cancelled", teacher: { id: "t1", name: "Иванов И." }, decision: { kind: "cancel", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" }, ...item });
+
+test("R3 2: the journal «Замены» understands EVERY W1 trigger - who did it, in human words (one assertion block per trigger)", () => {
+  const lines = (item) => ({ origin: S.originLine(item), by: S.decidedByLine(item), chip: S.reasonChipText(item), result: S.decisionResultText(item) });
+  // manager_cancel
+  assert.deepEqual(lines(J({ trigger: "manager_cancel" })), { origin: "Без запроса", by: "Отменил администратор Каримова Н., 22.10 09:30", chip: "Отмена", result: "Урок отменён" });
+  assert.equal(S.decidedByLine(J({ trigger: "manager_cancel", decision: { kind: "cancel", by: { id: "o", name: "Юсупова Н.", role: "owner" }, at: "2026-10-22T04:30:00" } })), "Отменил владелец Юсупова Н., 22.10 09:30");
+  // teacher_cancel
+  assert.deepEqual(lines(J({ trigger: "teacher_cancel", decision: { kind: "cancel", via: "teacher_cancel", by: { id: "t1", name: "Иванов И." }, at: "2026-10-22T04:30:00" } })), { origin: "Без запроса", by: "Урока не было — преподаватель Иванов И., 22.10 09:30", chip: "Урока не было", result: "Урока не было" });
+  // manager_restore
+  const restored = J({ trigger: "manager_restore", status: "closed", decision: { kind: "closed", via: "manager_restore", closedReason: "LESSON_RESTORED", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" } });
+  assert.deepEqual(lines(restored), { origin: "Без запроса", by: "Вернул урок администратор Каримова Н., 22.10 09:30", chip: "Возврат", result: "Урок возвращён" });
+  // manager_reason_change
+  const kind = J({ trigger: "manager_reason_change", status: "closed", decision: { kind: "closed", via: "reason_change", closedReason: "KIND_CHANGED", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" } });
+  assert.deepEqual(lines(kind), { origin: "Без запроса", by: "Вид отмены изменил администратор Каримова Н., 22.10 09:30", chip: "Вид отмены", result: "Вид отмены изменён" });
+  // teacher_one_off: WHO added it is the teacher of the record
+  const oneOff = J({ trigger: "teacher_one_off", status: "closed", teacher: { id: "t9", name: "Рахимов Т." }, decision: { kind: "closed", closedReason: "ONE_OFF_ADDED", at: "2026-10-22T04:30:00" } });
+  assert.deepEqual(lines(oneOff), { origin: "Без запроса", by: "Разовый урок добавил преподаватель Рахимов Т., 22.10 09:30", chip: "Разовый урок", result: "Разовый урок добавлен" });
+  // window_expired (a request of the teacher the month border closed)
+  const expired = { origin: "teacher", trigger: "window_expired", status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "closed", closedReason: "LESSON_OUTSIDE_WINDOW", at: "2026-11-01T00:05:00" } };
+  assert.equal(S.decisionResultText(expired), "Не решено вовремя");
+  assert.equal(S.decidedByLine(expired), "Закрыто системой, 01.11 05:05");
+  assert.equal(S.originLine(expired), null, "a request of the teacher keeps no origin line");
+  // day_off (a waiting request decided by the cancellation of a day off)
+  const dayOff = { origin: "teacher", trigger: "day_off", status: "cancelled", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "cancel", by: { id: "o", name: "Юсупова Н." }, at: "2026-10-22T04:30:00" } };
+  assert.equal(S.decisionResultText(dayOff), "Отменено выходным днём");
+  assert.equal(S.decidedByLine(dayOff), "Отменено выходным днём, назначил(а) Юсупова Н., 22.10 09:30");
+  // role_changed
+  const role = { origin: "teacher", trigger: "role_changed", status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "closed", closedReason: "ROLE_CHANGED", at: "2026-10-22T04:30:00" } };
+  assert.equal(S.decisionResultText(role), "Закрыт: Сотрудник стал администратором");
+  assert.equal(S.decidedByLine(role), "Закрыто системой, 22.10 09:30");
+  // the old triggers keep their words
+  assert.equal(S.originLine({ origin: "system", trigger: "manager_move", status: "rescheduled" }), "Перенёс администратор, без запроса");
+  // a technical code never reaches the screen
+  for (const item of [J({ trigger: "manager_cancel" }), restored, kind, oneOff, expired, dayOff, role]) for (const text of Object.values(lines(item))) assert.doesNotMatch(String(text ?? ""), /[a-z]+_[a-z_]+|[A-Z]{3,}_[A-Z_]+/);
+});
+
+test("R3 3 / 4: «Урока не было» belongs to whoever LEADS the lesson now (the substitute too), never to the replaced teacher or a non-teacher; managers do not come to the teacher's pages", () => {
+  const base = { role: "teacher", state: "scheduled", date: "2026-10-20", today: "2026-10-22", startTime: "10:00", now: new Date("2026-10-22T06:00:00Z") };
+  assert.equal(A.teacherCancelOffer({ ...base, otherLeads: true }), null, "the replaced main teacher: the substitute leads");
+  assert.equal(A.teacherCancelOffer({ ...base, otherLeads: false })?.route, "missed", "the substitute (leads it) and the main teacher alike");
+  assert.equal(A.teacherCancelOffer({ ...base, role: "admin" }), null);
+  assert.equal(A.teacherCancelOffer({ ...base, role: "owner" }), null, "rule 38: managers cancel from the lesson sheet, with the kind");
+  assert.equal(A.teacherCancelOffer({ ...base, role: null }), null);
+  const lt = require(path.join(root, "src/lib/lesson-teacher.ts"));
+  assert.equal(lt.lessonBelongsToOther({ teacherId: "sub" }, "main"), true);
+  assert.equal(lt.lessonBelongsToOther({ teacherId: "sub" }, "sub"), false);
+  // how managers reach /teacher/*: they do not (the workspace is the teacher's; AuthGuard sends them to their own home)
+  const { WORKSPACE_ROLES, isRoleAllowed } = require(path.join(root, "src/lib/role-home.ts"));
+  assert.deepEqual([...WORKSPACE_ROLES.teacher], ["teacher"]);
+  assert.equal(isRoleAllowed(["teacher"], { org_role: "owner", role: "teacher" }), false);
+  assert.equal(isRoleAllowed(["teacher"], { org_role: "admin", role: "teacher" }), false);
+  assert.match(read("src/app/teacher/layout.tsx"), /allowedRoles=\{\["teacher"\]\}/);
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /role: user\?\.org_role \?\? user\?\.role \?\? null, otherLeads: ledByOther/, file);
+});
+
+test("R3 6: F9 is ONE compact row with a count that opens; «Замена снята» is its own line; the request list stays on the first screen of a phone", () => {
+  const { AssignedLessons, ClearedLessons, assignedTitle } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
+  const entries = [1, 2].map((n) => ({ groupId: `g${n}`, groupName: `9-${n}`, lessonId: `l${n}`, lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", replacing: { id: "t", name: "Иванов Иван" } }));
+  assert.equal(assignedTitle(1), "Вам назначена замена");
+  assert.equal(assignedTitle(2), "Вам назначены замены: 2");
+  const html = renderToStaticMarkup(React.createElement(AssignedLessons, { entries }));
+  assert.match(html, /<details/);
+  assert.doesNotMatch(html, /<details[^>]* open/, "closed by default: one row");
+  assert.match(textOf(html), /^Вам назначены замены: 2/);
+  assert.match(html, /<summary/);
+  assert.equal(renderToStaticMarkup(React.createElement(ClearedLessons, { entries: [] })), "");
+  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{entries\} \/>\s+<ClearedLessons entries=\{cleared\} \/>/);
+  assert.ok(S.expiringLine(2).length < 80, "one line on a phone, not a paragraph");
+});
+
+test("R3 8: a required field switches the button off and says why in a short line (restore, kind, cancel, the exams tick, the cancel panel)", () => {
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /disabled=\{busy \|\| Boolean\(reasonProblem\)/, "restore / kind / cancel / move: no reason - no button");
+  assert.match(sheet, /data-testid="reason-hint"/);
+  const dialogs = read("src/components/schedule/weekly-lesson-dialogs.tsx");
+  assert.match(dialogs, /Boolean\(exams && !releaseExams\)/, "the exams tick switches «Изменить расписание» off");
+  assert.match(dialogs, /data-testid="exams-confirm-hint"/);
+  const { LessonCancelPanel } = require(path.join(root, "src/components/substitutions/lesson-cancel-panel.tsx"));
+  const render = (reason, binding) => renderToStaticMarkup(React.createElement(LessonCancelPanel, { date: "2026-10-20", binding, reason, onReason() {}, busy: false, onConfirm() {}, onBack() {} }));
+  const empty = render("", { loading: false, attached: false, canCancel: true });
+  assert.match(empty, /data-testid="reason-hint"/);
+  assert.match(empty, /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "empty reason: the button is off");
+  assert.doesNotMatch(render("Болел", { loading: false, attached: false, canCancel: true }), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/);
+  assert.match(render("Болел", { loading: false, attached: false, canCancel: false, message: "Идёт экзамен" }), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "a blocking exam: off");
+  assert.doesNotMatch(render("Болел", undefined), /<button[^>]*disabled=""[^>]*>Урока не было<\/button>/, "the list of missed lessons asks no exam: the button waits for nothing");
+  const T2 = require(path.join(root, "src/lib/teacher-cancel.ts"));
+  assert.equal(T2.cancelReasonProblem(""), "Укажите причину — не менее 3 символов");
+  assert.equal(T2.cancelReasonProblem("ок"), "Укажите причину — не менее 3 символов");
+  assert.equal(T2.cancelReasonProblem(" abc "), null);
+  assert.match(T2.cancelReasonProblem("x".repeat(501)), /не более 500/);
+});
+
+test("R3 10 / 13 / 12: the panel keeps the variant in state; the menu item is one line; the consequences sit under a «?»", () => {
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) {
+    const page = read(file);
+    assert.match(page, /setCancelVariant\(offer\.variant\)/, file);
+    assert.match(page, /oneOff=\{cancelVariant === "own_one_off"\}/, file);
+  }
+  const C = require(path.join(root, "src/components/substitutions/teacher-lesson-controls.tsx"));
+  const act = { moveKind: "none", requestKind: "none", setMoveOpen() {}, setRequestOpen() {} };
+  const [row] = C.teacherLessonMenuItems(act, () => {}, { offer: { route: "missed", variant: "not_held", label: "Урока не было" }, open() {} });
+  assert.deepEqual([row.label, row.hint], ["Урока не было", undefined], "no 3-line hint in the menu");
+  const { CancellationKindField } = require(path.join(root, "src/components/attendance/cancellation-kind-field.tsx"));
+  const html = renderToStaticMarkup(React.createElement(CancellationKindField, { value: "centre", onChange() {}, canChooseKind: true, help: S.CANCEL_CONSEQUENCES }));
+  assert.match(textOf(html), /Как учесть в оплате/);
+  assert.doesNotMatch(html, /Причина отмены с точки зрения оплаты/);
+  assert.doesNotMatch(textOf(html), /из пакета урок не списывается/, "the long explanation is closed until the «?» is pressed");
+  assert.match(html, /aria-label="Подробнее"/);
+});
+
+test("R3 14 / 15: the dialogs of a day off close a second press with a ref; a created day off names the lessons it did NOT cancel, with the reasons", () => {
+  assert.match(read("src/components/schedule/day-off-dialog.tsx"), /sending\.current = true/);
+  const panel = read("src/components/schedule/days-off-panel.tsx");
+  assert.match(panel, /sending\.current = true/, "void");
+  assert.match(panel, /continuingRef\.current = true/, "«Продолжить»");
+  assert.match(panel, /setNoticeLines\(result\.blocked\.map\(dayOffLessonLine\)\)/);
+  const P = require(path.join(root, "src/lib/payf.ts"));
+  assert.equal(P.dayOffLessonLine({ groupId: "g", groupName: "9-А", lessonId: "l", date: "2026-10-30", startTime: "10:00", endTime: "11:00", reason: "Урок уже начался" }), "9-А · 30.10 · 10:00–11:00 — Урок уже начался");
+});
+
+test("R3 16: a pack decision shows what the server said about each DECIDED item (a holiday instead of «по вине центра», a released substitute)", () => {
+  const items = [{ id: "a", group: { name: "9-А" }, lesson: { date: "2026-10-28", startTime: "10:00" } }, { id: "b", group: { name: "8-Б" }, lesson: { date: "2026-10-29", startTime: "11:00" } }];
+  const out = { updated: 2, skipped: [], results: [
+    { id: "a", kind: "cancel", cancellationKind: "holiday", warnings: [{ code: "CANCELLED_AS_HOLIDAY", message: "Дата под выходным: отменено как праздник" }] },
+    { id: "b", kind: "cancel", cancellationKind: "centre", warnings: [{ code: "SUBSTITUTE_RELEASED", message: "Замена снята: Рахимов Т." }] },
+  ] };
+  const toast = S.bulkToast(out, items);
+  assert.equal(toast.type, "warning");
+  assert.equal(toast.text, "Решено: 2. Не удалось: 0");
+  assert.deepEqual(toast.details.map((line) => line.replace(/ср|чт|пн|вт|пт|сб|вс/, "")).length, 2);
+  assert.match(toast.details[0], /^9-А, .*28\.10 10:00: Дата под выходным: отменено как праздник$/);
+  assert.match(toast.details[1], /^8-Б, .*29\.10 11:00: Замена снята: Рахимов Т\.$/);
+  assert.equal(S.bulkToast({ updated: 1, skipped: [], results: [{ id: "a", kind: "cancel", warnings: [] }] }, items).type, "success");
+  assert.equal(S.bulkToast({ updated: 1, skipped: [] }, items).type, "success", "an older server: as before");
+});
+
+test("R3 17: the move dialog runs lesson-move-check, and REQUEST_REJECTED switches «Перенести» off with the reason", () => {
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /substitutionsApi\.lessonMoveCheck\(groupId, \{ lessonId: lesson\.id, lessonDate: lesson\.date, newDate, startTime: from, endTime: to \}\)/);
+  const lines = A.lessonMoveCheckLines({ ok: false, code: "REQUEST_REJECTED", message: "Администратор отклонил заявку по этому уроку", teacherConflicts: [], groupConflicts: [], warnings: [] });
+  assert.equal(lines.ok, false);
+  assert.deepEqual(lines.lines, ["Администратор отклонил заявку по этому уроку"]);
+  assert.equal(A.moveConfirmDisabled({ checking: false, failed: false, check: { ok: false } }), true, "the button is off on an answer that is not ok");
+  assert.match(sheet, /disabled=\{busy \|\| Boolean\(reasonProblem\) \|\| \(\(mode === "cancel" \|\| mode === "reschedule"\) && examState\.blocked\) \|\| \(mode === "reschedule" && confirmDisabled\)\}/);
+});
+
+test("R3 18 / 20: the rate hint reads the org role only; every code has words of its own", () => {
+  assert.doesNotMatch(read("src/components/groups/lesson-teacher-dialog.tsx"), /org_role \?\? user\?\.role/);
+  assert.equal(T.rateMissingText("teacher"), T.rateMissingText("admin"), "anything but the owner is told to ask the owner");
+  assert.match(T.rateMissingText(null), /владелец/);
+  const text = (code, message) => S.substitutionErrorText(coded(code, message));
+  assert.match(text("DAY_OFF_EXISTS"), /уже назначен выходной/);
+  assert.equal(text("DAY_OFF_EXISTS", "На эти даты уже назначен выходной «Хайит»"), "На эти даты уже назначен выходной «Хайит»", "the server's own sentence names the day off");
+  assert.equal(text("NO_CHANGES"), "Укажите хотя бы одно изменение постоянного расписания");
+  assert.match(text("DECISION_FAILED"), /Не удалось выполнить это решение/);
+  assert.match(text("GROUP_NOT_FOUND"), /Группа не найдена/);
+  assert.match(text("EXAMS_NEED_CONFIRMATION"), /подтвердите, что они вернутся в черновики/);
+  assert.equal(W.refusalText(coded("EXAMS_NEED_CONFIRMATION"), "x"), text("EXAMS_NEED_CONFIRMATION"));
+  assert.equal(S.bulkSkippedLine({ id: "a", code: "DECISION_FAILED", message: "server text" }), "server text", "a pack line keeps the server's sentence");
+});
+
+test("R3 19: ONE panel and ONE reason check for the dashboard's missed-lesson dialog, the lesson panel and the manager's modal", () => {
+  const dash = read("src/app/teacher/dashboard/page.tsx");
+  assert.equal((dash.match(/<LessonCancelPanel/g) || []).length, 2, "the lesson panel and the missed-lesson dialog");
+  assert.doesNotMatch(dash, /Причина отмены<\/p>/, "the built-in copy is gone");
+  assert.match(dash, /cancelReasonProblem\(reason\)/);
+  const modal = read("src/components/attendance/cancel-missed-lesson-modal.tsx");
+  assert.match(modal, /cancelReasonProblem\(text\)/);
+  assert.match(modal, /Boolean\(cancelReasonProblem\(reason\)\)/);
+  assert.match(read("src/app/teacher/schedule/page.tsx"), /cancelReasonProblem\(reason\)/);
+});
+
+test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and replacedBy - the panel and the rules use them (a fixture of the real shape)", () => {
+  const summary = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/w1/dashboard_summary.json"), "utf8"));
+  const [own, rejected, replaced, copy] = summary.todayLessons;
+  const now = Date.UTC(2026, 9, 28, 4, 0);
+  const lt = require(path.join(root, "src/lib/lesson-teacher.ts"));
+  // S27: only the one-off he added himself, not the copy of a move
+  assert.equal(A.isOwnOneOff(own, "t-main"), true);
+  assert.equal(A.isOwnOneOff(copy, "t-main"), false);
+  assert.equal(A.isOwnOneOff(rejected, "t-main"), false);
+  const offer = (lesson, ledByOther = false) => A.teacherCancelOffer({ role: "teacher", otherLeads: ledByOther, state: "scheduled", date: lesson.occurrenceDate, today: "2026-10-27", startTime: lesson.startTime, ownOneOff: A.isOwnOneOff(lesson, "t-main") });
+  assert.equal(offer(own)?.variant, "own_one_off");
+  assert.equal(offer(copy), null);
+  assert.equal(offer(rejected), null);
+  // F2: the request mark of the summary switches «Перенести» off
+  const mark = (lesson) => S.teacherMoveControl({ role: "teacher", userId: "t-main", lessonTeacherId: lesson.teacherId, isSubstitution: lesson.isSubstitution, lessonStatus: "scheduled", startsAtMs: now + 10 * 3600_000, nowMs: now, mark: lesson.substitutionRequest }).kind;
+  assert.equal(mark(rejected), "rejected");
+  assert.equal(mark(own), "button");
+  // F10: the lesson of the main teacher that a substitute leads: stays, says «Замена: имя», is not his to start / move / cancel
+  const info = lt.teacherInfoOfOccurrence(replaced);
+  assert.deepEqual([info.teacherId, info.isSubstitution, info.defaultTeacherId], ["t-sub", true, "t-main"]);
+  assert.equal(lt.lessonBelongsToOther(info, "t-main"), true);
+  assert.deepEqual(S.occurrenceChips(replaced, "t-main").map((c) => c.text), ["Замена: Рахимов Т."]);
+  assert.equal(A.teacherCancelOffer({ role: "teacher", otherLeads: lt.lessonBelongsToOther(info, "t-main"), state: "scheduled", date: "2026-10-20", today: "2026-10-27", startTime: "10:00" }), null);
+  assert.equal(S.teacherMoveControl({ role: "teacher", userId: "t-main", lessonTeacherId: replaced.teacherId, isSubstitution: true, lessonStatus: "scheduled", startsAtMs: now + 10 * 3600_000, nowMs: now }).kind, "none");
+  assert.equal(lt.teacherInfoOfOccurrence({}), null, "an older server: nothing to say");
+  for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) {
+    const page = read(file);
+    assert.match(page, /setActiveTeacherInfo\(teacherInfoOfOccurrence\(activeLesson\)\)/, file);
+    assert.match(page, /setActiveRequestMark\(activeLesson\.substitutionRequest \?\? null\)/, file);
+    assert.match(page, /data-testid="led-by-other"/, file);
+    assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, user\?\.id\)/, file);
+  }
+  assert.match(read("src/app/teacher/dashboard/page.tsx"), /if \(lesson\.replacedBy\) return \[\];/, "no «Начните урок» for a lesson a substitute leads");
+});
+
+test("lead notes: the state of the lesson is a badge, «каб. 12» does not break; the kind of the decision is brought into view on a phone", () => {
+  const sheet = read("src/components/groups/lesson-action-sheet.tsx");
+  assert.match(sheet, /data-testid="sheet-badge"/);
+  const overview = read("src/components/groups/group-schedule-overview.tsx");
+  assert.match(overview, /room\.replace\(\/ \/g, "\\u00a0"\)/, "a non-breaking space inside the room");
+  assert.doesNotMatch(overview, /presentation\.label, \.\.\.\(room/, "the state is not a word inside the line");
+  assert.match(overview, /badge=\{presentation \? \{ label: presentation\.label, className: presentation\.badgeClassName \} : null\}/);
+  const dialog = read("src/components/substitutions/decision-dialog.tsx");
+  assert.match(dialog, /scrollIntoView\(\{ block: "nearest" \}\)/);
+  assert.match(read("src/components/attendance/cancellation-kind-field.tsx"), /Как учесть в оплате/);
+});
+
+test("R3 ops: the group coming back from the archive shows the notes of the server (a day off that did not apply); the reason of a coded refusal reaches the person", () => {
+  const dlg = read("src/components/groups/group-archive-dialog.tsx");
+  assert.match(dlg, /onRestored\("Группа возвращена из архива", warningTexts\(restored\)\)/);
+  assert.match(dlg, /sending\.current = true/);
+  assert.match(read("src/components/groups/group-detail-view.tsx"), /showToast\(message, notes\?\.length \? "warning" : "success", notes\)/);
 });

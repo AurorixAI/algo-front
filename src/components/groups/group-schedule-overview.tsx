@@ -513,8 +513,9 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         const addedBy = lesson ? addedByLine(lesson) : null;
         const notes = [...(addedBy ? [addedBy] : []), ...(movedFromLine ? [movedFromLine] : []), ...(lesson ? sheetNotes({ moved, movedToText: outcome?.movedTo ? movedToLabel(outcome.movedTo) : null, reason: reasonText, cancelled: lessonState === "cancelled" }) : [])];
         const room = lesson ? roomLine(lesson) : null;
+        // the room never breaks in the middle («каб. 12»): a non-breaking space; the state is a badge of its own
         const subtitle = lesson && presentation
-          ? [`${formatIsoDateLabel(lesson.date, { weekday: "short", day: "numeric", month: "long" }).replace(".", "")}`, `${startTime}–${lesson.endTime || "—"}`, presentation.label, ...(room ? [room] : [])].join(" · ")
+          ? [`${formatIsoDateLabel(lesson.date, { weekday: "short", day: "numeric", month: "long" }).replace(".", "")}`, `${startTime}–${lesson.endTime || "—"}`, ...(room ? [room.replace(/ /g, "\u00a0")] : [])].join(" · ")
           : "";
         return (
           <LessonActionSheet
@@ -522,6 +523,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             groupId={groupId}
             title={lesson ? lessonTitle(lesson, groupName) : "Урок"}
             subtitle={subtitle}
+            badge={presentation ? { label: presentation.label, className: presentation.badgeClassName } : null}
             teacherLine={teacherLine(info, NO_LESSON_TEACHER_TEXT)}
             notes={notes}
             marks={lesson ? lessonMarks(attendance?.substitutionRequests?.[key], null) : []}

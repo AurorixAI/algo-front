@@ -118,13 +118,11 @@ export interface TeacherCancelOffer {
   route: "missed" | "attendance";
   /** `own_one_off`: a one-off lesson HE added himself (W1 S27) - the one lesson to come he may cancel. */
   variant: "not_held" | "own_one_off";
+  /** One line, no second line: the panel that opens says the rest. */
   label: string;
-  hint: string;
 }
 
-export const TEACHER_NOT_HELD_HINT = "Урок не состоялся. Потребуется причина.";
 export const CANCEL_ONE_OFF_LABEL = "Отменить разовый урок";
-export const CANCEL_ONE_OFF_HINT = "Урок исчезнет из расписания. Потребуется причина.";
 
 /** W1 S27: a one-off lesson the teacher added himself and that is not a copy of a move (`createdBy` comes with the occurrence). */
 export function isOwnOneOff(lesson: { isOneOff?: boolean; movedFrom?: unknown; createdBy?: { id?: string | null } | null }, userId: string | null | undefined): boolean {
@@ -135,14 +133,21 @@ export function isOwnOneOff(lesson: { isOneOff?: boolean; movedFrom?: unknown; c
  * «Урока не было» for the teacher: only for a lesson that has passed and was never started (or, started with nobody on its roster, which cannot be finished).
  * A lesson to come is never offered: he asks «Не смогу провести» (the administrator decides).  ONE function for the schedule and the dashboard.
  */
-export function teacherCancelOffer(input: { state: string | null | undefined; date: string; today: string; startTime?: string | null; rosterEmpty?: boolean; now?: Date; ownOneOff?: boolean }): TeacherCancelOffer | null {
+export function teacherCancelOffer(input: {
+  /** The viewer's org role: only a teacher is offered these rows (the owner / administrator cancel from the lesson sheet, with the kind of the cancellation - rule 38). */
+  role: string | null | undefined;
+  /** Somebody else leads this lesson now (the substitute of a replaced lesson; for the replaced teacher too): not his to cancel.  The substitute himself leads it and is offered. */
+  otherLeads?: boolean;
+  state: string | null | undefined; date: string; today: string; startTime?: string | null; rosterEmpty?: boolean; now?: Date; ownOneOff?: boolean;
+}): TeacherCancelOffer | null {
+  if (input.role !== "teacher" || input.otherLeads) return null;
   const state = input.state || "scheduled";
-  const notHeld = (route: TeacherCancelOffer["route"]): TeacherCancelOffer => ({ route, variant: "not_held", label: CANCEL_PAST_LESSON_LABEL, hint: TEACHER_NOT_HELD_HINT });
+  const notHeld = (route: TeacherCancelOffer["route"]): TeacherCancelOffer => ({ route, variant: "not_held", label: CANCEL_PAST_LESSON_LABEL });
   if (state === "in_progress") return input.rosterEmpty ? notHeld("attendance") : null;
   if (state !== "scheduled") return null;
   if (lessonHasStarted(input)) return notHeld("missed");
   // W1 S27: a lesson to come is not his to cancel - except the one-off lesson he created himself (the server: 403 for every other)
-  return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL, hint: CANCEL_ONE_OFF_HINT } : null;
+  return input.ownOneOff ? { route: "attendance", variant: "own_one_off", label: CANCEL_ONE_OFF_LABEL } : null;
 }
 
 /** The label of «assign» by situation: a future lesson «Назначить замену» (or «Заменить преподавателя» when a substitute is already there), a past one «Назначить того, кто провёл». */

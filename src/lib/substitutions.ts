@@ -237,12 +237,25 @@ export function isManagerMove(item: Pick<SubstitutionItem, "origin" | "trigger">
   return item.origin === "system" && item.trigger === "manager_move";
 }
 
+/** W1: what the lesson sheet / the teacher / the system did to a lesson without any request: each has its own words in the journal «Замены». */
+const EVENT_TRIGGERS = new Set(["manager_cancel", "teacher_cancel", "manager_restore", "manager_reason_change", "teacher_one_off"]);
+const EVENT_CHIP: Record<string, string> = {
+  manager_cancel: "Отмена", teacher_cancel: "Урока не было", manager_restore: "Возврат", manager_reason_change: "Вид отмены", teacher_one_off: "Разовый урок",
+};
+
+/** «администратор Каримова Н.» / «владелец Юсупова Н.» - who did it, by the role the server names (an administrator when it does not). */
+function managerWho(by: { name?: string | null; role?: string | null } | null | undefined): string {
+  const name = (by?.name ?? "").trim();
+  return `${by?.role === "owner" ? "владелец" : "администратор"}${name ? ` ${name}` : ""}`;
+}
+
 /**
  * The line under the teacher of a record the system made (no request of the teacher): a lesson moved straight from its sheet says who moved it,
  * anything else is «Запрос создан системой»; null for a request of the teacher.
  */
 export function originLine(item: SubstitutionItem): string | null {
   if (item.origin !== "system") return null;
+  if (item.trigger && EVENT_TRIGGERS.has(item.trigger)) return "Без запроса";
   if (isDirectSubstitution(item)) return "Заменил администратор, без запроса";
   if (item.status === "rescheduled") return item.decision?.via === "teacher_move" ? "Перенёс сам, без запроса" : "Перенёс администратор, без запроса";
   return "Запрос создан системой";
@@ -250,6 +263,7 @@ export function originLine(item: SubstitutionItem): string | null {
 
 /** The reason chip: a move without a request is «Перенос», a substitution without a request is «Замена» (their machine reason «other» says nothing); otherwise the teacher's reason. */
 export function reasonChipText(item: SubstitutionItem): string {
+  if (item.origin === "system" && item.trigger && EVENT_CHIP[item.trigger]) return EVENT_CHIP[item.trigger];
   if (item.origin === "system" && item.status === "rescheduled") return "Перенос";
   if (isDirectSubstitution(item)) return "Замена";
   return item.reasonLabel || reasonLabelOf(item.reasonCode);
@@ -271,6 +285,19 @@ export function decidedByLine(item: SubstitutionItem): string {
     const substitute = (decision.substitute?.name ?? "").trim();
     return substitute ? `Заменял(а): ${substitute}` : "";
   }
+  const stamped = (text: string) => [text, short].filter(Boolean).join(", ");
+  // W1: every trigger of a lesson event says WHO did it, in its own words
+  switch (item.trigger) {
+    case "manager_cancel": return stamped(`Отменил ${managerWho(decision.by)}`);
+    case "teacher_cancel": return stamped(`Урока не было — преподаватель${by ? ` ${by}` : ""}`);
+    case "manager_restore": return stamped(`Вернул урок ${managerWho(decision.by)}`);
+    case "manager_reason_change": return stamped(`Вид отмены изменил ${managerWho(decision.by)}`);
+    case "teacher_one_off": return stamped(`Разовый урок добавил преподаватель${item.teacher?.name?.trim() ? ` ${item.teacher.name.trim()}` : ""}`);
+    case "day_off": return stamped(`Отменено выходным днём${by ? `, назначил(а) ${by}` : ""}`);
+    case "window_expired":
+    case "role_changed": return stamped("Закрыто системой");
+    default: break;
+  }
   if (decision.via === "system" || decision.kind === "closed") return short ? `Закрыто системой, ${short}` : "Закрыто системой";
   if (decision.kind === "withdraw" || item.status === "withdrawn") return short ? `Отозван учителем, ${short}` : "Отозван учителем";
   // P1.1: a move says WHO moved the lesson: the teacher himself or an administrator
@@ -289,8 +316,19 @@ export function substitutionArrowText(item: Pick<SubstitutionItem, "teacher" | "
   return teacher ? `${teacher} → ${substitute}` : `Замена: ${substitute}`;
 }
 
+/** W1: closings that are EVENTS of the lesson, not the end of a request: the journal states them as they are. */
+const CLOSED_AS_EVENT: Record<string, string> = {
+  LESSON_RESTORED: "Урок возвращён",
+  KIND_CHANGED: "Вид отмены изменён",
+  ONE_OFF_ADDED: "Разовый урок добавлен",
+  LESSON_OUTSIDE_WINDOW: "Не решено вовремя",
+};
+
 /** A substitution taken off says who took it off and when: «Замену снял(а) Каримова Н., 22.10 09:30»; any other closing keeps «Закрыт: <причина>». */
 export function closedResultText(item: SubstitutionItem): string {
+  // W1: the records the lesson sheet / the system wrote say what happened, not «Закрыт: …»
+  const own = CLOSED_AS_EVENT[String(item.decision?.closedReason ?? "")];
+  if (own) return own;
   if (item.decision?.closedReason !== "ASSIGNMENT_CLEARED") return `Закрыт: ${closedReasonText(item)}`;
   const by = (item.decision.by?.name ?? "").trim();
   const when = shortWhen(item.decision.at);
@@ -327,7 +365,7 @@ export function decisionResultText(item: SubstitutionItem): string {
   switch (item.status) {
     case "substituted": return substitutionArrowText(item);
     case "rescheduled": return decision?.movedTo ? movedText(decision.movedTo) : "Урок перенесён";
-    case "cancelled": return LESSON_CANCELLED_LABEL;
+    case "cancelled": return item.trigger === "teacher_cancel" ? "Урока не было" : item.trigger === "day_off" ? "Отменено выходным днём" : LESSON_CANCELLED_LABEL;
     case "rejected": return "Запрос отклонён";
     case "withdrawn": return "Отозван учителем";
     case "closed": return closedResultText(item);
@@ -365,6 +403,8 @@ export interface ErrorContext {
   teacherName?: string | null;
   /** The teacher who teaches the lesson: «Этот урок ведёт {имя}». */
   lessonTeacherName?: string | null;
+  /** W1: the viewer's org role.  «Обратитесь к администратору» is for the teacher's cabinet alone: the owner / administrator get the neutral sentence. */
+  role?: string | null;
 }
 
 /** «У Рахимов Т. уже есть урок «8-В» вт, 27.10 10:00–11:30. Выберите другого преподавателя.» */
@@ -384,7 +424,10 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "SUBSTITUTION_NOT_FOUND": return "Запрос на замену не найден";
     case "NOT_REQUEST_OWNER": return "Это запрос другого преподавателя";
     case "MANAGER_ASSIGNS_DIRECTLY": return "Вы можете назначить замену сами: меню урока «Заменить преподавателя»";
-    case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл. Обратитесь к администратору";
+    case "LESSON_ALREADY_STARTED": {
+      const own = detail?.message?.trim() || "Урок уже начался или прошёл";
+      return context.role === "teacher" ? `${own.replace(/\.$/, "")}. Обратитесь к администратору` : own;
+    }
     // W1 (S2-S7): one road of a cancellation, in the words of the screen (the server texts are the same; these stay if an older answer has none)
     case "TEACHER_CANNOT_CANCEL": return "Отменить урок может администратор. Нажмите «Не смогу провести»";
     case "ALREADY_CANCELLED": return "Урок уже отменён. Обновите страницу";
@@ -393,6 +436,11 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "LESSON_CHANGED": return "Урок уже изменили: обновите страницу и повторите";
     case "REQUEST_REJECTED": return MOVE_REJECTED_HINT;
     case "LESSON_IN_PROGRESS": return "Урок идёт: сначала завершите его, затем назначьте того, кто провёл";
+    case "DAY_OFF_EXISTS": return detail?.message?.trim() || "На эти даты уже назначен выходной с другой причиной";
+    case "NO_CHANGES": return "Укажите хотя бы одно изменение постоянного расписания";
+    case "DECISION_FAILED": return "Не удалось выполнить это решение. Остальные не затронуты — повторите позже";
+    case "GROUP_NOT_FOUND": return "Группа не найдена: возможно, она удалена или принадлежит другому центру";
+    case "EXAMS_NEED_CONFIRMATION": return "К урокам, которые сдвинутся, привязаны экзамены: подтвердите, что они вернутся в черновики";
     case "LESSON_TOO_OLD": return "Урок старше 7 дней — его закрывает администратор или владелец.";
     case "SERIES_ENDED": return detail?.message?.trim() || "Постоянный урок прекращается раньше этой даты: перенесите на более раннюю дату";
     case "CANCELLED_BY_DAY_OFF": return "Урок отменён выходным днём: чтобы изменить причину, измените сам выходной";
@@ -825,7 +873,7 @@ export function availableDecisions(item: Pick<SubstitutionItem, "status" | "over
 
 export const SUBSTITUTE_NOTE_HINT = "Заменяющий ничего не подтверждает: договоритесь с ним сами. Урок появится у него в расписании.";
 export const NO_FREE_TEACHERS_TEXT = "Свободных преподавателей на это время нет. Перенесите или отмените урок.";
-export const CANCEL_CONSEQUENCES = "На отменённом уроке ученики не отмечаются, в пакете занятий он не списывается, заработок преподавателя за него не засчитывается. Вернуть урок можно в расписании группы, пока он не начался.";
+export const CANCEL_CONSEQUENCES = "Ученики не отмечаются, из пакета урок не списывается, преподавателю не оплачивается. Вернуть урок можно, пока он не начался.";
 export const REJECT_REASON_LABEL = "Причина отказа (её увидит преподаватель)";
 export const CANCEL_REASON_LABEL = "Причина отмены";
 export const MOVE_REASON_LABEL = "Причина переноса";
@@ -997,11 +1045,15 @@ export function decisionToast(out: Pick<DecideOut, "item" | "result">): string {
 }
 
 /** «Решено: 5. Не удалось: 2» and a line per refusal. */
-export function bulkToast(out: Pick<DecideBulkOut, "updated" | "skipped">, items: SubstitutionItem[]): { text: string; type: "success" | "warning"; details: string[] } {
+export function bulkToast(out: Pick<DecideBulkOut, "updated" | "skipped"> & { results?: DecideBulkOut["results"] }, items: SubstitutionItem[]): { text: string; type: "success" | "warning"; details: string[] } {
   const skipped = out.skipped ?? [];
   const byId = new Map(items.map((item) => [item.id, item]));
+  const prefixOf = (id: string) => { const item = byId.get(id); return item ? `${item.group.name}, ${dayAndDateLabel(item.lesson.date)} ${item.lesson.startTime}: ` : ""; };
   const details = skipped.map((entry) => bulkSkippedLine(entry, byId.get(entry.id)));
-  return { text: `Решено: ${out.updated}. Не удалось: ${skipped.length}`, type: skipped.length > 0 ? "warning" : "success", details };
+  // W1: what the server said about a DECIDED item (a holiday instead of «по вине центра», a released substitute) is never lost in a pack
+  const notes = (out.results ?? []).flatMap((row) => (row.warnings ?? []).map((warning) => `${prefixOf(row.id)}${(warning.message ?? "").trim()}`).filter((line) => !line.endsWith(": ")));
+  const lines = [...details, ...notes];
+  return { text: `Решено: ${out.updated}. Не удалось: ${skipped.length}`, type: lines.length > 0 ? "warning" : "success", details: lines };
 }
 
 /** W1: the refusals of one pack item that have their own words (the same as the single decision). */
@@ -1034,7 +1086,7 @@ export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number;
 export const EXPIRING_LABEL = "истекают через ≤3 дня";
 export function expiringLine(count: number | null | undefined): string | null {
   const n = Math.max(0, Math.floor(Number(count) || 0));
-  return n > 0 ? `Запросов, которые истекают через ≤3 дня: ${n}. Решите их до 1-го числа — потом они закроются как «Не решено вовремя».` : null;
+  return n > 0 ? `Истекают через ≤3 дня: ${n}. Решите до 1-го числа — потом запрос закроется.` : null;
 }
 
 // ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────

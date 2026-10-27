@@ -82,7 +82,7 @@ test("every route the screens call is in the contract and in api.ts", () => {
 });
 
 test("every B2 error code is named in the front (one function words them), nothing is left to a guess", () => {
-  const b2 = ["SUBSTITUTION_NOT_FOUND", "SUBSTITUTION_ALREADY_DECIDED", "NOT_REQUEST_OWNER", "MANAGER_ASSIGNS_DIRECTLY", "LESSON_ALREADY_STARTED", "NO_LESSONS_REQUESTABLE",
+  const b2 = ["SUBSTITUTION_NOT_FOUND", "SUBSTITUTION_ALREADY_DECIDED", "NOT_REQUEST_OWNER", "MANAGER_ASSIGNS_DIRECTLY", "NO_LESSONS_REQUESTABLE",
     "TOO_MANY_LESSONS", "LESSON_TOO_FAR", "COMMENT_REQUIRED", "SUBSTITUTE_IS_REQUESTER", "MOVE_SAME_SLOT", "MOVE_IN_PAST", "MOVE_TOO_FAR", "GROUP_BUSY",
     "MOVE_FIELDS_REQUIRED", "PERIOD_TOO_LONG", "REASON_REQUIRED", "TEACHER_REQUIRED"];
   for (const code of b2) {
@@ -96,12 +96,18 @@ test("every B2 error code is named in the front (one function words them), nothi
 });
 
 test("the texts of the server for the codes the front words are the same sentences (no drift between contract and screens)", () => {
-  const same = ["SUBSTITUTION_NOT_FOUND", "NOT_REQUEST_OWNER", "MANAGER_ASSIGNS_DIRECTLY", "LESSON_ALREADY_STARTED", "NO_LESSONS_REQUESTABLE", "TOO_MANY_LESSONS", "LESSON_TOO_FAR",
+  const same = ["SUBSTITUTION_NOT_FOUND", "NOT_REQUEST_OWNER", "MANAGER_ASSIGNS_DIRECTLY", "NO_LESSONS_REQUESTABLE", "TOO_MANY_LESSONS", "LESSON_TOO_FAR",
     "COMMENT_REQUIRED", "SUBSTITUTE_IS_REQUESTER", "MOVE_SAME_SLOT", "MOVE_IN_PAST", "MOVE_TOO_FAR", "GROUP_BUSY", "MOVE_FIELDS_REQUIRED", "PERIOD_TOO_LONG"];
   for (const code of same) {
     const error = Object.assign(new Error("server"), { code, detail: { code, message: "server" } });
     assert.equal(S.substitutionErrorText(error), contract["x-errors"][code].message, code);
   }
+  // W1 R3: «Обратитесь к администратору» is for the teacher's cabinet alone; the owner / administrator get the neutral sentence (or the server's own text)
+  const started = Object.assign(new Error(""), { code: "LESSON_ALREADY_STARTED", detail: { code: "LESSON_ALREADY_STARTED" } });
+  assert.equal(S.substitutionErrorText(started, undefined, { role: "teacher" }), contract["x-errors"].LESSON_ALREADY_STARTED.message);
+  assert.equal(S.substitutionErrorText(started), "Урок уже начался или прошёл");
+  assert.equal(S.substitutionErrorText(started, undefined, { role: "admin" }), "Урок уже начался или прошёл");
+  assert.equal(S.substitutionErrorText(started, undefined, { role: "owner" }), "Урок уже начался или прошёл");
 });
 
 test("every refusal of the fixtures is in the unified format and its code is in the contract or in the pack B catalogue", () => {
@@ -242,8 +248,9 @@ test("[chain 3] a cancellation: the consequences of decision 3 in the words of t
   assert.equal(S.decisionToast(decided), "Урок отменён");
   assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Урок отменён", tone: "gray" });
   // W1 F4 (D18): no «стоимость месяца не меняется» (a cancellation «по вине центра» may be deducted - the kind field says so); a cancelled lesson CAN be returned (F3)
-  assert.equal(S.CANCEL_CONSEQUENCES, "На отменённом уроке ученики не отмечаются, в пакете занятий он не списывается, заработок преподавателя за него не засчитывается. Вернуть урок можно в расписании группы, пока он не начался.");
+  assert.equal(S.CANCEL_CONSEQUENCES, "Ученики не отмечаются, из пакета урок не списывается, преподавателю не оплачивается. Вернуть урок можно, пока он не начался.");
   assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется|не вернётся/);
+  assert.ok(S.CANCEL_CONSEQUENCES.length < 140, "short: it sits under a «?»");
   assert.deepEqual(S.buildDecide("cancel", { reason: " Преподаватель болен, замены нет " }), { decision: "cancel", reason: "Преподаватель болен, замены нет", cancellationKind: "centre", expectedStatus: "pending" }, "the default kind is «по вине центра»");
   assert.deepEqual(S.buildDecide("cancel", { reason: "Праздник", cancellationKind: "holiday" }), { decision: "cancel", reason: "Праздник", cancellationKind: "holiday", expectedStatus: "pending" });
   assert.deepEqual(S.buildBulk(["a", "b"], "cancel", { reason: "Праздник", cancellationKind: "holiday" }), { ids: ["a", "b"], decision: "cancel", reason: "Праздник", cancellationKind: "holiday" });
@@ -468,8 +475,8 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
   }
   const cancel = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "cancel", binding: { state: "ok", title: "Контрольная №3", canCancel: false } }))));
   assert.match(cancel, /Причина отмены/);
-  assert.match(cancel, /На отменённом уроке ученики не отмечаются/);
-  assert.match(cancel, /Причина отмены с точки зрения оплаты/);                       // W1 F4: the kind of the cancellation is asked here too
+  assert.match(cancel, /Как учесть в оплате/);                                         // W1 F4 + lead note: the kind of the cancellation is asked here too, under a short title
+  assert.doesNotMatch(cancel, /Ученики не отмечаются/, "the long explanation is under a «?»");
   assert.match(cancel, /По вине центра/);
   assert.match(cancel, /Экзамен «Контрольная №3» уже идёт — отменить урок нельзя/);
   const reject = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item, { kind: "reject" }))));

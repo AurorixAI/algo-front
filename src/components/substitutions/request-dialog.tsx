@@ -103,7 +103,7 @@ export function RequestDialog({
     } catch (failure) {
       if (token !== rangeToken.current) return;
       setOthers(null);
-      setOthersError(substitutionErrorText(failure, "Не удалось загрузить уроки. Повторите попытку."));
+      setOthersError(substitutionErrorText(failure, "Не удалось загрузить уроки. Повторите попытку.", { role: "teacher" }));
     } finally {
       if (token === rangeToken.current) setOthersLoading(false);
     }
@@ -172,7 +172,7 @@ export function RequestDialog({
       const out = await substitutionsApi.create(buildCreate({ lessons: refs, reasonCode, comment, suggestedTeacherId: suggestedId || null }));
       onSent(out);
     } catch (failure) {
-      setError(substitutionErrorText(failure, "Не удалось отправить запрос. Повторите попытку."));
+      setError(substitutionErrorText(failure, "Не удалось отправить запрос. Повторите попытку.", { role: "teacher" }));
     } finally {
       sending.current = false;
       setBusy(false);

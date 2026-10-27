@@ -161,8 +161,7 @@ export function BulkDialog({
             </div>
             {kind === "cancel" && (
               <>
-                <CancellationKindField canChooseKind value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} />
-                <p className="text-xs leading-relaxed text-slate-600">{CANCEL_CONSEQUENCES}</p>
+                <CancellationKindField canChooseKind value={cancelKind} onChange={setCancelKind} name="bulk-cancellation-kind" disabled={busy} help={CANCEL_CONSEQUENCES} />
               </>
             )}
           </>

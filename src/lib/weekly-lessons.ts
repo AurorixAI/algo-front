@@ -6,6 +6,7 @@ import { orgApi, type RecurringRevisionNotes } from "./api";
 import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, warningTexts } from "./ops-errors";
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
+import { substitutionErrorText } from "./substitutions";
 import { addIsoDays } from "./business-time";
 import { LESSON_SUBJECT, firstOccurrenceOf, sharedRevisionPatch, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
 
@@ -41,6 +42,9 @@ export function refusalText(failure: unknown, fallback: string): string {
     const lines = teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(failure), 2);
     if (lines.length) return `У преподавателя в это время уже есть урок. ${lines.join("; ")}`;
   }
+  // W1: these refusals have words of their own (the same on every screen)
+  const own = opsErrorCode(failure);
+  if (own === "NO_CHANGES" || own === "EXAMS_NEED_CONFIRMATION" || own === "GROUP_NOT_FOUND" || own === "SERIES_ENDED" || own === "LESSON_HAS_LIVE_EXAM") return substitutionErrorText(failure, fallback);
   return scheduleErrorText(failure, fallback);
 }
 
@@ -153,41 +157,6 @@ export function laterRevisionNotes(result: { laterRevisions?: readonly LaterRevi
   });
 }
 
-/** Said BEFORE the save, from the schedule: a change that is already planned from this date on will get the same new values. */
-export function laterChangeNote(date: string): string {
-  return `С ${dayMonth(date)} у этого урока уже есть своё изменение — оно тоже обновится`;
-}
-
-/**
- * The first date after the one in the schedule where an ordinary occurrence of the weekly lesson differs from `base` (its state on the date of the change):
- * that is where a revision planned later begins.  A moved copy or a one-off lesson is not the series.  Null when the schedule shows none.
- */
-export function laterChangeDate(
-  occurrences: ReadonlyArray<{ id: string; groupId: string; occurrenceDate: string; dayOfWeek: number; startTime: string; endTime: string; room?: string | null; format?: string | null; isRescheduled?: boolean; isOneOff?: boolean }>,
-  groupId: string,
-  lessonId: string,
-  base: { dayOfWeek: number; startTime: string; endTime: string; room?: string | null; format?: string | null },
-  after: string,
-): string | null {
-  const room = (value: string | null | undefined) => (value ?? "").trim();
-  const own = occurrences
-    .filter((item) => item.id === lessonId && item.groupId === groupId && !item.isRescheduled && !item.isOneOff && item.occurrenceDate > after)
-    .sort((a, b) => a.occurrenceDate.localeCompare(b.occurrenceDate));
-  const differs = own.find((item) => Number(item.dayOfWeek) !== Number(base.dayOfWeek) || item.startTime !== base.startTime || item.endTime !== base.endTime
-    || room(item.room) !== room(base.room) || (item.format || "offline") !== (base.format || "offline"));
-  return differs ? differs.occurrenceDate : null;
-}
-
-/** Reads the schedule ahead (12 weeks) for `laterChangeDate`; a failed read says nothing (the answer after the save names it anyway). */
-export async function weeklyLaterChange(groupId: string, lessonId: string, from: string, base: WeeklyLesson): Promise<string | null> {
-  try {
-    const occurrences = await orgApi.getScheduleOccurrences({ dateFrom: addIsoDays(from, 7), dateTo: addIsoDays(from, 12 * 7) });
-    return laterChangeDate(occurrences, groupId, lessonId, base, from);
-  } catch {
-    return null;
-  }
-}
-
 export interface WeeklyRevisionResult {
   /** Weekdays (of the lessons) that were changed. */
   done: number[];
@@ -258,4 +227,15 @@ export function removalNote(changed: { room?: string | null; topic?: string | nu
   if (what.length === 0) return null;
   const text = what.length === 2 ? "Кабинет и тема будут убраны" : what[0] === "Кабинет" ? "Кабинет будет убран" : "Тема будет убрана";
   return `${text} с ${dayMonth(effectiveFrom)}`;
+}
+
+/**
+ * Said BEFORE the save, from the server's list of the revisions planned later (`GET …/recurrence/revisions`): «С 12.11 у этого урока уже есть своё изменение — оно тоже обновится»;
+ * several: «С 12.11 и 20.11 …»; null when none (no guessing from the schedule).
+ */
+export function laterChangeNote(revisions: ReadonlyArray<{ effectiveFrom: string }> | null | undefined): string | null {
+  const dates = Array.from(new Set((revisions ?? []).map((revision) => dayMonth(revision.effectiveFrom)).filter(Boolean)));
+  if (dates.length === 0) return null;
+  const when = dates.length === 1 ? dates[0] : `${dates.slice(0, -1).join(", ")} и ${dates[dates.length - 1]}`;
+  return `С ${when} у этого урока уже есть своё изменение — оно тоже обновится`;
 }

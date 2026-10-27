@@ -7,6 +7,20 @@ import { orgApi } from "./api";
 import { warningTexts } from "./ops-errors";
 import type { TeacherCancelOffer } from "./schedule-card-actions";
 
+export const CANCEL_REASON_MIN = 3;
+export const CANCEL_REASON_MAX = 500;
+
+/**
+ * ONE check of the reason of a cancellation («Урока не было» of the teacher, of the administrator, the panel and the modal): the sentence of what is missing, null when it is fine.
+ * The buttons stay off while it says something (rule: a required field switches the button off, with a short line why).
+ */
+export function cancelReasonProblem(reason: string): string | null {
+  const length = reason.trim().length;
+  if (length < CANCEL_REASON_MIN) return `Укажите причину — не менее ${CANCEL_REASON_MIN} символов`;
+  if (length > CANCEL_REASON_MAX) return `Причина — не более ${CANCEL_REASON_MAX} символов`;
+  return null;
+}
+
 export interface TeacherCancelTarget {
   groupId: string;
   lessonId: string;

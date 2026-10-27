@@ -1,0 +1,22 @@
+{
+  "businessDate": "2026-10-28",
+  "groups": [],
+  "studentCount": 9,
+  "openAttendanceActions": [],
+  "attendanceStates": [],
+  "todayLessons": [
+    { "id": "L-own-oneoff", "groupId": "g3", "groupName": "Разовый 8-В", "classLevel": 8, "subject": "Математика", "dayOfWeek": 3, "startTime": "22:00", "endTime": "22:45", "room": "12", "format": "offline", "color": "blue", "occurrenceDate": "2026-10-28", "isRescheduled": false, "isOneOff": true,
+      "teacherId": "t-main", "teacherName": "Каримов Р.", "isSubstitution": false, "defaultTeacherId": "t-main", "defaultTeacherName": "Каримов Р.",
+      "createdBy": { "id": "t-main", "name": "Каримов Р.", "role": "teacher" }, "replacedBy": null, "substitutionRequest": null, "substitutionOutcome": null, "movedFrom": null },
+    { "id": "L-rejected", "groupId": "g4", "groupName": "Алгебра 7-А", "classLevel": 7, "subject": "Математика", "dayOfWeek": 3, "startTime": "21:00", "endTime": "21:45", "room": "5", "format": "offline", "color": "blue", "occurrenceDate": "2026-10-28", "isRescheduled": false,
+      "teacherId": "t-main", "teacherName": "Каримов Р.", "isSubstitution": false, "defaultTeacherId": "t-main", "defaultTeacherName": "Каримов Р.",
+      "createdBy": null, "replacedBy": null, "substitutionRequest": { "id": "r1", "status": "rejected", "reasonCode": "illness" }, "substitutionOutcome": null, "movedFrom": null },
+    { "id": "L-replaced", "groupId": "g5", "groupName": "Геометрия 9-Б", "classLevel": 9, "subject": "Математика", "dayOfWeek": 3, "startTime": "20:00", "endTime": "20:45", "room": "7", "format": "offline", "color": "blue", "occurrenceDate": "2026-10-28", "isRescheduled": false,
+      "teacherId": "t-sub", "teacherName": "Рахимов Т.", "isSubstitution": true, "defaultTeacherId": "t-main", "defaultTeacherName": "Каримов Р.",
+      "createdBy": null, "replacedBy": { "id": "t-sub", "name": "Рахимов Т." }, "substitutionRequest": null, "substitutionOutcome": null, "movedFrom": null },
+    { "id": "L-copy", "groupId": "g6", "groupName": "Копия 8-Г", "classLevel": 8, "subject": "Математика", "dayOfWeek": 3, "startTime": "19:00", "endTime": "19:45", "room": "3", "format": "offline", "color": "blue", "occurrenceDate": "2026-10-28", "isRescheduled": false, "isOneOff": true,
+      "teacherId": "t-main", "teacherName": "Каримов Р.", "isSubstitution": false, "defaultTeacherId": "t-main", "defaultTeacherName": "Каримов Р.",
+      "createdBy": { "id": "t-main", "name": "Каримов Р.", "role": "teacher" }, "replacedBy": null, "substitutionRequest": null, "substitutionOutcome": null, "movedFrom": { "date": "2026-10-26", "startTime": "10:00", "endTime": "10:45" } }
+  ],
+  "scheduleWindow": []
+}

@@ -48,7 +48,7 @@ export function teacherLessonMenuItems(actions: TeacherLessonActions, close: () 
   else if (actions.moveKind === "late") items.push({ key: "move", label: SCHEDULE_ACTION_LABEL.reschedule, icon: CalendarClock, disabledReason: MOVE_TOO_LATE_HINT, onSelect: () => {} });
   else if (actions.moveKind === "rejected") items.push({ key: "move", label: SCHEDULE_ACTION_LABEL.reschedule, icon: CalendarClock, disabledReason: MOVE_REJECTED_HINT, onSelect: () => {} });
   if (actions.requestKind === "button") items.push({ key: "request", label: REQUEST_ACTION, hint: "Администратор подберёт замену", icon: UserMinus, onSelect: () => { close(); actions.setRequestOpen(true); } });
-  if (cancel?.offer) items.push({ key: "cancel", label: cancel.offer.label, hint: cancel.offer.hint, icon: X, tone: "danger", onSelect: () => { close(); cancel.open(); } });
+  if (cancel?.offer) items.push({ key: "cancel", label: cancel.offer.label, icon: X, tone: "danger", onSelect: () => { close(); cancel.open(); } });
   return items;
 }
 

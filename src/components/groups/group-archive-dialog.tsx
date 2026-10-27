@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
 import { orgApi, opsApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
-import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
+import { errorMessageOf, opsErrorCode, warningTexts } from "@/lib/ops-errors";
+import { substitutionErrorText } from "@/lib/substitutions";
 import type { ArchiveImpact } from "@/lib/ops-b-types";
 import {
   ARCHIVE_BUTTON,
@@ -349,11 +350,13 @@ export function GroupRestoreDialog({
   group: { id: string; name: string };
   teachers: Array<{ id: string; name: string }>;
   onClose: () => void;
-  onRestored: (message: string) => void;
+  /** `notes`: what the server said besides (a day off that did not apply to the lessons of the group, a lesson that stays cancelled) - never lost. */
+  onRestored: (message: string, notes?: string[]) => void;
 }) {
   const [needTeacher, setNeedTeacher] = useState(false);
   const [teacherId, setTeacherId] = useState("");
   const [busy, setBusy] = useState(false);
+  const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -361,19 +364,21 @@ export function GroupRestoreDialog({
   }, [open]);
 
   const submit = async () => {
-    if (busy) return;
+    if (busy || sending.current) return;
     if (needTeacher && !teacherId) return;
+    sending.current = true;
     setBusy(true);
     setError(null);
     try {
       const chosen = !needTeacher ? undefined : teacherId === "__none__" ? null : teacherId;
-      await orgApi.unarchiveGroup(group.id, chosen);
-      onRestored("Группа возвращена из архива");
+      const restored = await orgApi.unarchiveGroup(group.id, chosen);
+      onRestored("Группа возвращена из архива", warningTexts(restored));
     } catch (failure) {
       if (restoreTeacherInactive(failure)) setNeedTeacher(true);
       else if (opsErrorCode(failure) === "NOT_ARCHIVED") onRestored("Группа уже активна");
-      else setError(errorMessageOf(failure, "Не удалось вернуть группу из архива. Данные не изменены."));
+      else setError(substitutionErrorText(failure, "Не удалось вернуть группу из архива. Данные не изменены."));
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };

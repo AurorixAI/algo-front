@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Repeat2 } from "lucide-react";
+import { ChevronRight, Loader2, Repeat2 } from "lucide-react";
 import { substitutionsApi } from "@/lib/api";
 import {
   ASSIGNED_TITLE,
@@ -66,7 +66,7 @@ export function TeacherRequestsBlock({
       onChanged?.();
     } catch (failure) {
       const decided = alreadyDecided(failure);
-      setError(decided ? decided.message : substitutionErrorText(failure));
+      setError(decided ? decided.message : substitutionErrorText(failure, undefined, { role: "teacher" }));
       await load();
     } finally {
       sending.current = false;
@@ -118,31 +118,47 @@ export function TeacherRequestsBlock({
           {error && <p role="alert" className="mt-3 text-xs font-medium text-rose-700">{error}</p>}
         </div>
       )}
-      {(assigned.length > 0 || cleared.length > 0) && <AssignedLessons entries={assigned} cleared={cleared} />}
+      {(assigned.length > 0 || cleared.length > 0) && (
+        <div className="space-y-2">
+          <AssignedLessons entries={assigned} />
+          <ClearedLessons entries={cleared} />
+        </div>
+      )}
     </section>
   );
 }
 
-/** «Вам назначена замена»: the lessons the person takes over - one block for the teacher (dashboard) and for the owner / administrator (page «Замены»). */
-export function AssignedLessons({ entries, cleared = [] }: { entries: AssignedToMe[]; cleared?: ClearedForMe[] }) {
+/** «Вам назначены замены: 2» as ONE compact row that opens the list (a phone keeps its first screen for the requests): the teacher's dashboard and the page «Замены» of the owner / administrator. */
+export function assignedTitle(count: number): string {
+  return count === 1 ? ASSIGNED_TITLE : `Вам назначены замены: ${count}`;
+}
+
+export function AssignedLessons({ entries }: { entries: AssignedToMe[] }) {
+  if (entries.length === 0) return null;
   return (
-    <div data-testid="assigned-lessons" className="rounded-3xl border border-violet-100 bg-violet-50/50 p-5 shadow-xs sm:p-6">
-      <h2 className="mb-3 text-base font-bold text-violet-950">{ASSIGNED_TITLE}</h2>
-      {entries.length > 0 && (
-        <ul className="space-y-2">
-          {entries.map((entry) => (
-            <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}`} className="text-sm font-medium text-violet-950">{assignedLine(entry)}</li>
-          ))}
-        </ul>
-      )}
-      {cleared.length > 0 && (
-        <ul data-testid="cleared-lessons" className={`space-y-1.5 ${entries.length > 0 ? "mt-3 border-t border-violet-100 pt-3" : ""}`}>
-          {cleared.map((entry) => (
-            <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}-${entry.clearedAt}`} className="text-xs font-medium text-slate-500">{clearedForMeLine(entry)}</li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <details data-testid="assigned-lessons" className="group rounded-2xl border border-violet-100 bg-violet-50/50 shadow-xs">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-violet-950 [&::-webkit-details-marker]:hidden">
+        <span>{assignedTitle(entries.length)}</span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-violet-500 transition-transform group-open:rotate-90" aria-hidden />
+      </summary>
+      <ul className="space-y-2 border-t border-violet-100 px-4 py-3">
+        {entries.map((entry) => (
+          <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}`} className="text-sm font-medium text-violet-950">{assignedLine(entry)}</li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** W1 F11 (S22): «Замена снята …» is an EVENT of its own (the substitute lost a lesson), a quiet line - not a part of the card of the lessons he still has. */
+export function ClearedLessons({ entries }: { entries: ClearedForMe[] }) {
+  if (entries.length === 0) return null;
+  return (
+    <ul data-testid="cleared-lessons" className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-2.5">
+      {entries.map((entry) => (
+        <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}-${entry.clearedAt}`} className="text-xs font-medium text-slate-500">{clearedForMeLine(entry)}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -160,5 +176,11 @@ export function ManagerAssignedBlock() {
   }, []);
   const entries = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
   const cleared = data?.clearedForMe ?? [];
-  return entries.length > 0 || cleared.length > 0 ? <AssignedLessons entries={entries} cleared={cleared} /> : null;
+  if (entries.length === 0 && cleared.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <AssignedLessons entries={entries} />
+      <ClearedLessons entries={cleared} />
+    </div>
+  );
 }
