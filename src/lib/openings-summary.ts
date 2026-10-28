@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { orgApi } from "./api";
+import { moneyDeniedFor, usePaymentsSummary } from "./payments-summary";
+import { useAuthStore } from "./store";
 import type { OpeningsSummary } from "./openings";
 
 /**
@@ -14,7 +16,10 @@ let cached: { at: number; value: OpeningsSummary | null } | null = null;
 let inFlight: Promise<OpeningsSummary | null> | null = null;
 const listeners = new Set<(value: OpeningsSummary | null) => void>();
 
-async function load(force: boolean): Promise<OpeningsSummary | null> {
+export async function loadOpeningsSummary(force: boolean): Promise<OpeningsSummary | null> {
+  // no right to money (the profile says so, or the summary was refused): not asked at all - a request would end in a 403 in the console
+  const money = usePaymentsSummary.getState();
+  if (moneyDeniedFor(useAuthStore.getState().user, { loaded: money.loaded, available: money.available })) return null;
   if (!force && cached && Date.now() - cached.at < FRESH_MS) return cached.value;
   if (inFlight) return inFlight;
   const request = orgApi.getOpeningsSummary()
@@ -43,12 +48,12 @@ export function useOpeningsSummary(): { summary: OpeningsSummary | null; loaded:
     let alive = true;
     const listener = (value: OpeningsSummary | null) => { if (alive) { setSummary(value); setLoaded(true); } };
     listeners.add(listener);
-    load(false).then(listener).catch(() => { if (alive) setLoaded(true); });
+    loadOpeningsSummary(false).then(listener).catch(() => { if (alive) setLoaded(true); });
     return () => { alive = false; listeners.delete(listener); };
   }, []);
 
   const refresh = useCallback(async (force = true) => {
-    try { await load(force); } catch { /* the old figures stay */ }
+    try { await loadOpeningsSummary(force); } catch { /* the old figures stay */ }
   }, []);
   const replace = useCallback((next: OpeningsSummary) => {
     cached = { at: Date.now(), value: next };

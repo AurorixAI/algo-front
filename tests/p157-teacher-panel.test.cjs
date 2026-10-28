@@ -267,5 +267,7 @@ test("#158 r2 (9): an exam without the date of a lesson is never «Заняти�
   const noDate = C.nextStepView({ kind: "exam_attention", exam: { exam_id: "e", title: "К", group_name: "9-А", scheduled_lesson_date: null, displayRemainingSeconds: 0 } }).description;
   assert.match(withDate, /Занятие прошло/);
   assert.doesNotMatch(noDate, /Занятие прошло/);
-  assert.match(read("src/app/teacher/dashboard/page.tsx"), /scheduledDate && scheduledDate < businessDate/, "no date - not «needs_resolution»");
+  // #154: the state of an exam is one function (exam-lobby.ts); an exam with no lesson date is never «needs_resolution»
+  assert.match(read("src/lib/exam-lobby.ts"), /date && date < input\.today/, "no date - not «needs_resolution»");
+  assert.match(read("src/app/teacher/dashboard/page.tsx"), /dashboardExamState\(\{/);
 });

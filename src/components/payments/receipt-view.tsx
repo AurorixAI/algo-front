@@ -23,7 +23,7 @@ import {
 import { receiptFacts } from "@/lib/payments-ledger";
 import { basesOfPayments, groupHref, studentHref } from "@/lib/ia-links";
 import { statementHref } from "@/lib/payments";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useMoneyDenied } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { RecalcNote } from "./recalc-note";
@@ -185,9 +185,7 @@ function ReceiptViewContent({ paymentsHref }: { paymentsHref: string }) {
   const bases = basesOfPayments(paymentsHref);
   const paymentId = String(params?.id ?? "");
 
-  const available = usePaymentsSummary((state) => state.available);
-  const summaryLoaded = usePaymentsSummary((state) => state.loaded);
-  const noRight = summaryLoaded && !available;
+  const noRight = useMoneyDenied();
 
   const [receipt, setReceipt] = useState<ReceiptOut | null>(null);
   // `retry`: a failure that may pass (network, 5xx); a refusal (403 / 404 / 409) will not.

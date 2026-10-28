@@ -59,6 +59,7 @@ import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type Teache
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import { formatCountdown, ledByText, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { dashboardExamState, scheduledExamLabel } from "@/lib/exam-lobby";
 import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
@@ -1193,29 +1194,23 @@ export default function TeacherDashboardPage() {
           && candidate.groupId === exam.group_id,
         );
         const scheduledDate = exam.scheduled_lesson_date || "";
-        // The persisted lifecycle state remains `lobby` until the teacher
-        // transfers or cancels the exam. Its *operational* state, however,
-        // changes when the linked lesson day has passed. This mirrors the
-        // server-side public-lobby guard and prevents a dead access code from
-        // looking like a room where students can still join.
-        const state = exam.status === "active"
-          ? "active"
-          : exam.status === "closed"
-            ? "closed"
-            : scheduledDate && scheduledDate < businessDate   // no lesson date - no «занятие прошло»
-              ? "needs_resolution"
-              : exam.status === "lobby"
-                ? "lobby"
-                : scheduledDate === businessDate
-                  ? "today"
-                  : "upcoming";
+        // The persisted lifecycle state remains `lobby` until the teacher transfers or cancels the exam; its *operational* state follows the
+        // lesson: the server lets students in only while the bound lesson is IN PROGRESS, so «Лобби открыто» is said only then (exam of a later
+        // day: «Запланирован · день»), and a lesson that has passed turns the exam into a reconciliation item.
+        const state = dashboardExamState({
+          status: exam.status,
+          scheduledDate,
+          today: businessDate,
+          lessonStatus: lesson && scheduledDate === businessDate ? statusOfToday(lesson) : null,
+        });
         const lessonLabel = lesson
           ? `${formatIsoDateLabel(lesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · ${lesson.startTime}–${lesson.endTime}`
           : scheduledDate
             ? formatIsoDateLabel(scheduledDate, { weekday: "short", day: "numeric", month: "short" })
             : "Занятие не выбрано";
+        const dayLabel = scheduledDate ? formatIsoDateLabel(scheduledDate, { weekday: "short", day: "numeric", month: "short" }) : "";
 
-        return { ...exam, state, lessonLabel, priority: priority[state] };
+        return { ...exam, state, lessonLabel, dayLabel, priority: priority[state] };
       })
       .sort((left, right) => {
         if (left.priority !== right.priority) return left.priority - right.priority;
@@ -1231,7 +1226,7 @@ export default function TeacherDashboardPage() {
           `${right.scheduled_lesson_date || "9999-12-31"}_${right.title}`,
         );
       })
-  }, [businessDate, liveExamView, weekLessons]);
+  }, [businessDate, liveExamView, weekLessons, statusOfToday]);
   const featuredDashboardExam = dashboardExamRows[0] || null;
   const additionalDashboardExamCount = Math.max(0, dashboardExamRows.length - 1);
   // "Требуют действия" is a finite queue of attendance/lesson closures.
@@ -1504,7 +1499,7 @@ export default function TeacherDashboardPage() {
                   const isPrint = exam.delivery_mode === "print";
                   const isPrintReady = isPrint && exam.status === "print_ready";
                   const needsResolution = exam.state === "needs_resolution";
-                  const isLobby = exam.status === "lobby" && !needsResolution;
+                  const isLobby = exam.state === "lobby";
                   const isScheduled = exam.state === "today" || exam.state === "upcoming";
                   const isNearDeadline = isActive && exam.displayRemainingSeconds > 0 && exam.displayRemainingSeconds <= 5 * 60;
                   const timerReachedZero = isActive && exam.displayRemainingSeconds === 0;
@@ -1524,9 +1519,7 @@ export default function TeacherDashboardPage() {
                           ? "Лобби открыто"
                         : isPrintReady
                           ? "Комплект готов"
-                        : exam.state === "today"
-                          ? "Сегодня"
-                          : "Запланирован";
+                        : scheduledExamLabel(exam.state, exam.dayLabel);
 
                   return (
                     <div
@@ -1555,8 +1548,9 @@ export default function TeacherDashboardPage() {
                             : "border-slate-200 bg-slate-50/70"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                      {/* the badge may carry a day («Запланирован · вт, 3 нояб.»): it goes under the title when the card is narrow, it never squeezes the title to «Контр…» */}
+                      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1.5">
+                        <div className="min-w-0 flex-1 basis-40">
                           <p className="truncate text-sm font-bold text-slate-900">{exam.title}</p>
                           {exam.group_name && <p className="mt-0.5 truncate text-xs text-slate-600">{exam.group_name}</p>}
                         </div>
@@ -1883,7 +1877,7 @@ export default function TeacherDashboardPage() {
                     const isClosed = exam.status === "closed";
                     const isPrint = exam.delivery_mode === "print";
                     const needsResolution = exam.state === "needs_resolution";
-                    const isLobby = exam.status === "lobby" && !needsResolution;
+                    const isLobby = exam.state === "lobby";
                     const isScheduled = exam.state === "today" || exam.state === "upcoming";
                     const statusLabel = isClosed
                       ? "Завершён"
@@ -1895,7 +1889,7 @@ export default function TeacherDashboardPage() {
                             ? "Лобби открыто"
                           : isPrint
                             ? "Комплект готов"
-                            : exam.state === "today" ? "Сегодня" : "Запланирован";
+                            : scheduledExamLabel(exam.state, exam.dayLabel);
                     const description = needsResolution
                       ? isPrint
                         ? "Урок уже прошёл, а проведение по печатному комплекту не подтверждено. Перенесите или отмените экзамен."

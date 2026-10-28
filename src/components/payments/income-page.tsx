@@ -45,7 +45,7 @@ import {
   type Period,
   type PaymentsJournal,
 } from "@/lib/payments-income-v2";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useMoneyDenied } from "@/lib/payments-summary";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useToast } from "@/components/ui/toast";
 import { CollectionTable } from "./income-collection";
@@ -86,9 +86,7 @@ function IncomePageContent({ paymentsHref, studentProfileBasePath }: { paymentsH
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const available = usePaymentsSummary((state) => state.available);
-  const summaryLoaded = usePaymentsSummary((state) => state.loaded);
-  const noRight = summaryLoaded && !available;
+  const noRight = useMoneyDenied();
   const paymentsBase = paymentsHref.replace(/\/+$/, "");
 
   const today = useMemo(() => formatBusinessDate(), []);

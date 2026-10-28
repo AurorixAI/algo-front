@@ -44,7 +44,7 @@ import {
 import { FREE_WORD, groupPriceHref, priceLabelOf, priceOfRow, priceSourceTag, pricesBaseOf } from "@/lib/group-price";
 import { DEBTORS_GROUP_NOTE, debtorsHref } from "@/lib/payments-income-v2";
 import { groupHref, studentHref } from "@/lib/ia-links";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { markReceiptNavigation } from "@/lib/receipt-nav";
 import { PackageProgress } from "./package-progress";
 import { createRequestSequence } from "@/lib/request-sequence";
@@ -84,8 +84,9 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const searchParams = useSearchParams();
   const bucket = parseBucket(searchParams?.get("bucket"));
 
-  const available = usePaymentsSummary((state) => state.available);
   const summaryLoaded = usePaymentsSummary((state) => state.loaded);
+  // no right to money (the profile says so, or the summary was refused): the page asks the server for nothing - no 403 in the console
+  const noRight = useMoneyDenied();
   const debtors = usePaymentsSummary((state) => state.debtors);
   const buckets = usePaymentsSummary((state) => state.buckets);
   const pausedCount = usePaymentsSummary((state) => state.paused);
@@ -179,6 +180,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   }, []);
 
   const load = useCallback(async (silent = false) => {
+    if (noRight) { setLoading(false); return; }
     const token = requests.current.next();
     if (!silent) setLoading(true);
     setLoadError(null);
@@ -207,7 +209,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page]);
+  }, [bucket, debouncedSearch, filter.groupId, filter.teacherId, page, noRight]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -216,7 +218,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const [narrowedCounts, setNarrowedCounts] = useState<TabCounts | null>(null);
   const countsRequests = useRef(createRequestSequence());
   const loadNarrowedCounts = useCallback(async () => {
-    if (!narrowed) { countsRequests.current.next(); setNarrowedCounts(null); return; }
+    if (!narrowed || noRight) { countsRequests.current.next(); setNarrowedCounts(null); return; }
     const token = countsRequests.current.next();
     try {
       const counts = await filteredTabCounts((query) => orgApi.getPaymentsStatus({
@@ -231,7 +233,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
       // a failed count leaves the tabs without numbers (never the centre's): the list itself has its own error line
       if (countsRequests.current.isCurrent(token)) setNarrowedCounts(null);
     }
-  }, [narrowed, filter.groupId, filter.teacherId]);
+  }, [narrowed, noRight, filter.groupId, filter.teacherId]);
   useEffect(() => {
     setNarrowedCounts(null);
     void loadNarrowedCounts();
@@ -261,7 +263,7 @@ function PaymentsPageContent({ studentProfileBasePath, groupsBasePath }: { stude
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const filtered = Boolean(debouncedSearch || filter.teacherId || filter.groupId);
 
-  if (denied || (summaryLoaded && !available)) {
+  if (denied || noRight) {
     return (
       <div className="flex flex-col items-center justify-center gap-1.5 py-20 text-center">
         <Wallet className="h-6 w-6 text-slate-300" />

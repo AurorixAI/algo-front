@@ -47,7 +47,7 @@ import {
   type StatementEntry,
   type StatementItem,
 } from "@/lib/payments-ledger";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { canGoBack, clearReceiptNavigationMark, markReceiptNavigation, receiptNavigationMarked } from "@/lib/receipt-nav";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { Hint } from "@/components/ui/hint";
@@ -109,10 +109,8 @@ function StatementViewContent({ paymentsHref }: { paymentsHref: string }) {
   const membershipId = String(params?.id ?? "");
   const paymentsBase = paymentsHref.replace(/\/+$/, "");
 
-  const available = usePaymentsSummary((state) => state.available);
-  const summaryLoaded = usePaymentsSummary((state) => state.loaded);
   const refreshSummary = usePaymentsSummary((state) => state.refresh);
-  const noRight = summaryLoaded && !available;
+  const noRight = useMoneyDenied();
   const { showToast, toastNode } = useToast();
 
   const [statement, setStatement] = useState<StatementOut | null>(null);

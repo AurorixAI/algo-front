@@ -56,7 +56,7 @@ import {
   type RowDraft,
 } from "@/lib/openings";
 import { formatDateRu } from "@/lib/payments";
-import { usePaymentsSummary } from "@/lib/payments-summary";
+import { useMoneyDenied, usePaymentsSummary } from "@/lib/payments-summary";
 import { pluralRu } from "@/lib/plural";
 import { createRequestSequence } from "@/lib/request-sequence";
 import { useOpeningsSummary } from "@/lib/openings-summary";
@@ -101,7 +101,10 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
   const [data, setData] = useState<OpeningsList | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [denied, setDenied] = useState(false);
+  const [deniedByServer, setDenied] = useState(false);
+  // no right to money (the profile says so): nothing is asked, the page says it at once
+  const noRight = useMoneyDenied();
+  const denied = deniedByServer || noRight;
   const [tooMany, setTooMany] = useState<string | null>(null);
   const [catalog, setCatalog] = useState<Array<{ id: string; name: string; teacher_name?: string | null }>>([]);
   const [serverGroup, setServerGroup] = useState("");
@@ -142,6 +145,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
 
   // ── loading
   const load = useCallback(async (options: { silent?: boolean; left?: boolean; group?: string } = {}) => {
+    if (noRight) { setLoading(false); return; }
     const token = requests.current.next();
     if (!options.silent) setLoading(true);
     setLoadError(null);
@@ -169,7 +173,7 @@ export function OpeningsPage({ paymentsHref }: { paymentsHref: string }) {
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, [includeLeft, serverGroup]);
+  }, [includeLeft, serverGroup, noRight]);
 
   useEffect(() => {
     void load();

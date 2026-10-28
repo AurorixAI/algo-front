@@ -105,6 +105,24 @@ export function paymentsAccessFromProfile(user: { payments_access?: unknown } | 
   return typeof user?.payments_access === "boolean" ? user.payments_access : null;
 }
 
+/**
+ * The user has no right to money, as far as anything on this device knows: the profile says `payments_access: false`, or the summary was
+ * asked and refused.  A page of «Оплаты» (the list, the income, the prices, the openings, a receipt) asks the server for NOTHING while this
+ * is true: every such request ends in a 403 that the browser prints as an error in the console (admin without the right, 28.10).
+ * `false` while it is not known yet (a profile without the field: the page asks as it did before).
+ */
+export function moneyDeniedFor(user: { payments_access?: unknown } | null | undefined, summary: { loaded: boolean; available: boolean }): boolean {
+  return paymentsAccessFromProfile(user) === false || (summary.loaded && !summary.available);
+}
+
+/** The hook of {@link moneyDeniedFor} for a page. */
+export function useMoneyDenied(): boolean {
+  const user = useAuthStore((state) => state.user);
+  const loaded = usePaymentsSummary((state) => state.loaded);
+  const available = usePaymentsSummary((state) => state.available);
+  return moneyDeniedFor(user, { loaded, available });
+}
+
 /** Fields of the state that come from one summary answer. */
 export function summaryToState(summary: Partial<PaymentsSummary> | null | undefined) {
   const lessons = Number(summary?.lessons_per_payment);

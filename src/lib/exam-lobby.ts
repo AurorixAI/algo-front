@@ -37,3 +37,35 @@ export function nextLobbyPollDelay(current: number, outcome: "ok" | "transient" 
   if (outcome === "transient") return Math.min(Math.max(current, LOBBY_POLL_MS) * 2, LOBBY_POLL_MAX_MS);
   return current;
 }
+
+// ── the card of an exam on the teacher's dashboard ───────────────────────────────────────────────────────────
+
+export type DashboardExamState = "active" | "closed" | "needs_resolution" | "lobby" | "today" | "upcoming";
+
+/**
+ * What the dashboard says about an exam.  The server lets students into the lobby only while the lesson the exam is bound to is
+ * IN PROGRESS (the teacher started it): before it - 409 «Экзамен станет доступен после начала назначенного урока».  So «Лобби открыто»
+ * is said only for an exam of TODAY whose lesson has started; an exam of a later day is «Запланирован», of today but not started - «Сегодня»,
+ * a lesson that is already past - «Нужно действие».  An exam with no lesson date cannot be entered at all: it is «Запланирован».
+ * `status` is the exam's own (lobby / print_ready / active / closed); `lessonStatus` is the status of the bound lesson on `today` (null: unknown).
+ */
+export function dashboardExamState(input: {
+  status: string;
+  scheduledDate: string | null | undefined;
+  today: string;
+  lessonStatus: string | null | undefined;
+}): DashboardExamState {
+  if (input.status === "active") return "active";
+  if (input.status === "closed") return "closed";
+  const date = input.scheduledDate || "";
+  if (date && date < input.today) return "needs_resolution";    // no lesson date - no «занятие прошло»
+  if (date && date === input.today) return input.status === "lobby" && input.lessonStatus === "in_progress" ? "lobby" : "today";
+  return "upcoming";
+}
+
+/** «Запланирован · пн, 3 нояб.» - the day is in the badge, the exam is not open yet.  `dayLabel` is already worded («пн, 3 нояб.»). */
+export function scheduledExamLabel(state: DashboardExamState, dayLabel: string | null | undefined): string {
+  if (state === "today") return "Сегодня";
+  const day = (dayLabel ?? "").trim();
+  return day ? `Запланирован · ${day}` : "Запланирован";
+}

@@ -16,6 +16,7 @@ import { centreTheta, splitDashboardGroups } from "@/lib/owner-overview";
 import { usePaymentsSummary } from "@/lib/payments-summary";
 import { selectBadgeTotal, useExcuseBadge } from "@/lib/excuse-badge";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
+import { orgTypeLabel } from "@/lib/org-type";
 import { formatMoney } from "@/lib/payments";
 import { debtorsHref } from "@/lib/payments-income-v2";
 import { dashboardKpiHref, dashboardTiles } from "@/lib/owner-dashboard-links";
@@ -175,7 +176,7 @@ export default function OwnerDashboard() {
                 )}
                 <span className="flex items-center gap-1.5 bg-white/5 px-3 py-1.5 rounded-lg border border-white/5 backdrop-blur-sm">
                   <Building className="w-4 h-4 text-slate-400" /> 
-                  {org?.org_type === "private_school" ? "Частная школа" : org?.org_type === "tutoring_center" ? "Репетиторский центр" : org?.org_type || "Не указан"}
+                  {orgTypeLabel(org?.org_type)}
                 </span>
               </div>
             </div>

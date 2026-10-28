@@ -268,7 +268,7 @@ test("receipt pages exist for the owner and the administrator and share one comp
   assert.match(view, /@page \{ margin: 12mm; \}/);
   // 403 / 404 / 409 are told in words
   assert.match(view, /receiptErrorText\(status/);
-  assert.match(view, /noRight = summaryLoaded && !available/); // the same guard as the payments list
+  assert.match(view, /noRight = useMoneyDenied\(\)/); // the same guard as the payments list
 });
 
 test("print hides the app chrome of both workspaces", () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMoneyDenied } from "@/lib/payments-summary";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -50,7 +51,10 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
   const [data, setData] = useState<GroupPriceList | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [denied, setDenied] = useState(false);
+  const [deniedByServer, setDenied] = useState(false);
+  // no right to money (the profile says so): nothing is asked, the page says it at once
+  const noRight = useMoneyDenied();
+  const denied = deniedByServer || noRight;
   const [search, setSearch] = useState("");
   const [target, setTarget] = useState<Target | null>(null);
   /** The history of the group of `target` (read when the dialog is asked for). */
@@ -60,6 +64,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
   const requests = useRef(createRequestSequence());
 
   const load = useCallback(async (silent = false) => {
+    if (noRight) { setLoading(false); return; }
     const token = requests.current.next();
     if (!silent) setLoading(true);
     setLoadError(null);
@@ -75,7 +80,7 @@ function GroupPricesContent({ paymentsHref, groupsBasePath }: { paymentsHref: st
     } finally {
       if (requests.current.isCurrent(token)) setLoading(false);
     }
-  }, []);
+  }, [noRight]);
 
   useEffect(() => {
     void load();
