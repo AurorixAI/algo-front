@@ -101,7 +101,7 @@ test("[3] what became of a substitution is the code of the server (`outcome`), t
     events: [{ requestId: "r1", action: "assignment_cleared", actor: { id: "u", name: "Каримова Н.", role: "admin" }, at, snapshot: { teacherId: ["t1", extra.clearedTo ? "t3" : null], trigger: clearedTrigger } }],
   }, "manager").rows[0];
   assert.equal(row("put").title, "Замена снята: урок снова ведёт основной преподаватель");
-  assert.equal(row("put", { clearedTo: { id: "t3", name: "Сидоров В." } }).title, "Новая замена: Сидоров В.");
+  assert.equal(row("put", { clearedTo: { id: "t3", name: "Сидоров В." } }).title, "Заменена на Сидоров В.", "no pair merged: «Заменена на …»");
   assert.equal(row("move").title, "Замена снята: урок перенесён");
   assert.equal(row("cancel").title, "Замена снята: урок отменён");
   assert.equal(row("member_removed").title, "Замена снята: заменяющий больше не работает в центре");

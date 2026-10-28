@@ -10,7 +10,7 @@ import { groupHref, teacherHref, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
 import { LESSON_DELETED_TEXT, lessonWhen, movedToLabel, reasonLabelOf, substitutionErrorText } from "@/lib/substitutions";
 import { outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcome";
-import { TRUNCATED_TEXT, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
+import { TRUNCATED_TEXT, dayOffNeedsDecision, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
 import { canDecideInPanel, panelView } from "@/lib/substitution-panel-state";
 import type { SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
 
@@ -145,8 +145,9 @@ export function SubstitutionPanel({
   }, [out]);
 
   const bases = workspace === "teacher" ? null : workspaceBases(workspace);
-  const outcome = item && !view.stale ? outcomeOf(item, audience) : null;
-  const note = item && !view.stale ? outcomeNote(item) : null;
+  const needsDecision = out ? dayOffNeedsDecision(out) : null;
+  const outcome = item && !view.stale ? outcomeOf(item, audience, Date.now(), needsDecision) : null;
+  const note = item && !view.stale ? outcomeNote(item, needsDecision) : null;
   const timeline = out ? timelineOf(out, audience) : null;
   const lessonLink = item && bases && item.lesson.exists !== false && item.lesson.lessonId
     ? journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId })

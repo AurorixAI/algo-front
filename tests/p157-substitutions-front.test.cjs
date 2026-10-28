@@ -87,9 +87,11 @@ test("#157: an unknown or absent code is «Запрос закрыт», never an
   assert.equal(O.outcomeOf({ ...item(), outcome: undefined }, "manager", NOW).text, "Запрос закрыт");
   assert.equal(O.outcomeOf({ ...item(), outcome: null }, "teacher", NOW).text, "Запрос закрыт");
   const ahead = item({ outcome: "day_off_voided", lesson: { ...item().lesson, date: "2026-11-02" } });
-  assert.equal(O.outcomeOf(ahead, "manager", NOW).tone, "warn");
-  assert.equal(O.outcomeOf({ ...ahead, lesson: { ...ahead.lesson, date: "2026-10-27" } }, "manager", NOW).tone, "muted");
-  assert.match(O.outcomeNote(ahead), /Назначьте её заново/);
+  assert.equal(O.outcomeOf(ahead, "manager", NOW).tone, "muted", "a list does not know `needsDecision`: calm, nothing is guessed");
+  assert.equal(O.outcomeOf(ahead, "manager", NOW, true).tone, "warn");
+  assert.equal(O.outcomeOf({ ...ahead, lesson: { ...ahead.lesson, date: "2026-10-27" } }, "manager", NOW, true).tone, "muted");
+  assert.match(O.outcomeNote(ahead, true), /нужно ваше решение/);
+  assert.equal(O.outcomeNote(ahead, false), null);
   assert.equal(O.outcomeNote(item()), null);
 });
 
@@ -221,7 +223,7 @@ test("#157 history: every action of the contract has its line; an action the fro
   assert.deepEqual([line("rejected", { reason: "Замену не нашли" }).title, line("rejected", { reason: "Замену не нашли" }).details], ["Запрос отклонён", ["Замену не нашли"]]);
   assert.equal(line("withdrawn").title, "Запрос отозван");
   assert.equal(line("assignment_cleared", { trigger: "cancel", teacherId: ["p", null] }).title, "Замена снята: урок отменён");
-  assert.equal(line("assignment_cleared", { trigger: "cancel", dayOffId: "d1", teacherId: ["p", null] }).title, "Замена снята: урок отменён выходным днём");
+  assert.equal(line("assignment_cleared", { trigger: "cancel", byDayOff: true, teacherId: ["p", null] }).title, "Замена снята: урок отменён выходным днём");
   assert.equal(line("assignment_cleared", { trigger: "put", teacherId: ["p", null] }).title, "Замена снята: урок снова ведёт основной преподаватель");
   assert.equal(line("closed", { closedReason: "KIND_CHANGED", cancellationKind: { from: "centre", to: "holiday" }, reason: "Праздник" }).details.join("|"), "было: по вине центра, стало: праздник|Праздник");
   assert.equal(line("closed", { closedReason: "LESSON_RESTORED", reason: "Ошиблись" }).details[0], "Ошиблись");
@@ -230,9 +232,15 @@ test("#157 history: every action of the contract has its line; an action the fro
   assert.deepEqual([line("closed", { closedReason: "GROUP_ARCHIVED" }).title, line("closed", { closedReason: "GROUP_ARCHIVED" }).details], ["Запрос закрыт", ["Группа закрыта"]]);
   assert.equal(line("suggestion_unavailable").title, "Предложенный коллега больше не ведёт уроки");
   assert.equal(line("lesson_restored", { reason: "Ошиблись" }).title, "Урок возвращён");
-  assert.equal(line("day_off_voided", { reopened: false }).title, "Выходной отменён: замена не вернулась — назначьте заново", "a substitution that was set");
-  assert.equal(line("day_off_voided", { reopened: true }, { status: "closed" }).title, "Выходной отменён: запрос открыт заново", "a request: no word about a substitution that was never there");
-  assert.equal(line("day_off_voided", { reopened: false }, { status: "closed" }).title, "Выходной отменён: запрос не открыт заново");
+  // `day_off_voided` by what the server says (subject, reopened, needsDecision): four variants, the status of the record does not matter
+  const voided = (snapshot, record) => line("day_off_voided", snapshot, record).title;
+  for (const status of ["substituted", "closed"]) {
+    assert.equal(voided({ subject: "request", reopened: true, needsDecision: true }, { status }), "Выходной отменён: запрос открыт заново — нужно решение", status);
+    assert.equal(voided({ subject: "request", reopened: false, needsDecision: false }, { status }), "Выходной отменён: урок вернулся", status);
+    assert.equal(voided({ subject: "substitution", reopened: false, needsDecision: true }, { status }), "Выходной отменён: замена не вернулась — назначьте заново", status);
+    assert.equal(voided({ subject: "substitution", reopened: false, needsDecision: false }, { status }), "Выходной отменён: замена не вернулась", status);
+  }
+  assert.equal(voided({}), "Выходной отменён", "an event without the fields says no more than it knows")
   assert.equal(line("something_new", { x: 1 }), undefined);
 });
 
@@ -339,8 +347,15 @@ test("#157: LESSONS 48 - one function says «Урок» for a row in the link, t
 test("#157 r2 (4): the history says «Новая замена: Имя», no technical «via», the author of «Замена снята» when there is one", () => {
   const row = (action, snapshot, actor = MGR, rec = {}) => TL.timelineOf({ item: item(rec), events: [{ requestId: "r1", action, actor, at: "2026-10-28T07:10:00", snapshot }] }, "manager").rows[0];
   const replaced = row("assignment_cleared", { trigger: "put", teacherId: ["p", "s"] }, MGR, { clearedTo: person("Сидоров В."), clearedAt: "2026-10-28T07:10:00" });
-  assert.equal(replaced.title, "Новая замена");
-  assert.equal(TL.timelineOf({ item: item({ clearedTo: { id: "s", name: "Сидоров В." } }), events: [{ requestId: "r1", action: "assignment_cleared", actor: MGR, at: "2026-10-28T07:10:00", snapshot: { trigger: "put", teacherId: ["p", "s"] } }] }, "manager").rows[0].title, "Новая замена: Сидоров В.");
+  assert.equal(replaced.title, "Заменена другим", "no pair, no name");
+  const ev = (extra) => TL.timelineOf({ item: item(), next: [item({ id: "r2" })], events: [{ requestId: "r1", action: "assignment_cleared", actor: MGR, at: "2026-10-28T07:10:00", snapshot: { trigger: "put", teacherId: ["p", "s"] }, ...extra }] }, "manager").rows[0];
+  assert.equal(ev({ substituteName: "Сидоров В.", mergedRequestId: "r2" }).title, "Новая замена: Сидоров В.", "the pair the server merged");
+  assert.equal(ev({ substituteName: "Сидоров В." }).title, "Заменена на Сидоров В.", "no pair");
+  assert.equal(ev({ substituteName: "Сидоров В.", mergedRequestId: "r2" }).openRequestId, "r2");
+  assert.equal(ev({ substituteName: "Сидоров В.", mergedRequestId: "r2" }).author, "Тестов О., владелец");
+  assert.equal(TL.timelineOf({ item: item(), events: [{ requestId: "r1", action: "assignment_cleared", actor: { role: "admin" }, at: "2026-10-28T07:10:00", substituteName: "Сидоров В.", snapshot: { teacherId: ["p", "s"], trigger: "put" } }] }, "teacher").rows[0].author, "Администратор", "a teacher: the role alone, the name of the substitute is his to know")
+  const sub = TL.timelineOf({ item: item(), events: [{ requestId: "r1", action: "substituted", actor: MGR, at: "2026-10-28T07:10:00", substituteName: "Рахимов Т.", snapshot: { teacherId: ["t", "r"] } }] }, "manager").rows[0];
+  assert.deepEqual(sub.details, ["Иванов А. → Рахимов Т."], "the name comes from the event");
   assert.equal(row("assignment_cleared", { trigger: "put", teacherId: ["p", null] }).author, "Тестов О., владелец", "who took the substitution off");
   assert.equal(row("assignment_cleared", { trigger: "member_removed", teacherId: ["p", null] }, null).author, null, "the system has no author");
   for (const via of ["request", "lesson_teacher_put", "teacher_move", "manager_assign"]) assert.doesNotMatch(JSON.stringify(row("substituted", { via, teacherId: ["t", "p"] }).details), new RegExp(`через|${via}`), via);
@@ -358,31 +373,59 @@ test("#157 r2 (5): «Урока не было» of a teacher: the chip, the line
   assert.equal(TL.isTeacherCancel(item({ decision: { kind: "cancel", via: "request" } })), false);
 });
 
-test("#157 r2 (6): «Вернуть урок» is ONE line «Урок возвращён» - the pair (the event of the original and the closed record) is not drawn twice", () => {
-  const first = { requestId: "r1", action: "lesson_restored", actor: MGR, at: "2026-10-28T07:10:00", snapshot: {} };
+test("#157 r2 (6): «Вернуть урок»: the server merges the pair (`mergedRequestId`); the front draws ONE line and only guards against a second one - no guess by time", () => {
+  const first = { requestId: "r1", action: "lesson_restored", actor: MGR, at: "2026-10-28T07:10:00", snapshot: {}, mergedRequestId: "r2" };
   const second = { requestId: "r2", action: "closed", actor: MGR, at: "2026-10-28T07:10:01", snapshot: { closedReason: "LESSON_RESTORED", trigger: "manager_restore", reason: "Ошиблись" } };
   const cancel = { requestId: "r1", action: "cancelled", actor: MGR, at: "2026-10-28T06:00:00", snapshot: { reason: "Праздник" } };
   const out = (events) => TL.timelineOf({ item: item({ id: "r1" }), next: [item({ id: "r2", status: "closed" })], events }, "manager").rows;
-  const rows = out([cancel, first, second]);
-  assert.deepEqual(rows.map((r) => r.title), ["Урок отменён", "Урок возвращён"]);
-  assert.deepEqual(rows[1].details, ["Ошиблись"], "the reason of the dropped line goes to the kept one");
-  // named by mergedRequestId, whatever the time
-  assert.equal(out([cancel, { ...first, mergedRequestId: "r2" }, { ...second, at: "2026-10-28T09:00:00" }]).filter((r) => r.title === "Урок возвращён").length, 1);
-  // two returns of two different cancellations stay two lines
-  const again = [{ ...first }, { ...second }, { ...first, at: "2026-10-28T10:00:00" }, { ...second, at: "2026-10-28T10:00:01", requestId: "r3" }];
+  // as the server sends it: one event, the reason moved into it
+  const merged = out([cancel, { ...first, snapshot: { reason: "Ошиблись" } }]);
+  assert.deepEqual(merged.map((r) => r.title), ["Урок отменён", "Урок возвращён"]);
+  assert.deepEqual(merged[1].details, ["Ошиблись"]);
+  // a duplicate that comes anyway and is named by `mergedRequestId` is not drawn (whatever the time); its reason is kept
+  const guarded = out([cancel, first, { ...second, at: "2026-10-28T09:00:00" }]);
+  assert.deepEqual(guarded.map((r) => r.title), ["Урок отменён", "Урок возвращён"]);
+  assert.deepEqual(guarded[1].details, ["Ошиблись"]);
+  // no `mergedRequestId`: nothing is guessed (the same minute, the same author) - both lines are drawn
+  assert.equal(out([cancel, { ...first, mergedRequestId: undefined }, second]).filter((r) => r.title === "Урок возвращён").length, 2);
+  // two returns of two cancellations stay two lines
+  const again = [first, second, { ...first, requestId: "r5", mergedRequestId: "r6", at: "2026-10-28T10:00:00" }, { ...second, requestId: "r6", at: "2026-10-28T10:00:01" }];
   assert.equal(out(again).filter((r) => r.title === "Урок возвращён").length, 2);
-  // without the first half (an older answer) the closed record still says it
-  assert.equal(out([cancel, second]).filter((r) => r.title === "Урок возвращён").length, 1);
+  assert.doesNotMatch(read("src/lib/substitution-timeline.ts"), /Date\.parse|PAIR_MS/, "no heuristic by time");
 });
 
-test("#157 r2 (7): «Выходной отменён» is yellow only when a decision is needed: a substitution that did not come back for a lesson still ahead", () => {
+test("#157 (server sync): the closing of GROUP_TEACHER_CHANGED is the server's text as it is; nothing is added, «Запрос закрыт» is not doubled", () => {
+  const rec = (closedReasonText) => item({ status: "closed", outcome: "group_teacher_changed", decision: { kind: "closed", closedReason: "GROUP_TEACHER_CHANGED", closedReasonText } });
+  const row = (record) => TL.timelineOf({ item: record, events: [{ requestId: "r1", action: "closed", actor: null, at: "2026-10-28T07:10:00", snapshot: { closedReason: "GROUP_TEACHER_CHANGED", trigger: "group_teacher_changed" } }] }, "manager").rows[0];
+  const teacher = row(rec("Запрос закрыт: группу передали другому преподавателю"));
+  assert.deepEqual([teacher.title, teacher.details], ["Запрос закрыт: группу передали другому преподавателю", []]);
+  const manager = row(rec("Группу передали: Рахимов Т."));
+  assert.deepEqual([manager.title, manager.details], ["Группу передали: Рахимов Т.", []]);
+  assert.equal(row(rec(null)).title, "Запрос закрыт", "no text from the server: the table says why");
+  assert.deepEqual(row(rec(null)).details, ["Преподаватель группы изменён"]);
+  assert.equal(O.outcomeOf(rec("x"), "manager").text, "Сменился преподаватель");
+});
+
+test("#157 (server sync): a stranger's request is 404 for a teacher: the toast of `?request=` says «Запрос не найден»", () => {
+  assert.match(read("src/components/substitutions/substitutions-page.tsx"), /toastRef\.current\("Запрос не найден", "error"\)/);
+  const S = require(path.join(root, "src/lib/substitutions.ts"));
+  const notFound = Object.assign(new Error("x"), { status: 404, code: "SUBSTITUTION_NOT_FOUND", detail: { code: "SUBSTITUTION_NOT_FOUND" } });
+  assert.equal(S.substitutionErrorText(notFound), "Запрос на замену не найден", "the panel's error is the contract's sentence for the code");
+});
+
+test("#157 r2 (7): «Выходной отменён» is yellow ⇔ the server says `needsDecision` (and the lesson is ahead); the panel reads it from the last event", () => {
   const ahead = { lesson: { ...item().lesson, date: "2026-11-02" } };
-  const t = (over) => O.outcomeOf(item({ outcome: "day_off_voided", ...ahead, ...over }), "manager", NOW).tone;
-  assert.equal(t({ status: "substituted" }), "warn");
-  assert.equal(t({ status: "closed" }), "muted", "a closed request has its new row, nothing to decide here");
-  assert.equal(t({ status: "substituted", lesson: { ...ahead.lesson, date: "2026-10-20" } }), "muted", "the lesson is past");
-  assert.match(O.outcomeNote({ outcome: "day_off_voided", status: "substituted" }), /Назначьте её заново/);
-  assert.equal(O.outcomeNote({ outcome: "day_off_voided", status: "closed" }), null, "no word about a substitution that was never there");
+  const t = (needs, over = {}) => O.outcomeOf(item({ outcome: "day_off_voided", ...ahead, ...over }), "manager", NOW, needs).tone;
+  assert.equal(t(true), "warn");
+  assert.equal(t(false), "muted");
+  assert.equal(t(null), "muted");
+  assert.equal(t(true, { lesson: { ...ahead.lesson, date: "2026-10-20" } }), "muted", "the lesson is past");
+  const detail = (needsDecision) => ({ item: item({ id: "r1" }), events: [{ requestId: "r1", action: "day_off_voided", at: "2026-10-28T07:10:00", snapshot: { subject: "request", reopened: true, needsDecision } }] });
+  assert.equal(TL.dayOffNeedsDecision(detail(true)), true);
+  assert.equal(TL.dayOffNeedsDecision(detail(false)), false);
+  assert.equal(TL.dayOffNeedsDecision({ item: item(), events: [] }), null);
+  assert.match(O.outcomeNote({ outcome: "day_off_voided" }, true), /нужно ваше решение/);
+  assert.equal(O.outcomeNote({ outcome: "day_off_voided" }, false), null);
 });
 
 test("#157 r2 (8): «Вы» only for the teacher's own action with the role `teacher`; no role - no word (LESSONS 17)", () => {

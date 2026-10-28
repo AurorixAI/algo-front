@@ -182,12 +182,10 @@ export const CLOSED_REASON_TEXT: Record<ClosedReasonCode, string> = {
   ROLE_CHANGED: "Сотрудник стал администратором",
 };
 
-/** The words of a closing: the server's own text, else the table (`GROUP_TEACHER_CHANGED` names the new teacher when known). */
-export function closedReasonText(item: Pick<SubstitutionItem, "decision">, currentTeacherName?: string | null): string {
+/** The words of a closing: the server's own text as it is (it is built for the viewer: `GROUP_TEACHER_CHANGED` names the new teacher to a manager only), else the table. */
+export function closedReasonText(item: Pick<SubstitutionItem, "decision">): string {
   const decision = item.decision;
   const code = String(decision?.closedReason ?? "");
-  const name = (currentTeacherName ?? "").trim();
-  if (code === "GROUP_TEACHER_CHANGED" && name) return `Преподаватель группы изменён: урок ведёт ${name}`;
   const own = (decision?.closedReasonText ?? "").trim();
   if (own) return own;
   return CLOSED_REASON_TEXT[code as ClosedReasonCode] ?? "Запрос закрыт";
@@ -206,7 +204,11 @@ export function alreadyDecided(error: unknown): { item: SubstitutionItem | null;
 /** «Запрос уже решён» (withdrawn: «Учитель отозвал запрос», closed: «Запрос закрыт: <причина>»). */
 export function alreadyDecidedText(item: SubstitutionItem | null | undefined): string {
   if (item?.status === "withdrawn") return "Учитель отозвал запрос";
-  if (item?.status === "closed") return `Запрос закрыт: ${closedReasonText(item).toLowerCase()}`;
+  if (item?.status === "closed") {
+    // the text of the server already says «Запрос закрыт …» (or names a person: no lower case, no second prefix)
+    const own = closedReasonText(item);
+    return item.decision?.closedReason === "GROUP_TEACHER_CHANGED" || /^Запрос закрыт/.test(own) ? own : `Запрос закрыт: ${own.toLowerCase()}`;
+  }
   return "Запрос уже решён";
 }
 

@@ -214,7 +214,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         if (out.item.status === "pending") setDialogItem(out.item);
         else { setTab("decided"); setPanel({ id: out.item.id, seed: out.item, detail: out }); }
       })
-      .catch(() => { if (wantedId.current === requestedId) toastRef.current("Запрос на замену не найден", "error"); });
+      .catch(() => { if (wantedId.current === requestedId) toastRef.current("Запрос не найден", "error"); });
   }, [requestedId]);
 
   const switchTab = (next: Tab) => {

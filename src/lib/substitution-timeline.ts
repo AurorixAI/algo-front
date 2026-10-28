@@ -4,7 +4,6 @@
  * (a line of an unknown event would be a technical word on the screen, LESSONS 1.1 / 46).  An author is «Фамилия И., роль»; the role comes from the KIND of
  * the action, never by default (LESSONS 17).  Pure functions: no React and no network.
  */
-import { parseUtcNaive } from "./business-time";
 import { CLOSED_REASON_TEXT, movedToLabel, reasonLabelOf, suggestedLine } from "./substitutions";
 import { authorLine, eventMoment, type ActionKind, type Audience } from "./substitution-outcome";
 import type { ClosedReasonCode, SubstitutionDetailOut, SubstitutionEvent, SubstitutionItem } from "./substitution-types";
@@ -58,6 +57,21 @@ function movedLabelOf(value: unknown): string | null {
   return moved && typeof moved.date === "string" && typeof moved.startTime === "string" ? movedToLabel({ date: moved.date, startTime: moved.startTime }) : null;
 }
 
+/** «Выходной отменён: …» - by what the server says of the event (`subject`, `reopened`, `needsDecision`); nothing is guessed from the status of the record. */
+export function dayOffVoidedTitle(snapshot: Record<string, unknown>): string {
+  const needs = snapshot.needsDecision === true;
+  if (snapshot.subject === "request") return snapshot.reopened === true ? `Выходной отменён: запрос открыт заново${needs ? " — нужно решение" : ""}` : "Выходной отменён: урок вернулся";
+  if (snapshot.subject === "substitution") return needs ? "Выходной отменён: замена не вернулась — назначьте заново" : "Выходной отменён: замена не вернулась";
+  return "Выходной отменён";
+}
+
+/** The last `day_off_voided` of the open row says whether a decision is needed (the chip of the panel is yellow only then); null when there is no such event. */
+export function dayOffNeedsDecision(out: Pick<SubstitutionDetailOut, "item" | "events">): boolean | null {
+  const events = (out.events ?? []).filter((event) => event.action === "day_off_voided" && (event.requestId ?? out.item.id) === out.item.id);
+  const last = events[events.length - 1];
+  return last ? last.snapshot?.needsDecision === true : null;
+}
+
 function closedWhy(code: string): string {
   return CLOSED_REASON_TEXT[code as ClosedReasonCode] ?? "Запрос закрыт";
 }
@@ -106,7 +120,7 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
     }
     case "substituted": {
       const from = text(record.teacher?.name);
-      const to = text(record.decision?.substitute?.name);
+      const to = text(event.substituteName) || text(record.decision?.substitute?.name);
       const withoutRequest = record.origin === "system" && Boolean(record.trigger);
       return { title: withoutRequest ? "Замена назначена без запроса" : "Замена назначена", details: [from && to ? `${from} → ${to}` : to].filter(Boolean) };
     }
@@ -125,10 +139,14 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       const pair = Array.isArray(snapshot.teacherId) ? snapshot.teacherId : [];
       const merged = event.mergedRequestId ? records.get(event.mergedRequestId) : undefined;
       // who took the lesson: the record keeps the last one (`clearedTo`); the merged half knows it too
-      const toName = text(merged?.decision?.substitute?.name) || (record.clearedTo && record.clearedTo.id === pair[1] ? text(record.clearedTo.name) : "");
+      const toName = text(event.substituteName) || text(merged?.decision?.substitute?.name) || (record.clearedTo && record.clearedTo.id === pair[1] ? text(record.clearedTo.name) : "");
       const openRequestId = event.mergedRequestId ?? null;
-      if (snapshot.dayOffId) return { title: "Замена снята: урок отменён выходным днём", openRequestId };
-      if (pair[1]) return { title: toName ? `Новая замена: ${toName}` : "Новая замена", openRequestId };
+      if (snapshot.byDayOff) return { title: "Замена снята: урок отменён выходным днём", openRequestId };
+      // a pair the server merged (the lesson sheet replaced the substitution) is «Новая замена»; a replacement without the pair is «Заменена на …»
+      if (pair[1] || toName) {
+        if (event.mergedRequestId) return { title: toName ? `Новая замена: ${toName}` : "Новая замена", openRequestId };
+        return { title: toName ? `Заменена на ${toName}` : "Заменена другим", openRequestId };
+      }
       if (trigger === "put") return { title: "Замена снята: урок снова ведёт основной преподаватель", openRequestId };
       return { title: CLEARED_WHY[trigger] ? `Замена снята: ${CLEARED_WHY[trigger]}` : "Замена снята", openRequestId };
     }
@@ -144,6 +162,8 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       if (code === "LESSON_RESTORED") return { title: "Урок возвращён", details: [reason].filter(Boolean) };
       if (code === "ONE_OFF_ADDED") return { title: "Разовый урок добавлен" };
       if (code === "LESSON_CANCELLED" && (trigger === "day_off" || trigger === "day_off_void")) return { title: "Запрос закрыт: урок отменён выходным днём" };
+      // the text of this closing is the server's, built for the viewer («Запрос закрыт: группу передали другому преподавателю» / «Группу передали: Имя Ф.»): nothing is added to it
+      if (code === "GROUP_TEACHER_CHANGED" && text(record.decision?.closedReasonText)) return { title: text(record.decision?.closedReasonText) };
       return { title: "Запрос закрыт", details: [closedWhy(code)] };
     }
     case "suggestion_unavailable":
@@ -151,39 +171,29 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
     case "lesson_restored":
       return { title: "Урок возвращён", details: [reason].filter(Boolean) };
     case "day_off_voided":
-      // a substitution the day off took off is not back: it is to be set again; a request the day off closed is opened again (or not: the lesson is past, the group is archived, ...)
-      if (record.status === "substituted") return { title: "Выходной отменён: замена не вернулась — назначьте заново" };
-      return { title: snapshot.reopened ? "Выходной отменён: запрос открыт заново" : "Выходной отменён: запрос не открыт заново" };
+      return { title: dayOffVoidedTitle(snapshot) };
     default:
       return null;
   }
 }
 
-const PAIR_MS = 2000;
-
 /**
- * «Вернуть урок» writes TWO things: the event `lesson_restored` on the original record of the cancellation and the closed record `LESSON_RESTORED`.  Both read «Урок возвращён»:
- * the second is not drawn when the first is there (the same moment and author, or `mergedRequestId` names it); its reason goes to the first if that has none.
+ * «Вернуть урок»: the server merges the two halves itself (`lesson_restored` of the original record carries `mergedRequestId` = the record of the return; the `closed` of that record is not sent).
+ * This is only a guard against a second «Урок возвращён» if one comes anyway: the `closed` record that a `lesson_restored` names is dropped (its reason goes to the kept line). No guess by time.
  */
 export function withoutRestoreDuplicates(events: readonly SubstitutionEvent[]): SubstitutionEvent[] {
-  const restored = events.filter((event) => event.action === "lesson_restored");
-  if (restored.length === 0) return [...events];
-  const isClosedRestore = (event: SubstitutionEvent) => event.action === "closed" && text(event.snapshot?.closedReason) === "LESSON_RESTORED";
-  const pairOf = (closed: SubstitutionEvent) => restored.find((first) =>
-    first.mergedRequestId === closed.requestId
-    || (first.requestId !== closed.requestId
-      && (first.actor?.id ?? null) === (closed.actor?.id ?? null)
-      && Math.abs((parseUtcNaive(first.at)?.getTime() ?? NaN) - (parseUtcNaive(closed.at)?.getTime() ?? NaN)) <= PAIR_MS));
-  const taken = new Map<SubstitutionEvent, SubstitutionEvent>();
+  const named = new Map<string, SubstitutionEvent>();
+  for (const event of events) if (event.action === "lesson_restored" && event.mergedRequestId) named.set(event.mergedRequestId, event);
+  if (named.size === 0) return [...events];
+  const dropped = new Map<SubstitutionEvent, SubstitutionEvent>();
   const kept = events.filter((event) => {
-    if (!isClosedRestore(event)) return true;
-    const first = pairOf(event);
+    const first = event.action === "closed" && text(event.snapshot?.closedReason) === "LESSON_RESTORED" ? named.get(event.requestId ?? "") : undefined;
     if (!first) return true;
-    taken.set(first, event);
+    dropped.set(first, event);
     return false;
   });
   return kept.map((event) => {
-    const closed = taken.get(event);
+    const closed = dropped.get(event);
     const reason = text(closed?.snapshot?.reason);
     return closed && reason && !text(event.snapshot?.reason) ? { ...event, snapshot: { ...(event.snapshot ?? {}), reason } } : event;
   });

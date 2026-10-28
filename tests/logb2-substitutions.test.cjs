@@ -365,7 +365,12 @@ test("[chain 9] a group archived with a request waiting: the dialog line, the cl
   assert.equal(S.archiveRequestsText(fx("b2c9_archive_warning").count), "Запросов на замену: 1 — они будут закрыты.");
   const closed = fx("b2c9_closed");
   assert.deepEqual(chip(closed, "group_archived"), { text: "Группа в архиве", tone: "muted" });
-  assert.equal(S.closedReasonText({ decision: { closedReason: "GROUP_TEACHER_CHANGED" } }, "Рахимов Т."), "Преподаватель группы изменён: урок ведёт Рахимов Т.");
+  // #157: the closing text of GROUP_TEACHER_CHANGED is the server's, built for the viewer; the front adds nothing and does not double «Запрос закрыт»
+  assert.equal(S.closedReasonText({ decision: { closedReason: "GROUP_TEACHER_CHANGED", closedReasonText: "Запрос закрыт: группу передали другому преподавателю" } }), "Запрос закрыт: группу передали другому преподавателю");
+  assert.equal(S.closedReasonText({ decision: { closedReason: "GROUP_TEACHER_CHANGED", closedReasonText: "Группу передали: Рахимов Т." } }), "Группу передали: Рахимов Т.");
+  assert.equal(S.alreadyDecidedText({ status: "closed", decision: { closedReason: "GROUP_TEACHER_CHANGED", closedReasonText: "Запрос закрыт: группу передали другому преподавателю" } }), "Запрос закрыт: группу передали другому преподавателю");
+  assert.equal(S.alreadyDecidedText({ status: "closed", decision: { closedReason: "GROUP_TEACHER_CHANGED", closedReasonText: "Группу передали: Рахимов Т." } }), "Группу передали: Рахимов Т.", "a name is not lower-cased, no second prefix");
+  assert.equal(S.closedReasonText({ decision: { closedReason: "GROUP_TEACHER_CHANGED" } }), "Преподаватель группы изменён", "no text from the server: the table");
   assert.equal(S.closedReasonText({ decision: { closedReason: "LESSON_STARTED" } }), "Урок начат — запрос закрыт");
   assert.equal(S.closedReasonText({ decision: {} }), "Запрос закрыт");
   const archive = require(path.join(root, "src/lib/group-archive.ts"));

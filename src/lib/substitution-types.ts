@@ -311,6 +311,8 @@ export interface SubstitutionEvent {
   at?: string | null;
   /** Only the keys the server lets through (`P157_API.md` §6). */
   snapshot?: Record<string, unknown> | null;
+  /** #157: `substituted` and `assignment_cleared`: to whom the substitution went (the server names him; the second id of `snapshot.teacherId`). */
+  substituteName?: string;
   /** #157: the one event stands for a pair (a substitution replaced by another from the lesson sheet): the record of the second half. */
   mergedRequestId?: string;
 }
