@@ -53,7 +53,7 @@ import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
 import { refusalText } from "@/lib/weekly-lessons";
-import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
+import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, groupsBaseOf, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher, lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import { assignmentNotes, directAssignToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
@@ -1977,7 +1977,7 @@ export default function TeacherSchedulePage() {
                               {validFromBadge(l.validFrom, businessDate)}
                             </span>
                           )}
-                          <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="ml-1" />
+                          <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager, groupsBase: groupsBaseOf(user?.org_role) })} requestHref={isManager ? requestHrefFor : undefined} className="ml-1" />
 
                           <h4 className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
                             {l.groupName}
@@ -2166,7 +2166,7 @@ export default function TeacherSchedulePage() {
                         {l.groupName}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium">{l.subject}</p>
-                      <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager })} requestHref={isManager ? requestHrefFor : undefined} className="mt-1.5" />
+                      <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager, groupsBase: groupsBaseOf(user?.org_role) })} requestHref={isManager ? requestHrefFor : undefined} className="mt-1.5" />
                     </div>
 
                     {/* Bottom row */}

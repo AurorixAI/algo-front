@@ -28,7 +28,7 @@ import {
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
-import { oneOffRoleOf, purposeMarks } from "@/lib/one-off";
+import { groupsBaseOf, oneOffRoleOf, purposeMarks } from "@/lib/one-off";
 import { assignmentNotes, directAssignToast, lessonMarks, movedToLabel, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import { useAuthStore } from "@/lib/store";
 import { useToast } from "@/components/ui/toast";
@@ -445,7 +445,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
                         const room = roomLine(lesson);
                         const actions = scheduleCardActions({ role: viewerRole, archived, state: lessonState, date: lesson.date, today, hasTeacherInfo: Boolean(teacherInfo), startTime: lesson.startTime || lesson.start_time, recurring: seriesRunning(lesson), moved, cancelKind: attendance?.cancellationKinds?.[key] ?? null });
                         // a moved / cancelled original says it in its own status and line: the marks keep only a waiting request
-                        const marks = [...lessonMarks(attendance?.substitutionRequests?.[key], null), ...purposeMarks(lesson)];
+                        const marks = [...lessonMarks(attendance?.substitutionRequests?.[key], null), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(viewerRole), groupId })];
                         const manager = viewerRole === "owner" || viewerRole === "admin";
                         const interactive = manager && (actions.length > 0 || lessonState === "cancelled");
                         const open = () => setSheetLesson(lesson);
@@ -527,7 +527,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
             badge={presentation ? { label: presentation.label, className: presentation.badgeClassName } : null}
             teacherLine={teacherLine(info, NO_LESSON_TEACHER_TEXT)}
             notes={notes}
-            marks={lesson ? [...lessonMarks(attendance?.substitutionRequests?.[key], null), ...purposeMarks(lesson)] : []}
+            marks={lesson ? [...lessonMarks(attendance?.substitutionRequests?.[key], null), ...purposeMarks(lesson, { groupsBase: groupsBaseOf(viewerRole), groupId })] : []}
             requestHref={(requestId) => substitutionsHref(substitutionsPathFor(user), requestId)}
             cancellationKind={lessonState === "cancelled" ? attendance?.cancellationKinds?.[key] ?? null : null}
             actions={actions}

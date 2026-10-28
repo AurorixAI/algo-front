@@ -1710,7 +1710,7 @@ export default function TeacherDashboardPage() {
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <p className="font-bold text-sm text-slate-900 truncate group-hover:text-primary-600 transition-colors">
                           {l.groupName}
-                          {!ledByOtherTeacher && <LessonChips marks={occurrenceChips(l, user?.id)} className="ml-2 align-middle" />}
+                          {!ledByOtherTeacher && <LessonChips marks={occurrenceChips(l, user?.id, { groupsBase: "/teacher/groups" })} className="ml-2 align-middle" />}
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {attendanceStatusUnknown ? (

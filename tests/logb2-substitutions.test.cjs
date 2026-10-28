@@ -734,7 +734,7 @@ test("[T1] the lesson panels carry the control and the teacher's dashboard carri
   assert.match(dashboard, /<TeacherRequestsBlock/);
   assert.match(dashboard, /canAskForSubstitute/);
   assert.match(dashboard, /<RequestDialog\s+open=\{newRequestOpen\}\s+lesson=\{null\}/);
-  assert.match(schedule, /occurrenceChips\(l, user\?\.id, \{ manager: isManager \}\)/);
+  assert.match(schedule, /occurrenceChips\(l, user\?\.id, \{ manager: isManager, groupsBase: groupsBaseOf\(user\?\.org_role\) \}\)/);
   // the journal and the schedule overview of the owner / administrator carry the marks
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /lessonMarks\(attendanceData\?\.substitutionRequests\?\.\[key\]/);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /lessonMarks\(attendance\?\.substitutionRequests\?\.\[key\]/);

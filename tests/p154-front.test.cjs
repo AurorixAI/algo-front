@@ -102,9 +102,9 @@ test("A: the money of an additional lesson by the role; no role is guessed", () 
   assert.deepEqual(O.moneyChoicesFor(null), []);
   assert.equal(O.oneOffRoleOf({ org_role: "owner" }), "manager");
   assert.equal(O.oneOffRoleOf({ org_role: "admin" }), "manager");
-  assert.equal(O.oneOffRoleOf({ org_role: null, role: "owner" }), "manager");
   assert.equal(O.oneOffRoleOf({ org_role: "teacher" }), "teacher");
-  for (const odd of [null, undefined, {}, { org_role: "student" }, { role: "parent" }, { org_role: "" }]) assert.equal(O.oneOffRoleOf(odd), null);
+  // the global role is never a guess (LESSONS 17): without the role in THIS centre nobody gets the form
+  for (const odd of [null, undefined, {}, { org_role: "student" }, { role: "parent" }, { org_role: "" }, { org_role: null, role: "owner" }, { org_role: null, role: "admin" }, { role: "teacher" }]) assert.equal(O.oneOffRoleOf(odd), null);
   assert.deepEqual(O.emptyChoice("teacher"), { purpose: null, money: "wait", target: "" });
   assert.deepEqual(O.emptyChoice("manager"), { purpose: null, money: null, target: "" });
 });
@@ -260,6 +260,27 @@ test("A: the row of money - the title of the server, the lesson, who held it, ho
   assert.doesNotMatch(text(empty), /Просит оплатить/, "only a teacher asks");
 });
 
+test("A: the buttons are named by the short day, never an ISO date (F3); the window says «нельзя изменить» for BOTH choices (F4)", () => {
+  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} }));
+  assert.match(html, /aria-label="Оплатить: 7-А, чт 05\.11"/);
+  assert.match(html, /aria-label="Не оплачивать: 7-А, чт 05\.11"/);
+  assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
+  for (const decide of ["pay", "skip"]) assert.match(O.decisionNote(decide), /Решение нельзя изменить\.$/);
+  assert.match(O.decisionNote("pay"), /^Урок войдёт в сумму преподавателя/);
+  assert.match(O.decisionNote("skip"), /^Преподавателю за этот урок не заплатят\./);
+  assert.match(read("src/components/substitutions/one-off-decisions.tsx"), /decisionNote\(dialog\.decision\)/);
+});
+
+test("A: the new refusals of the server have words, not codes (F5)", () => {
+  assert.match(O.oneOffErrorText(refusal("NOT_A_MEMBER", {}, 403)), /не состоите в этом центре/);
+  assert.match(O.oneOffErrorText(refusal("DECISION_FORBIDDEN", {}, 403)), /владелец и администратор/);
+  assert.ok(O.ONE_OFF_CODES.includes("NOT_A_MEMBER") && O.ONE_OFF_CODES.includes("DECISION_FORBIDDEN"));
+  // the clashes of an additional lesson (now checked like a make-up) and of «Вернуть урок» are worded on both screens
+  assert.match(O.oneOffErrorText(refusal("GROUP_BUSY", { conflicts: [{ date: "2026-11-05", startTime: "16:00", endTime: "17:00" }], total: 1 }, 409)), /^У группы уже есть урок в это время: /);
+  assert.match(O.oneOffErrorText(refusal("TEACHER_BUSY", { conflicts: [] }, 409)), /^У преподавателя в это время уже есть урок/);
+  assert.doesNotMatch(S.substitutionErrorText(refusal("GROUP_BUSY", {}, 409), "x"), LATIN);
+});
+
 test("A: no rows - nothing is drawn; a failed read says so with «Повторить»; loading is quiet", () => {
   const block = (props) => renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {}, ...props }));
   assert.equal(block({}), "");
@@ -356,6 +377,20 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
   assert.equal(O.purposeMarks({ purpose: "extra", purposeLabel: "Дополнительный", money: "wait", moneyLabel: "оплата: не решено" })[1].tone, "amber");
   assert.deepEqual(O.purposeMarks({ purpose: "extra", purposeLabel: "Дополнительный", money: "paid", moneyLabel: "оплачивается" }).map((m) => m.text), ["Дополнительный", "оплачивается"]);
   assert.deepEqual(O.purposeMarks({ purpose: null, madeUpBy: { lessonId: "l", date: "2026-11-06", startTime: "10:00", endTime: "11:00", label: "Отработан → чт 06.11" } }).map((m) => m.text), ["Отработан → чт 06.11"]);
+  // F2: «Отработан → чт 06.11» leads to the make-up (the lesson in the journal of its group); no group / no role - plain text; the other chips are never links
+  const by = { purpose: null, madeUpBy: { lessonId: "one-off-9", date: "2026-11-06", startTime: "10:00", endTime: "11:00", label: "Отработан → чт 06.11" } };
+  assert.equal(O.purposeMarks(by, { groupsBase: "/owner/groups", groupId: "g 1" })[0].href, "/owner/groups/g%201?tab=attendance&month=2026-11&lesson=one-off-9&date=2026-11-06");
+  assert.equal(O.purposeMarks(by, { groupsBase: "/teacher/groups", groupId: "g1" })[0].href, "/teacher/groups/g1?tab=attendance&month=2026-11&lesson=one-off-9&date=2026-11-06");
+  for (const link of [{}, { groupsBase: null, groupId: "g1" }, { groupsBase: "/owner/groups" }]) assert.equal(O.purposeMarks(by, link)[0].href, undefined);
+  assert.equal(O.groupsBaseOf("owner"), "/owner/groups");
+  assert.equal(O.groupsBaseOf("admin"), "/admin/groups");
+  assert.equal(O.groupsBaseOf("teacher"), "/teacher/groups");
+  for (const odd of [null, undefined, "", "student", "parent"]) assert.equal(O.groupsBaseOf(odd), null);
+  const both = O.purposeMarks({ purpose: "makeup", purposeLabel: "Отработка за пн 03.11", madeUpBy: by.madeUpBy }, { groupsBase: "/owner/groups", groupId: "g1" });
+  assert.deepEqual(both.map((m) => Boolean(m.href)), [false, true]);
+  assert.ok(S.occurrenceChips({ groupId: "g1", ...by }, "u1", { groupsBase: "/owner/groups" }).find((c) => c.href)?.href.startsWith("/owner/groups/g1?tab=attendance"));
+  const chipLink = renderToStaticMarkup(React.createElement(require(path.join(root, "src/components/substitutions/lesson-chips.tsx")).LessonChips, { marks: O.purposeMarks(by, { groupsBase: "/admin/groups", groupId: "g1" }) }));
+  assert.match(chipLink, /<a [^>]*href="\/admin\/groups\/g1\?tab=attendance&amp;month=2026-11&amp;lesson=one-off-9&amp;date=2026-11-06"[^>]*>Отработан → чт 06\.11<\/a>/);
   // a move's copy and an ordinary lesson say nothing; a student gets no money
   assert.deepEqual(O.purposeMarks({ purpose: "moved", purposeLabel: null }), []);
   assert.deepEqual(O.purposeMarks(null), []);
@@ -365,7 +400,7 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
   // the teacher's schedule, the dashboard, the group page, the journal and the card of a student all use it
   const chips = S.occurrenceChips({ groupName: "7-А", purpose: "extra", purposeLabel: "Дополнительный", money: "none", moneyLabel: "без оплаты" }, "u1");
   assert.deepEqual(chips.map((c) => c.text), ["Дополнительный", "без оплаты"]);
-  for (const file of ["src/components/groups/group-schedule-overview.tsx", "src/components/groups/group-attendance-journal.tsx"]) assert.match(read(file), /purposeMarks\(lesson\)/, file);
+  for (const file of ["src/components/groups/group-schedule-overview.tsx", "src/components/groups/group-attendance-journal.tsx"]) assert.match(read(file), /purposeMarks\(lesson, \{ groupsBase: groupsBaseOf\(/, file);
   const rows = S.studentLessonRows([{ lesson_id: "l1", date: "2026-11-05", group_name: "7-А", status: "present", purpose: "makeup", purposeLabel: "Отработка за пн 02.11", money: "paid" }], [], () => "Был");
   assert.equal(rows[0].purposeText, "Отработка за пн 02.11");
   assert.match(read("src/components/students/student-lessons-list.tsx"), /row\.purposeText/);

@@ -91,8 +91,8 @@ export interface MoneyDecisionOut {
 /** Who adds the lesson: the owner / administrator (`manager`) or the teacher.  Anyone else (or nobody) gets `null`: the form is not offered. */
 export type OneOffRole = "manager" | "teacher";
 
-export function oneOffRoleOf(user: { org_role?: string | null; role?: string | null } | null | undefined): OneOffRole | null {
-  const role = user?.org_role ?? user?.role ?? null;
+export function oneOffRoleOf(user: { org_role?: string | null } | null | undefined): OneOffRole | null {
+  const role = user?.org_role ?? null;       // only the role in THIS centre; the global `role` is never a guess (LESSONS 17)
   if (role === "owner" || role === "admin") return "manager";
   if (role === "teacher") return "teacher";
   return null;
@@ -236,6 +236,7 @@ export const ONE_OFF_CODES: readonly string[] = [
   "MAKEUP_NOT_ALLOWED", "MAKEUP_EXISTS", "MOVE_IN_PAST", "MOVE_TOO_FAR", "MOVE_SAME_SLOT", "SERIES_ENDED", "GROUP_BUSY", "TEACHER_BUSY", "STUDENT_BUSY",
   "TEACHER_REQUIRED", "LESSON_ALREADY_STARTED", "PURPOSE_REQUIRED", "PURPOSE_INVALID", "MONEY_REQUIRED", "MONEY_INVALID", "MAKEUP_TARGET_REQUIRED",
   "MAKEUP_TARGET_NOT_ALLOWED", "RESTORE_MAKEUP_TARGET", "ONE_OFF_NOT_FOUND", "DECISION_NOT_ALLOWED", "LESSON_NOT_COMPLETED", "ALREADY_DECIDED",
+  "NOT_A_MEMBER", "DECISION_FORBIDDEN",
 ];
 
 /**
@@ -271,6 +272,8 @@ export function oneOffErrorText(error: unknown): string | null {
     case "DECISION_NOT_ALLOWED": return "По этому уроку решение не нужно";
     case "LESSON_NOT_COMPLETED": return "Урок ещё не проведён: решить можно после урока";
     case "ALREADY_DECIDED": return "Решение по этому уроку уже принято. Обновите страницу";
+    case "NOT_A_MEMBER": return "Вы не состоите в этом центре. Войдите заново или обратитесь к владельцу";
+    case "DECISION_FORBIDDEN": return "Решать об оплате могут только владелец и администратор";
     default: return null;
   }
 }
@@ -340,6 +343,13 @@ export const DECISION_PAY_LABEL = "Оплатить";
 export const DECISION_SKIP_LABEL = "Не оплачивать";
 export const DECISIONS_GROUP_TITLE = "Дополнительные уроки и отработки без учеников";
 export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение принимается один раз.";
+export const DECISION_PAY_NOTE = "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен.";
+export const DECISION_SKIP_NOTE = "Преподавателю за этот урок не заплатят.";
+export const DECISION_FINAL_NOTE = "Решение нельзя изменить.";
+/** The sentence of the window of a decision: what follows from it, and - for BOTH choices - that it is taken once. */
+export function decisionNote(decision: OneOffDecision): string {
+  return `${decision === "pay" ? DECISION_PAY_NOTE : DECISION_SKIP_NOTE} ${DECISION_FINAL_NOTE}`;
+}
 export const DECISION_PAY_TOAST = "Преподавателю будет оплачено";
 export const DECISION_SKIP_TOAST = "Решено: без оплаты";
 export function decisionToast(decision: OneOffDecision): string {
@@ -364,13 +374,31 @@ export function waitingTotal(summary: { pendingTotal?: number; oneOffDecisionsTo
 export interface PurposeMark {
   text: string;
   tone: "amber" | "blue" | "gray" | "violet" | "red";
+  /** «Отработан → чт 06.11» leads to the make-up (the lesson in the journal of its group); the other marks are plain text. */
+  href?: string;
+}
+
+/** The groups of the role in the address: `/owner/groups`, `/admin/groups`, `/teacher/groups`; null for any other role (no link is offered, no role is guessed). */
+export function groupsBaseOf(orgRole: string | null | undefined): string | null {
+  return orgRole === "owner" || orgRole === "admin" || orgRole === "teacher" ? `/${orgRole}/groups` : null;
+}
+
+/** The lesson of a group in its journal: the very link of «Открыть журнал» of a lesson card (`?tab=attendance&month=&lesson=&date=`). */
+export function lessonHref(groupsBase: string, groupId: string, lesson: { lessonId: string; date: string }): string {
+  return `${groupsBase.replace(/\/+$/, "")}/${encodeURIComponent(groupId)}?tab=attendance&month=${lesson.date.slice(0, 7)}&lesson=${encodeURIComponent(lesson.lessonId)}&date=${lesson.date}`;
+}
+
+export interface PurposeLinkOptions {
+  /** `groupsBaseOf(role)` of the viewer; with the group it makes «Отработан → …» a link. */
+  groupsBase?: string | null;
+  groupId?: string | null;
 }
 
 /**
  * «Отработка за пн 03.11» / «Дополнительный» + «без оплаты» / «оплата: не решено» / «оплачивается»; on a cancelled original «Отработан → чт 06.11».
  * The words of the money come from the server (they differ by role: LESSONS 45); a student never gets `money`, so no money chip appears for him.
  */
-export function purposeMarks(lesson: LessonPurposeFields | null | undefined): PurposeMark[] {
+export function purposeMarks(lesson: LessonPurposeFields | null | undefined, link: PurposeLinkOptions = {}): PurposeMark[] {
   if (!lesson) return [];
   const marks: PurposeMark[] = [];
   const label = (lesson.purposeLabel ?? "").trim();
@@ -378,7 +406,11 @@ export function purposeMarks(lesson: LessonPurposeFields | null | undefined): Pu
   const money = (lesson.moneyLabel ?? "").trim();
   if (money && lesson.money) marks.push({ text: money, tone: lesson.money === "wait" ? "amber" : "gray" });
   const by = (lesson.madeUpBy?.label ?? "").trim();
-  if (by) marks.push({ text: by, tone: "blue" });
+  if (by) {
+    const target = lesson.madeUpBy;
+    const href = link.groupsBase && link.groupId && target?.lessonId && target.date ? lessonHref(link.groupsBase, link.groupId, { lessonId: target.lessonId, date: target.date }) : undefined;
+    marks.push(href ? { text: by, tone: "blue", href } : { text: by, tone: "blue" });
+  }
   return marks;
 }
 

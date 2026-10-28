@@ -6,7 +6,7 @@ import { orgApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import {
   DECISIONS_GROUP_HINT, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionQuestion, decisionToast, decisionWhoLine, isAlreadyDecided, oneOffRefusalText, payrollWarning,
+  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, isAlreadyDecided, oneOffRefusalText, payrollWarning, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
 
@@ -92,7 +92,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
                 <button
                   type="button"
                   onClick={() => { setProblem(null); setDialog({ item, decision: "pay" }); }}
-                  aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${item.lessonDate}`}
+                  aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
                   className="h-9 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 md:flex-none"
                 >
                   {DECISION_PAY_LABEL}
@@ -100,7 +100,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
                 <button
                   type="button"
                   onClick={() => { setProblem(null); setDialog({ item, decision: "skip" }); }}
-                  aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${item.lessonDate}`}
+                  aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
                   className="h-9 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:flex-none"
                 >
                   {DECISION_SKIP_LABEL}
@@ -138,9 +138,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
           <div className="space-y-3 text-sm text-slate-700">
             <p>{decisionWhoLine(dialog.item)}</p>
             <p className="text-slate-600">
-              {dialog.decision === "pay"
-                ? "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен."
-                : "Преподавателю за этот урок не заплатят. Решение нельзя изменить."}
+              {decisionNote(dialog.decision)}
             </p>
             {warning && (
               <p role="alert" data-testid="one-off-decision-warning" className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold leading-relaxed text-amber-900">

@@ -17,6 +17,13 @@ export function LessonChips({
     <span className={`inline-flex max-w-full flex-wrap items-center gap-1 ${className}`}>
       {marks.map((mark) => {
         const classes = `inline-block min-w-0 max-w-full break-words rounded-md px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${MARK_TONE_CLASS[mark.tone]}`;
+        if (mark.href) {
+          return (
+            <Link key={mark.text} href={mark.href} data-testid="lesson-chip-link" onClick={(event) => event.stopPropagation()} className={`${classes} underline-offset-2 hover:underline`} title="Открыть урок">
+              {mark.text}
+            </Link>
+          );
+        }
         return mark.requestId && requestHref ? (
           <Link key={mark.text} href={requestHref(mark.requestId)} onClick={(event) => event.stopPropagation()} className={`${classes} underline-offset-2 hover:underline`} title="Открыть запрос">
             {mark.text}

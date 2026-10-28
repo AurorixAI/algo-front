@@ -950,6 +950,8 @@ export interface LessonMark {
   tone: "amber" | "blue" | "gray" | "violet" | "red";
   /** The request the mark leads to (only a waiting request has a page of its own). */
   requestId?: string;
+  /** #154: where the mark leads by itself («Отработан → чт 06.11» opens the make-up in the journal of its group). */
+  href?: string;
 }
 
 /**
@@ -992,9 +994,10 @@ export function occurrenceChips(
     substitutionOutcome?: SubstitutionOutcome | null;
     /** #124: the new lesson of a move says where it came from. */
     movedFrom?: MovedFrom | null;
+    groupId?: string | null;
   } & LessonPurposeFields,
   viewerId: string | null | undefined,
-  options: { manager?: boolean } = {},
+  options: { manager?: boolean; groupsBase?: string | null } = {},
 ): LessonMark[] {
   const chips: LessonMark[] = [];
   if (occurrence.isSubstitution) {
@@ -1016,7 +1019,7 @@ export function occurrenceChips(
   const from = movedFromLabel(occurrence.movedFrom);
   if (from) chips.push({ text: from, tone: "blue" });
   // #154: «Отработка за пн 03.11» / «Дополнительный» / «оплата: не решено» / «Отработан → чт 06.11»
-  chips.push(...purposeMarks(occurrence));
+  chips.push(...purposeMarks(occurrence, { groupsBase: options.groupsBase, groupId: occurrence.groupId }));
   return chips;
 }
 
