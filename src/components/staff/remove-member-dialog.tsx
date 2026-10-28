@@ -12,6 +12,7 @@ import { removalRequestsText } from "@/lib/substitutions";
 import {
   GROUP_WITHOUT_TEACHER_WARNING,
   KEEP_UNASSIGNED_LABEL,
+  ROLE_TO_ADMIN_NOTE,
   UNASSIGNED,
   UNASSIGNED_CONFIRM_TEXT,
   applyToAll,
@@ -236,6 +237,19 @@ export function ImpactNotes({ impact }: { impact: RemovalImpact | null }) {
       {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
       {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
     </div>
+  );
+}
+
+/**
+ * «Изменить роль» of a teacher who becomes an administrator: the note about his groups only while he has some (they must be handed over first), then what the change takes off
+ * (substitutes, missed lessons) - each told once, by `ImpactNotes`.
+ */
+export function RoleToAdminNotes({ impact }: { impact: RemovalImpact | null }) {
+  return (
+    <>
+      {(impact?.groups ?? []).length > 0 && <p className="text-xs leading-5 text-slate-600" data-testid="role-to-admin-note">{ROLE_TO_ADMIN_NOTE}</p>}
+      <ImpactNotes impact={impact} />
+    </>
   );
 }
 

@@ -176,6 +176,7 @@ export interface DayOffWarning {
   lessonId?: string;
   date?: string;
   startTime?: string | null;
+  endTime?: string | null;
   substituteName?: string | null;
 }
 
@@ -327,12 +328,23 @@ export function voidSummary(plan: Pick<DayOffVoided, "restored" | "kept">): stri
   return parts.join(" ");
 }
 
-/** «28.10 · 10:00 · Группа — была замена: Имя Ф.»: built from the fields of the warning (the group and the time come from the lesson that came back when the warning has none). */
+/**
+ * «28.10 · 10:00–10:45 · Группа — была замена: Имя Ф.»: the line of the lesson is the SAME function as in the lists (rule 48), then «— была замена».  The group and the times come from the
+ * warning; the lesson that came back (`restored`) fills what the warning does not have.
+ */
 export function dayOffNotRestoredLine(warning: DayOffWarning, lessons: readonly DayOffLesson[] = []): string {
-  const lesson = lessons.find((item) => item.lessonId === warning.lessonId && item.date === warning.date && (!warning.groupId || item.groupId === warning.groupId));
-  const head = [dayMonth(warning.date), warning.startTime ?? lesson?.startTime ?? "", warning.groupName ?? lesson?.groupName ?? ""].filter(Boolean).join(" · ");
+  const found = lessons.find((item) => item.lessonId === warning.lessonId && item.date === warning.date && (!warning.groupId || item.groupId === warning.groupId));
+  const line = dayOffLessonLine({
+    groupId: warning.groupId ?? found?.groupId ?? "",
+    groupName: warning.groupName ?? found?.groupName ?? "",
+    lessonId: warning.lessonId ?? found?.lessonId ?? "",
+    date: warning.date ?? found?.date ?? "",
+    startTime: warning.startTime ?? found?.startTime ?? null,
+    endTime: warning.endTime ?? found?.endTime ?? null,
+    reason: null,
+  });
   const who = (warning.substituteName ?? "").trim();
-  return `${head ? `${head} — ` : ""}${who ? `была замена: ${who}` : "была замена"}`;
+  return `${line ? `${line} — ` : ""}${who ? `была замена: ${who}` : "была замена"}`;
 }
 
 /** The sentence of a dry run without the names of the groups after the colon («Будут отменены 4 урока в 4 группах»): the lessons are listed under it one by one. */

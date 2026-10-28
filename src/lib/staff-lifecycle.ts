@@ -153,8 +153,15 @@ export const GROUP_WITHOUT_TEACHER_WARNING = "Без преподавателя 
 /** `TEACHER_REQUIRED` (422): the card of a group cannot go back to «без преподавателя» (PUT with a null lead). */
 export const GROUP_TEACHER_REQUIRED_TEXT = "Выберите преподавателя";
 
-/** The window «Изменить роль» of a teacher who becomes an administrator. */
-export const ROLE_TO_ADMIN_NOTE = "Администратор не ведёт уроки: его группы нужно передать другим преподавателям, а будущие замены снимутся.";
+/** The window «Изменить роль» of a teacher who becomes an administrator - only while he has groups (the substitutes are told by `futureSubstitutionsText`). */
+export const ROLE_TO_ADMIN_NOTE = "Администратор не ведёт уроки: его группы нужно передать другим преподавателям.";
+/** The create form with no teacher in the centre: one line instead of the select. */
+export const GROUP_NO_TEACHERS_TEXT = "Преподавателей пока нет — назначьте позже";
+/** The card of a group whose lead is not a teacher. */
+export function groupLeadNotTeacherLine(name: string | null | undefined): string {
+  const who = (name ?? "").trim();
+  return `Ведёт не преподаватель${who ? `: ${who}` : ""} — выберите преподавателя`;
+}
 /** The create form: «Без преподавателя» is allowed, the hint says it can be fixed later. */
 export const GROUP_TEACHER_LATER_HINT = "Можно назначить позже";
 

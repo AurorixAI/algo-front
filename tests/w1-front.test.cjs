@@ -432,7 +432,7 @@ test("day off: «не завершён» is kept on the server; the lessons that
   const payf = read("src/lib/payf.ts");
   assert.match(payf, /incomplete\?: boolean/);
   assert.match(payf, /warnings\?: DayOffWarning\[\]/);
-  assert.match(payf, /startTime\?: string \| null;\n  substituteName/, "W1 round 2: the warning carries the start time");
+  assert.match(payf, /startTime\?: string \| null;\n  endTime\?: string \| null;\n  substituteName/, "W1 round 2: the warning carries the start and the end time");
 });
 
 test("R3 round: an administrator's estimate is hidden (null / HIDDEN) - nothing but the yes / no of the rate; a teacher's «ученик занят» is shown as the server wrote it; the day-off / too-old reasons", () => {

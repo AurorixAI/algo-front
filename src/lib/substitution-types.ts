@@ -131,7 +131,7 @@ export interface SubstitutionItem {
   clearedBy?: PersonRef | null;
   /** The teacher who took the lesson over; null = the main teacher leads again. */
   clearedTo?: PersonRef | null;
-  clearedTrigger?: "put" | "member_removed" | "group_teacher_changed" | "cancel" | "move" | "release" | string | null;
+  clearedTrigger?: "put" | "member_removed" | "role_changed" | "group_teacher_changed" | "cancel" | "move" | "release" | string | null;
 }
 
 // ── teacher ───────────────────────────────────────────────────────────────────

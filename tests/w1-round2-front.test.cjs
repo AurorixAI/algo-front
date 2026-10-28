@@ -103,14 +103,17 @@ test("#155 (4): the substitutes that do not return: the block's title says it on
   assert.equal(F.NOT_RESTORED_TITLE, "Замена не вернётся — назначьте заново");
   const restored = [lesson(1, { date: "2026-10-28", startTime: "10:00" })];
   const warning = { code: "SUBSTITUTE_NOT_RESTORED", message: "28.10 — «Группа 1»: замена (Иванов И.) была снята выходным и не вернулась — назначьте её заново", groupId: "g1", lessonId: "l1", date: "2026-10-28", startTime: "10:00", substituteName: "Иванов И." };
-  assert.equal(F.dayOffNotRestoredLine(warning, restored), "28.10 · 10:00 · Группа 1 — была замена: Иванов И.");
+  assert.equal(F.dayOffNotRestoredLine(warning, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the end of the lesson comes from the lesson that came back");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, groupName: "Группа 1", endTime: "10:45" }, []), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.", "the server sends the end itself");
+  // rule 48: the line of the substitute and the line of the lists agree on the time
+  assert.ok(F.dayOffNotRestoredLine(warning, restored).startsWith(F.dayOffLessonLine(restored[0])));
   // the group and the time come from the lesson that came back when the warning has no start time
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, startTime: undefined }, restored), "28.10 · 10:00 · Группа 1 — была замена: Иванов И.");
-  assert.equal(F.dayOffNotRestoredLine({ ...warning, substituteName: null }, restored), "28.10 · 10:00 · Группа 1 — была замена");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, startTime: undefined }, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И.");
+  assert.equal(F.dayOffNotRestoredLine({ ...warning, substituteName: null }, restored), "28.10 · 10:00–10:45 · Группа 1 — была замена");
   assert.equal(F.dayOffNotRestoredLine({ code: "x", message: "m", date: "2026-10-28", substituteName: "Ким А." }, []), "28.10 — была замена: Ким А.");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored, kept: [], warnings: [warning] } }));
-  assert.match(text(html), /Замена не вернётся — назначьте заново 28\.10 · 10:00 · Группа 1 — была замена: Иванов И\./);
+  assert.match(text(html), /Замена не вернётся — назначьте заново 28\.10 · 10:00–10:45 · Группа 1 — была замена: Иванов И\./);
   assert.doesNotMatch(html, /была снята выходным/, "the server's message is for the journal and the API");
   assert.doesNotMatch(html, /Вернутся без замены/);
 });
@@ -189,10 +192,11 @@ test("#156 (5): a group without a teacher says what it costs; the create form al
   const view = read("src/components/groups/group-detail-view.tsx");
   assert.match(view, /data-testid="group-no-teacher-warning"/);
   assert.match(view, /\{GROUP_WITHOUT_TEACHER_WARNING\}/);
-  assert.match(view, /group\.teacher_name && leadIsTeacher/, "a lead who is not a teacher is not named «Преподаватель: …»");
+  assert.match(view, /leadIsTeacher \? `Преподаватель: /, "a lead who is not a teacher is not named «Преподаватель: …»");
   const create = read("src/components/groups/group-create-modal.tsx");
   assert.match(create, /label: "Без преподавателя" \}/);
   assert.match(create, /\{GROUP_TEACHER_LATER_HINT\}/);
+  assert.match(create, /<GroupTeacherField teachers=\{teachers\}/);
   assert.doesNotMatch(create, /Не назначен/);
   assert.match(read("src/components/groups/group-archive-dialog.tsx"), /teacherId === "__none__" && <p data-testid="restore-no-teacher-warning"[^>]*>\{GROUP_WITHOUT_TEACHER_WARNING\}/);
   const { RemovalDialogBody } = require(path.join(root, "src/components/staff/remove-member-dialog.tsx"));
@@ -239,7 +243,7 @@ test("#156 (6): the dead code of a manager as a substitute is gone (ManagerAssig
 });
 
 test("#156 (3): the window «Изменить роль» of a teacher warns before (substitutes taken off, missed lessons) and never blocks; the journal knows the new trigger", () => {
-  assert.equal(SL.ROLE_TO_ADMIN_NOTE, "Администратор не ведёт уроки: его группы нужно передать другим преподавателям, а будущие замены снимутся.");
+  assert.equal(SL.ROLE_TO_ADMIN_NOTE, "Администратор не ведёт уроки: его группы нужно передать другим преподавателям.");
   const { ImpactNotes } = require(path.join(root, "src/components/staff/remove-member-dialog.tsx"));
   const html = text(renderToStaticMarkup(React.createElement(ImpactNotes, { impact: { futureSubstitutions: { count: 2 }, missedLessons: { count: 3 }, pendingSubstitutionRequests: { count: 1 } } })));
   assert.match(html, /Будущие замены этого сотрудника \(2\) будут сняты/);
@@ -251,7 +255,7 @@ test("#156 (3): the window «Изменить роль» of a teacher warns befo
   assert.match(page, /opsApi\.removalImpact\(memberKey, "role_change"\)/);
   assert.match(read("src/components/staff/remove-member-dialog.tsx"), /opsApi\.removalImpact\(memberId, intent\)/);
   assert.match(read("src/lib/api.ts"), /removal-impact\$\{intent === "role_change" \? "\?intent=role_change" : ""\}/);
-  assert.match(page, /data-testid="role-to-admin-note"/);
+  assert.match(page, /<RoleToAdminNotes impact=\{impact\} \/>/);
   // LESSONS 46: the new trigger `role_changed` has its words in each place of the journal
   const gone = { clearedAt: "2026-10-22T04:30:00", clearedBy: { id: "x", name: "Каримова Н." }, clearedTrigger: "role_changed", status: "substituted" };
   assert.equal(S.clearedLine({ ...gone, clearedBy: null }), "Замена снята: роль заменяющего изменена, он больше не ведёт уроки, 22.10 09:30");
@@ -266,7 +270,7 @@ test("#156 (4): a waiting request whose suggested colleague stopped leading less
 
 test("#156 (3): the handover of a teacher who becomes an administrator lists the ARCHIVED groups too, marked «в архиве» (the server's `intent=role_change`)", () => {
   const { RemovalDialogBody } = require(path.join(root, "src/components/staff/remove-member-dialog.tsx"));
-  const impact = { memberId: "m1", canRemove: false, canChangeRole: false, groups: [{ id: "g1", name: "9-А", status: "active", nextLesson: { date: "2026-10-30", startTime: "10:00" } }, { id: "g2", name: "Старая 7-Б", status: "archived", nextLesson: null }], inProgressLessons: [] };
+  const impact = { memberId: "m1", canRemove: false, groups: [{ id: "g1", name: "9-А", status: "active", nextLesson: { date: "2026-10-30", startTime: "10:00" } }, { id: "g2", name: "Старая 7-Б", status: "archived", nextLesson: null }], inProgressLessons: [] };
   const html = text(renderToStaticMarkup(React.createElement(RemovalDialogBody, {
     name: "Иванов", impact, loadError: null, isRole: true, targets: [{ id: "t2", name: "Петров" }], choices: { g1: { value: "", confirmed: false }, g2: { value: "", confirmed: false } }, everyone: "", conflicts: {}, busy: false, error: null,
     onRetry() {}, onChoice() {}, onEveryone() {},
@@ -274,4 +278,45 @@ test("#156 (3): the handover of a teacher who becomes an administrator lists the
   assert.match(html, /9-А/);
   assert.match(html, /Старая 7-Б · в архиве/);
   assert.doesNotMatch(html.replace(/Старая 7-Б · в архиве/, ""), /в архиве/, "an active group is not marked");
+});
+
+test("R3 1: «Можно назначить позже» stands in the «Преподаватель» block right under its select; no teachers in the centre: one line instead of the select", () => {
+  const { GroupTeacherField } = require(path.join(root, "src/components/groups/group-create-modal.tsx"));
+  const teachers = [{ id: "t1", first_name: "Иван", last_name: "Иванов", org_role: "teacher" }];
+  const html = renderToStaticMarkup(React.createElement(GroupTeacherField, { teachers, value: "", onChange() {} }));
+  assert.ok(html.indexOf(">Преподаватель<") < html.indexOf('id="group-create-uchitel"') && html.indexOf('id="group-create-uchitel"') < html.indexOf("group-create-teacher-hint"), "label, select, then the hint - all in one block");
+  assert.match(text(html), /Можно назначить позже/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(GroupTeacherField, { teachers, value: "t1", onChange() {} })), /group-create-teacher-hint/, "a chosen teacher: no hint");
+  const none = renderToStaticMarkup(React.createElement(GroupTeacherField, { teachers: [], value: "", onChange() {} }));
+  assert.equal(text(none), "Преподавателей пока нет — назначьте позже");
+  assert.doesNotMatch(none, /group-create-uchitel|<button/);
+  // the hint is nowhere else in the form (it stood under «Тип занятий» by mistake)
+  const create = read("src/components/groups/group-create-modal.tsx");
+  assert.equal((create.match(/group-create-teacher-hint/g) || []).length, 1);
+});
+
+test("R3 6: a lead who is not a teacher: the header says «Ведёт не преподаватель: Имя Ф. — выберите преподавателя», never «Не назначен»", () => {
+  assert.equal(SL.groupLeadNotTeacherLine("Усманов У."), "Ведёт не преподаватель: Усманов У. — выберите преподавателя");
+  assert.equal(SL.groupLeadNotTeacherLine(null), "Ведёт не преподаватель — выберите преподавателя");
+  const view = read("src/components/groups/group-detail-view.tsx");
+  assert.match(view, /groupLeadNotTeacherLine\(group\.teacher_name\)/);
+  assert.match(view, /!group\.teacher_id && !group\.teacher_name \? "Преподаватель не назначен"/);
+});
+
+test("R3 7: the note about groups only while he has groups; the substitutes are told once, by their own line", () => {
+  const { RoleToAdminNotes } = require(path.join(root, "src/components/staff/remove-member-dialog.tsx"));
+  const withGroups = text(renderToStaticMarkup(React.createElement(RoleToAdminNotes, { impact: { groups: [{ id: "g", name: "9-А" }], futureSubstitutions: { count: 2 } } })));
+  assert.match(withGroups, /Администратор не ведёт уроки: его группы нужно передать другим преподавателям\./);
+  assert.match(withGroups, /Будущие замены этого сотрудника \(2\) будут сняты/);
+  assert.equal((withGroups.match(/замен/gi) || []).length, 1, "the substitutes are named once");
+  const none = renderToStaticMarkup(React.createElement(RoleToAdminNotes, { impact: { groups: [], futureSubstitutions: { count: 0 } } }));
+  assert.equal(none, "", "no groups and no substitutes: nothing");
+  const onlySubs = renderToStaticMarkup(React.createElement(RoleToAdminNotes, { impact: { groups: [], futureSubstitutions: { count: 1 } } }));
+  assert.doesNotMatch(onlySubs, /role-to-admin-note/);
+  assert.doesNotMatch(SL.ROLE_TO_ADMIN_NOTE, /замен/);
+});
+
+test("R3 9: the types follow the server: `clearedTrigger` names role_changed, the unused `canChangeRole` is gone", () => {
+  assert.match(read("src/lib/substitution-types.ts"), /clearedTrigger\?: [^;]*"role_changed"/);
+  assert.doesNotMatch(read("src/lib/ops-b-types.ts"), /canChangeRole/);
 });

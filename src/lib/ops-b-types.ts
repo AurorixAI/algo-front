@@ -210,8 +210,6 @@ export interface RemovalImpact {
   name?: string | null;
   orgRole?: string;
   canRemove: boolean;
-  /** W1 round 2: a teacher can become an administrator only without groups (active and archived) and lessons in progress. */
-  canChangeRole?: boolean;
   groups?: RemovalGroup[];
   inProgressLessons?: RemovalLesson[];
   futureSubstitutions?: { count?: number };

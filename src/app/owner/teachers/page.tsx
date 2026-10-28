@@ -13,11 +13,10 @@ import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldC
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
-import { ImpactNotes, RemoveMemberDialog, type MemberAction } from "@/components/staff/remove-member-dialog";
+import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
 import type { InvitationRow, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
-import { ROLE_TO_ADMIN_NOTE } from "@/lib/staff-lifecycle";
 import {
   INVITE_ADMIN_HINT,
   INVITE_AGAIN_LABEL,
@@ -747,8 +746,7 @@ function RoleChangeDialog({
           className="grid-cols-2 gap-3"
           buttonClassName="rounded-xl border-2 p-3.5 text-sm"
         />
-        {wasTeacher && role === "admin" && <p className="text-xs leading-5 text-slate-600" data-testid="role-to-admin-note">{ROLE_TO_ADMIN_NOTE}</p>}
-        {wasTeacher && role === "admin" && <ImpactNotes impact={impact} />}
+        {wasTeacher && role === "admin" && <RoleToAdminNotes impact={impact} />}
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </div>
     </Modal>

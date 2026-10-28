@@ -22,7 +22,7 @@ import { enrolToast } from "@/lib/group-enrol";
 import { ENROL_STUDENTS_BUTTON_LABEL } from "@/lib/enrol-labels";
 import { staffDisplayName } from "@/lib/staff-name";
 import { groupUpdateBody } from "@/lib/group-form";
-import { GROUP_TEACHER_REQUIRED_TEXT, GROUP_WITHOUT_TEACHER_WARNING, groupTeacherOptions } from "@/lib/staff-lifecycle";
+import { GROUP_TEACHER_REQUIRED_TEXT, GROUP_WITHOUT_TEACHER_WARNING, groupLeadNotTeacherLine, groupTeacherOptions } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
@@ -422,7 +422,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                     <h1 className="break-words text-xl font-bold text-slate-900 md:text-2xl">{group.name}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">
                       {group.class_level ? `${group.class_level} класс · ` : ""}
-                      {group.teacher_name && leadIsTeacher ? `Преподаватель: ${group.teacher_name}` : "Преподаватель не назначен"}
+                      {!group.teacher_id && !group.teacher_name ? "Преподаватель не назначен" : leadIsTeacher ? `Преподаватель: ${group.teacher_name ?? ""}` : groupLeadNotTeacherLine(group.teacher_name)}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
                     {noTeacher && (
