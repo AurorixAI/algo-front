@@ -58,6 +58,7 @@ import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
+import { lessonsTodayTile, moreTodayText, nextLessonAhead, orderActions, pickNextStep, startsInText, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -1078,40 +1079,33 @@ export default function TeacherDashboardPage() {
     });
   }, [activeLesson, activeInstanceStatus, todayDayOfWeek, businessDate, finishClock]);
 
+  // ONE reading of the teacher's day (LESSONS 38): the card, both tiles and «Группы в фокусе» use it. A lesson that is cancelled,
+  // moved away or led by a substitute (W1 F10) is not in it.
+  const statusOfToday = useCallback(
+    (lesson: Pick<LessonSummary, "id">): LifecycleStatus => lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled"),
+    [lessonStatusMap, completedLessonsMap],
+  );
+  const agenda = useMemo(
+    () => todayAgenda(todayLessons, statusOfToday, businessTimeMinutes()),
+    // the clock moves the phases: a lesson becomes «пора начать» without a click
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [todayLessons, statusOfToday, clockTick],
+  );
+
   const scheduledLessonActions = useMemo<LessonAction[]>(() => {
-    return sortedTodayLessons.flatMap<LessonAction>((lesson) => {
-      const instanceStatus = lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled");
-      if (instanceStatus === "completed" || instanceStatus === "cancelled") return [];
-      if (lesson.replacedBy) return [];        // a substitute leads it (W1 F10): nothing to start for the main teacher
-
-      const timing = getLessonTimeStatus(
-        lesson,
-        todayDayOfWeek,
-        Boolean(lessonAttendanceMap[lesson.id]),
-        false,
-      );
-      if (timing.type !== "live") return [];
-
-      if (instanceStatus === "scheduled") {
-        // A lesson whose time has passed is returned by the operational API
-        // as a separate "missed" action. Do not offer a misleading delayed
-        // start locally or duplicate the reconciliation card.
-        if (timing.isPastEndTime) return [];
-        if (getSubsequentStartedLesson(lesson)) return [];
-        return [{
-          lesson,
-          label: "Начните урок",
-          description: `${lesson.groupName} · ${lesson.startTime} — ${lesson.endTime}`,
-          tone: "emerald",
-        }];
-      }
-
-      // In-progress lessons come from the persisted open-actions endpoint.
-      // It includes partial attendance and historical instances, while this
-      // list only describes an actionable scheduled lesson for today.
-      return [];
+    return agenda.entries.flatMap<LessonAction>((entry) => {
+      // A lesson whose time has passed is returned by the operational API as a separate "missed" action: no delayed start here.
+      // A lesson in progress comes from the persisted open-actions endpoint (partial attendance, historical instances).
+      if (entry.phase !== "to_start") return [];
+      if (getSubsequentStartedLesson(entry.lesson)) return [];
+      return [{
+        lesson: entry.lesson,
+        label: "Начните урок",
+        description: `${entry.lesson.groupName} · ${entry.lesson.startTime} — ${entry.lesson.endTime}`,
+        tone: "emerald",
+      }];
     });
-  }, [sortedTodayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, getSubsequentStartedLesson]);
+  }, [agenda, getSubsequentStartedLesson]);
 
   const openLessonActions = useMemo<LessonAction[]>(() => (
     openAttendanceActions.map((action) => {
@@ -1154,30 +1148,21 @@ export default function TeacherDashboardPage() {
   /** Decision 7: lessons older than 7 days. They stay in the list, grey and without buttons; they never become the card of the next action. */
   const lockedLessonActions = useMemo(() => openLessonActions.filter((action) => action.locked), [openLessonActions]);
 
-  const lessonActions = useMemo<LessonAction[]>(() => (
-    [...openLessonActions.filter((action) => !action.locked), ...scheduledLessonActions].sort((left, right) => {
-      const leftDate = left.lesson.occurrenceDate || businessDate;
-      const rightDate = right.lesson.occurrenceDate || businessDate;
-      return `${leftDate}T${left.lesson.startTime}`.localeCompare(`${rightDate}T${right.lesson.startTime}`);
-    })
-  ), [openLessonActions, scheduledLessonActions, businessDate]);
+  // The card, the tile «Требуют действия» and the centre read this one list, in one order: red, in progress, to start.
+  const lessonActions = useMemo<LessonAction[]>(
+    () => orderActions([...openLessonActions.filter((action) => !action.locked), ...scheduledLessonActions], businessDate),
+    [openLessonActions, scheduledLessonActions, businessDate],
+  );
 
   const groupFocus = useMemo(() => {
     const nowMinutes = businessTimeMinutes();
     return groups
       .filter((group) => group.status === "active")
-      .map((group) => ({
-        group,
-        nextLesson: weekLessons
-          .filter((lesson) => {
-            if (lesson.groupId !== group.id) return false;
-            if (lesson.occurrenceDate > businessDate) return true;
-            if (lesson.occurrenceDate < businessDate) return false;
-            const [hour, minute] = lesson.startTime.split(":").map(Number);
-            return (hour || 0) * 60 + (minute || 0) >= nowMinutes;
-          })
-          .sort((a, b) => `${a.occurrenceDate}T${a.startTime}`.localeCompare(`${b.occurrenceDate}T${b.startTime}`))[0] || null,
-      }))
+      .map((group) => {
+        // not a cancelled / moved / substituted lesson; the one that is in progress stays (it is the nearest of the group)
+        const ahead = nextLessonAhead({ lessons: weekLessons, today: businessDate, nowMinutes, todayStatusOf: statusOfToday, groupId: group.id });
+        return { group, nextLesson: ahead?.lesson ?? null, live: ahead?.live ?? false };
+      })
       .sort((a, b) => {
         if (!a.nextLesson) return 1;
         if (!b.nextLesson) return -1;
@@ -1186,7 +1171,8 @@ export default function TeacherDashboardPage() {
         );
       })
       .slice(0, 4);
-  }, [groups, weekLessons, businessDate, clockTick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, weekLessons, businessDate, clockTick, statusOfToday]);
 
   const liveExamView = useMemo(() => {
     const snapshotAgeSeconds = liveExamSnapshotAt
@@ -1200,10 +1186,7 @@ export default function TeacherDashboardPage() {
     }));
   }, [liveExams, liveExamSnapshotAt, liveExamTick]);
 
-  const primaryLessonAction = lessonActions[0] || null;
-  // the lesson of the card is the lesson of a waiting request «Не смогу провести» of today: nobody has decided yet, so the teacher leads it
   const [mineRequests, setMineRequests] = useState<SubstitutionItem[]>([]);
-  const actionHint = primaryLessonAction ? todayPendingHintForLesson(mineRequests, primaryLessonAction.lesson, businessDate) : null;
   // A lobby is preparation, not an ongoing exam. It must not displace a
   // lesson in the teacher's main "next action" card. Once its assigned
   // lesson is in the past, the lobby is no longer usable for participants:
@@ -1271,16 +1254,100 @@ export default function TeacherDashboardPage() {
   // "Требуют действия" is a finite queue of attendance/lesson closures.
   // An ongoing exam has its own live block and must not create a hidden item
   // in this action centre.
-  const actionCount = dashboardError || openAttendanceActionsAvailable === false ? null : lessonActions.length;
+  const loadFailed = Boolean(dashboardError) || openAttendanceActionsAvailable === false;
+  const actionCount = loadFailed ? null : lessonActions.length;
+
+  // «Ближайшее действие»: one rule for the card (see `pickNextStep`); never «всё закрыто» after a failed load.
+  const activeExamForCard = activeExamAction;
+  const attentionExam = dashboardExamRows.find((exam) => exam.state === "needs_resolution") || null;
+  const laterLesson = useMemo(() => {
+    const ahead = nextLessonAhead({ lessons: weekLessons, today: businessDate, nowMinutes: businessTimeMinutes(), todayStatusOf: statusOfToday });
+    return ahead ? { date: ahead.lesson.occurrenceDate, startTime: ahead.lesson.startTime, groupName: ahead.lesson.groupName } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekLessons, businessDate, statusOfToday, clockTick]);
+  const nextStep = pickNextStep({
+    actions: lessonActions,
+    agenda,
+    activeExam: activeExamForCard,
+    attentionExam,
+    loadFailed,
+    today: businessDate,
+    later: laterLesson,
+  });
+  const primaryLessonAction = nextStep.kind === "action" ? nextStep.action : null;
+  // the lesson of the card is the lesson of a waiting request «Не смогу провести» of today: nobody has decided yet, so the teacher leads it
+  const hintLesson = nextStep.kind === "action" ? nextStep.action.lesson : nextStep.kind === "upcoming" ? nextStep.entry.lesson : null;
+  const actionHint = hintLesson ? todayPendingHintForLesson(mineRequests, hintLesson, businessDate) : null;
+
+  const cardView = (() => {
+    const examLine = (exam: NonNullable<typeof activeExamForCard>) => `${exam.title}${exam.group_name ? ` · ${exam.group_name}` : ""}`;
+    switch (nextStep.kind) {
+      case "action": {
+        const { action } = nextStep;
+        return {
+          kind: nextStep.kind,
+          tone: action.tone,
+          title: action.cardLabel || action.label,
+          description: action.cardDescription || action.description,
+        };
+      }
+      case "upcoming": {
+        const { entry } = nextStep;
+        return {
+          kind: nextStep.kind,
+          tone: "slate" as const,
+          title: `Дальше: ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
+          description: startsInText(entry.minutesToStart),
+        };
+      }
+      case "exam_active": {
+        const { exam } = nextStep;
+        return {
+          kind: nextStep.kind,
+          tone: "primary" as const,
+          title: exam.delivery_mode === "print" ? "Сейчас проводится печатный экзамен" : "Сейчас проводится экзамен",
+          description: `${examLine(exam)}.${exam.delivery_mode === "print" ? " Проводится на бумаге." : ""} Осталось ${formatCountdown(exam.displayRemainingSeconds)}.`,
+        };
+      }
+      case "exam_attention":
+        return {
+          kind: nextStep.kind,
+          tone: "amber" as const,
+          title: "Нужно решить по экзамену",
+          description: `${examLine(nextStep.exam)}. Занятие прошло, а экзамен не проведён.`,
+        };
+      case "failed":
+        return {
+          kind: nextStep.kind,
+          tone: "slate" as const,
+          title: "Не удалось загрузить",
+          description: "Не получилось проверить уроки на сегодня. Попробуйте ещё раз.",
+        };
+      default:
+        return {
+          kind: nextStep.kind,
+          tone: "emerald" as const,
+          title: "На сегодня всё закрыто",
+          description: "Нет незавершённых уроков или отметок, требующих вашего внимания.",
+        };
+    }
+  })();
+  const moreToday = nextStep.kind === "upcoming" ? moreTodayText(nextStep.more) : null;
+  const laterText = nextStep.kind === "closed" && nextStep.later
+    ? `Следующий: ${formatIsoDateLabel(nextStep.later.date, { weekday: "short", day: "2-digit", month: "2-digit" })}, ${nextStep.later.startTime} · ${nextStep.later.groupName}`
+    : null;
 
   const greeting = businessGreeting(); // Tashkent hour, whatever the browser zone is
   const displayName = staffDisplayName(user, "Преподаватель");
 
-  const statCards = [
-    { label: "Мои группы", value: stats.groups || 0, icon: Users, color: "from-blue-500 to-indigo-600", bg: "bg-blue-50", iconColor: "text-blue-600" },
-    { label: "Мои ученики", value: stats.students || 0, icon: GraduationCap, color: "from-emerald-400 to-emerald-600", bg: "bg-emerald-50", iconColor: "text-emerald-600" },
-    { label: "Уроков сегодня", value: todayLessons.length, icon: CalendarIcon, color: "from-violet-500 to-purple-600", bg: "bg-violet-50", iconColor: "text-violet-600" },
-    { label: "Требуют действия", value: actionCount ?? "—", icon: ClipboardCheck, color: "from-amber-400 to-orange-500", bg: "bg-amber-50", iconColor: "text-amber-600", onClick: (actionCount !== null && actionCount > 0) || lockedLessonActions.length > 0 ? () => setIsActionCenterOpen(true) : undefined },
+  // «Уроков сегодня: 3 · осталось 1» - the lessons of the plan (not cancelled, not led by a substitute); «Требуют действия» - what the click opens.
+  const todayTile = lessonsTodayTile(agenda);
+  const oldActionsNote = lockedLessonActions.length > 0 ? `ещё ${lockedLessonActions.length} у администратора` : null;
+  const statCards: { label: string; value: number | string; note?: string | null; icon: typeof Users; bg: string; iconColor: string; onClick?: () => void }[] = [
+    { label: "Мои группы", value: stats.groups || 0, icon: Users, bg: "bg-blue-50", iconColor: "text-blue-600" },
+    { label: "Мои ученики", value: stats.students || 0, icon: GraduationCap, bg: "bg-emerald-50", iconColor: "text-emerald-600" },
+    { label: "Уроков сегодня", value: todayTile.value, note: todayTile.note, icon: CalendarIcon, bg: "bg-violet-50", iconColor: "text-violet-600" },
+    { label: "Требуют действия", value: actionCount ?? "—", note: oldActionsNote, icon: ClipboardCheck, bg: "bg-amber-50", iconColor: "text-amber-600", onClick: (actionCount !== null && actionCount > 0) || lockedLessonActions.length > 0 ? () => setIsActionCenterOpen(true) : undefined },
   ];
 
   const activeLessonStatus = useMemo(() => {
@@ -1366,33 +1433,34 @@ export default function TeacherDashboardPage() {
         />
       )}
 
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* KPI Stats Grid: 2x2 on a phone (the card «Ближайшее действие» stays on the first screen), one row from 1024 */}
+      <div data-testid="teacher-summary" className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         {statCards.map((s, i) => (
           <motion.div
             key={s.label}
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: i * 0.05 }}
-            className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-xs relative overflow-hidden group hover:border-slate-200 transition-all ${s.onClick ? "cursor-pointer focus-within:ring-2 focus-within:ring-amber-300" : ""}`}
+            className={`bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-6 border border-slate-100 shadow-xs relative overflow-hidden group hover:border-slate-200 transition-all ${s.onClick ? "cursor-pointer focus-within:ring-2 focus-within:ring-amber-300" : ""}`}
           >
             {s.onClick && (
               <button
                 type="button"
                 onClick={s.onClick}
                 aria-label="Открыть список уроков, требующих действия"
-                className="absolute inset-0 z-10 rounded-3xl outline-none"
+                className="absolute inset-0 z-10 rounded-2xl sm:rounded-3xl outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
               />
             )}
-            <div className="absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-slate-50 opacity-60 pointer-events-none group-hover:scale-110 transition-transform" />
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
-                <s.icon className={`w-6 h-6 ${s.iconColor}`} />
+            <div className="hidden sm:block absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-slate-50 opacity-60 pointer-events-none group-hover:scale-110 transition-transform" />
+            <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
+              <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+                <s.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${s.iconColor}`} />
               </div>
-              <div>
-                <p className="text-sm font-medium text-slate-500">{s.label}</p>
-                <div className="flex items-baseline gap-2 mt-0.5">
-                  <span className="text-2xl font-bold text-slate-900">{s.value}</span>
+              <div className="flex min-w-0 flex-col-reverse sm:flex-col">
+                <p className="text-xs sm:text-sm font-medium text-slate-500">{s.label}</p>
+                <div className="flex flex-wrap items-baseline gap-x-2 sm:mt-0.5">
+                  <span className="text-xl sm:text-2xl font-bold leading-7 text-slate-900">{s.value}</span>
+                  {s.note && <span data-testid="stat-note" className="text-xs font-medium text-slate-500">· {s.note}</span>}
                 </div>
               </div>
             </div>
@@ -1404,46 +1472,58 @@ export default function TeacherDashboardPage() {
         
         {/* Left Column (Main content) */}
         <div className="lg:col-span-2 space-y-8">
-          {/* One explicit next step prevents the dashboard from becoming a wall of passive figures. */}
-          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          {/* One explicit next step prevents the dashboard from becoming a wall of passive figures (rule: `pickNextStep`). */}
+          <div data-testid="next-action-card" data-step={cardView.kind} className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary-50/80" />
             <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex min-w-0 items-start gap-4">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${primaryLessonAction?.tone === "rose" ? "bg-rose-100 text-rose-700" : primaryLessonAction?.tone === "amber" ? "bg-amber-100 text-amber-700" : activeExamAction ? "bg-primary-100 text-primary-700" : "bg-emerald-100 text-emerald-700"}`}>
-                  {primaryLessonAction ? <ClipboardCheck className="h-6 w-6" /> : activeExamAction ? <Radio className="h-6 w-6" /> : <CheckCircle2 className="h-6 w-6" />}
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${cardView.tone === "rose" ? "bg-rose-100 text-rose-700" : cardView.tone === "amber" ? "bg-amber-100 text-amber-700" : cardView.tone === "primary" ? "bg-primary-100 text-primary-700" : cardView.tone === "slate" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-700"}`}>
+                  {cardView.kind === "action" || cardView.kind === "exam_attention" ? <ClipboardCheck className="h-6 w-6" />
+                    : cardView.kind === "upcoming" ? <Clock className="h-6 w-6" />
+                    : cardView.kind === "exam_active" ? <Radio className="h-6 w-6" />
+                    : cardView.kind === "failed" ? <AlertCircle className="h-6 w-6" />
+                    : <CheckCircle2 className="h-6 w-6" />}
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-slate-500">Ближайшее действие</p>
-                  <h2 className="mt-1 text-xl font-bold text-slate-900">
-                    {primaryLessonAction?.cardLabel || primaryLessonAction?.label || (activeExamAction
-                      ? activeExamAction.delivery_mode === "print"
-                        ? "Сейчас проводится печатный экзамен"
-                        : "Сейчас проводится экзамен"
-                      : "На сегодня всё закрыто")}
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {primaryLessonAction?.cardDescription || primaryLessonAction?.description || (activeExamAction
-                      ? `${activeExamAction.title}${activeExamAction.group_name ? ` · ${activeExamAction.group_name}` : ""}.${activeExamAction.delivery_mode === "print" ? " Проводится на бумаге." : ""} Осталось ${formatCountdown(activeExamAction.displayRemainingSeconds)}.`
-                      : "Нет незавершённых уроков или отметок, требующих вашего внимания.")}
-                  </p>
+                  <h2 data-testid="next-action-title" className="mt-1 text-xl font-bold text-slate-900">{cardView.title}</h2>
+                  <p data-testid="next-action-description" className="mt-1 text-sm leading-6 text-slate-600">{cardView.description}</p>
                   {actionHint && <p data-testid="today-pending-hint-card" className="mt-1 text-sm font-medium text-amber-800">{actionHint}</p>}
+                  {laterText && <p data-testid="next-lesson-later" className="mt-1 text-sm font-medium text-slate-700">{laterText}</p>}
+                  {moreToday && <Link data-testid="more-today" href="/teacher/schedule" className="mt-1 inline-block text-sm font-semibold text-primary-700 hover:text-primary-800">{moreToday}</Link>}
                 </div>
               </div>
-              {primaryLessonAction ? (
+              {nextStep.kind === "action" ? (
                 <button
                   type="button"
-                  onClick={() => openLessonAction(primaryLessonAction)}
+                  onClick={() => openLessonAction(nextStep.action)}
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
                 >
                   Открыть урок <ArrowRight className="h-4 w-4" />
                 </button>
-              ) : activeExamAction ? (
+              ) : nextStep.kind === "upcoming" ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveLesson(nextStep.entry.lesson)}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
+                >
+                  Открыть урок <ArrowRight className="h-4 w-4" />
+                </button>
+              ) : nextStep.kind === "exam_active" || nextStep.kind === "exam_attention" ? (
                 <Link
-                  href={`/teacher/exams/${activeExamAction.exam_id}`}
+                  href={`/teacher/exams/${nextStep.exam.exam_id}`}
                   className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
                 >
                   Открыть экзамен <ArrowRight className="h-4 w-4" />
                 </Link>
+              ) : nextStep.kind === "failed" ? (
+                <button
+                  type="button"
+                  onClick={() => setDashboardRefreshNonce((current) => current + 1)}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
+                >
+                  Повторить
+                </button>
               ) : (
                 <Link
                   href="/teacher/schedule"
@@ -1476,7 +1556,7 @@ export default function TeacherDashboardPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {groupFocus.map(({ group, nextLesson }) => (
+                {groupFocus.map(({ group, nextLesson, live }) => (
                   <Link
                     key={group.id}
                     href={`/teacher/groups/${group.id}`}
@@ -1494,9 +1574,12 @@ export default function TeacherDashboardPage() {
                     <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-slate-600">
                       <Clock className="h-3.5 w-3.5 shrink-0 text-primary-500" />
                       {nextLesson ? (
-                        <span className="truncate">
-                          {formatIsoDateLabel(nextLesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · {nextLesson.startTime}
-                          {nextLesson.isRescheduled ? " · перенесено" : ""}
+                        <span className="flex min-w-0 items-center gap-2">
+                          {live && <span data-testid="group-focus-live" className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-800">Идёт сейчас</span>}
+                          <span className="truncate">
+                            {live ? `${nextLesson.startTime}–${nextLesson.endTime}` : `${formatIsoDateLabel(nextLesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · ${nextLesson.startTime}`}
+                            {nextLesson.isRescheduled ? " · перенесено" : ""}
+                          </span>
                         </span>
                       ) : (
                         <span>Занятий в ближайшие 7 дней нет</span>
@@ -2068,7 +2151,7 @@ export default function TeacherDashboardPage() {
                                 </p>
                               </div>
                               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
-                                {action.actionType ? openLessonBadge(action.actionType) : "Идёт сейчас"}
+                                {action.actionType ? openLessonBadge(action.actionType) : "Пора начать"}
                               </span>
                             </div>
                             <p className="mt-2 text-sm font-semibold text-slate-800">{action.label}</p>
