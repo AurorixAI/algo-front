@@ -154,9 +154,10 @@ test("createWeeklyLessons: any failure of one day (even a network one) does not 
 test("a one-off lesson goes to its date through the occurrences endpoint with the blank room as null", async () => {
   calls.length = 0;
   behaviour.oneOff = () => ({ id: "one", warnings: [{ code: "ROOM_BUSY", message: "Кабинет «7» занят" }] });
-  const notices = await W.createOneOff("g1", "2026-10-30", { ...DRAFT, startTime: "15:00", endTime: "16:30", room: "7", topic: "Разовое" });
+  // #154: the purpose always goes with it
+  const notices = await W.createOneOff("g1", "2026-10-30", { ...DRAFT, startTime: "15:00", endTime: "16:30", room: "7", topic: "Разовое" }, { purpose: "extra", money: "wait", target: "" });
   assert.deepEqual(notices, ["Кабинет «7» занят"]);
-  assert.deepEqual(calls[0], ["oneOff", { groupId: "g1", lessonDate: "2026-10-30", startTime: "15:00", endTime: "16:30", room: "7", format: "offline", color: "blue", topic: "Разовое" }]);
+  assert.deepEqual(calls[0], ["oneOff", { purpose: "extra", money: "wait", groupId: "g1", lessonDate: "2026-10-30", startTime: "15:00", endTime: "16:30", room: "7", format: "offline", color: "blue", topic: "Разовое" }]);
 });
 
 test("a revision already scheduled is not undone: the owner opens 8 Nov (a revision 10:00 -> 12:00 acts from 1 Nov) and changes only the room", () => {
@@ -298,12 +299,12 @@ test("wiring: the group form is the teacher's one (scope, weekdays, fields) and 
   const helper = read("src/lib/weekly-lessons.ts");
   assert.match(dialogs, /<LessonScopeFields/);
   assert.match(dialogs, /createWeeklyLessons\(group\.id, slots/);
-  assert.match(dialogs, /createOneOff\(group\.id, date/);
+  assert.match(dialogs, /createOneOff\(group\.id, date, value, choice\)/);
   assert.match(dialogs, /DATE_REQUIRED_TEXT/);
   assert.match(dialogs, /isoDateDayOfWeek\(date\)/, "a one-off lesson is checked against the lessons of its weekday");
   assert.match(dialogs, /<ShiftedDayNote/, "today's past weekday starts a week later and is named, nothing is refused");
   assert.match(helper, /orgApi\.createLesson\(\{\s*groupId/);
-  assert.match(helper, /orgApi\.createOneOffLesson\(\{\s*groupId/);
+  assert.match(helper, /orgApi\.createOneOffLesson\(\{\s*\.\.\.choicePayload\(choice\),\s*groupId/);
   assert.match(helper, /validFrom,\s+\}\)/, "each weekday goes with its own «Действует с»");
   assert.match(helper, /scheduleErrorText\(failure/);
   assert.match(helper, /warningTexts\(created\)/);

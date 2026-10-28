@@ -7,6 +7,7 @@ import { opsErrorCode, opsErrorDetail, scheduleErrorText, teacherConflictLines, 
 import type { TeacherBusyDetail } from "./ops-b-types";
 import { roomForSave } from "./schedule-slots";
 import { substitutionErrorText } from "./substitutions";
+import { choicePayload, oneOffErrorText, type OneOffChoice } from "./one-off";
 import { addIsoDays } from "./business-time";
 import { LESSON_SUBJECT, firstOccurrenceOf, sharedRevisionPatch, snapshotFromOccurrence, type LessonColor, type LessonFormat, type WeeklyLesson, type WeeklySlot } from "./lesson-slot-form";
 
@@ -37,13 +38,17 @@ export interface WeeklyAddResult {
 }
 
 /** A refusal of the schedule in calm words; a busy teacher is told by the clashes alone (the server's own sentence repeats the first one with an ISO date). */
-export function refusalText(failure: unknown, fallback: string): string {
+export function refusalText(failure: unknown, fallback: string, lesson: "weekly" | "one_off" = "weekly"): string {
   if (opsErrorCode(failure) === "TEACHER_BUSY") {
     const lines = teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(failure), 2);
     if (lines.length) return `У преподавателя в это время уже есть урок. ${lines.join("; ")}`;
   }
-  // W1: these refusals have words of their own (the same on every screen)
+  // #154: the codes of a make-up / additional lesson have their own words (one place, the same on both forms)
+  // (SERIES_ENDED of a change of the weekly schedule keeps its W1 sentence; the same code of a make-up is worded for a lesson)
   const own = opsErrorCode(failure);
+  const oneOff = own === "SERIES_ENDED" && lesson === "weekly" ? null : oneOffErrorText(failure);
+  if (oneOff) return oneOff;
+  // W1: these refusals have words of their own (the same on every screen)
   if (own === "NO_CHANGES" || own === "EXAMS_NEED_CONFIRMATION" || own === "GROUP_NOT_FOUND" || own === "SERIES_ENDED" || own === "LESSON_HAS_LIVE_EXAM") return substitutionErrorText(failure, fallback);
   return scheduleErrorText(failure, fallback);
 }
@@ -107,9 +112,10 @@ export async function createWeeklyLessons(groupId: string, slots: readonly Weekl
   return result;
 }
 
-/** One lesson on one calendar date (`POST /org/schedule/occurrences`); throws the server's refusal, returns the notes of the save. */
-export async function createOneOff(groupId: string, date: string, draft: Omit<WeeklyDraft, "validFrom">): Promise<string[]> {
+/** One lesson on one calendar date (`POST /org/schedule/occurrences`) with its purpose (#154); throws the server's refusal, returns the notes of the save. */
+export async function createOneOff(groupId: string, date: string, draft: Omit<WeeklyDraft, "validFrom">, choice: OneOffChoice): Promise<string[]> {
   const created = await orgApi.createOneOffLesson({
+    ...choicePayload(choice),
     groupId,
     lessonDate: date,
     startTime: draft.startTime,

@@ -1,8 +1,9 @@
 import { create } from "zustand";
 import { DEMO_MODE, substitutionsApi } from "./api";
+import { waitingTotal } from "./one-off";
 
 interface SubstitutionBadgeState {
-  /** Requests waiting for a decision (the menu counter). */
+  /** Waiting for a decision (the menu counter): the requests for a substitute and (#154) the additional lessons that wait for a decision of money. */
   pending: number;
   /** Of them: the lesson is within 24 hours. */
   urgent: number;
@@ -15,7 +16,9 @@ interface SubstitutionBadgeState {
    * previous one is skipped (mount and route change fire together); pass `force` after an action that changed it.
    */
   refresh: (force?: boolean) => Promise<void>;
-  setSummary: (summary: { pendingTotal?: number; urgentTotal?: number; overdueTotal?: number; expiringTotal?: number }) => void;
+  /** #154: the number again after the lessons of money were read (the list of requests and the lessons of money arrive separately). */
+  setWaiting: (total: number) => void;
+  setSummary: (summary: { pendingTotal?: number; oneOffDecisionsTotal?: number; waitingTotal?: number; urgentTotal?: number; overdueTotal?: number; expiringTotal?: number }) => void;
   /** Another user signed in: counters back to 0, answers still in flight are dropped. */
   reset: () => void;
 }
@@ -34,7 +37,8 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
   urgent: 0,
   overdue: 0,
   expiring: 0,
-  setSummary: (summary) => set({ pending: count(summary.pendingTotal), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal) }),
+  setWaiting: (total) => set({ pending: count(total) }),
+  setSummary: (summary) => set({ pending: waitingTotal(summary), urgent: count(summary.urgentTotal), overdue: count(summary.overdueTotal), expiring: count(summary.expiringTotal) }),
   reset: () => {
     epoch += 1;
     inFlight = null;
@@ -51,7 +55,7 @@ export const useSubstitutionBadge = create<SubstitutionBadgeState>((set) => ({
       const request: Promise<void> = substitutionsApi.summary()
         .then((summary) => {
           if (myEpoch !== epoch) return;
-          set({ pending: count(summary?.pendingTotal), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal) });
+          set({ pending: waitingTotal(summary), urgent: count(summary?.urgentTotal), overdue: count(summary?.overdueTotal), expiring: count(summary?.expiringTotal) });
         })
         .catch(() => undefined)
         .finally(() => { if (inFlight === request) inFlight = null; });

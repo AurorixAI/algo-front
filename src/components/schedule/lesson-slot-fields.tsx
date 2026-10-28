@@ -265,7 +265,7 @@ export type LessonScope = "one_off" | "recurring";
  * «Как добавить занятие»: the two kinds of a lesson, the same on the teacher's schedule and on the group page.
  * «Еженедельный урок» - the weekdays (several at once) and «Действует с»; «Разовое занятие» - one future date.
  */
-export function LessonScopeFields({ idPrefix, scope, onScope, days, onDays, daysInvalid = false, date, onDate, dateMax, validFrom, onValidFrom, disabled = false }: {
+export function LessonScopeFields({ idPrefix, scope, onScope, days, onDays, daysInvalid = false, date, onDate, dateMax, validFrom, onValidFrom, disabled = false, afterOneOffKind }: {
   idPrefix: string;
   scope: LessonScope;
   onScope: (scope: LessonScope) => void;
@@ -279,6 +279,8 @@ export function LessonScopeFields({ idPrefix, scope, onScope, days, onDays, days
   validFrom: string;
   onValidFrom: (date: string) => void;
   disabled?: boolean;
+  /** #154: «Что это за урок?» - shown under the choice «Разовое занятие», before its date. */
+  afterOneOffKind?: React.ReactNode;
 }) {
   const today = formatBusinessDate();
   const kind = (value: LessonScope, title: string, hint: string) => (
@@ -304,6 +306,8 @@ export function LessonScopeFields({ idPrefix, scope, onScope, days, onDays, days
           {kind("one_off", "Разовое занятие", "Только на одну дату")}
         </div>
       </fieldset>
+
+      {scope === "one_off" && afterOneOffKind}
 
       {scope === "one_off" ? (
         <div>

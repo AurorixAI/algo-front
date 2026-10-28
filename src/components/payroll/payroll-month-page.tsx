@@ -39,6 +39,7 @@ import {
   shiftMonth,
   teacherLabel,
   teacherRateHref,
+  undecidedLessonsText,
   versionLabel,
   warningViews,
   type PayrollErrorLike,
@@ -603,6 +604,9 @@ export function TeacherRow({
           <div className="mt-1">
             <WarningLinks views={warnings} label={`Предупреждения: ${teacher.teacher_name}`} />
           </div>
+        )}
+        {undecidedLessonsText(teacher.undecided_lessons) && (
+          <p data-testid="teacher-undecided" className="mt-1 text-xs font-medium text-amber-800">{undecidedLessonsText(teacher.undecided_lessons)} — в сумму не входят</p>
         )}
       </div>
 

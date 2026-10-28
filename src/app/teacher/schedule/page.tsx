@@ -52,7 +52,9 @@ import { useScrollLock } from "@/components/ui/modal";
 import {
   validFromBadge, validFromError,
 } from "@/lib/schedule-slots";
-import { scheduleErrorText } from "@/lib/ops-errors";
+import { refusalText } from "@/lib/weekly-lessons";
+import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
+import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
 import { REPLACE_TEACHER_ACTION, canReplaceTeacher, lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import { assignmentNotes, directAssignToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
@@ -324,6 +326,11 @@ export default function TeacherSchedulePage() {
   const [newFormat, setNewFormat] = useState<"offline" | "online">("offline");
   const [newTopic, setNewTopic] = useState("");
   const [newColor, setNewColor] = useState<"blue" | "indigo" | "purple" | "emerald" | "amber" | "rose">("blue");
+  /** #154: what a one-off lesson is for (a make-up of a cancelled lesson / an additional one) and the money of the teacher. */
+  const oneOffRole = oneOffRoleOf(user);
+  const [newChoice, setNewChoice] = useState<OneOffChoice>(() => emptyChoice(oneOffRole));
+  const newMakeup = useMakeupCandidates(newGroupId || null, isAddModalOpen && newLessonScope === "one_off" && oneOffRole !== null);
+  const [addTouched, setAddTouched] = useState(false);
 
   // Changing / stopping a weekly lesson: the shared dialogs (components/schedule/weekly-lesson-dialogs) own their forms.
   const [editingLesson, setEditingLesson] = useState<LessonOccurrence | null>(null);
@@ -1060,6 +1067,14 @@ export default function TeacherSchedulePage() {
       setScheduleError(DAY_REQUIRED_TEXT);
       return;
     }
+    if (newLessonScope === "one_off") {
+      setAddTouched(true);
+      const problem = choiceProblem(newChoice, oneOffRole, candidatesOf(newMakeup.state));
+      if (problem) {
+        setScheduleError(problem);
+        return;
+      }
+    }
     const groupId = newGroupId || (groups[0]?.id ?? "custom-group");
     const draft = { startTime: newStartTime, endTime: newEndTime, format: newFormat, room: newRoom, topic: newTopic, color: newColor };
 
@@ -1072,7 +1087,7 @@ export default function TeacherSchedulePage() {
       let failed: Array<{ day: number; reason: string; detail: string }> = [];
       let added: number[] = [];
       if (newLessonScope === "one_off") {
-        notices = await createOneOff(groupId, newLessonDate, draft);
+        notices = await createOneOff(groupId, newLessonDate, draft, newChoice);
       } else {
         const result = await createWeeklyLessons(groupId, addPastPlan.slots, draft);
         notices = result.notices;
@@ -1112,7 +1127,7 @@ export default function TeacherSchedulePage() {
       }
     } catch (err) {
       console.error("Failed to persist lesson on backend:", err);
-      setScheduleError(scheduleErrorText(err, "Не удалось создать урок. Расписание не изменено — повторите попытку."));
+      setScheduleError(refusalText(err, "Не удалось создать урок. Расписание не изменено — повторите попытку.", newLessonScope === "one_off" ? "one_off" : "weekly"));
     } finally {
       setSavingLesson(false);
     }
@@ -1136,6 +1151,8 @@ export default function TeacherSchedulePage() {
     setNewTopic("");
     setNewRoom("");
     setNewValidFrom(formatBusinessDate());
+    setNewChoice(emptyChoice(oneOffRole));
+    setAddTouched(false);
     setScheduleError(null);
     setTimesEdited(false);
     setSavingLesson(false);
@@ -2923,6 +2940,21 @@ export default function TeacherSchedulePage() {
                   validFrom={newValidFrom}
                   onValidFrom={(next) => { setNewValidFrom(next); setScheduleError(null); }}
                   disabled={savingLesson}
+                  afterOneOffKind={oneOffRole === null ? (
+                    <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">{NO_ONE_OFF_RIGHT_TEXT}</p>
+                  ) : (
+                    <OneOffPurposeFields
+                      idPrefix="sched-add"
+                      role={oneOffRole}
+                      choice={newChoice}
+                      onChoice={(next) => { setNewChoice(next); setScheduleError(null); }}
+                      makeup={newMakeup.state}
+                      onReload={newMakeup.reload}
+                      onPickCandidate={(candidate) => { setTimesEdited(true); setNewStartTime(candidate.startTime); setNewEndTime(candidate.endTime); }}
+                      disabled={savingLesson}
+                      invalid={addTouched && Boolean(choiceProblem(newChoice, oneOffRole, candidatesOf(newMakeup.state)))}
+                    />
+                  )}
                 />
 
                 <LessonSlotFields

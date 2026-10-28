@@ -6,6 +6,7 @@
 import type { GroupDetail, StudentInGroup } from "./api";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
+import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields } from "./one-off";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
@@ -264,6 +265,9 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "RESTORE_MOVED": return detail?.message?.trim() || "Урок перенесён: чтобы вернуть его, отмените урок на новой дате и перенесите его обратно";
     case "RESTORE_PAST": return "Урок уже должен был начаться: вернуть его нельзя";
     case "RESTORE_DAY_OFF": return "Урок отменён выходным днём: чтобы вернуть его, отмените сам выходной";
+    // #154: a lesson with a make-up is neither returned nor given another kind of cancellation until the make-up is cancelled
+    case "MAKEUP_EXISTS": return MAKEUP_EXISTS_TEXT;
+    case "RESTORE_MAKEUP_TARGET": return RESTORE_MAKEUP_TARGET_TEXT;
     case "RESTORE_LESSON_GONE": return "Этого урока больше нет в расписании: серию изменили или прекратили";
     case "NO_LESSONS_REQUESTABLE": return "Ни один из выбранных уроков нельзя запросить";
     case "TOO_MANY_LESSONS": return "Не более 60 уроков в одном запросе";
@@ -988,7 +992,7 @@ export function occurrenceChips(
     substitutionOutcome?: SubstitutionOutcome | null;
     /** #124: the new lesson of a move says where it came from. */
     movedFrom?: MovedFrom | null;
-  },
+  } & LessonPurposeFields,
   viewerId: string | null | undefined,
   options: { manager?: boolean } = {},
 ): LessonMark[] {
@@ -1011,6 +1015,8 @@ export function occurrenceChips(
   else if (outcome?.kind === "cancelled") chips.push({ text: LESSON_CANCELLED_LABEL, tone: "gray" });
   const from = movedFromLabel(occurrence.movedFrom);
   if (from) chips.push({ text: from, tone: "blue" });
+  // #154: «Отработка за пн 03.11» / «Дополнительный» / «оплата: не решено» / «Отработан → чт 06.11»
+  chips.push(...purposeMarks(occurrence));
   return chips;
 }
 
@@ -1053,6 +1059,8 @@ export interface StudentLessonRow {
   noticeText: string | null;
   /** «Перенесён с 25.10, 10:00» on the new lesson of a move. */
   movedFromText: string | null;
+  /** #154: «Отработка за пн 03.11» / «Дополнительный» (a student sees no money). */
+  purposeText?: string | null;
 }
 
 /**
@@ -1060,7 +1068,7 @@ export interface StudentLessonRow {
  * did not take place (cancelled / moved, without a reason), by date.  `markLabel` turns a status into its words.
  */
 export function studentLessonRows(
-  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: MovedFrom | null }> | null | undefined,
+  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: MovedFrom | null } & LessonPurposeFields> | null | undefined,
   notices: StudentNotice[] | null | undefined,
   markLabel: (status: string) => string | null,
 ): StudentLessonRow[] {
@@ -1074,6 +1082,7 @@ export function studentLessonRows(
       substituteText: studentLessonLabel(lesson),
       noticeText: null,
       movedFromText: movedFromLabel(lesson.movedFrom),
+      purposeText: studentPurposeText(lesson),
     });
   }
   for (const notice of sortedNotices(notices)) {

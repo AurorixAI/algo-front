@@ -17,7 +17,7 @@ export function StudentLessonsList({
   lessons,
   notices,
 }: {
-  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: import("@/lib/substitution-types").MovedFrom | null }> | null | undefined;
+  lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: import("@/lib/substitution-types").MovedFrom | null } & import("@/lib/one-off").LessonPurposeFields> | null | undefined;
   notices: StudentNotice[] | null | undefined;
 }) {
   const rows = studentLessonRows(lessons, notices, markLabel);
@@ -32,6 +32,7 @@ export function StudentLessonsList({
             <span className="min-w-0 flex-1 break-words font-medium">{row.groupName}</span>
             {row.noticeText && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">{row.noticeText}</span>}
             {row.substituteText && <span className="rounded-md bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-800">{row.substituteText}</span>}
+            {row.purposeText && <span data-testid="student-purpose" className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800">{row.purposeText}</span>}
             {row.movedFromText && <span className="rounded-md bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-800">{row.movedFromText}</span>}
             {row.markText && <span className="text-xs font-medium text-slate-600">{row.markText}</span>}
           </li>

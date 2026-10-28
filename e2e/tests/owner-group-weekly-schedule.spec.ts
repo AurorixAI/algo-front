@@ -57,6 +57,9 @@ async function openAdd(page: Page, opts: Draft) {
   await expect(dialog).toBeVisible();
   if (opts.oneOff) {
     await dialog.getByRole("button", { name: /Разовое занятие/ }).click();
+    // #154: a one-off lesson has a purpose; an additional lesson without pay for the teacher is the simplest one
+    await dialog.getByTestId("weekly-add-purpose-extra").click();
+    await dialog.getByTestId("weekly-add-money-none").check({ force: true });
     await fillDate(dialog.getByLabel("Дата занятия"), opts.oneOff);
   }
   for (const day of opts.days ?? []) await dialog.getByRole("button", { name: chipName(day), exact: true }).click();
@@ -158,7 +161,7 @@ test("the administrator adds a one-off lesson: it can be moved or cancelled, not
   await shot(page, `07-add-one-off-${info.project.name}`);
   await dialog.getByRole("button", { name: "Сохранить урок" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(toast(page, "Разовое занятие добавлено в расписание группы")).toBeVisible();
+  await expect(toast(page, "Дополнительный урок добавлен в расписание группы")).toBeVisible();
 
   const mine = await teacher.api.get("/auth/org/schedule/occurrences", { date_from: date, date_to: date });
   expect(mine.filter((l: any) => l.groupId === group.id && l.startTime === "13:00")).toHaveLength(1);

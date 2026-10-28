@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Download, Loader2, Printer, RefreshCw, Save } from "lucide-react";
 import { formatMoney } from "@/lib/payments";
 import {
@@ -15,6 +16,7 @@ import {
   type SheetCardStatus,
 } from "@/lib/payroll";
 import { sheetWrittenOffLessons, writtenOffText } from "@/lib/payroll-logica";
+import { SUBSTITUTIONS_PATH } from "@/lib/substitutions";
 import { DiffDetails, WarningLinks } from "./sheet-controls";
 
 const DOT: Record<SheetCardStatus["tone"], string> = {
@@ -80,6 +82,12 @@ export function SheetSummaryCard({
           <p className="text-sm text-slate-500">К выплате</p>
           <p data-testid="payroll-total" className="mt-0.5 text-3xl font-bold tabular-nums text-slate-900">{formatMoney(total)}</p>
           <p className="mt-2 text-sm text-slate-600">{[...facts, writtenOffText(sheetWrittenOffLessons(sheet))].filter(Boolean).join(" · ")}</p>
+          {(sheet.undecided_total ?? 0) > 0 && (
+            <p data-testid="sheet-undecided" className="mt-1.5 text-sm text-amber-800 print:hidden">
+              Дополнительные уроки ждут решения об оплате.{" "}
+              <Link href={SUBSTITUTIONS_PATH.owner} className="font-semibold underline underline-offset-2 hover:text-amber-900">Решить в «Заменах»</Link>
+            </p>
+          )}
           {warningList.length > 0 && (
             <div className="mt-1.5">
               <WarningLinks views={warningList} label="Предупреждения ведомости" />

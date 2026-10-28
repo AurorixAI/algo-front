@@ -104,7 +104,7 @@ test("the schedule page is wired: «Действует с», the optional room w
   assert.match(helper, /scheduleErrorText\(failure/);
   assert.match(helper, /warningTexts\(created\)/);
   assert.match(form, /roomForSave\(form\.room\)/, "the change of a weekly lesson sends the room the same way");
-  assert.match(page, /scheduleErrorText\(err/);
+  assert.match(page, /refusalText\(err/);   // #154: the same words on both forms (weekly-lessons.refusalText -> scheduleErrorText)
   assert.match(page, /validFromBadge\(l\.validFrom/);
   assert.match(page, /placeText\(l\)/);
   assert.match(page, /placeText\(activeLesson\)/);

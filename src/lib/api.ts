@@ -26,6 +26,7 @@ import type {
   SubstitutionSummary,
   WithdrawBatchOut,
 } from "./substitution-types";
+import type { LessonPurposeFields, MakeupCandidates, MoneyDecisionOut, OneOffDecision, OneOffDecisionsOut, OneOffMoney } from "./one-off";
 import { loginUrlForPage } from "./safe-redirect";
 import type { CancellationKind, DayOffApplied, DayOffForm, DayOffForDate, DayOffOut, DayOffPlan, DayOffVoided } from "./payf";
 import { STAFF_BUSY_MESSAGE, isStaffWriteBusy, staffBusyDelayMs, staffBusyRepeats } from "./staff-busy";
@@ -762,7 +763,7 @@ export interface LessonEvent {
   warnings?: OpsWarning[];
 }
 
-export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherInfo> {
+export interface ScheduleOccurrence extends LessonEvent, Partial<LessonTeacherInfo>, LessonPurposeFields {
   occurrenceDate: string;
   isRescheduled: boolean;
   /** A concrete lesson added for one calendar date, not a recurring slot. */
@@ -965,7 +966,7 @@ export interface GroupStats {
 export type AttendanceStatus = "present" | "absent" | "excused" | "late";
 export type LessonAttendanceStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
 
-export interface Lesson {
+export interface Lesson extends LessonPurposeFields {
   id: string;
   instanceKey?: string;
   date: string; // YYYY-MM-DD
@@ -1286,6 +1287,11 @@ export interface StudentAttendanceSummary {
     isSubstitution?: boolean;
     /** #124: a lesson that a move created says where it came from. */
     movedFrom?: MovedFrom | null;
+    /** #154: «Отработка за пн 03.11» / «Дополнительный» / «Отработан → чт 06.11» (never the money: a student gets none). */
+    purpose?: LessonPurposeFields["purpose"];
+    purposeLabel?: string | null;
+    madeUpFor?: LessonPurposeFields["madeUpFor"];
+    madeUpBy?: LessonPurposeFields["madeUpBy"];
   }>;
   /** LOGIC-B2: cancelled / moved lessons of the month, without a reason. */
   notices?: StudentNotice[];
@@ -1589,7 +1595,21 @@ export const orgApi = {
     format?: "offline" | "online";
     color?: LessonEvent["color"];
     topic?: string;
+    /** #154: always sent by the front (the server requires it from an owner / administrator). */
+    purpose?: "makeup" | "extra";
+    /** `extra` only: a teacher sends `wait` / `none`, an owner / administrator `none` / `paid`. */
+    money?: OneOffMoney;
+    /** `makeup` only: the cancelled lesson and its date. */
+    madeUpLessonId?: string;
+    madeUpDate?: string;
   }) => api<ScheduleOccurrence>(`/auth/org/schedule/occurrences`, { method: "POST", body: data }),
+  /** #154: the cancelled lessons of the group that can be made up (a teacher: his own group). */
+  getMakeupCandidates: (groupId: string) =>
+    api<MakeupCandidates>(`/auth/org/groups/${encodePathId(groupId)}/makeup-candidates`),
+  /** #154 (owner / administrator): the additional lessons and the empty make-ups that wait for «Оплатить / Не оплачивать». */
+  getOneOffDecisions: () => api<OneOffDecisionsOut>(`/auth/org/one-off-decisions`),
+  decideOneOffMoney: (lessonId: string, decision: OneOffDecision) =>
+    api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),
   updateLesson: (lessonId: string, data: Partial<LessonEvent>) =>
     api<LessonEvent>(`/auth/org/schedule/lessons/${encodePathId(lessonId)}`, { method: "PUT", body: data }),
   reviseRecurringLesson: (

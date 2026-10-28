@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 import { orgApi, type LessonEvent, type RecurringLessonEndImpact } from "@/lib/api";
+import { MAKEUP_DAYS, NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, oneOffAddedText, type OneOffChoice, type OneOffRole } from "@/lib/one-off";
+import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
 import { Modal } from "@/components/ui/modal";
 import { DateInput } from "@/components/ui/date-input";
 import { Checkbox } from "@/components/ui/checkbox";
-import { businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
+import { addIsoDays, businessDayOfWeek, businessTimeMinutes, formatBusinessDate, formatIsoDateLabel, isoDateDayOfWeek } from "@/lib/business-time";
 import { validFromError } from "@/lib/schedule-slots";
 import { warningTexts } from "@/lib/ops-errors";
 import { laterChangeNote, removalNote, createOneOff, createWeeklyLessons, endSeriesNotes, examsToConfirm, laterRevisionNotes, mergeNotices, refusalText, reviseWeeklyLessons, type ExamsToConfirm } from "@/lib/weekly-lessons";
@@ -17,6 +19,7 @@ import {
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote, SLOT_FIELD_CLASS, WeekdayChips, type LessonScope, type SlotFormValue } from "@/components/schedule/lesson-slot-fields";
 
 const DATE_REQUIRED_TEXT = "Выберите дату";
+const ONE_OFF_NO_TEACHER_TEXT = "У группы нет преподавателя: разовый урок добавить нельзя. Выберите преподавателя в карточке группы.";
 
 const DEFAULT_VALUE: SlotFormValue = { startTime: "10:00", endTime: "11:30", format: "offline", room: "", topic: "", color: "blue" };
 
@@ -51,10 +54,12 @@ function OverlapNote({ lesson, day }: { lesson: { groupName: string; startTime: 
  * refused («Пн и Ср добавлены, Пт — преподаватель занят»): the refused ones stay chosen to be fixed or dropped.  A group without a
  * teacher is saved too (the server allows it): the dialog only says what to do next.
  */
-export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClose, onAdded }: {
+export function AddLessonDialog({ open, group, teacherAssigned, role, siblings, onClose, onAdded }: {
   open: boolean;
   group: { id: string; name: string };
   teacherAssigned: boolean;
+  /** Who adds the lesson (the money of an additional lesson depends on it); never guessed: `null` = a one-off lesson is not offered. */
+  role: OneOffRole | null;
   /** The weekly lessons of the group already (for a clash inside the group). */
   siblings: readonly LessonEvent[];
   onClose: () => void;
@@ -68,6 +73,8 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   /** «Разное время по дням»: the time of each chosen day; null = one time for all days. */
   const [dayTimes, setDayTimes] = useState<DayTimes | null>(null);
   const [validFrom, setValidFrom] = useState(formatBusinessDate());
+  /** #154: what the one-off lesson is for (a make-up of a cancelled lesson / an additional one) and the money of the teacher. */
+  const [choice, setChoice] = useState<OneOffChoice>(() => emptyChoice(role));
   const [touched, setTouched] = useState(false);
   const [busy, setBusy] = useState(false);
   const sending = useRef(false);       // a second submit in the same tick (double click, Enter + click) sees the state of the first one: the state alone is not read yet
@@ -82,13 +89,17 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
     setValue(DEFAULT_VALUE);
     setDayTimes(null);
     setValidFrom(formatBusinessDate());
+    setChoice(emptyChoice(role));
     setTouched(false);
     setBusy(false);
     setError(null);
     setDetails([]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const today = formatBusinessDate();
+  const makeup = useMakeupCandidates(group.id, open && scope === "one_off" && role !== null);
+  const oneOffBlock = scope === "one_off" ? (!teacherAssigned ? ONE_OFF_NO_TEACHER_TEXT : choiceProblem(choice, role, candidatesOf(makeup.state))) : null;
   const patch = (next: Partial<SlotFormValue>) => { setValue((current) => ({ ...current, ...next })); setError(null); setDetails([]); };
 
   // the days changed: with fewer than two days the times are one again (what was typed for the single day is kept)
@@ -123,6 +134,8 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
   const dateProblem = scope === "recurring"
     ? validFromError(validFrom, today)
     : !date ? DATE_REQUIRED_TEXT : date < today ? "Нельзя добавить занятие на прошедшую дату" : null;
+  // a make-up is made from today to 60 days ahead (the rule of a move); an additional lesson has no such limit
+  const dateMax = scope === "one_off" && choice.purpose === "makeup" ? addIsoDays(today, MAKEUP_DAYS) : undefined;
   const blocking = timeProblem || pastOneOff || dateProblem || overlaps.length > 0;
 
   const submit = async (event: React.FormEvent) => {
@@ -131,14 +144,15 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
     setTouched(true);
     if (scope === "recurring" && days.length === 0) { setError(DAY_REQUIRED_TEXT); return; }
     if (blocking) return;
+    if (oneOffBlock) { setError(oneOffBlock); return; }
     sending.current = true;
     setBusy(true);
     setError(null);
     setDetails([]);
     try {
       if (scope === "one_off") {
-        const notices = await createOneOff(group.id, date, value);
-        onAdded({ text: "Разовое занятие добавлено в расписание группы", notices, closed: true });
+        const notices = await createOneOff(group.id, date, value, choice);
+        onAdded({ text: oneOffAddedText(choice), notices, closed: true });
         return;
       }
       const result = await createWeeklyLessons(group.id, slots, value);
@@ -157,7 +171,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
       applyDays(failed.map((item) => item.day));
       if (result.added.length > 0) onAdded({ text: `${dayList(result.added)} — добавлено`, notices: result.notices, closed: false });
     } catch (failure) {
-      setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку."));
+      setError(refusalText(failure, "Не удалось добавить урок. Расписание не изменено — повторите попытку.", scope === "one_off" ? "one_off" : "weekly"));
     } finally {
       sending.current = false;
       setBusy(false);
@@ -183,7 +197,7 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
       <form id="lesson-add-form" onSubmit={submit} className="space-y-4 pb-1" noValidate>
         {!teacherAssigned && (
           <p data-testid="weekly-no-teacher-hint" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
-            {NO_TEACHER_SCHEDULE_HINT}. Урок сохранится в расписании группы уже сейчас.
+            {scope === "one_off" ? ONE_OFF_NO_TEACHER_TEXT : `${NO_TEACHER_SCHEDULE_HINT}. Урок сохранится в расписании группы уже сейчас.`}
           </p>
         )}
 
@@ -196,9 +210,25 @@ export function AddLessonDialog({ open, group, teacherAssigned, siblings, onClos
           daysInvalid={touched && scope === "recurring" && days.length === 0}
           date={date}
           onDate={(next) => { setDate(next); setError(null); }}
+          dateMax={dateMax}
           validFrom={validFrom}
           onValidFrom={(next) => { setValidFrom(next); setError(null); }}
           disabled={busy}
+          afterOneOffKind={role === null ? (
+            <p role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">{NO_ONE_OFF_RIGHT_TEXT}</p>
+          ) : (
+            <OneOffPurposeFields
+              idPrefix="weekly-add"
+              role={role}
+              choice={choice}
+              onChoice={(next) => { setChoice(next); setError(null); }}
+              makeup={makeup.state}
+              onReload={makeup.reload}
+              onPickCandidate={(candidate) => patch({ startTime: candidate.startTime, endTime: candidate.endTime })}
+              disabled={busy}
+              invalid={touched && scope === "one_off" && Boolean(oneOffBlock)}
+            />
+          )}
         />
 
         <LessonSlotFields

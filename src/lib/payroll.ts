@@ -234,7 +234,12 @@ export function formatDayMonth(isoDate: string | null | undefined): string {
 
 // ── API shapes (auth-service: payroll_schemas.py) ───────────────────────────
 
-export type MarkState = "counted" | "excused_confirmed" | "excused_pending" | "not_in_group" | "unpaid";
+/**
+ * #154: `undecided` - the lesson is an additional one (or an empty make-up) the teacher asked to be paid for and nobody has decided yet: not in the
+ * sum, its own tone; `no_pay` - the decision (or the owner's choice at the creation) is «без оплаты»: 0.  The server decides what is in the sum
+ * (`counted` and `excused_pending` only): the front recalculates nothing.
+ */
+export type MarkState = "counted" | "excused_confirmed" | "excused_pending" | "not_in_group" | "unpaid" | "undecided" | "no_pay";
 
 export interface PayrollMark {
   date: string;
@@ -303,6 +308,9 @@ export interface PayrollLine {
   counted: number;
   unpaid: number;
   pending_excused: number;
+  /** #154: cells «не решено» (not in the sum) and «без оплаты» of the line; absent on a sheet saved earlier. */
+  undecided?: number;
+  no_pay?: number;
   include_unpaid: boolean;
   amount: number;
   warnings: PayrollLineWarning[];
@@ -360,6 +368,8 @@ export interface PayrollSheet {
   counted_total: number;
   unpaid_total: number;
   pending_excused_total: number;
+  /** #154: cells «не решено» on the sheet (not in the sum); absent on a sheet saved earlier. */
+  undecided_total?: number;
   warnings: PayrollSheetWarnings;
   /** LOGIC-A: lessons covered by a forgiven debt («из них списано центром»). */
   written_off_total?: number;
@@ -428,6 +438,8 @@ export interface PayrollMonthTeacher {
   missing_rates: LessonType[];
   sheet: PayrollMonthSheetRef | null;
   warnings: PayrollMonthWarnings;
+  /** #154: held additional lessons (and empty make-ups) of the month that wait for the decision «Оплатить / Не оплачивать» (lessons, not cells). */
+  undecided_lessons?: number;
   /** LOGIC-A decision 6: the payout state of the saved sheet; null without a sheet. */
   payout?: PayoutState | null;
 }
@@ -553,7 +565,7 @@ export const DEFAULT_PAYROLL_SETTINGS: PayrollSettings = { divisor: DEFAULT_DIVI
 
 // ── Mark cells (the table of the partner) ───────────────────────────────────
 
-export type MarkTone = "counted" | "zero" | "pending" | "empty" | "unpaid" | "unpaid_included";
+export type MarkTone = "counted" | "zero" | "pending" | "empty" | "unpaid" | "unpaid_included" | "undecided" | "no_pay";
 
 export interface MarkCellView {
   tone: MarkTone;
@@ -575,7 +587,15 @@ export const MARK_CELL_CLASS: Record<MarkTone, string> = {
   empty: "text-slate-300",
   unpaid: "rounded border border-dashed border-slate-300 px-1 text-slate-400",
   unpaid_included: "rounded border border-dashed border-slate-400 px-1 text-slate-700",
+  undecided: "rounded border border-dashed border-amber-400 bg-amber-50 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
+  no_pay: "rounded bg-slate-100 px-1 text-[11px] font-semibold text-slate-500 print:bg-transparent print:text-black",
 };
+
+/** #154: the cell of an additional lesson whose payment is not decided («?», not in the sum) and of one that is not paid («без»). */
+export const UNDECIDED_CELL_LABEL = "?";
+export const NO_PAY_CELL_LABEL = "без";
+export const UNDECIDED_MARK_HINT = "Дополнительный урок: оплата не решена — в сумму не входит, пока владелец или администратор не решит";
+export const NO_PAY_MARK_HINT = "Дополнительный урок без оплаты преподавателю — 0";
 
 /** The cell of an excuse that waits for a decision: the short form of «Ждёт решения», explained by the legend of the sheet. */
 export const PENDING_CELL_LABEL = "Ждёт";
@@ -591,6 +611,8 @@ const MARK_TITLE: Record<MarkTone, string> = {
   empty: "Ученика ещё нет в группе",
   unpaid: UNPAID_MARK_HINT,
   unpaid_included: UNPAID_INCLUDED_MARK_HINT,
+  undecided: UNDECIDED_MARK_HINT,
+  no_pay: NO_PAY_MARK_HINT,
 };
 
 /** One cell of the sheet from a mark: the state decides (the server sends both, they agree). */
@@ -606,9 +628,14 @@ export function markCell(
     case "excused_pending": tone = "pending"; break;
     case "not_in_group": tone = "empty"; break;
     case "unpaid": tone = options.includeUnpaid ? "unpaid_included" : "unpaid"; break;
+    case "undecided": tone = "undecided"; break;
+    case "no_pay": tone = "no_pay"; break;
     default: tone = mark === 1 ? "counted" : mark === 0 ? "zero" : "empty";
   }
-  const label = tone === "pending" ? PENDING_CELL_LABEL : tone === "zero" ? "0" : tone === "empty" ? "" : "1";
+  const label = tone === "pending" ? PENDING_CELL_LABEL
+    : tone === "undecided" ? UNDECIDED_CELL_LABEL
+      : tone === "no_pay" ? NO_PAY_CELL_LABEL
+        : tone === "zero" ? "0" : tone === "empty" ? "" : "1";
   const title = state === "excused_confirmed" ? "Уважительная причина подтверждена: не засчитан" : MARK_TITLE[tone];
   return { tone, label, title, className: MARK_CELL_CLASS[tone] };
 }
@@ -1178,7 +1205,7 @@ export function visitsText(count: number, forms: PluralForms = ["посещен�
 }
 
 /** The one line under the total: rate · counted · unpaid (accrued).  Parts with nothing to say are left out. */
-export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total"> & { warnings?: Pick<PayrollSheetWarnings, "unpaid_students"> }, accrued: number, now?: RatesNow | null): string[] {
+export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" | "counted_total" | "unpaid_total"> & { undecided_total?: number; warnings?: Pick<PayrollSheetWarnings, "unpaid_students"> }, accrued: number, now?: RatesNow | null): string[] {
   const parts: string[] = [];
   const rate = sheetRateLine(sheet, now);
   if (rate) parts.push(rate);
@@ -1188,7 +1215,21 @@ export function sheetFactsParts(sheet: Pick<PayrollSheet, "lines" | "percents" |
     const who = students ? ` у ${students} ${pluralRu(students, ["ученика", "учеников", "учеников"])}` : "";
     parts.push(`без оплаты ${visitsText(sheet.unpaid_total)}${who}${accrued > 0 ? ` (начислено ${accrued})` : ""}`);
   }
+  const undecided = undecidedText(sheet.undecided_total);
+  if (undecided) parts.push(undecided);
   return parts;
+}
+
+/** #154: «не решено 3 посещения (в сумму не входят)» - the additional lessons whose payment nobody has decided; null when there are none. */
+export function undecidedText(visits: number | null | undefined): string | null {
+  const n = Math.max(0, Math.floor(Number(visits) || 0));
+  return n > 0 ? `не решено ${visitsText(n)} (в сумму не входят)` : null;
+}
+
+/** #154 (the month of a teacher): «Не решено: 2 урока» - held additional lessons that wait for «Оплатить / Не оплачивать». */
+export function undecidedLessonsText(lessons: number | null | undefined): string | null {
+  const n = Math.max(0, Math.floor(Number(lessons) || 0));
+  return n > 0 ? `Не решено: ${n} ${pluralRu(n, ["урок", "урока", "уроков"])}` : null;
 }
 
 export type SheetCardTone = "preview" | "saved" | "changed" | "dirty";

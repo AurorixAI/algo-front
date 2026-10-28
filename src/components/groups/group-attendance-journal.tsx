@@ -76,6 +76,7 @@ import {
 } from "@/components/attendance/attendance-ops-dialogs";
 import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
+import { purposeMarks } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { assignmentNotes, directAssignToast, lessonMarks, substitutionsHref, substitutionsPathFor } from "@/lib/substitutions";
 import {
@@ -1429,7 +1430,7 @@ export function GroupAttendanceJournal({
                             <div className="mx-auto w-fit max-w-[120px] truncate rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800" title={teacherLabel}>{teacherLabel}</div>
                           )}
                           <LessonChips
-                            marks={lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode })}
+                            marks={[...lessonMarks(attendanceData?.substitutionRequests?.[key], lesson.substitutionOutcome, { manager: adminMode }), ...purposeMarks(lesson)]}
                             requestHref={adminMode ? (requestId) => substitutionsHref(substitutionsPathFor(user), requestId) : undefined}
                             className="justify-center"
                           />

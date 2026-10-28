@@ -450,7 +450,7 @@ test("the sheet's own words: the dashed «1», «начислить», «Без 
   // the compact legend of the date grid: four marks (a student who is not in the group yet is an empty cell, nothing to explain)
   const legend = Object.fromEntries(H.SHEET_LEGEND.map((item) => [item.key, item.text]));
   assert.equal(legend.unpaid, "был на уроке, не оплачен — не входит в сумму");
-  assert.deepEqual(H.SHEET_LEGEND.map((item) => item.key), ["counted", "zero", "pending", "unpaid"]);
+  assert.deepEqual(H.SHEET_LEGEND.map((item) => item.key), ["counted", "zero", "pending", "unpaid", "undecided", "no_pay"]);   // #154: «не решено» and «без оплаты» of an additional lesson
   assert.equal(H.priceColumnLabel("Цена в месяц"), "Цена в месяц");
   assert.equal(H.priceColumnLabel("Цена пакета"), "Цена пакета");
 });

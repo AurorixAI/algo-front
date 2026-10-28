@@ -40,6 +40,8 @@ import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
+import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
+import { decisionMatches } from "@/lib/one-off";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -94,6 +96,11 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [bulkKind, setBulkKind] = useState<BulkKind | null>(null);
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; teacher_id: string }>>([]);
+
+  // #154: the additional lessons and the empty make-ups that wait for «Оплатить / Не оплачивать» (their own list, their own counter)
+  const decisions = useOneOffDecisions(true);
+  const decisionsTotalRef = useRef(0);
+  decisionsTotalRef.current = decisions.total;
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -153,7 +160,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -171,8 +178,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
 
   // back to the window: others may have decided meanwhile
   useEffect(() => {
-    const onFocus = () => guard.woke();
-    const onVisible = () => { if (document.visibilityState === "visible") guard.woke(); };
+    const onFocus = () => { guard.woke(); void decisions.reload(true); };
+    const onVisible = () => { if (document.visibilityState === "visible") { guard.woke(); void decisions.reload(true); } };
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -180,7 +187,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       document.removeEventListener("visibilitychange", onVisible);
       guard.cancel();
     };
-  }, [guard]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guard, decisions.reload]);
 
   /** `?request=<id>` is the address of the panel (the link of a lesson, a reload, «Назад»); closing it keeps `?status=`. */
   const openedFor = useRef<string | null>(null);
@@ -258,14 +266,20 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     void load(true);
   };
 
+  // the menu badge counts the requests and the lessons of money: it is set again when the lessons of money have been read (they arrive on their own)
+  useEffect(() => {
+    if (loading || loadError || decisions.loading || decisions.error) return;
+    useSubstitutionBadge.getState().setWaiting(pendingTotal + decisions.total);
+  }, [loading, loadError, decisions.loading, decisions.error, decisions.total, pendingTotal]);
+
   const pendingTab = tab === "pending";
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
   const selectedItems = items.filter((item) => selected.has(item.id));
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "pending", label: tabLabel("pending", pendingTotal) },
-    { key: "decided", label: tabLabel("decided", pendingTotal) },
+    { key: "pending", label: tabLabel("pending", pendingTotal + decisions.total) },
+    { key: "decided", label: tabLabel("decided", pendingTotal + decisions.total) },
   ];
   const toggle = (id: string, on: boolean) => setSelected((previous) => { const copy = new Set(previous); if (on) copy.add(id); else copy.delete(id); return copy; });
   const toggleExpanded = (id: string) => setExpanded((previous) => { const copy = new Set(previous); if (copy.has(id)) copy.delete(id); else copy.add(id); return copy; });
@@ -278,6 +292,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     "",
   );
   const filterOn = Boolean(filter.teacherId || filter.groupId);
+  // the filter and the search narrow the rows of money as well; «Только срочные» hides them (a decision of money is never urgent)
+  const visibleDecisions = pendingTab && !urgentOnly ? decisions.items.filter((row) => decisionMatches(row, { groupId: filter.groupId, teacherId: filter.teacherId, search })) : [];
+  const decisionsOnly = visibleDecisions.length > 0;
   const selectAll = (on: boolean) => setSelected(on ? new Set(items.map((item) => item.id)) : new Set());
 
   return (
@@ -353,6 +370,17 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         </div>
       )}
 
+      {pendingTab && (
+        <OneOffDecisionsBlock
+          items={visibleDecisions}
+          loading={decisions.loading}
+          error={decisions.error}
+          onRetry={() => void decisions.reload()}
+          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
+          showToast={showToast}
+        />
+      )}
+
       <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
@@ -366,7 +394,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
         ) : items.length === 0 ? (
-          <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
+          decisionsOnly ? null : <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
         ) : (
           <>
             <TableHeader

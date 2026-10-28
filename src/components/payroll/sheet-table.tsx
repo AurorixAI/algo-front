@@ -118,6 +118,8 @@ function SheetLegend() {
     zero: "font-bold text-rose-600 print:text-black",
     pending: "rounded bg-amber-100 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
     unpaid: "rounded border border-dashed border-slate-300 px-1 text-slate-500",
+    undecided: "rounded border border-dashed border-amber-400 bg-amber-50 px-1 text-[11px] font-semibold text-amber-800 print:bg-transparent print:text-black",
+    no_pay: "rounded bg-slate-100 px-1 text-[11px] font-semibold text-slate-500 print:bg-transparent print:text-black",
   };
   return (
     <ul aria-label="Обозначения" className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-4 py-2 text-xs text-slate-600">
@@ -253,6 +255,12 @@ export function PayrollSheetTable({
                           {split.typeLabel && <span className="block text-xs font-medium text-slate-600" data-testid="split-type">{split.typeLabel}</span>}
                           {line.pending_excused > 0 && (
                             <span className="block text-[11px] font-normal text-amber-700">ожидает: {line.pending_excused}</span>
+                          )}
+                          {(line.undecided ?? 0) > 0 && (
+                            <span data-testid="line-undecided" className="block text-[11px] font-normal text-amber-700">не решено: {line.undecided}</span>
+                          )}
+                          {(line.no_pay ?? 0) > 0 && (
+                            <span data-testid="line-no-pay" className="block text-[11px] font-normal text-slate-500">доп. урок без оплаты: {line.no_pay}</span>
                           )}
                           {/* a phone has no room for the price column: the price is the second line of the name */}
                           <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>
