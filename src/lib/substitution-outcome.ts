@@ -65,15 +65,9 @@ function isKnownCode(code: unknown): code is SubstitutionOutcomeCode {
 /**
  * The result of a row as a chip: `{ text, tone }`.  An unknown or missing code is the last row of the table, «Запрос закрыт»
  * (a new server code never shows as an empty chip; the test on every code is in `p157-substitutions-front.test.cjs`, LESSONS 46).
- * «Выходной отменён» is yellow only when the server says a decision is needed (`needsDecision` of the event) and the lesson is still ahead.
+ * «Выходной отменён» is yellow only when the server says a decision is needed (`item.needsDecision`) and the lesson is still ahead.
  */
-export function outcomeOf(
-  item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision">,
-  audience: Audience,
-  nowMs: number = Date.now(),
-  /** The server's `needsDecision` of the last `day_off_voided` (only the detail has it); null in a list: the chip is calm, nothing is guessed. */
-  needsDecision: boolean | null = null,
-): OutcomeView {
+export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision" | "needsDecision">, audience: Audience, nowMs: number = Date.now()): OutcomeView {
   const code: SubstitutionOutcomeCode = isKnownCode(item.outcome) ? item.outcome : "closed";
   const chip = OUTCOME_CHIP[code];
   let text = chip.text;
@@ -87,17 +81,17 @@ export function outcomeOf(
     const starts = startsAtMsOf(item);
     // without the instant of the start the day decides (a lesson of a later day is still ahead)
     const ahead = starts !== null ? starts > nowMs : (item.lesson?.date ?? "") > formatBusinessDate(new Date(nowMs));
-    tone = needsDecision === true && ahead ? "warn" : "muted";
+    tone = item.needsDecision === true && ahead ? "warn" : "muted";
   }
   return { code, text, tone };
 }
 
 /** One quiet phrase under «Сейчас» in the panel for a result that needs one; null for the rest. */
-export function outcomeNote(item: Pick<SubstitutionItem, "outcome">, needsDecision: boolean | null = null): string | null {
+export function outcomeNote(item: Pick<SubstitutionItem, "outcome" | "needsDecision">): string | null {
   switch (item.outcome) {
     case "not_resolved_in_time": return "Запрос не решён до начала урока.";
     case "lesson_started": return "Урок начался, пока запрос ждал решения.";
-    case "day_off_voided": return needsDecision === true ? "Выходной отменён, нужно ваше решение: смотрите последнюю запись истории." : null;
+    case "day_off_voided": return item.needsDecision === true ? "Выходной отменён, нужно ваше решение: смотрите последнюю запись истории." : null;
     default: return null;
   }
 }

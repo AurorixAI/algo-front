@@ -87,11 +87,11 @@ test("#157: an unknown or absent code is «Запрос закрыт», never an
   assert.equal(O.outcomeOf({ ...item(), outcome: undefined }, "manager", NOW).text, "Запрос закрыт");
   assert.equal(O.outcomeOf({ ...item(), outcome: null }, "teacher", NOW).text, "Запрос закрыт");
   const ahead = item({ outcome: "day_off_voided", lesson: { ...item().lesson, date: "2026-11-02" } });
-  assert.equal(O.outcomeOf(ahead, "manager", NOW).tone, "muted", "a list does not know `needsDecision`: calm, nothing is guessed");
-  assert.equal(O.outcomeOf(ahead, "manager", NOW, true).tone, "warn");
-  assert.equal(O.outcomeOf({ ...ahead, lesson: { ...ahead.lesson, date: "2026-10-27" } }, "manager", NOW, true).tone, "muted");
-  assert.match(O.outcomeNote(ahead, true), /нужно ваше решение/);
-  assert.equal(O.outcomeNote(ahead, false), null);
+  assert.equal(O.outcomeOf(ahead, "manager", NOW).tone, "muted", "no `needsDecision` from the server: calm, nothing is guessed");
+  assert.equal(O.outcomeOf({ ...ahead, needsDecision: true }, "manager", NOW).tone, "warn");
+  assert.equal(O.outcomeOf({ ...ahead, needsDecision: true, lesson: { ...ahead.lesson, date: "2026-10-27" } }, "manager", NOW).tone, "muted");
+  assert.match(O.outcomeNote({ ...ahead, needsDecision: true }), /нужно ваше решение/);
+  assert.equal(O.outcomeNote({ ...ahead, needsDecision: false }), null);
   assert.equal(O.outcomeNote(item()), null);
 });
 
@@ -413,19 +413,20 @@ test("#157 (server sync): a stranger's request is 404 for a teacher: the toast o
   assert.equal(S.substitutionErrorText(notFound), "Запрос на замену не найден", "the panel's error is the contract's sentence for the code");
 });
 
-test("#157 r2 (7): «Выходной отменён» is yellow ⇔ the server says `needsDecision` (and the lesson is ahead); the panel reads it from the last event", () => {
+test("#157 r2 (7): the chip «Выходной отменён» of the list is yellow ⇔ `item.needsDecision` and the lesson is ahead; the panel reads the same field", () => {
   const ahead = { lesson: { ...item().lesson, date: "2026-11-02" } };
-  const t = (needs, over = {}) => O.outcomeOf(item({ outcome: "day_off_voided", ...ahead, ...over }), "manager", NOW, needs).tone;
+  const t = (needsDecision, over = {}) => O.outcomeOf(item({ outcome: "day_off_voided", ...ahead, needsDecision, ...over }), "manager", NOW).tone;
   assert.equal(t(true), "warn");
   assert.equal(t(false), "muted");
-  assert.equal(t(null), "muted");
+  assert.equal(t(undefined), "muted");
   assert.equal(t(true, { lesson: { ...ahead.lesson, date: "2026-10-20" } }), "muted", "the lesson is past");
-  const detail = (needsDecision) => ({ item: item({ id: "r1" }), events: [{ requestId: "r1", action: "day_off_voided", at: "2026-10-28T07:10:00", snapshot: { subject: "request", reopened: true, needsDecision } }] });
-  assert.equal(TL.dayOffNeedsDecision(detail(true)), true);
-  assert.equal(TL.dayOffNeedsDecision(detail(false)), false);
-  assert.equal(TL.dayOffNeedsDecision({ item: item(), events: [] }), null);
-  assert.match(O.outcomeNote({ outcome: "day_off_voided" }, true), /нужно ваше решение/);
-  assert.equal(O.outcomeNote({ outcome: "day_off_voided" }, false), null);
+  assert.equal(t(true, { outcome: "substituted" }), "ok", "the field means something only for this code");
+  assert.match(O.outcomeNote({ outcome: "day_off_voided", needsDecision: true }), /нужно ваше решение/);
+  assert.equal(O.outcomeNote({ outcome: "day_off_voided", needsDecision: false }), null);
+  const panelSrc = read("src/components/substitutions/substitution-panel.tsx");
+  assert.match(panelSrc, /outcomeOf\(item, audience\)/, "the panel takes the field of the row, it does not compute it from the events");
+  assert.doesNotMatch(panelSrc, /dayOffNeedsDecision/);
+  assert.match(read("src/lib/substitution-types.ts"), /needsDecision\?: boolean;/);
 });
 
 test("#157 r2 (8): «Вы» only for the teacher's own action with the role `teacher`; no role - no word (LESSONS 17)", () => {

@@ -65,13 +65,6 @@ export function dayOffVoidedTitle(snapshot: Record<string, unknown>): string {
   return "Выходной отменён";
 }
 
-/** The last `day_off_voided` of the open row says whether a decision is needed (the chip of the panel is yellow only then); null when there is no such event. */
-export function dayOffNeedsDecision(out: Pick<SubstitutionDetailOut, "item" | "events">): boolean | null {
-  const events = (out.events ?? []).filter((event) => event.action === "day_off_voided" && (event.requestId ?? out.item.id) === out.item.id);
-  const last = events[events.length - 1];
-  return last ? last.snapshot?.needsDecision === true : null;
-}
-
 function closedWhy(code: string): string {
   return CLOSED_REASON_TEXT[code as ClosedReasonCode] ?? "Запрос закрыт";
 }

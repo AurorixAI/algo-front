@@ -171,6 +171,8 @@ export interface SubstitutionItem {
   outcome?: SubstitutionOutcomeCode | string | null;
   /** #157: the last moment of the row - the decision or the last event (a request: the moment it was made). Naive UTC. The decided tab is sorted by it. */
   lastActivityAt?: string | null;
+  /** #157: the server says a decision of the manager is needed (the day off was voided and nothing came back by itself): the chip «Выходной отменён» is yellow only then. */
+  needsDecision?: boolean;
   /** #157: the `trigger` of the event that closed the record (`day_off`, `window_expired`, ...); null while it is not closed. */
   closedTrigger?: string | null;
 }
