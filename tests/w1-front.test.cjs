@@ -362,8 +362,9 @@ test("F11: «Вам назначена замена» stays until the lesson STA
   assert.equal(S.assignedAhead(entries, at("09:00"), parse).length, 3);
   assert.deepEqual(S.assignedAhead(entries, at("10:00"), parse).map((e) => e.startTime), ["15:00", null], "10:00 exactly = started");
   assert.deepEqual(S.assignedAhead(entries, at("16:00"), parse).map((e) => e.startTime), [null], "no readable start: the server decides");
-  const line = S.clearedForMeLine({ groupName: "9-А", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", clearedAt: "2026-10-27T04:30:00", clearedBy: { name: "Каримова Н." } });
-  assert.match(line, /^Замена снята: 9-А — .*28\.10, 10:00–11:30 \(снял\(а\) Каримова Н\., 27\.10 09:30\)$/);
+  const line = S.clearedForMeLine({ groupName: "9-А", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", clearedAt: "2026-10-27T04:30:00", clearedBy: { name: "Каримова Н.", role: "admin" } });
+  assert.match(line, /^Замена снята: 9-А — .*28\.10, 10:00–11:30 \(администратор, 27\.10 09:30\)$/, "#157: the role alone, another person's name is not for a teacher; no «(а)»");
+  assert.match(S.clearedForMeLine({ groupName: "9-А", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", clearedAt: "2026-10-27T04:30:00", clearedBy: { name: "Каримова Н.", role: null } }), /\(27\.10 09:30\)$/, "no role - no guess (LESSONS 17)");
   assert.equal(S.clearedForMeLine({ groupName: "9-А", lessonDate: "2026-10-28" }).endsWith("28.10"), true, "no author, no time: nothing invented");
   const { AssignedLessons } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
   const { ClearedLessons } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
@@ -451,39 +452,47 @@ test("R3 round: an administrator's estimate is hidden (null / HIDDEN) - nothing 
 
 const J = (item) => ({ origin: "system", status: "cancelled", teacher: { id: "t1", name: "Иванов И." }, decision: { kind: "cancel", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" }, ...item });
 
-test("R3 2: the journal «Замены» understands EVERY W1 trigger - who did it, in human words (one assertion block per trigger)", () => {
-  const lines = (item) => ({ origin: S.originLine(item), by: S.decidedByLine(item), chip: S.reasonChipText(item), result: S.decisionResultText(item) });
+test("R3 2 (#157): the journal «Замены» understands EVERY W1 trigger - the badge, the chip of the result, the line of the history with its author (one assertion block per trigger)", () => {
+  const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
+  const TL = require(path.join(root, "src/lib/substitution-timeline.ts"));
+  const AT = "2026-10-22T04:30:00";
+  const mgr = { id: "m", name: "Каримова Н.", role: "admin" };
+  const view = (item, outcome, events) => ({ badge: O.originBadge(item), chip: O.outcomeOf({ ...item, outcome }, "manager").text, rows: TL.timelineOf({ item: { id: "r", ...item }, events: events.map((event) => ({ requestId: "r", at: AT, ...event })) }, "manager").rows.map((row) => [row.title, row.author]) });
   // manager_cancel
-  assert.deepEqual(lines(J({ trigger: "manager_cancel" })), { origin: "Без запроса", by: "Отменил администратор Каримова Н., 22.10 09:30", chip: "Отмена", result: "Урок отменён" });
-  assert.equal(S.decidedByLine(J({ trigger: "manager_cancel", decision: { kind: "cancel", by: { id: "o", name: "Юсупова Н.", role: "owner" }, at: "2026-10-22T04:30:00" } })), "Отменил владелец Юсупова Н., 22.10 09:30");
+  assert.deepEqual(view(J({ trigger: "manager_cancel" }), "cancelled", [{ action: "cancelled", actor: mgr, snapshot: { reason: "Болен", cancellationKind: "centre" } }]),
+    { badge: "без запроса", chip: "Урок отменён", rows: [["Урок отменён", "Каримова Н., администратор"]] });
+  assert.equal(TL.timelineOf({ item: { id: "r", origin: "system", trigger: "manager_cancel" }, events: [{ requestId: "r", action: "cancelled", actor: { id: "o", name: "Юсупова Н.", role: "owner" }, at: AT, snapshot: {} }] }, "manager").rows[0].author, "Юсупова Н., владелец");
   // teacher_cancel
-  assert.deepEqual(lines(J({ trigger: "teacher_cancel", decision: { kind: "cancel", via: "teacher_cancel", by: { id: "t1", name: "Иванов И." }, at: "2026-10-22T04:30:00" } })), { origin: "Без запроса", by: "Урока не было — преподаватель Иванов И., 22.10 09:30", chip: "Урока не было", result: "Урока не было" });
+  assert.deepEqual(view(J({ trigger: "teacher_cancel" }), "lesson_not_held", [{ action: "cancelled", actor: { id: "t1", name: "Иванов И.", role: "teacher" }, snapshot: {} }]),
+    { badge: "без запроса", chip: "Урока не было", rows: [["Урока не было", "Иванов И., преподаватель"]] });
   // manager_restore
-  const restored = J({ trigger: "manager_restore", status: "closed", decision: { kind: "closed", via: "manager_restore", closedReason: "LESSON_RESTORED", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" } });
-  assert.deepEqual(lines(restored), { origin: "Без запроса", by: "Вернул урок администратор Каримова Н., 22.10 09:30", chip: "Возврат", result: "Урок возвращён" });
+  assert.deepEqual(view(J({ trigger: "manager_restore", status: "closed" }), "lesson_restored", [{ action: "closed", actor: mgr, snapshot: { closedReason: "LESSON_RESTORED", trigger: "manager_restore", reason: "Ошиблись" } }]),
+    { badge: "без запроса", chip: "Урок возвращён", rows: [["Урок возвращён", "Каримова Н., администратор"]] });
+  // the original record of a cancellation the lesson was restored from: its own event
+  assert.deepEqual(view(J({ trigger: "manager_cancel" }), "lesson_restored", [{ action: "lesson_restored", actor: mgr, snapshot: {} }]).rows, [["Урок возвращён", "Каримова Н., администратор"]]);
   // manager_reason_change
-  const kind = J({ trigger: "manager_reason_change", status: "closed", decision: { kind: "closed", via: "reason_change", closedReason: "KIND_CHANGED", by: { id: "m", name: "Каримова Н." }, at: "2026-10-22T04:30:00" } });
-  assert.deepEqual(lines(kind), { origin: "Без запроса", by: "Вид отмены изменил администратор Каримова Н., 22.10 09:30", chip: "Вид отмены", result: "Вид отмены изменён" });
-  // teacher_one_off: WHO added it is the teacher of the record
-  const oneOff = J({ trigger: "teacher_one_off", status: "closed", teacher: { id: "t9", name: "Рахимов Т." }, decision: { kind: "closed", closedReason: "ONE_OFF_ADDED", at: "2026-10-22T04:30:00" } });
-  assert.deepEqual(lines(oneOff), { origin: "Без запроса", by: "Разовый урок добавил преподаватель Рахимов Т., 22.10 09:30", chip: "Разовый урок", result: "Разовый урок добавлен" });
-  // window_expired (a request of the teacher the month border closed)
-  const expired = { origin: "teacher", trigger: "window_expired", status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "closed", closedReason: "LESSON_OUTSIDE_WINDOW", at: "2026-11-01T00:05:00" } };
-  assert.equal(S.decisionResultText(expired), "Не решено вовремя");
-  assert.equal(S.decidedByLine(expired), "Закрыто системой, 01.11 05:05");
-  assert.equal(S.originLine(expired), null, "a request of the teacher keeps no origin line");
-  // day_off (a waiting request decided by the cancellation of a day off)
-  const dayOff = { origin: "teacher", trigger: "day_off", status: "cancelled", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "cancel", by: { id: "o", name: "Юсупова Н." }, at: "2026-10-22T04:30:00" } };
-  assert.equal(S.decisionResultText(dayOff), "Отменено выходным днём");
-  assert.equal(S.decidedByLine(dayOff), "Отменено выходным днём, назначил(а) Юсупова Н., 22.10 09:30");
+  assert.deepEqual(view(J({ trigger: "manager_reason_change", status: "closed" }), "kind_changed", [{ action: "closed", actor: mgr, snapshot: { closedReason: "KIND_CHANGED", trigger: "manager_reason_change", cancellationKind: { from: "centre", to: "holiday" } } }]),
+    { badge: "без запроса", chip: "Вид отмены изменён", rows: [["Вид отмены изменён", "Каримова Н., администратор"]] });
+  // teacher_one_off
+  assert.deepEqual(view(J({ trigger: "teacher_one_off", status: "closed", teacher: { id: "t9", name: "Рахимов Т." } }), "one_off_added", [{ action: "closed", actor: { id: "t9", name: "Рахимов Т.", role: "teacher" }, snapshot: { closedReason: "ONE_OFF_ADDED", trigger: "teacher_one_off" } }]),
+    { badge: "без запроса", chip: "Разовый урок", rows: [["Разовый урок добавлен", "Рахимов Т., преподаватель"]] });
+  // window_expired (a request of the teacher the month border closed): the system has no author
+  const expired = { origin: "teacher", trigger: null, status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "other", decision: { kind: "closed", closedReason: "LESSON_OUTSIDE_WINDOW", at: "2026-11-01T00:05:00" } };
+  assert.deepEqual(view(expired, "not_resolved_in_time", [{ action: "closed", actor: null, snapshot: { closedReason: "LESSON_OUTSIDE_WINDOW", trigger: "window_expired" } }]),
+    { badge: null, chip: "Не решено вовремя", rows: [["Запрос закрыт", null]] });
+  assert.equal(O.outcomeOf({ ...expired, outcome: "not_resolved_in_time" }, "manager").tone, "warn");
+  // day_off (a waiting request closed by the cancellation of a day off): the code says «выходным», the author of the day off stands in the event
+  const dayOff = { origin: "teacher", status: "closed", teacher: { id: "t1", name: "Иванов И." }, closedTrigger: "day_off", decision: { kind: "closed", closedReason: "LESSON_CANCELLED" } };
+  assert.deepEqual(view(dayOff, "cancelled_by_day_off", [{ action: "closed", actor: { id: "o", name: "Юсупова Н.", role: "owner" }, snapshot: { closedReason: "LESSON_CANCELLED", trigger: "day_off" } }]),
+    { badge: null, chip: "Отменён выходным", rows: [["Запрос закрыт: урок отменён выходным днём", "Юсупова Н., владелец"]] });
   // role_changed
-  const role = { origin: "teacher", trigger: "role_changed", status: "closed", teacher: { id: "t1", name: "Иванов И." }, reasonCode: "illness", decision: { kind: "closed", closedReason: "ROLE_CHANGED", at: "2026-10-22T04:30:00" } };
-  assert.equal(S.decisionResultText(role), "Закрыт: Сотрудник стал администратором");
-  assert.equal(S.decidedByLine(role), "Закрыто системой, 22.10 09:30");
-  // the old triggers keep their words
-  assert.equal(S.originLine({ origin: "system", trigger: "manager_move", status: "rescheduled" }), "Перенёс администратор, без запроса");
+  const role = { origin: "teacher", status: "closed", teacher: { id: "t1", name: "Иванов И." }, decision: { kind: "closed", closedReason: "ROLE_CHANGED" } };
+  assert.deepEqual(view(role, "role_changed", [{ action: "closed", actor: null, snapshot: { closedReason: "ROLE_CHANGED", trigger: "role_changed" } }]),
+    { badge: null, chip: "Стал администратором", rows: [["Запрос закрыт", null]] });
   // a technical code never reaches the screen
-  for (const item of [J({ trigger: "manager_cancel" }), restored, kind, oneOff, expired, dayOff, role]) for (const text of Object.values(lines(item))) assert.doesNotMatch(String(text ?? ""), /[a-z]+_[a-z_]+|[A-Z]{3,}_[A-Z_]+/);
+  for (const row of [view(J({ trigger: "manager_cancel" }), "cancelled", [{ action: "cancelled", actor: mgr, snapshot: {} }]), view(expired, "not_resolved_in_time", [{ action: "closed", actor: null, snapshot: { closedReason: "LESSON_OUTSIDE_WINDOW" } }])]) {
+    for (const text of [row.badge, row.chip, ...row.rows.flat()]) assert.doesNotMatch(String(text ?? ""), /[a-z]+_[a-z_]+|[A-Z]{3,}_[A-Z_]+/);
+  }
 });
 
 test("R3 3 / 4: «Урока не было» belongs to whoever LEADS the lesson now (the substitute too), never to the replaced teacher or a non-teacher; managers do not come to the teacher's pages", () => {
@@ -654,7 +663,8 @@ test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and
     assert.match(page, /data-testid="led-by-other"/, file);
     assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, user\?\.id\)/, file);
   }
-  assert.match(read("src/app/teacher/dashboard/page.tsx"), /if \(lesson\.replacedBy\) return \[\];/, "no «Начните урок» for a lesson a substitute leads");
+  assert.match(read("src/lib/teacher-agenda.ts"), /if \(lesson\.replacedBy\) return false;/, "no «Начните урок» for a lesson a substitute leads: it is not in the day of the teacher (#158, one function)");
+  assert.match(read("src/app/teacher/dashboard/page.tsx"), /entry\.phase !== "to_start"/);
 });
 
 test("lead notes: the state of the lesson is a badge, «каб. 12» does not break; the kind of the decision is brought into view on a phone", () => {
@@ -676,13 +686,16 @@ test("R3 ops: the group coming back from the archive shows the notes of the serv
   assert.match(read("src/components/groups/group-detail-view.tsx"), /showToast\(message, notes\?\.length \? "warning" : "success", notes\)/);
 });
 
-test("R3 6 (phone): the filters are ONE row (search, «Срочные» chip, icon filter) and «Выбрать все» sits beside the tabs; the desktop table keeps its own rows", () => {
+test("R3 6 (phone, #157): the search and the filter icon are ONE row, «Срочные» and the chip of the filter are under them; «Выбрать все · N» is the first row of the list", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /flex flex-nowrap items-center gap-2 sm:flex-wrap/, "one row on a phone");
+  assert.match(page, /flex w-full items-center gap-2 sm:w-auto/, "the search and the icon in one row on a phone");
   assert.match(page, /<CascadingFilter iconOnPhone /);
   assert.match(page, /<span className="sm:hidden">Срочные<\/span><span className="hidden sm:inline">Только срочные<\/span>/);
-  assert.match(page, /data-testid="select-all-compact"[^>]*xl:hidden|xl:hidden[^>]*data-testid="select-all-compact"/, "beside the tabs below the wide table");
-  assert.match(page, /className="hidden cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:flex/, "the wide table keeps its own «Выбрать все» row");
+  assert.match(page, /data-testid="select-all"/);
+  assert.match(page, /Выбрать все · \{items\.length\}/, "the count is in the row");
+  assert.doesNotMatch(page, /select-all-compact/, "no lonely checkbox beside the tabs");
+  assert.match(page, /data-testid="filter-chip"[\s\S]*sm:hidden/, "the chip «Имя ×» is for a phone: it says the filter is on");
+  assert.match(page, /text-base[^"]*sm:text-sm/, "the search is 16 px on a phone: no zoom of iOS Safari");
   const { CascadingFilter } = require(path.join(root, "src/components/ui/cascading-filter.tsx"));
   const props = { teachers: [], groups: [], value: { teacherId: "", groupId: "" }, onChange() {}, allLabel: "Все группы и преподаватели" };
   const phone = renderToStaticMarkup(React.createElement(CascadingFilter, { ...props, iconOnPhone: true }));
@@ -726,12 +739,14 @@ test("stage 17: «Урока не было» only after the lesson END (business
   for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) assert.match(read(file), /endTime: activeLesson\.endTime, rosterEmpty/, file);
 });
 
-test("journal: PersonRef.role (owner / admin / teacher) from the server names the owner «владелец»; no role = «администратор» (a fixture of the server's shape)", () => {
+test("journal (#157): PersonRef.role (owner / admin / teacher) from the server names the owner «владелец»; no role = the name alone, never «администратор» by default (LESSONS 17)", () => {
+  const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
   const items = JSON.parse(fs.readFileSync(path.join(root, "tests/fixtures/w1/journal_items.json"), "utf8"));
-  assert.equal(S.decidedByLine(items.ownerCancelled), "Отменил владелец Юсупова Н., 27.10 17:00");
-  assert.equal(S.decidedByLine(items.adminRestored), "Вернул урок администратор Каримова Н., 27.10 17:05");
-  assert.equal(S.decidedByLine(items.noRole), "Отменил администратор Старова С., 27.10 17:00", "an older answer without a role: the neutral word");
+  assert.equal(O.authorLine(items.ownerCancelled.decision.by, "manager", "manager"), "Юсупова Н., владелец");
+  assert.equal(O.authorLine(items.adminRestored.decision.by, "manager", "manager"), "Каримова Н., администратор");
+  assert.equal(O.authorLine(items.noRole.decision.by, "manager", "manager"), "Старова С.", "an older answer without a role: no word invented");
   assert.match(read("src/lib/substitution-types.ts"), /role\?: string \| null;\n\}/, "PersonRef carries the role");
+  assert.doesNotMatch(read("src/lib/substitution-outcome.ts"), /\|\| "admin"|\?\? "admin"|: "администратор";/, "no role by default");
 });
 
 test("lead note 375: the teacher's «Изменить постоянное расписание» button is never cut with an ellipsis: a short label on a phone, the full one from `sm`", () => {

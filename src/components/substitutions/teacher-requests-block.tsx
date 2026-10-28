@@ -7,7 +7,6 @@ import {
   ASSIGNED_TITLE,
   MY_REQUESTS_TITLE,
   NEW_REQUEST_LINK,
-  STATUS_TONE_CLASS,
   WITHDRAW_ACTION,
   alreadyDecided,
   assignedAhead,
@@ -17,9 +16,10 @@ import {
   itemLessonLine,
   recentRequests,
   substitutionErrorText,
-  teacherStatusLine,
 } from "@/lib/substitutions";
-import type { AssignedToMe, ClearedForMe, MineOut } from "@/lib/substitution-types";
+import { OutcomeChip, DetailsButton } from "@/components/substitutions/journal-cells";
+import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
+import type { AssignedToMe, ClearedForMe, MineOut, SubstitutionItem } from "@/lib/substitution-types";
 import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-time";
 import { todayPendingHint } from "@/lib/schedule-card-actions";
 import { useNow } from "@/lib/use-now";
@@ -45,6 +45,8 @@ export function TeacherRequestsBlock({
   const [data, setData] = useState<MineOut | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** #157: «›» opens the panel «Подробнее» of a request (the same panel as the owner's, for a teacher: his own records, the other people by role only). */
+  const [panel, setPanel] = useState<{ id: string; seed: SubstitutionItem | null } | null>(null);
   const token = useRef(0);
   const onDataRef = useRef(onData);
   onDataRef.current = onData;
@@ -100,13 +102,12 @@ export function TeacherRequestsBlock({
           </div>
           <ul className="divide-y divide-slate-100">
             {items.map((item) => {
-              const status = teacherStatusLine(item);
               const hint = todayPendingHint(item, formatBusinessDate(new Date(now)), new Date(now));
               return (
-                <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 first:pt-0 last:pb-0">
+                <li key={item.id} data-testid="my-request-row" className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 first:pt-0 last:pb-0">
                   <span className="min-w-0 text-sm font-medium text-slate-800">{itemLessonLine(item)}</span>
                   <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className={`max-w-full break-words rounded-md border px-2 py-0.5 text-xs font-semibold ${STATUS_TONE_CLASS[status.tone]}`}>{status.text}</span>
+                    <OutcomeChip item={item} audience="teacher" />
                     {hint && <span data-testid="today-pending-hint" className="text-xs font-medium text-amber-800">{hint}</span>}
                     {item.status === "pending" && (
                       <button
@@ -119,6 +120,7 @@ export function TeacherRequestsBlock({
                         Отозвать
                       </button>
                     )}
+                    <DetailsButton item={item} onOpen={(row) => setPanel({ id: row.id, seed: row })} />
                   </span>
                 </li>
               );
@@ -133,6 +135,14 @@ export function TeacherRequestsBlock({
           <ClearedLessons entries={cleared} />
         </div>
       )}
+      <SubstitutionPanel
+        requestId={panel?.id ?? null}
+        seed={panel?.seed ?? null}
+        audience="teacher"
+        workspace="teacher"
+        onClose={() => setPanel(null)}
+        onOpenRequest={(id) => setPanel({ id, seed: null })}
+      />
     </section>
   );
 }

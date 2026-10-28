@@ -79,17 +79,20 @@ test("[8] a receipt of «undefined» asks nothing; a submit of the add dialog is
   assert.ok((dialogs.match(/if \(busy \|\| sending\.current\) return;/g) || []).length >= 2, "add and edit dialogs hold a ref against a second submit in the same tick");
 });
 
-test("[3][4] the words of a taken off / replaced substitution are the same in the owner's journal and in the teacher's list", () => {
+test("[3][4] a taken off / replaced substitution has the same chip in the owner's journal and in the teacher's list (one function, the code of the server)", () => {
+  const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
   const AT = "2026-10-22T04:30:00";
   const person = (name) => ({ id: name, name });
   const base = { id: "r", origin: "system", trigger: "manager_assign", status: "substituted", teacher: person("Иванов А."), decision: { kind: "substitute", by: person("Каримова Н."), at: AT, substitute: person("Тарасов Т.") } };
-  const replaced = { ...base, clearedAt: AT, clearedBy: person("Каримова Н."), clearedTo: person("Сидоров В."), clearedTrigger: "put" };
-  assert.equal(S.clearedLine(replaced), "Заменена на Сидоров В. — решил(а) Каримова Н., 22.10 09:30");
-  assert.equal(S.teacherStatusLine(replaced).text, S.clearedLine(replaced));
-  const removed = { ...base, status: "closed", decision: { ...base.decision, kind: "closed", closedReason: "ASSIGNMENT_CLEARED" } };
-  assert.equal(S.decisionResultText(removed), "Замену снял(а) Каримова Н., 22.10 09:30");
-  assert.equal(S.teacherStatusLine(removed).text, S.decisionResultText(removed));
-  assert.doesNotMatch(S.decisionResultText(removed), /Замена снята: Тарасов/);
+  const replaced = { ...base, outcome: "substitution_replaced", clearedAt: AT, clearedBy: person("Каримова Н."), clearedTo: person("Сидоров В."), clearedTrigger: "put" };
+  assert.equal(O.outcomeOf(replaced, "manager").text, "Заменён другим");
+  assert.equal(O.outcomeOf(replaced, "teacher").text, O.outcomeOf(replaced, "manager").text);
+  const removed = { ...base, outcome: "substitution_cleared", status: "closed", decision: { ...base.decision, kind: "closed", closedReason: "ASSIGNMENT_CLEARED" } };
+  assert.equal(O.outcomeOf(removed, "manager").text, "Замена снята");
+  assert.equal(O.outcomeOf(removed, "teacher").text, O.outcomeOf(removed, "manager").text);
+  assert.doesNotMatch(O.outcomeOf(removed, "manager").text, /Тарасов/, "no names inside the chip: they are in the row");
+  // the stale line «Администратор заменил» does not exist any more
+  assert.equal(O.outcomeOf({ ...base, outcome: "substituted" }, "teacher").text, "Замена: Тарасов Т.");
 });
 
 test("the teacher's lesson panel: «Перенести урок» and «Не смогу провести» are rows of the «⋯» menu, grouped by meaning; no row of buttons any more", () => {

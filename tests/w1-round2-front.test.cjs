@@ -257,9 +257,15 @@ test("#156 (3): the window «Изменить роль» of a teacher warns befo
   assert.match(read("src/lib/api.ts"), /removal-impact\$\{intent === "role_change" \? "\?intent=role_change" : ""\}/);
   assert.match(page, /<RoleToAdminNotes impact=\{impact\} \/>/);
   // LESSONS 46: the new trigger `role_changed` has its words in each place of the journal
-  const gone = { clearedAt: "2026-10-22T04:30:00", clearedBy: { id: "x", name: "Каримова Н." }, clearedTrigger: "role_changed", status: "substituted" };
-  assert.equal(S.clearedLine({ ...gone, clearedBy: null }), "Замена снята: роль заменяющего изменена, он больше не ведёт уроки, 22.10 09:30");
-  assert.equal(S.decidedByLine({ origin: "teacher", trigger: "role_changed", status: "closed", teacher: { id: "t1", name: "Иванов И." }, decision: { kind: "closed", closedReason: "ROLE_CHANGED", at: "2026-10-22T04:30:00" } }), "Закрыто системой, 22.10 09:30");
+  const TL = require(path.join(root, "src/lib/substitution-timeline.ts"));
+  const rows = TL.timelineOf({ item: { id: "r", origin: "teacher" }, events: [
+    { requestId: "r", action: "assignment_cleared", actor: null, at: "2026-10-22T04:30:00", snapshot: { teacherId: ["t1", null], trigger: "role_changed" } },
+    { requestId: "r", action: "closed", actor: null, at: "2026-10-22T04:30:00", snapshot: { closedReason: "ROLE_CHANGED", trigger: "role_changed" } },
+  ] }, "manager").rows;
+  assert.deepEqual(rows.map((row) => row.title), ["Замена снята: роль заменяющего изменена, он больше не ведёт уроки", "Запрос закрыт"]);
+  assert.deepEqual(rows[1].details, ["Сотрудник стал администратором"]);
+  assert.equal(rows[0].author, null, "the system has no author");
+  assert.equal(require(path.join(root, "src/lib/substitution-outcome.ts")).outcomeOf({ outcome: "role_changed" }, "manager").text, "Стал администратором");
   assert.equal(S.CLOSED_REASON_TEXT.ROLE_CHANGED, "Сотрудник стал администратором");
 });
 

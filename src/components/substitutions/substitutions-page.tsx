@@ -4,16 +4,18 @@ import { canLead } from "@/lib/staff-lifecycle";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { groupHref, queryWith, teacherHref, workspaceBases } from "@/lib/ia-links";
+import { queryWith, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search, X } from "lucide-react";
 import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
 import { CHIP_BASE_CLASS } from "@/lib/chip-tone";
 import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createQueueGuard, afterDecision, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, createOncePer } from "@/lib/queue-guard";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
 import {
+  DECIDED_EMPTY_HINT,
   EMPTY_TEXT,
+  PAGE_HINT,
   LOAD_ERROR_TEXT,
   PAGE_SIZE,
   applyFreshItem,
@@ -24,14 +26,16 @@ import {
   decisionToast,
   expiringLine,
   itemLessonLine,
-  lessonWhen,
   moreLessonsText,
   suggestedLine,
   tabLabel,
   type DeadlineChip,
 } from "@/lib/substitutions";
 import type { DecideBulkOut, DecideOut, SubstitutionItem } from "@/lib/substitution-types";
-import { DecisionCell, OriginLine, ReasonCell } from "@/components/substitutions/journal-cells";
+import { DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell } from "@/components/substitutions/journal-cells";
+import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
+import { filterLabel } from "@/lib/cascading-filter";
+import { staffDisplayName } from "@/lib/staff-name";
 import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance/table-chrome";
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
@@ -42,12 +46,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 type Tab = "pending" | "decided";
 
 /** Columns of the wide layout (cards below `xl`, as the other tables of the admin screens). */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,1.5fr)_190px_104px]";
-const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.25fr)_minmax(0,0.9fr)_minmax(0,1.4fr)_minmax(0,1.3fr)]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.5fr)_170px_104px_40px]";
+const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_96px_minmax(0,1.1fr)_104px_40px]";
 
-/** Урок and Причина (free text) left, Преподаватель, Срок and Решение centred, «Решить» right (see table-chrome). */
-const PENDING_ALIGNS: CellAlign[] = ["left", "center", "left", "center", "right"];
-const DECIDED_ALIGNS: CellAlign[] = ["left", "center", "left", "center"];
+/** #157: everything is aligned to the left (the lesson, who -> whom, the reason, the result, when); «Решить» and «›» right (see table-chrome). */
+const PENDING_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "right", "right"];
+const DECIDED_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "left", "right"];
 
 const CHIP_TONE: Record<DeadlineChip["tone"], string> = {
   danger: "border-rose-200 bg-rose-50 text-rose-700",
@@ -84,6 +88,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [dialogItem, setDialogItem] = useState<SubstitutionItem | null>(null);
+  /** #157: the panel «Подробнее» (one for the page): the row it was opened from and a counter that makes it read the detail again after a decision. */
+  const [panel, setPanel] = useState<{ id: string; seed: SubstitutionItem | null } | null>(null);
+  const [panelRefresh, setPanelRefresh] = useState(0);
   const [bulkKind, setBulkKind] = useState<BulkKind | null>(null);
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; teacher_id: string }>>([]);
@@ -175,15 +182,31 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     };
   }, [guard]);
 
-  // a link from a lesson («Ждёт замены») opens the request itself
+  /** `?request=<id>` is the address of the panel (the link of a lesson, a reload, «Назад»); closing it keeps `?status=`. */
   const openedFor = useRef<string | null>(null);
+  const setRequestParam = useCallback((id: string | null) => {
+    router.replace(queryWith(searchParams?.toString(), { request: id }), { scroll: false });
+  }, [router, searchParams]);
+
+  const openPanel = (id: string, seed: SubstitutionItem | null) => {
+    openedFor.current = id;
+    setPanel({ id, seed });
+    setRequestParam(id);
+  };
+  const closePanel = () => {
+    openedFor.current = null;
+    setPanel(null);
+    setRequestParam(null);
+  };
+
+  // a link from a lesson («Ждёт замены») opens the request itself: a waiting one in the window of the decision, a decided one in the panel
   useEffect(() => {
     if (!requestedId || openedFor.current === requestedId) return;
     openedFor.current = requestedId;
     substitutionsApi.detail(requestedId)
       .then((out) => {
         if (out.item.status === "pending") setDialogItem(out.item);
-        else { setTab("decided"); showToast("Запрос уже решён", "warning"); }
+        else { setTab("decided"); setPanel({ id: out.item.id, seed: out.item }); }
       })
       .catch(() => showToast("Запрос на замену не найден", "error"));
   }, [requestedId, showToast]);
@@ -213,10 +236,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     const notes = assignmentNotes(out.result ?? {});
     showToast(decisionToast(out), notes.length > 0 ? "warning" : "success", notes.length > 0 ? notes : undefined);
     setDialogItem(null);
+    // the panel, if it is open, reads the row again and stays (the focus stays in it)
+    setPanelRefresh((value) => value + 1);
     void afterDecision(() => patchItem(out.item), refreshBadge);
   };
 
-  const stale = (fresh: SubstitutionItem) => { void afterDecision(() => patchItem(fresh), refreshBadge); };
+  const stale = (fresh: SubstitutionItem) => { setPanelRefresh((value) => value + 1); void afterDecision(() => patchItem(fresh), refreshBadge); };
 
   const bulkDone = (out: DecideBulkOut) => {
     const toast = bulkToast(out, items);
@@ -239,18 +264,27 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const toggle = (id: string, on: boolean) => setSelected((previous) => { const copy = new Set(previous); if (on) copy.add(id); else copy.delete(id); return copy; });
   const toggleExpanded = (id: string) => setExpanded((previous) => { const copy = new Set(previous); if (copy.has(id)) copy.delete(id); else copy.add(id); return copy; });
 
+  const filterText = filterLabel(
+    filter,
+    groups,
+    (teacherId) => { const teacher = teachers.find((entry) => entry.id === teacherId); return teacher ? staffDisplayName(teacher, "Фильтр") : null; },
+    "Фильтр",
+    "",
+  );
+  const filterOn = Boolean(filter.teacherId || filter.groupId);
+  const selectAll = (on: boolean) => setSelected(on ? new Set(items.map((item) => item.id)) : new Set());
+
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-5">
       <div className="min-w-0">
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Замены</h1>
-        <p className="text-sm text-slate-500">Запросы преподавателей, которые не смогут провести урок, и переносы уроков</p>
+        <p className="text-sm text-slate-500">{PAGE_HINT}</p>
       </div>
 
       {pendingTab && expiringLine(expiringTotal) && <p role="status" data-testid="expiring-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">{expiringLine(expiringTotal)}</p>}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex w-full items-center gap-2 lg:w-fit">
-        <div className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:flex-none" role="tablist">
+        <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">
           {tabs.map(({ key, label }) => (
             <button
               key={key}
@@ -264,34 +298,42 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             </button>
           ))}
         </div>
-        {/* below the wide table the «select all» lives beside the tabs (a phone keeps its first screen for the requests) */}
-        {pendingTab && items.length > 0 && (
-          <label data-testid="select-all-compact" className="flex shrink-0 cursor-pointer items-center gap-1.5 px-1 text-xs font-medium text-slate-500 xl:hidden" title="Выбрать все">
-            <Checkbox aria-label="Выбрать все" checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} />
-            <span className="hidden sm:inline">Выбрать все</span>
-          </label>
-        )}
-        </div>
-        <div className="flex flex-nowrap items-center gap-2 sm:flex-wrap">
-          <label className="relative block min-w-0 flex-1 sm:flex-none">
-            <span className="sr-only">Группа или преподаватель</span>
-            <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={searchInput}
-              onChange={(event) => setSearchInput(event.target.value)}
-              placeholder={phone ? "Поиск" : "Группа или преподаватель"}
-              aria-label="Группа или преподаватель"
-              className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64"
-            />
-          </label>
+        {/* a phone: the search and the filter icon in one row, under them the toggle «Срочные» and the chip of the filter that is on */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            <label className="relative block min-w-0 flex-1 sm:flex-none">
+              <span className="sr-only">Группа или преподаватель</span>
+              <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              {/* 16 px on a phone: a smaller font makes iOS Safari zoom the page at the focus and not zoom back */}
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder={phone ? "Поиск" : "Группа или преподаватель"}
+                aria-label="Группа или преподаватель"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64 sm:text-sm"
+              />
+            </label>
+            <CascadingFilter iconOnPhone allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
+          </div>
           {pendingTab && (
             <label className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Checkbox checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} />
               <span className="sm:hidden">Срочные</span><span className="hidden sm:inline">Только срочные</span>
             </label>
           )}
-          <CascadingFilter iconOnPhone allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
+          {filterOn && (
+            <button
+              type="button"
+              data-testid="filter-chip"
+              onClick={() => { setFilter({ teacherId: "", groupId: "" }); setPage(0); }}
+              aria-label={`Сбросить фильтр: ${filterText}`}
+              className="inline-flex h-10 max-w-full items-center gap-1.5 rounded-xl border border-primary-200 bg-primary-50 px-3 text-sm font-medium text-primary-800 hover:bg-primary-100 sm:hidden"
+            >
+              <span className="truncate">{filterText}</span>
+              <X className="h-4 w-4 shrink-0" aria-hidden />
+            </button>
+          )}
         </div>
       </div>
 
@@ -318,29 +360,31 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <button type="button" onClick={() => void load()} className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Повторить</button>
           </div>
         ) : items.length === 0 ? (
-          <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : "Решённые запросы за последние 30 дней появятся здесь."} />
+          <EmptyState icon={CheckCircle2} title={EMPTY_TEXT} hint={pendingTab ? "Когда преподаватель попросит замену, запрос появится здесь." : DECIDED_EMPTY_HINT} />
         ) : (
           <>
             <TableHeader
               show="xl"
               gridClass={cols}
-              labels={pendingTab ? ["Урок", "Преподаватель", "Причина", "Срок", ""] : ["Урок", "Преподаватель", "Причина", "Решение"]}
+              labels={pendingTab ? ["Урок", "Преподаватель", "Причина", "Срок", "", ""] : ["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""]}
               aligns={pendingTab ? PENDING_ALIGNS : DECIDED_ALIGNS}
             />
+            {/* «Выбрать все · N» is the first row of the list (a phone and the wide table alike) */}
             {pendingTab && (
-              <label className="hidden cursor-pointer items-center gap-2 px-1 text-xs font-medium text-slate-500 xl:flex xl:border-b xl:border-slate-100 xl:px-4 xl:py-2">
-                <Checkbox checked={allSelected} onChange={(event) => setSelected(event.target.checked ? new Set(items.map((item) => item.id)) : new Set())} />
-                Выбрать все
+              <label data-testid="select-all" className="flex cursor-pointer items-center gap-2 px-1 py-1 text-sm font-medium text-slate-600 xl:border-b xl:border-slate-100 xl:px-4 xl:py-2 xl:text-xs xl:text-slate-500">
+                <Checkbox checked={allSelected} onChange={(event) => selectAll(event.target.checked)} />
+                Выбрать все · {items.length}
               </label>
             )}
-            <ul className="space-y-2.5 xl:space-y-0 xl:divide-y xl:divide-slate-100">
+            <ul className="mt-2 space-y-2.5 xl:mt-0 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {items.map((item) => {
                 const siblings = batchSiblings(item, items);
                 const chips = deadlineChips(item);
                 const open = expanded.has(item.id);
+                const lessonHref = item.lesson.lessonId ? journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId }) : null;
                 return (
-                  <li key={item.id} className={`flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 ${cols}`}>
-                    {/* Урок */}
+                  <li key={item.id} data-testid="substitution-row" className={`relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 pr-12 xl:grid xl:items-start xl:gap-x-3 xl:gap-y-0 xl:rounded-none xl:border-0 xl:bg-transparent xl:px-4 xl:py-3 xl:pr-4 ${cols}`}>
+                    {/* Урок: one link to the lesson */}
                     <div className="flex min-w-0 items-start gap-3">
                       {pendingTab && (
                         <Checkbox
@@ -351,17 +395,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                         />
                       )}
                       <div className="min-w-0">
-                        {/* IA audit F31: the group and the lesson are links (the journal of the group on that lesson), the teacher leads to his rate (owner) */}
-                        <Link href={groupHref(bases.groups, item.group.id)} data-testid="substitution-group-link" className="block break-words text-sm font-semibold leading-5 text-slate-900 hover:text-primary-700 hover:underline">{item.group.name}</Link>
-                        <p className="text-xs text-slate-500">
-                          {lessonWhen(item.lesson.date, item.lesson.startTime, item.lesson.endTime)}
-                          {item.lesson.lessonId && (
-                            <>
-                              <span aria-hidden> · </span>
-                              <Link href={journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId })} data-testid="substitution-lesson-link" className="font-semibold text-primary-700 hover:underline">Открыть урок</Link>
-                            </>
-                          )}
-                        </p>
+                        <LessonCell item={item} href={lessonHref} />
                         {siblings.length > 0 && (
                           <p className="mt-0.5 text-xs text-slate-500">
                             {moreLessonsText(siblings.length)}{" "}
@@ -371,48 +405,45 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                       </div>
                     </div>
 
-                    {/* Преподаватель */}
-                    <div className="min-w-0 text-xs text-slate-500 xl:text-center xl:text-sm">
-                      {role === "owner" && item.teacher.id ? (
-                        <Link href={teacherHref(item.teacher.id)} data-testid="substitution-teacher-link" className="block break-words font-medium text-slate-800 hover:text-primary-700 hover:underline">{item.teacher.name}</Link>
-                      ) : (
-                        <p className="break-words font-medium text-slate-800">{item.teacher.name}</p>
-                      )}
-                      <OriginLine item={item} />
-                    </div>
+                    {/* Кто → кто (the links to the group and to the teacher are in the panel) */}
+                    <PeopleCell item={item} />
 
-                    {/* Причина */}
-                    <div className="min-w-0">
-                      <ReasonCell item={item} />
-                      {pendingTab && suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
-                    </div>
-
-                    {/* Срок / Решение */}
+                    {/* Причина / Срок / Итог / Когда */}
                     {pendingTab ? (
-                      <div className="flex min-w-0 flex-wrap gap-1.5 xl:justify-center">
-                        {chips.map((chip) => (
-                          <span key={chip.text} className={`${CHIP_BASE_CLASS} ${CHIP_TONE[chip.tone]}`}>{chip.text}</span>
-                        ))}
-                      </div>
+                      <>
+                        <div className="min-w-0">
+                          <ReasonCell item={item} withComment />
+                          {suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
+                        </div>
+                        <div className="flex min-w-0 flex-wrap gap-1.5">
+                          {chips.map((chip) => (
+                            <span key={chip.text} className={`${CHIP_BASE_CLASS} ${CHIP_TONE[chip.tone]}`}>{chip.text}</span>
+                          ))}
+                        </div>
+                        <div className="flex items-center justify-end xl:-my-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setDialogItem(item)}
+                            aria-label={`Решить: ${item.group.name}, ${item.teacher.name}`}
+                            className="h-8 w-full rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 xl:w-auto"
+                          >
+                            Решить
+                          </button>
+                        </div>
+                      </>
                     ) : (
-                      <div className="min-w-0 xl:text-center">
-                        <DecisionCell item={item} />
+                      /* a phone: ONE row «[итог] [Причина] когда» (the chip first); the wide table: the cells in their columns */
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 xl:contents">
+                        <div className="min-w-0 max-xl:order-2"><ReasonCell item={item} /></div>
+                        <div className="min-w-0 max-xl:order-1"><OutcomeChip item={item} /></div>
+                        <div className="min-w-0 max-xl:order-3 max-xl:ml-auto"><WhenCell item={item} /></div>
                       </div>
                     )}
 
-                    {/* Действие */}
-                    {pendingTab && (
-                      <div className="flex items-center justify-end xl:-my-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setDialogItem(item)}
-                          aria-label={`Решить: ${item.group.name}, ${item.teacher.name}`}
-                          className="h-8 w-full rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 xl:w-auto"
-                        >
-                          Решить
-                        </button>
-                      </div>
-                    )}
+                    {/* «›» Подробнее: top right of a card, the last cell of the wide table */}
+                    <div className="absolute right-1 top-1 xl:static xl:-my-1 xl:flex xl:justify-end">
+                      <DetailsButton item={item} onOpen={(row) => openPanel(row.id, row)} />
+                    </div>
 
                     {open && siblings.length > 0 && (
                       <ul className="mt-1 space-y-1 rounded-lg bg-slate-50 px-3 py-2 xl:col-span-full">
@@ -443,10 +474,20 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         </div>
       )}
 
+      <SubstitutionPanel
+        requestId={panel?.id ?? null}
+        seed={panel?.seed ?? null}
+        audience="manager"
+        workspace={role}
+        refreshKey={panelRefresh}
+        onClose={closePanel}
+        onDecide={(row) => setDialogItem(row)}
+        onOpenRequest={(id) => openPanel(id, null)}
+      />
       <DecisionDialog
         item={dialogItem}
         role={role}
-        onClose={() => { setDialogItem(null); if (requestedId) { openedFor.current = null; router.replace(`/${role}/substitutions`, { scroll: false }); } }}
+        onClose={() => { setDialogItem(null); if (requestedId && !panel) { openedFor.current = null; setRequestParam(null); } }}
         onDecided={decided}
         onStale={stale}
       />

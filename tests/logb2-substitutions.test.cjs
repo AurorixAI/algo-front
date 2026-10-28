@@ -30,6 +30,9 @@ const fx = (name) => JSON.parse(fs.readFileSync(path.join(dir, `${name}.json`), 
 const contract = fx("_contract");
 const index = fx("index");
 const S = require(path.join(root, "src/lib/substitutions.ts"));
+const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
+// #157: the server sends the code of the result (`outcome`); the old golden answers have none, so a test names the code the server would send
+const chip = (item, outcome, audience = "manager") => { const view = O.outcomeOf({ ...item, outcome }, audience); return { text: view.text, tone: view.tone }; };
 const React = require("react");
 const { renderToStaticMarkup } = require("react-dom/server");
 const { RequestBody } = require(path.join(root, "src/components/substitutions/request-dialog.tsx"));
@@ -176,7 +179,7 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   const item = created.created[0];
   assert.equal(S.createToast(created).text, "Запрос отправлен администратору");
   assert.equal(S.itemLessonLine(item), "9-А · пн, 26.10 · 10:00–11:30");
-  assert.deepEqual(S.teacherStatusLine(item), { text: "Ждёт решения", tone: "amber" });
+  assert.deepEqual(chip(item, "pending", "teacher"), { text: "Ждёт решения", tone: "warn" });
   assert.equal(S.deadlineText(item.minutesToStart), "до начала 5 дн.", "6960 min = 4 d 20 h");
   assert.deepEqual(S.deadlineChips(item), [{ text: "до начала 5 дн.", tone: "neutral" }]);
   assert.equal(S.suggestedLine(item), "Предложил: Рахимов Т.");
@@ -193,9 +196,9 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   assert.equal(S.roleChip, undefined, "only teachers are candidates: no role chip any more");
   const decided = fx("b2c1_decide_substitute");
   assert.equal(S.decisionToast(decided), "Замена назначена: Рахимов Т.");
-  assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Замена: Рахимов Т.", tone: "green" });
-  assert.equal(S.decidedByLine(decided.item), "Решил(а) Каримова Н., 21.10 14:12");
-  assert.equal(S.decisionResultText(decided.item), "Иванов И. → Рахимов Т.", "P1.2: who was replaced by whom");
+  assert.deepEqual(chip(decided.item, "substituted", "teacher"), { text: "Замена: Рахимов Т.", tone: "ok" });
+  assert.deepEqual(chip(decided.item, "substituted"), { text: "Замена назначена", tone: "ok" }, "the owner's chip has no names: they are in the row");
+  assert.deepEqual(O.peopleOf(decided.item), { teacher: "Иванов И.", to: "Рахимов Т." }, "P1.2: who was replaced by whom");
   // the body that goes out: the suggested colleague, the status the dialog saw
   assert.deepEqual(S.buildDecide("substitute", { teacherId: ordered[0].teacherId, note: "  Договорился по телефону " }), {
     decision: "substitute", teacherId: ordered[0].teacherId, note: "Договорился по телефону", expectedStatus: "pending",
@@ -219,7 +222,8 @@ test("[chain 2] a move with a conflict: the live check says who is busy, the res
   assert.equal(S.substitutionErrorText(refusal("b2x_move_in_past")), "Новое время урока уже прошло");
   const decided = fx("b2c2_decide_reschedule");
   assert.equal(S.decisionToast(decided), "Урок перенесён на чт, 29.10, 16:00");
-  assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Урок перенесён на чт, 29.10, 16:00", tone: "blue" });
+  assert.deepEqual(chip(decided.item, "rescheduled", "teacher"), { text: "Урок перенесён", tone: "ok" });
+  assert.equal(O.peopleOf(decided.item).to, "чт, 29.10, 16:00", "the new time is under the teacher");
   // the form: the same slot is refused before the request, a reason is required
   const item = fx("b2c2_create").created[0];
   const form = S.moveFormError ? initialMoveForm(item, "2026-10-21") : null;
@@ -244,7 +248,7 @@ test("[chain 1] a direct assignment («Заменить преподавател
 test("[chain 3] a cancellation: the consequences of decision 3 in the words of the spec, the toast and the student's grey line", () => {
   const decided = fx("b2c3_decide_cancel");
   assert.equal(S.decisionToast(decided), "Урок отменён");
-  assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Урок отменён", tone: "gray" });
+  assert.deepEqual(chip(decided.item, "cancelled", "teacher"), { text: "Урок отменён", tone: "ok" });
   // W1 F4 (D18): no «стоимость месяца не меняется» (a cancellation «по вине центра» may be deducted - the kind field says so); a cancelled lesson CAN be returned (F3)
   assert.equal(S.CANCEL_CONSEQUENCES, "Ученики не отмечаются, из пакета урок не списывается, преподавателю не оплачивается. Вернуть урок можно, пока он не начался.");
   assert.doesNotMatch(S.CANCEL_CONSEQUENCES, /стоимость месяца не меняется|не вернётся/);
@@ -265,16 +269,16 @@ test("[chain 4] two administrators at once: «Запрос уже решён» w
   const rejected = S.alreadyDecided(refusal("b2c4_already_decided_rejected"));
   assert.equal(rejected.message, "Запрос уже решён");
   assert.equal(rejected.item.status, "rejected");
-  assert.equal(S.decisionResultText(rejected.item), "Запрос отклонён");
-  assert.deepEqual(S.teacherStatusLine(rejected.item), { text: "Отклонено: Замену не нашли", tone: "red" });
+  assert.deepEqual(chip(rejected.item, "rejected"), { text: "Запрос отклонён", tone: "ok" });
+  assert.deepEqual(chip(rejected.item, "rejected", "teacher"), { text: "Отклонено", tone: "ok" }, "the reason of the refusal is in the panel, not in a long chip");
   const withdrawn = S.alreadyDecided(refusal("b2c4_already_decided_withdrawn"));
   assert.equal(withdrawn.message, "Учитель отозвал запрос");
-  assert.equal(S.decidedByLine(withdrawn.item), "Отозван учителем, 21.10 14:01");
+  assert.deepEqual(chip(withdrawn.item, "withdrawn"), { text: "Преподаватель отозвал", tone: "muted" });
   assert.equal(S.alreadyDecidedText(fx("b2c9_closed")), "Запрос закрыт: группа закрыта");
   assert.equal(S.alreadyDecided(new Error("boom")), null);
   assert.equal(S.alreadyDecided(refusal("b2x_group_busy")), null, "another refusal is not «already decided»");
   // the dialog shows what happened and nothing to decide
-  const html = textOf(renderToStaticMarkup(React.createElement(StaleBody, { message: rejected.message, item: rejected.item })));
+  const html = textOf(renderToStaticMarkup(React.createElement(StaleBody, { message: rejected.message, item: { ...rejected.item, outcome: "rejected" } })));
   assert.match(html, /Запрос уже решён/);
   assert.match(html, /Запрос отклонён/);
   assert.doesNotMatch(html, /Назначить замену/);
@@ -360,8 +364,7 @@ test("[chain 8] the substitute cannot either: a candidate list without the reque
 test("[chain 9] a group archived with a request waiting: the dialog line, the closing text and the grey status", () => {
   assert.equal(S.archiveRequestsText(fx("b2c9_archive_warning").count), "Запросов на замену: 1 — они будут закрыты.");
   const closed = fx("b2c9_closed");
-  assert.deepEqual(S.teacherStatusLine(closed), { text: "Закрыт: Группа закрыта", tone: "gray" });
-  assert.equal(S.decidedByLine(closed), "Закрыто системой, 22.10 10:00");
+  assert.deepEqual(chip(closed, "group_archived"), { text: "Группа в архиве", tone: "muted" });
   assert.equal(S.closedReasonText({ decision: { closedReason: "GROUP_TEACHER_CHANGED" } }, "Рахимов Т."), "Преподаватель группы изменён: урок ведёт Рахимов Т.");
   assert.equal(S.closedReasonText({ decision: { closedReason: "LESSON_STARTED" } }), "Урок начат — запрос закрыт");
   assert.equal(S.closedReasonText({ decision: {} }), "Запрос закрыт");
@@ -521,11 +524,11 @@ test("[T2] the dashboard block: the lines of the spec for every status, the subs
   assert.equal(S.genitiveShortName("Рахимов Т."), "Рахимова Т.");
   assert.equal(S.genitiveShortName("Ким А."), null);
   assert.equal(S.declineShortName("Рахимов Т.", "instrumental"), "Рахимовым Т.");
-  const status = (patch) => S.teacherStatusLine({ ...mine.items[0], ...patch }).text;
-  assert.equal(status({ status: "withdrawn" }), "Отозван");
-  assert.equal(status({ status: "rejected", decision: { kind: "reject", note: "Замену не нашли" } }), "Отклонено: Замену не нашли");
-  assert.equal(status({ status: "closed", decision: { kind: "closed", closedReason: "LESSON_REMOVED" } }), "Закрыт: Урока больше нет в расписании");
-  assert.equal(status({ status: "cancelled" }), "Урок отменён");
+  const status = (outcome) => O.outcomeOf({ ...mine.items[0], outcome }, "teacher").text;
+  assert.equal(status("withdrawn"), "Отозван");
+  assert.equal(status("rejected"), "Отклонено");
+  assert.equal(status("lesson_removed"), "Урока нет в расписании");
+  assert.equal(status("cancelled"), "Урок отменён");
   for (const code of Object.keys(contract["x-labels"].closedReasons)) assert.ok(S.CLOSED_REASON_TEXT[code]);
 });
 
@@ -698,14 +701,16 @@ test("[M1] «Замены» is in the owner's and the administrator's menu with 
 
 test("[M2] the page: table header rules (first column left, short data centred, action right), tabs, filters and the bulk panel are wired", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /PENDING_ALIGNS: CellAlign\[\] = \["left", "center", "left", "center", "right"\]/);
-  assert.match(page, /DECIDED_ALIGNS: CellAlign\[\] = \["left", "center", "left", "center"\]/);
-  assert.match(page, /labels=\{pendingTab \? \["Урок", "Преподаватель", "Причина", "Срок", ""\] : \["Урок", "Преподаватель", "Причина", "Решение"\]\}/);
+  // #157: everything left, «Решить» and «›» right; the decided tab is «Урок · Кто → кто · Причина · Итог · Когда · ›»
+  assert.match(page, /PENDING_ALIGNS: CellAlign\[\] = \["left", "left", "left", "left", "right", "right"\]/);
+  assert.match(page, /DECIDED_ALIGNS: CellAlign\[\] = \["left", "left", "left", "left", "left", "right"\]/);
+  assert.match(page, /\["Урок", "Преподаватель", "Причина", "Срок", "", ""\] : \["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""\]/);
   for (const phrase of ["Только срочные", "Группа или преподаватель", "Выбрано: ", "Назначить замену", "Отменить уроки", "Отклонить", "Показать", "Решить", "Выбрать все", "Загрузка…"]) {
     assert.ok(page.includes(phrase) || read("src/components/substitutions/bulk-dialog.tsx").includes(phrase), phrase);
   }
   assert.match(page, /Замены<\/h1>/);
-  assert.match(page, /Запросы преподавателей, которые не смогут провести урок/);
+  assert.match(page, /\{PAGE_HINT\}/);
+  assert.match(S.PAGE_HINT, /Запросы преподавателей и все изменения уроков/);
   // the decision patches the row in place and the list heals by a silent read; a 409 patches with the fresh item
   assert.match(page, /onStale=\{stale\}/);
   assert.match(page, /guard\.patched\(\)/);

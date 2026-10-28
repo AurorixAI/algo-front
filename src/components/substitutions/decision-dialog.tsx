@@ -25,7 +25,6 @@ import {
   decisionCardTitle,
   decisionHeader,
   decisionReasonError,
-  decisionResultText,
   examDraftCancelText,
   examDraftText,
   examRunningText,
@@ -58,6 +57,7 @@ import { TimeInput } from "@/components/ui/time-input";
 import { Radio } from "@/components/ui/radio";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
+import { outcomeOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
 
 const FIELD_CLASS =
@@ -311,7 +311,7 @@ export function StaleBody({ message, item }: { message: string; item: Substituti
         {message}
       </p>
       <p className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-sm text-slate-700">
-        {item.status === "pending" ? "Запрос ещё ждёт решения." : decisionResultText(item)}
+        {item.status === "pending" ? "Запрос ещё ждёт решения." : outcomeOf(item, "manager").text}
       </p>
     </div>
   );

@@ -1079,7 +1079,7 @@ export default function TeacherDashboardPage() {
     });
   }, [activeLesson, activeInstanceStatus, todayDayOfWeek, businessDate, finishClock]);
 
-  // ONE reading of the teacher's day (LESSONS 38): the card, both tiles and «Группы в фокусе» use it. A lesson that is cancelled,
+  // ONE reading of the teacher's day (LESSONS 38): the card, both tiles and the group focus use it. A lesson that is cancelled,
   // moved away or led by a substitute (W1 F10) is not in it.
   const statusOfToday = useCallback(
     (lesson: Pick<LessonSummary, "id">): LifecycleStatus => lessonStatusMap[lesson.id] || (completedLessonsMap[lesson.id] ? "completed" : "scheduled"),

@@ -54,13 +54,22 @@ test("not his lesson, a substitution of one lesson, a manager, a lesson that is 
   assert.equal(control({ lessonTeacherId: null }, 300), "button");        // teacher not read yet: the server has the last word
 });
 
-test("the journal says WHO moved the lesson; other decisions keep their line", () => {
-  const item = (via, by) => ({ status: "rescheduled", decision: { kind: "reschedule", via, by: by ? { id: "u", name: by } : null, at: "2026-10-21T09:12:00", movedTo: null } });
-  assert.equal(S.decidedByLine(item("teacher_move", "Каримов А.")), "Перенёс: преподаватель Каримов А., 21.10 14:12");
-  assert.equal(S.decidedByLine(item("request", "Каримова Н.")), "Перенёс: администратор Каримова Н., 21.10 14:12");
-  assert.equal(S.decidedByLine(item("teacher_move", null)), "Перенёс: преподаватель, 21.10 14:12");
-  const cancelled = { status: "cancelled", decision: { kind: "cancel", via: "request", by: { id: "u", name: "Каримова Н." }, at: "2026-10-21T09:12:00" } };
-  assert.equal(S.decidedByLine(cancelled), "Решил(а) Каримова Н., 21.10 14:12");
+test("the history says WHO moved the lesson: a teacher by «преподаватель», a manager by his role (never a role by default); other decisions keep their line", () => {
+  const T = require(path.join(root, "src/lib/substitution-timeline.ts"));
+  const event = (via, actor) => ({ requestId: "r", action: "rescheduled", actor, at: "2026-10-21T09:12:00", snapshot: { via, reason: "Болен", movedTo: { date: "2026-10-29", startTime: "16:00", endTime: "17:00" } } });
+  const row = (via, actor, audience = "manager") => T.timelineOf({ item: { id: "r", origin: "system", trigger: via === "teacher_move" ? "teacher_move" : "manager_move" }, events: [event(via, actor)] }, audience).rows[0];
+  assert.equal(row("teacher_move", { id: "u", name: "Каримов А.", role: "teacher" }).author, "Каримов А., преподаватель");
+  assert.equal(row("request", { id: "u", name: "Каримова Н.", role: "admin" }).author, "Каримова Н., администратор");
+  assert.equal(row("request", { id: "u", name: "Тестов О.", role: "owner" }).author, "Тестов О., владелец");
+  assert.equal(row("request", { id: "u", name: "Каримова Н.", role: null }).author, "Каримова Н.", "no role from the server - the name alone");
+  assert.equal(row("teacher_move", null).author, null);
+  assert.equal(row("teacher_move", { id: "u", name: "Каримов А.", role: "teacher" }).title, "Урок перенесён на чт, 29.10, 16:00");
+  assert.equal(row("teacher_move", { id: "u", name: "Каримов А.", role: "teacher" }).when, "21.10, 14:12");
+  // a teacher reads his own history: «Вы» for himself, the role alone for a manager
+  assert.equal(row("teacher_move", { role: "teacher" }, "teacher").author, "Вы");
+  assert.equal(row("request", { role: "admin" }, "teacher").author, "Администратор");
+  const cancelled = T.timelineOf({ item: { id: "r", origin: "teacher" }, events: [{ requestId: "r", action: "cancelled", actor: { id: "u", name: "Каримова Н.", role: "admin" }, at: "2026-10-21T09:12:00", snapshot: { reason: "Болен", cancellationKind: "centre" } }] }, "manager").rows[0];
+  assert.deepEqual([cancelled.title, cancelled.details, cancelled.author], ["Урок отменён", ["Болен", "по вине центра"], "Каримова Н., администратор"]);
 });
 
 test("the live check says why a teacher is late (the server's ok=false + code) and the error texts are the server's", () => {
@@ -80,7 +89,7 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   assert.match(page, /<TeacherLessonControls/);
   assert.match(dashboard, /<TeacherLessonControls/, "the dashboard's panel has the same controls");
   assert.doesNotMatch(dashboard, /<RequestControl/);
-  assert.ok(dashboard.split("\n").length <= 2842 + 11, "the dashboard did not grow");
+  assert.ok(dashboard.split("\n").length <= 2900, "the dashboard did not grow (2853 + the card of #158, which reads one rule)");
   assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /<RequestControl[\s\S]*<TeacherMoveControl/);
   assert.doesNotMatch(page, /только на сегодня|canRescheduleToday|rescheduleLessonOccurrence|isReschedulingLesson|rescheduleReason/, "the same-day-only move is gone from the page");
   assert.doesNotMatch(read("src/lib/api.ts"), /rescheduleLessonOccurrence/);
@@ -135,15 +144,17 @@ test("both week grids write the head of a day with the one component: weekday, t
   assert.ok(teacher.split("\n").length < 3210, "the teacher page did not grow");
 });
 
-test("the journal: a move without a request says who moved it and its chip is «Перенос»; a teacher's request keeps its reason", () => {
-  const moved = (via) => ({ origin: "system", status: "rescheduled", reasonCode: "other", reasonLabel: "Другое", decision: { via } });
-  assert.equal(S.originLine(moved("teacher_move")), "Перенёс сам, без запроса");
-  assert.equal(S.originLine(moved("request")), "Перенёс администратор, без запроса");
-  assert.equal(S.reasonChipText(moved("teacher_move")), "Перенос");
-  assert.equal(S.originLine({ origin: "system", status: "pending", decision: null }), "Запрос создан системой");
+test("the journal: a move without a request is «без запроса», its chip is «Урок перенесён»; a teacher's request keeps its reason", () => {
+  const O = require(path.join(root, "src/lib/substitution-outcome.ts"));
+  const moved = (trigger) => ({ origin: "system", trigger, outcome: "rescheduled", status: "rescheduled", reasonCode: "other", reasonLabel: "Другое", decision: { via: trigger } });
+  assert.equal(O.originBadge(moved("teacher_move")), "без запроса");
+  assert.equal(O.originBadge(moved("manager_move")), "без запроса");
+  assert.equal(O.reasonShort(moved("teacher_move")), null);
+  assert.equal(O.outcomeOf(moved("teacher_move"), "manager").text, "Урок перенесён");
+  assert.equal(O.originBadge({ origin: "system", status: "pending", trigger: null }), "открыт заново");
   const asked = { origin: "teacher", status: "rescheduled", reasonCode: "sick", reasonLabel: "", decision: { via: "request" } };
-  assert.equal(S.originLine(asked), null);
-  assert.equal(S.reasonChipText(asked), "Болезнь");
+  assert.equal(O.originBadge(asked), null);
+  assert.equal(O.reasonShort(asked), "Болезнь");
 });
 
 test("the teacher's week grid never shows the cards of another week while the next one loads (a click acted on the old week's lesson)", () => {

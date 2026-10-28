@@ -36,9 +36,44 @@ export type ClosedReasonCode =
 export interface PersonRef {
   id: string;
   name: string;
-  /** Where the server says it (`owner` | `admin` | `teacher`): the journal then says «владелец» instead of «администратор». */
+  /** Where the server says it (`owner` | `admin` | `teacher`): the journal says «владелец» / «администратор»; `null` - the role is not known, the journal does not guess (LESSONS 17). */
   role?: string | null;
 }
+
+/** An author the server may hide: to a teacher another person's name and id never arrive (#157 A1), the role does. */
+export interface MaskedPersonRef {
+  id: string | null;
+  name: string | null;
+  role?: string | null;
+}
+
+/** #157: the code of the result of a row (one function on the server for the list, the detail, `mine` and the answers of the actions); the words and the colours are the front's (`substitution-outcome.ts`). */
+export type SubstitutionOutcomeCode =
+  | "pending"
+  | "substituted"
+  | "rescheduled"
+  | "cancelled"
+  | "lesson_not_held"
+  | "rejected"
+  | "substitution_cleared"
+  | "substitution_replaced"
+  | "lesson_later_cancelled"
+  | "lesson_later_moved"
+  | "cancelled_by_day_off"
+  | "day_off_voided"
+  | "withdrawn"
+  | "not_resolved_in_time"
+  | "lesson_started"
+  | "lesson_already_cancelled"
+  | "lesson_removed"
+  | "group_archived"
+  | "group_teacher_changed"
+  | "teacher_removed"
+  | "role_changed"
+  | "lesson_restored"
+  | "kind_changed"
+  | "one_off_added"
+  | "closed";
 
 export interface SubstitutionMovedTo {
   date: string;
@@ -85,7 +120,7 @@ export interface SubstitutionLessonInfo {
 
 export interface SubstitutionDecision {
   kind: SubstitutionDecisionKind | "withdraw" | "closed";
-  by?: PersonRef | null;
+  by?: MaskedPersonRef | null;
   /** Naive UTC. */
   at?: string | null;
   via?: "request" | "teacher_move" | "lesson_teacher_put" | "system" | "withdraw" | "teacher_cancel" | "manager_restore" | "reason_change" | string | null;
@@ -128,10 +163,16 @@ export interface SubstitutionItem {
   trigger?: "manager_assign" | "manager_move" | "teacher_move" | "manager_cancel" | "teacher_cancel" | "manager_restore" | "manager_reason_change" | "teacher_one_off" | "window_expired" | "day_off" | "role_changed" | string | null;
   /** P1.2: the substitution of the record stopped later (taken off, replaced, released, the lesson cancelled / moved); the status of the record does not change. Naive UTC. */
   clearedAt?: string | null;
-  clearedBy?: PersonRef | null;
+  clearedBy?: MaskedPersonRef | null;
   /** The teacher who took the lesson over; null = the main teacher leads again. */
   clearedTo?: PersonRef | null;
   clearedTrigger?: "put" | "member_removed" | "role_changed" | "group_teacher_changed" | "cancel" | "move" | "release" | string | null;
+  /** #157: the one result of the row (the code; see `SubstitutionOutcomeCode`). */
+  outcome?: SubstitutionOutcomeCode | string | null;
+  /** #157: the last moment of the row - the decision or the last event (a request: the moment it was made). Naive UTC. The decided tab is sorted by it. */
+  lastActivityAt?: string | null;
+  /** #157: the `trigger` of the event that closed the record (`day_off`, `window_expired`, ...); null while it is not closed. */
+  closedTrigger?: string | null;
 }
 
 // ── teacher ───────────────────────────────────────────────────────────────────
@@ -255,11 +296,23 @@ export interface SubstitutionListOut {
   expiringTotal?: number;
 }
 
+/** The author of an event: `{id, name, role}` for an owner / an administrator, `{role}` alone for a teacher (#157 A1), `null` - the system. */
+export interface EventActor {
+  id?: string | null;
+  name?: string | null;
+  role?: string | null;
+}
+
 export interface SubstitutionEvent {
+  /** #157: the record the event belongs to (the history of a chain holds the events of several records). */
+  requestId?: string;
   action: string;
-  actor?: PersonRef | null;
+  actor?: EventActor | null;
   at?: string | null;
+  /** Only the keys the server lets through (`P157_API.md` §6). */
   snapshot?: Record<string, unknown> | null;
+  /** #157: the one event stands for a pair (a substitution replaced by another from the lesson sheet): the record of the second half. */
+  mergedRequestId?: string;
 }
 
 export interface ExamBinding {
@@ -272,7 +325,13 @@ export interface ExamBinding {
 
 export interface SubstitutionDetailOut {
   item: SubstitutionItem;
+  /** Predecessors, old to new (at most 10). */
   chain?: SubstitutionItem[];
+  /** #157: successors, old to new (at most 10). */
+  next?: SubstitutionItem[];
+  /** #157: the chain, the record and its successors were longer than the limits («Показаны последние записи»). */
+  truncated?: boolean;
+  /** #157: the events of the whole chain, by time. */
   events?: SubstitutionEvent[];
   examBinding?: ExamBinding | null;
 }
