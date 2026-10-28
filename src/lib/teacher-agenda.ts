@@ -214,3 +214,9 @@ export function formatCountdown(seconds: number) {
     ? `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`
     : `${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 }
+
+/** «Ведёт замена: Иванов А.» - the grey word on a lesson of the main teacher that a substitute leads (the lesson sheet says the same). */
+export function ledByText(name: string | null | undefined): string {
+  const who = (name ?? "").trim();
+  return who ? `Ведёт замена: ${who}` : "Ведёт замена";
+}

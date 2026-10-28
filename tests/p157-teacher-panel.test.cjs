@@ -185,7 +185,7 @@ test("#158: tiles 2x2 on a phone (grid-cols-2, gap-3, icon above), one row from 
 test("#158: «Требуют действия» is the list of the card and of the centre (one list); the badge «Идёт сейчас» is for a started lesson only", () => {
   assert.match(page, /orderActions\(\[\.\.\.openLessonActions\.filter\(\(action\) => !action\.locked\), \.\.\.scheduledLessonActions\]/);
   assert.match(page, /value: actionCount \?\? "—"/);
-  assert.match(page, /action\.actionType \? openLessonBadge\(action\.actionType\) : "Пора начать"/);
+  assert.match(page, /action\.actionType \? openLessonBadge\(action\.actionType\) : action\.badge \?\? "Пора начать"/);
   assert.doesNotMatch(page, /: "Идёт сейчас"\}/, "a lesson whose time has come but which is not started is «Пора начать»");
   assert.match(page, /data-testid="group-focus-live"/);
 });
@@ -221,4 +221,51 @@ test("#158: the card says each step in plain words (render of the component)", (
 
 test("#158: texts of the panel: plain Russian, no «(а)»", () => {
   for (const file of ["src/lib/teacher-agenda.ts", "src/app/teacher/dashboard/page.tsx"]) assert.doesNotMatch(read(file), /\(а\)|\(ла\)|\(ся\)/, file);
+});
+
+// ── round 2 (28.10): the lesson that is over and was never started, the schedule order, the lesson a substitute leads, the exam without a lesson ───────
+
+test("#158 r2 (1): today's lesson that is over and never started is the FIRST task (red); it is in «Требуют действия»; the server's own action wins", () => {
+  const over = lesson("late", "13:00", "13:45");
+  const day = agendaOf([over, lesson("next", "17:00", "17:45")], {}, "14:30");
+  assert.equal(day.entries[0].phase, "missed");
+  assert.equal(day.remaining, 1, "a missed lesson is a task, not «осталось»");
+  const page = read("src/app/teacher/dashboard/page.tsx");
+  assert.match(page, /entry\.phase === "missed"/);
+  assert.match(page, /cardLabel: `Разберите урок: \$\{entry\.lesson\.groupName\} · \$\{entry\.lesson\.startTime\}`/);
+  assert.match(page, /state\.|openAttendanceActions\.some\(\(action\) => action\.lessonId === entry\.lesson\.id && action\.lessonDate === businessDate\)/, "no second card for the lesson the server returned");
+  // the red task goes before a lesson in progress and a lesson to start, whatever the time
+  const missed = { lesson: over, tone: "rose", label: "Разберите урок" };
+  const inProgress = action("p", "amber", "in_progress", { lesson: { startTime: "08:00" } });
+  assert.equal(step({ actions: [inProgress, missed], agenda: day }).action, missed);
+  assert.equal(step({ actions: [missed], agenda: day }).kind, "action", "before «Дальше: …»");
+  const C = require(path.join(root, "src/components/teacher/next-action-card.tsx"));
+  const view = C.nextStepView({ kind: "action", action: { ...missed, cardLabel: "Разберите урок: Группа late · 13:00", description: "d", cardDescription: "Урок закончился, а журнал не начат. Отметьте урок или укажите, что его не было." } });
+  assert.deepEqual([view.tone, view.title], ["rose", "Разберите урок: Группа late · 13:00"]);
+});
+
+test("#158 r2 (2): «Расписание на сегодня» is by the start time only, whatever the status", () => {
+  const page = read("src/app/teacher/dashboard/page.tsx");
+  assert.match(page, /\[\.\.\.todayLessons\]\.sort\(\(a, b\) => \(a\.startTime \|\| ""\)\.localeCompare\(b\.startTime \|\| ""\)/);
+  assert.doesNotMatch(page, /const rank = \(lesson: LessonSummary/);
+});
+
+test("#158 r2 (3): a lesson a substitute leads is grey «Ведёт замена: Имя» in the schedule of the main teacher, never red «Урок не начат»", () => {
+  assert.equal(A.ledByText("Каримов Н."), "Ведёт замена: Каримов Н.");
+  assert.equal(A.ledByText(""), "Ведёт замена");
+  const page = read("src/app/teacher/dashboard/page.tsx");
+  assert.match(page, /const ledByOtherTeacher = !isCancelled && Boolean\(l\.replacedBy\)/);
+  assert.match(page, /isCancelled \|\| ledByOtherTeacher\s+\? "bg-slate-50/);
+  assert.match(page, /\) : ledByOtherTeacher \? \(\s+<span data-testid="led-by-substitute"/);
+  // the grey badge stands before every red / amber one
+  assert.ok(page.indexOf('data-testid="led-by-substitute"') < page.indexOf("Урок не начат"), "the badge of a substitute comes first");
+});
+
+test("#158 r2 (9): an exam without the date of a lesson is never «Занятие прошло»", () => {
+  const C = require(path.join(root, "src/components/teacher/next-action-card.tsx"));
+  const withDate = C.nextStepView({ kind: "exam_attention", exam: { exam_id: "e", title: "К", group_name: "9-А", scheduled_lesson_date: "2026-10-27", displayRemainingSeconds: 0 } }).description;
+  const noDate = C.nextStepView({ kind: "exam_attention", exam: { exam_id: "e", title: "К", group_name: "9-А", scheduled_lesson_date: null, displayRemainingSeconds: 0 } }).description;
+  assert.match(withDate, /Занятие прошло/);
+  assert.doesNotMatch(noDate, /Занятие прошло/);
+  assert.match(read("src/app/teacher/dashboard/page.tsx"), /scheduledDate && scheduledDate < businessDate/, "no date - not «needs_resolution»");
 });

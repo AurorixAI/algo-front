@@ -4,6 +4,7 @@
  * (a line of an unknown event would be a technical word on the screen, LESSONS 1.1 / 46).  An author is «Фамилия И., роль»; the role comes from the KIND of
  * the action, never by default (LESSONS 17).  Pure functions: no React and no network.
  */
+import { parseUtcNaive } from "./business-time";
 import { CLOSED_REASON_TEXT, movedToLabel, reasonLabelOf, suggestedLine } from "./substitutions";
 import { authorLine, eventMoment, type ActionKind, type Audience } from "./substitution-outcome";
 import type { ClosedReasonCode, SubstitutionDetailOut, SubstitutionEvent, SubstitutionItem } from "./substitution-types";
@@ -61,8 +62,13 @@ function closedWhy(code: string): string {
   return CLOSED_REASON_TEXT[code as ClosedReasonCode] ?? "Запрос закрыт";
 }
 
+/** «Урока не было» of a teacher: the record's trigger or the way it was decided (the chip and the history must say the same). */
+export function isTeacherCancel(record: Pick<SubstitutionItem, "trigger" | "decision">): boolean {
+  return record.trigger === "teacher_cancel" || record.decision?.via === "teacher_cancel";
+}
+
 /** Who acts in an event: the teacher for his own request / withdrawal / «Урока не было» / move of his own / one-off lesson, otherwise a manager. */
-export function actionKindOf(event: SubstitutionEvent, record: Pick<SubstitutionItem, "origin" | "trigger">): ActionKind {
+export function actionKindOf(event: SubstitutionEvent, record: Pick<SubstitutionItem, "origin" | "trigger" | "decision">): ActionKind {
   const snapshot = event.snapshot ?? {};
   switch (event.action) {
     case "requested":
@@ -71,7 +77,7 @@ export function actionKindOf(event: SubstitutionEvent, record: Pick<Substitution
     case "rescheduled":
       return snapshot.via === "teacher_move" ? "teacher" : "manager";
     case "cancelled":
-      return record.trigger === "teacher_cancel" ? "teacher" : "manager";
+      return isTeacherCancel(record) ? "teacher" : "manager";
     case "closed":
       return snapshot.trigger === "teacher_one_off" ? "teacher" : "manager";
     default:
@@ -102,15 +108,14 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       const from = text(record.teacher?.name);
       const to = text(record.decision?.substitute?.name);
       const withoutRequest = record.origin === "system" && Boolean(record.trigger);
-      const via = snapshot.via === "lesson_teacher_put" ? "через лист урока" : snapshot.via === "request" ? "через «Замены»" : "";
-      return { title: withoutRequest ? "Замена назначена без запроса" : "Замена назначена", details: [from && to ? `${from} → ${to}` : to, via].filter(Boolean) };
+      return { title: withoutRequest ? "Замена назначена без запроса" : "Замена назначена", details: [from && to ? `${from} → ${to}` : to].filter(Boolean) };
     }
     case "rescheduled": {
       const where = movedLabelOf(snapshot.movedTo);
       return { title: where ? `Урок перенесён на ${where}` : "Урок перенесён", details: [reason].filter(Boolean) };
     }
     case "cancelled":
-      return { title: record.trigger === "teacher_cancel" ? "Урока не было" : "Урок отменён", details: [reason, kindLabel(snapshot.cancellationKind) ?? ""].filter(Boolean) };
+      return { title: isTeacherCancel(record) ? "Урока не было" : "Урок отменён", details: [reason, kindLabel(snapshot.cancellationKind) ?? ""].filter(Boolean) };
     case "rejected":
       return { title: "Запрос отклонён", details: [reason].filter(Boolean) };
     case "withdrawn":
@@ -123,7 +128,7 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
       const toName = text(merged?.decision?.substitute?.name) || (record.clearedTo && record.clearedTo.id === pair[1] ? text(record.clearedTo.name) : "");
       const openRequestId = event.mergedRequestId ?? null;
       if (snapshot.dayOffId) return { title: "Замена снята: урок отменён выходным днём", openRequestId };
-      if (pair[1]) return { title: toName ? `Заменена на ${toName}` : "Заменена другим", openRequestId };
+      if (pair[1]) return { title: toName ? `Новая замена: ${toName}` : "Новая замена", openRequestId };
       if (trigger === "put") return { title: "Замена снята: урок снова ведёт основной преподаватель", openRequestId };
       return { title: CLEARED_WHY[trigger] ? `Замена снята: ${CLEARED_WHY[trigger]}` : "Замена снята", openRequestId };
     }
@@ -146,10 +151,42 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
     case "lesson_restored":
       return { title: "Урок возвращён", details: [reason].filter(Boolean) };
     case "day_off_voided":
-      return { title: snapshot.reopened ? "Выходной отменён: замена не вернулась, запрос открыт заново" : "Выходной отменён: замена не вернулась — назначьте заново" };
+      // a substitution the day off took off is not back: it is to be set again; a request the day off closed is opened again (or not: the lesson is past, the group is archived, ...)
+      if (record.status === "substituted") return { title: "Выходной отменён: замена не вернулась — назначьте заново" };
+      return { title: snapshot.reopened ? "Выходной отменён: запрос открыт заново" : "Выходной отменён: запрос не открыт заново" };
     default:
       return null;
   }
+}
+
+const PAIR_MS = 2000;
+
+/**
+ * «Вернуть урок» writes TWO things: the event `lesson_restored` on the original record of the cancellation and the closed record `LESSON_RESTORED`.  Both read «Урок возвращён»:
+ * the second is not drawn when the first is there (the same moment and author, or `mergedRequestId` names it); its reason goes to the first if that has none.
+ */
+export function withoutRestoreDuplicates(events: readonly SubstitutionEvent[]): SubstitutionEvent[] {
+  const restored = events.filter((event) => event.action === "lesson_restored");
+  if (restored.length === 0) return [...events];
+  const isClosedRestore = (event: SubstitutionEvent) => event.action === "closed" && text(event.snapshot?.closedReason) === "LESSON_RESTORED";
+  const pairOf = (closed: SubstitutionEvent) => restored.find((first) =>
+    first.mergedRequestId === closed.requestId
+    || (first.requestId !== closed.requestId
+      && (first.actor?.id ?? null) === (closed.actor?.id ?? null)
+      && Math.abs((parseUtcNaive(first.at)?.getTime() ?? NaN) - (parseUtcNaive(closed.at)?.getTime() ?? NaN)) <= PAIR_MS));
+  const taken = new Map<SubstitutionEvent, SubstitutionEvent>();
+  const kept = events.filter((event) => {
+    if (!isClosedRestore(event)) return true;
+    const first = pairOf(event);
+    if (!first) return true;
+    taken.set(first, event);
+    return false;
+  });
+  return kept.map((event) => {
+    const closed = taken.get(event);
+    const reason = text(closed?.snapshot?.reason);
+    return closed && reason && !text(event.snapshot?.reason) ? { ...event, snapshot: { ...(event.snapshot ?? {}), reason } } : event;
+  });
 }
 
 /**
@@ -160,7 +197,8 @@ export function timelineOf(out: SubstitutionDetailOut, audience: Audience): Time
   const records = new Map<string, SubstitutionItem>();
   for (const record of [...(out.chain ?? []), ...(out.next ?? []), out.item]) records.set(record.id, record);
   const rows: TimelineRow[] = [];
-  (out.events ?? []).forEach((event, index) => {
+  const events = withoutRestoreDuplicates(out.events ?? []);
+  events.forEach((event, index) => {
     const record = records.get(event.requestId ?? out.item.id) ?? out.item;
     const line = lineOf(event, record, out.item, records);
     if (!line) return;

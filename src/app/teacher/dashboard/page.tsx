@@ -58,7 +58,7 @@ import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
-import { formatCountdown, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { formatCountdown, ledByText, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
 import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
@@ -132,6 +132,8 @@ type LessonAction = {
   markedCount?: number;
   rosterCount?: number;
   remainingCount?: number;
+  /** The word of the chip in the centre when the action has no `actionType` («Пора начать», «Не отмечен»). */
+  badge?: string;
   /** Decision 7: older than 7 days - only an administrator or the owner closes it (the row is grey, without buttons). */
   locked?: boolean;
 };
@@ -1023,32 +1025,11 @@ export default function TeacherDashboardPage() {
     }
   };
 
-  const sortedTodayLessons = useMemo(() => {
-    return [...todayLessons].sort((a, b) => {
-      const isAttA = !!lessonAttendanceMap[a.id];
-      const lifecycleA = lessonStatusMap[a.id] || (completedLessonsMap[a.id] ? "completed" : "scheduled");
-      const isFinA = lifecycleA === "completed";
-      const statusA = getLessonTimeStatus(a, todayDayOfWeek, isAttA, isFinA);
-
-      const isAttB = !!lessonAttendanceMap[b.id];
-      const lifecycleB = lessonStatusMap[b.id] || (completedLessonsMap[b.id] ? "completed" : "scheduled");
-      const isFinB = lifecycleB === "completed";
-      const statusB = getLessonTimeStatus(b, todayDayOfWeek, isAttB, isFinB);
-
-      const rank = (lesson: LessonSummary, lifecycle: LessonAttendanceStatus | "scheduled", timing: typeof statusA) => {
-        if (lifecycle === "in_progress") return 0;
-        if (lifecycle === "scheduled" && getSubsequentStartedLesson(lesson)) return 3;
-        if (timing.type === "live") return 1;
-        if (timing.type === "upcoming") return 2;
-        return 4;
-      };
-
-      const rankA = rank(a, lifecycleA, statusA);
-      const rankB = rank(b, lifecycleB, statusB);
-      if (rankA !== rankB) return rankA - rankB;
-      return (a.startTime || "").localeCompare(b.startTime || "");
-    });
-  }, [todayLessons, lessonAttendanceMap, completedLessonsMap, lessonStatusMap, todayDayOfWeek, clockTick, getSubsequentStartedLesson]);
+  // «Расписание на сегодня»: strictly by the start time, whatever the status of a lesson (the tasks have their own card)
+  const sortedTodayLessons = useMemo(
+    () => [...todayLessons].sort((a, b) => (a.startTime || "").localeCompare(b.startTime || "") || (a.groupName || "").localeCompare(b.groupName || "", "ru")),
+    [todayLessons],
+  );
 
   // The button's time window opens by the clock, not by clicking: while a lesson panel is open the rule is
   // re-read every 30 s (the timer exists only for an open panel and is cleared when it closes).
@@ -1084,8 +1065,20 @@ export default function TeacherDashboardPage() {
 
   const scheduledLessonActions = useMemo<LessonAction[]>(() => {
     return agenda.entries.flatMap<LessonAction>((entry) => {
-      // A lesson whose time has passed is returned by the operational API as a separate "missed" action: no delayed start here.
       // A lesson in progress comes from the persisted open-actions endpoint (partial attendance, historical instances).
+      if (entry.phase === "missed") {
+        // #158: a lesson of today that is over and was never started is the FIRST task (red), whether the server has returned it yet or not; the server's own action wins
+        if (openAttendanceActions.some((action) => action.lessonId === entry.lesson.id && action.lessonDate === businessDate)) return [];
+        return [{
+          lesson: entry.lesson,
+          label: "Разберите урок",
+          cardLabel: `Разберите урок: ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
+          description: `${entry.lesson.groupName} · ${entry.lesson.startTime} — ${entry.lesson.endTime} · состоялся ли он`,
+          cardDescription: "Урок закончился, а журнал не начат. Отметьте урок или укажите, что его не было.",
+          badge: "Посещаемость не отмечена",
+          tone: "rose",
+        }];
+      }
       if (entry.phase !== "to_start") return [];
       if (getSubsequentStartedLesson(entry.lesson)) return [];
       return [{
@@ -1095,7 +1088,7 @@ export default function TeacherDashboardPage() {
         tone: "emerald",
       }];
     });
-  }, [agenda, getSubsequentStartedLesson]);
+  }, [agenda, getSubsequentStartedLesson, openAttendanceActions, businessDate]);
 
   const openLessonActions = useMemo<LessonAction[]>(() => (
     openAttendanceActions.map((action) => {
@@ -1209,7 +1202,7 @@ export default function TeacherDashboardPage() {
           ? "active"
           : exam.status === "closed"
             ? "closed"
-            : scheduledDate < businessDate
+            : scheduledDate && scheduledDate < businessDate   // no lesson date - no «занятие прошло»
               ? "needs_resolution"
               : exam.status === "lobby"
                 ? "lobby"
@@ -1694,6 +1687,7 @@ export default function TeacherDashboardPage() {
                   const attendanceStatusUnknown = attendanceSnapshotAvailable === false;
                   const isFinished = instanceStatus === "completed";
                   const isCancelled = instanceStatus === "cancelled";
+                  const ledByOtherTeacher = !isCancelled && Boolean(l.replacedBy);   // a substitute leads it: nothing to start, grey
                   const subsequentLesson = instanceStatus === "scheduled" ? getSubsequentStartedLesson(l) : null;
                   const status = getLessonTimeStatus(l, todayDayOfWeek, isAttSaved, isFinished);
 
@@ -1702,7 +1696,7 @@ export default function TeacherDashboardPage() {
                       key={l.id}
                       onClick={() => setActiveLesson(l)}
                       className={`p-3.5 rounded-2xl border transition-all block group cursor-pointer ${
-                        isCancelled
+                        isCancelled || ledByOtherTeacher
                           ? "bg-slate-50 border-slate-200/70 opacity-75 hover:opacity-100 border-l-4 border-l-slate-400"
                           : subsequentLesson
                           ? "bg-white border-rose-300 shadow-sm border-l-4 border-l-rose-500 hover:border-rose-400 ring-1 ring-rose-500/10"
@@ -1722,7 +1716,7 @@ export default function TeacherDashboardPage() {
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <p className="font-bold text-sm text-slate-900 truncate group-hover:text-primary-600 transition-colors">
                           {l.groupName}
-                          <LessonChips marks={occurrenceChips(l, user?.id)} className="ml-2 align-middle" />
+                          {!ledByOtherTeacher && <LessonChips marks={occurrenceChips(l, user?.id)} className="ml-2 align-middle" />}
                         </p>
                         <div className="flex items-center gap-1.5 shrink-0 ml-2">
                           {attendanceStatusUnknown ? (
@@ -1741,6 +1735,10 @@ export default function TeacherDashboardPage() {
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-2xs">
                               <X className="w-3 h-3" />
                               Отменён
+                            </span>
+                          ) : ledByOtherTeacher ? (
+                            <span data-testid="led-by-substitute" className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200/60 shadow-2xs">
+                              {ledByText(l.replacedBy?.name)}
                             </span>
                           ) : isFinished ? (
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200/60 shadow-2xs">
@@ -2002,7 +2000,7 @@ export default function TeacherDashboardPage() {
                 </div>
                 <div className="max-h-[60vh] space-y-3 overflow-y-auto px-6 py-5 sm:px-7">
                   {lessonActions.map((action) => {
-                    const isMissed = action.actionType === "missed";
+                    const isMissed = action.actionType === "missed" || action.tone === "rose";
                     const isHistorical = (action.lesson.occurrenceDate || businessDate) < businessDate;
                     return (
                       <button
@@ -2029,7 +2027,7 @@ export default function TeacherDashboardPage() {
                                 </p>
                               </div>
                               <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${isMissed || isHistorical ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>
-                                {action.actionType ? openLessonBadge(action.actionType) : "Пора начать"}
+                                {action.actionType ? openLessonBadge(action.actionType) : action.badge ?? "Пора начать"}
                               </span>
                             </div>
                             <p className="mt-2 text-sm font-semibold text-slate-800">{action.label}</p>

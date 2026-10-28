@@ -31,7 +31,7 @@ import {
   tabLabel,
   type DeadlineChip,
 } from "@/lib/substitutions";
-import type { DecideBulkOut, DecideOut, SubstitutionItem } from "@/lib/substitution-types";
+import type { DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
 import { DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell } from "@/components/substitutions/journal-cells";
 import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
 import { filterLabel } from "@/lib/cascading-filter";
@@ -89,7 +89,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const [dialogItem, setDialogItem] = useState<SubstitutionItem | null>(null);
   /** #157: the panel «Подробнее» (one for the page): the row it was opened from and a counter that makes it read the detail again after a decision. */
-  const [panel, setPanel] = useState<{ id: string; seed: SubstitutionItem | null } | null>(null);
+  const [panel, setPanel] = useState<{ id: string; seed: SubstitutionItem | null; detail?: SubstitutionDetailOut } | null>(null);
   const [panelRefresh, setPanelRefresh] = useState(0);
   const [bulkKind, setBulkKind] = useState<BulkKind | null>(null);
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
@@ -200,16 +200,22 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   };
 
   // a link from a lesson («Ждёт замены») opens the request itself: a waiting one in the window of the decision, a decided one in the panel
+  // (the answer is handed to the panel: one read; an answer that comes after the address changed again is dropped)
+  const toastRef = useRef(showToast);
+  toastRef.current = showToast;
+  const wantedId = useRef<string | null>(null);
+  wantedId.current = requestedId;      // the address NOW: an answer for another one is dropped
   useEffect(() => {
     if (!requestedId || openedFor.current === requestedId) return;
     openedFor.current = requestedId;
     substitutionsApi.detail(requestedId)
       .then((out) => {
+        if (wantedId.current !== requestedId) return;
         if (out.item.status === "pending") setDialogItem(out.item);
-        else { setTab("decided"); setPanel({ id: out.item.id, seed: out.item }); }
+        else { setTab("decided"); setPanel({ id: out.item.id, seed: out.item, detail: out }); }
       })
-      .catch(() => showToast("Запрос на замену не найден", "error"));
-  }, [requestedId, showToast]);
+      .catch(() => { if (wantedId.current === requestedId) toastRef.current("Запрос на замену не найден", "error"); });
+  }, [requestedId]);
 
   const switchTab = (next: Tab) => {
     setTab(next);
@@ -477,6 +483,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       <SubstitutionPanel
         requestId={panel?.id ?? null}
         seed={panel?.seed ?? null}
+        initial={panel?.detail ?? null}
         audience="manager"
         workspace={role}
         refreshKey={panelRefresh}

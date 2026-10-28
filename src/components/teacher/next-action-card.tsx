@@ -22,6 +22,7 @@ export interface CardExam {
   title: string;
   group_name?: string | null;
   delivery_mode?: string | null;
+  scheduled_lesson_date?: string | null;
   displayRemainingSeconds: number;
 }
 
@@ -56,7 +57,7 @@ export function nextStepView<A extends CardAction, L extends AgendaLessonLike>(s
       };
     }
     case "exam_attention":
-      return { tone: "amber", title: "Нужно решить по экзамену", description: `${examLine(step.exam)}. Занятие прошло, а экзамен не проведён.` };
+      return { tone: "amber", title: "Нужно решить по экзамену", description: `${examLine(step.exam)}. ${step.exam.scheduled_lesson_date ? "Занятие прошло, а экзамен не проведён." : "Экзамен не проведён."}` };
     case "failed":
       return { tone: "slate", title: "Не удалось загрузить", description: "Не получилось проверить уроки на сегодня. Попробуйте ещё раз." };
     default:

@@ -67,7 +67,7 @@ function isKnownCode(code: unknown): code is SubstitutionOutcomeCode {
  * (a new server code never shows as an empty chip; the test on every code is in `p157-substitutions-front.test.cjs`, LESSONS 46).
  * «Выходной отменён» is yellow while the lesson is still ahead (the substitution did not come back: it needs a decision), grey after it.
  */
-export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision">, audience: Audience, nowMs: number = Date.now()): OutcomeView {
+export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "decision"> & { status?: SubstitutionItem["status"] }, audience: Audience, nowMs: number = Date.now()): OutcomeView {
   const code: SubstitutionOutcomeCode = isKnownCode(item.outcome) ? item.outcome : "closed";
   const chip = OUTCOME_CHIP[code];
   let text = chip.text;
@@ -77,20 +77,22 @@ export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "d
     text = code === "substituted" && substitute ? `Замена: ${substitute}` : TEACHER_TEXT[code] ?? text;
   }
   if (code === "day_off_voided") {
+    // yellow only when something is to be decided: a substitution that did not come back, for a lesson that is still ahead (a closed request has its own new row)
     const starts = startsAtMsOf(item);
     // without the instant of the start the day decides (a lesson of a later day is still ahead)
     const ahead = starts !== null ? starts > nowMs : (item.lesson?.date ?? "") > formatBusinessDate(new Date(nowMs));
-    tone = ahead ? "warn" : "muted";
+    tone = ahead && item.status === "substituted" ? "warn" : "muted";
   }
   return { code, text, tone };
 }
 
 /** One quiet phrase under «Сейчас» in the panel for a result that needs one; null for the rest. */
-export function outcomeNote(item: Pick<SubstitutionItem, "outcome">): string | null {
+export function outcomeNote(item: Pick<SubstitutionItem, "outcome" | "status">): string | null {
   switch (item.outcome) {
     case "not_resolved_in_time": return "Запрос не решён до начала урока.";
     case "lesson_started": return "Урок начался, пока запрос ждал решения.";
-    case "day_off_voided": return "Выходной отменён, замена не вернулась. Назначьте её заново.";
+    // only a substitution that was set has something to set again
+    case "day_off_voided": return item.status === "substituted" ? "Выходной отменён, замена не вернулась. Назначьте её заново." : null;
     default: return null;
   }
 }
@@ -114,7 +116,7 @@ export function authorLine(actor: EventActor | MaskedPersonRef | null | undefine
   if (!actor) return null;
   const name = (actor.name ?? "").trim();
   if (audience === "teacher") {
-    if (kind === "teacher") return actor.role === "teacher" || !actor.role ? "Вы" : null;
+    if (kind === "teacher") return actor.role === "teacher" ? "Вы" : null;   // no role - no word (LESSONS 17)
     const word = managerRoleWord(actor.role);
     return word ? `${word.charAt(0).toUpperCase()}${word.slice(1)}` : null;
   }

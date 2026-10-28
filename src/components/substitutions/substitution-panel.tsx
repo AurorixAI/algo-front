@@ -11,6 +11,7 @@ import { journalHref } from "@/lib/open-lessons";
 import { LESSON_DELETED_TEXT, lessonWhen, movedToLabel, reasonLabelOf, substitutionErrorText } from "@/lib/substitutions";
 import { outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcome";
 import { TRUNCATED_TEXT, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
+import { canDecideInPanel, panelView } from "@/lib/substitution-panel-state";
 import type { SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
 
 export const PANEL_TITLE = "Подробнее";
@@ -85,11 +86,13 @@ function Skeleton() {
  *  - for a teacher (`audience="teacher"`): his own requests only, the author by the role alone, no links of the managers (the server hides the rest).
  */
 export function SubstitutionPanel({
-  requestId, seed, audience, workspace, refreshKey = 0, onClose, onDecide, onOpenRequest,
+  requestId, seed, initial, audience, workspace, refreshKey = 0, onClose, onDecide, onOpenRequest,
 }: {
   requestId: string | null;
   /** The row the panel was opened from: the head shows at once, before the answer. */
   seed?: SubstitutionItem | null;
+  /** The detail the page has read already (`?request=`): shown at once, no second read. */
+  initial?: SubstitutionDetailOut | null;
   audience: Audience;
   workspace: Workspace;
   /** Bumped after a decision: the panel reads the detail again. */
@@ -102,6 +105,7 @@ export function SubstitutionPanel({
   const [failed, setFailed] = useState<{ id: string; message: string } | null>(null);
   const [retry, setRetry] = useState(0);
   const token = useRef(0);
+  const usedInitial = useRef<string | null>(null);
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async (id: string) => {
@@ -119,12 +123,18 @@ export function SubstitutionPanel({
 
   useEffect(() => {
     if (!requestId) { token.current += 1; return; }
+    if (initial && initial.item.id === requestId && usedInitial.current !== requestId) {
+      usedInitial.current = requestId;
+      token.current += 1;
+      setLoaded({ id: requestId, out: initial });
+      setFailed(null);
+      return;
+    }
     void load(requestId);
-  }, [requestId, refreshKey, retry, load]);
+  }, [requestId, refreshKey, retry, load, initial]);
 
-  const out = loaded && loaded.id === requestId ? loaded.out : null;
-  const error = failed && failed.id === requestId && !out ? failed.message : null;
-  const item = out?.item ?? (seed && seed.id === requestId ? seed : null);
+  const view = panelView({ loaded, failed }, requestId, seed ?? null);
+  const { out, error, item } = view;
 
   // after the answer the focus stays in the panel (the control that had it may be gone: «Решить» after a decision)
   useEffect(() => {
@@ -135,16 +145,16 @@ export function SubstitutionPanel({
   }, [out]);
 
   const bases = workspace === "teacher" ? null : workspaceBases(workspace);
-  const outcome = item ? outcomeOf(item, audience) : null;
-  const note = item ? outcomeNote(item) : null;
+  const outcome = item && !view.stale ? outcomeOf(item, audience) : null;
+  const note = item && !view.stale ? outcomeNote(item) : null;
   const timeline = out ? timelineOf(out, audience) : null;
   const lessonLink = item && bases && item.lesson.exists !== false && item.lesson.lessonId
     ? journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId })
     : null;
 
-  const footer = item && (lessonLink || bases || (item.status === "pending" && onDecide && audience === "manager")) ? (
+  const footer = item && (lessonLink || bases || (canDecideInPanel(view, audience) && onDecide)) ? (
     <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2">
-      {item.status === "pending" && onDecide && audience === "manager" && (
+      {canDecideInPanel(view, audience) && onDecide && (
         <button type="button" onClick={() => onDecide(item)} data-testid="panel-decide" className="h-9 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white hover:bg-primary-700">Решить</button>
       )}
       {lessonLink && <Link href={lessonLink} data-testid="panel-open-lesson" className="inline-flex h-9 items-center rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800">Открыть урок</Link>}

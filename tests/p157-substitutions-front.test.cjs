@@ -184,11 +184,11 @@ test("#157 history: a chain of 3 records is one list in the order of the server;
   assert.deepEqual(rows.map((r) => [r.when, r.title, r.author, r.openRequestId]), [
     ["28.10, 12:10", "Запрос на замену", "Иванов А., преподаватель", null],
     ["28.10, 12:17", "Замена назначена", "Тестов О., владелец", null],
-    ["28.10, 12:24", "Заменена на Сидоров В.", "Тестов О., владелец", "r2"],
+    ["28.10, 12:24", "Новая замена: Сидоров В.", "Тестов О., владелец", "r2"],
     ["28.10, 12:30", "Открыт новый запрос", null, "r3"],
   ]);
   assert.deepEqual(rows[0].details, [], "the reason of the open row is in the head of the panel, not said twice");
-  assert.deepEqual(rows[1].details, ["Иванов А. → Петров Б.", "через «Замены»"]);
+  assert.deepEqual(rows[1].details, ["Иванов А. → Петров Б."], "no technical «через …»");
   assert.deepEqual(rows[3].details, ["Заменяющий больше не ведёт уроки"]);
   const html = renderToStaticMarkup(React.createElement(panel.PanelTimeline, { rows, truncated: false, onOpenRequest() {} }));
   assert.equal((html.match(/<li /g) || []).length, 4);
@@ -213,7 +213,7 @@ test("#157 history: every action of the contract has its line; an action the fro
   assert.equal(line("requested", { trigger: "manager_assign" }), undefined, "the action itself is the first line of a record made without a request");
   assert.equal(line("reopened").title, "Открыт заново");
   assert.equal(line("substituted", { via: "lesson_teacher_put" }, { origin: "system", trigger: "manager_assign" }).title, "Замена назначена без запроса");
-  assert.deepEqual(line("substituted", { via: "lesson_teacher_put" }).details, ["Иванов А. → Петров Б.", "через лист урока"]);
+  assert.deepEqual(line("substituted", { via: "lesson_teacher_put" }).details, ["Иванов А. → Петров Б."]);
   assert.equal(line("rescheduled", { reason: "Болен", movedTo: { date: "2026-10-29", startTime: "16:00" } }).title, "Урок перенесён на чт, 29.10, 16:00");
   assert.deepEqual(line("cancelled", { reason: "Праздник", cancellationKind: "holiday" }).details, ["Праздник", "праздник"]);
   assert.deepEqual(line("cancelled", { reason: "Болен", cancellationKind: "centre" }).details, ["Болен", "по вине центра"]);
@@ -230,8 +230,9 @@ test("#157 history: every action of the contract has its line; an action the fro
   assert.deepEqual([line("closed", { closedReason: "GROUP_ARCHIVED" }).title, line("closed", { closedReason: "GROUP_ARCHIVED" }).details], ["Запрос закрыт", ["Группа закрыта"]]);
   assert.equal(line("suggestion_unavailable").title, "Предложенный коллега больше не ведёт уроки");
   assert.equal(line("lesson_restored", { reason: "Ошиблись" }).title, "Урок возвращён");
-  assert.equal(line("day_off_voided", { reopened: false }).title, "Выходной отменён: замена не вернулась — назначьте заново");
-  assert.equal(line("day_off_voided", { reopened: true }).title, "Выходной отменён: замена не вернулась, запрос открыт заново");
+  assert.equal(line("day_off_voided", { reopened: false }).title, "Выходной отменён: замена не вернулась — назначьте заново", "a substitution that was set");
+  assert.equal(line("day_off_voided", { reopened: true }, { status: "closed" }).title, "Выходной отменён: запрос открыт заново", "a request: no word about a substitution that was never there");
+  assert.equal(line("day_off_voided", { reopened: false }, { status: "closed" }).title, "Выходной отменён: запрос не открыт заново");
   assert.equal(line("something_new", { x: 1 }), undefined);
 });
 
@@ -284,8 +285,7 @@ test("#157 panel: Modal sheet (right from 768, bottom on a phone); the history i
   assert.match(src, /substitutionsApi\.detail\(id\)/);
   assert.match(src, /const mine = \+\+token\.current;/);
   assert.match(src, /if \(mine !== token\.current\) return;/);
-  assert.match(src, /setLoaded\(\{ id, out \}\)/);
-  assert.match(src, /loaded && loaded\.id === requestId \? loaded\.out : null/, "an answer of another row is not shown");
+  assert.match(src, /panelView\(\{ loaded, failed \}, requestId, seed \?\? null\)/, "what is shown comes from the one pure function (tested below)");
   assert.match(src, /Не удалось загрузить историю/);
   assert.match(src, /Повторить/);
   assert.match(src, /data-testid="panel-skeleton"/);
@@ -294,7 +294,7 @@ test("#157 panel: Modal sheet (right from 768, bottom on a phone); the history i
   assert.match(src, /Группа ›/);
   assert.match(src, /Преподаватель ›/);
   assert.match(src, /workspace === "owner" && item\.teacher\.id/, "the link to the teacher is the owner's");
-  assert.match(src, /audience === "manager"/, "«Решить» is for a manager");
+  assert.match(read("src/lib/substitution-panel-state.ts"), /audience === "manager"/, "«Решить» is for a manager");
   assert.match(src, /item\.lesson\.exists !== false/, "no «Открыть урок» for a lesson that is gone");
 });
 
@@ -303,7 +303,9 @@ test("#157 page: one panel; `?request=` opens it (a decided one too) and closing
   assert.match(page, /<SubstitutionPanel/);
   assert.equal((page.match(/<SubstitutionPanel/g) || []).length, 1);
   assert.match(page, /router\.replace\(queryWith\(searchParams\?\.toString\(\), \{ request: id \}\), \{ scroll: false \}\)/, "only `request` changes: `status` stays");
-  assert.match(page, /else \{ setTab\("decided"\); setPanel\(\{ id: out\.item\.id, seed: out\.item \}\); \}/);
+  assert.match(page, /setPanel\(\{ id: out\.item\.id, seed: out\.item, detail: out \}\)/, "the answer goes to the panel: one read");
+  assert.match(page, /initial=\{panel\?\.detail \?\? null\}/);
+  assert.match(page, /wantedId\.current = requestedId;[\s\S]*if \(wantedId\.current !== requestedId\) return;/, "an answer after the address changed again is dropped (and strict mode does not drop the first one)");
   assert.doesNotMatch(page, /Запрос уже решён", "warning"/, "no toast and no jump to a tab instead of the panel");
   assert.doesNotMatch(page, /router\.replace\(`\/\$\{role\}\/substitutions`/, "closing does not drop `?status=`");
   assert.match(page, /setPanelRefresh\(\(value\) => value \+ 1\)/);
@@ -330,4 +332,97 @@ test("#157: LESSONS 48 - one function says «Урок» for a row in the link, t
   assert.match(S.PAGE_HINT, /замены, переносы, отмены/);
   assert.equal(S.DECIDED_EMPTY_HINT, "Здесь появятся события за последние 30 дней.");
   assert.doesNotMatch(S.PAGE_HINT + S.DECIDED_EMPTY_HINT, /\(а\)/);
+});
+
+// ── round 2 (28.10) ─────────────────────────────────────────────────────────────────────────────────────
+
+test("#157 r2 (4): the history says «Новая замена: Имя», no technical «via», the author of «Замена снята» when there is one", () => {
+  const row = (action, snapshot, actor = MGR, rec = {}) => TL.timelineOf({ item: item(rec), events: [{ requestId: "r1", action, actor, at: "2026-10-28T07:10:00", snapshot }] }, "manager").rows[0];
+  const replaced = row("assignment_cleared", { trigger: "put", teacherId: ["p", "s"] }, MGR, { clearedTo: person("Сидоров В."), clearedAt: "2026-10-28T07:10:00" });
+  assert.equal(replaced.title, "Новая замена");
+  assert.equal(TL.timelineOf({ item: item({ clearedTo: { id: "s", name: "Сидоров В." } }), events: [{ requestId: "r1", action: "assignment_cleared", actor: MGR, at: "2026-10-28T07:10:00", snapshot: { trigger: "put", teacherId: ["p", "s"] } }] }, "manager").rows[0].title, "Новая замена: Сидоров В.");
+  assert.equal(row("assignment_cleared", { trigger: "put", teacherId: ["p", null] }).author, "Тестов О., владелец", "who took the substitution off");
+  assert.equal(row("assignment_cleared", { trigger: "member_removed", teacherId: ["p", null] }, null).author, null, "the system has no author");
+  for (const via of ["request", "lesson_teacher_put", "teacher_move", "manager_assign"]) assert.doesNotMatch(JSON.stringify(row("substituted", { via, teacherId: ["t", "p"] }).details), new RegExp(`через|${via}`), via);
+});
+
+test("#157 r2 (5): «Урока не было» of a teacher: the chip, the line and the author agree whether the trigger or only `decision.via` says it", () => {
+  for (const record of [{ trigger: "teacher_cancel" }, { trigger: null, decision: { kind: "cancel", via: "teacher_cancel" } }]) {
+    const rec = item({ status: "cancelled", outcome: "lesson_not_held", ...record });
+    const row = TL.timelineOf({ item: rec, events: [{ requestId: "r1", action: "cancelled", actor: { id: "t1", name: "Иванов А.", role: "teacher" }, at: "2026-10-28T07:10:00", snapshot: { reason: "Не пришли" } }] }, "manager").rows[0];
+    assert.deepEqual([row.title, row.author], ["Урока не было", "Иванов А., преподаватель"]);
+    assert.equal(O.outcomeOf(rec, "manager").text, "Урока не было");
+    const own = TL.timelineOf({ item: rec, events: [{ requestId: "r1", action: "cancelled", actor: { role: "teacher" }, at: "2026-10-28T07:10:00", snapshot: {} }] }, "teacher").rows[0];
+    assert.equal(own.author, "Вы");
+  }
+  assert.equal(TL.isTeacherCancel(item({ decision: { kind: "cancel", via: "request" } })), false);
+});
+
+test("#157 r2 (6): «Вернуть урок» is ONE line «Урок возвращён» - the pair (the event of the original and the closed record) is not drawn twice", () => {
+  const first = { requestId: "r1", action: "lesson_restored", actor: MGR, at: "2026-10-28T07:10:00", snapshot: {} };
+  const second = { requestId: "r2", action: "closed", actor: MGR, at: "2026-10-28T07:10:01", snapshot: { closedReason: "LESSON_RESTORED", trigger: "manager_restore", reason: "Ошиблись" } };
+  const cancel = { requestId: "r1", action: "cancelled", actor: MGR, at: "2026-10-28T06:00:00", snapshot: { reason: "Праздник" } };
+  const out = (events) => TL.timelineOf({ item: item({ id: "r1" }), next: [item({ id: "r2", status: "closed" })], events }, "manager").rows;
+  const rows = out([cancel, first, second]);
+  assert.deepEqual(rows.map((r) => r.title), ["Урок отменён", "Урок возвращён"]);
+  assert.deepEqual(rows[1].details, ["Ошиблись"], "the reason of the dropped line goes to the kept one");
+  // named by mergedRequestId, whatever the time
+  assert.equal(out([cancel, { ...first, mergedRequestId: "r2" }, { ...second, at: "2026-10-28T09:00:00" }]).filter((r) => r.title === "Урок возвращён").length, 1);
+  // two returns of two different cancellations stay two lines
+  const again = [{ ...first }, { ...second }, { ...first, at: "2026-10-28T10:00:00" }, { ...second, at: "2026-10-28T10:00:01", requestId: "r3" }];
+  assert.equal(out(again).filter((r) => r.title === "Урок возвращён").length, 2);
+  // without the first half (an older answer) the closed record still says it
+  assert.equal(out([cancel, second]).filter((r) => r.title === "Урок возвращён").length, 1);
+});
+
+test("#157 r2 (7): «Выходной отменён» is yellow only when a decision is needed: a substitution that did not come back for a lesson still ahead", () => {
+  const ahead = { lesson: { ...item().lesson, date: "2026-11-02" } };
+  const t = (over) => O.outcomeOf(item({ outcome: "day_off_voided", ...ahead, ...over }), "manager", NOW).tone;
+  assert.equal(t({ status: "substituted" }), "warn");
+  assert.equal(t({ status: "closed" }), "muted", "a closed request has its new row, nothing to decide here");
+  assert.equal(t({ status: "substituted", lesson: { ...ahead.lesson, date: "2026-10-20" } }), "muted", "the lesson is past");
+  assert.match(O.outcomeNote({ outcome: "day_off_voided", status: "substituted" }), /Назначьте её заново/);
+  assert.equal(O.outcomeNote({ outcome: "day_off_voided", status: "closed" }), null, "no word about a substitution that was never there");
+});
+
+test("#157 r2 (8): «Вы» only for the teacher's own action with the role `teacher`; no role - no word (LESSONS 17)", () => {
+  assert.equal(O.authorLine({ role: "teacher" }, "teacher", "teacher"), "Вы");
+  assert.equal(O.authorLine({ role: null }, "teacher", "teacher"), null);
+  assert.equal(O.authorLine({}, "teacher", "teacher"), null);
+  assert.equal(O.authorLine({ role: "admin" }, "teacher", "teacher"), null, "a manager's action is never «Вы»");
+  assert.equal(O.authorLine({ role: "admin" }, "manager", "teacher"), "Администратор");
+});
+
+// the panel as the user lives it: what it shows from what it has read (a pure function, the cases run for real; the DOM is checked in the headless script)
+const PS = require(path.join(root, "src/lib/substitution-panel-state.ts"));
+test("#157 r2 (10/11/12): the panel shows an answer only for the open row; a failed re-read hides the old state and the «Решить»", () => {
+  const pend = item({ id: "a", status: "pending", outcome: "pending", decision: null });
+  const other = item({ id: "b", status: "pending", outcome: "pending", decision: null });
+  const detail = (it) => ({ item: it, events: [] });
+  // a late answer of row `a` while row `b` is open: nothing of `a` is shown
+  let view = PS.panelView({ loaded: { id: "a", out: detail(pend) }, failed: null }, "b", other);
+  assert.deepEqual([view.out, view.item.id], [null, "b"], "the head is the open row (the seed), not the answer of another row");
+  assert.equal(PS.canDecideInPanel(view, "manager"), true, "a waiting row from the list may be decided");
+  // the answer of the open row
+  view = PS.panelView({ loaded: { id: "a", out: detail(pend) }, failed: null }, "a", null);
+  assert.equal(view.out.item.id, "a");
+  assert.equal(PS.canDecideInPanel(view, "manager"), true);
+  assert.equal(PS.canDecideInPanel(view, "teacher"), false, "«Решить» is for a manager");
+  // after a decision the re-read FAILED: the old answer is not trusted
+  view = PS.panelView({ loaded: { id: "a", out: detail(pend) }, failed: { id: "a", message: "Не удалось загрузить историю" } }, "a", pend);
+  assert.deepEqual([view.stale, view.out, view.error], [true, null, "Не удалось загрузить историю"]);
+  assert.equal(PS.canDecideInPanel(view, "manager"), false, "no «Решить» on a state that may be old");
+  // a failure of ANOTHER row does not touch this one
+  view = PS.panelView({ loaded: { id: "a", out: detail(pend) }, failed: { id: "b", message: "x" } }, "a", null);
+  assert.deepEqual([view.stale, view.error], [false, null]);
+  // a decided row: no «Решить»
+  view = PS.panelView({ loaded: { id: "a", out: detail(item({ id: "a" })) }, failed: null }, "a", null);
+  assert.equal(PS.canDecideInPanel(view, "manager"), false);
+  // the first read failed: the error, and the head of the seed without «Решить»
+  view = PS.panelView({ loaded: null, failed: { id: "a", message: "x" } }, "a", pend);
+  assert.deepEqual([view.stale, view.error, view.item.id], [false, "x", "a"]);
+  assert.equal(PS.canDecideInPanel(view, "manager"), false);
+  const src = read("src/components/substitutions/substitution-panel.tsx");
+  assert.match(src, /canDecideInPanel\(view, audience\)/);
+  assert.match(src, /initial && initial\.item\.id === requestId/, "the detail of `?request=` is used, not read twice");
 });
