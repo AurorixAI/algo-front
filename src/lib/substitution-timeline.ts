@@ -88,9 +88,11 @@ function lineOf(event: SubstitutionEvent, record: SubstitutionItem, current: Sub
     case "requested": {
       // the action itself is the first line of a record made without a request: there is no «запрос» to show
       if (text(snapshot.trigger)) return null;
+      // the reason and the comment of the OPEN row are the facts of the head of the panel: not said twice (LESSONS 0.5); the request of another record of the chain says them
       const label = reasonLabelOf(text(snapshot.reasonCode) || record.reasonCode);
       const comment = text(record.comment);
-      return { title: "Запрос на замену", details: [[label, comment ? `«${comment}»` : ""].filter(Boolean).join(" · "), suggestedLine(record) ?? ""].filter(Boolean) };
+      const reasonLine = record.id === current.id ? "" : [label, comment ? `«${comment}»` : ""].filter(Boolean).join(" · ");
+      return { title: "Запрос на замену", details: [reasonLine, suggestedLine(record) ?? ""].filter(Boolean) };
     }
     case "reopened": {
       const successor = record.id !== current.id;

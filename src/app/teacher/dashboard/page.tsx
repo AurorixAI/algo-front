@@ -1385,13 +1385,13 @@ export default function TeacherDashboardPage() {
             )}
             <div className="hidden sm:block absolute -right-6 -bottom-6 w-24 h-24 rounded-full bg-slate-50 opacity-60 pointer-events-none group-hover:scale-110 transition-transform" />
             <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:gap-4">
-              <div className={`w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
+              <div className={`w-7 h-7 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl ${s.bg} flex items-center justify-center shrink-0`}>
                 <s.icon className={`w-4 h-4 sm:w-6 sm:h-6 ${s.iconColor}`} />
               </div>
               <div className="flex min-w-0 flex-col-reverse sm:flex-col">
                 <p className="text-xs sm:text-sm font-medium text-slate-500">{s.label}</p>
                 <div className="flex flex-wrap items-baseline gap-x-2 sm:mt-0.5">
-                  <span className="text-xl sm:text-2xl font-bold leading-7 text-slate-900">{s.value}</span>
+                  <span className="text-xl sm:text-2xl font-bold leading-6 sm:leading-7 text-slate-900">{s.value}</span>
                   {s.note && <span data-testid="stat-note" className="text-xs font-medium text-slate-500">· {s.note}</span>}
                 </div>
               </div>

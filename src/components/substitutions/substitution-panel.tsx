@@ -154,7 +154,7 @@ export function SubstitutionPanel({
   ) : undefined;
 
   return (
-    <Modal open={requestId !== null} title={PANEL_TITLE} onClose={onClose} placement="sheet" maxWidthClassName="max-w-md" footer={footer} footerClassName="p-4 sm:p-5">
+    <Modal open={requestId !== null} title={PANEL_TITLE} onClose={onClose} placement="sheet" maxWidthClassName="max-w-md" footer={footer} footerClassName="p-4 sm:p-5" bodyClassName="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
       <div ref={bodyRef} tabIndex={-1} data-testid="substitution-panel" className="space-y-4 outline-none">
         {item ? (
           <div className="space-y-1">

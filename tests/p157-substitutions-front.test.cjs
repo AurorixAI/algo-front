@@ -187,7 +187,7 @@ test("#157 history: a chain of 3 records is one list in the order of the server;
     ["28.10, 12:24", "Заменена на Сидоров В.", "Тестов О., владелец", "r2"],
     ["28.10, 12:30", "Открыт новый запрос", null, "r3"],
   ]);
-  assert.deepEqual(rows[0].details, ["Болезнь · «Температура»"]);
+  assert.deepEqual(rows[0].details, [], "the reason of the open row is in the head of the panel, not said twice");
   assert.deepEqual(rows[1].details, ["Иванов А. → Петров Б.", "через «Замены»"]);
   assert.deepEqual(rows[3].details, ["Заменяющий больше не ведёт уроки"]);
   const html = renderToStaticMarkup(React.createElement(panel.PanelTimeline, { rows, truncated: false, onOpenRequest() {} }));
@@ -206,7 +206,10 @@ test("#157 history: «Показаны последние записи» when th
 
 test("#157 history: every action of the contract has its line; an action the front does not know has none (no technical word on the screen)", () => {
   const line = (action, snapshot = {}, record = {}) => TL.timelineOf({ item: item(record), events: [{ requestId: "r1", action, actor: MGR, at: "2026-10-28T07:10:00", snapshot }] }, "manager").rows[0];
-  assert.equal(line("requested", { reasonCode: "other" }, { comment: "Семейные обстоятельства", reasonCode: "other", suggestedTeacher: person("Рахимов Т.") }).details.join(" | "), "Другое · «Семейные обстоятельства» | Предложил: Рахимов Т.");
+  assert.equal(line("requested", { reasonCode: "other" }, { comment: "Семейные обстоятельства", reasonCode: "other", suggestedTeacher: person("Рахимов Т.") }).details.join(" | "), "Предложил: Рахимов Т.");
+  // the request of ANOTHER record of the chain says its reason (the head of the panel is about the open one)
+  const other = TL.timelineOf({ item: item({ id: "r9" }), next: [], chain: [item({ id: "r1", comment: "Семейные обстоятельства", reasonCode: "other" })], events: [{ requestId: "r1", action: "requested", actor: MGR, at: "2026-10-28T07:10:00", snapshot: { reasonCode: "other" } }] }, "manager").rows[0];
+  assert.deepEqual(other.details, ["Другое · «Семейные обстоятельства»"]);
   assert.equal(line("requested", { trigger: "manager_assign" }), undefined, "the action itself is the first line of a record made without a request");
   assert.equal(line("reopened").title, "Открыт заново");
   assert.equal(line("substituted", { via: "lesson_teacher_put" }, { origin: "system", trigger: "manager_assign" }).title, "Замена назначена без запроса");
