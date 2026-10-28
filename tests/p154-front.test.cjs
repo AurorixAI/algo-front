@@ -419,8 +419,8 @@ test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
 // ── the defects of the walk on stage (29.10): D1 the sheet line of a make-up, D2 «Отработан → …» on the card of a student ───────────────────────────────
 
 test("D1: the line under the student on the sheet does not call a make-up «доп. урок»; the legend and the hints name both", () => {
-  assert.equal(P.noPayLineText(2), "без оплаты: 2");
-  assert.equal(P.noPayLineText(undefined), "без оплаты: 0");
+  assert.equal(P.noPayLineText(2), "без оплаты преподавателю: 2");
+  assert.equal(P.noPayLineText(undefined), "без оплаты преподавателю: 0");
   const sheet = read("src/components/payroll/sheet-table.tsx");
   assert.match(sheet, /noPayLineText\(line\.no_pay \?\? 0\)/);
   assert.doesNotMatch(sheet, /доп\. урок/, "the mark of the sheet does not say what the lesson is for: the words are neutral");

@@ -598,11 +598,11 @@ export const UNDECIDED_MARK_HINT = "Дополнительный урок или
 export const NO_PAY_MARK_HINT = "Дополнительный урок или отработка без оплаты преподавателю — 0";
 
 /**
- * #154: the line under the student's name - «без оплаты: 2».  The mark of the sheet does not say what the lesson is for (the server sends the state only),
+ * #154: the line under the student's name - «без оплаты преподавателю: 2» (not «без оплаты»: the column «Без оплаты» is the unpaid lessons of the student).  The mark of the sheet does not say what the lesson is for (the server sends the state only),
  * so the words are neutral: an additional lesson and an empty make-up both end up here (P154_API §8); no «доп. урок» for a make-up.
  */
 export function noPayLineText(count: number | null | undefined): string {
-  return `без оплаты: ${Math.max(0, Math.floor(Number(count) || 0))}`;
+  return `без оплаты преподавателю: ${Math.max(0, Math.floor(Number(count) || 0))}`;
 }
 
 /** The cell of an excuse that waits for a decision: the short form of «Ждёт решения», explained by the legend of the sheet. */
