@@ -415,3 +415,43 @@ test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
   assert.equal(O.decisionToast("pay"), "Преподавателю будет оплачено");
   assert.equal(O.decisionToast("skip"), "Решено: без оплаты");
 });
+
+// ── the defects of the walk on stage (29.10): D1 the sheet line of a make-up, D2 «Отработан → …» on the card of a student ───────────────────────────────
+
+test("D1: the line under the student on the sheet does not call a make-up «доп. урок»; the legend and the hints name both", () => {
+  assert.equal(P.noPayLineText(2), "без оплаты: 2");
+  assert.equal(P.noPayLineText(undefined), "без оплаты: 0");
+  const sheet = read("src/components/payroll/sheet-table.tsx");
+  assert.match(sheet, /noPayLineText\(line\.no_pay \?\? 0\)/);
+  assert.doesNotMatch(sheet, /доп\. урок/, "the mark of the sheet does not say what the lesson is for: the words are neutral");
+  const { SHEET_LEGEND } = require(path.join(root, "src/lib/payroll-help.ts"));
+  for (const key of ["undecided", "no_pay"]) assert.match(SHEET_LEGEND.find((x) => x.key === key).text, /дополнительный урок или (пустая )?отработка/, key);
+  assert.match(P.markCell(0, "undecided").title, /Дополнительный урок или пустая отработка/);
+  assert.match(P.markCell(0, "no_pay").title, /Дополнительный урок или отработка без оплаты/);
+});
+
+test("D2: the cancelled original on the card of a student says «Отработан → чт 06.11» - the chip and the link of the schedule of a group", () => {
+  const LIST = require(path.join(root, "src/components/students/student-lessons-list.tsx"));
+  const by = { lessonId: "one-off-9", date: "2026-11-06", startTime: "12:00", endTime: "13:00", label: "Отработан → чт 06.11" };
+  const notices = [
+    { lessonId: "l1", date: "2026-11-03", groupId: "g-1", groupName: "7-А", kind: "cancelled", movedTo: null, madeUpBy: by },
+    { lessonId: "l2", date: "2026-11-10", groupId: "g-1", groupName: "7-А", kind: "cancelled", movedTo: null, madeUpBy: null },
+    { lessonId: "l3", date: "2026-11-12", groupId: "g-1", groupName: "7-А", kind: "cancelled" },
+  ];
+  const rows = S.studentLessonRows([], notices, () => null, { groupsBase: "/owner/groups" });
+  assert.deepEqual(rows[0].madeUpMarks, [{ text: "Отработан → чт 06.11", tone: "blue", href: "/owner/groups/g-1?tab=attendance&month=2026-11&lesson=one-off-9&date=2026-11-06" }]);
+  assert.deepEqual(rows[1].madeUpMarks, []);
+  assert.deepEqual(rows[2].madeUpMarks, []);
+  assert.equal(rows[0].noticeText, "Урок отменён");
+  const html = (groupsBase) => renderToStaticMarkup(React.createElement(LIST.StudentLessonsList, { lessons: [], notices, groupsBase }));
+  const linked = html("/admin/groups");
+  assert.match(linked, /<a [^>]*href="\/admin\/groups\/g-1\?tab=attendance&amp;month=2026-11&amp;lesson=one-off-9&amp;date=2026-11-06"[^>]*>Отработан → чт 06.11<\/a>/);
+  assert.equal((linked.match(/Отработан/g) || []).length, 1);
+  assert.match(linked, /Урок отменён/);
+  // a role that is not known gets the chip as text, no link and no guess (LESSONS 17)
+  const plain = html(null);
+  assert.match(plain, /Отработан → чт 06.11/);
+  assert.doesNotMatch(plain, /href="\/(admin|owner|teacher)\/groups/);
+  // the card passes the role of THIS centre, not the global one
+  assert.match(read("src/components/students/student-profile-view.tsx"), /groupsBase=\{groupsBaseOf\(user\?\.org_role\)\}/);
+});

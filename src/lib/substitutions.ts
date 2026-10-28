@@ -6,7 +6,7 @@
 import type { GroupDetail, StudentInGroup } from "./api";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
-import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields } from "./one-off";
+import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
@@ -1064,6 +1064,8 @@ export interface StudentLessonRow {
   movedFromText: string | null;
   /** #154: «Отработка за пн 03.11» / «Дополнительный» (a student sees no money). */
   purposeText?: string | null;
+  /** #154: «Отработан → чт 06.11» on the row of a cancelled original: the very chip of the schedule of a group (a link to the make-up when the role is known). */
+  madeUpMarks?: PurposeMark[];
 }
 
 /**
@@ -1074,6 +1076,7 @@ export function studentLessonRows(
   lessons: Array<{ lesson_id?: string | null; date: string; group_name: string; status?: string | null; teacherName?: string | null; isSubstitution?: boolean; movedFrom?: MovedFrom | null } & LessonPurposeFields> | null | undefined,
   notices: StudentNotice[] | null | undefined,
   markLabel: (status: string) => string | null,
+  link: Pick<PurposeLinkOptions, "groupsBase"> = {},
 ): StudentLessonRow[] {
   const rows: StudentLessonRow[] = [];
   for (const lesson of lessons ?? []) {
@@ -1089,7 +1092,8 @@ export function studentLessonRows(
     });
   }
   for (const notice of sortedNotices(notices)) {
-    rows.push({ key: `notice:${notice.lessonId}:${notice.date}`, date: notice.date, groupName: notice.groupName, markText: null, substituteText: null, noticeText: studentNoticeLabel(notice), movedFromText: null });
+    rows.push({ key: `notice:${notice.lessonId}:${notice.date}`, date: notice.date, groupName: notice.groupName, markText: null, substituteText: null, noticeText: studentNoticeLabel(notice), movedFromText: null,
+      madeUpMarks: purposeMarks({ madeUpBy: notice.madeUpBy }, { groupsBase: link.groupsBase, groupId: notice.groupId }) });
   }
   return rows.sort((a, b) => a.date.localeCompare(b.date) || a.groupName.localeCompare(b.groupName, "ru"));
 }

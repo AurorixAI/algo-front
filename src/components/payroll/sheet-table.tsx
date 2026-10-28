@@ -12,6 +12,7 @@ import {
   markCell,
   lineKeyOf,
   markFor,
+  noPayLineText,
   priceCellView,
   setIncludeEdit,
   UNPAID_INCLUDED_MARK_HINT,
@@ -260,7 +261,7 @@ export function PayrollSheetTable({
                             <span data-testid="line-undecided" className="block text-[11px] font-normal text-amber-700">не решено: {line.undecided}</span>
                           )}
                           {(line.no_pay ?? 0) > 0 && (
-                            <span data-testid="line-no-pay" className="block text-[11px] font-normal text-slate-500">доп. урок без оплаты: {line.no_pay}</span>
+                            <span data-testid="line-no-pay" className="block text-[11px] font-normal text-slate-500">{noPayLineText(line.no_pay ?? 0)}</span>
                           )}
                           {/* a phone has no room for the price column: the price is the second line of the name */}
                           <span className="mt-0.5 block font-normal sm:hidden"><PriceCell view={view} compact freshPrice={freshPrices?.[id]} /></span>

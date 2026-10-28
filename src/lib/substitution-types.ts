@@ -5,6 +5,7 @@
  */
 import type { OpsErrorDetail, TeacherConflict } from "./ops-b-types";
 import type { CancellationKind } from "./payf";
+import type { MadeUpRef } from "./one-off";
 
 export type SubstitutionReasonCode = "sick" | "personal" | "other";
 
@@ -494,6 +495,8 @@ export interface StudentNotice {
   movedTo?: SubstitutionMovedTo | null;
   /** PAY-F: the reason of the day off of the centre that cancelled the lesson («Хайит»); the reason of any other cancellation is never sent. */
   holiday?: string | null;
+  /** #154: where the cancelled lesson was made up («Отработан → чт 06.11»); null / absent: it was not.  Never money. */
+  madeUpBy?: MadeUpRef | null;
 }
 
 export interface RequestClosed {
