@@ -4,9 +4,36 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffSpan, splitDaysOff, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptLessonsForList, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
+
+/** The lines «28.10 · 10:00 · Группа — была замена: Имя Ф.» of the lessons that came back without their substitute, by date and time. */
+function notRestoredLines(result: Pick<DayOffVoided, "restored" | "warnings">): Array<{ key: string; text: string }> {
+  const rows = (result.warnings ?? []).map((warning) => {
+    const lesson = result.restored.find((item) => item.lessonId === warning.lessonId && item.date === warning.date);
+    return { key: `${warning.groupId}-${warning.lessonId}-${warning.date}`, text: dayOffNotRestoredLine(warning, result.restored), date: warning.date ?? "", startTime: warning.startTime ?? lesson?.startTime ?? null, groupName: warning.groupName ?? lesson?.groupName ?? "" };
+  });
+  return sortDayOffLessons(rows).map(({ key, text }) => ({ key, text }));
+}
+
+/** What «Отменить выходной» would do, in words: the sum, the lessons that come back, the ones that stay, the substitutes that do not return, the note about exams (only when something comes back). */
+export function VoidPlanBody({ plan }: { plan: DayOffVoided }) {
+  return (
+    <>
+      <p className="text-sm font-medium text-slate-900" data-testid="day-off-void-text">{voidSummary(plan)}</p>
+      <DayOffLessonList title="Вернутся в расписание" lessons={plan.restored} tone="ok" testId="day-off-restored" />
+      <DayOffLessonList title="Останутся отменёнными" lessons={keptLessonsForList(plan.kept)} tone="warn" testId="day-off-kept" />
+      {(plan.warnings ?? []).length > 0 && (
+        <div data-testid="day-off-not-restored" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <p className="font-semibold">{NOT_RESTORED_TITLE}</p>
+          <ul className="list-disc space-y-0.5 pl-4 font-medium">{notRestoredLines(plan).map((line) => <li key={line.key}>{line.text}</li>)}</ul>
+        </div>
+      )}
+      {plan.restored.length > 0 && <p className="text-xs text-slate-500" data-testid="day-off-void-exams-note">{VOID_EXAMS_NOTE}</p>}
+    </>
+  );
+}
 
 /** «Отменить выходной»: first says what comes back and what stays cancelled (the dry run), then does it. */
 function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: () => void; onDone: (result: DayOffVoided) => void }) {
@@ -61,16 +88,7 @@ function VoidDialog({ day, onClose, onDone }: { day: DayOffOut | null; onClose: 
     >
       <div className="space-y-3 pb-2" aria-live="polite">
         {!plan && !error && <p className="flex items-center gap-1.5 text-sm text-slate-400"><Loader2 className="h-3.5 w-3.5 animate-spin" />Проверяем уроки…</p>}
-        {plan && <p className="text-sm font-medium text-slate-900" data-testid="day-off-void-text">Вернутся уроки: {plan.restored.length}. Останутся отменёнными: {plan.kept.length}.</p>}
-        {plan && <DayOffLessonList title="Вернутся в расписание" lessons={plan.restored} tone="ok" testId="day-off-restored" />}
-        {plan && <DayOffLessonList title="Останутся отменёнными" lessons={plan.kept} tone="warn" testId="day-off-kept" />}
-        {plan && (plan.warnings ?? []).length > 0 && (
-          <div data-testid="day-off-not-restored" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            <p className="font-semibold">Вернутся без замены — назначьте её заново:</p>
-            <ul className="list-disc space-y-0.5 pl-4 font-medium">{(plan.warnings ?? []).map((warning) => <li key={`${warning.groupId}-${warning.lessonId}-${warning.date}`}>{warning.message}</li>)}</ul>
-          </div>
-        )}
-        <p className="text-xs text-slate-500" data-testid="day-off-void-exams-note">{plan?.examsNote ?? EXAMS_NOTE}</p>
+        {plan && <VoidPlanBody plan={plan} />}
         {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-800">{error}</p>}
       </div>
     </Modal>
@@ -129,9 +147,9 @@ export function DaysOffPanel() {
     }
   };
   const voided = (result: DayOffVoided) => {
-    setNoticeLines((result.warnings ?? []).map((warning) => warning.message).filter(Boolean));
-    setNoticeLabel("Вернулись без замены — назначьте её заново:");
-    setNotice(`Выходной отменён: вернулось уроков ${result.restored.length}${result.kept.length > 0 ? `, осталось отменёнными ${result.kept.length}` : ""}.`);
+    setNoticeLines(notRestoredLines(result).map((line) => line.text));
+    setNoticeLabel(`${NOT_RESTORED_TITLE}:`);
+    setNotice(`Выходной отменён. В расписание вернулось: ${lessonsCount(result.restored.length)}${result.kept.length > 0 ? `; остались отменёнными: ${result.kept.length}` : ""}.`);
     void load();
   };
 

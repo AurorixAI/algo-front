@@ -102,7 +102,6 @@ export function lessonTeacherErrorText(error: unknown, fallback = "Не удал
       const text = (detail?.message ?? "").replace(/\.\.+/g, ".").trim();
       return text || "Преподаватель урока уже изменён. Обновите страницу";
     }
-    case "PAYROLL_LOCKED": return "Ведомость за этот месяц уже утверждена: смена преподавателя недоступна";
     case "TEACHER_BUSY": {
       const lines = teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(error), 2);
       return lines.length ? `Преподаватель занят: ${lines.join("; ")}` : errorMessageOf(error, fallback);

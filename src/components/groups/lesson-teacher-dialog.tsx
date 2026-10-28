@@ -19,7 +19,6 @@ import {
   isSelectable,
   lessonTeacherDialogTitle,
   reasonError,
-  roleLabel,
 } from "@/lib/lesson-teacher";
 import { Radio } from "@/components/ui/radio";
 import { useAuthStore } from "@/lib/store";
@@ -223,7 +222,6 @@ export function LessonTeacherBody({
                 />
                 <span className="min-w-0">
                   <span className={`block font-medium ${selectable ? "text-slate-900" : "text-slate-400"}`}>{candidate.name}</span>
-                  <span className="block text-xs text-slate-500" data-testid="candidate-role">{roleLabel(candidate.orgRole)}</span>
                   {isCurrent && <span className="block text-xs text-slate-500">Ведёт этот урок сейчас</span>}
                   {busyText && <span className="block text-xs font-medium text-amber-700">{busyText}</span>}
                   {candidateMoneyLines(candidate, role).map((line) => <span key={line} className="block text-xs text-slate-500">{line}</span>)}

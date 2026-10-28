@@ -129,7 +129,7 @@ test("[O4.R3] the return refused for a teacher who left: the name rides in the a
   const refused = fixture("c2_restore_teacher_inactive");
   assert.equal(A.restoreTeacherInactive(refusal(refused.status, refused.body)).teacherName, "Петров П.");
   assert.equal(A.restoreTeacherInactive(new Error("x")), null);
-  assert.equal(A.RESTORE_TEACHER_INACTIVE_TEXT, "Преподаватель группы больше не работает в центре. Выберите нового или оставьте группу без преподавателя.");
+  assert.equal(A.RESTORE_TEACHER_INACTIVE_TEXT, "Прежний преподаватель группы больше не ведёт уроки. Выберите нового или оставьте группу без преподавателя.");
 });
 
 test("the group pages are wired: «В архив» opens the dialog, the archived group is read-only, nobody sends `status` any more", () => {

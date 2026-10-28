@@ -3117,8 +3117,9 @@ export const opsApi = {
     api<ArchiveImpact>(`/auth/org/groups/${encodePathId(groupId)}/archive-impact`),
 
   // O2 — removal of a member, handover of his groups, return to the team
-  removalImpact: (memberId: string) =>
-    api<RemovalImpact>(`/auth/org/members/${encodePathId(memberId)}/removal-impact`),
+  /** `intent: "role_change"` (W1 round 2): the impact of turning a teacher into an administrator - the archived groups are counted too. */
+  removalImpact: (memberId: string, intent?: "role_change") =>
+    api<RemovalImpact>(`/auth/org/members/${encodePathId(memberId)}/removal-impact${intent === "role_change" ? "?intent=role_change" : ""}`),
   handover: (memberId: string, body: HandoverBody) =>
     api<HandoverResult>(`/auth/org/members/${encodePathId(memberId)}/handover`, { method: "POST", body }),
   restoreMember: (memberId: string) =>

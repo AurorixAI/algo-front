@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, UserPlus, Users, CalendarDays,
   GraduationCap, Loader2, Edit2, Check, X,
-  Archive, Tag, Info, RotateCcw, Wallet, BookOpen,
+  Archive, Tag, Info, RotateCcw, Wallet, BookOpen, AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { orgApi, DEMO_MODE, GroupDetail, type StudentInGroup } from "@/lib/api";
@@ -21,7 +21,8 @@ import { AddStudentDrawer, type AddStudentsResult } from "@/components/groups/ad
 import { enrolToast } from "@/lib/group-enrol";
 import { ENROL_STUDENTS_BUTTON_LABEL } from "@/lib/enrol-labels";
 import { staffDisplayName } from "@/lib/staff-name";
-import { handoverTargets } from "@/lib/staff-lifecycle";
+import { groupUpdateBody } from "@/lib/group-form";
+import { GROUP_TEACHER_REQUIRED_TEXT, GROUP_WITHOUT_TEACHER_WARNING, groupTeacherOptions } from "@/lib/staff-lifecycle";
 import { GroupArchiveDialog, GroupArchivedBanner, GroupRestoreDialog } from "@/components/groups/group-archive-dialog";
 import { opsErrorCode, teacherConflictLines, opsErrorDetail } from "@/lib/ops-errors";
 import type { TeacherBusyDetail } from "@/lib/ops-b-types";
@@ -141,8 +142,12 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
     showToast(toast.text, toast.type, toast.details);
   };
 
-  // everybody who can teach: teachers, the owner and the administrators (the role is named next to the name)
-  const teachers = handoverTargets(members).map((t) => ({ id: t.id, name: t.label }));
+  // only teachers lead lessons; a current lead who is not a teacher is shown as unavailable, never as «Не назначен»
+  const teacherOptions = groupTeacherOptions(members, group?.teacher_id);
+  const teachers = teacherOptions.filter((option) => !option.disabled).map((option) => ({ id: option.value, name: option.label }));
+  // nobody teaches the group: no lead at all, or a lead who is not a teacher (the members are read first, so a slow list does not flash the warning)
+  const leadIsTeacher = Boolean(group?.teacher_id) && (members.length === 0 || teachers.some((teacher) => teacher.id === group?.teacher_id));
+  const noTeacher = Boolean(group) && group?.status !== "archived" && !leadIsTeacher;
 
   /**
    * Saves the fields of the form.  The type of the lessons is NOT among them when it was changed: that goes through the dialog
@@ -152,14 +157,7 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
     if (!editState.name.trim() || !group) return;
     setSaving(true);
     try {
-      const updated = await orgApi.updateGroup(group.id, {
-        name: editState.name.trim(),
-        class_level: editState.class_level ? Number(editState.class_level) : null,
-        teacher_id: editState.teacher_id || null,
-        description: editState.description.trim() || undefined,
-        max_students: Number(editState.max_students) || 30,
-        ...(withType ? { lesson_type: editState.lesson_type } : {}),
-      });
+      const updated = await orgApi.updateGroup(group.id, groupUpdateBody(editState, group.teacher_id, withType));
       setGroup((prev) => prev ? { ...prev, ...updated } : null);
       setEditing(false);
       showToast(text);
@@ -167,6 +165,8 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
       if (opsErrorCode(e) === "TEACHER_BUSY") {
         // O5: the new teacher has a lesson at the same time - say which, as details of the toast
         showToast(e.message || "У преподавателя уже есть урок в это время", "error", teacherConflictLines(opsErrorDetail<TeacherBusyDetail>(e), 5));
+      } else if (opsErrorCode(e) === "TEACHER_REQUIRED") {
+        showToast(GROUP_TEACHER_REQUIRED_TEXT, "error");
       } else {
         showToast(e.message || "Ошибка сохранения", "error");
       }
@@ -307,13 +307,10 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                 <div className="col-span-2">
                   <Select
                     label="Преподаватель группы"
-                    placeholder="— Не назначен"
+                    placeholder="Выберите преподавателя"
                     value={editState.teacher_id}
                     onChange={(e) => setEditState((s) => ({ ...s, teacher_id: e.target.value }))}
-                    options={[
-                      { value: "", label: "— Не назначен" },
-                      ...teachers.map((t) => ({ value: t.id, label: t.name })),
-                    ]}
+                    options={teacherOptions}
                   />
                 </div>
 
@@ -425,9 +422,15 @@ export function GroupDetailView({ workspace }: { workspace: Workspace }) {
                     <h1 className="break-words text-xl font-bold text-slate-900 md:text-2xl">{group.name}</h1>
                     <p className="text-sm text-slate-500 mt-0.5">
                       {group.class_level ? `${group.class_level} класс · ` : ""}
-                      {group.teacher_name ? `Преподаватель: ${group.teacher_name}` : "Преподаватель не назначен"}
+                      {group.teacher_name && leadIsTeacher ? `Преподаватель: ${group.teacher_name}` : "Преподаватель не назначен"}
                       {group.max_students && ` · Макс. ${group.max_students} учеников`}
                     </p>
+                    {noTeacher && (
+                      <p role="status" data-testid="group-no-teacher-warning" className="mt-1.5 flex items-start gap-1.5 text-xs font-medium text-amber-800">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                        {GROUP_WITHOUT_TEACHER_WARNING}
+                      </p>
+                    )}
                     {/* LOGIC-A F14: the type of the lessons (plain text: it is changed in the edit form, #126) */}
                     <p className="mt-1 text-sm text-slate-600" data-testid="group-lesson-type-line">{lessonTypeLine(group.lesson_type)}</p>
                     {/* IA audit F30: the price and the debt of the group, one click from the tab «Оплаты» */}

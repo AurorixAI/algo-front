@@ -1,5 +1,6 @@
 "use client";
 
+import { GROUP_WITHOUT_TEACHER_WARNING } from "@/lib/staff-lifecycle";
 import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertCircle, Archive, Info, Loader2, RotateCcw } from "lucide-react";
@@ -413,6 +414,7 @@ export function GroupRestoreDialog({
               options={[{ value: "", label: "Выберите преподавателя" }, ...teachers.map((teacher) => ({ value: teacher.id, label: teacher.name })), { value: "__none__", label: RESTORE_NO_TEACHER }]}
               buttonClassName="py-2.5"
             />
+            {teacherId === "__none__" && <p data-testid="restore-no-teacher-warning" className="text-xs font-medium text-amber-800">{GROUP_WITHOUT_TEACHER_WARNING}</p>}
           </>
         ) : (
           <p className="text-sm leading-6 text-slate-700">

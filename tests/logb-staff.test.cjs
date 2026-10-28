@@ -153,7 +153,7 @@ test("[O2.R2] the handover answers of the contract are read: handed over groups,
   assert.equal(typeof removed.message, "string");
 });
 
-test("the targets of a handover: every active staff member who can teach (teachers, administrators, the owner), the role named, never the one who leaves", () => {
+test("the targets of a handover: only active TEACHERS (W1 round 2: the owner and the administrators lead no lessons), never the one who leaves", () => {
   const rows = [
     { id: "u1", member_id: "m1", user_id: "u1", email: "a@x", first_name: "Иван", last_name: "Иванов", org_role: "teacher", is_active: true },
     { id: "u2", member_id: "m2", user_id: "u2", email: "b@x", first_name: "Пётр", last_name: "Петров", org_role: "teacher", is_active: true },
@@ -161,8 +161,19 @@ test("the targets of a handover: every active staff member who can teach (teache
     { id: "u4", member_id: "m4", user_id: "u4", email: "d@x", first_name: "Сидор", last_name: "Сидоров", org_role: "teacher", is_active: false },
     { id: "u5", member_id: "m5", user_id: "u5", email: "e@x", first_name: "Усман", last_name: "Усманов", org_role: "owner", is_active: true },
   ];
-  assert.deepEqual(S.handoverTargets(rows, "u1").map((t) => t.label), ["Пётр Петров", "Дилноза Каримова — Администратор", "Усман Усманов — Владелец"]);
-  assert.deepEqual(S.handoverTargets(rows).map((t) => t.id), ["u1", "u2", "u3", "u5"]);
+  assert.deepEqual(S.handoverTargets(rows, "u1").map((t) => t.label), ["Пётр Петров"]);
+  assert.deepEqual(S.handoverTargets(rows).map((t) => t.id), ["u1", "u2"]);
+  assert.equal(S.canLead("teacher"), true);
+  for (const role of ["admin", "owner", "", null, undefined]) assert.equal(S.canLead(role), false, String(role));
+  // the field of the group: the current lead who is not a teacher stays visible - as an option that cannot be chosen, never as «Не назначен»
+  const options = S.groupTeacherOptions(rows, "u5");
+  assert.deepEqual(options[0], { value: "u5", label: "Усман Усманов — Владелец, не ведёт уроки", disabled: true });
+  assert.deepEqual(options.slice(1).map((o) => o.value), ["u1", "u2"]);
+  assert.deepEqual(S.groupTeacherOptions(rows, "u1").map((o) => o.value), ["u1", "u2"], "a teacher lead is an ordinary option");
+  assert.deepEqual(S.groupTeacherOptions(rows, null).map((o) => o.value), ["u1", "u2"], "no «— Не назначен» item: the server refuses a null lead");
+  assert.equal(S.GROUP_WITHOUT_TEACHER_WARNING, "Без преподавателя уроки не попадут в ведомость, а экзамен провести некому");
+  assert.equal(S.GROUP_TEACHER_LATER_HINT, "Можно назначить позже");
+  assert.equal(S.GROUP_TEACHER_REQUIRED_TEXT, "Выберите преподавателя");
 });
 
 // ── former staff (chain 6) ─────────────────────────────────────────────────────────────────────

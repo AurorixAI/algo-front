@@ -79,7 +79,8 @@ test("the header of the group has no «Изменить…»; the dialog opens f
     assert.match(page, /label="Тип занятий"/, role);
     assert.match(page, /if \(lessonTypeChangedInEdit\(group\.lesson_type, editState\.lesson_type\)\) \{ setLessonTypeOpen\(true\); return; \}/, role);
     assert.match(page, /await saveFields\(true\)/, role);
-    assert.match(page, /\.\.\.\(withType \? \{ lesson_type: editState\.lesson_type \} : \{\}\)/, role);
+    assert.match(page, /groupUpdateBody\(editState, group\.teacher_id, withType\)/, role);
+    assert.match(read("src/lib/group-form.ts"), /\.\.\.\(withType \? \{ lesson_type: state\.lesson_type as LessonType \} : \{\}\)/, role);
     assert.match(page, /initialType=\{editing \? editState\.lesson_type : undefined\}/, role);
     assert.match(page, /if \(editing\) void saveFields\(false, /, role);
     assert.match(page, /group\.status !== "archived"/, role);

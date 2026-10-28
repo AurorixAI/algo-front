@@ -7,6 +7,7 @@
  *  4. the names of the ways to count a payment live in ONE dictionary: `PAYMENT_MODELS` in `payments.ts`.
  */
 import type { MembershipPaymentRow } from "./payments";
+import { pluralRu } from "./plural";
 
 const MINUS = "−";
 
@@ -163,11 +164,31 @@ export interface DayOffVoided {
   dryRun: boolean;
   examsNote?: string;
   /** W1: `SUBSTITUTE_NOT_RESTORED` - a lesson that came back WITHOUT the substitute the day off had taken off it (the administrator assigns again). */
-  warnings?: Array<{ code: string; message: string; groupId?: string; lessonId?: string; date?: string; substituteName?: string | null }>;
+  warnings?: DayOffWarning[];
+}
+
+/** `SUBSTITUTE_NOT_RESTORED` (W1 round 2: with the start time; the line is built from the fields, `message` stays for the journal and the API). */
+export interface DayOffWarning {
+  code: string;
+  message: string;
+  groupId?: string;
+  groupName?: string | null;
+  lessonId?: string;
+  date?: string;
+  startTime?: string | null;
+  substituteName?: string | null;
 }
 
 /** Said in the dialogs of a day off when the server did not send its own sentence. */
 export const EXAMS_NOTE = "Экзамены, снятые с уроков, при отмене выходного не вернутся — назначьте заново";
+/**
+ * «Отменить выходной»: the server does not know whether the day off took exams off the lessons, so the sentence is conditional - and shown only when some lessons come back (rule 48).
+ */
+export const VOID_EXAMS_NOTE = "Если с этих уроков снимались экзамены — назначьте их заново";
+/** The title of the block (and of the notice after the action) of the lessons that come back WITHOUT their substitute; the lines under it do not repeat it. */
+export const NOT_RESTORED_TITLE = "Замена не вернётся — назначьте заново";
+/** A long list shows this many lessons first, then «Показать все N». */
+export const DAY_OFF_LIST_PREVIEW = 5;
 export const CONVERTED_TEXT = "Отмена переведена в праздник";
 
 export interface DayOffForDate {
@@ -241,11 +262,77 @@ export function dayOffLine(day: DayOffOut): string {
   return `${day.reason} · ${dayOffSpan(day)}${day.active ? "" : " · отменён"}`;
 }
 
-/** «Группа 5 · 21.10 · 10:00–11:00» (+ « — идёт экзамен» for a lesson that is not cancelled) for a lesson in a list. */
+/** «21.10 · 10:00–11:00 · Группа 5» (+ « — идёт экзамен» for a lesson that is not cancelled): the ONE line of a lesson in every list of the two day-off windows (rule 48). */
 export function dayOffLessonLine(lesson: DayOffLesson): string {
   const time = lesson.startTime ? (lesson.endTime ? `${lesson.startTime}–${lesson.endTime}` : lesson.startTime) : "";
-  const when = [dayMonth(lesson.date), time].filter(Boolean).join(" · ");
-  return `${lesson.groupName} · ${when}${lesson.reason ? ` — ${lesson.reason}` : ""}`;
+  const head = [dayMonth(lesson.date), time, lesson.groupName].filter(Boolean).join(" · ");
+  return `${head}${lesson.reason ? ` — ${lesson.reason}` : ""}`;
+}
+
+/** By date, then by the start of the lesson, then by the group; a new array. */
+export function sortDayOffLessons<T extends Pick<DayOffLesson, "date" | "startTime" | "groupName">>(lessons: readonly T[]): T[] {
+  return [...lessons].sort((a, b) => a.date.localeCompare(b.date) || (a.startTime ?? "").localeCompare(b.startTime ?? "") || (a.groupName ?? "").localeCompare(b.groupName ?? "", "ru"));
+}
+
+/** What a lesson kept cancelled says about itself, in the singular and the plural («1 урок уже начался» / «2 урока уже начались»). */
+const KEPT_REASONS: ReadonlyArray<{ test: RegExp; one: string; many: string }> = [
+  { test: /начал/i, one: "уже начался", many: "уже начались" },
+  { test: /изменён после|изменен после/i, one: "изменён после выходного", many: "изменены после выходного" },
+  { test: /в прошлом|прошёл|прошел/i, one: "уже прошёл", many: "уже прошли" },
+  { test: /групп\S* закрыт|в архиве/i, one: "в закрытой группе", many: "в закрытой группе" },
+  { test: /другой выходной/i, one: "входит в другой выходной", many: "входят в другой выходной" },
+  { test: /ручн/i, one: "отменён вручную", many: "отменены вручную" },
+];
+
+/** The server's reason of a lesson that stays cancelled, put shortly; `null` when it adds nothing to the title «Останутся отменёнными». */
+export function keptReasonShort(reason: string | null | undefined): string | null {
+  const text = (reason ?? "").trim();
+  if (!text) return null;
+  const known = KEPT_REASONS.find((entry) => entry.test.test(text));
+  if (known) return known.one;
+  const rest = text.replace(/[:—–-]?\s*остаётся отменённым\.?$/i, "").replace(/\.$/, "").trim();
+  return !rest || /^(остаётся|остается|отменён|отменен)/i.test(rest) ? null : rest;
+}
+
+/** The lessons of «Останутся отменёнными» with the reason put shortly (and dropped when it only repeats the title). */
+export function keptLessonsForList(kept: readonly DayOffLesson[]): DayOffLesson[] {
+  return kept.map((lesson) => ({ ...lesson, reason: keptReasonShort(lesson.reason) }));
+}
+
+/** «1 урок» / «2 урока» / «5 уроков». */
+export function lessonsCount(count: number): string {
+  return `${count} ${pluralRu(count, ["урок", "урока", "уроков"])}`;
+}
+
+/**
+ * The sum of «Отменить выходной» in words: «Вернём в расписание 22 урока.» and, per reason, «1 урок уже начался — останется отменённым.»
+ * (the form of the word follows the number: 1 урок … останется / 2 урока … останутся).
+ */
+export function voidSummary(plan: Pick<DayOffVoided, "restored" | "kept">): string {
+  const lesson = lessonsCount;
+  const restored = plan.restored.length;
+  const parts = [restored > 0 ? `Вернём в расписание ${lesson(restored)}.` : "В расписание не вернётся ни один урок."];
+  const groups = new Map<string, { count: number; entry: (typeof KEPT_REASONS)[number] | null }>();
+  for (const item of plan.kept) {
+    const entry = KEPT_REASONS.find((candidate) => candidate.test.test(item.reason ?? "")) ?? null;
+    const key = entry ? entry.one : "";
+    const found = groups.get(key);
+    if (found) found.count += 1; else groups.set(key, { count: 1, entry });
+  }
+  for (const { count, entry } of groups.values()) {
+    const single = pluralRu(count, ["1", "2", "2"]) === "1";
+    const verb = single ? "останется отменённым" : "останутся отменёнными";
+    parts.push(entry ? `${lesson(count)} ${single ? entry.one : entry.many} — ${verb}.` : `${lesson(count)} — ${verb}.`);
+  }
+  return parts.join(" ");
+}
+
+/** «28.10 · 10:00 · Группа — была замена: Имя Ф.»: built from the fields of the warning (the group and the time come from the lesson that came back when the warning has none). */
+export function dayOffNotRestoredLine(warning: DayOffWarning, lessons: readonly DayOffLesson[] = []): string {
+  const lesson = lessons.find((item) => item.lessonId === warning.lessonId && item.date === warning.date && (!warning.groupId || item.groupId === warning.groupId));
+  const head = [dayMonth(warning.date), warning.startTime ?? lesson?.startTime ?? "", warning.groupName ?? lesson?.groupName ?? ""].filter(Boolean).join(" · ");
+  const who = (warning.substituteName ?? "").trim();
+  return `${head ? `${head} — ` : ""}${who ? `была замена: ${who}` : "была замена"}`;
 }
 
 /** The sentence of a dry run without the names of the groups after the colon («Будут отменены 4 урока в 4 группах»): the lessons are listed under it one by one. */

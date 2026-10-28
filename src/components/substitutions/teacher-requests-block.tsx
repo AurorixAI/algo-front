@@ -12,6 +12,7 @@ import {
   alreadyDecided,
   assignedAhead,
   assignedLine,
+  assignedSingleLine,
   clearedForMeLine,
   itemLessonLine,
   recentRequests,
@@ -128,13 +129,17 @@ export function TeacherRequestsBlock({
   );
 }
 
-/** «Вам назначены замены: 2» as ONE compact row that opens the list (a phone keeps its first screen for the requests): the teacher's dashboard and the page «Замены» of the owner / administrator. */
+/** «Вам назначены замены: 2» as ONE compact row that opens the list (a phone keeps its first screen for the requests); one substitution is one row at once (nothing to open). Only a teacher leads lessons, so only his dashboard shows it. */
 export function assignedTitle(count: number): string {
   return count === 1 ? ASSIGNED_TITLE : `Вам назначены замены: ${count}`;
 }
 
 export function AssignedLessons({ entries }: { entries: AssignedToMe[] }) {
   if (entries.length === 0) return null;
+  // one lesson: the row says everything at once, nothing to open
+  if (entries.length === 1) {
+    return <p data-testid="assigned-lessons" className="rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3 text-sm font-bold text-violet-950 shadow-xs">{assignedSingleLine(entries[0])}</p>;
+  }
   return (
     <details data-testid="assigned-lessons" className="group rounded-2xl border border-violet-100 bg-violet-50/50 shadow-xs">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-violet-950 [&::-webkit-details-marker]:hidden">
@@ -159,28 +164,5 @@ export function ClearedLessons({ entries }: { entries: ClearedForMe[] }) {
         <li key={`${entry.groupId}-${entry.lessonDate}-${entry.lessonId}-${entry.clearedAt}`} className="text-xs font-medium text-slate-500">{clearedForMeLine(entry)}</li>
       ))}
     </ul>
-  );
-}
-
-/**
- * W1 F9 (S13): the owner / administrator can be the substitute of a lesson too: the same block on the page «Замены» (`/mine` is open to them now; their own requests are
- * none - they assign a substitute themselves).  Quiet: nothing is shown while it loads, fails or is empty.
- */
-export function ManagerAssignedBlock() {
-  const [data, setData] = useState<MineOut | null>(null);
-  const now = useNow(30_000, true);
-  useEffect(() => {
-    let cancelled = false;
-    substitutionsApi.mine("all").then((out) => { if (!cancelled) setData(out); }).catch(() => undefined);
-    return () => { cancelled = true; };
-  }, []);
-  const entries = assignedAhead(data?.assignedToMe ?? [], now, businessWallTimeToInstant);
-  const cleared = data?.clearedForMe ?? [];
-  if (entries.length === 0 && cleared.length === 0) return null;
-  return (
-    <div className="space-y-2">
-      <AssignedLessons entries={entries} />
-      <ClearedLessons entries={cleared} />
-    </div>
   );
 }

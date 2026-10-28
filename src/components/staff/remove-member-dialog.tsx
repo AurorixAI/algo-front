@@ -10,6 +10,7 @@ import type { OrgMemberRow, RemovalImpact, TeacherBusyDetail } from "@/lib/ops-b
 import { staffDisplayName } from "@/lib/staff-name";
 import { removalRequestsText } from "@/lib/substitutions";
 import {
+  GROUP_WITHOUT_TEACHER_WARNING,
   KEEP_UNASSIGNED_LABEL,
   UNASSIGNED,
   UNASSIGNED_CONFIRM_TEXT,
@@ -55,6 +56,7 @@ export function RemoveMemberDialog({
   onDone: (message: string) => void;
 }) {
   const memberId = member?.member_id ?? null;
+  const intent = action.kind === "role" ? "role_change" : undefined;      // a change of the role counts the archived groups too
   const name = member ? staffDisplayName(member, "Без имени") : "";
   const [impact, setImpact] = useState<RemovalImpact | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export function RemoveMemberDialog({
     setError(null);
     setConflicts({});
     try {
-      const result = await opsApi.removalImpact(memberId);
+      const result = await opsApi.removalImpact(memberId, intent);
       if (token !== requestRef.current) return;
       setImpact(result);
       setChoices(emptyChoices((result.groups ?? []).map((group) => group.id)));
@@ -85,7 +87,7 @@ export function RemoveMemberDialog({
       if (token !== requestRef.current) return;
       setLoadError(errorMessageOf(failure, "Не удалось проверить, что связано с сотрудником. Повторите попытку."));
     }
-  }, [memberId]);
+  }, [memberId, intent]);
 
   useEffect(() => {
     if (memberId) void load();
@@ -220,6 +222,24 @@ export function RemoveMemberDialog({
 }
 
 /**
+ * What else the removal / the change of a role does, in a quiet block: the future substitutions that are taken off, the missed lessons the administrator will sort out, the waiting requests that are closed.
+ * Warnings only - none of them blocks.  Nothing when there is none.
+ */
+export function ImpactNotes({ impact }: { impact: RemovalImpact | null }) {
+  const futureCount = impact?.futureSubstitutions?.count ?? 0;
+  const missedCount = impact?.missedLessons?.count ?? 0;
+  const requestsCount = impact?.pendingSubstitutionRequests?.count ?? 0;
+  if (futureCount <= 0 && missedCount <= 0 && requestsCount <= 0) return null;
+  return (
+    <div data-testid="impact-notes" className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
+      {futureCount > 0 && <p>{futureSubstitutionsText(futureCount)}</p>}
+      {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
+      {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
+    </div>
+  );
+}
+
+/**
  * The inside of the dialog, apart from the shell (the Modal): what the server's `removal-impact` says and the handover form.
  * Presentational - the state lives in the dialog; the fixtures of the contract render through it in the tests.
  */
@@ -243,9 +263,6 @@ export function RemovalDialogBody({
   const groups = impact?.groups ?? [];
   const inProgress = impact?.inProgressLessons ?? [];
   const hasGroups = groups.length > 0;
-  const futureCount = impact?.futureSubstitutions?.count ?? 0;
-  const missedCount = impact?.missedLessons?.count ?? 0;
-  const requestsCount = impact?.pendingSubstitutionRequests?.count ?? 0;
   const plainConfirm = impact !== null && !hasGroups && inProgress.length === 0;
   const handoverOptions = [
     { value: "", label: "Выберите преподавателя" },
@@ -314,6 +331,7 @@ export function RemovalDialogBody({
                         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                           <p className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
                             <Users className="h-4 w-4 text-slate-400" /> {group.name}
+                            {group.status === "archived" && <span className="font-normal text-slate-500">· в архиве</span>}
                             {typeof group.studentCount === "number" && (
                               <span className="font-normal text-slate-500">· {group.studentCount} уч.</span>
                             )}
@@ -337,14 +355,19 @@ export function RemovalDialogBody({
                           buttonClassName={`py-2.5 ${conflict ? "!border-rose-300" : ""}`}
                         />
                         {choice.value === UNASSIGNED && (
-                          <label className="mt-2.5 flex cursor-pointer items-start gap-2 text-xs font-medium text-slate-700">
-                            <Checkbox
-                              checked={choice.confirmed}
-                              onChange={(event) => onChoice(group.id, { confirmed: event.target.checked })}
-                              disabled={busy}
-                            />
-                            <span>{UNASSIGNED_CONFIRM_TEXT}</span>
-                          </label>
+                          <>
+                            <p data-testid="unassigned-warning" className="mt-2.5 flex items-start gap-1.5 text-xs font-medium text-amber-800">
+                              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />{GROUP_WITHOUT_TEACHER_WARNING}
+                            </p>
+                            <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs font-medium text-slate-700">
+                              <Checkbox
+                                checked={choice.confirmed}
+                                onChange={(event) => onChoice(group.id, { confirmed: event.target.checked })}
+                                disabled={busy}
+                              />
+                              <span>{UNASSIGNED_CONFIRM_TEXT}</span>
+                            </label>
+                          </>
                         )}
                         {conflict && <p role="alert" className="mt-2 text-xs font-medium text-rose-700">{conflict}</p>}
                       </li>
@@ -354,23 +377,11 @@ export function RemovalDialogBody({
               </div>
             )}
 
-            {(futureCount > 0 || missedCount > 0 || requestsCount > 0) && (
-              <div className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
-                {futureCount > 0 && <p>{futureSubstitutionsText(futureCount)}</p>}
-                {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
-                {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
-              </div>
-            )}
+            <ImpactNotes impact={impact} />
           </>
         )}
 
-        {impact && plainConfirm && (futureCount > 0 || missedCount > 0 || requestsCount > 0) && (
-          <div className="space-y-1 rounded-xl bg-slate-50 px-3.5 py-3 text-xs leading-5 text-slate-600">
-            {futureCount > 0 && <p>{futureSubstitutionsText(futureCount)}</p>}
-            {missedCount > 0 && <p>{missedLessonsText(missedCount)}</p>}
-            {requestsCount > 0 && <p>{removalRequestsText(requestsCount)}</p>}
-          </div>
-        )}
+        {impact && plainConfirm && <ImpactNotes impact={impact} />}
 
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </div>

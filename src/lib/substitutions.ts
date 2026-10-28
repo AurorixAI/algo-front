@@ -160,7 +160,7 @@ export function deadlineChips(item: SubstitutionItem): DeadlineChip[] {
 export function suggestedLine(item: Pick<SubstitutionItem, "suggestedTeacher">): string | null {
   const suggested = item.suggestedTeacher;
   if (!suggested) return null;
-  return suggested.active === false ? "Предложенный коллега больше не работает в центре" : `Предложил: ${suggested.name}`;
+  return suggested.active === false ? "Предложенный сотрудник больше не ведёт уроки" : `Предложил: ${suggested.name}`;
 }
 
 // ── status lines ───────────────────────────────────────────────────────────────────────────────
@@ -339,6 +339,7 @@ export function closedResultText(item: SubstitutionItem): string {
 const CLEARED_BY_THE_LESSON: Record<string, string> = { cancel: "Урок позже отменён", move: "Урок позже перенесён" };
 const CLEARED_WHY: Record<string, string> = {
   member_removed: "заменяющий больше не работает в центре",
+  role_changed: "роль заменяющего изменена, он больше не ведёт уроки",
   group_teacher_changed: "стал преподавателем группы",
 };
 
@@ -476,7 +477,6 @@ export function substitutionErrorText(error: unknown, fallback = "Не удал�
     case "LESSON_HAS_LIVE_EXAM": return detail?.message?.trim() || "У урока идёт экзамен: отменить его нельзя";
     case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
     case "LESSON_OUTSIDE_WINDOW": return "Урок старше окна незакрытых уроков: назначить или отменить его нельзя — можно только отклонить запрос";
-    case "PAYROLL_LOCKED": return "Ведомость за этот месяц уже утверждена: смена преподавателя недоступна";
     default: return server;
   }
 }
@@ -696,6 +696,11 @@ export function assignedLine(entry: { groupName: string; lessonDate: string; sta
   if (!who) return head;
   const genitive = genitiveShortName(who);
   return genitive ? `${head} (вместо ${genitive})` : `${head} (вместо: ${who})`;
+}
+
+/** One substitute lesson in one row, no opening needed: «Вам назначена замена: вс, 15.11 · 10:00 · Группа». */
+export function assignedSingleLine(entry: { groupName: string; lessonDate: string; startTime: string }): string {
+  return `${ASSIGNED_TITLE}: ${dayAndDateLabel(entry.lessonDate)} · ${entry.startTime} · ${entry.groupName}`;
 }
 
 /**
@@ -920,12 +925,6 @@ export function candidateBusyLine(busy: CandidateBusy | null | undefined): strin
   return `Занят: ${where}, ${busy.startTime}–${busy.endTime}${busy.pendingRequest ? " (сам запросил замену)" : ""}`;
 }
 
-export function roleChip(orgRole: string | null | undefined): string | null {
-  if (orgRole === "admin") return "Администратор";
-  if (orgRole === "owner") return "Владелец";
-  return null;
-}
-
 export const SUGGESTED_CHIP = "Предложил учитель";
 
 export function canPickCandidate(candidate: SubstitutionCandidate, requesterId: string | null | undefined): boolean {
@@ -1068,7 +1067,6 @@ export function bulkSkippedLine(entry: BulkSkipped, item?: SubstitutionItem): st
     text = `преподаватель занят: ${teacherConflictLine(first)}`;
   } else if (entry.code === "LESSON_OUTSIDE_WINDOW") text = "урок старше окна незакрытых уроков";
   else if (BULK_CANCEL_CODES.includes(entry.code)) text = substitutionErrorText(Object.assign(new Error(entry.message), { code: entry.code, detail: { code: entry.code, message: entry.message } }));
-  else if (entry.code === "PAYROLL_LOCKED") text = "ведомость за месяц уже утверждена";
   return `${prefix}${text}`;
 }
 

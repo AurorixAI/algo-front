@@ -317,15 +317,14 @@ test("F8: every dialog that cancels / decides / assigns / stops closes a second 
 
 // ── F9 ────────────────────────────────────────────────────────────────────────────────────────────────────────────
 
-test("F9: «Вам назначена замена» is one block for the teacher and for the owner / administrator (the page «Замены»)", () => {
+test("F9: «Вам назначена замена» is one block of the teacher's dashboard (W1 round 2: the owner / administrator lead no lessons, so the page «Замены» has none)", () => {
   const { AssignedLessons } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
   const entries = [{ groupId: "g", groupName: "9-А", lessonId: "l", lessonDate: "2026-10-28", startTime: "10:00", endTime: "11:30", replacing: { id: "t", name: "Иванов Иван" } }];
   const html = textOf(renderToStaticMarkup(React.createElement(AssignedLessons, { entries })));
-  assert.match(html, /Вам назначена замена/);
-  assert.match(html, /Замена: 9-А — /);
+  assert.match(html, /Вам назначена замена: ср, 28\.10 · 10:00 · 9-А/);
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /<ManagerAssignedBlock \/>/);
-  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /export function ManagerAssignedBlock\(\)/);
+  assert.doesNotMatch(page, /ManagerAssignedBlock/);
+  assert.doesNotMatch(read("src/components/substitutions/teacher-requests-block.tsx"), /ManagerAssignedBlock/);
   assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{assigned\} \/>/, "the teacher's block is the same one");
   const types = read("src/lib/substitution-types.ts");
   assert.match(types, /assignedToMe: AssignedToMe\[\]/);
@@ -432,7 +431,8 @@ test("day off: «не завершён» is kept on the server; the lessons that
   assert.match(panel, /result\.warnings \?\? \[\]/);
   const payf = read("src/lib/payf.ts");
   assert.match(payf, /incomplete\?: boolean/);
-  assert.match(payf, /warnings\?: Array<\{ code: string; message: string/);
+  assert.match(payf, /warnings\?: DayOffWarning\[\]/);
+  assert.match(payf, /startTime\?: string \| null;\n  substituteName/, "W1 round 2: the warning carries the start time");
 });
 
 test("R3 round: an administrator's estimate is hidden (null / HIDDEN) - nothing but the yes / no of the rate; a teacher's «ученик занят» is shown as the server wrote it; the day-off / too-old reasons", () => {
@@ -516,7 +516,7 @@ test("R3 6: F9 is ONE compact row with a count that opens; «Замена сня
   assert.match(textOf(html), /^Вам назначены замены: 2/);
   assert.match(html, /<summary/);
   assert.equal(renderToStaticMarkup(React.createElement(ClearedLessons, { entries: [] })), "");
-  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{entries\} \/>\s+<ClearedLessons entries=\{cleared\} \/>/);
+  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{assigned\} \/>\s+<ClearedLessons entries=\{cleared\} \/>/);
   assert.ok(S.expiringLine(2).length < 80, "one line on a phone, not a paragraph");
 });
 
@@ -567,7 +567,7 @@ test("R3 14 / 15: the dialogs of a day off close a second press with a ref; a cr
   assert.match(panel, /continuingRef\.current = true/, "«Продолжить»");
   assert.match(panel, /setNoticeLines\(result\.blocked\.map\(dayOffLessonLine\)\)/);
   const P = require(path.join(root, "src/lib/payf.ts"));
-  assert.equal(P.dayOffLessonLine({ groupId: "g", groupName: "9-А", lessonId: "l", date: "2026-10-30", startTime: "10:00", endTime: "11:00", reason: "Урок уже начался" }), "9-А · 30.10 · 10:00–11:00 — Урок уже начался");
+  assert.equal(P.dayOffLessonLine({ groupId: "g", groupName: "9-А", lessonId: "l", date: "2026-10-30", startTime: "10:00", endTime: "11:00", reason: "Урок уже начался" }), "30.10 · 10:00–11:00 · 9-А — Урок уже начался");
 });
 
 test("R3 16: a pack decision shows what the server said about each DECIDED item (a holiday instead of «по вине центра», a released substitute)", () => {

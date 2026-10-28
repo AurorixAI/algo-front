@@ -86,6 +86,7 @@ test("[3] what became of a substitution is said under the decision, from the ser
   assert.equal(S.clearedLine(gone({ clearedTrigger: "move" })), "Урок позже перенесён, 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "cancel" })), "Урок позже отменён, 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "member_removed" })), "Замена снята: заменяющий больше не работает в центре, 22.10 09:30");
+  assert.equal(S.clearedLine(gone({ clearedTrigger: "role_changed" })), "Замена снята: роль заменяющего изменена, он больше не ведёт уроки, 22.10 09:30", "W1 round 2: a substitute who became an administrator");
   assert.equal(S.clearedLine(gone({ clearedTrigger: "group_teacher_changed" })), "Замена снята: стал преподавателем группы, 22.10 09:30");
   assert.equal(S.clearedLine(gone({ clearedBy: null })), "Замена снята: система, 22.10 09:30");
   assert.equal(S.clearedLine({ ...cleared(), clearedAt: at }), null, "a record the removal closed says it in its result already");

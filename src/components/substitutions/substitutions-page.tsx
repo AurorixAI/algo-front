@@ -1,5 +1,6 @@
 "use client";
 
+import { canLead } from "@/lib/staff-lifecycle";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -35,7 +36,6 @@ import { EmptyState, TableHeader, type CellAlign } from "@/components/attendance
 import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
-import { ManagerAssignedBlock } from "@/components/substitutions/teacher-requests-block";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -111,7 +111,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       .then(([members, groupList]) => {
         if (cancelled) return;
         setTeachers((Array.isArray(members) ? members : [])
-          .filter((member: any) => ["teacher", "admin", "owner"].includes(member.org_role))
+          .filter((member: any) => canLead(member.org_role))
           .map((member: any) => ({ id: member.user_id || member.id, first_name: member.first_name ?? "", last_name: member.last_name ?? "", full_name: member.full_name })));
         const list: any[] = Array.isArray(groupList) ? groupList : (groupList as any)?.items || [];
         setGroups(list.map((group) => ({ id: group.id, name: group.name, teacher_id: group.teacher_id })));
@@ -245,8 +245,6 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <h1 className="text-xl font-bold text-slate-900 md:text-2xl">Замены</h1>
         <p className="text-sm text-slate-500">Запросы преподавателей, которые не смогут провести урок, и переносы уроков</p>
       </div>
-
-      <ManagerAssignedBlock />
 
       {pendingTab && expiringLine(expiringTotal) && <p role="status" data-testid="expiring-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">{expiringLine(expiringTotal)}</p>}
 

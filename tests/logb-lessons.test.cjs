@@ -194,7 +194,6 @@ test("[O5.R1] the reason is 3..300; «Вернуть преподавателя 
 test("[O5.R4] the refusals of a replacement in the words of the spec", () => {
   assert.equal(Err.lessonTeacherErrorText({ code: "TARGET_NOT_TEACHER", message: "x" }), "Выберите преподавателя центра");
   assert.equal(Err.lessonTeacherErrorText(refusal(409, fixture("x_lesson_teacher_changed").body)), "Преподаватель урока уже изменён: Рахимов Т. Обновите страницу");
-  assert.equal(Err.lessonTeacherErrorText(refusal(409, fixture("x_payroll_locked").body)), "Ведомость за этот месяц уже утверждена: смена преподавателя недоступна");
   assert.match(Err.lessonTeacherErrorText(refusal(409, fixture("c1_handover_busy").body)), /^Преподаватель занят: /);
 });
 

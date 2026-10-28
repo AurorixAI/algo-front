@@ -280,7 +280,7 @@ export function lessonMoveErrorText(error: unknown, fallback = "Не удало�
   switch (opsErrorCode(error)) {
     case "LESSON_CHANGED":
     case "SUBSTITUTION_ALREADY_DECIDED": return LESSON_CHANGED_TEXT;
-    case "LESSON_HAS_NO_TEACHER": return "У урока нет преподавателя: сначала назначьте его, потом переносите урок";
+    case "LESSON_HAS_NO_TEACHER": return "У группы нет преподавателя — назначьте его в карточке группы";
     case "EXAM_SERVICE_UNAVAILABLE": return "Не удалось проверить экзамены группы. Повторите попытку.";
     case "LESSON_ALREADY_STARTED": return "Урок уже начался или прошёл: перенести его нельзя";
     case "LESSON_CANCELLED": return "Урок уже отменён — обновите расписание";

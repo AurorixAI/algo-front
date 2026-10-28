@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
+import { DAY_OFF_LIST_PREVIEW, EXAMS_NOTE, dayOffBody, dayOffDatesError, dayOffError, dayOffLessonLine, dayOffPreviewBody, dayOffSummary, sortDayOffLessons, type DayOffApplied, type DayOffForm, type DayOffPlan } from "@/lib/payf";
 import { DateInput } from "@/components/ui/date-input";
 import { Modal } from "@/components/ui/modal";
 import { substitutionErrorText } from "@/lib/substitutions";
@@ -14,16 +14,27 @@ const LABEL = "mb-1 block text-xs font-semibold text-slate-600";
 
 export const DAY_OFF_TITLE = "Выходной день центра";
 
-/** Lessons in a quiet list; `tone` says whether they are cancelled («amber» = not). */
+/**
+ * Lessons in a quiet list, by date and time, one line each («28.10 · 10:00–10:45 · Группа»); `tone` says whether they are cancelled («amber» = not).  A long list shows the first
+ * five and «Показать все N» opens the rest - no hidden scrolling inside the window.
+ */
 export function DayOffLessonList({ title, lessons, tone, testId }: { title: string; lessons: DayOffPlan["blocked"]; tone: "ok" | "warn"; testId: string }) {
+  const [all, setAll] = useState(false);
   if (lessons.length === 0) return null;
+  const sorted = sortDayOffLessons(lessons);
+  const long = sorted.length > DAY_OFF_LIST_PREVIEW;
+  const shown = long && !all ? sorted.slice(0, DAY_OFF_LIST_PREVIEW) : sorted;
   return (
     <div className={`rounded-xl border px-3.5 py-2.5 text-xs ${tone === "warn" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`} data-testid={testId}>
       <p className="font-semibold">{title}</p>
-      {/* a list that scrolls is reachable and named for the keyboard and the screen reader */}
-      <ul className="mt-1 max-h-40 space-y-0.5 overflow-y-auto" tabIndex={0} aria-label={title}>
-        {lessons.map((lesson) => <li key={`${lesson.groupId}-${lesson.lessonId}-${lesson.date}`}>{dayOffLessonLine(lesson)}</li>)}
+      <ul className="mt-1 space-y-0.5" aria-label={title}>
+        {shown.map((lesson) => <li key={`${lesson.groupId}-${lesson.lessonId}-${lesson.date}`}>{dayOffLessonLine(lesson)}</li>)}
       </ul>
+      {long && (
+        <button type="button" onClick={() => setAll((previous) => !previous)} aria-expanded={all} data-testid={`${testId}-toggle`} className="mt-1.5 font-semibold underline underline-offset-2 hover:no-underline">
+          {all ? "Свернуть" : `Показать все ${sorted.length}`}
+        </button>
+      )}
     </div>
   );
 }

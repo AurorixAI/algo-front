@@ -40,7 +40,6 @@ import {
   orderedCandidates,
   reasonLabelOf,
   rejectConsequence,
-  roleChip,
   startedLabel,
   substitutionErrorText,
   suggestedLine,
@@ -515,7 +514,6 @@ export function SubstituteForm({
           {list.map((candidate) => {
             const selectable = canPickCandidate(candidate, requesterId) && !busy;
             const checked = pick === candidate.teacherId;
-            const roleText = roleChip(candidate.orgRole);
             return (
               <li key={candidate.teacherId}>
                 <label className={`flex items-start gap-3 px-3.5 py-3 text-sm ${selectable ? "cursor-pointer hover:bg-slate-50" : "cursor-not-allowed bg-slate-50/60"} ${checked ? "bg-primary-50/50" : ""}`}>
@@ -531,7 +529,6 @@ export function SubstituteForm({
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className={`font-medium ${selectable ? "text-slate-900" : "text-slate-400"}`}>{candidate.name}</span>
                       {candidate.suggested && <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[11px] font-semibold text-violet-800">{SUGGESTED_CHIP}</span>}
-                      {roleText && <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">{roleText}</span>}
                     </span>
                     {candidate.busy && <span className="mt-0.5 block text-xs font-medium text-amber-700">{candidateBusyLine(candidate.busyWith)}</span>}
                     {candidateMoneyLines(candidate, role).map((line) => <span key={line} className="mt-0.5 block text-xs text-slate-500">{line}</span>)}

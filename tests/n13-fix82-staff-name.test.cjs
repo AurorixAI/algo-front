@@ -61,7 +61,7 @@ test("the team page and every staff-name render go through staffDisplayName, nev
   for (const file of renders) {
     const text = read(file);
     // LOGIC-B: the teacher selector of a group page comes from `handoverTargets`, which itself goes through staffDisplayName
-    const viaTargets = /handoverTargets\(/.test(text) && /from "@\/lib\/staff-lifecycle"/.test(text);
+    const viaTargets = /(handoverTargets|groupTeacherOptions)\(/.test(text) && /from "@\/lib\/staff-lifecycle"/.test(text);
     assert.ok(/staffDisplayName\(/.test(text) || viaTargets, `${file} uses the helper`);
     assert.ok(/from "@\/lib\/staff-name"/.test(text) || viaTargets, `${file} imports it`);
     // no staff render may prefer the server full_name or print first+last by hand any more

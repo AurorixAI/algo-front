@@ -84,7 +84,8 @@ export interface LessonTeacherResult extends LessonTeacherInfo {
   lessonDate: string;
   attendanceUpdated?: boolean;
   version?: number | null;
-  payrollSheetsAffected?: Array<{ sheet_id?: string | null; teacher_id: string; month: string; status?: string | null }>;
+  /** The administrator gets only `{month}`; `sheet_id` / `teacher_id` / `status` (the state of the teacher's money) are the owner's alone (rule 45). */
+  payrollSheetsAffected?: Array<{ sheet_id?: string | null; teacher_id?: string; month: string; status?: string | null }>;
   /** LOGIC-B2: this assignment closed a waiting request. */
   requestClosed?: { id: string; status: string } | null;
 }
@@ -192,6 +193,8 @@ export interface RemovalGroup {
   name: string;
   studentCount?: number;
   nextLesson?: { date: string; startTime: string } | null;
+  /** `archived` appears only in the impact of a change of the role (the archived groups of a teacher must be handed over too); `nextLesson` is then null. */
+  status?: "active" | "archived" | string;
 }
 
 export interface RemovalLesson {
@@ -207,6 +210,8 @@ export interface RemovalImpact {
   name?: string | null;
   orgRole?: string;
   canRemove: boolean;
+  /** W1 round 2: a teacher can become an administrator only without groups (active and archived) and lessons in progress. */
+  canChangeRole?: boolean;
   groups?: RemovalGroup[];
   inProgressLessons?: RemovalLesson[];
   futureSubstitutions?: { count?: number };

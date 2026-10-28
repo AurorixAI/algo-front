@@ -13,7 +13,7 @@ export const RESTORE_BUTTON = "Вернуть из архива";
 export const EXAM_SERVICE_DOWN_TEXT = "Не удалось проверить экзамены группы. Повторите попытку.";
 export const MISSED_CANCEL_OPTION = "Отменить их при архивации (урока не было)";
 export const TRANSFER_STUDENTS_BUTTON = "Перевести в другую группу";
-export const RESTORE_TEACHER_INACTIVE_TEXT = "Преподаватель группы больше не работает в центре. Выберите нового или оставьте группу без преподавателя.";
+export const RESTORE_TEACHER_INACTIVE_TEXT = "Прежний преподаватель группы больше не ведёт уроки. Выберите нового или оставьте группу без преподавателя.";
 export const RESTORE_NO_TEACHER = "Оставить без преподавателя";
 
 export function archiveTitle(groupName: string): string {

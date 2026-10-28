@@ -90,7 +90,7 @@ test("every B2 error code is named in the front (one function words them), nothi
     assert.ok(read("src/lib/substitutions.ts").includes(`"${code}"`), `${code} is worded`);
   }
   // the reused ones the dialogs word
-  for (const code of ["TEACHER_BUSY", "TARGET_NOT_TEACHER", "NOT_LESSON_TEACHER", "GROUP_ARCHIVED", "LESSON_CANCELLED", "LESSON_NOT_FOUND", "LESSON_OUTSIDE_WINDOW", "PAYROLL_LOCKED", "LESSON_HAS_LIVE_EXAM", "EXAM_SERVICE_UNAVAILABLE"]) {
+  for (const code of ["TEACHER_BUSY", "TARGET_NOT_TEACHER", "NOT_LESSON_TEACHER", "GROUP_ARCHIVED", "LESSON_CANCELLED", "LESSON_NOT_FOUND", "LESSON_OUTSIDE_WINDOW", "LESSON_HAS_LIVE_EXAM", "EXAM_SERVICE_UNAVAILABLE"]) {
     assert.ok(read("src/lib/substitutions.ts").includes(`"${code}"`), `${code} is worded`);
   }
 });
@@ -190,9 +190,7 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   assert.equal(S.candidateBusyLine(ordered[ordered.length - 1].busyWith), "Занят: 8-В, 10:00–11:30");
   assert.equal(S.canPickCandidate(ordered[0], list.requesterId), true);
   assert.equal(S.canPickCandidate(ordered[ordered.length - 1], list.requesterId), false);
-  assert.equal(S.roleChip(ordered[1].orgRole), "Администратор");
-  assert.equal(S.roleChip("owner"), "Владелец");
-  assert.equal(S.roleChip("teacher"), null);
+  assert.equal(S.roleChip, undefined, "only teachers are candidates: no role chip any more");
   const decided = fx("b2c1_decide_substitute");
   assert.equal(S.decisionToast(decided), "Замена назначена: Рахимов Т.");
   assert.deepEqual(S.teacherStatusLine(decided.item), { text: "Замена: Рахимов Т.", tone: "green" });
@@ -433,7 +431,7 @@ test("[M3] the decision dialog: the head, the four cards, and the substitute lis
   const item = fx("b2x_list").items[0];
   const html = renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item)));
   const text = textOf(html);
-  for (const phrase of ["Болезнь", "Температура", "Предложил: Рахимов Т.", "Назначить замену", "Перенести урок", "Отменить урок", "Отклонить запрос", "Предложил учитель", "Администратор", "Владелец",
+  for (const phrase of ["Болезнь", "Температура", "Предложил: Рахимов Т.", "Назначить замену", "Перенести урок", "Отменить урок", "Отклонить запрос", "Предложил учитель",
     "Занят: 8-В, 10:00–11:30", "Комментарий (необязательно)", "Заменяющий ничего не подтверждает: договоритесь с ним сами. Урок появится у него в расписании."]) {
     assert.ok(text.includes(phrase), phrase);
   }
@@ -502,7 +500,7 @@ test("[M2] the list: the deadline in minutes, hours, days; urgent under 24 hours
   assert.equal(S.tabLabel("decided", 3), "Решённые");
   assert.equal(S.EMPTY_TEXT, "Запросов на замену нет");
   assert.equal(S.LOAD_ERROR_TEXT, "Не удалось загрузить запросы. Повторите попытку.");
-  assert.equal(S.suggestedLine({ suggestedTeacher: { id: "x", name: "Рахимов Т.", active: false } }), "Предложенный коллега больше не работает в центре");
+  assert.equal(S.suggestedLine({ suggestedTeacher: { id: "x", name: "Рахимов Т.", active: false } }), "Предложенный сотрудник больше не ведёт уроки");
   assert.equal(S.suggestedLine({ suggestedTeacher: null }), null);
   assert.equal(S.listQuery({ status: "pending", urgent: true, search: " 9-А ", groupId: "g1", limit: 50, offset: 100 }), "status=pending&groupId=g1&urgent=true&search=9-%D0%90&limit=50&offset=100");
   assert.equal(S.listQuery({ status: "decided" }), "status=decided&limit=50&offset=0");

@@ -1549,11 +1549,15 @@ export function freshFingerprintOf(error: PayrollErrorLike | null | undefined): 
   return typeof value === "string" && value ? value : null;
 }
 
+/** `RATE_RECEIVER_NOT_TEACHER` (W1 round 2): a rate goes to a teacher, or to somebody who has led lessons. */
+export const RATE_RECEIVER_NOT_TEACHER_TEXT = "Ставку задают только преподавателю. Этот сотрудник не ведёт уроки";
+
 /** 403 and the revision conflict have the owner's own words; every other coded error shows the server's `detail.message`. */
 export function payrollErrorText(error: PayrollErrorLike | null | undefined): string {
   if (!error) return "Не удалось выполнить действие";
   if (error.status === 403) return FORBIDDEN_TEXT;
   if (isRevisionConflict(error)) return REVISION_CONFLICT_TEXT;
+  if (error.code === "RATE_RECEIVER_NOT_TEACHER") return RATE_RECEIVER_NOT_TEACHER_TEXT;
   if (error.status === 404 && !error.code) return "Ведомость не найдена. Возможно, ссылка устарела.";
   return error.message || "Не удалось выполнить действие";
 }

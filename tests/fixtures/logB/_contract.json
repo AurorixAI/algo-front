@@ -6569,11 +6569,6 @@
       "model": "OpsErrorResponse",
       "status": 403
     },
-    "PAYROLL_LOCKED": {
-      "message": "Ведомость за этот месяц уже утверждена: смена преподавателя недоступна",
-      "model": "OpsErrorResponse",
-      "status": 409
-    },
     "STAFF_ROLE_REQUIRED": {
       "message": "Добавлять учеников может администратор центра",
       "model": "OpsErrorResponse",

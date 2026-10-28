@@ -13,10 +13,11 @@ import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldC
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
-import { RemoveMemberDialog, type MemberAction } from "@/components/staff/remove-member-dialog";
+import { ImpactNotes, RemoveMemberDialog, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
-import type { InvitationRow, OrgMemberRow } from "@/lib/ops-b-types";
+import type { InvitationRow, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
+import { ROLE_TO_ADMIN_NOTE } from "@/lib/staff-lifecycle";
 import {
   INVITE_ADMIN_HINT,
   INVITE_AGAIN_LABEL,
@@ -690,9 +691,20 @@ function RoleChangeDialog({
   const [role, setRole] = useState("teacher");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // a teacher who becomes an administrator stops leading lessons: what that takes off (future substitutions, missed lessons) is said before, as a warning - never a block
+  const [impact, setImpact] = useState<RemovalImpact | null>(null);
+  const memberKey = member?.member_id ?? null;
+  const wasTeacher = member?.org_role === "teacher";
   useEffect(() => {
     if (member) { setRole(member.org_role === "admin" ? "teacher" : "admin"); setError(null); }
   }, [member]);
+  useEffect(() => {
+    setImpact(null);
+    if (!memberKey || !wasTeacher) return undefined;
+    let cancelled = false;
+    opsApi.removalImpact(memberKey, "role_change").then((answer) => { if (!cancelled) setImpact(answer); }).catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [memberKey, wasTeacher]);
   if (!member) return null;
   const name = staffDisplayName(member, "Без имени");
   const submit = async () => {
@@ -735,6 +747,8 @@ function RoleChangeDialog({
           className="grid-cols-2 gap-3"
           buttonClassName="rounded-xl border-2 p-3.5 text-sm"
         />
+        {wasTeacher && role === "admin" && <p className="text-xs leading-5 text-slate-600" data-testid="role-to-admin-note">{ROLE_TO_ADMIN_NOTE}</p>}
+        {wasTeacher && role === "admin" && <ImpactNotes impact={impact} />}
         {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
       </div>
     </Modal>

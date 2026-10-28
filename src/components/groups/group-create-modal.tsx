@@ -1,5 +1,6 @@
 "use client";
 
+import { GROUP_TEACHER_LATER_HINT } from "@/lib/staff-lifecycle";
 import { Select } from "@/components/ui/select";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
@@ -179,7 +180,11 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                   buttonClassName="py-2.5 pl-10"
                 />
               </div>
+              {!form.teacher_id && <p data-testid="group-create-teacher-hint" className="mt-1.5 text-xs text-slate-500">{GROUP_TEACHER_LATER_HINT}</p>}
             </div>
+          )}
+          {!selfAssignTeacher && teachers.length === 0 && (
+            <p data-testid="group-create-no-teachers" className="text-xs text-slate-500">В центре пока нет преподавателей — пригласите преподавателя. Группу можно создать сейчас и назначить его позже.</p>
           )}
 
           {/* Teacher */}
@@ -199,7 +204,7 @@ export function GroupCreateModal({ open, teachers, onClose, onCreated, selfAssig
                   id="group-create-uchitel"
                   value={form.teacher_id}
                   onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}
-                  options={[{ value: "", label: "Без преподавателя (Не назначен)" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
+                  options={[{ value: "", label: "Без преподавателя" }, ...teachers.map((t) => ({ value: t.id, label: staffDisplayName(t) }))]}
                   buttonClassName="py-2.5 pl-10"
                 />
               </div>

@@ -144,28 +144,52 @@ export interface StaffTarget {
   id: string;
   name: string;
   role: string;
-  /** «Каримова Дилноза — Администратор»: what the selector shows (the role is named for everybody who is not a teacher) */
+  /** What the selector shows: the name (only teachers are listed, so the role is not named). */
   label: string;
 }
 
+/** Under the card of a group (and in the window that leaves it without one) when nobody leads the group's lessons. */
+export const GROUP_WITHOUT_TEACHER_WARNING = "Без преподавателя уроки не попадут в ведомость, а экзамен провести некому";
+/** `TEACHER_REQUIRED` (422): the card of a group cannot go back to «без преподавателя» (PUT with a null lead). */
+export const GROUP_TEACHER_REQUIRED_TEXT = "Выберите преподавателя";
+
+/** The window «Изменить роль» of a teacher who becomes an administrator. */
+export const ROLE_TO_ADMIN_NOTE = "Администратор не ведёт уроки: его группы нужно передать другим преподавателям, а будущие замены снимутся.";
+/** The create form: «Без преподавателя» is allowed, the hint says it can be fixed later. */
+export const GROUP_TEACHER_LATER_HINT = "Можно назначить позже";
+
+/** Only a teacher leads lessons (W1 round 2, 28.10): the owner and the administrator never do. */
+export function canLead(role: string | null | undefined): boolean {
+  return role === "teacher";
+}
+
 /**
- * Who a group (or a lesson) may be handed to: every active staff member who can teach - teachers, the owner and the administrators -
- * except the one who leaves.  The role is named next to the name of owner and administrators.  By name, teachers first.
+ * Who a group (or a lesson) may be handed to: every active teacher, except the one who leaves.  By name.
+ * The owner and the administrators do not lead lessons, so they are not offered.
  */
 export function handoverTargets(members: OrgMemberRow[], leavingUserId?: string): StaffTarget[] {
-  const rank = (role: string) => (role === "teacher" ? 0 : role === "admin" ? 1 : 2);
   return members
-    .filter((member) => ["teacher", "admin", "owner"].includes(member.org_role) && member.is_active !== false && (member.user_id || member.id) !== leavingUserId)
+    .filter((member) => canLead(member.org_role) && member.is_active !== false && (member.user_id || member.id) !== leavingUserId)
     .map((member) => {
       const name = staffDisplayName(member, member.email);
-      return {
-        id: member.user_id || member.id,
-        name,
-        role: member.org_role,
-        label: member.org_role === "teacher" ? name : `${name} — ${ROLE_LABELS[member.org_role]}`,
-      };
+      return { id: member.user_id || member.id, name, role: member.org_role, label: name };
     })
-    .sort((a, b) => rank(a.role) - rank(b.role) || a.name.localeCompare(b.name, "ru"));
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+}
+
+/**
+ * The options of «Преподаватель группы»: the teachers; a current lead who is not a teacher (an owner or an administrator set before the rule) stays visible as an option that
+ * cannot be chosen («Усманов У. — Владелец, не ведёт уроки»), so the field never says «Не назначен» for a group that has a lead.
+ */
+export function groupTeacherOptions(members: OrgMemberRow[], currentTeacherId: string | null | undefined): Array<{ value: string; label: string; disabled?: boolean }> {
+  const options: Array<{ value: string; label: string; disabled?: boolean }> = handoverTargets(members).map((target) => ({ value: target.id, label: target.label }));
+  if (!currentTeacherId || options.some((option) => option.value === currentTeacherId)) return options;
+  const current = members.find((member) => (member.user_id || member.id) === currentTeacherId);
+  if (!current) return options;
+  const label = canLead(current.org_role)
+    ? `${staffDisplayName(current, current.email)} — сейчас недоступен`
+    : `${staffDisplayName(current, current.email)} — ${ROLE_LABELS[current.org_role] ?? "Сотрудник"}, не ведёт уроки`;
+  return [{ value: currentTeacherId, label, disabled: true }, ...options];
 }
 
 // ── former members ──────────────────────────────────────────────────────────────────────────────

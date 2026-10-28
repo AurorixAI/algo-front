@@ -1,5 +1,6 @@
 "use client";
 
+import { canLead } from "@/lib/staff-lifecycle";
 import { Select } from "@/components/ui/select";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Loader2, UserMinus } from "lucide-react";
@@ -138,7 +139,7 @@ export function RequestDialog({
       .then((rows) => {
         if (cancelled) return;
         setColleagues((Array.isArray(rows) ? rows : [])
-          .filter((member) => member.id !== viewerId)
+          .filter((member) => member.id !== viewerId && canLead(member.role))
           .map((member) => ({ id: String(member.id), name: member.name || "Сотрудник" }))
           .sort((a, b) => a.name.localeCompare(b.name, "ru")));
       })

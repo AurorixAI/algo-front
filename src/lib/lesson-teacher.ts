@@ -57,13 +57,6 @@ export function lacksTeacher(info: LessonTeacherInfo | null | undefined): boolea
   return Boolean(info) && !info?.teacherId;
 }
 
-/** The role of a person in the list of the dialog: «Владелец» / «Администратор» / «Преподаватель» (a person who is also a teacher is told apart from a namesake). */
-export function roleLabel(orgRole: string | null | undefined): string {
-  if (orgRole === "owner") return "Владелец";
-  if (orgRole === "admin") return "Администратор";
-  return "Преподаватель";
-}
-
 /** What the server says about the money of a candidate for ONE lesson (the owner and the administrator both read it; the rates themselves only the owner does). */
 export interface CandidateMoney {
   /** No payroll rate for the type of this group in the month of the lesson. */

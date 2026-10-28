@@ -26,14 +26,10 @@ const F = require(path.join(root, "src/lib/payf.ts"));
 const S = require(path.join(root, "src/lib/substitutions.ts"));
 const API = read("src/lib/api.ts");
 
-test("[2] the dialog «Преподаватель урока»: the role of everybody, the list scrolls inside its box, the reason is always in the window, a missing reason takes the cursor", () => {
-  assert.equal(LT.roleLabel("owner"), "Владелец");
-  assert.equal(LT.roleLabel("admin"), "Администратор");
-  assert.equal(LT.roleLabel("teacher"), "Преподаватель");
-  assert.equal(LT.roleLabel(undefined), "Преподаватель");
+test("[2] the dialog «Преподаватель урока»: only teachers are listed (no role line), the list scrolls inside its box, the reason is always in the window, a missing reason takes the cursor", () => {
   const dialog = read("src/components/groups/lesson-teacher-dialog.tsx");
   assert.match(dialog, /max-h-\[min\(40vh,20rem\)\][^"]*overflow-y-auto/);                                      // the list has its own scroll, the reason stands under it
-  assert.match(dialog, /roleLabel\(candidate\.orgRole\)/);
+  assert.doesNotMatch(dialog, /roleLabel/, "W1 round 2: nobody but a teacher is listed, so no role is named");
   assert.match(dialog, /if \(problem\) \{ reasonRef\.current\?\.focus\(\)/);                                    // «Вернуть преподавателя группы» without a reason says it, not silence
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
@@ -41,7 +37,8 @@ test("[2] the dialog «Преподаватель урока»: the role of ever
   const list = { lessonId: "l", lessonDate: "2026-11-04", startTime: "10:00", endTime: "11:00", currentTeacherId: "t1", defaultTeacherId: "t1",
     candidates: [{ teacherId: "t1", name: "Иванов И.", orgRole: "teacher" }, { teacherId: "t2", name: "Иванов И.", orgRole: "owner" }, { teacherId: "t3", name: "Каримова Н.", orgRole: "admin" }] };
   const html = renderToStaticMarkup(React.createElement(LessonTeacherBody, { list, loadError: null, current: "t1", pick: null, reason: "", reasonProblem: "Укажите причину — не менее 3 символов", busy: false, error: null, onPick() {}, onReason() {}, onRetry() {} }));
-  for (const word of ["Владелец", "Администратор", "Преподаватель", "Укажите причину — не менее 3 символов"]) assert.ok(html.includes(word), word);
+  assert.ok(html.includes("Укажите причину — не менее 3 символов"));
+  assert.equal(LT.roleLabel, undefined);
   assert.match(html, /role="alert"[^>]*>Укажите причину/);
 });
 
@@ -51,7 +48,7 @@ test("[5] the dry run of a day off: the sentence, then the lessons «групп�
   assert.match(dialog, /dayOffSummary\(plan\)/);
   assert.match(dialog, /title="Будут отменены" lessons=\{plan\.cancellable\}/);
   assert.match(dialog, /title="Не будут отменены" lessons=\{plan\.blocked\}/);
-  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 3", lessonId: "l", date: "2026-11-04", startTime: "10:00", endTime: "11:00", reason: null }), "Группа 3 · 04.11 · 10:00–11:00");
+  assert.equal(F.dayOffLessonLine({ groupId: "g", groupName: "Группа 3", lessonId: "l", date: "2026-11-04", startTime: "10:00", endTime: "11:00", reason: null }), "04.11 · 10:00–11:00 · Группа 3");
 });
 
 test("[6] the days off: the live ones first, the cancelled and gone by ones apart", () => {
