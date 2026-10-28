@@ -58,7 +58,8 @@ import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
 import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
-import { lessonsTodayTile, moreTodayText, nextLessonAhead, orderActions, pickNextStep, startsInText, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { formatCountdown, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
+import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -150,17 +151,6 @@ function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary
     topic: action.topic || undefined,
     occurrenceDate: action.lessonDate,
   };
-}
-
-function formatCountdown(seconds: number) {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const restSeconds = safeSeconds % 60;
-  const hours = Math.floor(minutes / 60);
-  const restMinutes = minutes % 60;
-  return hours > 0
-    ? `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`
-    : `${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 }
 
 function formatExamQueueCount(count: number) {
@@ -1279,64 +1269,6 @@ export default function TeacherDashboardPage() {
   const hintLesson = nextStep.kind === "action" ? nextStep.action.lesson : nextStep.kind === "upcoming" ? nextStep.entry.lesson : null;
   const actionHint = hintLesson ? todayPendingHintForLesson(mineRequests, hintLesson, businessDate) : null;
 
-  const cardView = (() => {
-    const examLine = (exam: NonNullable<typeof activeExamForCard>) => `${exam.title}${exam.group_name ? ` · ${exam.group_name}` : ""}`;
-    switch (nextStep.kind) {
-      case "action": {
-        const { action } = nextStep;
-        return {
-          kind: nextStep.kind,
-          tone: action.tone,
-          title: action.cardLabel || action.label,
-          description: action.cardDescription || action.description,
-        };
-      }
-      case "upcoming": {
-        const { entry } = nextStep;
-        return {
-          kind: nextStep.kind,
-          tone: "slate" as const,
-          title: `Дальше: ${entry.lesson.groupName} · ${entry.lesson.startTime}`,
-          description: startsInText(entry.minutesToStart),
-        };
-      }
-      case "exam_active": {
-        const { exam } = nextStep;
-        return {
-          kind: nextStep.kind,
-          tone: "primary" as const,
-          title: exam.delivery_mode === "print" ? "Сейчас проводится печатный экзамен" : "Сейчас проводится экзамен",
-          description: `${examLine(exam)}.${exam.delivery_mode === "print" ? " Проводится на бумаге." : ""} Осталось ${formatCountdown(exam.displayRemainingSeconds)}.`,
-        };
-      }
-      case "exam_attention":
-        return {
-          kind: nextStep.kind,
-          tone: "amber" as const,
-          title: "Нужно решить по экзамену",
-          description: `${examLine(nextStep.exam)}. Занятие прошло, а экзамен не проведён.`,
-        };
-      case "failed":
-        return {
-          kind: nextStep.kind,
-          tone: "slate" as const,
-          title: "Не удалось загрузить",
-          description: "Не получилось проверить уроки на сегодня. Попробуйте ещё раз.",
-        };
-      default:
-        return {
-          kind: nextStep.kind,
-          tone: "emerald" as const,
-          title: "На сегодня всё закрыто",
-          description: "Нет незавершённых уроков или отметок, требующих вашего внимания.",
-        };
-    }
-  })();
-  const moreToday = nextStep.kind === "upcoming" ? moreTodayText(nextStep.more) : null;
-  const laterText = nextStep.kind === "closed" && nextStep.later
-    ? `Следующий: ${formatIsoDateLabel(nextStep.later.date, { weekday: "short", day: "2-digit", month: "2-digit" })}, ${nextStep.later.startTime} · ${nextStep.later.groupName}`
-    : null;
-
   const greeting = businessGreeting(); // Tashkent hour, whatever the browser zone is
   const displayName = staffDisplayName(user, "Преподаватель");
 
@@ -1473,67 +1405,13 @@ export default function TeacherDashboardPage() {
         {/* Left Column (Main content) */}
         <div className="lg:col-span-2 space-y-8">
           {/* One explicit next step prevents the dashboard from becoming a wall of passive figures (rule: `pickNextStep`). */}
-          <div data-testid="next-action-card" data-step={cardView.kind} className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-primary-50/80" />
-            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-start gap-4">
-                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${cardView.tone === "rose" ? "bg-rose-100 text-rose-700" : cardView.tone === "amber" ? "bg-amber-100 text-amber-700" : cardView.tone === "primary" ? "bg-primary-100 text-primary-700" : cardView.tone === "slate" ? "bg-slate-100 text-slate-600" : "bg-emerald-100 text-emerald-700"}`}>
-                  {cardView.kind === "action" || cardView.kind === "exam_attention" ? <ClipboardCheck className="h-6 w-6" />
-                    : cardView.kind === "upcoming" ? <Clock className="h-6 w-6" />
-                    : cardView.kind === "exam_active" ? <Radio className="h-6 w-6" />
-                    : cardView.kind === "failed" ? <AlertCircle className="h-6 w-6" />
-                    : <CheckCircle2 className="h-6 w-6" />}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-slate-500">Ближайшее действие</p>
-                  <h2 data-testid="next-action-title" className="mt-1 text-xl font-bold text-slate-900">{cardView.title}</h2>
-                  <p data-testid="next-action-description" className="mt-1 text-sm leading-6 text-slate-600">{cardView.description}</p>
-                  {actionHint && <p data-testid="today-pending-hint-card" className="mt-1 text-sm font-medium text-amber-800">{actionHint}</p>}
-                  {laterText && <p data-testid="next-lesson-later" className="mt-1 text-sm font-medium text-slate-700">{laterText}</p>}
-                  {moreToday && <Link data-testid="more-today" href="/teacher/schedule" className="mt-1 inline-block text-sm font-semibold text-primary-700 hover:text-primary-800">{moreToday}</Link>}
-                </div>
-              </div>
-              {nextStep.kind === "action" ? (
-                <button
-                  type="button"
-                  onClick={() => openLessonAction(nextStep.action)}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
-                >
-                  Открыть урок <ArrowRight className="h-4 w-4" />
-                </button>
-              ) : nextStep.kind === "upcoming" ? (
-                <button
-                  type="button"
-                  onClick={() => setActiveLesson(nextStep.entry.lesson)}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-slate-800"
-                >
-                  Открыть урок <ArrowRight className="h-4 w-4" />
-                </button>
-              ) : nextStep.kind === "exam_active" || nextStep.kind === "exam_attention" ? (
-                <Link
-                  href={`/teacher/exams/${nextStep.exam.exam_id}`}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-primary-700"
-                >
-                  Открыть экзамен <ArrowRight className="h-4 w-4" />
-                </Link>
-              ) : nextStep.kind === "failed" ? (
-                <button
-                  type="button"
-                  onClick={() => setDashboardRefreshNonce((current) => current + 1)}
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
-                >
-                  Повторить
-                </button>
-              ) : (
-                <Link
-                  href="/teacher/schedule"
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"
-                >
-                  Открыть расписание <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-            </div>
-          </div>
+          <NextActionCard
+            step={nextStep}
+            hint={actionHint}
+            onOpenAction={openLessonAction}
+            onOpenLesson={setActiveLesson}
+            onRetry={() => setDashboardRefreshNonce((current) => current + 1)}
+          />
 
           <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
             <div className="mb-5 flex items-center justify-between gap-4">

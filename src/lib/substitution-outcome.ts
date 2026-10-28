@@ -7,6 +7,7 @@
  * Pure functions: no React and no network, so node:test loads this file directly.
  */
 import type { ChipTone } from "./chip-tone";
+import { formatBusinessDate } from "./business-time";
 import { movedToLabel, reasonLabelOf, shortWhen, startsAtMsOf } from "./substitutions";
 import type { EventActor, MaskedPersonRef, SubstitutionItem, SubstitutionOutcomeCode } from "./substitution-types";
 
@@ -77,7 +78,9 @@ export function outcomeOf(item: Pick<SubstitutionItem, "outcome" | "lesson" | "d
   }
   if (code === "day_off_voided") {
     const starts = startsAtMsOf(item);
-    tone = starts !== null && starts > nowMs ? "warn" : "muted";
+    // without the instant of the start the day decides (a lesson of a later day is still ahead)
+    const ahead = starts !== null ? starts > nowMs : (item.lesson?.date ?? "") > formatBusinessDate(new Date(nowMs));
+    tone = ahead ? "warn" : "muted";
   }
   return { code, text, tone };
 }

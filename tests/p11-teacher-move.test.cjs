@@ -89,7 +89,7 @@ test("one dialog for both: the teacher's page holds the shared sheet through the
   assert.match(page, /<TeacherLessonControls/);
   assert.match(dashboard, /<TeacherLessonControls/, "the dashboard's panel has the same controls");
   assert.doesNotMatch(dashboard, /<RequestControl/);
-  assert.ok(dashboard.split("\n").length <= 2900, "the dashboard did not grow (2853 + the card of #158, which reads one rule)");
+  assert.ok(dashboard.split("\n").length <= 2842 + 11, "the dashboard did not grow");
   assert.match(read("src/components/substitutions/teacher-lesson-controls.tsx"), /<RequestControl[\s\S]*<TeacherMoveControl/);
   assert.doesNotMatch(page, /только на сегодня|canRescheduleToday|rescheduleLessonOccurrence|isReschedulingLesson|rescheduleReason/, "the same-day-only move is gone from the page");
   assert.doesNotMatch(read("src/lib/api.ts"), /rescheduleLessonOccurrence/);

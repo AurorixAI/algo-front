@@ -4,7 +4,6 @@
  * (a line of an unknown event would be a technical word on the screen, LESSONS 1.1 / 46).  An author is «Фамилия И., роль»; the role comes from the KIND of
  * the action, never by default (LESSONS 17).  Pure functions: no React and no network.
  */
-import { CANCELLATION_KINDS } from "./payf";
 import { CLOSED_REASON_TEXT, movedToLabel, reasonLabelOf, suggestedLine } from "./substitutions";
 import { authorLine, eventMoment, type ActionKind, type Audience } from "./substitution-outcome";
 import type { ClosedReasonCode, SubstitutionDetailOut, SubstitutionEvent, SubstitutionItem } from "./substitution-types";
@@ -44,8 +43,9 @@ const CLEARED_WHY: Record<string, string> = {
   schedule_ended: "занятия по расписанию закончились",
 };
 
+/** The kind of a cancellation in a line of the history (the manager only: a student's money; the server does not send it to a teacher). */
 function kindLabel(kind: unknown): string | null {
-  return CANCELLATION_KINDS.find((entry) => entry.key === kind)?.label.toLowerCase() ?? null;
+  return kind === "centre" ? "по вине центра" : kind === "holiday" ? "праздник" : null;
 }
 
 function text(value: unknown): string {

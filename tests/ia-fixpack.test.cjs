@@ -519,11 +519,14 @@ test("F27: the owner's dashboard - KPI cards are links (students, staff), the de
   assert.doesNotMatch(page, /["'`]\/admin\//);
 });
 
-test("F31: a substitution row leads to the group, to its lesson in the journal and (owner) to the teacher's rate", () => {
+test("F31 (#157): a substitution row leads to its lesson in the journal (ONE link); the group and (owner) the teacher's rate are in the panel «Подробнее»", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /groupHref\(bases\.groups, item\.group\.id\)/);
   assert.match(page, /journalHref\(bases\.groups, \{ groupId: item\.group\.id, lessonDate: item\.lesson\.date, lessonId: item\.lesson\.lessonId \}\)/);
-  assert.match(page, /role === "owner" && item\.teacher\.id \?/);
+  assert.match(page, /<LessonCell item=\{item\} href=\{lessonHref\} \/>/);
+  const panel = read("src/components/substitutions/substitution-panel.tsx");
+  assert.match(panel, /groupHref\(bases\.groups, item\.group\.id\)/);
+  assert.match(panel, /workspace === "owner" && item\.teacher\.id/);
+  assert.match(panel, /teacherHref\(item\.teacher\.id\)/);
   assert.equal(OL.journalHref("/owner/groups", { groupId: "g1", lessonDate: "2026-10-22", lessonId: "l1" }), "/owner/groups/g1?tab=attendance&month=2026-10&lesson=l1&date=2026-10-22");
 });
 

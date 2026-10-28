@@ -202,3 +202,15 @@ export function nextLessonAhead<L extends AgendaLessonLike & { occurrenceDate: s
   candidates.sort((a, b) => `${a.lesson.occurrenceDate}T${a.lesson.startTime}`.localeCompare(`${b.lesson.occurrenceDate}T${b.lesson.startTime}`));
   return candidates[0] ?? null;
 }
+
+/** «05:30» / «01:05:30»: the time left of an exam. */
+export function formatCountdown(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const restSeconds = safeSeconds % 60;
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+  return hours > 0
+    ? `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`
+    : `${String(restMinutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+}

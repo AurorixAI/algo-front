@@ -168,7 +168,8 @@ test("#158: the page reads the day through teacher-agenda (card, tiles, focus), 
   assert.match(page, /pickNextStep\(/);
   assert.match(page, /todayAgenda\(/);
   assert.match(page, /nextLessonAhead\(/);
-  assert.match(page, /"Не удалось загрузить"/);
+  assert.match(page, /<NextActionCard/);
+  assert.match(read("src/components/teacher/next-action-card.tsx"), /"Не удалось загрузить"/);
   assert.doesNotMatch(page, /value: todayLessons\.length/, "«Уроков сегодня» is not the raw number of occurrences any more");
   assert.doesNotMatch(page, /primaryLessonAction = lessonActions\[0\]/);
 });
@@ -187,6 +188,35 @@ test("#158: «Требуют действия» is the list of the card and of t
   assert.match(page, /action\.actionType \? openLessonBadge\(action\.actionType\) : "Пора начать"/);
   assert.doesNotMatch(page, /: "Идёт сейчас"\}/, "a lesson whose time has come but which is not started is «Пора начать»");
   assert.match(page, /data-testid="group-focus-live"/);
+});
+
+test("#158: the card says each step in plain words (render of the component)", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const C = require(path.join(root, "src/components/teacher/next-action-card.tsx"));
+  const textOf = (html) => html.replace(/<[^>]+>/g, "|").replace(/\|+/g, "|");
+  const card = (step, hint = null) => renderToStaticMarkup(React.createElement(C.NextActionCard, { step, hint, onOpenAction() {}, onOpenLesson() {}, onRetry() {} }));
+  const day = agendaOf([lesson("near", "15:00", "15:45"), lesson("mid", "16:30", "17:15")], {}, "14:20");
+  const upcoming = card(step({ agenda: day }), "Пока нет решения — урок проводите вы");
+  assert.match(upcoming, /data-step="upcoming"/);
+  assert.match(textOf(upcoming), /Дальше: Группа near · 15:00/);
+  assert.match(textOf(upcoming), /Пока нет решения — урок проводите вы/);
+  assert.match(textOf(upcoming).replace(/\u00a0/g, " "), /через 40 мин/);
+  assert.match(textOf(upcoming), /и ещё 1 сегодня/);
+  assert.match(textOf(upcoming), /Открыть урок/);
+  assert.match(upcoming, /bg-slate-100 text-slate-600/, "calm: the neutral tone of the icon, not a warning");
+  assert.doesNotMatch(card(step({ agenda: day })), /amber|rose/, "without a hint nothing in the card is a warning");
+  const closed = card(step({ later: { date: "2026-10-29", startTime: "14:00", groupName: "Группа 1" } }));
+  assert.match(textOf(closed), /На сегодня всё закрыто\|.*Следующий: чт, 29\.10, 14:00 · Группа 1/);
+  const failed = card(step({ loadFailed: true }));
+  assert.match(textOf(failed), /Не удалось загрузить/);
+  assert.doesNotMatch(textOf(failed), /всё закрыто/);
+  assert.match(textOf(failed), /Повторить/);
+  const exam = card(step({ activeExam: { exam_id: "e1", title: "Контрольная", group_name: "9-А", delivery_mode: "online", displayRemainingSeconds: 330 } }));
+  assert.match(textOf(exam), /Сейчас проводится экзамен\|Контрольная · 9-А\. Осталось 05:30\./);
+  const attention = card(step({ attentionExam: { exam_id: "e2", title: "Контрольная", group_name: "9-А", displayRemainingSeconds: 0 } }));
+  assert.match(textOf(attention), /Нужно решить по экзамену/);
+  for (const html of [upcoming, closed, failed, exam, attention]) assert.doesNotMatch(textOf(html), /\(а\)/);
 });
 
 test("#158: texts of the panel: plain Russian, no «(а)»", () => {

@@ -41,9 +41,11 @@ test("every other action opens the lesson panel", () => {
 
 test("the dashboard card and the action centre both go through openLessonAction", () => {
   const page = read("app/teacher/dashboard/page.tsx");
-  assert.match(page, /onClick=\{\(\) => openLessonAction\(primaryLessonAction\)\}/);
+  assert.match(page, /onOpenAction=\{openLessonAction\}/, "#158: the card is a component, the page hands it openLessonAction");
+  assert.match(read("components/teacher/next-action-card.tsx"), /onClick=\{\(\) => onOpenAction\(step\.action\)\}/);
   assert.match(page, /setIsActionCenterOpen\(false\);\s*openLessonAction\(action\);/);
   assert.doesNotMatch(page, /setActiveLesson\(primaryLessonAction/);
+  assert.match(page, /onOpenLesson=\{setActiveLesson\}/, "#158: «Дальше: …» opens the same panel");
   // the reconciliation dialog is opened from the helper only (plus the panel's own button, via the helper)
   const opens = page.match(/setMissedLessonAction\((?!null)/g) || [];
   assert.equal(opens.length, 1, "one place opens the reconciliation dialog");
