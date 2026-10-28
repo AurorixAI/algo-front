@@ -89,6 +89,29 @@ export function lessonHasEnded(input: { date: string; today: string; endTime?: s
   return end !== null && end.getTime() + 60_000 <= (input.now ?? new Date()).getTime();
 }
 
+/** Under «Ждёт решения» of a request for a lesson of TODAY that is not over: nobody has decided yet, so the teacher leads it. */
+export const TODAY_PENDING_HINT = "Пока нет решения — урок проводите вы";
+
+/** The hint for a waiting request of a lesson that is today and not yet over (business time; the same `lessonHasEnded` as «Урока не было»); null otherwise. */
+export function todayPendingHint(item: { status: string; lesson: { date: string; endTime?: string | null } }, today: string, now?: Date): string | null {
+  if (item.status !== "pending" || item.lesson.date !== today) return null;
+  return lessonHasEnded({ date: item.lesson.date, today, endTime: item.lesson.endTime, now }) ? null : TODAY_PENDING_HINT;
+}
+
+/**
+ * The same hint for the card «Ближайшее действие»: when the lesson of the card is THE lesson of a waiting request of this teacher (same group, lesson and date) that is today and not over.
+ */
+export function todayPendingHintForLesson(
+  requests: ReadonlyArray<{ status: string; group: { id: string }; lesson: { lessonId: string; date: string; endTime?: string | null } }>,
+  lesson: { id: string; groupId: string; occurrenceDate?: string | null },
+  today: string,
+  now?: Date,
+): string | null {
+  const day = lesson.occurrenceDate || today;
+  const found = requests.find((request) => request.status === "pending" && request.group.id === lesson.groupId && request.lesson.lessonId === lesson.id && request.lesson.date === day);
+  return found ? todayPendingHint(found, today, now) : null;
+}
+
 /** The actions of the lesson sheet by situation; [] for a card that is information only (cancelled, archived group, not a manager). */
 export function scheduleCardActions(input: ScheduleCardInput): ScheduleCardAction[] {
   const base = lessonActions(input);

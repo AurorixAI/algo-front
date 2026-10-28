@@ -55,7 +55,7 @@ import { collectExcuseReasons, firstMissingExcuseReason } from "@/lib/attendance
 import { LessonPanelError } from "@/components/attendance/lesson-panel-error";
 import { LessonCancelPanel, type LessonCancelBinding } from "@/components/substitutions/lesson-cancel-panel";
 import { cancelReasonProblem, sendTeacherCancel } from "@/lib/teacher-cancel";
-import { isOwnOneOff, teacherCancelOffer, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
+import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type TeacherCancelOffer } from "@/lib/schedule-card-actions";
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import { useRouter } from "next/navigation";
@@ -70,7 +70,7 @@ import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_S
 import { lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
-import type { MovedFrom, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
+import type { MovedFrom, SubstitutionItem, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { LessonActionsMenu, TeacherLessonControls, teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
@@ -1201,6 +1201,9 @@ export default function TeacherDashboardPage() {
   }, [liveExams, liveExamSnapshotAt, liveExamTick]);
 
   const primaryLessonAction = lessonActions[0] || null;
+  // the lesson of the card is the lesson of a waiting request «Не смогу провести» of today: nobody has decided yet, so the teacher leads it
+  const [mineRequests, setMineRequests] = useState<SubstitutionItem[]>([]);
+  const actionHint = primaryLessonAction ? todayPendingHintForLesson(mineRequests, primaryLessonAction.lesson, businessDate) : null;
   // A lobby is preparation, not an ongoing exam. It must not displace a
   // lesson in the teacher's main "next action" card. Once its assigned
   // lesson is in the past, the lobby is no longer usable for participants:
@@ -1397,13 +1400,6 @@ export default function TeacherDashboardPage() {
         ))}
       </div>
 
-      {/* LOGIC-B2: my requests «Не смогу провести» and the lessons I take over */}
-      {canAskForSubstitute && <TeacherRequestsBlock
-        refreshKey={dashboardRefreshNonce}
-        onNewRequest={() => setNewRequestOpen(true)}
-        onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
-      />}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
         {/* Left Column (Main content) */}
@@ -1430,6 +1426,7 @@ export default function TeacherDashboardPage() {
                       ? `${activeExamAction.title}${activeExamAction.group_name ? ` · ${activeExamAction.group_name}` : ""}.${activeExamAction.delivery_mode === "print" ? " Проводится на бумаге." : ""} Осталось ${formatCountdown(activeExamAction.displayRemainingSeconds)}.`
                       : "Нет незавершённых уроков или отметок, требующих вашего внимания.")}
                   </p>
+                  {actionHint && <p data-testid="today-pending-hint-card" className="mt-1 text-sm font-medium text-amber-800">{actionHint}</p>}
                 </div>
               </div>
               {primaryLessonAction ? (
@@ -1510,6 +1507,14 @@ export default function TeacherDashboardPage() {
               </div>
             )}
           </div>
+
+          {/* LOGIC-B2: my requests «Не смогу провести» and the lessons I take over - under «Группы в фокусе» (owner 28.10) */}
+          {canAskForSubstitute && <TeacherRequestsBlock
+            refreshKey={dashboardRefreshNonce}
+            onNewRequest={() => setNewRequestOpen(true)}
+            onChanged={() => setDashboardRefreshNonce((current) => current + 1)}
+            onData={(data) => setMineRequests(data.items ?? [])}
+          />}
         </div>
 
         {/* Right Column (Live Schedule Widget) */}

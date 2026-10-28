@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarOff, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { formatBusinessDate } from "@/lib/business-time";
-import { NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptLessonsForList, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
+import { NOT_RESTORED_TITLE, VOID_EXAMS_NOTE, dayOffLessonLine, dayOffLine, dayOffNotRestoredLine, dayOffSpan, keptBlock, lessonsCount, sortDayOffLessons, splitDaysOff, voidSummary, type DayOffApplied, type DayOffOut, type DayOffVoided } from "@/lib/payf";
 import { Modal } from "@/components/ui/modal";
 import { DAY_OFF_TITLE, DayOffDialog, DayOffLessonList } from "./day-off-dialog";
 
@@ -19,11 +19,12 @@ function notRestoredLines(result: Pick<DayOffVoided, "restored" | "warnings">): 
 
 /** What «Отменить выходной» would do, in words: the sum, the lessons that come back, the ones that stay, the substitutes that do not return, the note about exams (only when something comes back). */
 export function VoidPlanBody({ plan }: { plan: DayOffVoided }) {
+  const kept = keptBlock(plan.kept);
   return (
     <>
       <p className="text-sm font-medium text-slate-900" data-testid="day-off-void-text">{voidSummary(plan)}</p>
       <DayOffLessonList title="Вернутся в расписание" lessons={plan.restored} tone="ok" testId="day-off-restored" />
-      <DayOffLessonList title="Останутся отменёнными" lessons={keptLessonsForList(plan.kept)} tone="warn" testId="day-off-kept" />
+      <DayOffLessonList title={kept.title} lessons={kept.lessons} tone="warn" testId="day-off-kept" />
       {(plan.warnings ?? []).length > 0 && (
         <div data-testid="day-off-not-restored" className="space-y-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           <p className="font-semibold">{NOT_RESTORED_TITLE}</p>

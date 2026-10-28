@@ -286,13 +286,27 @@ const KEPT_REASONS: ReadonlyArray<{ test: RegExp; one: string; many: string }> =
 ];
 
 /** The server's reason of a lesson that stays cancelled, put shortly; `null` when it adds nothing to the title «Останутся отменёнными». */
-export function keptReasonShort(reason: string | null | undefined): string | null {
+export function keptReasonShort(reason: string | null | undefined, plural = false): string | null {
   const text = (reason ?? "").trim();
   if (!text) return null;
   const known = KEPT_REASONS.find((entry) => entry.test.test(text));
-  if (known) return known.one;
+  if (known) return plural ? known.many : known.one;
   const rest = text.replace(/[:—–-]?\s*остаётся отменённым\.?$/i, "").replace(/\.$/, "").trim();
   return !rest || /^(остаётся|остается|отменён|отменен)/i.test(rest) ? null : rest;
+}
+
+export const KEPT_TITLE = "Останутся отменёнными";
+
+/**
+ * The block «Останутся отменёнными»: when EVERY lesson has the same short reason it moves into the title («Останутся отменёнными — отменены вручную») and the lines have no suffix;
+ * different reasons stay on their lines.
+ */
+export function keptBlock(kept: readonly DayOffLesson[]): { title: string; lessons: DayOffLesson[] } {
+  const lessons = keptLessonsForList(kept);
+  const reasons = new Set(lessons.map((lesson) => lesson.reason));
+  const common = lessons.length > 0 && reasons.size === 1 ? keptReasonShort(kept[0].reason, true) : null;
+  if (!common) return { title: KEPT_TITLE, lessons };
+  return { title: `${KEPT_TITLE} — ${common}`, lessons: lessons.map((lesson) => ({ ...lesson, reason: null })) };
 }
 
 /** The lessons of «Останутся отменёнными» with the reason put shortly (and dropped when it only repeats the title). */

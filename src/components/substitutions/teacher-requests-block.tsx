@@ -20,7 +20,8 @@ import {
   teacherStatusLine,
 } from "@/lib/substitutions";
 import type { AssignedToMe, ClearedForMe, MineOut } from "@/lib/substitution-types";
-import { businessWallTimeToInstant } from "@/lib/business-time";
+import { businessWallTimeToInstant, formatBusinessDate } from "@/lib/business-time";
+import { todayPendingHint } from "@/lib/schedule-card-actions";
 import { useNow } from "@/lib/use-now";
 
 /**
@@ -32,23 +33,28 @@ export function TeacherRequestsBlock({
   refreshKey,
   onNewRequest,
   onChanged,
+  onData,
 }: {
   /** Bumped by the page whenever it reloads its own data. */
   refreshKey: number;
   onNewRequest: () => void;
   onChanged?: () => void;
+  /** Every read of the requests (the dashboard's card «Ближайшее действие» tells the same «Пока нет решения»). */
+  onData?: (data: MineOut) => void;
 }) {
   const [data, setData] = useState<MineOut | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const token = useRef(0);
+  const onDataRef = useRef(onData);
+  onDataRef.current = onData;
   const sending = useRef(false);        // a second press in the same tick sees the state of the first one (rule 27)
 
   const load = useCallback(async () => {
     const mine = ++token.current;
     try {
       const out = await substitutionsApi.mine("all");
-      if (mine === token.current) setData(out);
+      if (mine === token.current) { setData(out); onDataRef.current?.(out); }
     } catch {
       // a quiet block: the dashboard has its own error banner; the last read stays
     }
@@ -82,7 +88,7 @@ export function TeacherRequestsBlock({
   if (items.length === 0 && assigned.length === 0 && cleared.length === 0) return null;
 
   return (
-    <section aria-label={MY_REQUESTS_TITLE} className={`grid gap-5 ${items.length > 0 && assigned.length > 0 ? "lg:grid-cols-2" : ""}`}>
+    <section aria-label={MY_REQUESTS_TITLE} className="grid gap-5"        /* in the left column of the dashboard (under «Группы в фокусе»): one under the other */>
       {items.length > 0 && (
         <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-xs sm:p-6">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -95,11 +101,13 @@ export function TeacherRequestsBlock({
           <ul className="divide-y divide-slate-100">
             {items.map((item) => {
               const status = teacherStatusLine(item);
+              const hint = todayPendingHint(item, formatBusinessDate(new Date(now)), new Date(now));
               return (
                 <li key={item.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 py-2.5 first:pt-0 last:pb-0">
                   <span className="min-w-0 text-sm font-medium text-slate-800">{itemLessonLine(item)}</span>
-                  <span className="flex min-w-0 items-center gap-2">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <span className={`max-w-full break-words rounded-md border px-2 py-0.5 text-xs font-semibold ${STATUS_TONE_CLASS[status.tone]}`}>{status.text}</span>
+                    {hint && <span data-testid="today-pending-hint" className="text-xs font-medium text-amber-800">{hint}</span>}
                     {item.status === "pending" && (
                       <button
                         type="button"

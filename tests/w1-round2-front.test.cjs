@@ -96,7 +96,7 @@ test("#155 (2): the reason in «Останутся отменёнными» is s
   assert.equal(F.keptReasonShort("Нужно проверить"), "Нужно проверить");
   const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
   const html = text(renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored: [lesson(1)], kept: [{ ...lesson(2), reason: "Урок сегодня уже начался: остаётся отменённым" }], warnings: [] } })));
-  assert.match(html, /Останутся отменёнными 28\.10 · 10:00–10:45 · Группа 2 — уже начался/);
+  assert.match(html, /Останутся отменёнными — уже начались 28\.10 · 10:00–10:45 · Группа 2(?! —)/, "one reason for all: it is in the title, the line has no suffix");
 });
 
 test("#155 (4): the substitutes that do not return: the block's title says it once, the line is built from the fields (not the server's message)", () => {
@@ -319,4 +319,72 @@ test("R3 7: the note about groups only while he has groups; the substitutes are 
 test("R3 9: the types follow the server: `clearedTrigger` names role_changed, the unused `canChangeRole` is gone", () => {
   assert.match(read("src/lib/substitution-types.ts"), /clearedTrigger\?: [^;]*"role_changed"/);
   assert.doesNotMatch(read("src/lib/ops-b-types.ts"), /canChangeRole/);
+});
+
+test("R4 1: one and the same short reason of all kept lessons goes into the title; different reasons stay on their lines", () => {
+  const kept = (n, reason) => lesson(n, { reason });
+  const same = F.keptBlock([kept(1, "Ручная отмена: вид «по вине центра» возвращён"), kept(2, "Ручная отмена: вид «по вине центра» возвращён")]);
+  assert.equal(same.title, "Останутся отменёнными — отменены вручную");
+  assert.deepEqual(same.lessons.map((item) => item.reason), [null, null]);
+  assert.equal(F.keptBlock([kept(1, "Урок сегодня уже начался: остаётся отменённым")]).title, "Останутся отменёнными — уже начались");
+  const mixed = F.keptBlock([kept(1, "Урок сегодня уже начался: остаётся отменённым"), kept(2, "Урок изменён после выходного")]);
+  assert.equal(mixed.title, "Останутся отменёнными");
+  assert.deepEqual(mixed.lessons.map((item) => item.reason), ["уже начался", "изменён после выходного"]);
+  assert.equal(F.keptBlock([kept(1, "Остаётся отменённым")]).title, "Останутся отменёнными", "a reason that only repeats the title adds nothing");
+  assert.equal(F.keptBlock([]).title, "Останутся отменёнными");
+  const { VoidPlanBody } = require(path.join(root, "src/components/schedule/days-off-panel.tsx"));
+  const html = text(renderToStaticMarkup(React.createElement(VoidPlanBody, { plan: { restored: [], kept: [kept(1, "Урок изменён после выходного"), kept(2, "Урок изменён после выходного")], warnings: [] } })));
+  assert.match(html, /Останутся отменёнными — изменены после выходного 28\.10 · 10:00–10:45 · Группа 1 28\.10 · 10:00–10:45 · Группа 2/);
+});
+
+test("R4 2: a waiting request for a lesson TODAY that is not over says «Пока нет решения — урок проводите вы»; no other request does", () => {
+  const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const { TeacherRequestsBlock } = require(path.join(root, "src/components/substitutions/teacher-requests-block.tsx"));
+  assert.equal(A.TODAY_PENDING_HINT, "Пока нет решения — урок проводите вы");
+  const item = (over = {}, lessonOver = {}) => ({ status: "pending", lesson: { date: "2026-10-28", startTime: "10:00", endTime: "11:00", ...lessonOver }, ...over });
+  const at = (hhmm) => new Date(`2026-10-28T${hhmm}:00+05:00`);          // business time (Tashkent)
+  assert.equal(A.todayPendingHint(item(), "2026-10-28", at("09:00")), A.TODAY_PENDING_HINT);
+  assert.equal(A.todayPendingHint(item(), "2026-10-28", at("10:30")), A.TODAY_PENDING_HINT, "the lesson has begun, not ended");
+  assert.equal(A.todayPendingHint(item(), "2026-10-28", at("11:00")), A.TODAY_PENDING_HINT, "the minute of the end is still not over");
+  assert.equal(A.todayPendingHint(item(), "2026-10-28", at("11:01")), null, "over");
+  assert.equal(A.todayPendingHint(item({}, { date: "2026-10-29" }), "2026-10-28", at("09:00")), null, "tomorrow");
+  assert.equal(A.todayPendingHint(item({}, { date: "2026-10-27" }), "2026-10-28", at("09:00")), null, "yesterday");
+  for (const status of ["substituted", "cancelled", "rejected", "withdrawn", "closed", "rescheduled"]) assert.equal(A.todayPendingHint(item({ status }), "2026-10-28", at("09:00")), null, status);
+  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /todayPendingHint\(item, formatBusinessDate\(new Date\(now\)\), new Date\(now\)\)/);
+  assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /data-testid="today-pending-hint"/);
+  assert.equal(typeof TeacherRequestsBlock, "function");
+});
+
+test("R4 3: the name of the substitute in «была замена» is taken as the server sends it («Имя Ф.»): nothing is reordered", () => {
+  const restored = [lesson(1)];
+  for (const name of ["Иван И.", "Иванов И.", "Ким А.", "  Ким А. "]) {
+    const line = F.dayOffNotRestoredLine({ code: "SUBSTITUTE_NOT_RESTORED", message: "m", groupId: "g1", lessonId: "l1", date: "2026-10-28", substituteName: name }, restored);
+    assert.ok(line.endsWith(`была замена: ${name.trim()}`), line);
+  }
+});
+
+test("R4 (owner 28.10): on the teacher's dashboard «Запросы на замену» stand under «Группы в фокусе»; the card «Ближайшее действие» tells «Пока нет решения» for the lesson of a waiting request", () => {
+  const page = read("src/app/teacher/dashboard/page.tsx");
+  const at = (needle) => { const i = page.indexOf(needle); assert.ok(i > 0, needle); return i; };
+  const tiles = at("{statCards.map");
+  assert.ok(tiles < at(">Ближайшее действие<"), "the tiles stay first");
+  const action = at(">Ближайшее действие<");
+  const focus = at("Группы в фокусе");
+  const requests = at("<TeacherRequestsBlock");
+  const right = at("Right Column (Live Schedule Widget)");
+  assert.ok(action < focus && focus < requests && requests < right, "card, focus, requests - all in the left column, before the right one");
+  assert.equal((page.match(/<TeacherRequestsBlock/g) || []).length, 1);
+  assert.match(page, /onData=\{\(data\) => setMineRequests\(data\.items \?\? \[\]\)\}/);
+  assert.match(page, /data-testid="today-pending-hint-card"/);
+  const A = require(path.join(root, "src/lib/schedule-card-actions.ts"));
+  const request = (over = {}) => ({ status: "pending", group: { id: "g1" }, lesson: { lessonId: "l1", date: "2026-10-28", endTime: "23:00", ...(over.lesson || {}) }, ...over });
+  const lessonOf = (over = {}) => ({ id: "l1", groupId: "g1", occurrenceDate: "2026-10-28", ...over });
+  const now = new Date("2026-10-28T09:00:00+05:00");
+  assert.equal(A.todayPendingHintForLesson([request()], lessonOf(), "2026-10-28", now), A.TODAY_PENDING_HINT);
+  assert.equal(A.todayPendingHintForLesson([request()], lessonOf({ occurrenceDate: null }), "2026-10-28", now), A.TODAY_PENDING_HINT, "a lesson without a date is today's");
+  assert.equal(A.todayPendingHintForLesson([request()], lessonOf({ id: "l2" }), "2026-10-28", now), null, "another lesson");
+  assert.equal(A.todayPendingHintForLesson([request()], lessonOf({ groupId: "g2" }), "2026-10-28", now), null, "another group");
+  assert.equal(A.todayPendingHintForLesson([request({ status: "substituted" })], lessonOf(), "2026-10-28", now), null, "decided");
+  assert.equal(A.todayPendingHintForLesson([], lessonOf(), "2026-10-28", now), null);
+  assert.equal(A.todayPendingHintForLesson([request()], lessonOf(), "2026-10-28", new Date("2026-10-28T23:30:00+05:00")), null, "over");
 });
