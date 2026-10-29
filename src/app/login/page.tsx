@@ -11,7 +11,6 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
 import { postLoginTarget } from "@/lib/safe-redirect";
 import { Checkbox } from "@/components/ui/checkbox";
-import { demoRequestUrl } from "@/lib/site-url";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -21,9 +20,9 @@ const ROLE_OPTIONS = [
 
 // ONE text for "no such account", "wrong password", "account switched off" (the server answers all three alike)
 // and "this account has another role": the page must not tell which of them it was.
-// «Нет доступа? Запросить демо»: the request form is on the landing, SITE_URL/#demo (K3 P2).  The address is the build
-// variable (a stage build points to the stage landing); empty = this origin.
-const DEMO_REQUEST_URL = demoRequestUrl(process.env.NEXT_PUBLIC_SITE_URL);
+// «Нет доступа? Запросить демо»: the request form is on the landing.  The link is the relative `/request-demo` of this origin:
+// the middleware sends it to the landing, whose address is the RUNTIME variable SITE_URL (one front image on prod and stage, K3 P2).
+const DEMO_REQUEST_URL = "/request-demo";
 
 const INVALID_CREDENTIALS_MESSAGE = "Неверная почта или пароль";
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loginReturnTarget } from "./lib/safe-redirect";
-import { demoRequestUrl, isLegacyDemoPath } from "./lib/site-url";
+import { DEMO_CONTACT_PATH, isLegacyDemoPath, legacyDemoAnswer } from "./lib/site-url";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -17,6 +17,7 @@ import { demoRequestUrl, isLegacyDemoPath } from "./lib/site-url";
 const PUBLIC_PATHS = [
   "/",
   "/login",
+  DEMO_CONTACT_PATH, // «Заявка на демо: напишите нам» (the answer of the old demo addresses when there is no landing to go to)
   "/activate", // the activation link of an e-mail opens for a signed-out user
   "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
@@ -55,11 +56,13 @@ export function middleware(request: NextRequest) {
   }
 
   // The old demo form and the closed registration lived here; the form is on the landing now (K3 P2).  A temporary
-  // redirect for the time of the move (the old links of letters, ads and the old landing keep working, no 404); the
-  // campaign tags (utm_*, ref) travel with it, nothing else.  The address is the build variable, never a literal.
+  // redirect for the time of the move (old links of letters, ads and the old landing keep working, no 404); the campaign
+  // tags (utm_*, ref) travel with it, nothing else.  The address is the RUNTIME variable SITE_URL (one image on any domain).
+  // No landing to go to (empty, or the same host: a redirect to itself is a loop) -> the plain page «напишите нам».
   if (isLegacyDemoPath(pathname)) {
-    // absolute (the middleware refuses a relative address); an empty variable gives «/#demo», i.e. this origin
-    return NextResponse.redirect(new URL(demoRequestUrl(process.env.NEXT_PUBLIC_SITE_URL, request.nextUrl.search), request.url), 302);
+    const answer = legacyDemoAnswer(process.env.SITE_URL, request.headers.get("host") ?? request.nextUrl.host, request.nextUrl.search);
+    if (answer.kind === "redirect") return NextResponse.redirect(answer.url, 302);
+    return NextResponse.rewrite(new URL(DEMO_CONTACT_PATH, request.url));
   }
 
   // Public paths — allow always

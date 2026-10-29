@@ -1,7 +1,8 @@
 // K3 P1-P3 (front): ONE image on any domain, the demo form moved to the landing, the product closed to search engines.
 //   P1  an empty NEXT_PUBLIC_*_API_URL is the site the page was opened from (not localhost), SSR keeps the old fallback
 //   P2  /request-demo, /register, onboarding form deleted; the phone mask and the validation live in a portable module;
-//       «Запросить демо» and the old addresses lead to SITE_URL/#demo (a build variable, empty = this origin)
+//       «Запросить демо» is the relative /request-demo; the middleware sends it (and /register) to SITE_URL/#demo, a RUNTIME
+//       variable (one image on prod and stage); no SITE_URL / the same host -> a plain page «напишите нам», no loop
 //   P3  robots.txt of the product «Disallow: /», noindex on /d/ /diagnostic/ /e/ /invite/ /set-password/
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -117,9 +118,11 @@ test("P1: no place of src still turns an empty address into localhost (api.ts, o
   // the content address is server-side only (figures proxy, SSR): it never reaches a browser as an API base, so it keeps its rule
   const others = walk("src").filter((f) => /localhost/.test(stripComments(read(f))));
   assert.deepEqual(others.sort(), ["src/app/api/v1/figures/[...path]/route.ts", "src/lib/api.ts", "src/lib/figures.ts", "src/lib/onboarding-api.ts"].sort());
-  // the image receives no API address: the Dockerfile defaults are empty, and the site address is a build argument
+  // the image receives no address of anything: the API defaults are empty and the site address is NOT a build variable
   const docker = read("Dockerfile");
-  for (const name of ["AUTH_API_URL", "EXAM_API_URL", "DIAG_API_URL", "SITE_URL"]) assert.match(docker, new RegExp(`ARG NEXT_PUBLIC_${name}=""`), name);
+  for (const name of ["AUTH_API_URL", "EXAM_API_URL", "DIAG_API_URL"]) assert.match(docker, new RegExp(`ARG NEXT_PUBLIC_${name}=""`), name);
+  assert.doesNotMatch(docker, /^\s*(ARG|ENV)\s+\w*(SITE_URL|SUPPORT_EMAIL)/m, "no build-time address of the site");
+  for (const file of [...walk("src"), "e2e/tests/console-k1.spec.ts"]) assert.doesNotMatch(read(file), /NEXT_PUBLIC_SITE_URL|NEXT_PUBLIC_SUPPORT/, `${file}: the address of the site is a runtime variable`);
 });
 
 // ---- P2: the demo form is gone, its logic is portable -----------------------------------------------------------
@@ -177,53 +180,46 @@ test("P2: the failure of the server is read by shape, not by class: the landing'
   assert.equal(classifyDemoFailure(null).kind, "server");
 });
 
-test("P2: «Запросить демо» is SITE_URL/#demo; an empty variable is the same origin", () => {
-  const { demoRequestUrl, siteBase } = load("src/lib/site-url.ts");
-  assert.equal(demoRequestUrl("https://algolab.me"), "https://algolab.me/#demo");
-  assert.equal(demoRequestUrl("https://algolab.me/"), "https://algolab.me/#demo", "no double slash");
-  assert.equal(demoRequestUrl("https://landing.stage.algolab.me"), "https://landing.stage.algolab.me/#demo");
-  for (const empty of ["", undefined, null, "  "]) assert.equal(demoRequestUrl(empty), "/#demo", JSON.stringify(empty));
-  assert.equal(siteBase(undefined), "");
+test("P2: what an old demo address answers: a redirect to SITE_URL/#demo, or the plain page when there is no other host", () => {
+  const { legacyDemoAnswer, isLegacyDemoPath, siteOrigin } = load("src/lib/site-url.ts");
+  const to = (site, host, search) => legacyDemoAnswer(site, host, search);
+  assert.deepEqual(to("https://algolab.me", "app.algolab.me"), { kind: "redirect", url: "https://algolab.me/#demo" });
+  assert.deepEqual(to("https://algolab.me/", "app.algolab.me"), { kind: "redirect", url: "https://algolab.me/#demo" }, "no double slash");
+  assert.deepEqual(to("https://landing.stage.algolab.me", "stage.algolab.me"), { kind: "redirect", url: "https://landing.stage.algolab.me/#demo" });
   // the campaign tags of an old link travel in front of the hash, nothing else does
-  assert.equal(demoRequestUrl("https://algolab.me", "?utm_source=ig&utm_campaign=x&token=secret&email=a@b.c"), "https://algolab.me/?utm_source=ig&utm_campaign=x#demo");
-  assert.equal(demoRequestUrl("", "?ref=p7"), "/?ref=p7#demo");
+  assert.equal(to("https://algolab.me", "app.algolab.me", "?utm_source=ig&utm_campaign=x&token=secret&email=a@b.c").url, "https://algolab.me/?utm_source=ig&utm_campaign=x#demo");
+  // no landing to go to: empty, broken, a foreign scheme, or THE SAME HOST (a redirect to itself is a loop)
+  for (const site of [undefined, null, "", "   ", "algolab.me", "not a url", "javascript:alert(1)", "ftp://algolab.me"]) assert.deepEqual(to(site, "app.algolab.me"), { kind: "contact" }, JSON.stringify(site));
+  assert.deepEqual(to("https://app.algolab.me", "app.algolab.me"), { kind: "contact" });
+  assert.deepEqual(to("https://APP.algolab.me/", "app.algolab.me"), { kind: "contact" }, "the host compares without case");
+  assert.deepEqual(to("http://localhost:3000", "localhost:3000"), { kind: "contact" }, "a port is part of the host");
+  assert.equal(to("http://localhost:3100", "localhost:3000").kind, "redirect");
+  assert.equal(siteOrigin("https://algolab.me").host, "algolab.me");
+  assert.equal(isLegacyDemoPath("/request-demo") && isLegacyDemoPath("/register/") && !isLegacyDemoPath("/register-x") && !isLegacyDemoPath("/owner/register"), true);
 });
 
-test("P2: the sign-in page takes the address from the build variable, nothing is hard-coded", () => {
+test("P2: the sign-in page links to the relative /request-demo, nothing is hard-coded or built in", () => {
   const login = read("src/app/login/page.tsx");
-  assert.match(login, /const DEMO_REQUEST_URL = demoRequestUrl\(process\.env\.NEXT_PUBLIC_SITE_URL\);/);
+  assert.match(login, /const DEMO_REQUEST_URL = "\/request-demo";/);
   assert.match(login, /Нет доступа\?[\s\S]{0,200}<a href=\{DEMO_REQUEST_URL\}[^>]*>\s*Запросить демо\s*<\/a>/);
+  assert.doesNotMatch(stripComments(login), /SITE_URL/);
   for (const file of walk("src")) {
-    assert.doesNotMatch(stripComments(read(file)), /https?:\/\/(www\.)?algolab\.me|landing\.stage/, `${file}: the address of the site is a build variable, not a literal`);
+    assert.doesNotMatch(stripComments(read(file)), /https?:\/\/(www\.)?algolab\.me|landing\.stage/, `${file}: the address of the site is a runtime variable, not a literal`);
   }
-  // rendered markup: the link of the owner's footer is the variable's value
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
-  const withSite = (value) => {
-    if (value === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = value;
-    const Page = load("src/app/login/page.tsx").default;
-    return renderToStaticMarkup(React.createElement(Page));
-  };
-  const saved = process.env.NEXT_PUBLIC_SITE_URL;
-  const linkOf = (html) => (html.match(/<a href="([^"]*)"[^>]*>\s*Запросить демо/) || [])[1];
-  try {
-    // the sign-in opens on the owner's tab: its footer carries the link
-    assert.equal(linkOf(withSite("https://algolab.me")), "https://algolab.me/#demo");
-    assert.equal(linkOf(withSite("https://landing.stage.algolab.me/")), "https://landing.stage.algolab.me/#demo");
-    assert.equal(linkOf(withSite("")), "/#demo");
-    assert.equal(linkOf(withSite(undefined)), "/#demo");
-  } finally {
-    if (saved === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = saved;
-  }
+  const html = renderToStaticMarkup(React.createElement(load("src/app/login/page.tsx").default));
+  assert.match(html, /<a href="\/request-demo"[^>]*>\s*Запросить демо/, "the owner's tab, whatever the build");
 });
 
-test("P2: /request-demo and /register redirect (302, not 404) to SITE_URL/#demo; tags travel, tokens do not", () => {
+test("P2: /request-demo and /register: 302 to SITE_URL/#demo (runtime variable); without it, or on the same host, a plain page and NO loop", () => {
   const { NextRequest } = require("next/server");
-  const visit = (url, site) => {
-    if (site === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = site;
-    return load("src/middleware.ts").middleware(new NextRequest(`https://app.algolab.me${url}`));
+  const saved = process.env.SITE_URL;
+  const visit = (url, site, host = "app.algolab.me") => {
+    if (site === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = site;
+    return load("src/middleware.ts").middleware(new NextRequest(`https://${host}${url}`, { headers: { host } }));
   };
-  const saved = process.env.NEXT_PUBLIC_SITE_URL;
+  const rewritten = (res) => res.headers.get("x-middleware-rewrite");
   try {
     for (const url of ["/request-demo", "/request-demo/", "/register"]) {
       const res = visit(url, "https://algolab.me");
@@ -232,16 +228,52 @@ test("P2: /request-demo and /register redirect (302, not 404) to SITE_URL/#demo;
     }
     const tagged = visit("/register?utm_source=ig&utm_campaign=autumn&token=nope&email=a@b.c", "https://algolab.me");
     assert.equal(tagged.headers.get("location"), "https://algolab.me/?utm_source=ig&utm_campaign=autumn#demo");
-    assert.equal(visit("/request-demo?ref=p7", "https://landing.stage.algolab.me").headers.get("location"), "https://landing.stage.algolab.me/?ref=p7#demo");
-    // empty variable: the same origin (no loop: `/` is not a legacy path)
-    const same = visit("/request-demo", "");
-    assert.equal(same.status, 302);
-    assert.equal(new URL(same.headers.get("location")).href, "https://app.algolab.me/#demo");
-    assert.equal(visit("/", undefined).status, 200);
-    // the neighbours are untouched
+    assert.equal(visit("/request-demo?ref=p7", "https://landing.stage.algolab.me", "stage.algolab.me").headers.get("location"), "https://landing.stage.algolab.me/?ref=p7#demo");
+    // the variable is read when the request comes (runtime), not frozen: the same module answers both ways
+    assert.equal(visit("/request-demo", "https://a.example").status, 302);
+    assert.equal(visit("/request-demo", "https://b.example").headers.get("location"), "https://b.example/#demo");
+    // no landing / the same host: the plain page of THIS origin (a rewrite, status 200, no Location): never a redirect to itself
+    for (const [site, host] of [[undefined, "app.algolab.me"], ["", "app.algolab.me"], ["https://app.algolab.me", "app.algolab.me"], ["https://app.algolab.me/", "APP.algolab.me"], ["junk", "app.algolab.me"]]) {
+      for (const url of ["/request-demo", "/register?utm_source=ig"]) {
+        const res = visit(url, site, host);
+        assert.equal(res.status, 200, `${site}|${host}|${url}`);
+        assert.equal(res.headers.get("location"), null, "no redirect: no loop");
+        assert.match(rewritten(res), /\/demo-contact$/);
+      }
+    }
+    // the plain page itself and the neighbours
+    assert.equal(visit("/demo-contact", undefined).status, 200);
+    assert.equal(rewritten(visit("/demo-contact", undefined)), null);
     for (const url of ["/request-demonstration", "/registers", "/owner/register"]) assert.notEqual(visit(url, "https://algolab.me").headers.get("location"), "https://algolab.me/#demo", url);
   } finally {
-    if (saved === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = saved;
+    if (saved === undefined) delete process.env.SITE_URL; else process.env.SITE_URL = saved;
+  }
+});
+
+test("P2: the plain page «Заявка на демо: напишите нам» shows the e-mail from the runtime variable only when it is an e-mail", () => {
+  const React = require("react");
+  const { renderToStaticMarkup } = require("react-dom/server");
+  const saved = process.env.SUPPORT_EMAIL;
+  const render = (value) => {
+    if (value === undefined) delete process.env.SUPPORT_EMAIL; else process.env.SUPPORT_EMAIL = value;
+    return renderToStaticMarkup(React.createElement(load("src/app/demo-contact/page.tsx").default));
+  };
+  try {
+    const withMail = render("hello@algolab.me");
+    assert.match(withMail, /Заявка на демо/);
+    assert.match(withMail, /напишите нам/i);
+    assert.match(withMail, /<a href="mailto:hello@algolab\.me"[^>]*>hello@algolab\.me<\/a>/);
+    for (const bad of [undefined, "", "   ", "not an email", 'x"><script>@a.bc']) {
+      const html = render(bad);
+      assert.match(html, /Заявка на демо/, JSON.stringify(bad));
+      assert.doesNotMatch(html, /mailto:|<script/, JSON.stringify(bad));
+    }
+    const page = read("src/app/demo-contact/page.tsx");
+    assert.match(page, /export const dynamic = "force-dynamic"/, "read per request, not frozen at build");
+    assert.doesNotMatch(page, /NEXT_PUBLIC/);
+    assert.deepEqual(load("src/app/demo-contact/page.tsx").metadata.robots, { index: false, follow: false });
+  } finally {
+    if (saved === undefined) delete process.env.SUPPORT_EMAIL; else process.env.SUPPORT_EMAIL = saved;
   }
 });
 

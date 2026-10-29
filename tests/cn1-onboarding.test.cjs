@@ -286,7 +286,7 @@ function walkSrc(dir) {
 test("the login page points to «Запросить демо» on the landing; no door to the deleted pages is left in src", () => {
   const login = read("src/app/login/page.tsx");
   assert.match(login, /Нет доступа\?[\s\S]{0,200}href=\{DEMO_REQUEST_URL\}[\s\S]{0,120}Запросить демо/);
-  assert.match(login, /demoRequestUrl\(process\.env\.NEXT_PUBLIC_SITE_URL\)/);
+  assert.match(login, /const DEMO_REQUEST_URL = "\/request-demo";/);
   assert.doesNotMatch(login, /Зарегистрировать организацию|href="\/register"|href="\/request-demo"/);
   // `/` has no marketing page: no cookie -> /login
   const home = read("src/app/page.tsx");
@@ -295,7 +295,7 @@ test("the login page points to «Запросить демо» on the landing; n
   assert.match(read("src/components/auth/home-redirect.tsx"), /loginHome\(user\.org_role \|\| user\.role\)/);
   // the only places that name the old paths: the redirect (site-url.ts, middleware.ts) and comments
   for (const file of walkSrc("src")) {
-    if (["src/lib/site-url.ts", "src/middleware.ts", "src/lib/portable/demo-form.ts"].includes(file)) continue;
+    if (["src/lib/site-url.ts", "src/middleware.ts", "src/lib/portable/demo-form.ts", "src/app/login/page.tsx"].includes(file)) continue;
     const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     assert.doesNotMatch(code, /\/request-demo|["'`]\/register/, `${file}: an extra door to a deleted page`);
   }
@@ -304,11 +304,12 @@ test("the login page points to «Запросить демо» on the landing; n
   }
 });
 
-test("middleware: /set-password/<token> opens without a session, the old demo pages redirect to the landing, the cabinets still need a session", () => {
+test("middleware: /set-password/<token> opens without a session, the old demo pages answer (redirect to the landing / plain page), the cabinets still need a session", () => {
   const { NextRequest } = require("next/server");
   const visit = (url) => load("src/middleware.ts").middleware(new NextRequest(`https://app.example${url}`));
   for (const url of ["/set-password/abcDEF_123-xyz", "/login"]) assert.equal(visit(url).status, 200, url);
-  for (const url of ["/request-demo", "/register", "/register?utm_source=x"]) assert.equal(visit(url).status, 302, url);
+  // no SITE_URL in the test process: no landing to go to -> the plain page (200), never a loop; with SITE_URL it is a 302 (k3-p1-p3)
+  for (const url of ["/request-demo", "/register", "/register?utm_source=x"]) assert.equal(visit(url).status, 200, url);
   assert.equal(visit("/owner/dashboard").status, 307);
   assert.equal(visit("/set-password").status, 307, "no token: not an open page");
 });

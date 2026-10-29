@@ -38,19 +38,20 @@ test.describe.serial("Консоль-1: заявка → одобрение → 
     await closeConsole?.();
   });
 
-  test("closed registration: the old demo addresses lead to the landing (SITE_URL/#demo), the sign-in offers «Запросить демо» and no registration", async ({ anonymous }) => {
+  test("closed registration: the old demo addresses never 404, the sign-in offers «Запросить демо» and no registration", async ({ anonymous }) => {
     const page = await anonymous();
-    // the e2e build has no NEXT_PUBLIC_SITE_URL: «the landing» is this origin, `/#demo`, and `/` has no page of its own -> the sign-in
-    await page.goto("/register?utm_source=e2e&token=nope");
-    await expect(page).toHaveURL(/\/login$/);
-    await page.goto("/request-demo");
-    await expect(page).toHaveURL(/\/login$/);
+    // the e2e container has no SITE_URL: no landing to go to, so the old addresses answer with the plain page «напишите нам» (no loop)
+    for (const old of ["/register?utm_source=e2e&token=nope", "/request-demo"]) {
+      await page.goto(old);
+      await expect(page.getByTestId("demo-contact")).toContainText("Заявка на демо");
+    }
 
+    // `/` has no marketing page: a visitor without a session goes to the sign-in
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
     const footer = page.getByText("Нет доступа?");
     await expect(footer).toContainText("Запросить демо");
-    await expect(page.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/#demo");
+    await expect(page.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/request-demo");
     await expect(page.getByRole("link", { name: /Зарегистрировать/ })).toHaveCount(0);
     await expect(page.locator('a[href="/register"]')).toHaveCount(0);
   });
