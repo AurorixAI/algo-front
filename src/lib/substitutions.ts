@@ -8,6 +8,7 @@ import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "./payf";
 import { payrollSheetsNote } from "./lesson-teacher";
 import { MAKEUP_EXISTS_TEXT, RESTORE_MAKEUP_TARGET_TEXT, purposeMarks, studentPurposeText, type LessonPurposeFields, type PurposeLinkOptions, type PurposeMark } from "./one-off";
 import { addIsoDays, formatUtcNaiveAsBusinessDateTime, parseUtcNaive } from "./business-time";
+import { pluralRu } from "./plural";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { OpsErrorDetail, TeacherBusyDetail, TeacherConflict } from "./ops-b-types";
 import type {
@@ -108,8 +109,6 @@ export const REQUEST_REJECTED_LABEL = "Запрос отклонён";
 
 // ── deadline of a request ────────────────────────────────────────────────────────────────────────
 
-export const URGENT_LABEL = "Срочно";
-
 /**
  * «до начала 40 мин» / «до начала 5 ч» / «до начала 5 дн.»: under an hour in minutes, under 72 hours in hours (rounded),
  * further in days (rounded).  Null once the lesson has started: the row says so in words (`startedLabel`).
@@ -146,17 +145,63 @@ export function isLateRequest(item: Pick<SubstitutionItem, "status" | "overdue">
 
 export const LATE_BANNER_TEXT = "Урок уже начался или прошёл. Можно назначить того, кто его провёл, отменить урок или отклонить запрос. Перенести нельзя.";
 
-export type DeadlineChip = { text: string; tone: "danger" | "dark" | "neutral" };
+/**
+ * The «Срок» of a waiting request - ONE function for the table, the card of a phone and the window of the decision (#159 U1, LESSONS 56).
+ * The colour follows the time that is left, nothing else: `calm` (more than a day), `soon` (less than a day, amber), `now` (less than two hours or
+ * the lesson is on, a soft red: a light ground and a dark red text, never a solid fill), `past` (the lesson is over: grey text, with the day the
+ * request closes by itself).
+ */
+export type DeadlineTone = "calm" | "soon" | "now" | "past";
+export interface Deadline { text: string; tone: DeadlineTone }
 
-/** What the «Срок» cell shows: the dark-red «Урок уже начался» / «Урок прошёл», the red «Срочно» (< 24 h), else the quiet count. */
-export function deadlineChips(item: SubstitutionItem): DeadlineChip[] {
-  if (item.status !== "pending") return [];
-  if (item.overdue) return [{ text: startedLabel(item), tone: "dark" }];
-  const chips: DeadlineChip[] = [];
-  if (item.urgent) chips.push({ text: URGENT_LABEL, tone: "danger" });
+export const DEADLINE_SOON_MINUTES = 24 * 60;
+export const DEADLINE_NOW_MINUTES = 2 * 60;
+
+const MONTHS_SHORT = ["янв.", "февр.", "мар.", "апр.", "мая", "июн.", "июл.", "авг.", "сент.", "окт.", "нояб.", "дек."] as const;
+const MONTHS_OF = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"] as const;
+
+function isoDay(value: string | null | undefined): { year: number; month: number; day: number } | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(value ?? "");
+  if (!match) return null;
+  const month = Number(match[2]);
+  return month >= 1 && month <= 12 ? { year: Number(match[1]), month, day: Number(match[3]) } : null;
+}
+function firstOfMonth(year: number, monthIndex: number): string {
+  const date = new Date(Date.UTC(year, monthIndex, 1));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * The day a request of a lesson closes by itself («Не решено вовремя»): the 1st of the month AFTER next.  The window of the unclosed lessons starts on the 1st of the PREVIOUS month
+ * (the server: `month_window_start`), so a lesson of September falls out on 01.11 and one of October on 01.12.  Null for an unreadable date.
+ */
+export function closeDateOf(lessonDate: string | null | undefined): string | null {
+  const parts = isoDay(lessonDate);
+  return parts ? firstOfMonth(parts.year, parts.month - 1 + 2) : null;
+}
+
+/** «1 нояб.» */
+export function shortDateLabel(iso: string | null | undefined): string {
+  const parts = isoDay(iso);
+  return parts ? `${parts.day} ${MONTHS_SHORT[parts.month - 1]}` : "";
+}
+/** «1 ноября» (for a sentence). */
+export function longDateLabel(iso: string | null | undefined): string {
+  const parts = isoDay(iso);
+  return parts ? `${parts.day} ${MONTHS_OF[parts.month - 1]}` : "";
+}
+
+export function deadlineOf(item: Pick<SubstitutionItem, "status" | "overdue" | "minutesToStart" | "lesson">): Deadline | null {
+  if (item.status !== "pending") return null;
+  if (item.overdue) {
+    if (startedLabel(item) === "Урок уже начался") return { text: "Урок уже начался", tone: "now" };
+    const closes = shortDateLabel(closeDateOf(item.lesson.date));
+    return { text: closes ? `урок прошёл · закроется ${closes}` : "урок прошёл", tone: "past" };
+  }
   const text = deadlineText(item.minutesToStart);
-  if (text) chips.push({ text, tone: "neutral" });
-  return chips;
+  if (!text) return null;
+  const minutes = Math.trunc(Number(item.minutesToStart));
+  return { text, tone: minutes < DEADLINE_NOW_MINUTES ? "now" : minutes < DEADLINE_SOON_MINUTES ? "soon" : "calm" };
 }
 
 /** «Предложил: Рахимов Т.»; an inactive colleague: the spec's sentence. */
@@ -906,12 +951,28 @@ export function badgeTitle(summary: { pendingTotal: number; urgentTotal: number;
   return `${BADGE_LABEL}: ${summary.pendingTotal}${extra}`;
 }
 
-/** W1 S20: the requests of the last month that the server will close on the 1st («Не решено вовремя»). */
-export const EXPIRING_LABEL = "истекают через ≤3 дня";
-export function expiringLine(count: number | null | undefined): string | null {
-  const n = Math.max(0, Math.floor(Number(count) || 0));
-  return n > 0 ? `Истекают через ≤3 дня: ${n}. Решите до 1-го числа — потом запрос закроется.` : null;
+/** W1 S20: the requests of the last month that the server will close on the 1st («Не решено вовремя»); the menu says so in the tooltip of the counter. */
+export const EXPIRING_LABEL = "скоро закроются без решения";
+
+/** The month before `today` (YYYY-MM-DD): the lessons of it that are still waiting are those the server counts as expiring - the last day of it is the limit of the filter «Показать». */
+export function expiringDateTo(today: string): string | null {
+  const parts = isoDay(today);
+  return parts ? addIsoDays(firstOfMonth(parts.year, parts.month - 1), -1) : null;
 }
+
+/**
+ * «2 запроса закроются 1 ноября без решения. Решите до 31 октября.» - the banner of the requests the server closes on the 1st (#159 U3).  The count is the server's
+ * (`expiringTotal`), the days are those of the business calendar: the 1st of the next month and the day before it.  Null for none.
+ */
+export function expiringText(count: number | null | undefined, today: string): string | null {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  const parts = isoDay(today);
+  if (n <= 0 || !parts) return null;
+  const closes = firstOfMonth(parts.year, parts.month);
+  return `${n} ${pluralRu(n, "запрос закроется", "запроса закроются", "запросов закроются")} ${longDateLabel(closes)} без решения. Решите до ${longDateLabel(addIsoDays(closes, -1))}.`;
+}
+export const EXPIRING_SHOW = "Показать";
+export const EXPIRING_SHOW_ALL = "Показать все";
 
 // ── marks on the lessons of the journal / schedule (owner, administrator) ─────────────────────────
 

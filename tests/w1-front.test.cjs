@@ -390,11 +390,11 @@ test("F12: an emptied room / topic the lesson had is REMOVED (explicit null) and
   assert.match(read("src/components/schedule/weekly-lesson-dialogs.tsx"), /data-testid="removed-note"/);
 });
 
-test("S20: the requests that drop out on the 1st are named («истекают через ≤3 дня»); the closing is «Не решено вовремя»", () => {
-  assert.equal(S.expiringLine(0), null);
-  assert.equal(S.expiringLine(undefined), null);
-  assert.match(S.expiringLine(3), /^Истекают через ≤3 дня: 3\./);
-  assert.equal(S.badgeTitle({ pendingTotal: 4, urgentTotal: 1, expiringTotal: 2 }), "Ждут решения: 4, срочных: 1, истекают через ≤3 дня: 2");
+test("S20: the requests that drop out on the 1st are named in plain words (#159 U3); the closing is «Не решено вовремя»", () => {
+  assert.equal(S.expiringText(0, "2026-10-29"), null);
+  assert.equal(S.expiringText(undefined, "2026-10-29"), null);
+  assert.equal(S.expiringText(2, "2026-10-29"), "2 запроса закроются 1 ноября без решения. Решите до 31 октября.");
+  assert.equal(S.badgeTitle({ pendingTotal: 4, urgentTotal: 1, expiringTotal: 2 }), "Ждут решения: 4, срочных: 1, скоро закроются без решения: 2");
   assert.equal(S.CLOSED_REASON_TEXT.LESSON_OUTSIDE_WINDOW, "Не решено вовремя");
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /data-testid="expiring-note"/);
 });
@@ -526,7 +526,7 @@ test("R3 6: F9 is ONE compact row with a count that opens; «Замена сня
   assert.match(html, /<summary/);
   assert.equal(renderToStaticMarkup(React.createElement(ClearedLessons, { entries: [] })), "");
   assert.match(read("src/components/substitutions/teacher-requests-block.tsx"), /<AssignedLessons entries=\{assigned\} \/>\s+<ClearedLessons entries=\{cleared\} \/>/);
-  assert.ok(S.expiringLine(2).length < 80, "one line on a phone, not a paragraph");
+  assert.ok(S.expiringText(2, "2026-10-29").length < 80, "one line on a phone, not a paragraph");
 });
 
 test("R3 8: a required field switches the button off and says why in a short line (restore, kind, cancel, the exams tick, the cancel panel)", () => {

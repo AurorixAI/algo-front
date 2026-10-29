@@ -45,15 +45,19 @@ test("A: canDecideMoney - the owner; an admin only while the profile says paymen
     { org_role: null, role: "owner" }, { role: "admin", payments_access: true }, {}, null, undefined]) assert.equal(O.canDecideMoney(user), false, JSON.stringify(user));
 });
 
-test("Ч1: an admin without the right sees the rows, the status and the words about the owner - and no buttons, no window", () => {
+test("Ч1: an admin without the right sees ONE row «N урока ждут решения владельца» that opens the rows - no pay buttons, no window (#159 U4)", () => {
   const html = block({ canDecide: false });
   const plain = text(html);
-  assert.match(plain, /Дополнительные уроки: оплата преподавателю · 1/);
-  assert.match(plain, /Дополнительный урок — оплатить преподавателю\?/);
-  assert.match(plain, /7-А · чт 05\.11 · 16:00–17:00/);
-  assert.match(plain, /Решение об оплате принимает владелец или администратор с правом на оплаты/);
-  assert.doesNotMatch(html, /<button/, "not a single button");
+  assert.match(plain, /1 урок ждёт решения владельца/);
+  assert.match(html, /aria-expanded="false"/, "collapsed");
+  assert.doesNotMatch(plain, /7-А · чт 05\.11/, "the rows are behind the row");
   assert.doesNotMatch(plain, /Оплатить|Не оплачивать/);
+  assert.doesNotMatch(html, /Оплатить<\/button>/);
+  // the row opened (the same row component, no buttons for him)
+  const row = text(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })));
+  assert.match(row, /7-А · чт 05\.11 · 16:00–17:00/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: false, onPick() {} })), /<button/, "not a single button");
+  assert.match(O.DECISIONS_GROUP_HINT_VIEW, /Решение об оплате принимает владелец или администратор с правом на оплаты/);
   // with the right the same rows have both buttons and the old hint
   const withRight = block({ canDecide: true });
   assert.match(withRight, /Оплатить<\/button>/);
@@ -105,7 +109,7 @@ test("B: nothing on the screens speaks of an «empty make-up» that waits for a 
     const visible = read(file).split("\n").filter((line) => /["'`]/.test(line) && !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n");
     assert.doesNotMatch(visible, /пуст\w+ отработк|отработк\w* без учеников|Отработка без учеников/i, file);
   }
-  assert.equal(O.DECISIONS_GROUP_TITLE, "Дополнительные уроки: оплата преподавателю");
+  assert.equal(O.DECISIONS_GROUP_TITLE, "Оплата дополнительных уроков");
   assert.equal(O.decisionQuestion({ title: "" }), "Дополнительный урок — оплатить преподавателю?");
   const payroll = require(path.join(root, "src/lib/payroll.ts"));
   assert.doesNotMatch(payroll.UNDECIDED_MARK_HINT + payroll.NO_PAY_MARK_HINT, /отработк/i, "the hints of the sheet name no make-up");

@@ -246,14 +246,17 @@ const decision = (over = {}) => ({
   studentsPresent: 3, studentsTotal: 10, payrollSheet: { month: "2026-11", status: "settled" }, ...over,
 });
 
-test("A: the row of money - the title of the server, the lesson, who held it, how many came; no amount; two buttons", () => {
-  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
+test("A: the row of money - the lesson, who held it, how many came; no amount; two buttons; the question is the title of the section, not repeated (#159 U4)", () => {
+  // the teacher asked for his OWN lesson: «Просит оплатить» says nothing new and is not shown; an administrator asked for the lesson of another: it is
+  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision(), decision({ lessonId: "two", createdBy: { id: "a1", name: "Каримова Д.", role: "admin" } })], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   const plain = text(html);
-  assert.match(plain, /Дополнительные уроки: оплата преподавателю · 1/);
-  assert.match(plain, /Дополнительный урок — оплатить преподавателю\?/);
+  assert.match(plain, /Оплата дополнительных уроков · 2/);
+  assert.doesNotMatch(plain, /Дополнительный урок — оплатить преподавателю\?/, "the question is in the window, not in every row");
   assert.match(plain, /7-А · чт 05\.11 · 16:00–17:00/);
-  assert.match(plain, /Провёл Рахимов Т\. · были 3 из 10/);
-  assert.match(plain, /Просит оплатить: Рахимов Т\./);
+  assert.match(plain, /провёл Рахимов Т\. · были 3 из 10/);
+  assert.equal((plain.match(/Просит оплатить/g) || []).length, 1);
+  assert.match(plain, /Просит оплатить: Каримова Д\./);
+  assert.doesNotMatch(plain, /Просит оплатить: Рахимов/);
   assert.match(html, /Оплатить<\/button>/);
   assert.match(html, /Не оплачивать<\/button>/);
   assert.doesNotMatch(plain, /сум|so'm|\d\s?\d{3}\s?(UZS|сум)/i, "no amount anywhere");
@@ -407,8 +410,8 @@ test("A: the chips of a lesson - the purpose, the money (by the role's own words
 
 test("A: the text of the line of a lesson is one function (LESSONS 48)", () => {
   assert.equal(O.decisionLessonLine({ groupName: "7-А", lessonDate: "2026-11-05", startTime: "16:00", endTime: "17:00" }), "7-А · чт 05.11 · 16:00–17:00");
-  assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "Провёл Рахимов Т. · были 0 из 8");
-  assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "Преподаватель не указан · были 1 из 2");
+  assert.equal(O.decisionWhoLine({ teacher: { id: "t", name: "Рахимов Т." }, studentsPresent: 0, studentsTotal: 8 }), "провёл Рахимов Т. · были 0 из 8");
+  assert.equal(O.decisionWhoLine({ teacher: null, studentsPresent: 1, studentsTotal: 2 }), "преподаватель не указан · был 1 из 2");
   assert.equal(O.decisionAskedLine({ purpose: "extra", createdBy: { id: "o", name: "Тестов О.", role: "owner" } }), null);
   assert.equal(O.decisionAskedLine({ purpose: "makeup", createdBy: { id: "t", name: "Рахимов Т.", role: "teacher" } }), null);
   assert.equal(O.decisionToast("pay"), "Преподавателю будет оплачено");

@@ -6,9 +6,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { queryWith, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
-import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Loader2, Search, X } from "lucide-react";
+import { formatBusinessDate } from "@/lib/business-time";
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, Info, Loader2, Search, X } from "lucide-react";
 import { DEMO_MODE, orgApi, substitutionsApi } from "@/lib/api";
-import { CHIP_BASE_CLASS } from "@/lib/chip-tone";
 import { PHONE_QUERY, useMediaQuery } from "@/lib/use-media-query";
 import { createQueueGuard, afterDecision, readFailureOutcome, STALE_LIST_TEXT, STALE_LIST_TOAST_GAP_MS, createOncePer } from "@/lib/queue-guard";
 import { useSubstitutionBadge } from "@/lib/substitution-badge";
@@ -22,17 +22,18 @@ import {
   batchSiblings,
   assignmentNotes,
   bulkToast,
-  deadlineChips,
   decisionToast,
-  expiringLine,
+  EXPIRING_SHOW,
+  EXPIRING_SHOW_ALL,
+  expiringDateTo,
+  expiringText,
   itemLessonLine,
   moreLessonsText,
   suggestedLine,
   tabLabel,
-  type DeadlineChip,
 } from "@/lib/substitutions";
 import type { DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
-import { DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell } from "@/components/substitutions/journal-cells";
+import { DeadlineBadge, DetailsButton, LessonCell, OutcomeChip, PeopleCell, ReasonCell, WhenCell } from "@/components/substitutions/journal-cells";
 import { SubstitutionPanel } from "@/components/substitutions/substitution-panel";
 import { filterLabel } from "@/lib/cascading-filter";
 import { staffDisplayName } from "@/lib/staff-name";
@@ -49,18 +50,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 type Tab = "pending" | "decided";
 
 /** Columns of the wide layout (cards below `xl`, as the other tables of the admin screens). */
-const COLS_PENDING = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.5fr)_170px_104px_40px]";
+const COLS_PENDING = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_220px_104px_40px]";
 const COLS_DECIDED = "xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_96px_minmax(0,1.1fr)_104px_40px]";
 
 /** #157: everything is aligned to the left (the lesson, who -> whom, the reason, the result, when); «Решить» and «›» right (see table-chrome). */
-const PENDING_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "right", "right"];
+/** #159 U1: the header «Срок» and its values are centred (the rule of table-chrome: a deadline is short data). */
+const PENDING_ALIGNS: CellAlign[] = ["left", "left", "left", "center", "right", "right"];
 const DECIDED_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "left", "right"];
-
-const CHIP_TONE: Record<DeadlineChip["tone"], string> = {
-  danger: "border-rose-200 bg-rose-50 text-rose-700",
-  dark: "border-rose-800 bg-rose-800 text-white",
-  neutral: "border-slate-200 bg-slate-50 text-slate-600",
-};
 
 /**
  * M2 (LOGIC-B2): «Замены» - the requests of teachers who cannot hold a lesson.  Waiting ones first (the lesson that already started, then the
@@ -80,6 +76,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [tab, setTab] = useState<Tab>(searchParams?.get("status") === "decided" ? "decided" : "pending");
   const [filter, setFilter] = useState({ teacherId: "", groupId: "" });
   const [urgentOnly, setUrgentOnly] = useState(false);
+  /** #159 U3: «Показать» in the line of the requests that close on the 1st narrows the list to them (the server filters by the date of the lesson). */
+  const [expiringOnly, setExpiringOnly] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -153,6 +151,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         groupId: filter.groupId || undefined,
         teacherId: filter.groupId ? undefined : filter.teacherId || undefined,
         urgent: tab === "pending" && urgentOnly,
+        dateTo: tab === "pending" && expiringOnly ? expiringDateTo(formatBusinessDate()) ?? undefined : undefined,
         search,
         limit: PAGE_SIZE,
         offset: page * PAGE_SIZE,
@@ -181,7 +180,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     } finally {
       if (guard.accepts(token)) setLoading(false);
     }
-  }, [tab, filter.groupId, filter.teacherId, urgentOnly, search, page, guard, showToast]);
+  }, [tab, filter.groupId, filter.teacherId, urgentOnly, expiringOnly, search, page, guard, showToast]);
 
   loadRef.current = load;
   useEffect(() => { void load(); }, [load]);
@@ -282,6 +281,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
     useSubstitutionBadge.getState().setWaiting(waitingCount);
   }, [loading, loadError, decisions.loading, decisions.error, waitingCount]);
 
+  // the last of the requests that close on the 1st was decided while the list was narrowed to them: the narrowing goes with the line
+  useEffect(() => { if (expiringOnly && !loading && expiringTotal === 0) setExpiringOnly(false); }, [expiringOnly, loading, expiringTotal]);
+
   const pendingTab = tab === "pending";
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
   const selectedItems = items.filter((item) => selected.has(item.id));
@@ -303,8 +305,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   );
   const filterOn = Boolean(filter.teacherId || filter.groupId);
   // the filter and the search narrow the rows of money as well; «Только срочные» hides them (a decision of money is never urgent)
-  const visibleDecisions = pendingTab && !urgentOnly ? decisions.items.filter((row) => decisionMatches(row, { groupId: filter.groupId, teacherId: filter.teacherId, search })) : [];
+  const visibleDecisions = pendingTab && !urgentOnly && !expiringOnly ? decisions.items.filter((row) => decisionMatches(row, { groupId: filter.groupId, teacherId: filter.teacherId, search })) : [];
   const decisionsOnly = visibleDecisions.length > 0;
+  const expiringBanner = expiringText(expiringTotal, formatBusinessDate());
   const selectAll = (on: boolean) => setSelected(on ? new Set(items.map((item) => item.id)) : new Set());
 
   return (
@@ -314,7 +317,15 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <p className="text-sm text-slate-500">{PAGE_HINT}</p>
       </div>
 
-      {pendingTab && expiringLine(expiringTotal) && <p role="status" data-testid="expiring-note" className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-medium text-amber-900">{expiringLine(expiringTotal)}</p>}
+      {pendingTab && expiringBanner && (
+        <div role="status" data-testid="expiring-note" className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
+          <Info className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+          <span className="min-w-0 flex-1 font-medium">{expiringBanner}</span>
+          <button type="button" data-testid="expiring-show" onClick={() => { setExpiringOnly((value) => !value); setPage(0); }} className="shrink-0 text-xs font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">
+            {expiringOnly ? EXPIRING_SHOW_ALL : EXPIRING_SHOW}
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl bg-slate-100 p-1 lg:w-fit" role="tablist">
@@ -380,21 +391,6 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         </div>
       )}
 
-      {pendingTab && (
-        <OneOffDecisionsBlock
-          items={visibleDecisions}
-          canDecide={canDecideMoney(user)}
-          rightLost={moneyRightLost}
-          onRightLost={() => setMoneyLostFor({ profile: user })}
-          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
-          loading={decisions.loading}
-          error={decisions.error}
-          onRetry={() => void decisions.reload()}
-          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
-          showToast={showToast}
-        />
-      )}
-
       <section className={!loading && !loadError && items.length > 0 ? "xl:overflow-hidden xl:rounded-2xl xl:border xl:border-slate-200 xl:bg-white" : ""}>
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-slate-500">
@@ -427,7 +423,6 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <ul className="mt-2 space-y-2.5 xl:mt-0 xl:space-y-0 xl:divide-y xl:divide-slate-100">
               {items.map((item) => {
                 const siblings = batchSiblings(item, items);
-                const chips = deadlineChips(item);
                 const open = expanded.has(item.id);
                 const lessonHref = item.lesson.lessonId ? journalHref(bases.groups, { groupId: item.group.id, lessonDate: item.lesson.date, lessonId: item.lesson.lessonId }) : null;
                 return (
@@ -459,14 +454,13 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                     {/* Причина / Срок / Итог / Когда */}
                     {pendingTab ? (
                       <>
-                        <div className="min-w-0">
-                          <ReasonCell item={item} withComment />
-                          {suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
-                        </div>
-                        <div className="flex min-w-0 flex-wrap gap-1.5">
-                          {chips.map((chip) => (
-                            <span key={chip.text} className={`${CHIP_BASE_CLASS} ${CHIP_TONE[chip.tone]}`}>{chip.text}</span>
-                          ))}
+                        {/* a phone: the reason and the deadline in one row (the deadline never breaks); the wide table: two cells */}
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 xl:contents">
+                          <div className="min-w-0">
+                            <ReasonCell item={item} withComment />
+                            {suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
+                          </div>
+                          <div className="flex min-w-0 justify-start xl:justify-center"><DeadlineBadge item={item} /></div>
                         </div>
                         <div className="flex items-center justify-end xl:-my-1.5">
                           <button
@@ -520,6 +514,22 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
             <button type="button" disabled={page + 1 >= pageCount} onClick={() => setPage((current) => current + 1)} aria-label="Следующая страница" className="rounded-lg border border-slate-200 p-2 hover:bg-slate-50 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
+      )}
+
+      {/* #159 U4: the payments are under the requests (the requests have a deadline, the payments have none) */}
+      {pendingTab && (
+        <OneOffDecisionsBlock
+          items={visibleDecisions}
+          canDecide={canDecideMoney(user)}
+          rightLost={moneyRightLost}
+          onRightLost={() => setMoneyLostFor({ profile: user })}
+          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
+          loading={decisions.loading}
+          error={decisions.error}
+          onRetry={() => void decisions.reload()}
+          onDecided={() => { void decisions.reload(true); refreshBadge(); }}
+          showToast={showToast}
+        />
       )}
 
       <SubstitutionPanel

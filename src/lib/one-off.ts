@@ -11,6 +11,7 @@
  * for each), 48 (one line of a lesson for every list).
  */
 import { formatIsoDateLabel, monthYearLabelRu } from "./business-time";
+import { pluralRu } from "./plural";
 import { dayAndDateLabel, errorMessageOf, opsErrorCode, opsErrorDetail, teacherConflictLine } from "./ops-errors";
 import type { TeacherConflict } from "./ops-b-types";
 
@@ -326,10 +327,17 @@ export function decisionLessonLine(item: Pick<OneOffDecisionItem, "groupName" | 
   return `${item.groupName} · ${shortDay(item.lessonDate)} · ${item.startTime}–${item.endTime}`;
 }
 
-/** «Провёл Рахимов Т. · были 3 из 10» - who held the lesson and how many students came. */
+/** «был 1 из 10» / «были 2 из 3»: the verb agrees with the number that follows it (21 - «был», 12 - «были»). */
+export function presentLine(present: number, total: number): string {
+  const n = Math.max(0, Math.trunc(Number(present) || 0));
+  const verb = n % 10 === 1 && n % 100 !== 11 ? "был" : "были";
+  return `${verb} ${n} из ${Math.max(0, Math.trunc(Number(total) || 0))}`;
+}
+
+/** «провёл Рахимов Т. · были 2 из 3» - who held the lesson and how many students came (a sentence of its own starts with a capital: the window does it). */
 export function decisionWhoLine(item: Pick<OneOffDecisionItem, "teacher" | "studentsPresent" | "studentsTotal">): string {
-  const who = item.teacher?.name ? `Провёл ${item.teacher.name}` : "Преподаватель не указан";
-  return `${who} · были ${item.studentsPresent} из ${item.studentsTotal}`;
+  const who = item.teacher?.name ? `провёл ${item.teacher.name}` : "преподаватель не указан";
+  return `${who} · ${presentLine(item.studentsPresent, item.studentsTotal)}`;
 }
 
 /** The filter of the page «Замены» (a group, a teacher) and its search (a group or a teacher) applied to a row of money. */
@@ -340,11 +348,19 @@ export function decisionMatches(item: Pick<OneOffDecisionItem, "groupId" | "grou
   return !text || item.groupName.toLowerCase().includes(text) || (item.teacher?.name ?? "").toLowerCase().includes(text);
 }
 
-/** «Просит оплатить: Рахимов Т.» when a teacher - or an administrator without the right of money (#159: he asks as a teacher) - asked; null for the owner's own lesson. */
-export function decisionAskedLine(item: Pick<OneOffDecisionItem, "purpose" | "createdBy">): string | null {
-  const role = item.createdBy?.role;
-  if (item.purpose !== "extra" || (role !== "teacher" && role !== "admin") || !item.createdBy?.name) return null;
-  return `Просит оплатить: ${item.createdBy.name}`;
+/**
+ * «Просит оплатить: Рахимов Т.» - only when the one who asked is NOT the one who held the lesson (a teacher asks for his own lesson: it says nothing new), and only a teacher - or an
+ * administrator without the right of money (#159: he asks as a teacher) - asks; null for the owner's own lesson.  Who is who: by id; with no id on a side, by the name (nothing is guessed from a missing id: LESSONS 17).
+ */
+export function decisionAskedLine(item: Pick<OneOffDecisionItem, "purpose" | "createdBy"> & { teacher?: OneOffDecisionItem["teacher"] }): string | null {
+  const asker = item.createdBy;
+  if (item.purpose !== "extra" || (asker?.role !== "teacher" && asker?.role !== "admin") || !asker?.name) return null;
+  const holder = item.teacher ?? null;
+  if (holder) {
+    const same = asker.id && holder.id ? asker.id === holder.id : Boolean(holder.name) && holder.name === asker.name;
+    if (same) return null;
+  }
+  return `Просит оплатить: ${asker.name}`;
 }
 
 // ── the sheet that is already paid ───────────────────────────────────────────────────────────────────────
@@ -367,10 +383,15 @@ export function payrollWarning(sheet: DecisionPayrollSheet | null | undefined): 
 export const MONEY_RIGHT_TEXT = "Решение об оплате принимает владелец или администратор с правом на оплаты";
 export const DECISION_PAY_LABEL = "Оплатить";
 export const DECISION_SKIP_LABEL = "Не оплачивать";
-export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: оплата преподавателю";
+export const DECISIONS_GROUP_TITLE = "Оплата дополнительных уроков";
 export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение принимается один раз.";
 /** An administrator without the right of money sees the queue and the status, not the buttons (#159). */
 export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
+/** «2 урока ждут решения владельца» - the one row of an administrator without the right (it is information, not his task: #159 M2, U4). */
+export function decisionsViewLine(count: number): string {
+  const n = Math.max(0, Math.trunc(Number(count) || 0));
+  return `${n} ${pluralRu(n, "урок ждёт", "урока ждут", "уроков ждут")} решения владельца`;
+}
 export const DECISION_PAY_NOTE = "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен.";
 export const DECISION_SKIP_NOTE = "Преподавателю за этот урок не заплатят.";
 export const DECISION_FINAL_NOTE = "Решение нельзя изменить.";

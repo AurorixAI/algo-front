@@ -181,7 +181,7 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   assert.equal(S.itemLessonLine(item), "9-А · пн, 26.10 · 10:00–11:30");
   assert.deepEqual(chip(item, "pending", "teacher"), { text: "Ждёт решения", tone: "warn" });
   assert.equal(S.deadlineText(item.minutesToStart), "до начала 5 дн.", "6960 min = 4 d 20 h");
-  assert.deepEqual(S.deadlineChips(item), [{ text: "до начала 5 дн.", tone: "neutral" }]);
+  assert.deepEqual(S.deadlineOf(item), { text: "до начала 5 дн.", tone: "calm" });
   assert.equal(S.suggestedLine(item), "Предложил: Рахимов Т.");
   assert.equal(S.reasonLabelOf(item.reasonCode), "Болезнь");
   // the substitute is first in the dialog, with the chip, and can be picked; the busy one is last and cannot
@@ -290,16 +290,16 @@ test("[chain 5] a decision after the lesson began: «поздно» mode - the l
   assert.equal(S.isLateRequest(item), true);
   assert.equal(S.startedLabel(item), "Урок уже начался", "30 minutes in, the lesson lasts 90");
   assert.equal(S.startedLabel({ ...item, minutesToStart: -95 }), "Урок прошёл");
-  assert.deepEqual(S.deadlineChips(item), [{ text: "Урок уже начался", tone: "dark" }]);
+  assert.deepEqual(S.deadlineOf(item), { text: "Урок уже начался", tone: "now" });
   assert.deepEqual(S.availableDecisions(item), ["substitute", "cancel", "reject"]);
   assert.equal(S.decisionCardTitle("substitute", true), "Назначить того, кто провёл урок");
   assert.equal(S.decisionCardTitle("substitute", false), "Назначить замену");
   assert.equal(S.LATE_BANNER_TEXT, "Урок уже начался или прошёл. Можно назначить того, кто его провёл, отменить урок или отклонить запрос. Перенести нельзя.");
   assert.equal(fx("b2c5_summary_overdue").overdueTotal, 1);
   assert.equal(S.substitutionErrorText(refusal("b2c5_lesson_already_started")), "Урок уже начался или прошёл. Обратитесь к администратору");
-  // an urgent request: under 24 hours, red «Срочно» then the quiet count; a repeat of a request says it already waits
+  // an urgent request: under 2 hours, the count in a soft red (no word «Срочно»: the colour says it); a repeat of a request says it already waits
   const urgent = fx("b2c5_create_urgent").created[0];
-  assert.deepEqual(S.deadlineChips(urgent).map((c) => c.text), ["Срочно", "до начала 20 мин"]);
+  assert.deepEqual(S.deadlineOf(urgent), { text: "до начала 20 мин", tone: "now" });
   assert.equal(S.createToast(fx("b2c5_create_already_requested")).text, "Запрос уже ждёт решения");
   const html = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item))));
   assert.match(html, /Урок уже начался или прошёл\. Можно назначить того, кто его провёл/);
@@ -706,8 +706,8 @@ test("[M1] «Замены» is in the owner's and the administrator's menu with 
 
 test("[M2] the page: table header rules (first column left, short data centred, action right), tabs, filters and the bulk panel are wired", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  // #157: everything left, «Решить» and «›» right; the decided tab is «Урок · Кто → кто · Причина · Итог · Когда · ›»
-  assert.match(page, /PENDING_ALIGNS: CellAlign\[\] = \["left", "left", "left", "left", "right", "right"\]/);
+  // #157: everything left, «Решить» and «›» right; #159 U1: the deadline («Срок») is centred, the header with it; the decided tab is «Урок · Кто → кто · Причина · Итог · Когда · ›»
+  assert.match(page, /PENDING_ALIGNS: CellAlign\[\] = \["left", "left", "left", "center", "right", "right"\]/);
   assert.match(page, /DECIDED_ALIGNS: CellAlign\[\] = \["left", "left", "left", "left", "left", "right"\]/);
   assert.match(page, /\["Урок", "Преподаватель", "Причина", "Срок", "", ""\] : \["Урок", "Кто → кто", "Причина", "Итог", "Когда", ""\]/);
   for (const phrase of ["Только срочные", "Группа или преподаватель", "Выбрано: ", "Назначить замену", "Отменить уроки", "Отклонить", "Показать", "Решить", "Выбрать все", "Загрузка…"]) {

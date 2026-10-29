@@ -8,7 +8,8 @@ import { Chip } from "@/components/ui/chip";
 import { substitutionsApi } from "@/lib/api";
 import { groupHref, teacherHref, workspaceBases } from "@/lib/ia-links";
 import { journalHref } from "@/lib/open-lessons";
-import { LESSON_DELETED_TEXT, lessonWhen, movedToLabel, reasonLabelOf, substitutionErrorText } from "@/lib/substitutions";
+import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, movedToLabel, reasonLabelOf, substitutionErrorText } from "@/lib/substitutions";
+import { DeadlineBadge } from "@/components/substitutions/journal-cells";
 import { outcomeNote, outcomeOf, type Audience } from "@/lib/substitution-outcome";
 import { TRUNCATED_TEXT, timelineOf, type TimelineRow } from "@/lib/substitution-timeline";
 import { canDecideInPanel, panelView } from "@/lib/substitution-panel-state";
@@ -176,6 +177,9 @@ export function SubstitutionPanel({
                 <span>Сейчас:</span>
                 <Chip tone={outcome.tone} testId="panel-outcome">{outcome.text}</Chip>
               </p>
+            )}
+            {audience === "manager" && !view.stale && deadlineOf(item) && (
+              <p className="flex flex-wrap items-center gap-2 text-sm text-slate-700"><span>Срок:</span><DeadlineBadge item={item} /></p>
             )}
             {note && <p className="text-xs text-slate-500">{note}</p>}
           </div>

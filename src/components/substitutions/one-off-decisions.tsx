@@ -1,14 +1,52 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertCircle, Loader2, Wallet } from "lucide-react";
+import { AlertCircle, ChevronRight, Loader2 } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
+import { capitalizeFirst } from "@/lib/business-time";
 import {
   DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText, payrollWarning, shortDay,
+  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, decisionsViewLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText, payrollWarning, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
+
+/**
+ * One row of the payment of an additional lesson (#159 U4) - the same row for who decides (with the buttons) and for who only looks (an administrator without the right).
+ * «7-А Алгебра · вт 27.10 · 16:00–17:00» and under it «провёл Рахимов Т. · были 2 из 3» (+ «Просит оплатить: …» only when the asker is not the one who held the lesson).  The question of the
+ * server («Дополнительный урок — оплатить преподавателю?») is the title of the section and of the window, not repeated in every row.  A phone: the buttons are under the text.
+ */
+export function PaymentRow({ item, canDecide, onPick }: { item: OneOffDecisionItem; canDecide: boolean; onPick: (item: OneOffDecisionItem, decision: OneOffDecision) => void }) {
+  const asked = decisionAskedLine(item);
+  return (
+    <li data-testid="one-off-decision-row" className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
+      <div className="min-w-0">
+        <p className="text-sm font-semibold text-slate-900">{decisionLessonLine(item)}</p>
+        <p className="mt-0.5 text-xs text-slate-500">{decisionWhoLine(item)}{asked ? ` · ${asked}` : ""}</p>
+      </div>
+      {canDecide && (
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => onPick(item, "pay")}
+            aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
+            className="h-9 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 md:flex-none"
+          >
+            {DECISION_PAY_LABEL}
+          </button>
+          <button
+            type="button"
+            onClick={() => onPick(item, "skip")}
+            aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
+            className="h-9 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:flex-none"
+          >
+            {DECISION_SKIP_LABEL}
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
 
 /**
  * The additional lessons that wait for «Оплатить / Не оплачивать», as a group of rows over the requests of «Замены» (#154).  The decision is the owner's and
@@ -40,6 +78,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const sending = useRef(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const mayDecide = canDecide && !rightLost;
 
   const close = () => { if (!busy) { setDialog(null); setProblem(null); } };
@@ -87,50 +126,32 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
   }
 
   const warning = dialog ? payrollWarning(dialog.item.payrollSheet) : null;
+  const pick = (item: OneOffDecisionItem, decision: OneOffDecision) => { setProblem(null); setDialog({ item, decision }); };
   return (
-    <section aria-label={DECISIONS_GROUP_TITLE} data-testid="one-off-decisions" className="overflow-hidden rounded-2xl border border-amber-200 bg-amber-50/40">
-      <header className="flex items-start gap-3 border-b border-amber-100 px-4 py-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><Wallet className="h-4 w-4" aria-hidden /></span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-slate-900">{DECISIONS_GROUP_TITLE} · {items.length}</h2>
-          <p className="text-xs text-slate-600" data-testid="one-off-decisions-hint">{mayDecide ? DECISIONS_GROUP_HINT : DECISIONS_GROUP_HINT_VIEW}</p>
+    <section aria-label={DECISIONS_GROUP_TITLE} data-testid="one-off-decisions" className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+      {mayDecide ? (
+        <header className="border-b border-slate-100 bg-slate-50 px-4 py-2.5">
+          <h2 className="text-sm font-bold text-slate-900" data-testid="one-off-decisions-title">{DECISIONS_GROUP_TITLE} · {items.length}</h2>
+          <p className="text-xs text-slate-500" data-testid="one-off-decisions-hint">{DECISIONS_GROUP_HINT}</p>
+        </header>
+      ) : (
+        /* an administrator without the right (U4): information, not his task - ONE row that opens the list */
+        <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
+          <button type="button" data-testid="one-off-decisions-toggle" aria-expanded={viewOpen} onClick={() => setViewOpen((value) => !value)} className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-slate-700">
+            <ChevronRight className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${viewOpen ? "rotate-90" : ""}`} aria-hidden />
+            <span data-testid="one-off-decisions-title">{decisionsViewLine(items.length)}</span>
+          </button>
           {rightLost && onRefreshProfile && (
-            <button type="button" data-testid="one-off-decisions-refresh" onClick={onRefreshProfile} className="mt-1 text-xs font-semibold text-primary-700 underline hover:text-primary-800">Обновить</button>
+            <button type="button" data-testid="one-off-decisions-refresh" onClick={onRefreshProfile} className="shrink-0 text-xs font-semibold text-primary-700 underline hover:text-primary-800">Обновить</button>
           )}
         </div>
-      </header>
-      <ul className="divide-y divide-amber-100">
-        {items.map((item) => {
-          const asked = decisionAskedLine(item);
-          return (
-            <li key={item.lessonId} data-testid="one-off-decision-row" className="flex flex-col gap-2 px-4 py-3 md:flex-row md:items-center md:justify-between md:gap-4">
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">{decisionQuestion(item)}</p>
-                <p className="mt-0.5 text-sm text-slate-700">{decisionLessonLine(item)}</p>
-                <p className="mt-0.5 text-xs text-slate-500">{decisionWhoLine(item)}{asked ? ` · ${asked}` : ""}</p>
-              </div>
-              {mayDecide && <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setProblem(null); setDialog({ item, decision: "pay" }); }}
-                  aria-label={`${DECISION_PAY_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-                  className="h-9 flex-1 rounded-lg bg-primary-600 px-4 text-xs font-semibold text-white hover:bg-primary-700 md:flex-none"
-                >
-                  {DECISION_PAY_LABEL}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setProblem(null); setDialog({ item, decision: "skip" }); }}
-                  aria-label={`${DECISION_SKIP_LABEL}: ${item.groupName}, ${shortDay(item.lessonDate)}`}
-                  className="h-9 flex-1 rounded-lg border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 md:flex-none"
-                >
-                  {DECISION_SKIP_LABEL}
-                </button>
-              </div>}
-            </li>
-          );
-        })}
-      </ul>
+      )}
+      {!mayDecide && viewOpen && <p className="border-t border-slate-100 px-4 py-2 text-xs text-slate-500" data-testid="one-off-decisions-hint">{DECISIONS_GROUP_HINT_VIEW}</p>}
+      {(mayDecide || viewOpen) && (
+        <ul className="divide-y divide-slate-100 border-t border-slate-100">
+          {items.map((item) => <PaymentRow key={item.lessonId} item={item} canDecide={mayDecide} onPick={pick} />)}
+        </ul>
+      )}
 
       <Modal
         open={dialog !== null}
@@ -157,7 +178,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLo
       >
         {dialog && (
           <div className="space-y-3 text-sm text-slate-700">
-            <p>{decisionWhoLine(dialog.item)}</p>
+            <p>{capitalizeFirst(decisionWhoLine(dialog.item))}</p>
             <p className="text-slate-600">
               {decisionNote(dialog.decision)}
             </p>

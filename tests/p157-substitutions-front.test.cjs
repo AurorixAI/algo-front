@@ -138,15 +138,20 @@ test("#157 row: «Кто → кто» left, the badge is quiet, the reason is a 
   const cancelled = item({ status: "cancelled", outcome: "cancelled", decision: { kind: "cancel", by: person("Тестов О.", "owner") } });
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: cancelled }))), "|Иванов А.|");
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: owner }))), "|Болезнь|", "a decided row: the label only");
-  assert.match(text(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: owner, withComment: true }))), /\|Болезнь\|Температура\|/);
+  // #159 U2: the comment of a teacher is not in the row - a mark «Есть комментарий» says there is one (the text is in the panel)
+  const withMark = renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: owner, withComment: true }));
+  assert.match(text(withMark), /\|Болезнь\|/);
+  assert.doesNotMatch(text(withMark), /Температура/, "no comment in the row");
+  assert.match(withMark, /aria-label="Есть комментарий"/);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: item({ comment: null }), withComment: true })), /Есть комментарий/, "no comment, no mark");
   assert.equal(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: direct })), "", "a record without a request has no reason");
   const reopened = item({ origin: "system", trigger: null, comment: "Заменяющий больше не ведёт уроки" });
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: reopened }))).endsWith("открыт заново|"), true);
   assert.match(text(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: reopened, withComment: true }))), /Заменяющий больше не ведёт уроки/, "the comment of a reopened request is its explanation (LESSONS 46)");
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.OutcomeChip, { item: owner }))), "|Замена назначена|");
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.WhenCell, { item: owner }))), "|28.10 12:24|", "07:24 UTC = 12:24 in Tashkent");
-  const long = item({ comment: "Очень длинный комментарий. ".repeat(8) });
-  assert.match(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: long, withComment: true })), /aria-expanded="false"[^>]*>Ещё</, "a phone has no tooltip: «Ещё»");
+  const long = item({ origin: "system", trigger: null, comment: "Очень длинный комментарий. ".repeat(8) });
+  assert.match(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: long, withComment: true })), /aria-expanded="false"[^>]*>Ещё</, "the explanation of the system on a phone: «Ещё»");
 });
 
 test("#157 page: the wide table is «Урок · Кто → кто · Причина · Итог · Когда · ›», left aligned; «Выбрать все · N» is the first row; the old cells and their texts are gone", () => {
