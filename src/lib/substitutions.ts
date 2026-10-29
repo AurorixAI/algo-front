@@ -110,15 +110,16 @@ export const REQUEST_REJECTED_LABEL = "Запрос отклонён";
 // ── deadline of a request ────────────────────────────────────────────────────────────────────────
 
 /**
- * «до начала 40 мин» / «до начала 5 ч» / «до начала 5 дн.»: under an hour in minutes, under 72 hours in hours (rounded),
- * further in days (rounded).  Null once the lesson has started: the row says so in words (`startedLabel`).
+ * «через 40 мин» / «через 5 ч» / «через 2 дня»: under an hour in minutes, under a day in hours (rounded, never «24 ч»), a day and more in days (rounded, «1 день / 2 дня / 5 дней») - nobody
+ * counts 47 hours in his head (#159).  Null once the lesson has started: the row says so in words (`startedLabel`).
  */
 export function deadlineText(minutesToStart: number): string | null {
   const minutes = Math.trunc(Number(minutesToStart));
   if (!Number.isFinite(minutes) || minutes <= 0) return null;
-  if (minutes < 60) return `до начала ${minutes} мин`;
-  if (minutes < 72 * 60) return `до начала ${Math.round(minutes / 60)} ч`;
-  return `до начала ${Math.round(minutes / 1440)} дн.`;
+  if (minutes < 60) return `через ${minutes} мин`;
+  if (minutes < 24 * 60) return `через ${Math.min(23, Math.round(minutes / 60))} ч`;
+  const days = Math.max(1, Math.round(minutes / 1440));
+  return `через ${days} ${pluralRu(days, "день", "дня", "дней")}`;
 }
 
 /** The length of a lesson in minutes (from its «HH:MM» ends); 0 when unreadable. */

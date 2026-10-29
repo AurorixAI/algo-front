@@ -37,13 +37,14 @@ const req = (over = {}) => ({
 // ── U1: one function of the deadline ────────────────────────────────────────────────────────────────
 
 test("U1: the colour of the deadline follows the time that is left - calm over a day, amber under a day, a soft red under two hours", () => {
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 3000 })), { text: "до начала 50 ч", tone: "calm" });
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 24 * 60 })), { text: "до начала 24 ч", tone: "calm" }, "exactly a day is still calm");
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 24 * 60 - 1 })), { text: "до начала 24 ч", tone: "soon" });
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 300 })), { text: "до начала 5 ч", tone: "soon" });
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 120 })), { text: "до начала 2 ч", tone: "soon" });
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 119 })), { text: "до начала 2 ч", tone: "now" });
-  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 20 })), { text: "до начала 20 мин", tone: "now" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 3000 })), { text: "через 2 дня", tone: "calm" }, "50 hours are two days, not «50 ч»");
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 24 * 60 })), { text: "через 1 день", tone: "calm" }, "exactly a day is still calm");
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 5 * 1440 })), { text: "через 5 дней", tone: "calm" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 24 * 60 - 1 })), { text: "через 23 ч", tone: "soon" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 300 })), { text: "через 5 ч", tone: "soon" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 120 })), { text: "через 2 ч", tone: "soon" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 119 })), { text: "через 2 ч", tone: "now" });
+  assert.deepEqual(S.deadlineOf(req({ minutesToStart: 20 })), { text: "через 20 мин", tone: "now" });
   assert.equal(S.deadlineOf(req({ status: "substituted", minutesToStart: 20 })), null, "a decided request has no deadline");
 });
 
@@ -69,7 +70,7 @@ test("U1: the closing day is the 1st of the month AFTER NEXT (the window of the 
 
 test("U1: the cell is one line, no solid fill; the grey text has no frame; the header «Срок» is centred", () => {
   const soon = renderToStaticMarkup(React.createElement(cells.DeadlineBadge, { item: req({ minutesToStart: 300 }) }));
-  assert.match(text(soon), /до начала 5 ч/);
+  assert.match(text(soon), /через 5 ч/);
   assert.match(soon, /bg-amber-50/);
   const now = renderToStaticMarkup(React.createElement(cells.DeadlineBadge, { item: req({ minutesToStart: 30 }) }));
   assert.match(now, /bg-rose-50/);

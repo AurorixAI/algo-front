@@ -65,6 +65,7 @@ const DECIDED_ALIGNS: CellAlign[] = ["left", "left", "left", "left", "left", "ri
  */
 function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const phone = useMediaQuery(PHONE_QUERY);
+  const compact = useMediaQuery("(max-width: 1535px)");      // the search shares the one row with the tabs, the filter and the tick: the long hint would be cut (the name for a screen reader is the label)
   const bases = workspaceBases(role);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -343,9 +344,10 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
           ))}
         </div>
         {/* a phone: the search and the filter icon in one row, under them the toggle «Срочные» and the chip of the filter that is on */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <label className="relative block min-w-0 flex-1 sm:flex-none">
+        {/* a wide screen (1280): ONE row for every role - the search takes the place that is left, the tick «Только срочные» is pushed to the right edge */}
+        <div className="flex flex-wrap items-center gap-2 xl:min-w-0 xl:flex-1 xl:flex-nowrap">
+          <div className="flex w-full items-center gap-2 sm:w-auto xl:min-w-0 xl:flex-1">
+            <label className="relative block min-w-0 flex-1 sm:flex-none xl:max-w-[18rem]">
               <span className="sr-only">Группа или преподаватель</span>
               <Search aria-hidden className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               {/* 16 px on a phone: a smaller font makes iOS Safari zoom the page at the focus and not zoom back */}
@@ -353,15 +355,15 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                 type="search"
                 value={searchInput}
                 onChange={(event) => setSearchInput(event.target.value)}
-                placeholder={phone ? "Поиск" : "Группа или преподаватель"}
+                placeholder={phone || compact ? "Поиск" : "Группа или преподаватель"}
                 aria-label="Группа или преподаватель"
-                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64 sm:text-sm"
+                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10 sm:w-64 sm:text-sm xl:w-full"
               />
             </label>
             <CascadingFilter iconOnPhone allLabel="Все группы и преподаватели" teachers={teachers} groups={groups} value={filter} onChange={(value) => { setFilter(value); setPage(0); }} />
           </div>
           {pendingTab && (
-            <label className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <label className="inline-flex h-10 shrink-0 cursor-pointer xl:ml-auto items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50">
               <Checkbox checked={urgentOnly} onChange={(event) => { setUrgentOnly(event.target.checked); setPage(0); }} />
               <span className="sm:hidden">Срочные</span><span className="hidden sm:inline">Только срочные</span>
             </label>

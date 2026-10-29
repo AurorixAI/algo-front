@@ -180,8 +180,8 @@ test("[chain 1] a request by suggestion: the teacher's line, the admin's row, th
   assert.equal(S.createToast(created).text, "Запрос отправлен администратору");
   assert.equal(S.itemLessonLine(item), "9-А · пн, 26.10 · 10:00–11:30");
   assert.deepEqual(chip(item, "pending", "teacher"), { text: "Ждёт решения", tone: "warn" });
-  assert.equal(S.deadlineText(item.minutesToStart), "до начала 5 дн.", "6960 min = 4 d 20 h");
-  assert.deepEqual(S.deadlineOf(item), { text: "до начала 5 дн.", tone: "calm" });
+  assert.equal(S.deadlineText(item.minutesToStart), "через 5 дней", "6960 min = 4 d 20 h");
+  assert.deepEqual(S.deadlineOf(item), { text: "через 5 дней", tone: "calm" });
   assert.equal(S.suggestedLine(item), "Предложил: Рахимов Т.");
   assert.equal(S.reasonLabelOf(item.reasonCode), "Болезнь");
   // the substitute is first in the dialog, with the chip, and can be picked; the busy one is last and cannot
@@ -299,7 +299,7 @@ test("[chain 5] a decision after the lesson began: «поздно» mode - the l
   assert.equal(S.substitutionErrorText(refusal("b2c5_lesson_already_started")), "Урок уже начался или прошёл. Обратитесь к администратору");
   // an urgent request: under 2 hours, the count in a soft red (no word «Срочно»: the colour says it); a repeat of a request says it already waits
   const urgent = fx("b2c5_create_urgent").created[0];
-  assert.deepEqual(S.deadlineOf(urgent), { text: "до начала 20 мин", tone: "now" });
+  assert.deepEqual(S.deadlineOf(urgent), { text: "через 20 мин", tone: "now" });
   assert.equal(S.createToast(fx("b2c5_create_already_requested")).text, "Запрос уже ждёт решения");
   const html = textOf(renderToStaticMarkup(React.createElement(DecisionBody, decisionProps(item))));
   assert.match(html, /Урок уже начался или прошёл\. Можно назначить того, кто его провёл/);
@@ -311,7 +311,7 @@ test("[chain 6] a substitute was removed: the system reopens the request - «З�
   const item = fx("b2c6_reopened");
   assert.equal(item.origin, "system");
   assert.equal(item.previous.status, "substituted");
-  assert.equal(S.deadlineText(item.minutesToStart), "до начала 8 дн.");
+  assert.equal(S.deadlineText(item.minutesToStart), "через 8 дней");
   assert.equal(S.removalRequestsText(fx("b2c6_removal_impact_pending").pendingSubstitutionRequests.count), "Запросов на замену этого сотрудника (1) будут закрыты.");
 });
 
@@ -496,12 +496,18 @@ test("[M3] the move, the cancellation and the refusal forms - the words of the s
 });
 
 test("[M2] the list: the deadline in minutes, hours, days; urgent under 24 hours; the tabs and the row of a decided request", () => {
-  assert.equal(S.deadlineText(40), "до начала 40 мин");
-  assert.equal(S.deadlineText(59), "до начала 59 мин");
-  assert.equal(S.deadlineText(60), "до начала 1 ч");
-  assert.equal(S.deadlineText(300), "до начала 5 ч");
-  assert.equal(S.deadlineText(72 * 60 - 1), "до начала 72 ч");
-  assert.equal(S.deadlineText(72 * 60), "до начала 3 дн.");
+  assert.equal(S.deadlineText(40), "через 40 мин");
+  assert.equal(S.deadlineText(59), "через 59 мин");
+  assert.equal(S.deadlineText(60), "через 1 ч");
+  assert.equal(S.deadlineText(300), "через 5 ч");
+  assert.equal(S.deadlineText(24 * 60 - 1), "через 23 ч", "never «24 ч»: a day is counted in days");
+  assert.equal(S.deadlineText(24 * 60), "через 1 день");
+  assert.equal(S.deadlineText(47 * 60), "через 2 дня");
+  assert.equal(S.deadlineText(72 * 60), "через 3 дня");
+  assert.equal(S.deadlineText(5 * 1440), "через 5 дней");
+  assert.equal(S.deadlineText(11 * 1440), "через 11 дней");
+  assert.equal(S.deadlineText(21 * 1440), "через 21 день");
+  assert.equal(S.deadlineText(22 * 1440), "через 22 дня");
   assert.equal(S.deadlineText(0), null);
   assert.equal(S.deadlineText(-30), null);
   assert.equal(S.tabLabel("pending", 3), "Ждут решения (3)");

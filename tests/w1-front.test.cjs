@@ -704,11 +704,14 @@ test("R3 6 (phone, #157): the search and the filter icon are ONE row, «Сроч
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(CascadingFilter, props)), /hidden sm:inline/, "every other page keeps the full pill");
 });
 
-test("phone: the search placeholder is just «Поиск», the accessible name stays the full one", () => {
+test("phone and the one-row toolbar below 1536 px: the search placeholder is just «Поиск», the accessible name stays the full one", () => {
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /placeholder=\{phone \? "Поиск" : "Группа или преподаватель"\}/);
+  assert.match(page, /placeholder=\{phone \|\| compact \? "Поиск" : "Группа или преподаватель"\}/);
   assert.match(page, /aria-label="Группа или преподаватель"/);
   assert.match(page, /useMediaQuery\(PHONE_QUERY\)/);
+  assert.match(page, /useMediaQuery\("\(max-width: 1535px\)"\)/, "#159: at 1280 the search shares ONE row with the tabs, the filter and the tick");
+  assert.match(page, /xl:min-w-0 xl:flex-1 xl:flex-nowrap/);
+  assert.match(page, /xl:ml-auto/, "the tick is pushed to the right edge");
   assert.match(read("src/lib/use-media-query.ts"), /\(max-width: 639px\)/, "below Tailwind's `sm`, like the other phone rules of the page");
 });
 
