@@ -33,6 +33,9 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
+import { businessDateWithOffset, formatIsoDateLabel } from "@/lib/business-time";
+import { examListState, examTabOf, lobbyExamLabel, type DashboardExamState, type ExamTab } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
@@ -58,11 +61,26 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
     dot: "bg-amber-400",
   },
   lobby: {
-    label: "В лобби",
+    label: "Лобби открыто",
     icon: <Radio className="w-3 h-3" />,
     gradient: "from-indigo-50 to-violet-50",
     text: "text-indigo-700",
     dot: "bg-indigo-500",
+  },
+  // #159: a lobby exam whose lesson has not begun / has passed is not «в лобби»
+  lobby_scheduled: {
+    label: "Запланирован",
+    icon: <Clock className="w-3 h-3" />,
+    gradient: "from-sky-50 to-blue-50",
+    text: "text-sky-700",
+    dot: "bg-sky-400",
+  },
+  lobby_passed: {
+    label: "Занятие прошло",
+    icon: <AlertCircle className="w-3 h-3" />,
+    gradient: "from-amber-50 to-orange-50",
+    text: "text-amber-700",
+    dot: "bg-amber-400",
   },
   active: {
     label: "Идёт экзамен",
@@ -94,12 +112,12 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactNode; grad
   },
 };
 
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, label }: { status: string; label?: string }) {
   const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.draft;
   return (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gradient-to-r ${cfg.gradient} ${cfg.text} border border-white/80 shadow-sm`}>
       <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} flex-shrink-0`} />
-      {cfg.label}
+      {label ?? cfg.label}
     </span>
   );
 }
@@ -194,6 +212,8 @@ interface ExamCardProps {
   onDeletePermanently: (id: string) => void;
   copiedId: string | null;
   onCopyCode: (exam: ExamSummary, e: React.MouseEvent) => void;
+  /** #159: the state of a lobby exam by its lesson (one function with the dashboard and the monitor of the administrator). */
+  lobbyState: DashboardExamState;
 }
 
 function ExamCard({
@@ -208,6 +228,7 @@ function ExamCard({
   onDeletePermanently,
   copiedId,
   onCopyCode,
+  lobbyState,
 }: ExamCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
@@ -221,7 +242,10 @@ function ExamCard({
   const isDraft = effectiveStatus === "draft" || effectiveStatus === "variants_ready";
   const isActive = effectiveStatus === "active";
   const isPrintReady = effectiveStatus === "print_ready";
-  const isLobby = effectiveStatus === "lobby";
+  const isLobbyStatus = effectiveStatus === "lobby";            // the exam's own status
+  const isLobby = isLobbyStatus && lobbyState === "lobby";      // the lobby is OPEN only while the lesson is on
+  const badgeKey = !isLobbyStatus ? effectiveStatus : lobbyState === "lobby" ? "lobby" : lobbyState === "needs_resolution" ? "lobby_passed" : "lobby_scheduled";
+  const badgeDay = exam.scheduled_lesson_date ? formatIsoDateLabel(exam.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "";
   const isClosed = effectiveStatus === "closed";
   const isArchived = effectiveStatus === "archived";
   const canAssignGroup = !exam.group_id && isDraft;
@@ -275,7 +299,7 @@ function ExamCard({
                 <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight line-clamp-1 group-hover:text-primary-600 transition-colors">
                   {exam.title}
                 </h3>
-                <StatusBadge status={effectiveStatus} />
+                <StatusBadge status={badgeKey} label={isLobbyStatus ? lobbyExamLabel(lobbyState, badgeDay) : undefined} />
                 {exam.group_name ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
                     <Users className="w-2.5 h-2.5" />
@@ -313,7 +337,7 @@ function ExamCard({
                     Занятие: {formatBusinessCalendarDate(exam.scheduled_lesson_date, { day: "numeric", month: "short" })}
                   </span>
                 )}
-                {(exam.total_sessions || 0) > 0 && !isLobby && (
+                {(exam.total_sessions || 0) > 0 && !isLobbyStatus && (
                   <span className="flex items-center gap-1 font-semibold text-emerald-600">
                     <GraduationCap className="w-3.5 h-3.5" />
                     {exam.total_sessions} сдали
@@ -501,10 +525,10 @@ function ExamCard({
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-type StatusTab = "active" | "lobby" | "draft" | "closed" | "archived";
+type StatusTab = ExamTab;
 
 function parseStatusTab(value: string | null): StatusTab {
-  return value === "lobby" || value === "draft" || value === "closed" || value === "archived" || value === "active"
+  return value === "lobby" || value === "scheduled" || value === "draft" || value === "closed" || value === "archived" || value === "active"
     ? value
     : "active";
 }
@@ -671,38 +695,22 @@ export default function TeacherExamsPage() {
     loadData(); // refresh list
   };
 
-  // Counts
+  // #159: the state of a lobby exam follows its lesson - ONE function for the counters, the tabs and the badges (the dashboard and the administrator's monitor use the same)
+  const today = businessDateWithOffset(0);
+  const lessons = useTodayLessonStatuses(exams, today);
+  const stateOf = useCallback((e: ExamSummary) => examListState(e, today, lessons.statusOf(e)), [today, lessons]);
+
+  // Counts: what the tab shows
   const counts = useMemo(() => {
-    return {
-      active: exams.filter((e) => {
-        if (e.status === "archived") return false;
-        const eff = (!e.group_id && (e.status === "active" || e.status === "lobby")) ? "draft" : e.status;
-        return eff === "active" || eff === "print_ready";
-      }).length,
-      lobby: exams.filter((e) => {
-        if (e.status === "archived") return false;
-        const eff = (!e.group_id && (e.status === "active" || e.status === "lobby")) ? "draft" : e.status;
-        return eff === "lobby";
-      }).length,
-      draft: exams.filter((e) => {
-        if (e.status === "archived") return false;
-        const eff = (!e.group_id && (e.status === "active" || e.status === "lobby")) ? "draft" : e.status;
-        return eff === "draft" || eff === "variants_ready";
-      }).length,
-      closed: exams.filter((e) => e.status === "closed").length,
-      archived: exams.filter((e) => e.status === "archived").length,
-    };
-  }, [exams]);
+    const tally: Record<ExamTab, number> = { active: 0, lobby: 0, scheduled: 0, draft: 0, closed: 0, archived: 0 };
+    for (const e of exams) tally[examTabOf(e, stateOf(e))] += 1;
+    return tally;
+  }, [exams, stateOf]);
 
   // Filtered + sorted
   const filteredExams = useMemo(() => {
     let list = exams.filter((ex) => {
-      const eff = ex.status === "archived" ? "archived" : (!ex.group_id && (ex.status === "active" || ex.status === "lobby")) ? "draft" : ex.status;
-      if (statusTab === "active" && eff !== "active" && eff !== "print_ready") return false;
-      if (statusTab === "lobby" && eff !== "lobby") return false;
-      if (statusTab === "draft" && eff !== "draft" && eff !== "variants_ready") return false;
-      if (statusTab === "closed" && eff !== "closed") return false;
-      if (statusTab === "archived" && eff !== "archived") return false;
+      if (examTabOf(ex, stateOf(ex)) !== statusTab) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         return (
@@ -715,7 +723,7 @@ export default function TeacherExamsPage() {
     });
     // pinned first
     return [...list.filter((e) => e.is_pinned), ...list.filter((e) => !e.is_pinned)];
-  }, [exams, statusTab, searchQuery]);
+  }, [exams, statusTab, searchQuery, stateOf]);
 
   return (
     <div className="w-full max-w-[1400px] mx-auto pb-16 space-y-6">
@@ -742,10 +750,11 @@ export default function TeacherExamsPage() {
       </div>
 
       {/* KPI Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: "Текущие", value: counts.active, color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
-          { label: "В лобби", value: counts.lobby, color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
+          { label: "Лобби открыто", value: counts.lobby, color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
+          { label: "Запланированы", value: counts.scheduled, color: "text-sky-700", bg: "bg-sky-50", icon: <Clock className="w-4 h-4 text-sky-500" /> },
           { label: "Черновики", value: counts.draft, color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
           { label: "Завершены", value: counts.closed, color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
         ].map((s) => (
@@ -765,10 +774,11 @@ export default function TeacherExamsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm">
         {/* Tabs */}
         <div className="flex items-center gap-1 p-1 bg-slate-100/70 rounded-xl overflow-x-auto">
-          {(["active", "lobby", "draft", "closed", "archived"] as StatusTab[]).map((tab) => {
+          {(["active", "lobby", "scheduled", "draft", "closed", "archived"] as StatusTab[]).map((tab) => {
             const labels: Record<StatusTab, string> = {
               active: "Текущие",
               lobby: "Лобби",
+              scheduled: "Запланированы",
               draft: "Черновики",
               closed: "Завершённые",
               archived: "Архив",
@@ -865,6 +875,7 @@ export default function TeacherExamsPage() {
                 onDeletePermanently={handleDeletePermanently}
                 copiedId={copiedId}
                 onCopyCode={handleCopyCode}
+                lobbyState={stateOf(ex)}
               />
             ))}
           </div>

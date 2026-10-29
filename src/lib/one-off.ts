@@ -66,8 +66,9 @@ export interface OneOffDecisionItem {
   lessonDate: string;
   startTime: string;
   endTime: string;
-  purpose: "extra" | "makeup";
-  /** «Дополнительный урок — оплатить преподавателю?» / «Отработка без учеников — оплатить преподавателю?» */
+  /** #159: only an additional lesson waits for a decision (a make-up is an ordinary lesson and never does). */
+  purpose: "extra";
+  /** «Дополнительный урок — оплатить преподавателю?» */
   title: string;
   teacher: { id: string; name: string } | null;
   createdBy: { id: string; name: string; role: string } | null;
@@ -88,12 +89,22 @@ export interface MoneyDecisionOut {
 
 // ── roles ───────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Who adds the lesson: the owner / administrator (`manager`) or the teacher.  Anyone else (or nobody) gets `null`: the form is not offered. */
+/**
+ * How the form «Добавить занятие» offers the money of the teacher (#159): `manager` decides it (the owner, an administrator WITH the right of payments) and chooses
+ * «Без оплаты / Оплачивается»; `teacher` (a teacher, an administrator WITHOUT the right) asks («Прошу оплатить») or says nothing is due.  Anyone else (or nobody) gets
+ * `null`: the form is not offered.
+ */
 export type OneOffRole = "manager" | "teacher";
 
-export function oneOffRoleOf(user: { org_role?: string | null } | null | undefined): OneOffRole | null {
+/** May this user decide the money of a teacher: the owner, an administrator whose profile says `payments_access: true`.  An absent field is NO right (LESSONS 17: nothing is guessed). */
+export function canDecideMoney(user: { org_role?: string | null; payments_access?: boolean | null } | null | undefined): boolean {
   const role = user?.org_role ?? null;       // only the role in THIS centre; the global `role` is never a guess (LESSONS 17)
-  if (role === "owner" || role === "admin") return "manager";
+  return role === "owner" || (role === "admin" && user?.payments_access === true);
+}
+
+export function oneOffRoleOf(user: { org_role?: string | null; payments_access?: boolean | null } | null | undefined): OneOffRole | null {
+  const role = user?.org_role ?? null;
+  if (role === "owner" || role === "admin") return canDecideMoney(user) ? "manager" : "teacher";
   if (role === "teacher") return "teacher";
   return null;
 }
@@ -108,7 +119,7 @@ export interface OneOffChoice {
 }
 
 export function emptyChoice(role: OneOffRole | null): OneOffChoice {
-  // a teacher's money is «Прошу оплатить» until he says otherwise; an owner / administrator chooses, nothing is chosen for him (his choice is money)
+  // who asks (a teacher, an administrator without the right) has «Прошу оплатить» until he says otherwise; who decides chooses, nothing is chosen for him (his choice is money)
   return { purpose: null, money: role === "teacher" ? "wait" : null, target: "" };
 }
 
@@ -118,11 +129,11 @@ export interface MoneyChoice {
   hint: string;
 }
 
-/** The money of an additional lesson by the role (SPEC §2): a teacher asks (`wait`) or says nothing is due (`none`); an owner / administrator sets `none` or `paid`. */
+/** The money of an additional lesson by the role (SPEC §2): who asks (`teacher`) says `wait` or `none`; who decides (`manager`) sets `none` or `paid`. */
 export function moneyChoicesFor(role: OneOffRole | null): MoneyChoice[] {
   if (role === "teacher") {
     return [
-      { value: "wait", label: "Прошу оплатить", hint: "Владелец или администратор решит после урока" },
+      { value: "wait", label: "Прошу оплатить", hint: "После урока решит владелец или администратор с правом на оплаты" },
       { value: "none", label: "Без оплаты", hint: "За этот урок вы ничего не получите" },
     ];
   }
@@ -144,7 +155,7 @@ export const EXTRA_FREE_FOR_STUDENTS = "Ученикам дополнитель�
 export const MONEY_QUESTION = "Оплата преподавателю";
 export const MAKEUP_TARGET_LABEL = "Какой урок отрабатываем";
 export const MAKEUP_TARGET_PLACEHOLDER = "Выберите отменённый урок";
-export const MAKEUP_MONEY_NOTE = "Отработка оплачивается, как обычный урок. Вычет за отменённый урок снимется с тех, кто придёт на отработку.";
+export const MAKEUP_MONEY_NOTE = "Отработка — обычный урок: преподавателю платят, как за обычный. Вычет за отменённый урок снимается, неявка на отработку засчитывается.";
 export const MAKEUP_LOADING_TEXT = "Ищем отменённые уроки…";
 export const MAKEUP_LOAD_ERROR_TEXT = "Не удалось загрузить отменённые уроки. Повторите попытку.";
 export const MAKEUP_EMPTY_FALLBACK = "Нет отменённых уроков, которые можно отработать";
@@ -236,7 +247,7 @@ export const ONE_OFF_CODES: readonly string[] = [
   "MAKEUP_NOT_ALLOWED", "MAKEUP_EXISTS", "MOVE_IN_PAST", "MOVE_TOO_FAR", "MOVE_SAME_SLOT", "SERIES_ENDED", "GROUP_BUSY", "TEACHER_BUSY", "STUDENT_BUSY",
   "TEACHER_REQUIRED", "LESSON_ALREADY_STARTED", "PURPOSE_REQUIRED", "PURPOSE_INVALID", "MONEY_REQUIRED", "MONEY_INVALID", "MAKEUP_TARGET_REQUIRED",
   "MAKEUP_TARGET_NOT_ALLOWED", "RESTORE_MAKEUP_TARGET", "ONE_OFF_NOT_FOUND", "DECISION_NOT_ALLOWED", "LESSON_NOT_COMPLETED", "ALREADY_DECIDED",
-  "NOT_A_MEMBER", "DECISION_FORBIDDEN",
+  "NOT_A_MEMBER", "DECISION_FORBIDDEN", "MONEY_RIGHT_REQUIRED",
 ];
 
 /**
@@ -274,6 +285,7 @@ export function oneOffErrorText(error: unknown): string | null {
     case "ALREADY_DECIDED": return "Решение по этому уроку уже принято. Обновите страницу";
     case "NOT_A_MEMBER": return "Вы не состоите в этом центре. Войдите заново или обратитесь к владельцу";
     case "DECISION_FORBIDDEN": return "Решать об оплате могут только владелец и администратор";
+    case "MONEY_RIGHT_REQUIRED": return MONEY_RIGHT_TEXT;
     default: return null;
   }
 }
@@ -281,6 +293,11 @@ export function oneOffErrorText(error: unknown): string | null {
 /** The words of any refusal on these screens: one of ours, else the server's own text, else `fallback`. */
 export function oneOffRefusalText(error: unknown, fallback: string): string {
   return oneOffErrorText(error) ?? errorMessageOf(error, fallback);
+}
+
+/** The server refused the decision for want of the right of money (#159): the owner took it back, or the profile was old. */
+export function isMoneyRightRefusal(error: unknown): boolean {
+  return opsErrorCode(error) === "MONEY_RIGHT_REQUIRED";
 }
 
 /** The decision was already taken (by the other administrator, or twice): the row is gone, the list is read again. */
@@ -316,9 +333,10 @@ export function decisionMatches(item: Pick<OneOffDecisionItem, "groupId" | "grou
   return !text || item.groupName.toLowerCase().includes(text) || (item.teacher?.name ?? "").toLowerCase().includes(text);
 }
 
-/** «Просил оплатить: Рахимов Т.» when a teacher asked; null for a make-up and for a lesson an owner / administrator added. */
+/** «Просит оплатить: Рахимов Т.» when a teacher - or an administrator without the right of money (#159: he asks as a teacher) - asked; null for the owner's own lesson. */
 export function decisionAskedLine(item: Pick<OneOffDecisionItem, "purpose" | "createdBy">): string | null {
-  if (item.purpose !== "extra" || item.createdBy?.role !== "teacher" || !item.createdBy.name) return null;
+  const role = item.createdBy?.role;
+  if (item.purpose !== "extra" || (role !== "teacher" && role !== "admin") || !item.createdBy?.name) return null;
   return `Просит оплатить: ${item.createdBy.name}`;
 }
 
@@ -339,10 +357,13 @@ export function payrollWarning(sheet: DecisionPayrollSheet | null | undefined): 
   return `Ведомость за ${month} выплачена — ${SUM_CHANGES}`;
 }
 
+export const MONEY_RIGHT_TEXT = "Решение об оплате принимает владелец или администратор с правом на оплаты";
 export const DECISION_PAY_LABEL = "Оплатить";
 export const DECISION_SKIP_LABEL = "Не оплачивать";
-export const DECISIONS_GROUP_TITLE = "Дополнительные уроки и отработки без учеников";
+export const DECISIONS_GROUP_TITLE = "Дополнительные уроки: оплата преподавателю";
 export const DECISIONS_GROUP_HINT = "Оплатить преподавателю или нет — решаете вы. Решение принимается один раз.";
+/** An administrator without the right of money sees the queue and the status, not the buttons (#159). */
+export const DECISIONS_GROUP_HINT_VIEW = MONEY_RIGHT_TEXT;
 export const DECISION_PAY_NOTE = "Урок войдёт в сумму преподавателя, как обычный. Ученикам он бесплатен.";
 export const DECISION_SKIP_NOTE = "Преподавателю за этот урок не заплатят.";
 export const DECISION_FINAL_NOTE = "Решение нельзя изменить.";
@@ -357,9 +378,9 @@ export function decisionToast(decision: OneOffDecision): string {
 }
 export const DECISIONS_LOAD_ERROR_TEXT = "Не удалось загрузить уроки, которые ждут решения. Повторите попытку.";
 
-/** The question of the window of a decision: the title the server sent, else by the purpose. */
-export function decisionQuestion(item: Pick<OneOffDecisionItem, "title" | "purpose">): string {
-  return (item.title ?? "").trim() || (item.purpose === "makeup" ? "Отработка без учеников — оплатить преподавателю?" : "Дополнительный урок — оплатить преподавателю?");
+/** The question of the window of a decision: the title the server sent, else the one of an additional lesson. */
+export function decisionQuestion(item: Pick<OneOffDecisionItem, "title">): string {
+  return (item.title ?? "").trim() || "Дополнительный урок — оплатить преподавателю?";
 }
 
 /** The counter of the tab and of the menu: the requests for a substitute plus the lessons that wait for a decision of money. */

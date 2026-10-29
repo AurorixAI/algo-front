@@ -69,3 +69,70 @@ export function scheduledExamLabel(state: DashboardExamState, dayLabel: string |
   const day = (dayLabel ?? "").trim();
   return day ? `Запланирован · ${day}` : "Запланирован";
 }
+
+// ── the exam in a LIST (#159, LESSONS 56): the library, the group, the administrator's monitor, the pages of one exam ─────────────────────────
+
+/** What a list needs to know about an exam to say its state. */
+export interface ExamForState {
+  status: string;
+  scheduled_lesson_id?: string | null;
+  scheduled_lesson_date?: string | null;
+  group_id?: string | null;
+}
+
+/**
+ * The state a list says about an exam: ONE function with the dashboard's (`dashboardExamState`), so the same exam is in the same state on every screen (invariant 3 of #159).
+ * `lessonStatus` is the status of the bound lesson TODAY (`null` / `undefined`: not known, so «Лобби открыто» is never claimed: «Сегодня»).
+ */
+export function examListState(exam: ExamForState, today: string, lessonStatus: string | null | undefined): DashboardExamState {
+  return dashboardExamState({ status: exam.status, scheduledDate: exam.scheduled_lesson_date, today, lessonStatus });
+}
+
+/** The exam is in the lobby by its own status and its lesson is today: only then the status of the lesson is needed (the other days decide by the date alone). */
+export function needsLessonStatus(exam: ExamForState, today: string): boolean {
+  return exam.status === "lobby" && Boolean(exam.group_id) && Boolean(exam.scheduled_lesson_id) && exam.scheduled_lesson_date === today;
+}
+
+/** The key of `GroupAttendance.statuses`: `<date>_<lessonId>`. */
+export function lessonStatusKey(date: string, lessonId: string): string {
+  return `${date}_${lessonId}`;
+}
+
+/** The three kinds of a lobby exam in the counters and tabs: the lesson is on (`lobby`), the lesson has not begun (`scheduled`: a later day and today before the start), the lesson has passed (`passed`). `null`: not a lobby state. */
+export type LobbyBucket = "lobby" | "scheduled" | "passed";
+export function lobbyBucketOf(state: DashboardExamState): LobbyBucket | null {
+  if (state === "lobby") return "lobby";
+  if (state === "upcoming" || state === "today") return "scheduled";
+  if (state === "needs_resolution") return "passed";
+  return null;
+}
+
+/** The words of the chip of a lobby exam: «Лобби открыто» / «Запланирован · пн, 3 нояб.» / «Сегодня» / «Занятие прошло».  Nothing else says «Лобби» about an exam that has not begun. */
+export function lobbyExamLabel(state: DashboardExamState, dayLabel: string | null | undefined): string {
+  if (state === "lobby") return "Лобби открыто";
+  if (state === "needs_resolution") return "Занятие прошло";
+  return scheduledExamLabel(state, dayLabel);
+}
+
+/** The tab (and counter) of an exam in the teacher's lists, the library and the group.  A lobby exam whose lesson has passed waits for the teacher's decision (move or cancel): it stays among the current ones. */
+export type ExamTab = "active" | "lobby" | "scheduled" | "draft" | "closed" | "archived";
+export function examTabOf(exam: ExamForState, state: DashboardExamState): ExamTab {
+  if (exam.status === "archived") return "archived";
+  if (!exam.group_id && (exam.status === "active" || exam.status === "lobby")) return "draft";       // an exam without a group is a template of the library
+  if (exam.status === "active" || exam.status === "print_ready") return "active";
+  if (exam.status === "lobby") {
+    const bucket = lobbyBucketOf(state);
+    return bucket === "lobby" ? "lobby" : bucket === "scheduled" ? "scheduled" : "active";
+  }
+  return exam.status === "closed" ? "closed" : "draft";
+}
+
+/** How many lobby exams are in each bucket - the counters of the administrator's monitor are made of the very list they filter (a counter is what the list shows). */
+export function lobbyCounts<T extends ExamForState>(exams: ReadonlyArray<T>, stateOf: (exam: T) => DashboardExamState): Record<LobbyBucket, number> {
+  const tally: Record<LobbyBucket, number> = { lobby: 0, scheduled: 0, passed: 0 };
+  for (const exam of exams) {
+    const bucket = exam.status === "lobby" ? lobbyBucketOf(stateOf(exam)) : null;
+    if (bucket) tally[bucket] += 1;
+  }
+  return tally;
+}

@@ -101,7 +101,9 @@ test("A: the money of an additional lesson by the role; no role is guessed", () 
   assert.deepEqual(O.moneyChoicesFor("manager").map((c) => [c.value, c.label]), [["none", "Без оплаты"], ["paid", "Оплачивается"]]);
   assert.deepEqual(O.moneyChoicesFor(null), []);
   assert.equal(O.oneOffRoleOf({ org_role: "owner" }), "manager");
-  assert.equal(O.oneOffRoleOf({ org_role: "admin" }), "manager");
+  assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: true }), "manager");
+  assert.equal(O.oneOffRoleOf({ org_role: "admin" }), "teacher", "#159: no right in the profile = the money is asked, not decided (LESSONS 17)");
+  assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: false }), "teacher");
   assert.equal(O.oneOffRoleOf({ org_role: "teacher" }), "teacher");
   // the global role is never a guess (LESSONS 17): without the role in THIS centre nobody gets the form
   for (const odd of [null, undefined, {}, { org_role: "student" }, { role: "parent" }, { org_role: "" }, { org_role: null, role: "owner" }, { org_role: null, role: "admin" }, { role: "teacher" }]) assert.equal(O.oneOffRoleOf(odd), null);
@@ -193,7 +195,7 @@ test("A: the list of cancelled lessons shows date, time and the reason when the 
   assert.equal(O.candidateOptionLabel(item({ reason: "  " })), "пн 02.11, 10:00–11:00");
   assert.match(withReason, /Какой урок отрабатываем/);
   assert.match(withReason, /Выберите отменённый урок/);
-  assert.match(withReason, /оплачивается, как обычный урок/);
+  assert.match(withReason, /платят, как за обычный/);
   const chosen = formHtml({ choice: { purpose: "makeup", money: null, target: "lesson-mon|2026-11-02" } });
   assert.match(chosen, /пн 02\.11, 10:00–11:00 · Преподаватель заболел/);
   const teacherSide = formHtml({ role: "teacher", choice: { purpose: "makeup", money: "wait", target: "lesson-mon|2026-11-02" }, makeup: { kind: "ready", data: { items: [item({ reason: null })], emptyReason: null } } });
@@ -231,7 +233,7 @@ test("A: both forms mount the same fields, always with the role and the group", 
     assert.match(source, /createOneOff\(/, name);
   }
   assert.match(group, /role: OneOffRole \| null;/, "the role of the dialog is required, never a default");
-  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /role=\{oneOffRoleOf\(\{ org_role: viewerRole \}\)\}/);
+  assert.match(read("src/components/groups/group-schedule-overview.tsx"), /role=\{oneOffRoleOf\(\{ org_role: viewerRole, payments_access: user\?\.payments_access \}\)\}/);
   assert.match(teacher, /const oneOffRole = oneOffRoleOf\(user\);/);
 });
 
@@ -245,9 +247,9 @@ const decision = (over = {}) => ({
 });
 
 test("A: the row of money - the title of the server, the lesson, who held it, how many came; no amount; two buttons", () => {
-  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} }));
+  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   const plain = text(html);
-  assert.match(plain, /Дополнительные уроки и отработки без учеников · 1/);
+  assert.match(plain, /Дополнительные уроки: оплата преподавателю · 1/);
   assert.match(plain, /Дополнительный урок — оплатить преподавателю\?/);
   assert.match(plain, /7-А · чт 05\.11 · 16:00–17:00/);
   assert.match(plain, /Провёл Рахимов Т\. · были 3 из 10/);
@@ -255,13 +257,10 @@ test("A: the row of money - the title of the server, the lesson, who held it, ho
   assert.match(html, /Оплатить<\/button>/);
   assert.match(html, /Не оплачивать<\/button>/);
   assert.doesNotMatch(plain, /сум|so'm|\d\s?\d{3}\s?(UZS|сум)/i, "no amount anywhere");
-  const empty = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision({ purpose: "makeup", title: "Отработка без учеников — оплатить преподавателю?", studentsPresent: 0, createdBy: { id: "o", name: "Тестов О.", role: "owner" } })], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} }));
-  assert.match(text(empty), /Отработка без учеников — оплатить преподавателю\?/);
-  assert.doesNotMatch(text(empty), /Просит оплатить/, "only a teacher asks");
 });
 
 test("A: the buttons are named by the short day, never an ISO date (F3); the window says «нельзя изменить» for BOTH choices (F4)", () => {
-  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {} }));
+  const html = renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [decision()], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {} }));
   assert.match(html, /aria-label="Оплатить: 7-А, чт 05\.11"/);
   assert.match(html, /aria-label="Не оплачивать: 7-А, чт 05\.11"/);
   assert.doesNotMatch(html, /\d{4}-\d{2}-\d{2}/, "no ISO date in the markup");
@@ -282,7 +281,7 @@ test("A: the new refusals of the server have words, not codes (F5)", () => {
 });
 
 test("A: no rows - nothing is drawn; a failed read says so with «Повторить»; loading is quiet", () => {
-  const block = (props) => renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [], loading: false, error: null, onRetry() {}, onDecided() {}, showToast() {}, ...props }));
+  const block = (props) => renderToStaticMarkup(React.createElement(DEC.OneOffDecisionsBlock, { items: [], loading: false, error: null, canDecide: true, onRetry() {}, onDecided() {}, showToast() {}, ...props }));
   assert.equal(block({}), "");
   assert.match(text(block({ error: "x" })), /Повторить/);
   assert.match(text(block({ loading: true })), /Проверяем уроки/);
@@ -425,9 +424,10 @@ test("D1: the line under the student on the sheet does not call a make-up «до
   assert.match(sheet, /noPayLineText\(line\.no_pay \?\? 0\)/);
   assert.doesNotMatch(sheet, /доп\. урок/, "the mark of the sheet does not say what the lesson is for: the words are neutral");
   const { SHEET_LEGEND } = require(path.join(root, "src/lib/payroll-help.ts"));
-  for (const key of ["undecided", "no_pay"]) assert.match(SHEET_LEGEND.find((x) => x.key === key).text, /дополнительный урок или (пустая )?отработка/, key);
-  assert.match(P.markCell(0, "undecided").title, /Дополнительный урок или пустая отработка/);
-  assert.match(P.markCell(0, "no_pay").title, /Дополнительный урок или отработка без оплаты/);
+  assert.match(SHEET_LEGEND.find((x) => x.key === "undecided").text, /^дополнительный урок, оплата не решена/);          // #159: an empty make-up is an ordinary lesson, it is never «не решено»
+  assert.match(SHEET_LEGEND.find((x) => x.key === "no_pay").text, /^дополнительный урок без оплаты/);
+  assert.match(P.markCell(0, "undecided").title, /^Дополнительный урок: оплата не решена/);
+  assert.match(P.markCell(0, "no_pay").title, /^Дополнительный урок без оплаты/);
 });
 
 test("D2: the cancelled original on the card of a student says «Отработан → чт 06.11» - the chip and the link of the schedule of a group", () => {

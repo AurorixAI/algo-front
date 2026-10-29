@@ -21,6 +21,8 @@ import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-remova
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
 import { formatBusinessDate, formatIsoDateLabel } from "@/lib/business-time";
+import { examListState, lobbyExamLabel } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { examHasLobby, isNoLobbyConflict, LOBBY_POLL_MS, nextLobbyPollDelay } from "@/lib/exam-lobby";
 import { examsApi, isTransientApiError, orgApi, type Group, type PrintPackageMetadata, type ScheduleOccurrence } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -786,6 +788,12 @@ export default function ExamHubPage() {
     ? "Назад в группу"
     : "В библиотеку экзаменов";
 
+  // #159: the state of a lobby exam follows its lesson (the very function of the dashboard, the library and the administrator's monitor): «Лобби открыто» only while the lesson is on
+  const today = formatBusinessDate();
+  const lessons = useTodayLessonStatuses(exam ? [exam] : [], today);
+  const examState = exam ? examListState(exam, today, lessons.statusOf(exam)) : "upcoming";
+  const lobbyOpen = exam?.status === "lobby" && examState === "lobby";
+
   if (loading) {
     return (
       <div className="p-8 max-w-6xl mx-auto flex items-center justify-center min-h-[60vh]">
@@ -944,7 +952,7 @@ export default function ExamHubPage() {
                           "px-3 py-1 rounded-xl font-medium flex items-center gap-1.5 border",
                           (!exam.group_id || exam.status === "draft") && "bg-slate-100 text-slate-700 border-slate-200",
                           exam.group_id && exam.status === "variants_ready" && "bg-blue-50 text-blue-700 border-blue-200",
-                          exam.group_id && exam.status === "lobby" && "bg-amber-50 text-amber-900 border-amber-200",
+                          exam.group_id && exam.status === "lobby" && (lobbyOpen || examState === "needs_resolution" ? "bg-amber-50 text-amber-900 border-amber-200" : "bg-sky-50 text-sky-800 border-sky-200"),
                           exam.group_id && exam.status === "active" && "bg-emerald-50 text-emerald-800 border-emerald-200",
                           exam.status === "closed" && "bg-rose-50 text-rose-800 border-rose-200"
                         )}
@@ -954,7 +962,7 @@ export default function ExamHubPage() {
                             "w-2 h-2 rounded-full shrink-0",
                             (!exam.group_id || exam.status === "draft") && "bg-slate-500",
                             exam.group_id && exam.status === "variants_ready" && "bg-blue-500",
-                            exam.group_id && exam.status === "lobby" && "bg-amber-500 animate-pulse",
+                            exam.group_id && exam.status === "lobby" && (lobbyOpen ? "bg-amber-500 animate-pulse" : "bg-sky-500"),
                             exam.group_id && exam.status === "active" && "bg-emerald-500 animate-ping",
                             exam.status === "closed" && "bg-rose-500"
                           )}
@@ -966,7 +974,7 @@ export default function ExamHubPage() {
                           : exam.status === "variants_ready"
                           ? "Готов к запуску"
                           : exam.status === "lobby"
-                          ? "В комнате ожидания (Лобби)"
+                          ? lobbyExamLabel(examState, exam.scheduled_lesson_date ? formatIsoDateLabel(exam.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "")
                           : exam.status === "active"
                           ? "Идёт экзамен (Активен)"
                           : "Завершён"}
@@ -1463,14 +1471,14 @@ export default function ExamHubPage() {
               <div>
                 <h3 className="text-base font-bold text-slate-900">
                   {exam.status === "lobby"
-                    ? "Ученики в комнате ожидания"
+                    ? (lobbyOpen ? "Ученики в комнате ожидания" : examState === "needs_resolution" ? "Занятие прошло: комната ожидания закрыта" : "Комната ожидания откроется, когда начнётся урок")
                     : exam.status === "active"
                     ? "Ученики пишут экзамен в реальном времени"
                     : "Подключившиеся участники"}
                 </h3>
                 <p className="text-xs text-slate-500">
                   {exam.status === "lobby"
-                    ? "Вы можете начать экзамен в любой момент, когда готовы (не обязательно ждать 100% присутствия)"
+                    ? (lobbyOpen ? "Вы можете начать экзамен в любой момент, когда готовы (не обязательно ждать 100% присутствия)" : "Ученики смогут войти, пока урок идёт")
                     : isFinalized
                     ? `Сдали: ${submittedCount}${incompleteCount > 0 ? ` • Не завершили: ${incompleteCount}` : ""}`
                     : `В процессе: ${inProgressCount} • Завершили: ${submittedCount} • Ожидают: ${waitingCount}`}
@@ -2270,7 +2278,7 @@ export default function ExamHubPage() {
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-bold text-amber-950">Замена задач доступна только в режиме черновика</h4>
                       <p className="text-xs text-amber-900/90 mt-1 leading-relaxed">
-                        Экзамен уже был запущен или завершён (статус: <strong>{exam?.status === "lobby" ? "Лобби" : exam?.status === "active" ? "Идёт экзамен" : exam?.status === "closed" ? "Завершён" : "В архиве"}</strong>). Список задач зафиксирован для обеспечения равных условий и точности аналитики.
+                        Экзамен уже был запущен или завершён (статус: <strong>{exam?.status === "lobby" ? lobbyExamLabel(examState, "") : exam?.status === "active" ? "Идёт экзамен" : exam?.status === "closed" ? "Завершён" : "В архиве"}</strong>). Список задач зафиксирован для обеспечения равных условий и точности аналитики.
                       </p>
                     </div>
                   </motion.div>

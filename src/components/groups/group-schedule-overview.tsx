@@ -556,7 +556,7 @@ export function GroupScheduleOverview({ groupId, groupName = null, viewerRole = 
         open={addOpen}
         group={{ id: groupId, name: groupName || "Группа" }}
         teacherAssigned={teacherAssigned}
-        role={oneOffRoleOf({ org_role: viewerRole })}
+        role={oneOffRoleOf({ org_role: viewerRole, payments_access: user?.payments_access })}
         siblings={templates ?? []}
         onClose={() => setAddOpen(false)}
         onAdded={({ text, notices, closed }) => {

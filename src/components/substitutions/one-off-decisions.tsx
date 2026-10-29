@@ -5,20 +5,23 @@ import { AlertCircle, Loader2, Wallet } from "lucide-react";
 import { orgApi } from "@/lib/api";
 import { Modal } from "@/components/ui/modal";
 import {
-  DECISIONS_GROUP_HINT, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
-  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, isAlreadyDecided, oneOffRefusalText, payrollWarning, shortDay,
+  DECISIONS_GROUP_HINT, DECISIONS_GROUP_HINT_VIEW, DECISIONS_GROUP_TITLE, DECISIONS_LOAD_ERROR_TEXT, DECISION_PAY_LABEL, DECISION_SKIP_LABEL,
+  decisionAskedLine, decisionLessonLine, decisionNote, decisionQuestion, decisionToast, decisionWhoLine, isAlreadyDecided, isMoneyRightRefusal, oneOffRefusalText, payrollWarning, shortDay,
   type OneOffDecision, type OneOffDecisionItem,
 } from "@/lib/one-off";
 
 /**
- * The additional lessons (and the make-ups without students) that wait for «Оплатить / Не оплачивать» of the owner / administrator, as a group of
- * rows over the requests of «Замены» (#154).  A row appears after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the
- * lesson, who held it and how many students came.  The window says it when the sheet of the month is already paid.  The decision is taken once.
+ * The additional lessons that wait for «Оплатить / Не оплачивать», as a group of rows over the requests of «Замены» (#154).  The decision is the owner's and
+ * the administrator's WITH the right of payments (#159, `canDecide`): an administrator without it sees the queue and the status, not the buttons.  A row appears
+ * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
+ * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, loading, error, canDecide, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
   loading: boolean;
   error: string | null;
+  /** `canDecideMoney(user)`: the buttons are there only for who decides (an absent right is no right). */
+  canDecide: boolean;
   onRetry: () => void;
   /** The lesson was decided (or somebody did it before): the page reads the list and the counters again. */
   onDecided: (lessonId: string) => void;
@@ -28,6 +31,9 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const sending = useRef(false);
+  /** The server said «нет права» (the owner took it back after the page was opened): the buttons go, the queue stays. */
+  const [rightLost, setRightLost] = useState(false);
+  const mayDecide = canDecide && !rightLost;
 
   const close = () => { if (!busy) { setDialog(null); setProblem(null); } };
   const confirm = async () => {
@@ -41,7 +47,12 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
       setDialog(null);
       onDecided(dialog.item.lessonId);
     } catch (failure) {
-      if (isAlreadyDecided(failure)) {
+      if (isMoneyRightRefusal(failure)) {
+        // the right was taken away between the opening of the window and the press: say it in words, close the window (it is not stuck), keep the queue
+        setRightLost(true);
+        showToast(oneOffRefusalText(failure, "Решение об оплате принимает владелец или администратор с правом на оплаты"), "warning");
+        setDialog(null);
+      } else if (isAlreadyDecided(failure)) {
         // the other administrator was first (or the lesson is gone): say it, and the row leaves the list on the re-read
         showToast(oneOffRefusalText(failure, "Решение уже принято"), "warning");
         setDialog(null);
@@ -75,7 +86,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
         <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700"><Wallet className="h-4 w-4" aria-hidden /></span>
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-slate-900">{DECISIONS_GROUP_TITLE} · {items.length}</h2>
-          <p className="text-xs text-slate-600">{DECISIONS_GROUP_HINT}</p>
+          <p className="text-xs text-slate-600" data-testid="one-off-decisions-hint">{mayDecide ? DECISIONS_GROUP_HINT : DECISIONS_GROUP_HINT_VIEW}</p>
         </div>
       </header>
       <ul className="divide-y divide-amber-100">
@@ -88,7 +99,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
                 <p className="mt-0.5 text-sm text-slate-700">{decisionLessonLine(item)}</p>
                 <p className="mt-0.5 text-xs text-slate-500">{decisionWhoLine(item)}{asked ? ` · ${asked}` : ""}</p>
               </div>
-              <div className="flex shrink-0 gap-2">
+              {mayDecide && <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={() => { setProblem(null); setDialog({ item, decision: "pay" }); }}
@@ -105,7 +116,7 @@ export function OneOffDecisionsBlock({ items, loading, error, onRetry, onDecided
                 >
                   {DECISION_SKIP_LABEL}
                 </button>
-              </div>
+              </div>}
             </li>
           );
         })}

@@ -12,8 +12,9 @@ import {
 import { MathRenderer } from "@/components/ui/math-renderer";
 import { TaskStatement } from "@/components/ui/task-statement";
 import { examsApi, type AdminExamView } from "@/lib/api";
-import { formatBusinessCalendarDate, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
-import { examHasLobby, isNoLobbyConflict } from "@/lib/exam-lobby";
+import { businessDateWithOffset, formatBusinessCalendarDate, formatIsoDateLabel, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
+import { examHasLobby, examListState, isNoLobbyConflict, lobbyExamLabel } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { formatErrorType, pickAnswerDisplayText, pickDistractorExplanation } from "@/lib/task-display";
 import { cn } from "@/lib/utils";
 
@@ -133,10 +134,16 @@ export default function AdminExamViewPage() {
   const incomplete = isFinalized ? participants.filter((student) => student.status !== "submitted").length : 0;
   const waiting = isFinalized ? 0 : participants.filter((student) => student.status === "waiting").length;
 
+  // #159: the same state of the exam as in the list: «Лобби открыто» only while its lesson is on, «Запланирован · день» before it
+  const today = businessDateWithOffset(0);
+  const lessons = useTodayLessonStatuses(exam ? [exam] : [], today);
+
   if (loading) return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" /></div>;
   if (error || !exam) return <section className="mx-auto mt-16 max-w-xl rounded-2xl border border-rose-100 bg-white p-8 text-center shadow-sm"><AlertTriangle className="mx-auto mb-3 h-10 w-10 text-rose-500" /><h1 className="text-lg font-bold text-slate-900">Экзамен недоступен</h1><p className="mt-2 text-sm text-slate-500">{error || "Экзамен не найден или недоступен организации."}</p><Link href="/admin/exams" className="mt-5 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white"><ArrowLeft className="h-4 w-4" /> К контролю экзаменов</Link></section>;
 
-  const status = examStatusView(exam.status);
+  const lobbyState = examListState(exam, today, lessons.statusOf(exam));
+  const dayLabel = exam.scheduled_lesson_date ? formatIsoDateLabel(exam.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "";
+  const status = exam.status === "lobby" ? { label: lobbyExamLabel(lobbyState, dayLabel), tone: lobbyState === "upcoming" || lobbyState === "today" ? "info" as const : "warn" as const } : examStatusView(exam.status);
   const cancellation = latestEvent(exam, ["lesson_cancelled"]);
   const reschedule = latestEvent(exam, ["lesson_rescheduled", "exam_rescheduled"]);
   const scheduleLabel = cancellation

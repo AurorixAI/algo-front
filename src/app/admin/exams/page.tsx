@@ -18,9 +18,17 @@ import {
   Users,
 } from "lucide-react";
 import { examsApi, type AdminExamMonitorState, type ExamSummary } from "@/lib/api";
-import { businessDateWithOffset, formatBusinessCalendarDate, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
+import { businessDateWithOffset, formatBusinessCalendarDate, formatIsoDateLabel, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
+import { examListState, lobbyBucketOf, lobbyCounts, lobbyExamLabel, type DashboardExamState, type LobbyBucket } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 
 type Period = "all" | "today" | "yesterday" | "7d" | "30d";
+/** #159: a lobby exam is «Лобби открыто» only while its lesson is on and «Запланирован» before it, so the old filter «lobby» is two: the server knows one status, the split is made here. */
+type Filter = AdminExamMonitorState | "scheduled";
+type Counts = Record<Filter, number>;
+const LOBBY_PAGE = 100;
+const LOBBY_PAGES_MAX = 5;
+const STATE_TONE: Partial<Record<DashboardExamState, "ok" | "warn" | "info">> = { lobby: "warn", upcoming: "info", today: "info", needs_resolution: "warn" };
 type LifecycleEvent = NonNullable<ExamSummary["recent_events"]>[number];
 
 const periods: Array<{ key: Period; label: string }> = [
@@ -85,6 +93,7 @@ function rowDetails(exam: ExamSummary): { primary: string; secondary?: string; w
   }
   const closed = latestEvent(exam, ["exam_closed"]);
   if (exam.status === "closed" && closed?.at) return { primary: `Завершён · ${formatEventTime(closed.at)}` };
+  if (exam.status === "lobby" && exam.scheduled_lesson_date) return { primary: "" };          // #159: the chip already says «Запланирован · пн, 3 нояб.» / «Лобби открыто» - the day is not said twice
   if (exam.scheduled_lesson_date) return { primary: `Занятие: ${formatDate(exam.scheduled_lesson_date)}` };
   return { primary: exam.group_name ? "Экзамен подготовлен, урок ещё не выбран" : "Шаблон библиотеки — не назначен группе" };
 }
@@ -92,8 +101,10 @@ function rowDetails(exam: ExamSummary): { primary: string; secondary?: string; w
 export default function AdminExamsPage() {
   const [items, setItems] = useState<ExamSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [counts, setCounts] = useState<Record<AdminExamMonitorState, number>>({ all: 0, active: 0, lobby: 0, closed: 0, changes: 0 });
-  const [filter, setFilter] = useState<AdminExamMonitorState>("all");
+  const [serverCounts, setServerCounts] = useState<Record<AdminExamMonitorState, number>>({ all: 0, active: 0, lobby: 0, closed: 0, changes: 0 });
+  /** All the lobby exams of the period (the server's own status): the two counters and filters «Лобби открыто» / «Запланированы» are made of them, so a counter is what the list shows. */
+  const [lobbyExams, setLobbyExams] = useState<ExamSummary[]>([]);
+  const [filter, setFilter] = useState<Filter>("all");
   // Administrative monitoring opens on the entire timeline.  "Live" states
   // deliberately narrow this to today in selectFilter below.
   const [period, setPeriod] = useState<Period>("all");
@@ -102,6 +113,18 @@ export default function AdminExamsPage() {
   const [refreshState, setRefreshState] = useState<"idle" | "loading" | "success">("idle");
   const [error, setError] = useState<string | null>(null);
   const successTimer = useRef<number | null>(null);
+
+  const today = businessDateWithOffset(0);
+  const lessons = useTodayLessonStatuses([...lobbyExams, ...items], today);
+  const stateOf = useCallback((exam: ExamSummary) => examListState(exam, today, lessons.statusOf(exam)), [today, lessons]);
+  const bucketOfExam = useCallback((exam: ExamSummary): LobbyBucket | null => (exam.status === "lobby" ? lobbyBucketOf(stateOf(exam)) : null), [stateOf]);
+  const counts: Counts = useMemo(() => {
+    const lobbyKinds = lobbyCounts(lobbyExams, stateOf);
+    return { ...serverCounts, lobby: lobbyKinds.lobby, scheduled: lobbyKinds.scheduled };
+  }, [serverCounts, lobbyExams, stateOf]);
+  const fromLobby = filter === "lobby" || filter === "scheduled";          // these two are read from `lobbyExams`, not from the server's page
+  const shownItems = fromLobby ? lobbyExams.filter((exam) => bucketOfExam(exam) === filter) : items;
+  const shownTotal = fromLobby ? shownItems.length : total;
 
   const load = useCallback(async ({ manual = false, append = false, offset = 0 }: { manual?: boolean; append?: boolean; offset?: number } = {}) => {
     if (manual) {
@@ -112,15 +135,23 @@ export default function AdminExamsPage() {
     if (!append && !manual) setLoading(true);
     setError(null);
     try {
-      const response = await examsApi.getAdminMonitor({
-        state: filter,
-        ...periodBounds(period),
-        limit: 50,
-        offset,
-      });
-      setItems((previous) => append ? [...previous, ...response.items] : response.items);
-      setTotal(response.total);
-      setCounts(response.counts);
+      const bounds = periodBounds(period);
+      const fromServer = filter !== "lobby" && filter !== "scheduled";
+      const response = await examsApi.getAdminMonitor({ state: fromServer ? filter : "all", ...bounds, limit: fromServer ? 50 : 1, offset: fromServer ? offset : 0 });
+      if (!append) {                    // every lobby exam of the period, in pages of the server's size (the counters must count what the list shows)
+        const lobby: ExamSummary[] = [];
+        for (let page = 0; page < LOBBY_PAGES_MAX; page += 1) {
+          const part = await examsApi.getAdminMonitor({ state: "lobby", ...bounds, limit: LOBBY_PAGE, offset: page * LOBBY_PAGE });
+          lobby.push(...part.items);
+          if (lobby.length >= part.total || part.items.length === 0) break;
+        }
+        setLobbyExams(lobby);
+      }
+      if (fromServer) {
+        setItems((previous) => append ? [...previous, ...response.items] : response.items);
+        setTotal(response.total);
+      }
+      setServerCounts(response.counts);
       if (manual) {
         setRefreshState("success");
         successTimer.current = window.setTimeout(() => setRefreshState("idle"), 1600);
@@ -146,14 +177,15 @@ export default function AdminExamsPage() {
   const cards = useMemo(() => [
     { key: "all" as const, label: "Всего", hint: "Экзамены за выбранный период", value: counts.all, icon: FileText, tone: "border-slate-200 bg-slate-50 text-slate-700" },
     { key: "active" as const, label: "Идут сейчас", hint: "С активными попытками", value: counts.active, icon: Radio, tone: "border-emerald-100 bg-emerald-50 text-emerald-700" },
-    { key: "lobby" as const, label: "Ожидают запуска", hint: "Лобби открыто учителем", value: counts.lobby, icon: Users, tone: "border-amber-100 bg-amber-50 text-amber-800" },
+    { key: "lobby" as const, label: "Лобби открыто", hint: "Урок идёт, ученики могут входить", value: counts.lobby, icon: Users, tone: "border-amber-100 bg-amber-50 text-amber-800" },
+    { key: "scheduled" as const, label: "Запланированы", hint: "Урок ещё не начался", value: counts.scheduled, icon: CalendarDays, tone: "border-sky-100 bg-sky-50 text-sky-800" },
     { key: "closed" as const, label: "Завершены", hint: "Завершённые за период", value: counts.closed, icon: CheckCircle2, tone: "border-blue-100 bg-blue-50 text-blue-700" },
     { key: "changes" as const, label: "Переносы и отмены", hint: "Изменения расписания", value: counts.changes, icon: AlertTriangle, tone: "border-violet-100 bg-violet-50 text-violet-700" },
   ], [counts]);
 
-  const chooseFilter = (next: AdminExamMonitorState) => {
+  const chooseFilter = (next: Filter) => {
     setFilter(next);
-    // A live state is only meaningful now, so the visible period resets too.
+    // A live state is only meaningful now, so the visible period resets too.  «Запланированы» are mostly later days: their period stays as chosen.
     if (next === "active" || next === "lobby") setPeriod("today");
   };
 
@@ -178,7 +210,7 @@ export default function AdminExamsPage() {
         </button>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         {cards.map(({ key, label, hint, value, icon: Icon, tone }) => <button key={key} type="button" onClick={() => chooseFilter(key)} className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${filter === key ? "ring-2 ring-primary-200" : ""} ${tone}`}><div className="flex items-start justify-between"><span className="rounded-xl bg-white/75 p-2 shadow-sm"><Icon className="h-5 w-5" /></span><strong className="text-3xl leading-none">{value}</strong></div><p className="mt-4 text-sm font-bold">{label}</p><p className="mt-0.5 text-xs opacity-75">{hint}</p></button>)}
       </section>
 
@@ -186,12 +218,14 @@ export default function AdminExamsPage() {
 
       {error && <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><span>{error}</span><button type="button" onClick={() => void load({ manual: true })} className="shrink-0 font-semibold underline">Повторить</button></div>}
 
-      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm"><div className="border-b border-slate-100 px-6 py-4"><h2 className="font-bold text-slate-900">Экзамены</h2><p className="mt-0.5 text-sm text-slate-500">{total} {total === 1 ? "запись" : total < 5 ? "записи" : "записей"} по выбранному фильтру</p></div>{items.length === 0 ? <div className="px-6 py-16 text-center"><FileText className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-4 font-bold text-slate-800">Нет экзаменов в выбранном контексте</h3><p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Измените период или статус — история проведения, завершения и переноса появится здесь.</p></div> : <div className="divide-y divide-slate-100">{items.map((exam) => {
-        const status = examStatusView(exam.status);
+      <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm"><div className="border-b border-slate-100 px-6 py-4"><h2 className="font-bold text-slate-900">Экзамены</h2><p className="mt-0.5 text-sm text-slate-500">{shownTotal} {shownTotal === 1 ? "запись" : shownTotal < 5 ? "записи" : "записей"} по выбранному фильтру</p></div>{shownItems.length === 0 ? <div className="px-6 py-16 text-center"><FileText className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-4 font-bold text-slate-800">Нет экзаменов в выбранном контексте</h3><p className="mx-auto mt-1 max-w-md text-sm text-slate-500">Измените период или статус — история проведения, завершения и переноса появится здесь.</p></div> : <div className="divide-y divide-slate-100">{shownItems.map((exam) => {
+        const examState = stateOf(exam);
+        const dayLabel = exam.scheduled_lesson_date ? formatIsoDateLabel(exam.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "";
+        const status = exam.status === "lobby" ? { label: lobbyExamLabel(examState, dayLabel), tone: STATE_TONE[examState] ?? "warn" } : examStatusView(exam.status);
         const details = rowDetails(exam);
         const latestChange = latestEvent(exam, ["lesson_cancelled", "lesson_rescheduled", "exam_rescheduled"]);
-        return <article key={exam.exam_id} className="flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-slate-50/70 xl:flex-row xl:items-center"><div className="flex min-w-0 flex-1 gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><FileText className="h-5 w-5" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-900">{exam.title}</h3><Chip tone={status.tone} pill>{status.label}</Chip></div><p className="mt-1 text-sm font-medium text-slate-600">{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p><div className={`mt-2 flex items-start gap-2 text-sm ${details.warning ? "text-amber-800" : "text-slate-500"}`}>{details.warning ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />}<div><p>{details.primary}</p>{details.secondary && <p className="mt-0.5 text-xs opacity-80">{details.secondary}</p>}</div></div></div></div><div className="flex shrink-0 items-center justify-between gap-5 xl:justify-end">{latestChange?.at && <p className="text-right text-xs text-slate-400">Изменено: {formatEventTime(latestChange.at)}</p>}<Link href={`/admin/exams/${exam.exam_id}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"><Eye className="h-4 w-4" /> Просмотреть <ChevronRight className="h-4 w-4" /></Link></div></article>;
-      })}</div>}{items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</button></div>}</section>
+        return <article key={exam.exam_id} className="flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-slate-50/70 xl:flex-row xl:items-center"><div className="flex min-w-0 flex-1 gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><FileText className="h-5 w-5" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-900">{exam.title}</h3><Chip tone={status.tone} pill>{status.label}</Chip></div><p className="mt-1 text-sm font-medium text-slate-600">{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p>{(details.primary || details.secondary) && <div className={`mt-2 flex items-start gap-2 text-sm ${details.warning ? "text-amber-800" : "text-slate-500"}`}>{details.warning ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />}<div>{details.primary && <p>{details.primary}</p>}{details.secondary && <p className="mt-0.5 text-xs opacity-80">{details.secondary}</p>}</div></div>}</div></div><div className="flex shrink-0 items-center justify-between gap-5 xl:justify-end">{latestChange?.at && <p className="text-right text-xs text-slate-400">Изменено: {formatEventTime(latestChange.at)}</p>}<Link href={`/admin/exams/${exam.exam_id}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"><Eye className="h-4 w-4" /> Просмотреть <ChevronRight className="h-4 w-4" /></Link></div></article>;
+      })}</div>}{!fromLobby && items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</button></div>}</section>
     </div>
   );
 }

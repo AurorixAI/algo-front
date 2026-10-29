@@ -13,7 +13,7 @@ export interface StatusView {
 export const EXAM_STATUS: Record<string, StatusView> = {
   draft: { label: "Черновик", tone: "neutral" },
   variants_ready: { label: "Готов к назначению", tone: "info" },
-  lobby: { label: "Ожидает запуска", tone: "warn" },
+  lobby: { label: "Запланирован", tone: "info" },          // #159: a fallback only - the screens say «Лобби открыто» / «Запланирован · день» by the lesson (`lobbyExamLabel`)
   active: { label: "Идёт экзамен", tone: "ok" },
   closed: { label: "Завершён", tone: "violet" },
   archived: { label: "В архиве", tone: "muted" },

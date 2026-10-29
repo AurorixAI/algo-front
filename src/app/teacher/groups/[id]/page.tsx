@@ -22,11 +22,13 @@ import { SUBSTITUTE_BADGE } from "@/lib/lesson-teacher";
 import { PhaseLockBanner } from "@/components/ui/phase-lock-banner";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
-import { formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDate } from "@/lib/business-time";
+import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { useScrollLock } from "@/components/ui/modal";
 
 type Tab = "students" | "exams" | "attendance";
-type ExamStatusFilter = "active" | "lobby" | "draft" | "closed" | "archived";
+type ExamStatusFilter = ExamTab;
 
 /** `?month=&lesson=&date=` open the journal on one lesson (open-lessons link); they do not follow the user to another tab. */
 function withoutJournalLink(params: URLSearchParams): URLSearchParams {
@@ -35,7 +37,7 @@ function withoutJournalLink(params: URLSearchParams): URLSearchParams {
 }
 
 function parseExamStatusFilter(value: string | null): ExamStatusFilter {
-  return value === "lobby" || value === "draft" || value === "closed" || value === "archived" || value === "active"
+  return value === "lobby" || value === "scheduled" || value === "draft" || value === "closed" || value === "archived" || value === "active"
     ? value
     : "active";
 }
@@ -92,39 +94,30 @@ export default function TeacherGroupDetailPage() {
   const [examSearch, setExamSearch] = useState(() => searchParams?.get("exam_q") || "");
 
   // Counts for Group Exams (Hook must be top-level before early returns)
+  // #159: the state of a lobby exam follows its lesson - the very function of the library, the dashboard and the monitor of the administrator
+  const today = businessDateWithOffset(0);
+  const lessons = useTodayLessonStatuses(groupExams, today);
+  const examStateOf = useCallback((ex: ExamSummary) => examListState(ex, today, lessons.statusOf(ex)), [today, lessons]);
   const examCounts = useMemo(() => {
     const counts = {
       all: groupExams.length,
       active: 0,
       lobby: 0,
+      scheduled: 0,
       draft: 0,
       closed: 0,
       archived: 0,
     };
     groupExams.forEach((ex) => {
-      if (ex.status === "archived") {
-        counts.archived++;
-      } else if (ex.status === "active" || ex.status === "print_ready") {
-        counts.active++;
-      } else if (ex.status === "lobby") {
-        counts.lobby++;
-      } else if (ex.status === "draft" || ex.status === "variants_ready") {
-        counts.draft++;
-      } else if (ex.status === "closed") {
-        counts.closed++;
-      }
+      counts[examTabOf(ex, examStateOf(ex))]++;
     });
     return counts;
-  }, [groupExams]);
+  }, [groupExams, examStateOf]);
 
   // Filtered Group Exams (Hook must be top-level before early returns)
   const filteredGroupExams = useMemo(() => {
     return groupExams.filter((ex) => {
-      if (examFilter === "active" && ex.status !== "active" && ex.status !== "print_ready") return false;
-      if (examFilter === "lobby" && ex.status !== "lobby") return false;
-      if (examFilter === "draft" && (ex.status !== "draft" && ex.status !== "variants_ready")) return false;
-      if (examFilter === "closed" && ex.status !== "closed") return false;
-      if (examFilter === "archived" && ex.status !== "archived") return false;
+      if (examTabOf(ex, examStateOf(ex)) !== examFilter) return false;
       if (examSearch.trim()) {
         const q = examSearch.toLowerCase();
         return (
@@ -691,6 +684,7 @@ export default function TeacherGroupDetailPage() {
                 {([
                   { key: "active", label: "Текущие" },
                   { key: "lobby", label: "Лобби" },
+                  { key: "scheduled", label: "Запланированы" },
                   { key: "draft", label: "Черновики" },
                   { key: "closed", label: "Завершённые" },
                   { key: "archived", label: "Архив" },
@@ -790,7 +784,7 @@ export default function TeacherGroupDetailPage() {
                                 : ex.status === "print_ready"
                                 ? "bg-violet-50 text-violet-700 border border-violet-200"
                                 : ex.status === "lobby"
-                                ? "bg-indigo-50 text-indigo-700 border border-indigo-200"
+                                ? (examStateOf(ex) === "lobby" ? "bg-indigo-50 text-indigo-700 border border-indigo-200" : examStateOf(ex) === "needs_resolution" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-sky-50 text-sky-700 border border-sky-200")
                                 : ex.status === "draft" || ex.status === "variants_ready"
                                 ? "bg-amber-50 text-amber-700 border border-amber-200"
                                 : ex.status === "closed"
@@ -805,7 +799,7 @@ export default function TeacherGroupDetailPage() {
                               : ex.status === "print_ready"
                               ? "Комплект готов"
                               : ex.status === "lobby"
-                              ? "Лобби"
+                              ? lobbyExamLabel(examStateOf(ex), ex.scheduled_lesson_date ? formatIsoDateLabel(ex.scheduled_lesson_date, { weekday: "short", day: "numeric", month: "short" }) : "")
                               : ex.status === "draft" || ex.status === "variants_ready"
                               ? "Черновик"
                               : ex.status === "closed"

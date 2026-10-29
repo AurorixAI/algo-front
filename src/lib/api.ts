@@ -1606,7 +1606,7 @@ export const orgApi = {
   /** #154: the cancelled lessons of the group that can be made up (a teacher: his own group). */
   getMakeupCandidates: (groupId: string) =>
     api<MakeupCandidates>(`/auth/org/groups/${encodePathId(groupId)}/makeup-candidates`),
-  /** #154 (owner / administrator): the additional lessons and the empty make-ups that wait for «Оплатить / Не оплачивать». */
+  /** #154 (owner / administrator): the additional lessons that wait for «Оплатить / Не оплачивать» (#159: a make-up never waits). */
   getOneOffDecisions: () => api<OneOffDecisionsOut>(`/auth/org/one-off-decisions`),
   decideOneOffMoney: (lessonId: string, decision: OneOffDecision) =>
     api<MoneyDecisionOut>(`/auth/org/one-off-lessons/${encodePathId(lessonId)}/money-decision`, { method: "POST", body: { decision } }),

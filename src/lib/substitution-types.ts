@@ -270,7 +270,7 @@ export interface WithdrawBatchOut {
 
 export interface SubstitutionSummary {
   pendingTotal: number;
-  /** #154: lessons that wait for a decision of money (the additional lessons and the empty make-ups). */
+  /** #154: lessons that wait for a decision of money (the additional lessons; a make-up never waits, #159). */
   oneOffDecisionsTotal?: number;
   /** #154: `pendingTotal` + `oneOffDecisionsTotal` - the number of the tab «Ждут решения» and of the menu badge. */
   waitingTotal?: number;

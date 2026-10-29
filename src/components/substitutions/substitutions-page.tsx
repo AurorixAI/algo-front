@@ -41,7 +41,8 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
-import { decisionMatches } from "@/lib/one-off";
+import { canDecideMoney, decisionMatches } from "@/lib/one-off";
+import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -73,6 +74,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const searchParams = useSearchParams();
   const requestedId = searchParams?.get("request") ?? null;
   const { showToast, toastNode } = useToast();
+  const { user } = useAuthStore();           // #159: the buttons «Оплатить / Не оплачивать» are for who may decide the money (the profile says it)
 
   // IA audit F34: «Решённые» is `?status=decided` (a link, a reload and «Назад» keep it)
   const [tab, setTab] = useState<Tab>(searchParams?.get("status") === "decided" ? "decided" : "pending");
@@ -97,7 +99,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const [teachers, setTeachers] = useState<Array<{ id: string; first_name: string; last_name: string; full_name?: string }>>([]);
   const [groups, setGroups] = useState<Array<{ id: string; name: string; teacher_id: string }>>([]);
 
-  // #154: the additional lessons and the empty make-ups that wait for «Оплатить / Не оплачивать» (their own list, their own counter)
+  // #154: the additional lessons that wait for «Оплатить / Не оплачивать» (their own list, their own counter)
   const decisions = useOneOffDecisions(true);
   const decisionsTotalRef = useRef(0);
   decisionsTotalRef.current = decisions.total;
@@ -373,6 +375,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       {pendingTab && (
         <OneOffDecisionsBlock
           items={visibleDecisions}
+          canDecide={canDecideMoney(user)}
           loading={decisions.loading}
           error={decisions.error}
           onRetry={() => void decisions.reload()}

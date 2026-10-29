@@ -235,7 +235,7 @@ export function formatDayMonth(isoDate: string | null | undefined): string {
 // ── API shapes (auth-service: payroll_schemas.py) ───────────────────────────
 
 /**
- * #154: `undecided` - the lesson is an additional one (or an empty make-up) the teacher asked to be paid for and nobody has decided yet: not in the
+ * #154: `undecided` - the lesson is an additional one the teacher asked to be paid for and nobody has decided yet: not in the
  * sum, its own tone; `no_pay` - the decision (or the owner's choice at the creation) is «без оплаты»: 0.  The server decides what is in the sum
  * (`counted` and `excused_pending` only): the front recalculates nothing.
  */
@@ -438,7 +438,7 @@ export interface PayrollMonthTeacher {
   missing_rates: LessonType[];
   sheet: PayrollMonthSheetRef | null;
   warnings: PayrollMonthWarnings;
-  /** #154: held additional lessons (and empty make-ups) of the month that wait for the decision «Оплатить / Не оплачивать» (lessons, not cells). */
+  /** #154: held additional lessons of the month that wait for the decision «Оплатить / Не оплачивать» (lessons, not cells). */
   undecided_lessons?: number;
   /** LOGIC-A decision 6: the payout state of the saved sheet; null without a sheet. */
   payout?: PayoutState | null;
@@ -594,12 +594,12 @@ export const MARK_CELL_CLASS: Record<MarkTone, string> = {
 /** #154: the cell of an additional lesson whose payment is not decided («?», not in the sum) and of one that is not paid («без»). */
 export const UNDECIDED_CELL_LABEL = "?";
 export const NO_PAY_CELL_LABEL = "без";
-export const UNDECIDED_MARK_HINT = "Дополнительный урок или пустая отработка: оплата не решена — в сумму не входит, пока владелец или администратор не решит";
-export const NO_PAY_MARK_HINT = "Дополнительный урок или отработка без оплаты преподавателю — 0";
+export const UNDECIDED_MARK_HINT = "Дополнительный урок: оплата не решена — в сумму не входит, пока владелец или администратор с правом на оплаты не решит";
+export const NO_PAY_MARK_HINT = "Дополнительный урок без оплаты преподавателю — 0";
 
 /**
  * #154: the line under the student's name - «без оплаты преподавателю: 2» (not «без оплаты»: the column «Без оплаты» is the unpaid lessons of the student).  The mark of the sheet does not say what the lesson is for (the server sends the state only),
- * so the words are neutral: an additional lesson and an empty make-up both end up here (P154_API §8); no «доп. урок» for a make-up.
+ * so the words are neutral (since #159 only an additional lesson ends up here: a make-up is an ordinary lesson, P154_API §8 v4); no «доп. урок» in the line.
  */
 export function noPayLineText(count: number | null | undefined): string {
   return `без оплаты преподавателю: ${Math.max(0, Math.floor(Number(count) || 0))}`;
