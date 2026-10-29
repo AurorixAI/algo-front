@@ -69,7 +69,7 @@ test("Ч3: the right is taken away between the window and the press - the server
   assert.equal(O.isMoneyRightRefusal(refusal("ALREADY_DECIDED", {}, 409)), false);
   assert.equal(O.isAlreadyDecided(refusal("MONEY_RIGHT_REQUIRED", {}, 403)), false, "it is not «решение уже принято»: the row stays");
   const source = read("src/components/substitutions/one-off-decisions.tsx");
-  assert.match(source, /isMoneyRightRefusal\(failure\)[\s\S]{0,400}setRightLost\(true\)[\s\S]{0,400}setDialog\(null\)/, "the window is closed, the right is lost");
+  assert.match(source, /isMoneyRightRefusal\(failure\)[\s\S]{0,400}setLostFor\(\{ profile \}\)[\s\S]{0,400}setDialog\(null\)/, "the window is closed, the right is lost");
   assert.match(source, /const mayDecide = canDecide && !rightLost;/);
   assert.match(source, /finally \{[\s\S]{0,120}sending\.current = false;[\s\S]{0,60}setBusy\(false\)/, "the button is free again");
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /canDecide=\{canDecideMoney\(user\)\}/, "the page gives the right from the profile");
@@ -77,8 +77,8 @@ test("Ч3: the right is taken away between the window and the press - the server
 
 test("Ч4: an admin without the right gets the radio of a teacher («Попросить оплатить» by default); with the right - «Без оплаты / Оплачивается»", () => {
   const noRight = O.oneOffRoleOf({ org_role: "admin" });
-  assert.equal(noRight, "teacher");
-  assert.deepEqual(O.moneyChoicesFor(noRight).map((c) => [c.value, c.label]), [["wait", "Прошу оплатить"], ["none", "Без оплаты"]]);
+  assert.equal(noRight, "admin_ask");
+  assert.deepEqual(O.moneyChoicesFor(noRight).map((c) => [c.value, c.label]), [["wait", "Попросить оплатить"], ["none", "Без оплаты"]]);
   assert.deepEqual(O.emptyChoice(noRight), { purpose: null, money: "wait", target: "" });
   assert.deepEqual(O.choicePayload({ purpose: "extra", money: "wait", target: "" }), { purpose: "extra", money: "wait" });
   assert.equal(O.choiceProblem({ purpose: "extra", money: "paid", target: "" }, noRight, null), "Выберите оплату преподавателю: без оплаты или оплачивается", "paid is not offered: the form refuses it before the server does");
@@ -109,8 +109,7 @@ test("B: nothing on the screens speaks of an «empty make-up» that waits for a 
   assert.equal(O.decisionQuestion({ title: "" }), "Дополнительный урок — оплатить преподавателю?");
   const payroll = require(path.join(root, "src/lib/payroll.ts"));
   assert.doesNotMatch(payroll.UNDECIDED_MARK_HINT + payroll.NO_PAY_MARK_HINT, /отработк/i, "the hints of the sheet name no make-up");
-  assert.match(O.MAKEUP_MONEY_NOTE, /обычный урок/);
-  assert.match(O.MAKEUP_MONEY_NOTE, /неявка на отработку засчитывается/);
+  assert.match(O.MAKEUP_MONEY_NOTE, /Отработка — обычный урок/);
 });
 
 // ── C: «Запланирован» instead of «Лобби» (Ч8-Ч10, invariant 3) ────────────────────────────────────────────
@@ -140,13 +139,13 @@ test("Ч9: an exam of today whose lesson is on is «Лобби открыто» 
   assert.deepEqual(L.lobbyCounts([e], (x) => stateOf(x, "in_progress")), { lobby: 1, scheduled: 0, passed: 0 });
 });
 
-test("Ч10: an exam of today whose lesson has not begun - or whose status is not known - is «Сегодня», never «Лобби»", () => {
+test("Ч10: an exam of today whose lesson has not begun - or whose status is not known - is «Запланирован · сегодня», never «Лобби»", () => {
   const e = exam({ scheduled_lesson_date: TODAY });
   for (const lesson of ["scheduled", undefined, null, "completed", "cancelled"]) {
     const state = stateOf(e, lesson);
     assert.notEqual(state, "lobby", String(lesson));
     assert.equal(state, "today");
-    assert.equal(L.lobbyExamLabel(state, "чт, 29 окт."), "Сегодня");
+    assert.equal(L.lobbyExamLabel(state, "чт, 29 окт."), "Запланирован · сегодня");
     assert.equal(L.lobbyBucketOf(state), "scheduled");
   }
 });
@@ -195,8 +194,8 @@ test("C (LESSONS 56): no screen of an exam says «Ожидает запуска�
   const admin = read("src/app/admin/exams/page.tsx");
   assert.match(admin, /label: "Лобби открыто"/);
   assert.match(admin, /label: "Запланированы"/);
-  assert.match(admin, /lobbyCounts\(lobbyExams, stateOf\)/);
-  assert.match(admin, /fromLobby \? lobbyExams\.filter\(\(exam\) => bucketOfExam\(exam\) === filter\)/);
+  assert.match(admin, /lobbyCounts\(todayLobby, stateOf\)/);
+  assert.match(admin, /filter === "lobby" \? todayLobby\.filter\(\(exam\) => bucketOfExam\(exam\) === "lobby"\)/);
   // the teacher: the library and the group have the tab «Запланированы» and count by the same function
   for (const file of ["src/app/teacher/exams/page.tsx", "src/app/teacher/groups/[id]/page.tsx"]) {
     assert.match(read(file), /examTabOf\(/, file);

@@ -91,10 +91,11 @@ export interface MoneyDecisionOut {
 
 /**
  * How the form «Добавить занятие» offers the money of the teacher (#159): `manager` decides it (the owner, an administrator WITH the right of payments) and chooses
- * «Без оплаты / Оплачивается»; `teacher` (a teacher, an administrator WITHOUT the right) asks («Прошу оплатить») or says nothing is due.  Anyone else (or nobody) gets
- * `null`: the form is not offered.
+ * «Без оплаты / Оплачивается»; `teacher` asks («Прошу оплатить») or says nothing is due; `admin_ask` (#159 M1) is an administrator WITHOUT the right: the same two
+ * choices, worded for HIM («Попросить оплатить» - the owner or an administrator with the right decides after the lesson; «Без оплаты» - the teacher gets nothing), not in the voice of
+ * a teacher.  Anyone else (or nobody) gets `null`: the form is not offered.
  */
-export type OneOffRole = "manager" | "teacher";
+export type OneOffRole = "manager" | "teacher" | "admin_ask";
 
 /** May this user decide the money of a teacher: the owner, an administrator whose profile says `payments_access: true`.  An absent field is NO right (LESSONS 17: nothing is guessed). */
 export function canDecideMoney(user: { org_role?: string | null; payments_access?: boolean | null } | null | undefined): boolean {
@@ -104,7 +105,7 @@ export function canDecideMoney(user: { org_role?: string | null; payments_access
 
 export function oneOffRoleOf(user: { org_role?: string | null; payments_access?: boolean | null } | null | undefined): OneOffRole | null {
   const role = user?.org_role ?? null;
-  if (role === "owner" || role === "admin") return canDecideMoney(user) ? "manager" : "teacher";
+  if (role === "owner" || role === "admin") return canDecideMoney(user) ? "manager" : "admin_ask";
   if (role === "teacher") return "teacher";
   return null;
 }
@@ -120,7 +121,7 @@ export interface OneOffChoice {
 
 export function emptyChoice(role: OneOffRole | null): OneOffChoice {
   // who asks (a teacher, an administrator without the right) has «Прошу оплатить» until he says otherwise; who decides chooses, nothing is chosen for him (his choice is money)
-  return { purpose: null, money: role === "teacher" ? "wait" : null, target: "" };
+  return { purpose: null, money: role === "teacher" || role === "admin_ask" ? "wait" : null, target: "" };
 }
 
 export interface MoneyChoice {
@@ -135,6 +136,12 @@ export function moneyChoicesFor(role: OneOffRole | null): MoneyChoice[] {
     return [
       { value: "wait", label: "Прошу оплатить", hint: "После урока решит владелец или администратор с правом на оплаты" },
       { value: "none", label: "Без оплаты", hint: "За этот урок вы ничего не получите" },
+    ];
+  }
+  if (role === "admin_ask") {
+    return [
+      { value: "wait", label: "Попросить оплатить", hint: "Решит владелец или администратор с правом на оплаты после урока" },
+      { value: "none", label: "Без оплаты", hint: "Преподаватель ничего не получит за этот урок" },
     ];
   }
   if (role === "manager") {
@@ -155,7 +162,7 @@ export const EXTRA_FREE_FOR_STUDENTS = "Ученикам дополнитель�
 export const MONEY_QUESTION = "Оплата преподавателю";
 export const MAKEUP_TARGET_LABEL = "Какой урок отрабатываем";
 export const MAKEUP_TARGET_PLACEHOLDER = "Выберите отменённый урок";
-export const MAKEUP_MONEY_NOTE = "Отработка — обычный урок: преподавателю платят, как за обычный. Вычет за отменённый урок снимается, неявка на отработку засчитывается.";
+export const MAKEUP_MONEY_NOTE = "Отработка — обычный урок. Вычет за отменённый урок снимается; кто не пришёл — урок засчитан, как пропуск обычного урока. С подтверждённой уважительной причиной вычет остаётся.";
 export const MAKEUP_LOADING_TEXT = "Ищем отменённые уроки…";
 export const MAKEUP_LOAD_ERROR_TEXT = "Не удалось загрузить отменённые уроки. Повторите попытку.";
 export const MAKEUP_EMPTY_FALLBACK = "Нет отменённых уроков, которые можно отработать";
@@ -381,6 +388,14 @@ export const DECISIONS_LOAD_ERROR_TEXT = "Не удалось загрузить
 /** The question of the window of a decision: the title the server sent, else the one of an additional lesson. */
 export function decisionQuestion(item: Pick<OneOffDecisionItem, "title">): string {
   return (item.title ?? "").trim() || "Дополнительный урок — оплатить преподавателю?";
+}
+
+/**
+ * The tab «Ждут решения» of the page, as the server counts the badge (#159 M2): the requests for a substitute plus the lessons of money - the money rows only for who may decide them
+ * (an administrator without the right sees them, but they are not his tasks, so they are not in his counter).
+ */
+export function waitingCountFor(user: Parameters<typeof canDecideMoney>[0], pendingTotal: number, moneyRows: number): number {
+  return Math.max(0, pendingTotal) + (canDecideMoney(user) ? Math.max(0, moneyRows) : 0);
 }
 
 /** The counter of the tab and of the menu: the requests for a substitute plus the lessons that wait for a decision of money. */

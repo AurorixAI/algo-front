@@ -102,8 +102,8 @@ test("A: the money of an additional lesson by the role; no role is guessed", () 
   assert.deepEqual(O.moneyChoicesFor(null), []);
   assert.equal(O.oneOffRoleOf({ org_role: "owner" }), "manager");
   assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: true }), "manager");
-  assert.equal(O.oneOffRoleOf({ org_role: "admin" }), "teacher", "#159: no right in the profile = the money is asked, not decided (LESSONS 17)");
-  assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: false }), "teacher");
+  assert.equal(O.oneOffRoleOf({ org_role: "admin" }), "admin_ask", "#159: no right in the profile = the money is asked, not decided (LESSONS 17)");
+  assert.equal(O.oneOffRoleOf({ org_role: "admin", payments_access: false }), "admin_ask");
   assert.equal(O.oneOffRoleOf({ org_role: "teacher" }), "teacher");
   // the global role is never a guess (LESSONS 17): without the role in THIS centre nobody gets the form
   for (const odd of [null, undefined, {}, { org_role: "student" }, { role: "parent" }, { org_role: "" }, { org_role: null, role: "owner" }, { org_role: null, role: "admin" }, { role: "teacher" }]) assert.equal(O.oneOffRoleOf(odd), null);
@@ -195,7 +195,7 @@ test("A: the list of cancelled lessons shows date, time and the reason when the 
   assert.equal(O.candidateOptionLabel(item({ reason: "  " })), "пн 02.11, 10:00–11:00");
   assert.match(withReason, /Какой урок отрабатываем/);
   assert.match(withReason, /Выберите отменённый урок/);
-  assert.match(withReason, /платят, как за обычный/);
+  assert.match(withReason, /Отработка — обычный урок/);
   const chosen = formHtml({ choice: { purpose: "makeup", money: null, target: "lesson-mon|2026-11-02" } });
   assert.match(chosen, /пн 02\.11, 10:00–11:00 · Преподаватель заболел/);
   const teacherSide = formHtml({ role: "teacher", choice: { purpose: "makeup", money: "wait", target: "lesson-mon|2026-11-02" }, makeup: { kind: "ready", data: { items: [item({ reason: null })], emptyReason: null } } });
@@ -313,7 +313,7 @@ test("A: the counter of the tab and of the menu is the requests plus the lessons
   assert.equal(useSubstitutionBadge.getState().pending, 3);
   useSubstitutionBadge.getState().reset();
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /tabLabel\("pending", pendingTotal \+ decisions\.total\)/);
+  assert.match(page, /tabLabel\("pending", waitingCount\)/);
   assert.match(page, /<OneOffDecisionsBlock/);
   assert.match(page, /oneOffDecisionsTotal: decisionsTotalRef\.current/);
   assert.match(page, /decisionsOnly \? null : <EmptyState/, "the empty text is not said while rows of money wait");

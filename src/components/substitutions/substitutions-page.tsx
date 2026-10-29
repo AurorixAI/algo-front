@@ -41,7 +41,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
-import { canDecideMoney, decisionMatches } from "@/lib/one-off";
+import { canDecideMoney, decisionMatches, waitingCountFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -103,6 +103,9 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const decisions = useOneOffDecisions(true);
   const decisionsTotalRef = useRef(0);
   decisionsTotalRef.current = decisions.total;
+  const userRef = useRef(user);          // #159 M2: the counters count the money rows only for who may decide them (the server does the same for the badge)
+  userRef.current = user;
+  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total);
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -162,7 +165,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -271,8 +274,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   // the menu badge counts the requests and the lessons of money: it is set again when the lessons of money have been read (they arrive on their own)
   useEffect(() => {
     if (loading || loadError || decisions.loading || decisions.error) return;
-    useSubstitutionBadge.getState().setWaiting(pendingTotal + decisions.total);
-  }, [loading, loadError, decisions.loading, decisions.error, decisions.total, pendingTotal]);
+    useSubstitutionBadge.getState().setWaiting(waitingCount);
+  }, [loading, loadError, decisions.loading, decisions.error, waitingCount]);
 
   const pendingTab = tab === "pending";
   const cols = pendingTab ? COLS_PENDING : COLS_DECIDED;
@@ -280,8 +283,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   const allSelected = pendingTab && items.length > 0 && selectedItems.length === items.length;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const tabs: Array<{ key: Tab; label: string }> = [
-    { key: "pending", label: tabLabel("pending", pendingTotal + decisions.total) },
-    { key: "decided", label: tabLabel("decided", pendingTotal + decisions.total) },
+    { key: "pending", label: tabLabel("pending", waitingCount) },
+    { key: "decided", label: tabLabel("decided", waitingCount) },
   ];
   const toggle = (id: string, on: boolean) => setSelected((previous) => { const copy = new Set(previous); if (on) copy.add(id); else copy.delete(id); return copy; });
   const toggleExpanded = (id: string) => setExpanded((previous) => { const copy = new Set(previous); if (copy.has(id)) copy.delete(id); else copy.add(id); return copy; });
@@ -376,6 +379,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <OneOffDecisionsBlock
           items={visibleDecisions}
           canDecide={canDecideMoney(user)}
+          profile={user}
+          onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
           loading={decisions.loading}
           error={decisions.error}
           onRetry={() => void decisions.reload()}

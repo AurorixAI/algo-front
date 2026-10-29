@@ -16,12 +16,19 @@ import {
  * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
  * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, loading, error, canDecide, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, loading, error, canDecide, profile, onRefreshProfile, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
   loading: boolean;
   error: string | null;
   /** `canDecideMoney(user)`: the buttons are there only for who decides (an absent right is no right). */
   canDecide: boolean;
+  /**
+   * The profile the right was read from (the `user` object of the store; #159 E7).  «Права нет» that the server answered belongs to THIS reading: when the profile is read again (the page
+   * is opened, «Обновить») it is a new object and the mark is forgotten - a right that came back brings the buttons back.
+   */
+  profile?: unknown;
+  /** «Обновить» next to the words about the lost right: read the profile again (and the list). */
+  onRefreshProfile?: () => void;
   onRetry: () => void;
   /** The lesson was decided (or somebody did it before): the page reads the list and the counters again. */
   onDecided: (lessonId: string) => void;
@@ -32,7 +39,8 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, onRetry
   const [problem, setProblem] = useState<string | null>(null);
   const sending = useRef(false);
   /** The server said «нет права» (the owner took it back after the page was opened): the buttons go, the queue stays. */
-  const [rightLost, setRightLost] = useState(false);
+  const [lostFor, setLostFor] = useState<{ profile: unknown } | null>(null);
+  const rightLost = lostFor !== null && lostFor.profile === profile;
   const mayDecide = canDecide && !rightLost;
 
   const close = () => { if (!busy) { setDialog(null); setProblem(null); } };
@@ -49,7 +57,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, onRetry
     } catch (failure) {
       if (isMoneyRightRefusal(failure)) {
         // the right was taken away between the opening of the window and the press: say it in words, close the window (it is not stuck), keep the queue
-        setRightLost(true);
+        setLostFor({ profile });
         showToast(oneOffRefusalText(failure, "Решение об оплате принимает владелец или администратор с правом на оплаты"), "warning");
         setDialog(null);
       } else if (isAlreadyDecided(failure)) {
@@ -87,6 +95,9 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, onRetry
         <div className="min-w-0">
           <h2 className="text-sm font-bold text-slate-900">{DECISIONS_GROUP_TITLE} · {items.length}</h2>
           <p className="text-xs text-slate-600" data-testid="one-off-decisions-hint">{mayDecide ? DECISIONS_GROUP_HINT : DECISIONS_GROUP_HINT_VIEW}</p>
+          {rightLost && onRefreshProfile && (
+            <button type="button" data-testid="one-off-decisions-refresh" onClick={onRefreshProfile} className="mt-1 text-xs font-semibold text-primary-700 underline hover:text-primary-800">Обновить</button>
+          )}
         </div>
       </header>
       <ul className="divide-y divide-amber-100">

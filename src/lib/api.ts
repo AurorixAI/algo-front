@@ -2407,7 +2407,8 @@ export interface ExamSummary {
   created_at: string;
 }
 
-export type AdminExamMonitorState = "all" | "active" | "lobby" | "closed" | "changes";
+/** `lobby_future` / `lobby_today` (#159 E1): the lobbies whose lesson is on a later day / today (the server counts them by the business day); `lobby` is every lobby. */
+export type AdminExamMonitorState = "all" | "active" | "lobby" | "lobby_future" | "lobby_today" | "closed" | "changes";
 
 export interface AdminExamMonitorResponse {
   items: ExamSummary[];
@@ -2416,7 +2417,8 @@ export interface AdminExamMonitorResponse {
   offset: number;
   period_from?: string | null;
   period_to?: string | null;
-  counts: Record<AdminExamMonitorState, number>;
+  /** `lobby_past` too (#159 E1): a lobby of an earlier day or without a day; `lobby_future` + `lobby_today` + `lobby_past` = `lobby`. */
+  counts: Record<AdminExamMonitorState | "lobby_past", number>;
 }
 
 export interface AdminExamView extends ExamSummary {

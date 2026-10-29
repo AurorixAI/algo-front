@@ -19,15 +19,22 @@ import {
 } from "lucide-react";
 import { examsApi, type AdminExamMonitorState, type ExamSummary } from "@/lib/api";
 import { businessDateWithOffset, formatBusinessCalendarDate, formatIsoDateLabel, formatUtcNaiveAsBusinessDayTime } from "@/lib/business-time";
-import { examListState, lobbyBucketOf, lobbyCounts, lobbyExamLabel, type DashboardExamState, type LobbyBucket } from "@/lib/exam-lobby";
+import { examListState, lobbyBucketOf, lobbyCounts, lobbyExamLabel, monitorLobbyCounts, type DashboardExamState, type LobbyBucket } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 
 type Period = "all" | "today" | "yesterday" | "7d" | "30d";
-/** #159: a lobby exam is «Лобби открыто» only while its lesson is on and «Запланирован» before it, so the old filter «lobby» is two: the server knows one status, the split is made here. */
+/**
+ * #159: a lobby exam is «Лобби открыто» only while its lesson is on and «Запланирован» before it, so the old filter «lobby» is two cards: «Лобби открыто» (the lobbies of TODAY whose lesson is
+ * on) and «Запланированы» (the lobbies of a later day + the lobbies of today whose lesson has not begun).  The SERVER counts the lobbies by the day of the lesson (`counts.lobby_future` /
+ * `lobby_today`, E1); the page asks the status of a lesson only for the lobbies of today (usually a few), never walks the pages of the others.
+ */
 type Filter = AdminExamMonitorState | "scheduled";
 type Counts = Record<Filter, number>;
-const LOBBY_PAGE = 100;
-const LOBBY_PAGES_MAX = 5;
+type ServerCounts = Record<AdminExamMonitorState | "lobby_past", number>;
+const EMPTY_COUNTS: ServerCounts = { all: 0, active: 0, lobby: 0, lobby_future: 0, lobby_today: 0, lobby_past: 0, closed: 0, changes: 0 };
+const TODAY_PAGE = 100;
+/** The list the server filters for a card; «Лобби открыто» has none - it is made of the lobbies of today. */
+const listStateOf = (filter: Filter): AdminExamMonitorState | null => (filter === "lobby" ? null : filter === "scheduled" ? "lobby_future" : filter);
 const STATE_TONE: Partial<Record<DashboardExamState, "ok" | "warn" | "info">> = { lobby: "warn", upcoming: "info", today: "info", needs_resolution: "warn" };
 type LifecycleEvent = NonNullable<ExamSummary["recent_events"]>[number];
 
@@ -101,9 +108,9 @@ function rowDetails(exam: ExamSummary): { primary: string; secondary?: string; w
 export default function AdminExamsPage() {
   const [items, setItems] = useState<ExamSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [serverCounts, setServerCounts] = useState<Record<AdminExamMonitorState, number>>({ all: 0, active: 0, lobby: 0, closed: 0, changes: 0 });
-  /** All the lobby exams of the period (the server's own status): the two counters and filters «Лобби открыто» / «Запланированы» are made of them, so a counter is what the list shows. */
-  const [lobbyExams, setLobbyExams] = useState<ExamSummary[]>([]);
+  const [serverCounts, setServerCounts] = useState<ServerCounts>(EMPTY_COUNTS);
+  /** The lobby exams of TODAY in the period (`state=lobby_today`, all of them: a day has a few): the status of their lesson decides «Лобби открыто» or «Запланирован · сегодня». */
+  const [todayLobby, setTodayLobby] = useState<ExamSummary[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
   // Administrative monitoring opens on the entire timeline.  "Live" states
   // deliberately narrow this to today in selectFilter below.
@@ -115,16 +122,19 @@ export default function AdminExamsPage() {
   const successTimer = useRef<number | null>(null);
 
   const today = businessDateWithOffset(0);
-  const lessons = useTodayLessonStatuses([...lobbyExams, ...items], today);
+  const lessons = useTodayLessonStatuses([...todayLobby, ...items], today);
   const stateOf = useCallback((exam: ExamSummary) => examListState(exam, today, lessons.statusOf(exam)), [today, lessons]);
   const bucketOfExam = useCallback((exam: ExamSummary): LobbyBucket | null => (exam.status === "lobby" ? lobbyBucketOf(stateOf(exam)) : null), [stateOf]);
-  const counts: Counts = useMemo(() => {
-    const lobbyKinds = lobbyCounts(lobbyExams, stateOf);
-    return { ...serverCounts, lobby: lobbyKinds.lobby, scheduled: lobbyKinds.scheduled };
-  }, [serverCounts, lobbyExams, stateOf]);
-  const fromLobby = filter === "lobby" || filter === "scheduled";          // these two are read from `lobbyExams`, not from the server's page
-  const shownItems = fromLobby ? lobbyExams.filter((exam) => bucketOfExam(exam) === filter) : items;
-  const shownTotal = fromLobby ? shownItems.length : total;
+  const todayKinds = useMemo(() => lobbyCounts(todayLobby, stateOf), [todayLobby, stateOf]);
+  const counts: Counts = useMemo(
+    () => ({ ...serverCounts, ...monitorLobbyCounts(serverCounts, todayKinds) }),
+    [serverCounts, todayKinds],
+  );
+  const listState = listStateOf(filter);
+  // «Лобби открыто»: the lobbies of today whose lesson is on; «Запланированы»: today's not begun first, then the later days the server filters (the counter is what the list shows)
+  const todayShown = filter === "lobby" ? todayLobby.filter((exam) => bucketOfExam(exam) === "lobby") : filter === "scheduled" ? todayLobby.filter((exam) => bucketOfExam(exam) === "scheduled") : [];
+  const shownItems = filter === "lobby" ? todayShown : [...todayShown, ...items];
+  const shownTotal = filter === "lobby" ? todayShown.length : todayShown.length + total;
 
   const load = useCallback(async ({ manual = false, append = false, offset = 0 }: { manual?: boolean; append?: boolean; offset?: number } = {}) => {
     if (manual) {
@@ -136,22 +146,26 @@ export default function AdminExamsPage() {
     setError(null);
     try {
       const bounds = periodBounds(period);
-      const fromServer = filter !== "lobby" && filter !== "scheduled";
-      const response = await examsApi.getAdminMonitor({ state: fromServer ? filter : "all", ...bounds, limit: fromServer ? 50 : 1, offset: fromServer ? offset : 0 });
-      if (!append) {                    // every lobby exam of the period, in pages of the server's size (the counters must count what the list shows)
-        const lobby: ExamSummary[] = [];
-        for (let page = 0; page < LOBBY_PAGES_MAX; page += 1) {
-          const part = await examsApi.getAdminMonitor({ state: "lobby", ...bounds, limit: LOBBY_PAGE, offset: page * LOBBY_PAGE });
-          lobby.push(...part.items);
-          if (lobby.length >= part.total || part.items.length === 0) break;
+      const listState = listStateOf(filter);
+      let response = listState ? await examsApi.getAdminMonitor({ state: listState, ...bounds, limit: 50, offset: append ? offset : 0 }) : null;
+      if (response) {
+        const listed = response;
+        setItems((previous) => append ? [...previous, ...listed.items] : listed.items);
+        setTotal(listed.total);
+      }
+      if (!append && (!response || response.counts.lobby_today > 0)) {                    // the lobbies of today, all of them; nothing is asked when the server counted none
+        const rows: ExamSummary[] = [];
+        for (;;) {
+          const part = await examsApi.getAdminMonitor({ state: "lobby_today", ...bounds, limit: TODAY_PAGE, offset: rows.length });
+          response = response ?? part;
+          rows.push(...part.items);
+          if (rows.length >= part.total || part.items.length === 0) break;
         }
-        setLobbyExams(lobby);
+        setTodayLobby(rows);
+      } else if (!append) {
+        setTodayLobby([]);
       }
-      if (fromServer) {
-        setItems((previous) => append ? [...previous, ...response.items] : response.items);
-        setTotal(response.total);
-      }
-      setServerCounts(response.counts);
+      if (response) setServerCounts({ ...EMPTY_COUNTS, ...response.counts });
       if (manual) {
         setRefreshState("success");
         successTimer.current = window.setTimeout(() => setRefreshState("idle"), 1600);
@@ -185,8 +199,9 @@ export default function AdminExamsPage() {
 
   const chooseFilter = (next: Filter) => {
     setFilter(next);
-    // A live state is only meaningful now, so the visible period resets too.  «Запланированы» are mostly later days: their period stays as chosen.
+    // A live state is only meaningful now, so the visible period resets too.  «Запланированы» are later days (#159 E4): under «Сегодня» they would vanish, so the period goes to «Все».
     if (next === "active" || next === "lobby") setPeriod("today");
+    if (next === "scheduled") setPeriod("all");
   };
 
   if (loading) return <div className="flex h-64 items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary-200 border-t-primary-600" /></div>;
@@ -210,7 +225,7 @@ export default function AdminExamsPage() {
         </button>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         {cards.map(({ key, label, hint, value, icon: Icon, tone }) => <button key={key} type="button" onClick={() => chooseFilter(key)} className={`rounded-2xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-sm ${filter === key ? "ring-2 ring-primary-200" : ""} ${tone}`}><div className="flex items-start justify-between"><span className="rounded-xl bg-white/75 p-2 shadow-sm"><Icon className="h-5 w-5" /></span><strong className="text-3xl leading-none">{value}</strong></div><p className="mt-4 text-sm font-bold">{label}</p><p className="mt-0.5 text-xs opacity-75">{hint}</p></button>)}
       </section>
 
@@ -225,7 +240,7 @@ export default function AdminExamsPage() {
         const details = rowDetails(exam);
         const latestChange = latestEvent(exam, ["lesson_cancelled", "lesson_rescheduled", "exam_rescheduled"]);
         return <article key={exam.exam_id} className="flex flex-col gap-4 px-6 py-5 transition-colors hover:bg-slate-50/70 xl:flex-row xl:items-center"><div className="flex min-w-0 flex-1 gap-4"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-600"><FileText className="h-5 w-5" /></div><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold text-slate-900">{exam.title}</h3><Chip tone={status.tone} pill>{status.label}</Chip></div><p className="mt-1 text-sm font-medium text-slate-600">{exam.group_name || "Группа не выбрана"}{exam.class_level ? ` · ${exam.class_level} класс` : ""}</p>{(details.primary || details.secondary) && <div className={`mt-2 flex items-start gap-2 text-sm ${details.warning ? "text-amber-800" : "text-slate-500"}`}>{details.warning ? <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> : <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />}<div>{details.primary && <p>{details.primary}</p>}{details.secondary && <p className="mt-0.5 text-xs opacity-80">{details.secondary}</p>}</div></div>}</div></div><div className="flex shrink-0 items-center justify-between gap-5 xl:justify-end">{latestChange?.at && <p className="text-right text-xs text-slate-400">Изменено: {formatEventTime(latestChange.at)}</p>}<Link href={`/admin/exams/${exam.exam_id}`} className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700"><Eye className="h-4 w-4" /> Просмотреть <ChevronRight className="h-4 w-4" /></Link></div></article>;
-      })}</div>}{!fromLobby && items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</button></div>}</section>
+      })}</div>}{listState && items.length < total && <div className="border-t border-slate-100 px-6 py-4 text-center"><button type="button" onClick={() => void load({ append: true, offset: items.length })} disabled={loadingMore} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"><History className={`h-4 w-4 ${loadingMore ? "animate-spin" : ""}`} /> {loadingMore ? "Загружаем…" : "Показать ещё"}</button></div>}</section>
     </div>
   );
 }

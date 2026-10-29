@@ -45,7 +45,7 @@ export type DashboardExamState = "active" | "closed" | "needs_resolution" | "lob
 /**
  * What the dashboard says about an exam.  The server lets students into the lobby only while the lesson the exam is bound to is
  * IN PROGRESS (the teacher started it): before it - 409 «Экзамен станет доступен после начала назначенного урока».  So «Лобби открыто»
- * is said only for an exam of TODAY whose lesson has started; an exam of a later day is «Запланирован», of today but not started - «Сегодня»,
+ * is said only for an exam of TODAY whose lesson has started; an exam of a later day is «Запланирован», of today but not started - «Запланирован · сегодня»,
  * a lesson that is already past - «Нужно действие».  An exam with no lesson date cannot be entered at all: it is «Запланирован».
  * `status` is the exam's own (lobby / print_ready / active / closed); `lessonStatus` is the status of the bound lesson on `today` (null: unknown).
  */
@@ -63,9 +63,9 @@ export function dashboardExamState(input: {
   return "upcoming";
 }
 
-/** «Запланирован · пн, 3 нояб.» - the day is in the badge, the exam is not open yet.  `dayLabel` is already worded («пн, 3 нояб.»). */
+/** «Запланирован · пн, 3 нояб.» - the day is in the badge, the exam is not open yet.  `dayLabel` is already worded («пн, 3 нояб.»).  Today before the start of the lesson (#159 E6): «Запланирован · сегодня». */
 export function scheduledExamLabel(state: DashboardExamState, dayLabel: string | null | undefined): string {
-  if (state === "today") return "Сегодня";
+  if (state === "today") return "Запланирован · сегодня";
   const day = (dayLabel ?? "").trim();
   return day ? `Запланирован · ${day}` : "Запланирован";
 }
@@ -82,7 +82,7 @@ export interface ExamForState {
 
 /**
  * The state a list says about an exam: ONE function with the dashboard's (`dashboardExamState`), so the same exam is in the same state on every screen (invariant 3 of #159).
- * `lessonStatus` is the status of the bound lesson TODAY (`null` / `undefined`: not known, so «Лобби открыто» is never claimed: «Сегодня»).
+ * `lessonStatus` is the status of the bound lesson TODAY (`null` / `undefined`: not known, so «Лобби открыто» is never claimed: «Запланирован · сегодня»).
  */
 export function examListState(exam: ExamForState, today: string, lessonStatus: string | null | undefined): DashboardExamState {
   return dashboardExamState({ status: exam.status, scheduledDate: exam.scheduled_lesson_date, today, lessonStatus });
@@ -107,7 +107,7 @@ export function lobbyBucketOf(state: DashboardExamState): LobbyBucket | null {
   return null;
 }
 
-/** The words of the chip of a lobby exam: «Лобби открыто» / «Запланирован · пн, 3 нояб.» / «Сегодня» / «Занятие прошло».  Nothing else says «Лобби» about an exam that has not begun. */
+/** The words of the chip of a lobby exam: «Лобби открыто» / «Запланирован · пн, 3 нояб.» / «Запланирован · сегодня» / «Занятие прошло».  Nothing else says «Лобби» about an exam that has not begun. */
 export function lobbyExamLabel(state: DashboardExamState, dayLabel: string | null | undefined): string {
   if (state === "lobby") return "Лобби открыто";
   if (state === "needs_resolution") return "Занятие прошло";
@@ -135,4 +135,13 @@ export function lobbyCounts<T extends ExamForState>(exams: ReadonlyArray<T>, sta
     if (bucket) tally[bucket] += 1;
   }
   return tally;
+}
+
+/**
+ * The two lobby cards of the administrator's monitor (#159 E1).  The server counts the lobbies of LATER days (`counts.lobby_future`) by the date of the lesson; the lobbies of today are
+ * few, the page holds them (`today`, made by {@link lobbyCounts} with the status of the lesson): «Лобби открыто» = the ones whose lesson is on, «Запланированы» = later days + the ones of
+ * today whose lesson has not begun.
+ */
+export function monitorLobbyCounts(server: { lobby_future?: number | null }, today: Record<LobbyBucket, number>): { lobby: number; scheduled: number } {
+  return { lobby: today.lobby, scheduled: Math.max(0, Number(server.lobby_future) || 0) + today.scheduled };
 }

@@ -80,7 +80,7 @@ test("B2: «Лобби открыто» only for an exam of TODAY whose lesson i
 test("B2: the badge says «Запланирован · день» before the lesson, «Сегодня» on the day, and the page uses the function in both views", () => {
   assert.equal(L.scheduledExamLabel("upcoming", "вт, 3 нояб."), "Запланирован · вт, 3 нояб.");
   assert.equal(L.scheduledExamLabel("upcoming", ""), "Запланирован");
-  assert.equal(L.scheduledExamLabel("today", "чт, 29 окт."), "Сегодня");
+  assert.equal(L.scheduledExamLabel("today", "чт, 29 окт."), "Запланирован · сегодня");
   const page = read("src/app/teacher/dashboard/page.tsx");
   assert.match(page, /dashboardExamState\(\{/);
   assert.equal((page.match(/const isLobby = exam\.state === "lobby";/g) || []).length, 2, "the card and the queue");

@@ -757,8 +757,9 @@ export default function TeacherExamsPage() {
           { label: "Запланированы", value: counts.scheduled, color: "text-sky-700", bg: "bg-sky-50", icon: <Clock className="w-4 h-4 text-sky-500" /> },
           { label: "Черновики", value: counts.draft, color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
           { label: "Завершены", value: counts.closed, color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
-        ].map((s) => (
-          <div key={s.label} className={`${s.bg} rounded-2xl p-4 border border-white shadow-sm flex items-center gap-3`}>
+        ].map((s, index, all) => (
+          // #159 E9: five cards in two columns - the odd last one takes the whole row of a phone instead of standing alone
+          <div key={s.label} className={`${s.bg} rounded-2xl p-4 border border-white shadow-sm flex items-center gap-3 ${index === all.length - 1 && all.length % 2 === 1 ? "col-span-2 md:col-span-1" : ""}`}>
             <div className="w-9 h-9 rounded-xl bg-white/80 flex items-center justify-center shadow-sm">
               {s.icon}
             </div>
