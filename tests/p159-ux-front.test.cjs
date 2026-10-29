@@ -199,3 +199,66 @@ test("U5: on a phone the reason and the deadline share one row, the deadline nev
   const row = renderToStaticMarkup(React.createElement(DEC.PaymentRow, { item: decision(), canDecide: true, onPick() {} }));
   assert.match(row, /flex-col[^"]*md:flex-row/, "under the text on a phone, beside it from md");
 });
+
+// ── U2 (stage, real data): what the system writes into a record is a plate and a mark, never a line in the row ────────────────────────────
+
+const OUT = require(path.join(root, "src/lib/substitution-outcome.ts"));
+const T = require(path.join(root, "src/lib/substitution-timeline.ts"));
+const LEFT_TEXT = "Заменяющий Жуков-КВДЛ Ж. больше не ведёт уроки. Нужно новое решение.";
+const GONE_TEXT = "Заменяющий Жуков Ж. больше не работает в центре. Нужно новое решение.";
+const DAY_OFF_TEXT = "Выходной «Праздник» отменён: урок вернулся. Нужно новое решение.";
+const seen = (html) => text(html.replace(/<span id="[^"]*" class="sr-only">[^<]*<\/span>/g, ""));     // what the eye sees: the hidden copy for a screen reader is not part of it
+
+test("U2: every sentence the server writes into a reopened record has its plate; an unknown one gets «Нужно решение»", () => {
+  const sys = (comment, over = {}) => req({ origin: "system", trigger: null, reasonCode: "other", comment, ...over });
+  assert.deepEqual(OUT.systemReasonOf(sys(LEFT_TEXT)), { label: "Замена выбыла", text: LEFT_TEXT });
+  assert.equal(OUT.systemReasonOf(sys(GONE_TEXT)).label, "Замена выбыла", "removed from the centre: the same plate");
+  assert.equal(OUT.systemReasonOf(sys(DAY_OFF_TEXT)).label, "Выходной отменён");
+  assert.equal(OUT.systemReasonOf(sys("Что-то новое от сервера")).label, "Нужно решение", "an unknown sentence: the plain words, the sentence is the tooltip");
+  assert.deepEqual(OUT.systemReasonOf(sys(null)), { label: "Нужно решение", text: "" });
+  assert.equal(OUT.systemReasonOf(sys(LEFT_TEXT, { trigger: "manager_assign" })), null, "a record decided at once (a move, an assignment) has no reason");
+  assert.equal(OUT.systemReasonOf(req({ comment: "Температура" })), null, "a request of a teacher has the reason of a teacher");
+});
+
+test("U2: in the column «Причина» of ANY row - a plate and, if needed, a mark; no sentence of the system, no comment, no «Предложил» line", () => {
+  const cell = (item) => renderToStaticMarkup(React.createElement(cells.ReasonCell, { item, withComment: true }));
+  const sys = (comment) => req({ origin: "system", trigger: null, reasonCode: "other", comment });
+  for (const [comment, plate] of [[LEFT_TEXT, "Замена выбыла"], [GONE_TEXT, "Замена выбыла"], [DAY_OFF_TEXT, "Выходной отменён"]]) {
+    const html = cell(sys(comment));
+    assert.equal(seen(html), `|${plate}|`, comment);
+    assert.match(html, new RegExp(`aria-label="${comment.replace(/[.«»]/g, "\\$&")}"`), "the whole sentence is the tooltip of the mark");
+    assert.match(html, /data-testid="comment-mark"/);
+  }
+  // a teacher: the plate and the mark «Есть комментарий»
+  assert.equal(seen(cell(req({ comment: "Температура 38" }))), "|Болезнь|");
+  // the colleague that was suggested: a grey mark; the one that does not lead any more: an amber warning with the words of the server
+  const active = cell(req({ suggestedTeacher: { id: "x", name: "Рахимов Т.", active: true } }));
+  assert.equal(seen(active), "|Болезнь|");
+  assert.match(active, /aria-label="Предложил: Рахимов Т\."/);
+  const inactive = cell(req({ reasonCode: "other", reasonLabel: "Другое", suggestedTeacher: { id: "x", name: "Сидоров С.", active: false } }));
+  assert.equal(seen(inactive), "|Другое|");
+  assert.match(inactive, /aria-label="Предложенный сотрудник больше не ведёт уроки"/);
+  assert.match(inactive, /text-amber-600/, "the warning is amber");
+  // nothing of it but a mark: one height for every row
+  for (const html of [cell(sys(LEFT_TEXT)), cell(req({ comment: "x", suggestedTeacher: { id: "x", name: "Сидоров С.", active: false } }))]) assert.doesNotMatch(html, /line-clamp|<p /);
+  // the page itself prints no line of the suggestion any more
+  assert.doesNotMatch(read("src/components/substitutions/substitutions-page.tsx"), /suggestedLine/);
+});
+
+test("U2: the full sentence of the system is in «Подробнее» (the history of the record), the suggestion too", () => {
+  const item = req({ id: "new", origin: "system", trigger: null, reasonCode: "other", comment: LEFT_TEXT });
+  const detail = { item, chain: [], next: [], events: [{ requestId: "new", action: "reopened", at: "2026-10-28T07:10:00", actor: { id: "u", name: "Тестов О.", role: "owner" } }] };
+  const rows = T.timelineOf(detail, "manager").rows;
+  assert.ok(rows.some((row) => row.title === "Открыт заново" && row.details.includes(LEFT_TEXT)), "«Открыт заново» carries the sentence");
+  const asked = req({ id: "r2", reasonCode: "other", suggestedTeacher: { id: "x", name: "Сидоров С.", active: false } });
+  const rows2 = T.timelineOf({ item: asked, chain: [], next: [], events: [{ requestId: "r2", action: "requested", at: "2026-10-28T07:10:00", actor: { role: "teacher" }, snapshot: { reasonCode: "other" } }] }, "manager").rows;
+  assert.ok(rows2.some((row) => row.details.includes("Предложенный сотрудник больше не ведёт уроки")));
+});
+
+test("U2: the quiet badge «открыт заново» / «без запроса» sits on the line of the name - a reopened row is as high as any other", () => {
+  const html = renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: req({ origin: "system", trigger: null, comment: LEFT_TEXT }) }));
+  assert.match(html, /<div class="flex min-w-0 flex-wrap items-center[^"]*"><p[^>]*>Иванов А\.<\/p><span data-testid="origin-badge"/);
+  // on the tab «Ждут» the plate of the reason («Замена выбыла») already says it: no badge, one height
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: req({ origin: "system", trigger: null }), withOrigin: false })), /origin-badge/);
+  assert.match(read("src/components/substitutions/substitutions-page.tsx"), /<PeopleCell item=\{item\} withOrigin=\{!pendingTab\} \/>/);
+});

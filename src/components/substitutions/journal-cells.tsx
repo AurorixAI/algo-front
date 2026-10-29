@@ -1,14 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ChevronRight, MessageSquare } from "lucide-react";
+import { ChevronRight, MessageSquare, AlertTriangle, UserCheck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { Hint } from "@/components/ui/hint";
 import type { ChipTone } from "@/lib/chip-tone";
 import { dayAndDateLabel } from "@/lib/ops-errors";
-import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, type DeadlineTone } from "@/lib/substitutions";
-import { lastActivityLabel, originBadge, outcomeOf, peopleOf, reasonShort, type Audience } from "@/lib/substitution-outcome";
+import { LESSON_DELETED_TEXT, deadlineOf, lessonWhen, suggestedLine, type DeadlineTone } from "@/lib/substitutions";
+import { lastActivityLabel, originBadge, outcomeOf, peopleOf, reasonShort, systemReasonOf, type Audience } from "@/lib/substitution-outcome";
 import type { SubstitutionItem } from "@/lib/substitution-types";
 
 /** The cells of a row of «Замены» (#157): the lesson, who -> whom, the reason, the result, when, «Подробнее».  The same cells for the wide table and for the card of a phone. */
@@ -51,49 +50,52 @@ export function OriginBadge({ item }: { item: SubstitutionItem }) {
   return text ? <span data-testid="origin-badge" className="inline-block rounded-md border border-slate-200 px-1.5 py-px text-[11px] font-medium leading-4 text-slate-500">{text}</span> : null;
 }
 
-/** «Кто → кто»: the teacher, and under him «→ Петров Б.» or «→ чт, 29.10, 16:00».  Left-aligned, long names wrap. */
-export function PeopleCell({ item }: { item: SubstitutionItem }) {
+/** «Кто → кто» (`withOrigin={false}` on the tab «Ждут»: the plate of the reason says how a reopened record came to be, the badge would only make the row taller): the teacher, and under him «→ Петров Б.» or «→ чт, 29.10, 16:00».  Left-aligned, long names wrap. */
+export function PeopleCell({ item, withOrigin = true }: { item: SubstitutionItem; withOrigin?: boolean }) {
   const { teacher, to } = peopleOf(item);
   return (
     <div className="min-w-0 space-y-0.5 text-left">
-      <p className="break-words text-sm font-medium text-slate-800">{teacher}</p>
+      {/* the quiet badge sits on the line of the name: it must not make the row taller (#159 U2) */}
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+        <p className="break-words text-sm font-medium text-slate-800">{teacher}</p>
+        {withOrigin && <OriginBadge item={item} />}
+      </div>
       {to && <p data-testid="people-to" className="break-words text-sm text-slate-700"><span aria-hidden>→ </span>{to}</p>}
-      <OriginBadge item={item} />
     </div>
   );
 }
 
 export const COMMENT_HINT = "Есть комментарий";
-const LONG_COMMENT = 90;
+
+/** A small mark with a tooltip (works on a tap): the ONE look of every note of a row - a comment, the explanation of the system, the colleague that was suggested. */
+function NoteMark({ text, icon: Icon, tone = "grey", testId }: { text: string; icon: typeof MessageSquare; tone?: "grey" | "amber"; testId: string }) {
+  return (
+    <Hint text={text} className={`inline-flex ${tone === "amber" ? "text-amber-600 hover:text-amber-700" : "text-slate-400 hover:text-slate-600"}`} width={260}>
+      <Icon data-testid={testId} className="h-4 w-4" aria-label={text} />
+    </Hint>
+  );
+}
 
 /**
- * The reason: the short label of a request («Болезнь», «Личное», «Другое»); a record without a request has none.  The comment of the teacher is NOT in the row (#159 U2): when there is one,
- * a small mark says «Есть комментарий» and the text is in «Подробнее» (and in the window of the decision), so every row is the same height.  A record WITHOUT a label (the system opened
- * it again) has no teacher: its comment is the explanation of the record (LESSONS 46), shown as text, three lines and «Ещё».
+ * The reason: ALWAYS a plate and, when there is more to know, a mark - never a line of text, so every row is the same height (#159 U2).
+ *  - a request of a teacher: the plate «Болезнь» / «Личное» / «Другое»; the comment is a mark «Есть комментарий» (the text is in «Подробнее» and in the window of the decision);
+ *  - a record the system opened again: the plate «Замена выбыла» / «Выходной отменён» / «Нужно решение»; the server's sentence is the tooltip of the mark and a line of the panel;
+ *  - the colleague the teacher suggested (the tab «Ждут»): a mark «Предложил: …», or - when he does not lead any more - an amber warning with those words.
+ * A record without a request (a move, an assignment) has no reason at all.
  */
 export function ReasonCell({ item, withComment = false }: { item: SubstitutionItem; withComment?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const label = reasonShort(item);
-  const comment = withComment ? (item.comment ?? "").trim() : "";
-  const explanation = !label ? comment : "";
-  const long = explanation.length > LONG_COMMENT;
-  if (!label && !comment) return null;
+  const system = systemReasonOf(item);
+  const label = system?.label ?? reasonShort(item);
+  const comment = (item.comment ?? "").trim();
+  const suggested = withComment && !system ? suggestedLine(item) : null;
+  const inactive = item.suggestedTeacher?.active === false;
+  if (!label) return null;
   return (
-    <div className="min-w-0 text-left">
-      {label && (
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Chip tone="neutral" testId="reason-chip">{label}</Chip>
-          {comment && (
-            <Hint text={COMMENT_HINT} className="inline-flex text-slate-400 hover:text-slate-600" width={160}>
-              <MessageSquare data-testid="comment-mark" className="h-4 w-4" aria-label={COMMENT_HINT} />
-            </Hint>
-          )}
-        </div>
-      )}
-      {explanation && <p className={`break-words text-sm text-slate-700 ${open ? "" : "line-clamp-3"}`}>{explanation}</p>}
-      {long && (
-        <button type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)} className="text-xs font-semibold text-primary-700 hover:underline">{open ? "Свернуть" : "Ещё"}</button>
-      )}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-left">
+      <Chip tone="neutral" testId="reason-chip" className="whitespace-nowrap">{label}</Chip>
+      {system && system.text && <NoteMark text={system.text} icon={MessageSquare} testId="comment-mark" />}
+      {!system && withComment && comment && <NoteMark text={COMMENT_HINT} icon={MessageSquare} testId="comment-mark" />}
+      {suggested && <NoteMark text={suggested} icon={inactive ? AlertTriangle : UserCheck} tone={inactive ? "amber" : "grey"} testId="suggested-mark" />}
     </div>
   );
 }

@@ -56,7 +56,7 @@ import { Radio } from "@/components/ui/radio";
 import { DeadlineBadge } from "@/components/substitutions/journal-cells";
 import { CancellationKindField } from "@/components/attendance/cancellation-kind-field";
 import { DEFAULT_CANCELLATION_KIND, type CancellationKind } from "@/lib/payf";
-import { outcomeOf } from "@/lib/substitution-outcome";
+import { outcomeOf, systemReasonOf } from "@/lib/substitution-outcome";
 import { candidateMoneyLines } from "@/lib/lesson-teacher";
 
 const FIELD_CLASS =
@@ -358,7 +358,7 @@ export function DecisionBody({
     <div className="space-y-5 pb-1">
       <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-3">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{item.reasonLabel || reasonLabelOf(item.reasonCode)}</span>
+          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">{systemReasonOf(item)?.label ?? (item.reasonLabel || reasonLabelOf(item.reasonCode))}</span>
           <DeadlineBadge item={item} />
         </div>
         {item.comment && <p className="mt-2 break-words text-sm text-slate-800">{item.comment}</p>}

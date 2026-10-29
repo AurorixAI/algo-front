@@ -132,7 +132,7 @@ test("#157 row: «Кто → кто» left, the badge is quiet, the reason is a 
   const owner = item();
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: owner }))), "|Иванов А.|→ |Петров Б.|");
   const direct = item({ origin: "system", trigger: "manager_assign" });
-  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: direct }))), "|Иванов А.|→ |Петров Б.|без запроса|");
+  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: direct }))), "|Иванов А.|без запроса|→ |Петров Б.|");
   const moved = item({ status: "rescheduled", outcome: "rescheduled", decision: { kind: "reschedule", movedTo: { date: "2026-10-29", startTime: "16:00", endTime: "17:00" } } });
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: moved }))), "|Иванов А.|→ |чт, 29.10, 16:00|");
   const cancelled = item({ status: "cancelled", outcome: "cancelled", decision: { kind: "cancel", by: person("Тестов О.", "owner") } });
@@ -145,13 +145,19 @@ test("#157 row: «Кто → кто» left, the badge is quiet, the reason is a 
   assert.match(withMark, /aria-label="Есть комментарий"/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: item({ comment: null }), withComment: true })), /Есть комментарий/, "no comment, no mark");
   assert.equal(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: direct })), "", "a record without a request has no reason");
-  const reopened = item({ origin: "system", trigger: null, comment: "Заменяющий больше не ведёт уроки" });
-  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: reopened }))).endsWith("открыт заново|"), true);
-  assert.match(text(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: reopened, withComment: true }))), /Заменяющий больше не ведёт уроки/, "the comment of a reopened request is its explanation (LESSONS 46)");
+  const reopened = item({ origin: "system", trigger: null, comment: "Заменяющий Жуков Ж. больше не ведёт уроки. Нужно новое решение." });
+  assert.equal(text(renderToStaticMarkup(React.createElement(cells.PeopleCell, { item: reopened }))), "|Иванов А.|открыт заново|→ |Петров Б.|");
+  // #159 U2: the explanation of the system is NOT a line of the row: a plate and a mark; the sentence is the tooltip (and a line of the panel: LESSONS 46)
+  const reopenedCell = renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: reopened, withComment: true }));
+  assert.match(text(reopenedCell), /\|Замена выбыла\|/);
+  const seen = reopenedCell.replace(/<span id="[^"]*" class="sr-only">[^<]*<\/span>/g, "");      // what the eye sees: the hidden copy for a screen reader is not part of it
+  assert.doesNotMatch(text(seen), /Заменяющий|Нужно новое решение/, "the sentence is not printed in the row");
+  assert.match(reopenedCell, /aria-label="Заменяющий Жуков Ж\. больше не ведёт уроки\. Нужно новое решение\."/, "the sentence is the name of the mark");
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.OutcomeChip, { item: owner }))), "|Замена назначена|");
   assert.equal(text(renderToStaticMarkup(React.createElement(cells.WhenCell, { item: owner }))), "|28.10 12:24|", "07:24 UTC = 12:24 in Tashkent");
+  // a long sentence is no longer a block of text with «Ещё»: it is a mark, the row stays one height
   const long = item({ origin: "system", trigger: null, comment: "Очень длинный комментарий. ".repeat(8) });
-  assert.match(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: long, withComment: true })), /aria-expanded="false"[^>]*>Ещё</, "the explanation of the system on a phone: «Ещё»");
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement(cells.ReasonCell, { item: long, withComment: true })), /Ещё/);
 });
 
 test("#157 page: the wide table is «Урок · Кто → кто · Причина · Итог · Когда · ›», left aligned; «Выбрать все · N» is the first row; the old cells and their texts are gone", () => {

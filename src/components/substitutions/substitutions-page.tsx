@@ -29,7 +29,6 @@ import {
   expiringText,
   itemLessonLine,
   moreLessonsText,
-  suggestedLine,
   tabLabel,
 } from "@/lib/substitutions";
 import type { DecideBulkOut, DecideOut, SubstitutionDetailOut, SubstitutionItem } from "@/lib/substitution-types";
@@ -451,17 +450,14 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
                     </div>
 
                     {/* Кто → кто (the links to the group and to the teacher are in the panel) */}
-                    <PeopleCell item={item} />
+                    <PeopleCell item={item} withOrigin={!pendingTab} />
 
                     {/* Причина / Срок / Итог / Когда */}
                     {pendingTab ? (
                       <>
                         {/* a phone: the reason and the deadline in one row (the deadline never breaks); the wide table: two cells */}
                         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 xl:contents">
-                          <div className="min-w-0">
-                            <ReasonCell item={item} withComment />
-                            {suggestedLine(item) && <p className="mt-1 text-xs text-slate-500">{suggestedLine(item)}</p>}
-                          </div>
+                          <div className="min-w-0"><ReasonCell item={item} withComment /></div>
                           <div className="flex min-w-0 justify-start xl:justify-center"><DeadlineBadge item={item} /></div>
                         </div>
                         <div className="flex items-center justify-end xl:-my-1.5">

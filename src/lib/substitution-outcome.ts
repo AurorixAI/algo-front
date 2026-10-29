@@ -142,6 +142,22 @@ export function reasonShort(item: Pick<SubstitutionItem, "origin" | "reasonCode"
   return (item.reasonLabel || reasonLabelOf(item.reasonCode)) || null;
 }
 
+/**
+ * A record the system opened AGAIN (no teacher asked: «Заменяющий … больше не ведёт уроки», «Выходной … отменён: урок вернулся» - the server writes the sentence into `comment`) has no reason of a teacher.
+ * Its column «Причина» shows a short plate and the sentence itself goes into the tooltip and the panel (#159 U2, LESSONS 46: the explanation is not lost).  The plate is chosen by the beginning of the
+ * server's sentence (`lesson_substitutions.py`: the substitute left / the day off was voided); any other sentence gets the plain «Нужно решение».  Null for a request of a teacher and for a record
+ * of the system that was decided at once (a move, an assignment: nothing is waiting).
+ */
+export const SYSTEM_REASON_LEFT = "Замена выбыла";
+export const SYSTEM_REASON_DAY_OFF = "Выходной отменён";
+export const SYSTEM_REASON_OTHER = "Нужно решение";
+export function systemReasonOf(item: Pick<SubstitutionItem, "origin" | "trigger" | "comment">): { label: string; text: string } | null {
+  if (item.origin !== "system" || item.trigger) return null;
+  const text = (item.comment ?? "").trim();
+  const label = /^Заменяющий\s/.test(text) ? SYSTEM_REASON_LEFT : /^Выходной\s/.test(text) ? SYSTEM_REASON_DAY_OFF : SYSTEM_REASON_OTHER;
+  return { label, text };
+}
+
 /** «28.10 12:24»: the moment of the last event of the row (the column «Когда»); the decision or the creation when the server did not send it. */
 export function lastActivityLabel(item: Pick<SubstitutionItem, "lastActivityAt" | "decision" | "createdAt">): string {
   return shortWhen(item.lastActivityAt ?? item.decision?.at ?? item.createdAt);

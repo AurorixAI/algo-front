@@ -153,7 +153,7 @@ test("[R3 #3] «Ведёт: …» - the lesson of a group without a main teacher
 
 test("[R3 #6] the rows of the journal, rendered: the badge under the teacher, the reason, the one chip of the result, «когда»", () => {
   const stood = { ...direct(), comment: "Болезнь у основного преподавателя", lastActivityAt: AT };
-  assert.equal(render(cells.PeopleCell, { item: stood }), "|Иванов А.|→ |Петров Б.|без запроса|");
+  assert.equal(render(cells.PeopleCell, { item: stood }), "|Иванов А.|без запроса|→ |Петров Б.|");
   assert.equal(render(cells.ReasonCell, { item: stood }), "", "no reason for a record without a request; the comment is for the panel");
   assert.equal(render(cells.OutcomeChip, { item: stood }), "|Замена назначена|");
   assert.equal(render(cells.WhenCell, { item: stood }), "|21.10 14:12|");
