@@ -23,8 +23,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Build-time env: NEXT_PUBLIC_ vars are baked into the bundle at build time.
-# For local dev these are not set (code falls back to localhost defaults).
-# For staging/prod these must be passed via --build-arg.
+# Empty = the origin of the page in a browser (K3 P1); on the Next server the old localhost defaults stay.
+# Prod/stage pass NEXT_PUBLIC_SITE_URL via --build-arg; the three API addresses may stay empty.
 ARG NEXT_PUBLIC_AUTH_API_URL=""
 ENV NEXT_PUBLIC_AUTH_API_URL=$NEXT_PUBLIC_AUTH_API_URL
 
@@ -33,6 +33,12 @@ ENV NEXT_PUBLIC_EXAM_API_URL=$NEXT_PUBLIC_EXAM_API_URL
 
 ARG NEXT_PUBLIC_DIAG_API_URL=""
 ENV NEXT_PUBLIC_DIAG_API_URL=$NEXT_PUBLIC_DIAG_API_URL
+
+# K3 P1/P2: on prod and stage the three API addresses are EMPTY (= the site the page was opened from, one image on any
+# domain).  NEXT_PUBLIC_SITE_URL is the public site (landing) that «Запросить демо» and the old /request-demo, /register
+# lead to: https://algolab.me on prod, the stage landing on stage; empty = the same origin (/#demo).
+ARG NEXT_PUBLIC_SITE_URL=""
+ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 ARG CONTENT_API_URL="http://algo-content:8004"
 ENV CONTENT_API_URL=$CONTENT_API_URL

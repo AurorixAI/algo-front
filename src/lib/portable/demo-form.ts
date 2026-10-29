@@ -1,9 +1,63 @@
 /**
- * «Запросить демо»: the form of /request-demo as plain functions - what is checked, what is sent, what each failure of the
- * server means for the person.  No React, no window (the page passes the address and the referrer in), so node:test loads it.
+ * «Запрос демо»: маска телефона, проверка полей, тело запроса, разбор отказа сервера, метки источника (utm).
+ *
+ * ПЕРЕНОСИМЫЙ МОДУЛЬ (K3 P2, правило 39 LESSONS_LEARNED: логику не писать заново). Лендинг (algo-landing) копирует этот
+ * файл как есть. Поэтому здесь НЕТ ни одного import, ни React, ни Next, ни window, ни process: только TypeScript
+ * (тест tests/k3-p1-p3.test.cjs следит, что import не появится). Продукт использует отсюда телефон
+ * (`lib/phone.ts` реэкспортирует) и `retryText`; сама форма «Запросить демо» теперь живёт на лендинге.
+ *
+ * Ошибка сервера принимается по форме, а не по классу (`DemoHttpFailure`): годится и `HttpError` продукта, и любая
+ * ошибка собственного клиента лендинга с полями `status`, `message`, `fields`, `retryAfter`.
  */
-import { formatUzPhone, isValidUzPhone } from "./phone";
-import { HttpError, retryText } from "./http-json";
+
+// ---- Телефон: +998 XX XXX XX XX ---------------------------------------------------------------------------------
+
+/**
+ * Форматирование узбекского номера телефона: +998 XX XXX XX XX
+ * Автоматически подставляет +998 и расставляет пробелы.
+ */
+export function formatUzPhone(value: string): string {
+  // Оставляем только цифры
+  let digits = value.replace(/\D/g, "");
+
+  // Если начинается с 998 — убираем, чтобы работать с 9-значным "телом"
+  if (digits.startsWith("998")) {
+    digits = digits.slice(3);
+  }
+
+  // Ограничиваем 9 цифрами (после 998)
+  digits = digits.slice(0, 9);
+
+  // Если пусто — показываем только префикс +998
+  if (digits.length === 0) return "+998 ";
+
+  // Форматируем: +998 XX XXX XX XX
+  let result = "+998";
+  if (digits.length > 0) result += " " + digits.slice(0, 2);
+  if (digits.length > 2) result += " " + digits.slice(2, 5);
+  if (digits.length > 5) result += " " + digits.slice(5, 7);
+  if (digits.length > 7) result += " " + digits.slice(7, 9);
+
+  return result;
+}
+
+/**
+ * Проверяет, является ли номер полным узбекским номером (12 цифр: 998 + 9)
+ */
+export function isValidUzPhone(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  return digits.length === 12 && digits.startsWith("998");
+}
+
+/** «через 40 с» / «через 5 мин» / «через 2 ч» for a wait in seconds. */
+export function retryText(seconds: number | undefined | null): string {
+  if (!seconds || seconds <= 0) return "чуть позже";
+  if (seconds < 60) return `через ${Math.ceil(seconds)} с`;
+  if (seconds < 3600) return `через ${Math.ceil(seconds / 60)} мин`;
+  return `через ${Math.ceil(seconds / 3600)} ч`;
+}
+
+// ---- Форма ------------------------------------------------------------------------------------------------------
 
 export interface DemoFormValues {
   fullName: string;
@@ -126,7 +180,7 @@ export function captureSource(search: string, referrer: string, ownHost: string,
   return out;
 }
 
-/** `?utm_x=...` pairs of the current address, to carry through the redirect from /register. */
+/** `?utm_x=...` pairs of the current address, to carry through a redirect (old /register, /request-demo links). */
 export function sourceQuery(search: string): string {
   const params = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search);
   const kept = new URLSearchParams();
@@ -185,14 +239,27 @@ export type DemoFailure =
   | { kind: "network"; message: string }
   | { kind: "server"; message: string };
 
+/** The shape of a failed request that this module understands (`HttpError` of the product has it; status 0 = no network). */
+export interface DemoHttpFailure {
+  status: number;
+  message: string;
+  fields?: Record<string, string>;
+  retryAfter?: number;
+}
+
+function isHttpFailure(value: unknown): value is DemoHttpFailure {
+  return typeof value === "object" && value !== null && typeof (value as DemoHttpFailure).status === "number";
+}
+
 /** What a failed submit means for the form: field messages (422), a wait (429), or a calm banner (network / 5xx). */
-export function classifyDemoFailure(error: unknown): DemoFailure {
-  if (!(error instanceof HttpError)) {
+export function classifyDemoFailure(failure: unknown): DemoFailure {
+  if (!isHttpFailure(failure)) {
     return { kind: "server", message: "Не удалось отправить заявку. Повторите попытку чуть позже." };
   }
+  const error = failure;
   if (error.status === 422 || error.status === 400) {
     const errors: DemoErrors = {};
-    for (const [name, text] of Object.entries(error.fields)) {
+    for (const [name, text] of Object.entries(error.fields ?? {})) {
       const field = FIELD_OF_SERVER[name];
       if (field) errors[field] = text;
     }

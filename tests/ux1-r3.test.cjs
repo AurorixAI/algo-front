@@ -532,7 +532,7 @@ test("Modal opener: nothing changes the control to return to while the dialog is
 // ── public pages, student sticky headers ──────────────────────────────────────────────────────────────
 
 test("public pages keep clear of the landscape notch; the sticky header of a student's test sits below the status bar", () => {
-  for (const file of ["src/app/login/page.tsx", "src/components/onboarding/demo-request-page.tsx", "src/app/activate/page.tsx", "src/app/invite/[code]/page.tsx"]) {
+  for (const file of ["src/app/login/page.tsx", "src/app/activate/page.tsx", "src/app/invite/[code]/page.tsx"]) {
     const source = read(file);
     assert.match(source, /p-6 pl-\[max\(1\.5rem,env\(safe-area-inset-left\)\)\] pr-\[max\(1\.5rem,env\(safe-area-inset-right\)\)\]/, file);
   }

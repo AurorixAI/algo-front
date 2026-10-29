@@ -1,18 +1,14 @@
 /**
- * The two public calls of the invitation-only onboarding: the demo request and the «set a password» link.
- * ONE typed module: when API_CONTRACT.md changes a path or a field, this file (and `demo-request.ts` for the body) is the only place to touch.
+ * The public call of the invitation-only onboarding that stays in the product: the «set a password» link.
+ * (The demo request form moved to the landing in K3 P2; its field logic is `lib/portable/demo-form.ts`.)
+ * ONE typed module: when API_CONTRACT.md changes a path or a field, this file is the only place to touch.
  */
 import { createJsonClient, seg, type JsonClientConfig } from "./http-json";
-import type { DemoRequestBody } from "./demo-request";
+import { serviceApiV1 } from "./api-base";
 import type { PasswordLinkInfo } from "./set-password";
 
-export const AUTH_API_BASE = `${process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8000"}/api/v1`;
-
-export interface DemoRequestAccepted {
-  id?: number | string;
-  /** The same e-mail applied within 30 days: the person sees the usual screen anyway. */
-  repeat?: boolean;
-}
+// An empty NEXT_PUBLIC_AUTH_API_URL = the site the page was opened from (K3 P1): see lib/api-base.ts.
+export const AUTH_API_BASE = serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://localhost:8000");
 
 /** What the server returns when a link is used to set the password (the same shape as a sign-in). */
 export interface PasswordSetResult {
@@ -24,9 +20,6 @@ export interface PasswordSetResult {
 export function createOnboardingApi(config: Partial<JsonClientConfig> = {}) {
   const request = createJsonClient({ baseUrl: AUTH_API_BASE, ...config });
   return {
-    /** `POST /public/demo-requests` -> 201. */
-    submitDemoRequest: (body: DemoRequestBody) =>
-      request<DemoRequestAccepted>("/public/demo-requests", { method: "POST", body }),
     /** `GET /auth/password-links/{token}`: whose link it is. 404 / 410 / `status: used|expired` for a dead one. */
     inspectPasswordLink: (token: string, signal?: AbortSignal) =>
       request<PasswordLinkInfo>(`/auth/password-links/${seg(token)}`, { signal }),

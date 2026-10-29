@@ -1,12 +1,12 @@
 import { randomBytes } from "node:crypto";
 import { test, expect } from "../support/fixtures";
-import { CONSOLE_ORIGIN } from "../support/env";
+import { AUTH_API, CONSOLE_ORIGIN } from "../support/env";
 import { createPlatformOwner, issueSetPasswordToken, startConsoleServer } from "../support/console";
 
 /**
  * Pack «Консоль-1», the whole invitation chain through the real screens:
  *
- *   /request-demo (public form) -> console login (own session, own host) -> «Заявки» -> «Одобрить»
+ *   demo request (since K3 P2 the form is on the landing: here the same public POST) -> console login (own session, own host) -> «Заявки» -> «Одобрить»
  *   -> «Задать пароль» (/set-password/<token>) -> the owner's cabinet.
  *
  * Seeding: the first console owner is created by the product's own `create_owner` inside the auth container (the e2e
@@ -38,38 +38,42 @@ test.describe.serial("Консоль-1: заявка → одобрение → 
     await closeConsole?.();
   });
 
-  test("closed registration: /register leads to the demo request, the sign-in offers «Запросить демо» and no registration", async ({ anonymous }) => {
+  test("closed registration: the old demo addresses lead to the landing (SITE_URL/#demo), the sign-in offers «Запросить демо» and no registration", async ({ anonymous }) => {
     const page = await anonymous();
+    // the e2e build has no NEXT_PUBLIC_SITE_URL: «the landing» is this origin, `/#demo`, and `/` has no page of its own -> the sign-in
     await page.goto("/register?utm_source=e2e&token=nope");
-    await expect(page).toHaveURL(/\/request-demo\?utm_source=e2e$/);
-    await expect(page.getByRole("heading", { name: /Доступ к ALGO/ })).toBeVisible();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.goto("/request-demo");
+    await expect(page).toHaveURL(/\/login$/);
 
-    // `/` has no marketing page: a visitor without a session goes to the sign-in
     await page.goto("/");
     await expect(page).toHaveURL(/\/login$/);
     const footer = page.getByText("Нет доступа?");
     await expect(footer).toContainText("Запросить демо");
-    await expect(page.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/request-demo");
+    await expect(page.getByRole("link", { name: "Запросить демо" })).toHaveAttribute("href", "/#demo");
     await expect(page.getByRole("link", { name: /Зарегистрировать/ })).toHaveCount(0);
     await expect(page.locator('a[href="/register"]')).toHaveCount(0);
   });
 
-  test("a visitor sends the demo request: validation first, then «Заявка принята»", async ({ anonymous }) => {
+  test("a visitor sends the demo request (the landing's POST): validation is the server's, then the request is accepted", async ({ anonymous }) => {
     const page = await anonymous();
-    await page.goto("/request-demo?utm_source=e2e&utm_campaign=k1");
-    await page.getByRole("button", { name: "Отправить заявку" }).click();
-    await expect(page.getByText("Укажите, как к вам обращаться")).toBeVisible();
+    const bad = await page.request.post(`${AUTH_API}/public/demo-requests`, { data: { contact_name: "", website: "" } });
+    expect(bad.status()).toBe(422);
 
-    await page.getByLabel("ФИО").fill(demo.fullName);
-    await page.getByLabel("Название центра").fill(demo.centre);
-    await page.getByLabel("Город").fill(demo.city);
-    await page.getByLabel("Телефон").pressSequentially("901234567");
-    await expect(page.getByLabel("Телефон")).toHaveValue("+998 90 123 45 67");
-    await page.getByLabel("Почта").fill(demo.email);
-    await page.getByLabel(/Сколько у вас учеников/).fill("120");
-    await page.getByLabel("Комментарий").fill("Проверка сквозного сценария K1");
-    await page.getByRole("button", { name: "Отправить заявку" }).click();
-    await expect(page.getByTestId("demo-success")).toContainText("Заявка принята");
+    const ok = await page.request.post(`${AUTH_API}/public/demo-requests`, {
+      data: {
+        contact_name: demo.fullName,
+        centre_name: demo.centre,
+        city: demo.city,
+        phone: "+998901234567",
+        email: demo.email,
+        students_count: 120,
+        comment: "Проверка сквозного сценария K1",
+        source: { utm_source: "e2e", utm_campaign: "k1" },
+        website: "",
+      },
+    });
+    expect(ok.status()).toBe(201);
   });
 
   test("console: no session -> sign-in; a wrong password is refused calmly; the owner signs in and sees the request", async ({ anonymous }) => {

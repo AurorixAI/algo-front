@@ -1,5 +1,5 @@
 /** Validation of the console's forms: plain functions (the server stays the authority; these keep a person from a round trip). */
-import { isValidEmail } from "@/lib/demo-request";
+import { isValidEmail } from "@/lib/portable/demo-form";
 
 export const MIN_STAFF_PASSWORD = 12;
 export const MAX_PASSWORD = 128;

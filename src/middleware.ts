@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loginReturnTarget } from "./lib/safe-redirect";
+import { demoRequestUrl, isLegacyDemoPath } from "./lib/site-url";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -16,8 +17,6 @@ import { loginReturnTarget } from "./lib/safe-redirect";
 const PUBLIC_PATHS = [
   "/",
   "/login",
-  "/register",     // closed: redirects to /request-demo (the tags of the link travel with it)
-  "/request-demo", // «Запросить демо»: access to ALGO is by invitation, the request form is open to everyone
   "/activate", // the activation link of an e-mail opens for a signed-out user
   "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
@@ -53,6 +52,14 @@ export function middleware(request: NextRequest) {
     (STATIC_FILE.test(pathname) && !STAFF_AREA.test(pathname))
   ) {
     return NextResponse.next();
+  }
+
+  // The old demo form and the closed registration lived here; the form is on the landing now (K3 P2).  A temporary
+  // redirect for the time of the move (the old links of letters, ads and the old landing keep working, no 404); the
+  // campaign tags (utm_*, ref) travel with it, nothing else.  The address is the build variable, never a literal.
+  if (isLegacyDemoPath(pathname)) {
+    // absolute (the middleware refuses a relative address); an empty variable gives «/#demo», i.e. this origin
+    return NextResponse.redirect(new URL(demoRequestUrl(process.env.NEXT_PUBLIC_SITE_URL, request.nextUrl.search), request.url), 302);
   }
 
   // Public paths — allow always

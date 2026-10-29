@@ -57,7 +57,7 @@ services:
       # Self-registration is CLOSED in the product (POST /auth/apply -> 410, access comes from a demo request approved in the
       # console).  Only the e2e SEED still uses the old path to create a throw-away centre per spec file (support/api.ts), so
       # this stack reopens it.  The closed behaviour itself is covered by the backend tests and by console-k1.spec.ts (the
-      # public pages have no registration link, /register leads to /request-demo).
+      # public pages have no registration link, the old /register and /request-demo lead to the landing).
       SELF_REGISTRATION_CLOSED: "false"
       AUTO_APPROVE_ORGANIZATIONS: "true"
       # The one host the platform API answers on.  The console server of the K1 spec (support/console.ts) proxies

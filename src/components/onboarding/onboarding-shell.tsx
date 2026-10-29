@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-/** The soft coloured background of the public pages (login, activate, request-demo, set-password). */
+/** The soft coloured background of the public pages (login, activate, set-password). */
 export function PublicBackdrop() {
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none" aria-hidden>

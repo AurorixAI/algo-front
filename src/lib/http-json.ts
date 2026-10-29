@@ -1,11 +1,13 @@
 /**
  * A small JSON-over-fetch client shared by the two public surfaces that talk to the accounting server without the
- * cabinet session machinery: the app's onboarding pages (request-demo, set-password) and the ALGO console (a static
+ * cabinet session machinery: the app's «Задать пароль» page (set-password) and the ALGO console (a static
  * export with no server of its own).  Pure TypeScript: no React, no window, so node:test loads it as is.
  *
  * One place decides how a failure reads to a person: calm Russian text, the server's own Russian message when it sent one,
  * per-field messages of a 422, the seconds of a 429.
  */
+
+import { retryText } from "./portable/demo-form";
 
 export interface HttpErrorInit {
   status: number;
@@ -42,13 +44,8 @@ export class HttpError extends Error {
 export const NETWORK_MESSAGE = "Нет связи с сервером. Проверьте интернет и повторите попытку.";
 export const SERVER_MESSAGE = "Сервис временно недоступен. Повторите попытку чуть позже.";
 
-/** «через 40 с» / «через 5 мин» / «через 2 ч» for a wait in seconds. */
-export function retryText(seconds: number | undefined | null): string {
-  if (!seconds || seconds <= 0) return "чуть позже";
-  if (seconds < 60) return `через ${Math.ceil(seconds)} с`;
-  if (seconds < 3600) return `через ${Math.ceil(seconds / 60)} мин`;
-  return `через ${Math.ceil(seconds / 3600)} ч`;
-}
+// «через 40 с» / «через 5 мин» / «через 2 ч»: one copy, in the portable module that the landing copies as is.
+export { retryText };
 
 const CYRILLIC = /[а-яё]/i;
 

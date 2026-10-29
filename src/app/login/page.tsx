@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
 import { postLoginTarget } from "@/lib/safe-redirect";
 import { Checkbox } from "@/components/ui/checkbox";
+import { demoRequestUrl } from "@/lib/site-url";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -20,6 +21,10 @@ const ROLE_OPTIONS = [
 
 // ONE text for "no such account", "wrong password", "account switched off" (the server answers all three alike)
 // and "this account has another role": the page must not tell which of them it was.
+// «Нет доступа? Запросить демо»: the request form is on the landing, SITE_URL/#demo (K3 P2).  The address is the build
+// variable (a stage build points to the stage landing); empty = this origin.
+const DEMO_REQUEST_URL = demoRequestUrl(process.env.NEXT_PUBLIC_SITE_URL);
+
 const INVALID_CREDENTIALS_MESSAGE = "Неверная почта или пароль";
 
 export default function LoginPage() {
@@ -181,9 +186,9 @@ export default function LoginPage() {
           {isOwner ? (
             <>
               Нет доступа?{" "}
-              <Link href="/request-demo" className="text-primary-600 font-medium hover:underline">
+              <a href={DEMO_REQUEST_URL} className="text-primary-600 font-medium hover:underline">
                 Запросить демо
-              </Link>
+              </a>
             </>
           ) : (
             "Нет доступа? Обратитесь к владельцу или администратору вашей организации за логином и паролем."

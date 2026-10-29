@@ -1,5 +1,6 @@
-// Console-1 (front), part 1: the invitation-only onboarding of the cabinets - «Запросить демо» (/request-demo),
-// the closed /register, «Задать пароль» (/set-password/[token]) and the shared JSON client under them.
+// Console-1 (front), part 1: the invitation-only onboarding of the cabinets - the field logic of «Запросить демо» (K3 P2: the
+// form itself moved to the landing, its logic is the portable module lib/portable/demo-form.ts), «Задать пароль»
+// (/set-password/[token]) and the shared JSON client under them.
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -25,9 +26,12 @@ const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 
 // ONE copy of the HTTP client for every module below: `instanceof HttpError` must see the same class.
 const H = require(path.join(root, "src/lib/http-json.ts"));
-const D = require(path.join(root, "src/lib/demo-request.ts"));
+const D = require(path.join(root, "src/lib/portable/demo-form.ts"));
 const S = require(path.join(root, "src/lib/set-password.ts"));
 const { createOnboardingApi } = require(path.join(root, "src/lib/onboarding-api.ts"));
+
+/** What the landing's client does with a refused submit: the shared JSON client raises the HttpError that the classifier reads. */
+const submitDemo = (api, body) => api("/public/demo-requests", { method: "POST", body });
 
 /** A recording fetch: `reply(call)` returns a real Response (or throws to simulate a dead network). */
 function recorder(reply) {
@@ -132,7 +136,7 @@ test("UTM and the source of the visit: tags from the address, ref as utm_source,
   assert.equal(D.buildDemoBody(filled(), { utm_source: "ig" }).source.utm_source, "ig");
 });
 
-test("the tags travel through the redirect from /register", () => {
+test("the tags travel through the redirect from /register and /request-demo", () => {
   assert.equal(D.sourceQuery("?utm_source=ig&utm_campaign=x&secret=1&email=a@b.c"), "?utm_source=ig&utm_campaign=x");
   assert.equal(D.sourceQuery(""), "");
   assert.equal(D.sourceQuery("?foo=bar"), "");
@@ -140,10 +144,10 @@ test("the tags travel through the redirect from /register", () => {
 
 // ---- the demo form against the server: success, 422, 429, dead network, 5xx -------------------------------------
 
-test("success: POST /public/demo-requests with the JSON body, no session needed", async () => {
+test("the body of the demo request goes as JSON to POST /public/demo-requests, no session needed", async () => {
   const { calls, fetchImpl } = recorder(() => json(201, { ok: true, message: "Заявка принята." }));
-  const api = createOnboardingApi({ fetchImpl, baseUrl: "https://app.example/api/v1" });
-  const result = await api.submitDemoRequest(D.buildDemoBody(filled(), { utm_source: "ig" }));
+  const api = H.createJsonClient({ fetchImpl, baseUrl: "https://app.example/api/v1" });
+  const result = await submitDemo(api, D.buildDemoBody(filled(), { utm_source: "ig" }));
   assert.equal(result.ok, true);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "https://app.example/api/v1/public/demo-requests");
@@ -155,8 +159,8 @@ test("success: POST /public/demo-requests with the JSON body, no session needed"
 
 test("422: the server's Russian field messages land under the right fields of the form", async () => {
   const { fetchImpl } = recorder(() => json(422, { detail: "Проверьте поля", code: "validation_error", fields: { email: "Укажите корректную почту", phone: "Телефон: формат +998 XX XXX-XX-XX", contact_name: "Укажите имя" } }));
-  const api = createOnboardingApi({ fetchImpl, baseUrl: "/api/v1" });
-  const failure = await api.submitDemoRequest(D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
+  const api = H.createJsonClient({ fetchImpl, baseUrl: "/api/v1" });
+  const failure = await submitDemo(api, D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
   assert.equal(failure.kind, "fields");
   assert.deepEqual(failure.errors, { email: "Укажите корректную почту", phone: "Телефон: формат +998 XX XXX-XX-XX", fullName: "Укажите имя" });
   assert.equal(failure.message, "Проверьте отмеченные поля.");
@@ -164,16 +168,16 @@ test("422: the server's Russian field messages land under the right fields of th
 
 test("422 in FastAPI's own shape (detail as a list) is understood too; an English framework text is never shown", async () => {
   const { fetchImpl } = recorder(() => json(422, { detail: [{ loc: ["body", "email"], msg: "value is not a valid email address" }, { loc: ["body", "city"], msg: "Укажите город" }] }));
-  const api = createOnboardingApi({ fetchImpl, baseUrl: "/api/v1" });
-  const failure = await api.submitDemoRequest(D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
+  const api = H.createJsonClient({ fetchImpl, baseUrl: "/api/v1" });
+  const failure = await submitDemo(api, D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
   assert.equal(failure.errors.city, "Укажите город");
   assert.equal(failure.errors.email, "Проверьте это поле");
 });
 
 test("429: calm text with the wait, from Retry-After or from the body", async () => {
   const { fetchImpl } = recorder(() => json(429, { detail: "Слишком много заявок. Повторите попытку позже.", code: "rate_limited", retry_after: 1800 }, { "Retry-After": "1800" }));
-  const api = createOnboardingApi({ fetchImpl, baseUrl: "/api/v1" });
-  const failure = await api.submitDemoRequest(D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
+  const api = H.createJsonClient({ fetchImpl, baseUrl: "/api/v1" });
+  const failure = await submitDemo(api, D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
   assert.equal(failure.kind, "rate_limited");
   assert.equal(failure.retryAfter, 1800);
   assert.match(failure.message, /через 30 мин/);
@@ -183,12 +187,12 @@ test("429: calm text with the wait, from Retry-After or from the body", async ()
 });
 
 test("a dead network and a 5xx keep the form's data and say so without alarm", async () => {
-  const dead = createOnboardingApi({ fetchImpl: async () => { throw new TypeError("fetch failed"); }, baseUrl: "/api/v1" });
-  const network = await dead.submitDemoRequest(D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
+  const dead = H.createJsonClient({ fetchImpl: async () => { throw new TypeError("fetch failed"); }, baseUrl: "/api/v1" });
+  const network = await submitDemo(dead, D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
   assert.equal(network.kind, "network");
   assert.match(network.message, /сохранены в форме/);
-  const broken = createOnboardingApi({ fetchImpl: async () => new Response("<html>502 Bad Gateway</html>", { status: 502 }), baseUrl: "/api/v1" });
-  const server = await broken.submitDemoRequest(D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
+  const broken = H.createJsonClient({ fetchImpl: async () => new Response("<html>502 Bad Gateway</html>", { status: 502 }), baseUrl: "/api/v1" });
+  const server = await submitDemo(broken, D.buildDemoBody(filled())).then(() => null, (e) => D.classifyDemoFailure(e));
   assert.equal(server.kind, "server");
   assert.match(server.message, /сохранены в форме/);
   assert.doesNotMatch(server.message, /502|Bad Gateway|html/i);
@@ -272,15 +276,6 @@ test("http client: query string without empty values, 204 without a body, a 401 
 
 // ---- the pages -------------------------------------------------------------------------------------------------
 
-test("/register is closed: it redirects to /request-demo and carries the campaign tags, nothing else", () => {
-  const page = load("src/app/register/page.tsx").default;
-  const target = (searchParams) => { try { page({ searchParams }); } catch (e) { return String(e.digest); } return null; };
-  assert.match(target({}), /;\/request-demo;/);
-  assert.match(target({ utm_source: "ig", ref: "p7", token: "secret" }), /;\/request-demo\?utm_source=ig&ref=p7;/);
-  assert.doesNotMatch(target({ token: "secret" }), /secret/);
-  assert.doesNotMatch(read("src/app/register/page.tsx"), /applyOrg|use client/);
-});
-
 function walkSrc(dir) {
   return fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((e) => {
     const rel = `${dir}/${e.name}`;
@@ -288,57 +283,46 @@ function walkSrc(dir) {
   });
 }
 
-test("the login page points to «Запросить демо»; the landing no longer promises a free start", () => {
+test("the login page points to «Запросить демо» on the landing; no door to the deleted pages is left in src", () => {
   const login = read("src/app/login/page.tsx");
-  assert.match(login, /Нет доступа\?[\s\S]{0,200}href="\/request-demo"[\s\S]{0,120}Запросить демо/);
-  assert.doesNotMatch(login, /Зарегистрировать организацию|href="\/register"/);
-  // `/` has no marketing page any more: no cookie -> /login; the only way to /request-demo is the sign-in's footer (until the new landing, K3)
+  assert.match(login, /Нет доступа\?[\s\S]{0,200}href=\{DEMO_REQUEST_URL\}[\s\S]{0,120}Запросить демо/);
+  assert.match(login, /demoRequestUrl\(process\.env\.NEXT_PUBLIC_SITE_URL\)/);
+  assert.doesNotMatch(login, /Зарегистрировать организацию|href="\/register"|href="\/request-demo"/);
+  // `/` has no marketing page: no cookie -> /login
   const home = read("src/app/page.tsx");
   assert.match(home, /redirect\("\/login"\)/);
   assert.doesNotMatch(home, /request-demo|register|motion|use client/);
   assert.match(read("src/components/auth/home-redirect.tsx"), /loginHome\(user\.org_role \|\| user\.role\)/);
+  // the only places that name the old paths: the redirect (site-url.ts, middleware.ts) and comments
   for (const file of walkSrc("src")) {
-    if (file === "src/app/login/page.tsx" || file === "src/app/register/page.tsx" || file === "src/lib/demo-request.ts") continue;
-    if (/\/request-demo/.test(read(file))) assert.ok(/onboarding|request-demo\/page|middleware|demo-request/.test(file), `${file}: an extra door to /request-demo`);
+    if (["src/lib/site-url.ts", "src/middleware.ts", "src/lib/portable/demo-form.ts"].includes(file)) continue;
+    const code = read(file).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    assert.doesNotMatch(code, /\/request-demo|["'`]\/register/, `${file}: an extra door to a deleted page`);
+  }
+  for (const gone of ["src/app/register/page.tsx", "src/app/request-demo/page.tsx", "src/components/onboarding/demo-request-page.tsx", "src/lib/demo-request.ts"]) {
+    assert.equal(fs.existsSync(path.join(root, gone)), false, gone);
   }
 });
 
-test("middleware: /request-demo, /register and /set-password/<token> open without a session; the cabinets still do not", () => {
+test("middleware: /set-password/<token> opens without a session, the old demo pages redirect to the landing, the cabinets still need a session", () => {
   const { NextRequest } = require("next/server");
   const visit = (url) => load("src/middleware.ts").middleware(new NextRequest(`https://app.example${url}`));
-  for (const url of ["/request-demo", "/register", "/register?utm_source=x", "/set-password/abcDEF_123-xyz", "/login"]) assert.equal(visit(url).status, 200, url);
+  for (const url of ["/set-password/abcDEF_123-xyz", "/login"]) assert.equal(visit(url).status, 200, url);
+  for (const url of ["/request-demo", "/register", "/register?utm_source=x"]) assert.equal(visit(url).status, 302, url);
   assert.equal(visit("/owner/dashboard").status, 307);
   assert.equal(visit("/set-password").status, 307, "no token: not an open page");
 });
 
-test("the pages render: the form has every field, the honeypot is out of reach, the success screen exists", () => {
+test("the set-password page renders its first screen", () => {
   const React = require("react");
   const { renderToStaticMarkup } = require("react-dom/server");
-  const html = renderToStaticMarkup(React.createElement(load("src/components/onboarding/demo-request-page.tsx").DemoRequestPage));
-  assert.match(html, /Доступ к ALGO —/);
-  assert.match(html, /по приглашению/);
-  for (const label of ["ФИО", "Название центра", "Город", "Телефон", "Почта", "Комментарий"]) assert.ok(html.includes(label), label);
-  assert.match(html, /Сколько у вас учеников/);
-  assert.match(html, /value="\+998 "/, "the phone starts with its prefix");
-  // the honeypot: aria-hidden, no tab stop, autocomplete off, a name no autofill knows, no site/url/mail words in name, id or label
-  const trap = html.slice(html.indexOf('data-testid="demo-honeypot"'));
-  assert.match(trap, /name="hp_extra"/);
-  assert.match(trap, /tabindex="-1"/);
-  assert.match(trap, /autoComplete="off"|autocomplete="off"/);
-  assert.match(html.slice(html.lastIndexOf("<div", html.indexOf('data-testid="demo-honeypot"'))), /^<div aria-hidden="true"/);
-  const trapMarkup = trap.slice(0, trap.indexOf("</div>"));
-  assert.doesNotMatch(trapMarkup, /site|url|website|web|mail|phone|name="(?!hp_extra)/i, "nothing an autofill heuristic keys on");
-  assert.equal(D.buildDemoBody(filled()).website, "", "the key the server expects is still `website`");
-  const source = read("src/components/onboarding/demo-request-page.tsx");
-  assert.match(source, /Заявка принята/);
-  assert.match(source, /data-testid="demo-success"/);
-  assert.match(source, /inFlight\.current/, "a double click sends one request");
   const setPassword = renderToStaticMarkup(React.createElement(load("src/components/onboarding/set-password-page.tsx").SetPasswordPage, { token: "t" }));
   assert.match(setPassword, /Проверяем ссылку/);
+  assert.equal(D.buildDemoBody(filled()).website, "", "the honeypot key the server expects is still `website` (the landing sends it)");
 });
 
 test("no native form control outside the UI kit in the new pages (textarea included: it lives in ui/textarea.tsx)", () => {
-  for (const file of ["src/components/onboarding/demo-request-page.tsx", "src/components/onboarding/set-password-page.tsx", "src/components/onboarding/onboarding-shell.tsx"]) {
+  for (const file of ["src/components/onboarding/set-password-page.tsx", "src/components/onboarding/onboarding-shell.tsx"]) {
     const source = read(file);
     assert.doesNotMatch(source, /<(input|textarea|select)[\s>]/, file);
     assert.doesNotMatch(source, /type="(date|time|number|checkbox|radio|range|file|color)"/, file);

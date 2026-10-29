@@ -173,7 +173,7 @@ test("only real static files skip the gate: a dot in an id of a protected page d
     }
     // /forgot-password has no page: it is no longer announced as public
     assert.ok(redirectsToLogin(visit("/forgot-password")));
-    for (const url of ["/", "/login", "/register", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
+    for (const url of ["/", "/login", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
   });
 });
 

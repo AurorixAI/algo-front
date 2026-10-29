@@ -1,5 +1,6 @@
 import { encodePathId } from "./encode-id";
 import { listQuery } from "./substitutions";
+import { serviceApiV1 } from "./api-base";
 import type {
   CandidatesOut,
   CreateSubstitutionBody,
@@ -171,6 +172,7 @@ import type {
  */
 export type { GroupPriceCancelled, GroupPriceChange, GroupPriceRow, PriceOverrideCancelled, PriceOverrideChange, PriceOverrideRow } from "./group-price";
 
+// An empty NEXT_PUBLIC_*_API_URL = the site the page was opened from (K3 P1): see lib/api-base.ts.
 export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
 function demoApiV1(): string {
@@ -181,15 +183,15 @@ function demoApiV1(): string {
 
 const AUTH_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:8000"}/api/v1`;
+  : serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://localhost:8000");
 
 const EXAM_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_EXAM_API_URL || "http://localhost:8003"}/api/v1`;
+  : serviceApiV1(process.env.NEXT_PUBLIC_EXAM_API_URL, "http://localhost:8003");
 
 const DIAG_API_V1 = DEMO_MODE
   ? demoApiV1()
-  : `${process.env.NEXT_PUBLIC_DIAG_API_URL || "http://localhost:8002"}/api/v1`;
+  : serviceApiV1(process.env.NEXT_PUBLIC_DIAG_API_URL, "http://localhost:8002");
 
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";

@@ -1,39 +1,7 @@
-/**
- * Форматирование узбекского номера телефона: +998 XX XXX XX XX
- * Автоматически подставляет +998 и расставляет пробелы.
- */
-export function formatUzPhone(value: string): string {
-  // Оставляем только цифры
-  let digits = value.replace(/\D/g, "");
+import { formatUzPhone, isValidUzPhone } from "./portable/demo-form";
 
-  // Если начинается с 998 — убираем, чтобы работать с 9-значным "телом"
-  if (digits.startsWith("998")) {
-    digits = digits.slice(3);
-  }
-
-  // Ограничиваем 9 цифрами (после 998)
-  digits = digits.slice(0, 9);
-
-  // Если пусто — показываем только префикс +998
-  if (digits.length === 0) return "+998 ";
-
-  // Форматируем: +998 XX XXX XX XX
-  let result = "+998";
-  if (digits.length > 0) result += " " + digits.slice(0, 2);
-  if (digits.length > 2) result += " " + digits.slice(2, 5);
-  if (digits.length > 5) result += " " + digits.slice(5, 7);
-  if (digits.length > 7) result += " " + digits.slice(7, 9);
-
-  return result;
-}
-
-/**
- * Проверяет, является ли номер полным узбекским номером (12 цифр: 998 + 9)
- */
-export function isValidUzPhone(value: string): boolean {
-  const digits = value.replace(/\D/g, "");
-  return digits.length === 12 && digits.startsWith("998");
-}
+// ONE copy of the mask and of the check: the portable module is what the landing copies as is (K3 P2, rule 39).
+export { formatUzPhone, isValidUzPhone };
 
 /** A stored phone for display: a full Uzbek number as «+998 90 123 45 67», anything else exactly as stored. */
 export function displayPhone(value: string | null | undefined): string {

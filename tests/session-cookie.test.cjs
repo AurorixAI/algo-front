@@ -117,10 +117,10 @@ test("the login page gives ONE answer to every refused sign-in (no account enume
   assert.match(page, /const errorMessage = roleMismatch \? INVALID_CREDENTIALS_MESSAGE : error;/);
   // nothing branches on "no such account" / "blocked" any more
   assert.doesNotMatch(page, /ACCOUNT_NOT_FOUND|ACCOUNT_INACTIVE|INVALID_PASSWORD|errorCode|accountNotFound|не найден/);
-  // the only onboarding link is the footer's «Запросить демо» (registration is closed, access is by invitation), shown
-  // whatever the server answered (not inside the error box)
-  assert.equal((page.match(/href="\/request-demo"/g) || []).length, 1);
-  assert.ok(page.indexOf('href="/request-demo"') > page.indexOf("Footer hint"));
+  // the only onboarding link is the footer's «Запросить демо» (registration is closed, access is by invitation; the form is
+  // on the landing since K3 P2), shown whatever the server answered (not inside the error box)
+  assert.equal((page.match(/href=\{DEMO_REQUEST_URL\}/g) || []).length, 1);
+  assert.ok(page.indexOf("href={DEMO_REQUEST_URL}") > page.indexOf("Footer hint"));
   assert.doesNotMatch(page, /href="\/register"|Зарегистрировать организацию/);
 });
 
@@ -182,7 +182,7 @@ test("a cookie, even one holding an expired JWT, lets the page through: the firs
 });
 
 test("public and code-based pages never need the cookie", () => {
-  for (const url of ["/", "/login?redirect=%2Fowner", "/register", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y", "/_next/static/a.js", "/api/demo/v1/auth/me"]) {
+  for (const url of ["/", "/login?redirect=%2Fowner", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y", "/_next/static/a.js", "/api/demo/v1/auth/me"]) {
     assert.equal(visit(url).status, 200, url);
   }
 });
@@ -347,7 +347,7 @@ test("a failing best-effort logout does not keep the user on a dead page", async
 });
 
 test("a dead session on a public page goes to the bare /login", async () => {
-  for (const pathname of ["/e/ABC123", "/d/ABC123", "/register", "/"]) {
+  for (const pathname of ["/e/ABC123", "/d/ABC123", "/activate", "/"]) {
     const state = world({ refreshWorks: false, pathname, search: "?x=1" });
     const { authApi } = loadApi();
     await authApi.me();
@@ -514,7 +514,7 @@ test("loginUrlForPage: the page asked for travels to the login, public pages do 
   assert.equal(R.loginUrlForPage("/owner/settings", "?section=payments"), "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
   assert.equal(R.loginUrlForPage("/teacher/groups", ""), "/login?redirect=%2Fteacher%2Fgroups");
   assert.equal(R.loginUrlForPage("/teacher/groups", "?_rsc=a1&tab=x"), "/login?redirect=%2Fteacher%2Fgroups%3Ftab%3Dx");
-  for (const pathname of ["/", "/login", "/login/", "/register", "/activate", "/e/ABC", "/d/ABC", "/invite/X", "/diagnostic/Y"]) {
+  for (const pathname of ["/", "/login", "/login/", "/activate", "/e/ABC", "/d/ABC", "/invite/X", "/diagnostic/Y"]) {
     assert.equal(R.loginUrlForPage(pathname, "?a=1"), "/login", pathname);
   }
   assert.equal(R.loginUrlForPage("/loginx", ""), "/login?redirect=%2Floginx");

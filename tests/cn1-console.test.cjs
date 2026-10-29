@@ -382,7 +382,7 @@ test("the console is a static export: no server code, no data of its own", () =>
   }
   // every call of the shared client asks the network, never a cache; and no kit / shared module the console loads writes to browser storage
   assert.match(read("src/lib/http-json.ts"), /cache: "no-store"/);
-  for (const shared of ["src/lib/http-json.ts", "src/lib/demo-request.ts", "src/lib/business-time.ts", "src/lib/phone.ts", "src/lib/form-fields.ts", ...fs.readdirSync(path.join(root, "src/components/ui")).filter((f) => /\.tsx?$/.test(f)).map((f) => `src/components/ui/${f}`)]) {
+  for (const shared of ["src/lib/http-json.ts", "src/lib/portable/demo-form.ts", "src/lib/business-time.ts", "src/lib/phone.ts", "src/lib/form-fields.ts", ...fs.readdirSync(path.join(root, "src/components/ui")).filter((f) => /\.tsx?$/.test(f)).map((f) => `src/components/ui/${f}`)]) {
     assert.doesNotMatch(read(shared), /localStorage|sessionStorage|indexedDB/, shared);
   }
   assert.equal(consoleSources.some((f) => /route\.ts$/.test(f)), false, "no route handlers");
