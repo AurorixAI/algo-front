@@ -286,6 +286,6 @@ export function classifyDemoFailure(failure: unknown): DemoFailure {
 /** Where the person goes from the «Заявка принята» screen. */
 export const SUCCESS_STEPS = [
   "Мы пришлём письмо с подтверждением на вашу почту.",
-  "Менеджер ALGO свяжется с вами в течение 1 рабочего дня.",
+  "Менеджер ALGO свяжется с вами в течение 1–2 рабочих дней.",
   "После короткого демо мы откроем доступ вашему центру.",
 ] as const;
