@@ -17,7 +17,10 @@ import { orgRoleLabel, orgStatus } from "../lib/labels";
 import { EMPTY_ORG_FILTERS, PAGE_SIZE, hasFilters, orgsQuery, type OrgFilters } from "../lib/queries";
 import { LIMITS, limitWarnings, validateLimits, validateReason } from "../lib/forms";
 import type { Org, OrgCard } from "../lib/types";
-import { Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
+import { orgTypeLabel } from "@/lib/org-type";
+import Link from "next/link";
+import { centreRequestRows } from "../lib/request-view";
+import { DetailSection, Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
 import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
 import { ConfirmDialog } from "./dialogs";
 import { Field, FilterBar, SearchField } from "./filters";
@@ -87,16 +90,16 @@ export function CentresScreen() {
         />
         {list.data && <Pagination page={list.data.page} pages={list.data.pages} total={list.data.total} pageSize={PAGE_SIZE} onPage={setPage} disabled={list.refreshing} />}
       </Panel>
-      <CentreCard id={openId} canManage={can(me, "orgs.manage")} canBlock={can(me, "orgs.block")} onClose={() => setOpenId(null)} onChanged={list.reload} toast={showToast} />
+      <CentreCard id={openId} canManage={can(me, "orgs.manage")} canBlock={can(me, "orgs.block")} canViewRequest={can(me, "requests.view")} onClose={() => setOpenId(null)} onChanged={list.reload} toast={showToast} />
       {toastNode}
     </>
   );
 }
 
 function CentreCard({
-  id, canManage, canBlock, onClose, onChanged, toast,
+  id, canManage, canBlock, canViewRequest, onClose, onChanged, toast,
 }: {
-  id: string | null; canManage: boolean; canBlock: boolean; onClose: () => void; onChanged: () => void;
+  id: string | null; canManage: boolean; canBlock: boolean; canViewRequest: boolean; onClose: () => void; onChanged: () => void;
   toast: (text: string, type?: "success" | "error" | "warning", details?: string[]) => void;
 }) {
   const card = useResource(id ? (signal) => consoleApi.orgs.get(id, signal) : null, [id]);
@@ -127,7 +130,7 @@ function CentreCard({
       >
         {card.loading && !data && <div className="space-y-3" role="status" aria-label="Загрузка центра">{[0, 1, 2, 3].map((i) => <div key={i} className="h-4 animate-pulse rounded bg-slate-100" />)}</div>}
         {card.error && !data && <Notice tone="red">{errorText(card.error)} <button type="button" className="ml-1 underline" onClick={card.reload}>Повторить</button></Notice>}
-        {data && <CentreBody data={data} canManage={canManage} onLimits={() => setDialog("limits")} />}
+        {data && <CentreBody data={data} canManage={canManage} canViewRequest={canViewRequest} onLimits={() => setDialog("limits")} />}
       </Modal>
       {data && (
         <>
@@ -168,7 +171,7 @@ function CentreCard({
   );
 }
 
-function CentreBody({ data, canManage, onLimits }: { data: OrgCard; canManage: boolean; onLimits: () => void }) {
+export function CentreBody({ data, canManage, canViewRequest, onLimits }: { data: OrgCard; canManage: boolean; canViewRequest: boolean; onLimits: () => void }) {
   const usage = data.usage_30d;
   return (
     <div className="space-y-6">
@@ -180,6 +183,7 @@ function CentreBody({ data, canManage, onLimits }: { data: OrgCard; canManage: b
         <Facts
           rows={[
             { label: "Владелец", value: data.owner ? `${data.owner.name} · ${data.owner.email}` : DASH },
+            { label: "Тип", value: orgTypeLabel(data.org_type) },
             { label: "Телефон", value: fmtPhone(data.phone) },
             { label: "Почта", value: data.email ?? DASH },
             { label: "Город", value: data.city ?? DASH },
@@ -190,6 +194,16 @@ function CentreBody({ data, canManage, onLimits }: { data: OrgCard; canManage: b
           ]}
         />
       </section>
+      {/* The server sends `request` only to a role with `requests.view`; the right is checked here as well, so the block never shows without it. */}
+      {canViewRequest && data.request && (
+        <div data-testid="centre-from-request" className="space-y-2">
+          <DetailSection title="Из заявки" rows={centreRequestRows(data.request)} />
+          <p className="text-sm text-slate-500">
+            Заявка получена {fmtDateTime(data.request.created_at)} ·{" "}
+            <Link className="font-medium text-primary-700 underline" href={`/requests/?id=${data.request.id}`}>Открыть заявку</Link>
+          </p>
+        </div>
+      )}
       <section>
         <SectionTitle aside={canManage ? <Button variant="ghost" size="sm" onClick={onLimits} icon={<Gauge className="h-3.5 w-3.5" />}>Изменить</Button> : undefined}>Размер и лимиты</SectionTitle>
         <div className="grid grid-cols-3 gap-3">

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CheckCircle2, Mail, Phone, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Mail, Phone, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
@@ -19,12 +19,26 @@ import { MANUAL_REQUEST_STATUSES, REQUEST_STATUSES, isFinalRequest, requestStatu
 import { EMPTY_REQUEST_FILTERS, PAGE_SIZE, hasFilters, requestsQuery, type RequestFilters } from "../lib/queries";
 import { validateNote } from "../lib/forms";
 import type { ApproveBody, DemoRequest, DemoRequestCard, RequestStatus } from "../lib/types";
-import { Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
+import { orgTypeLabel } from "@/lib/org-type";
+import { centreRows, EMAIL_IN_ALGO_TEXT, EMAIL_IN_ALGO_TITLE, localeRows, mailMarks, mailProblems, needRows, positionRows, sourceRows, timeRows } from "../lib/request-view";
+import { DetailSection, Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
 import { DataTable, Pagination, nextSort, type Column, type SortState } from "./data-table";
 import { ConfirmDialog } from "./dialogs";
 import { Field, FilterBar, SearchField } from "./filters";
 import { History } from "./history";
 import { notifyRequestsChanged } from "./shell";
+
+/** Plaques of a list row that need a person's eye: the mailbox is already in ALGO; a letter did not go.  Drawn under the contact (always on screen, also on a phone), not in a far column. */
+export function RequestFlags({ request }: { request: DemoRequest }) {
+  const problems = mailProblems(request.mail);
+  if (!request.email_in_algo && problems.length === 0) return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1" data-testid="request-flags">
+      {request.email_in_algo && <Pill tone="amber" className="whitespace-normal">почта уже в ALGO</Pill>}
+      {problems.map((mark) => <Pill key={mark.key} tone="red" className="whitespace-normal">{mark.short}</Pill>)}
+    </span>
+  );
+}
 
 export function RequestsScreen() {
   const { me } = useSession();
@@ -61,6 +75,7 @@ export function RequestsScreen() {
         <span className="block">
           <span className="block">{r.contact_name}</span>
           <span className="block text-xs font-normal text-slate-500">{r.email}</span>
+          <RequestFlags request={r} />
         </span>
       ),
     },
@@ -71,7 +86,7 @@ export function RequestsScreen() {
       cell: (r) => (
         <span className="block">
           <span className="block">{r.centre_name}</span>
-          <span className="block text-xs text-slate-500">{r.city}</span>
+          <span className="block text-xs text-slate-500" data-testid="request-centre-sub">{r.org_type ? `${r.city} · ${orgTypeLabel(r.org_type)}` : r.city}</span>
         </span>
       ),
     },
@@ -260,32 +275,7 @@ function RequestCard({
         {data && (
           <div className="space-y-6">
             {warning && <Notice tone="amber">{warning}</Notice>}
-            <section>
-              <SectionTitle>Заявитель</SectionTitle>
-              <Facts
-                rows={[
-                  { label: "ФИО", value: data.contact_name },
-                  { label: "Центр", value: `${data.centre_name}, ${data.city}` },
-                  { label: "Телефон", value: <a className="inline-flex items-center gap-1 text-primary-700 hover:underline" href={`tel:${data.phone}`}><Phone className="h-3.5 w-3.5" aria-hidden />{fmtPhone(data.phone)}</a> },
-                  { label: "Почта", value: <a className="inline-flex items-center gap-1 break-all text-primary-700 hover:underline" href={`mailto:${data.email}`}><Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />{data.email}</a> },
-                  { label: "Учеников", value: data.students_count ?? DASH },
-                  { label: "Источник", value: sourceLabel(data.source) },
-                  { label: "Получена", value: fmtDateTime(data.created_at) },
-                  ...(data.handled_by ? [{ label: "Ведёт", value: data.handled_by.name }] : []),
-                ]}
-              />
-              {data.comment && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{data.comment}</p>}
-              {data.same_email.length > 0 && (
-                <div className="mt-3 text-sm">
-                  <p className="text-slate-500">Другие заявки с этой почтой:</p>
-                  <ul className="mt-1 space-y-0.5">
-                    {data.same_email.map((other) => (
-                      <li key={other.id} className="text-slate-700">{fmtDateTime(other.created_at)} · {other.centre_name} · {requestStatus(other.status).label}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </section>
+            <RequestDetails data={data} final={final} />
 
             {data.status === "approved" && data.org && (
               <Notice tone="green">Центр создан: <Link className="font-medium underline" href={`/centres/?id=${data.org.id}`}>{data.org.name}</Link></Notice>
@@ -376,6 +366,62 @@ function RequestCard({
   );
 }
 
+/** Everything the form collected, in words: warnings first (the mailbox is already in ALGO, a letter did not go), then who, the centre, the needs, the source. Empty optional answers are not drawn. */
+export function RequestDetails({ data, final }: { data: DemoRequestCard; final: boolean }) {
+  return (
+    <>
+      {data.email_in_algo && !final && (
+        <div role="alert" data-testid="email-in-algo" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+          <p className="flex items-center gap-1.5 font-semibold"><AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />{EMAIL_IN_ALGO_TITLE}</p>
+          <p className="mt-1">{EMAIL_IN_ALGO_TEXT}</p>
+        </div>
+      )}
+      {mailMarks(data.mail).length > 0 && (
+        <div className="space-y-2" data-testid="mail-marks">
+          {mailMarks(data.mail).map((mark) => <Notice key={mark.key} tone={mark.problem ? "amber" : "blue"}>{mark.text}</Notice>)}
+        </div>
+      )}
+      <section>
+        <SectionTitle>Заявитель</SectionTitle>
+        <Facts
+          rows={[
+            { label: "ФИО", value: data.contact_name },
+            ...positionRows(data),
+            { label: "Телефон", value: <a className="inline-flex items-center gap-1 text-primary-700 hover:underline" href={`tel:${data.phone}`}><Phone className="h-3.5 w-3.5" aria-hidden />{fmtPhone(data.phone)}</a> },
+            { label: "Почта", value: <a className="inline-flex items-center gap-1 break-all text-primary-700 hover:underline" href={`mailto:${data.email}`}><Mail className="h-3.5 w-3.5 shrink-0" aria-hidden />{data.email}</a> },
+            ...timeRows(data),
+            { label: "Получена", value: fmtDateTime(data.created_at) },
+            ...(data.handled_by ? [{ label: "Ведёт", value: data.handled_by.name }] : []),
+            ...localeRows(data),
+          ]}
+        />
+        {data.same_email.length > 0 && (
+          <div className="mt-3 text-sm">
+            <p className="text-slate-500">Другие заявки с этой почтой:</p>
+            <ul className="mt-1 space-y-0.5">
+              {data.same_email.map((other) => (
+                <li key={other.id} className="text-slate-700">{fmtDateTime(other.created_at)} · {other.centre_name} · {requestStatus(other.status).label}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+      <DetailSection
+        title="Центр"
+        rows={[
+          { label: "Название", value: data.centre_name },
+          ...(data.org_type ? [{ label: "Тип", value: orgTypeLabel(data.org_type) }] : []),
+          { label: "Город", value: data.city },
+          ...centreRows(data),
+        ]}
+      />
+      <DetailSection title="Что нужно центру" rows={needRows(data)} />
+      <DetailSection title="Источник / UTM" rows={sourceRows(data.source)} />
+    </>
+  );
+}
+
 function ApproveDialog({
   open, request, onClose, onDone,
 }: { open: boolean; request: DemoRequestCard; onClose: () => void; onDone: (result: Awaited<ReturnType<typeof consoleApi.requests.approve>>) => void }) {
@@ -399,6 +445,9 @@ function ApproveDialog({
         onDone(result);
       }}
     >
+      {request.email_in_algo && email.trim().toLowerCase() === request.email.toLowerCase() && (
+        <Notice tone="amber"><b>{EMAIL_IN_ALGO_TITLE}.</b> {EMAIL_IN_ALGO_TEXT}</Notice>
+      )}
       <Input label="Название центра" value={orgName} onChange={(e) => setOrgName(e.target.value)} />
       <Input label="Почта владельца (логин)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
       <p className="text-sm text-slate-500">Владелец — {request.contact_name}. Ему уйдёт письмо «Добро пожаловать в ALGO» со ссылкой «Задать пароль» на 72 часа.</p>

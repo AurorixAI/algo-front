@@ -25,7 +25,34 @@ export interface Me {
 
 export type RequestStatus = "new" | "contacted" | "demo_done" | "approved" | "declined" | "spam";
 
-export interface DemoRequest {
+/** K3 (A8): how the two letters of a request went. `null` = no letter / a request made before K3. */
+export type MailStatus = "pending" | "sent" | "failed";
+export interface RequestMail {
+  team: MailStatus | null;
+  applicant: MailStatus | "cap" | null;
+}
+
+/**
+ * K3 fields of a request (K3_API.md §4).  All optional on the client: a server that is a step behind sends none of them,
+ * and the console must still draw the card (an absent value is simply not shown).
+ */
+export interface DemoRequestDetails {
+  org_type?: string | null;
+  address?: string | null;
+  branches_count?: number | null;
+  position?: string | null;
+  preferred_contact_time?: string | null;
+  needs?: string[] | null;
+  current_tool?: string | null;
+  heard_from?: string | null;
+  locale?: string | null;
+  consent_at?: string | null;
+  mail?: RequestMail | null;
+  /** The mailbox of an OPEN request already belongs to a user of ALGO (approve would answer 409 email_in_use). */
+  email_in_algo?: boolean;
+}
+
+export interface DemoRequest extends DemoRequestDetails {
   id: string;
   contact_name: string;
   centre_name: string;
@@ -123,7 +150,22 @@ export interface OrgMember {
   last_login_at: string | null;
 }
 
+/** The «Из заявки» block of a centre: present ONLY for a role with `requests.view` and a centre that came from a request. */
+export interface OrgRequestInfo {
+  id: string;
+  created_at: string;
+  needs: string[] | null;
+  current_tool: string | null;
+  heard_from: string | null;
+  branches_count: number | null;
+  position: string | null;
+  preferred_contact_time: string | null;
+}
+
 export interface OrgCard extends Org {
+  org_type?: string | null;
+  /** Absent: the role has no `requests.view` (or an older server).  `null`: the centre has no source request. */
+  request?: OrgRequestInfo | null;
   phone: string | null;
   email: string | null;
   address: string | null;

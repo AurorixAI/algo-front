@@ -73,3 +73,36 @@ export function permissionGroupLabel(group: string): string {
   };
   return known[group] ?? group;
 }
+
+// ---- K3: the closed lists of the demo request, in the very words of the landing form and of the server's letter -------------
+// (auth `demo_request_choices.py`, landing `demo-apply.ts`).  An unknown code is never shown in Latin letters: it is dropped.
+
+const POSITION_LABEL: Readonly<Record<string, string>> = { owner: "Владелец", director: "Директор", admin: "Администратор", other: "Другое" };
+const NEED_LABEL: Readonly<Record<string, string>> = {
+  payments: "Оплаты и долги",
+  attendance: "Посещаемость",
+  payroll: "Зарплата учителей",
+  diagnostics: "Диагностика",
+  exams: "Экзамены",
+};
+const TOOL_LABEL: Readonly<Record<string, string>> = { excel: "Excel", notebook: "Тетрадь", other_system: "Другая система", none: "Ничего" };
+const LOCALE_LABEL: Readonly<Record<string, string>> = { ru: "Русский", uz: "Узбекский", en: "Английский" };
+
+const word = (table: Readonly<Record<string, string>>, code: string | null | undefined): string | null => {
+  const key = typeof code === "string" ? code.trim() : "";
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : null;
+};
+
+export const positionLabel = (code: string | null | undefined) => word(POSITION_LABEL, code);
+export const toolLabel = (code: string | null | undefined) => word(TOOL_LABEL, code);
+export const localeLabel = (code: string | null | undefined) => word(LOCALE_LABEL, code);
+/** «Оплаты и долги, Посещаемость»; `null` when nothing is known (an empty list or only unknown codes). */
+export function needsLabel(codes: readonly string[] | null | undefined): string | null {
+  const words = (codes ?? []).map((code) => word(NEED_LABEL, code)).filter((w): w is string => w !== null);
+  return words.length ? words.join(", ") : null;
+}
+/** `0` -> «Филиалов нет», `3` -> «3»; `null` (not answered) -> `null`. */
+export function branchesLabel(count: number | null | undefined): string | null {
+  if (count === null || count === undefined) return null;
+  return count === 0 ? "Филиалов нет" : String(count);
+}

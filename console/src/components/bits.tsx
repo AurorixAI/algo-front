@@ -63,6 +63,17 @@ export function Facts({ rows }: { rows: { label: string; value: ReactNode }[] })
   );
 }
 
+/** A titled block of label / text rows; nothing at all (no empty title) when no row is filled. */
+export function DetailSection({ title, rows }: { title: string; rows: { label: string; value: string }[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <section>
+      <SectionTitle>{title}</SectionTitle>
+      <Facts rows={rows.map((row) => ({ label: row.label, value: <span className="whitespace-pre-wrap">{row.value}</span> }))} />
+    </section>
+  );
+}
+
 export function EmptyState({ title, text, icon, action }: { title: string; text?: string; icon?: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center" data-testid="empty-state">
