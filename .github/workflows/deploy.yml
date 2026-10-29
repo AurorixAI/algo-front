@@ -263,11 +263,43 @@ jobs:
           if-no-files-found: error
 
       - name: Verify site responds
+        # The old check waited for 200 on "/" but "/" redirects (307) to the login.
+        # Now: the site must report the release we just deployed, and the public
+        # login page must be up. Every network call has a limit (LESSONS rule 57).
+        env:
+          SITE: ${{ steps.t.outputs.site }}
+          EXPECTED_SHA: ${{ github.sha }}
         run: |
-          for i in $(seq 1 12); do
-            CODE=$(curl -s -o /dev/null -w '%{http_code}' "${{ steps.t.outputs.site }}/" || echo 000)
-            [ "$CODE" = "200" ] && { echo "${{ steps.t.outputs.site }} -> 200"; exit 0; }
+          set -u
+          code=000
+          got=""
+          for attempt in $(seq 1 12); do
+            out=$(curl -s --max-time 10 -w '\n%{http_code}' "$SITE/api/version" || true)
+            code=${out##*$'\n'}
+            body=${out%$'\n'*}
+            got=$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("release_sha",""))' 2>/dev/null || true)
+            if [ "$code" = 200 ] && [ "$got" = "$EXPECTED_SHA" ]; then
+              break
+            fi
             sleep 5
           done
-          echo "${{ steps.t.outputs.site }} never returned 200" >&2
-          exit 1
+          if [ "$code" != 200 ]; then
+            echo "сайт $SITE/api/version ответил $code, ожидали 200" >&2
+            exit 1
+          fi
+          if [ "$got" != "$EXPECTED_SHA" ]; then
+            echo "на $SITE версия ${got:-<не указана>}, ожидали $EXPECTED_SHA" >&2
+            exit 1
+          fi
+          echo "$SITE/api/version -> release_sha $got"
+          login=000
+          for attempt in $(seq 1 12); do
+            login=$(curl -s -o /dev/null --max-time 10 -w '%{http_code}' "$SITE/login" || true)
+            [ "$login" = 200 ] && break
+            sleep 5
+          done
+          if [ "$login" != 200 ]; then
+            echo "сайт $SITE/login ответил $login, ожидали 200" >&2
+            exit 1
+          fi
+          echo "$SITE/login -> 200"
