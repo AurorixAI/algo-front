@@ -69,7 +69,7 @@ test("Ч3: the right is taken away between the window and the press - the server
   assert.equal(O.isMoneyRightRefusal(refusal("ALREADY_DECIDED", {}, 409)), false);
   assert.equal(O.isAlreadyDecided(refusal("MONEY_RIGHT_REQUIRED", {}, 403)), false, "it is not «решение уже принято»: the row stays");
   const source = read("src/components/substitutions/one-off-decisions.tsx");
-  assert.match(source, /isMoneyRightRefusal\(failure\)[\s\S]{0,400}setLostFor\(\{ profile \}\)[\s\S]{0,400}setDialog\(null\)/, "the window is closed, the right is lost");
+  assert.match(source, /isMoneyRightRefusal\(failure\)[\s\S]{0,400}onRightLost\(\)[\s\S]{0,400}setDialog\(null\)/, "the window is closed, the right is lost");
   assert.match(source, /const mayDecide = canDecide && !rightLost;/);
   assert.match(source, /finally \{[\s\S]{0,120}sending\.current = false;[\s\S]{0,60}setBusy\(false\)/, "the button is free again");
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /canDecide=\{canDecideMoney\(user\)\}/, "the page gives the right from the profile");

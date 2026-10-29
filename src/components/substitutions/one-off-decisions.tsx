@@ -16,17 +16,19 @@ import {
  * after the lesson was held; there is no amount anywhere (the amounts are the owner's), only the lesson, who held it and how many students came.  The window says
  * it when the sheet of the month is already paid.  The decision is taken once.
  */
-export function OneOffDecisionsBlock({ items, loading, error, canDecide, profile, onRefreshProfile, onRetry, onDecided, showToast }: {
+export function OneOffDecisionsBlock({ items, loading, error, canDecide, rightLost, onRightLost, onRefreshProfile, onRetry, onDecided, showToast }: {
   items: OneOffDecisionItem[];
   loading: boolean;
   error: string | null;
   /** `canDecideMoney(user)`: the buttons are there only for who decides (an absent right is no right). */
   canDecide: boolean;
   /**
-   * The profile the right was read from (the `user` object of the store; #159 E7).  «Права нет» that the server answered belongs to THIS reading: when the profile is read again (the page
-   * is opened, «Обновить») it is a new object and the mark is forgotten - a right that came back brings the buttons back.
+   * The server said «нет права» for the profile this page holds (#159 E7 / M2 tail): the buttons go, the queue stays.  The PAGE keeps the mark (`moneyRightLostFor`), not the block - the block is
+   * unmounted on the tab «Решённые», and the counter of the tab and the badge of the menu read the same mark.
    */
-  profile?: unknown;
+  rightLost: boolean;
+  /** The server refused with «нет права»: the page remembers it for the profile it holds. */
+  onRightLost: () => void;
   /** «Обновить» next to the words about the lost right: read the profile again (and the list). */
   onRefreshProfile?: () => void;
   onRetry: () => void;
@@ -38,9 +40,6 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, profile
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const sending = useRef(false);
-  /** The server said «нет права» (the owner took it back after the page was opened): the buttons go, the queue stays. */
-  const [lostFor, setLostFor] = useState<{ profile: unknown } | null>(null);
-  const rightLost = lostFor !== null && lostFor.profile === profile;
   const mayDecide = canDecide && !rightLost;
 
   const close = () => { if (!busy) { setDialog(null); setProblem(null); } };
@@ -57,7 +56,7 @@ export function OneOffDecisionsBlock({ items, loading, error, canDecide, profile
     } catch (failure) {
       if (isMoneyRightRefusal(failure)) {
         // the right was taken away between the opening of the window and the press: say it in words, close the window (it is not stuck), keep the queue
-        setLostFor({ profile });
+        onRightLost();
         showToast(oneOffRefusalText(failure, "Решение об оплате принимает владелец или администратор с правом на оплаты"), "warning");
         setDialog(null);
       } else if (isAlreadyDecided(failure)) {

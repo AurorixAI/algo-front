@@ -70,5 +70,6 @@ export function useTodayLessonStatuses(exams: ReadonlyArray<ExamForState>, today
     },
     [byGroup],
   );
-  return { statusOf };
+  // one object per answer: a screen that puts `lessons` (or `lessons.statusOf`) into the dependencies of a memo recalculates exactly when a status arrived (#159 D1)
+  return useMemo(() => ({ statusOf }), [statusOf]);
 }

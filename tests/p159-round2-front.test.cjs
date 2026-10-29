@@ -109,14 +109,15 @@ test("E9: five cards of the library and six of the monitor do not leave one card
 
 test("E7: «права нет» belongs to the profile it was read from; a re-read profile forgets it, and the words have «Обновить»", () => {
   const block = read("src/components/substitutions/one-off-decisions.tsx");
-  assert.match(block, /const \[lostFor, setLostFor\] = useState<\{ profile: unknown \} \| null>\(null\);/);
-  assert.match(block, /const rightLost = lostFor !== null && lostFor\.profile === profile;/);
+  assert.match(block, /rightLost: boolean;/, "the mark lives on the page (round 3: the counter reads it too)");
   assert.match(block, /data-testid="one-off-decisions-refresh"/);
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /profile=\{user\}/);
+  assert.match(page, /const \[moneyLostFor, setMoneyLostFor\] = useState<\{ profile: unknown \} \| null>\(null\);/);
+  assert.match(page, /const moneyRightLost = moneyRightLostFor\(moneyLostFor, user\);/);
+  assert.match(page, /setMoneyLostFor\(\{ profile: user \}\)/);
   assert.match(page, /onRefreshProfile=\{\(\) => \{ void useAuthStore\.getState\(\)\.refreshProfile\(\)/);
   // the same logic, run: the mark is for one reading of the profile
-  const lost = (lostFor, profile) => lostFor !== null && lostFor.profile === profile;
+  const lost = O.moneyRightLostFor;
   const first = { org_role: "admin", payments_access: true }, again = { org_role: "admin", payments_access: true };
   assert.equal(lost({ profile: first }, first), true);
   assert.equal(lost({ profile: first }, again), false, "a new reading: the buttons are back");
@@ -151,10 +152,10 @@ test("M2: the counter of the tab counts the money rows only for who may decide t
   assert.equal(O.waitingCountFor(null, 1, 1), 1);
   assert.equal(O.waitingCountFor(owner, -1, -1), 0);
   const page = read("src/components/substitutions/substitutions-page.tsx");
-  assert.match(page, /const waitingCount = waitingCountFor\(user, pendingTotal, decisions\.total\);/);
+  assert.match(page, /const waitingCount = waitingCountFor\(user, pendingTotal, decisions\.total, moneyRightLost\);/);
   assert.match(page, /tabLabel\("pending", waitingCount\)/);
   assert.match(page, /setWaiting\(waitingCount\)/);
-  assert.match(page, /waitingTotal: waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current\)/, "the badge set from the list carries the same number");
+  assert.match(page, /waitingTotal: waitingCountFor\(userRef\.current, data\.pendingTotal \?\? 0, decisionsTotalRef\.current, moneyRightLostRef\.current\)/, "the badge set from the list carries the same number");
   assert.doesNotMatch(page, /pendingTotal \+ decisions\.total/);
   // the server's number wins for the menu badge
   assert.equal(O.waitingTotal({ pendingTotal: 2, oneOffDecisionsTotal: 3, waitingTotal: 2 }), 2);

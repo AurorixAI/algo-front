@@ -41,7 +41,7 @@ import { CascadingFilter } from "@/components/ui/cascading-filter";
 import { useToast } from "@/components/ui/toast";
 import { DecisionDialog } from "@/components/substitutions/decision-dialog";
 import { OneOffDecisionsBlock, useOneOffDecisions } from "@/components/substitutions/one-off-decisions";
-import { canDecideMoney, decisionMatches, waitingCountFor } from "@/lib/one-off";
+import { canDecideMoney, decisionMatches, moneyRightLostFor, waitingCountFor } from "@/lib/one-off";
 import { useAuthStore } from "@/lib/store";
 import { BulkDialog, type BulkKind } from "@/components/substitutions/bulk-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -105,7 +105,12 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
   decisionsTotalRef.current = decisions.total;
   const userRef = useRef(user);          // #159 M2: the counters count the money rows only for who may decide them (the server does the same for the badge)
   userRef.current = user;
-  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total);
+  // «нет права» that the server answered for THIS reading of the profile (#159 M2 tail): the buttons, the tab and the badge of the menu all read this one mark and count by `waitingCountFor` - no new request
+  const [moneyLostFor, setMoneyLostFor] = useState<{ profile: unknown } | null>(null);
+  const moneyRightLost = moneyRightLostFor(moneyLostFor, user);
+  const moneyRightLostRef = useRef(moneyRightLost);
+  moneyRightLostRef.current = moneyRightLost;
+  const waitingCount = waitingCountFor(user, pendingTotal, decisions.total, moneyRightLost);
 
   const live = useRef({ items, total, pendingTotal, tab, page });
   live.current = { items, total, pendingTotal, tab, page };
@@ -165,7 +170,7 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
       // a tick on a row that is gone from the list goes with it
       const ids = new Set((data.items ?? []).map((item) => item.id));
       setSelected((previous) => new Set(Array.from(previous).filter((id) => ids.has(id))));
-      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
+      useSubstitutionBadge.getState().setSummary({ pendingTotal: data.pendingTotal, oneOffDecisionsTotal: decisionsTotalRef.current, waitingTotal: waitingCountFor(userRef.current, data.pendingTotal ?? 0, decisionsTotalRef.current, moneyRightLostRef.current), urgentTotal: data.urgentTotal, overdueTotal: useSubstitutionBadge.getState().overdue, expiringTotal: data.expiringTotal });
     } catch (failure) {
       if (!guard.accepts(token)) return;
       if (readFailureOutcome({ silent, rows: live.current.items.length }) === "keep-list") {
@@ -379,7 +384,8 @@ function SubstitutionsContent({ role }: { role: "owner" | "admin" }) {
         <OneOffDecisionsBlock
           items={visibleDecisions}
           canDecide={canDecideMoney(user)}
-          profile={user}
+          rightLost={moneyRightLost}
+          onRightLost={() => setMoneyLostFor({ profile: user })}
           onRefreshProfile={() => { void useAuthStore.getState().refreshProfile().finally(() => { void decisions.reload(true); refreshBadge(); }); }}
           loading={decisions.loading}
           error={decisions.error}

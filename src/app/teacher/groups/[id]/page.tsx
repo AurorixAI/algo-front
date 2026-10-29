@@ -127,7 +127,7 @@ export default function TeacherGroupDetailPage() {
       }
       return true;
     });
-  }, [groupExams, examFilter, examSearch]);
+  }, [groupExams, examFilter, examSearch, examStateOf]);   // #159 D1: the state follows the status of the lessons that arrive later - without it the list kept the first answer and disagreed with the counters of the tabs
 
   const requestedTab = searchParams?.get("tab");
   const tab: Tab = requestedTab === "exams" || requestedTab === "attendance" || requestedTab === "students"

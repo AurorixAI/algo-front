@@ -93,6 +93,17 @@ export function needsLessonStatus(exam: ExamForState, today: string): boolean {
   return exam.status === "lobby" && Boolean(exam.group_id) && Boolean(exam.scheduled_lesson_id) && exam.scheduled_lesson_date === today;
 }
 
+/**
+ * Two readings of the status of ONE lesson (#159 D2): the one this screen wrote itself a moment ago (the teacher pressed «Начать» here) and the one the poll of the journal brought (a start in another
+ * tab / on a phone).  A lesson only goes forward - `scheduled` -> `in_progress` -> `completed` / `cancelled` - so the later of two readings is the true one; an unknown reading (`null`/`undefined`) gives way.
+ */
+const LESSON_STATUS_RANK: Record<string, number> = { scheduled: 0, in_progress: 1, completed: 2, cancelled: 2 };
+export function laterLessonStatus(a: string | null | undefined, b: string | null | undefined): string | null {
+  const rank = (status: string | null | undefined) => (status && status in LESSON_STATUS_RANK ? LESSON_STATUS_RANK[status] : -1);
+  const best = rank(b) > rank(a) ? b : a;
+  return best ?? null;
+}
+
 /** The key of `GroupAttendance.statuses`: `<date>_<lessonId>`. */
 export function lessonStatusKey(date: string, lessonId: string): string {
   return `${date}_${lessonId}`;

@@ -394,8 +394,16 @@ export function decisionQuestion(item: Pick<OneOffDecisionItem, "title">): strin
  * The tab «Ждут решения» of the page, as the server counts the badge (#159 M2): the requests for a substitute plus the lessons of money - the money rows only for who may decide them
  * (an administrator without the right sees them, but they are not his tasks, so they are not in his counter).
  */
-export function waitingCountFor(user: Parameters<typeof canDecideMoney>[0], pendingTotal: number, moneyRows: number): number {
-  return Math.max(0, pendingTotal) + (canDecideMoney(user) ? Math.max(0, moneyRows) : 0);
+export function waitingCountFor(user: Parameters<typeof canDecideMoney>[0], pendingTotal: number, moneyRows: number, rightLost = false): number {
+  return Math.max(0, pendingTotal) + (canDecideMoney(user) && !rightLost ? Math.max(0, moneyRows) : 0);
+}
+
+/**
+ * «Права нет» that the server answered (403 MONEY_RIGHT_REQUIRED; #159 E7 / M2 tail) belongs to ONE reading of the profile: `lost.profile` is the `user` object it was answered for.  When the profile is read
+ * again (the page is opened, «Обновить») it is a new object and the mark is forgotten - a right that came back brings the buttons and the counter back.  The buttons and the counter read THIS one answer.
+ */
+export function moneyRightLostFor(lost: { profile: unknown } | null, profile: unknown): boolean {
+  return lost !== null && lost.profile === profile;
 }
 
 /** The counter of the tab and of the menu: the requests for a substitute plus the lessons that wait for a decision of money. */

@@ -59,7 +59,8 @@ import { isOwnOneOff, teacherCancelOffer, todayPendingHintForLesson, type Teache
 import { canFinishLessonNow, lessonActionTarget, lessonDateRelation, serverErrorMessage, startBlockedReason } from "@/lib/lesson-actions";
 import { useNow } from "@/lib/use-now";
 import { formatCountdown, ledByText, lessonsTodayTile, nextLessonAhead, orderActions, pickNextStep, todayAgenda, type LifecycleStatus } from "@/lib/teacher-agenda";
-import { dashboardExamState, scheduledExamLabel } from "@/lib/exam-lobby";
+import { dashboardExamState, laterLessonStatus, scheduledExamLabel } from "@/lib/exam-lobby";
+import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
@@ -1170,6 +1171,9 @@ export default function TeacherDashboardPage() {
     }));
   }, [liveExams, liveExamSnapshotAt, liveExamTick]);
 
+  // #159 D2: the status of the lesson of a lobby exam of TODAY is polled like in the library (once a minute, a hidden tab asks nothing, the return asks at once) - a lesson started in another tab
+  // or on a phone turns «Запланирован · сегодня» into «Лобби открыто» without a reload.  The summary of the day is read once; this is the one mechanism for the exams, not a second one.
+  const examLessons = useTodayLessonStatuses(liveExams, businessDate);
   const [mineRequests, setMineRequests] = useState<SubstitutionItem[]>([]);
   // A lobby is preparation, not an ongoing exam. It must not displace a
   // lesson in the teacher's main "next action" card. Once its assigned
@@ -1201,7 +1205,9 @@ export default function TeacherDashboardPage() {
           status: exam.status,
           scheduledDate,
           today: businessDate,
-          lessonStatus: lesson && scheduledDate === businessDate ? statusOfToday(lesson) : null,
+          lessonStatus: scheduledDate === businessDate
+            ? laterLessonStatus(lesson ? statusOfToday(lesson) : null, examLessons.statusOf(exam))   // what this screen did itself vs what the poll saw elsewhere: the later one
+            : null,
         });
         const lessonLabel = lesson
           ? `${formatIsoDateLabel(lesson.occurrenceDate, { weekday: "short", day: "numeric", month: "short" })} · ${lesson.startTime}–${lesson.endTime}`
@@ -1226,7 +1232,7 @@ export default function TeacherDashboardPage() {
           `${right.scheduled_lesson_date || "9999-12-31"}_${right.title}`,
         );
       })
-  }, [businessDate, liveExamView, weekLessons, statusOfToday]);
+  }, [businessDate, liveExamView, weekLessons, statusOfToday, examLessons]);
   const featuredDashboardExam = dashboardExamRows[0] || null;
   const additionalDashboardExamCount = Math.max(0, dashboardExamRows.length - 1);
   // "Требуют действия" is a finite queue of attendance/lesson closures.
