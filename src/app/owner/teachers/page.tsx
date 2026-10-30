@@ -23,8 +23,7 @@ import {
   INVITE_AGAIN_LABEL,
   INVITE_EXPIRED_BADGE,
   INVITE_NOT_SENT_TEXT,
-  INVITE_POLL_EVERY_MS,
-  INVITE_POLL_MAX_MS,
+  invitePollDelay,
   hasLettersOnTheirWay,
   inviteMailNote,
   inviteSendingText,
@@ -133,11 +132,16 @@ function OwnerTeachersContent() {
   const lettersOnTheirWay = hasLettersOnTheirWay(invites);
   useEffect(() => {
     if (!lettersOnTheirWay) return undefined;
-    const timer = window.setInterval(() => {
-      if (pollSince.current !== null && Date.now() - pollSince.current > INVITE_POLL_MAX_MS) { window.clearInterval(timer); return; }
-      void loadData();
-    }, INVITE_POLL_EVERY_MS);
-    return () => window.clearInterval(timer);
+    let timer: number | undefined;
+    let stopped = false;
+    const schedule = () => {
+      if (stopped) return;
+      const delay = invitePollDelay(pollSince.current === null ? 0 : Date.now() - pollSince.current);
+      if (delay === null) return;                                                      // 150 s of waiting: the server has settled the letter by then (failed after 120 s)
+      timer = window.setTimeout(() => { void loadData().finally(schedule); }, delay);
+    };
+    schedule();
+    return () => { stopped = true; window.clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lettersOnTheirWay]);
 

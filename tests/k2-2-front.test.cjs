@@ -215,7 +215,15 @@ test("[M1][G2] the list says «Письмо не ушло — отправьте
   assert.equal(SL.inviteOutcomeText({ mail_status: "pending", email: "a@x.uz" }), "Отправляем приглашение на a@x.uz");
   assert.equal(SL.inviteOutcomeText({ mail_status: "sent", email: "a@x.uz" }), "Приглашение отправлено на a@x.uz");
   assert.equal(SL.inviteOutcomeText({ mail_status: "failed", email: "a@x.uz" }), SL.INVITE_NOT_SENT_TEXT);
-  assert.ok(SL.INVITE_POLL_MAX_MS >= 20000 && SL.INVITE_POLL_EVERY_MS <= 5000);
+  // the polling on a clock: 2 s for the first 20 s, then 5 s, over after 150 s (the server settles a lost letter after 120 s)
+  const delays = [];
+  for (let elapsed = 0, step; (step = SL.invitePollDelay(elapsed)) !== null; elapsed += step) delays.push(step);
+  assert.deepEqual(delays.slice(0, 10), Array(10).fill(2000));
+  assert.deepEqual(delays.slice(10, 13), [5000, 5000, 5000]);
+  assert.equal(SL.invitePollDelay(149999), 5000);
+  assert.equal(SL.invitePollDelay(150000), null);
+  assert.equal(delays.length, 10 + 26);                                            // 10 fast reads (20 s) + 26 slow reads (130 s)
+  assert.ok(delays.reduce((a, b) => a + b, 0) >= 150000 && SL.INVITE_POLL_MAX_MS > 120000);
   const page = read("src/app/owner/teachers/page.tsx");
   assert.match(page, /hasLettersOnTheirWay\(invites\)/);
   assert.match(page, /invite-mail-/);
@@ -248,7 +256,9 @@ test("[F] every password field of the cabinet has autoComplete (current-password
 test("[F] a 403 of /auth/me (the centre is not active, the access is closed) is a screen with the reason, not a loop through the sign-in", () => {
   assert.equal(store.accessProblemOf({ status: 403, message: "Центр не активен. Обратитесь в ALGO" }), "Центр не активен. Обратитесь в ALGO");
   assert.equal(store.accessProblemOf({ status: 401, message: "x" }), null);
-  assert.equal(store.accessProblemOf({ status: 403, message: "" }), null);
+  assert.equal(store.accessProblemOf({ status: 403, message: "" }), "Доступ закрыт. Обратитесь к руководству центра");
+  assert.equal(store.accessProblemOf({ status: 403, message: "Forbidden" }), store.ACCESS_CLOSED_TEXT);       // a proxy's English text is never shown
+  assert.equal(store.accessProblemOf({ status: 403 }), store.ACCESS_CLOSED_TEXT);
   assert.equal(store.accessProblemOf(null), null);
   const guard = read("src/components/auth/AuthGuard.tsx");
   assert.match(guard, /data-testid="access-closed"/);

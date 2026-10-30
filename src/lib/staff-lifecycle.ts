@@ -289,8 +289,18 @@ export function hasLettersOnTheirWay(rows: Array<{ mail_status?: string | null; 
   return rows.some((row) => row.mail_status === "pending" && row.status === "pending");
 }
 
-export const INVITE_POLL_EVERY_MS = 2000;
-export const INVITE_POLL_MAX_MS = 40000;
+/** K2-2 R3 (8): the list is read again while a letter is on its way: every 2 s for the first 20 s, then every 5 s, at most 150 s in all. The server turns a `pending`
+ *  letter that nobody finished into `failed` after 120 s, so the person sees the outcome without a reload. */
+export const INVITE_POLL_FAST_MS = 2000;
+export const INVITE_POLL_SLOW_MS = 5000;
+export const INVITE_POLL_FAST_FOR_MS = 20000;
+export const INVITE_POLL_MAX_MS = 150000;
+
+/** The wait before the next read of the list after *elapsedMs* of polling, or `null` when the polling is over. */
+export function invitePollDelay(elapsedMs: number): number | null {
+  if (elapsedMs >= INVITE_POLL_MAX_MS) return null;
+  return elapsedMs < INVITE_POLL_FAST_FOR_MS ? INVITE_POLL_FAST_MS : INVITE_POLL_SLOW_MS;
+}
 
 // ── K2-2 (C, E): «⋯ → Отправить ссылку для смены пароля» / «Изменить почту» ──────────────────────────────
 
