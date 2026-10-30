@@ -256,14 +256,14 @@ export const INVITE_AGAIN_LABEL = "Пригласить заново";
 export const INVITE_RESEND_LABEL = "Отправить ещё раз";
 export const INVITE_NOT_SENT_TEXT = "Письмо не ушло, попробуйте ещё раз";
 
-/** «Приглашение отправлено на a***@x.uz» (the address is masked by the server). */
-export function inviteSentText(emailMasked: string): string {
-  return `Приглашение отправлено на ${emailMasked}`;
+/** «Приглашение отправлено на ivan@x.uz»: the WHOLE address, the person who typed it must see a typo (the mask is for the public page of the link and the logs). */
+export function inviteSentText(email: string): string {
+  return `Приглашение отправлено на ${email}`;
 }
 
 /** What the owner is told after «Пригласить» / «Отправить ещё раз»: the sent line, or the honest «не ушло» (the link is never shown either way). */
-export function inviteOutcomeText(result: { email_sent: boolean; email_masked: string }): string {
-  return result.email_sent ? inviteSentText(result.email_masked) : INVITE_NOT_SENT_TEXT;
+export function inviteOutcomeText(result: { email_sent: boolean; email: string }): string {
+  return result.email_sent ? inviteSentText(result.email) : INVITE_NOT_SENT_TEXT;
 }
 
 /** Lists on the invitations tab: those that act first (soonest to lapse first), then the expired ones. */

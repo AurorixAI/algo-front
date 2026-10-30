@@ -191,7 +191,6 @@ function OwnerTeachersContent() {
     setResendingId(id);
     try {
       const result = await orgApi.resendInvitation(id);
-      if (showInvite) setSent(result);
       showToast(inviteOutcomeText(result), result.email_sent ? "success" : "error");
       loadData();
     } catch (e: any) {
@@ -582,27 +581,17 @@ function OwnerTeachersContent() {
             <h4 role="status" className="text-2xl font-bold text-slate-900 mb-2 break-words">{inviteOutcomeText(sent)}</h4>
             <p className="text-sm text-slate-500 mb-6">
               {sent.email_sent
-                ? "Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз."
-                : "Приглашение создано, но письмо не отправилось. Нажмите «Отправить ещё раз»."}
+                ? "Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз. Ошиблись в адресе — отмените приглашение в списке."
+                : "Приглашение создано, но письмо не отправилось. Отправить его ещё раз можно из списка приглашений."}
             </p>
 
-            <div className="flex flex-col-reverse sm:flex-row gap-3">
-              <button
-                type="button"
-                onClick={() => handleResend(sent.id)}
-                disabled={resendingId !== null}
-                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:border-primary-200 hover:text-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-              >
-                {resendingId === sent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {INVITE_RESEND_LABEL}
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowInvite(false); setSent(null); }}
-                className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
-              >
-                Готово
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => { setShowInvite(false); setSent(null); selectTab("invites"); }}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
+            >
+              Готово
+            </button>
           </motion.div>
         ) : (
           <div className="space-y-6">

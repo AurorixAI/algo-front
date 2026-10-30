@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loginReturnTarget } from "./lib/safe-redirect";
 import { DEMO_CONTACT_PATH, isLegacyDemoPath, legacyDemoAnswer } from "./lib/site-url";
-import { authCookieValue } from "./lib/auth-cookie";
+import { authCookieValue, isSecureDeployment } from "./lib/auth-cookie";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -85,7 +85,10 @@ export function middleware(request: NextRequest) {
   // The demo session cookie counts ONLY in a demo build (NEXT_PUBLIC_DEMO_MODE=true); on a real deployment a
   // hand-made `algo_demo_session=1` must not pass the gate.
   const authCookie =
-    authCookieValue((name) => request.cookies.get(name)) ??
+    authCookieValue(
+      (name) => request.cookies.get(name),
+      isSecureDeployment(process.env, request.nextUrl.protocol, request.headers.get("x-forwarded-proto")),
+    ) ??
     (process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? request.cookies.get("algo_demo_session")?.value : undefined);
 
   if (!authCookie) {

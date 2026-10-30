@@ -71,6 +71,28 @@ function visit(pathname, cookie) {
   return middleware(new NextRequest(`https://app.example${pathname}`, { headers }));
 }
 
+test("[A3] on a production build behind https only the __Host- cookie opens the gate (a plain-named one is a leftover or planted); development and plain http keep both", () => {
+  const secureEnv = { NODE_ENV: "production" };
+  assert.equal(cookieLib.isSecureDeployment(secureEnv, "https:", null), true);
+  assert.equal(cookieLib.isSecureDeployment(secureEnv, "http:", "https"), true, "behind the proxy the forwarded protocol counts");
+  assert.equal(cookieLib.isSecureDeployment(secureEnv, "http:", null), false, "a production build over plain http (the e2e stack)");
+  assert.equal(cookieLib.isSecureDeployment({ NODE_ENV: "development" }, "https:", null), false);
+  const jar = (map) => (name) => (name in map ? { value: map[name] } : undefined);
+  assert.equal(cookieLib.authCookieValue(jar({ algo_auth_token: "planted" }), true), undefined);
+  assert.equal(cookieLib.authCookieValue(jar({ "__Host-algo_auth_token": "real", algo_auth_token: "planted" }), true), "real");
+  const previous = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    const gate = (cookie) => middleware(new NextRequest("https://app.example/owner/groups", { headers: { cookie } }));
+    assert.equal(gate("algo_auth_token=planted").status, 307, "the plain name does not open the gate on https");
+    assert.equal(gate("__Host-algo_auth_token=jwt").status, 200);
+    const plainHttp = middleware(new NextRequest("http://app.example/owner/groups", { headers: { cookie: "algo_auth_token=jwt" } }));
+    assert.equal(plainHttp.status, 200, "plain http keeps the plain name");
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous;
+  }
+});
+
 test("[A3] the middleware accepts the __Host- cookie of https and the plain cookie of http development, and nothing else", () => {
   assert.equal(visit("/owner/groups", "__Host-algo_auth_token=jwt").status, 200);
   assert.equal(visit("/owner/groups", "algo_auth_token=jwt").status, 200);
@@ -114,15 +136,20 @@ test("[D] the sign-in sends remember_me (off by default) and the login page pass
 
 // ── A1: the invitation goes by letter ───────────────────────────────────────────────────────────────────────────
 
-test("[A1] the owner is told «Приглашение отправлено на a***@x.uz» or the honest «Письмо не ушло»; the link is never shown", () => {
-  assert.equal(S.inviteOutcomeText({ email_sent: true, email_masked: "a***@x.uz" }), "Приглашение отправлено на a***@x.uz");
-  assert.equal(S.inviteOutcomeText({ email_sent: false, email_masked: "a***@x.uz" }), "Письмо не ушло, попробуйте ещё раз");
+test("[A1] the owner is told «Приглашение отправлено на ivan@x.uz» (the WHOLE address) or the honest «Письмо не ушло»; the link is never shown", () => {
+  assert.equal(S.inviteOutcomeText({ email_sent: true, email: "ivan@x.uz" }), "Приглашение отправлено на ivan@x.uz");
+  assert.equal(S.inviteOutcomeText({ email_sent: false, email: "ivan@x.uz" }), "Письмо не ушло, попробуйте ещё раз");
   assert.equal(S.INVITE_RESEND_LABEL, "Отправить ещё раз");
   const page = read("src/app/owner/teachers/page.tsx");
   assert.doesNotMatch(page, /handleCopy|navigator\.clipboard|Копировать|Скопировано|inv\.code|newCode|\/invite\/\$\{/);
   assert.match(page, /orgApi\.resendInvitation\(id\)/);
   assert.match(page, /resendBusy\.current/, "a second click before the repaint sends no second letter (LESSONS 27)");
   assert.match(page, /<h4 role="status"[^>]*>\{inviteOutcomeText\(sent\)\}<\/h4>/);
+  // the window after sending offers «Готово» only: «Отправить ещё раз» lives in the list (a second letter right after the first is a double mail)
+  const from = page.indexOf("{sent ? (");
+  const windowBlock = page.slice(from, page.indexOf('<div className="space-y-6">', from));
+  assert.ok(windowBlock.length > 300 && windowBlock.includes("Готово"), "the success window was found");
+  assert.doesNotMatch(windowBlock, /INVITE_RESEND_LABEL|handleResend/);
   assert.match(page, /Отправить приглашение/);
   assert.doesNotMatch(page, /Сгенерировать ссылку|Приглашение готово/);
 });
@@ -131,7 +158,7 @@ test("[A1] the types have no code: the list row, the answer of «Приглас�
   const types = read("src/lib/ops-b-types.ts");
   const rowBlock = types.slice(types.indexOf("export interface InvitationRow"), types.indexOf("export interface InvitationSent"));
   assert.doesNotMatch(rowBlock, /\bcode\b\s*:/);
-  assert.match(types, /export interface InvitationSent \{[^}]*email_masked: string;[^}]*email_sent: boolean;/s);
+  assert.match(types, /export interface InvitationSent \{[^}]*\n  email: string;[^}]*email_sent: boolean;/s);
   assert.match(types, /export interface InviteInfo \{[^}]*email_masked\?: string;/s);
   const api = read("src/lib/api.ts");
   assert.match(api, /createInvitation: [^\n]*\n\s*api<InvitationSent>/);

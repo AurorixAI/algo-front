@@ -277,10 +277,10 @@ export interface InvitationRow {
   is_returning?: boolean;
 }
 
-/** The answer of «Пригласить» / «Отправить ещё раз»: the address masked (`a***@x.uz`), `email_sent` says whether the letter left. */
+/** The answer of «Пригласить» / «Отправить ещё раз»: the whole address the centre typed, `email_sent` says whether the letter left. No code, no link. */
 export interface InvitationSent {
   id: string;
-  email_masked: string;
+  email: string;
   /** UTC with `+00:00`. */
   expires_at: string;
   email_sent: boolean;

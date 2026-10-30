@@ -1,7 +1,8 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { HomeRedirect } from "@/components/auth/home-redirect";
-import { authCookieValue } from "@/lib/auth-cookie";
+import { authCookieValue, isSecureDeployment } from "@/lib/auth-cookie";
+import { headers } from "next/headers";
 
 /**
  * `/` has no page of its own: access to ALGO is by invitation and the public landing lives elsewhere.
@@ -10,6 +11,7 @@ import { authCookieValue } from "@/lib/auth-cookie";
  */
 export default function Home() {
   const jar = cookies();
-  if (!authCookieValue((name) => jar.get(name))) redirect("/login");
+  const secure = isSecureDeployment(process.env, null, headers().get("x-forwarded-proto"));
+  if (!authCookieValue((name) => jar.get(name), secure)) redirect("/login");
   return <HomeRedirect />;
 }
