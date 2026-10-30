@@ -131,6 +131,7 @@ export function Sidebar() {
     { href: "/admin/exams", label: "Экзамены", icon: FileText },
     { href: "/admin/students", label: "Ученики", icon: GraduationCap },
     { href: "/admin/groups", label: "Группы", icon: Users },
+    { href: "/admin/teachers", label: "Сотрудники", icon: Shield },
     ...(showExcuses
       ? [{ href: "/admin/attendance", label: "Посещаемость", shortLabel: "Посещения", icon: ClipboardCheck, badge: pendingExcuses }]
       : []),

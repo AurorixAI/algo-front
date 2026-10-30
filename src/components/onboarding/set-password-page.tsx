@@ -14,8 +14,11 @@ import { loginHome } from "@/lib/role-home";
 import { useAuthStore } from "@/lib/store";
 import {
   DEAD_LINK_COPY,
+  deadLinkText,
   MAX_PASSWORD_LENGTH,
+  canRequestNewLink,
   canSetPassword,
+  linkValidUntilText,
   linkStateFromError,
   linkStateFromInfo,
   passwordRules,
@@ -122,10 +125,19 @@ export function SetPasswordPage({ token }: { token: string }) {
               )}
             </div>
             <h2 className="mt-4 text-xl font-bold text-slate-900">{DEAD_LINK_COPY[link.kind].title}</h2>
-            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">{DEAD_LINK_COPY[link.kind].text}</p>
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">{deadLinkText(link)}</p>
+            {link.kind !== "revoked" && canRequestNewLink(link) && (
+              <Link
+                href="/forgot-password"
+                data-testid="request-new-link"
+                className="mt-6 inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-primary-600 to-primary-700 px-6 py-3 font-medium text-white shadow-lg shadow-primary-500/25"
+              >
+                Запросить новую ссылку
+              </Link>
+            )}
             <Link
               href="/login"
-              className="mt-6 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-6 py-3 font-medium text-slate-700 hover:bg-white"
+              className="mt-3 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-6 py-3 font-medium text-slate-700 hover:bg-white"
             >
               Ко входу
             </Link>
@@ -150,6 +162,7 @@ export function SetPasswordPage({ token }: { token: string }) {
                 Ваш логин: <span className="font-medium text-slate-800 break-all">{link.email}</span>
               </p>
             )}
+            {linkValidUntilText(link.expiresAt) && <p className="mt-2 text-xs text-slate-500" data-testid="link-valid-until">{linkValidUntilText(link.expiresAt)}</p>}
 
             {formError && (
               <div role="alert" className="mt-5 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -159,6 +172,10 @@ export function SetPasswordPage({ token }: { token: string }) {
             )}
 
             <div className="mt-5 space-y-4">
+              {/* the login for the password manager: it saves the new password for THIS address (it is not shown a second time) */}
+              <div className="sr-only" aria-hidden>
+                <Input name="username" autoComplete="username" value={link.email} readOnly tabIndex={-1} />
+              </div>
               <Input
                 id="new-password"
                 label="Пароль"

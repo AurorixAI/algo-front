@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { loginReturnTarget } from "./lib/safe-redirect";
 import { DEMO_CONTACT_PATH, isLegacyDemoPath, legacyDemoAnswer } from "./lib/site-url";
 import { authCookieValue, isSecureDeployment } from "./lib/auth-cookie";
+import { OPEN_EXACT_PATHS, OPEN_PATH_PREFIXES } from "./lib/public-pages";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -15,21 +16,15 @@ import { authCookieValue, isSecureDeployment } from "./lib/auth-cookie";
  * Двойная защита: middleware (SSR) + AuthGuard (CSR).
  */
 
+// The ONE list of public pages is lib/public-pages.ts (K2-2: sign-in, «Забыли пароль», the pages of a one-time token / code).
 const PUBLIC_PATHS = [
-  "/",
-  "/login",
+  ...OPEN_EXACT_PATHS,
   DEMO_CONTACT_PATH, // «Заявка на демо: напишите нам» (the answer of the old demo addresses when there is no landing to go to)
   "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
 
-// Paths accessible without full auth (invite-based)
-const OPEN_PATHS = [
-  "/d/",       // Diagnostic by code
-  "/e/",       // Exam by code
-  "/invite/",  // Invite acceptance
-  "/set-password/", // «Задать пароль» link of an approved centre's owner (one-time token)
-  "/diagnostic/",
-];
+// Paths accessible without full auth (invite / link / code based)
+const OPEN_PATHS = OPEN_PATH_PREFIXES;
 
 // Files the middleware lets through without a cookie: a path whose LAST segment ends in one of these. Any
 // other dot (`/owner/payments/receipt/a.b`, `/teacher/groups/x.y`) is an ordinary page and is checked.
@@ -38,9 +33,9 @@ const STATIC_FILE = /\.(?:ico|png|jpe?g|gif|svg|webp|avif|css|js|map|txt|xml|jso
 const STAFF_AREA = /^\/(?:owner|admin|teacher)(?:\/|$)/;
 
 const ROLE_PATHS: Record<string, string[]> = {
-  "/admin": ["admin", "owner", "superadmin"],
-  "/owner": ["owner", "superadmin"],
-  "/teacher": ["teacher", "admin", "owner", "superadmin"],
+  "/admin": ["admin", "owner"],
+  "/owner": ["owner"],
+  "/teacher": ["teacher", "admin", "owner"],
 };
 
 export function middleware(request: NextRequest) {
@@ -103,9 +98,10 @@ export function middleware(request: NextRequest) {
 
   const response = NextResponse.next();
 
-  // Teacher screens show live, organization-specific operational data. A
-  // browser must never keep an obsolete dashboard shell after a deployment.
-  if (pathname.startsWith("/teacher")) {
+  // The three work areas show live, organization-specific data (money, attendance, personal data). A browser must never keep an obsolete
+  // dashboard shell after a deployment, and the next person at a shared computer must not see a panel from the cache with «Назад»
+  // (K2-2, F: `no-store` also keeps the page out of the back/forward cache).
+  if (STAFF_AREA.test(pathname) || pathname.startsWith("/change-password")) {
     response.headers.set(
       "Cache-Control",
       "private, no-store, max-age=0, must-revalidate",

@@ -122,13 +122,15 @@ export default function ChangePasswordPage() {
               value={current}
               onChange={setCurrent}
               show={show}
+              autoComplete="current-password"
             />
             <Field
               icon={<Lock className="w-4 h-4 text-slate-400" />}
-              placeholder="Новый пароль (мин. 8 символов)"
+              placeholder="Новый пароль. Минимум 8 символов"
               value={next}
               onChange={setNext}
               show={show}
+              autoComplete="new-password"
               toggle={() => setShow((s) => !s)}
               showToggle
             />
@@ -138,6 +140,7 @@ export default function ChangePasswordPage() {
               value={confirm}
               onChange={setConfirm}
               show={show}
+              autoComplete="new-password"
             />
 
             {error && (
@@ -159,15 +162,16 @@ export default function ChangePasswordPage() {
   );
 }
 
-function Field({ icon, placeholder, value, onChange, show, toggle, showToggle }: {
+function Field({ icon, placeholder, value, onChange, show, toggle, showToggle, autoComplete }: {
   icon: React.ReactNode; placeholder: string; value: string;
-  onChange: (v: string) => void; show: boolean; toggle?: () => void; showToggle?: boolean;
+  onChange: (v: string) => void; show: boolean; toggle?: () => void; showToggle?: boolean; autoComplete?: string;
 }) {
   return (
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2">{icon}</span>
       <input
         type={show ? "text" : "password"}
+        autoComplete={autoComplete}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}

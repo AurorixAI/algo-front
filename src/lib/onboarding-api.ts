@@ -16,6 +16,18 @@ export interface PasswordSetResult {
   org?: Record<string, unknown> | null;
 }
 
+/** `GET /auth/email-change/{token}`: what the page «Подтвердить новый адрес» shows (K2-2, E). */
+export interface EmailChangeInfo {
+  valid?: boolean;
+  first_name?: string | null;
+  org_name?: string | null;
+  /** The address to confirm (the one the letter came to). */
+  new_email: string;
+  /** The old address, masked. */
+  old_email_masked?: string | null;
+  expires_at?: string | null;
+}
+
 export function createOnboardingApi(config: Partial<JsonClientConfig> = {}) {
   const request = createJsonClient({ baseUrl: AUTH_API_BASE, ...config });
   return {
@@ -28,6 +40,18 @@ export function createOnboardingApi(config: Partial<JsonClientConfig> = {}) {
         method: "POST",
         body: { password, password_confirm: passwordConfirm },
       }),
+    /** `POST /auth/password/forgot`: the answer is the same for any address; the server checks the Turnstile token. */
+    forgotPassword: (email: string, turnstileToken: string) =>
+      request<{ ok: boolean; message: string }>("/auth/password/forgot", {
+        method: "POST",
+        body: { email, turnstile_token: turnstileToken },
+      }),
+    /** `GET /auth/email-change/{token}`: a view only, nothing is spent. */
+    inspectEmailChange: (token: string, signal?: AbortSignal) =>
+      request<EmailChangeInfo>(`/auth/email-change/${seg(token)}`, { signal }),
+    /** `POST /auth/email-change/{token}`: the new address becomes the login (no session is needed). */
+    confirmEmailChange: (token: string) =>
+      request<{ message: string }>(`/auth/email-change/${seg(token)}`, { method: "POST" }),
   };
 }
 

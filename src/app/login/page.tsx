@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
 import { postLoginTarget } from "@/lib/safe-redirect";
 import { Checkbox } from "@/components/ui/checkbox";
+import { roleMismatchText } from "@/lib/login-messages";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -18,13 +19,12 @@ const ROLE_OPTIONS = [
   { value: "teacher", label: "Учитель" },
 ];
 
-// ONE text for "no such account", "wrong password", "account switched off" (the server answers all three alike)
-// and "this account has another role": the page must not tell which of them it was.
+// ONE text for "no such account" and "wrong password" (the server answers both alike): the page must not tell which of them it was.
+// K2-2 (F): a person whose PASSWORD WAS RIGHT is told the truth: his account is blocked / closed by the centre (the server says it), or that the e-mail is
+// the account of ANOTHER role (the page says it: «Эта почта — учётная запись «Учитель». Выберите её вверху»).
 // «Нет доступа? Запросить демо»: the request form is on the landing.  The link is the relative `/request-demo` of this origin:
 // the middleware sends it to the landing, whose address is the RUNTIME variable SITE_URL (one front image on prod and stage, K3 P2).
 const DEMO_REQUEST_URL = "/request-demo";
-
-const INVALID_CREDENTIALS_MESSAGE = "Неверная почта или пароль";
 
 export default function LoginPage() {
   const { login, isLoading, error, clearError } = useAuthStore();
@@ -32,7 +32,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [roleMismatch, setRoleMismatch] = useState(false);
+  const [roleMismatch, setRoleMismatch] = useState<string | null>(null);
 
   // NOTE: deliberately no router.prefetch() of the dashboards here. Prefetching
   // them while unauthenticated makes Next.js's middleware redirect them to
@@ -44,7 +44,7 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     clearError();
-    setRoleMismatch(false);
+    setRoleMismatch(null);
     try {
       await login(email, password, rememberMe);  // K2-1 (D): the server keeps the mode (14 days, or until the browser closes)
       const user = useAuthStore.getState().user;
@@ -53,11 +53,10 @@ export default function LoginPage() {
       // The role dropdown isn't just cosmetic — the account's real role must
       // match what was selected, otherwise a teacher picking "Владелец" (or
       // vice versa) would silently land in someone else's dashboard context.
-      // Message is deliberately identical to a wrong password — don't reveal
-      // that the email exists under a different role.
+      // The password was right, so naming the role of the account reveals nothing (K2-2, F).
       if (actualRole && actualRole !== role) {
         await useAuthStore.getState().logout();
-        setRoleMismatch(true);
+        setRoleMismatch(roleMismatchText(actualRole));
         return;
       }
 
@@ -83,7 +82,7 @@ export default function LoginPage() {
   };
 
   const isOwner = role === "owner";
-  const errorMessage = roleMismatch ? INVALID_CREDENTIALS_MESSAGE : error;
+  const errorMessage = roleMismatch ?? error;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] relative overflow-hidden">
@@ -130,12 +129,14 @@ export default function LoginPage() {
                 label="Кто входит?"
                 options={ROLE_OPTIONS}
                 value={role}
-                onChange={(e) => { setRole(e.target.value); setRoleMismatch(false); }}
+                onChange={(e) => { setRole(e.target.value); setRoleMismatch(null); }}
               />
 
               <Input
                 label="Email"
+                name="email"
                 type="email"
+                autoComplete="username"
                 placeholder="admin@school.uz"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -143,7 +144,9 @@ export default function LoginPage() {
 
               <Input
                 label="Пароль"
+                name="password"
                 type="password"
+                autoComplete="current-password"
                 placeholder="Введите пароль"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -159,7 +162,7 @@ export default function LoginPage() {
                   <span className="text-sm text-slate-600">Запомнить меня</span>
                 </label>
                 <Link
-                  href="#"
+                  href="/forgot-password"
                   className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
                   Забыли пароль?

@@ -275,15 +275,19 @@ export interface InvitationRow {
   expires_at: string;
   created_at?: string | null;
   is_returning?: boolean;
+  /** K2-2 (G2): where the letter is: `pending` (on its way) -> `sent` | `failed` («Письмо не ушло — отправьте ещё раз»). */
+  mail_status?: MailStatus;
 }
 
-/** The answer of «Пригласить» / «Отправить ещё раз»: the whole address the centre typed, `email_sent` says whether the letter left. No code, no link. */
+export type MailStatus = "pending" | "sent" | "failed";
+
+/** The answer of «Пригласить» / «Отправить ещё раз»: the whole address the centre typed. The letter goes in the background: `mail_status` is `pending`, the list shows the outcome. No code, no link. */
 export interface InvitationSent {
   id: string;
   email: string;
   /** UTC with `+00:00`. */
   expires_at: string;
-  email_sent: boolean;
+  mail_status: MailStatus;
 }
 
 export interface InviteInfo {

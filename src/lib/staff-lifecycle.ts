@@ -261,9 +261,63 @@ export function inviteSentText(email: string): string {
   return `Приглашение отправлено на ${email}`;
 }
 
-/** What the owner is told after «Пригласить» / «Отправить ещё раз»: the sent line, or the honest «не ушло» (the link is never shown either way). */
-export function inviteOutcomeText(result: { email_sent: boolean; email: string }): string {
-  return result.email_sent ? inviteSentText(result.email) : INVITE_NOT_SENT_TEXT;
+/** K2-2 (G2): the letter goes in the background; the answer says it is on its way, the list shows the outcome. */
+export function inviteSendingText(email: string): string {
+  return `Отправляем приглашение на ${email}`;
+}
+
+export type MailStatusValue = "pending" | "sent" | "failed";
+
+/** What the owner is told after «Пригласить» / «Отправить ещё раз» (the link is never shown): on its way, sent, or the honest «не ушло». */
+export function inviteOutcomeText(result: { mail_status?: MailStatusValue; email: string }): string {
+  if (result.mail_status === "failed") return INVITE_NOT_SENT_TEXT;
+  return result.mail_status === "sent" ? inviteSentText(result.email) : inviteSendingText(result.email);
+}
+
+export const INVITE_FAILED_BADGE = "Письмо не ушло — отправьте ещё раз";
+export const INVITE_SENDING_BADGE = "Отправляем письмо…";
+
+/** The note of a row of the list of invitations: «Письмо не ушло — отправьте ещё раз» / «Отправляем письмо…» / nothing. */
+export function inviteMailNote(row: { mail_status?: MailStatusValue | string | null }): { kind: "failed" | "sending"; text: string } | null {
+  if (row.mail_status === "failed") return { kind: "failed", text: INVITE_FAILED_BADGE };
+  if (row.mail_status === "pending") return { kind: "sending", text: INVITE_SENDING_BADGE };
+  return null;
+}
+
+/** Whether the list must be read again soon: some letter is still on its way (polled for at most `INVITE_POLL_MAX_MS`). */
+export function hasLettersOnTheirWay(rows: Array<{ mail_status?: string | null; status?: string | null }>): boolean {
+  return rows.some((row) => row.mail_status === "pending" && row.status === "pending");
+}
+
+export const INVITE_POLL_EVERY_MS = 2000;
+export const INVITE_POLL_MAX_MS = 40000;
+
+// ── K2-2 (C, E): «⋯ → Отправить ссылку для смены пароля» / «Изменить почту» ──────────────────────────────
+
+export const PASSWORD_LINK_MENU_LABEL = "Отправить ссылку для смены пароля";
+export const EMAIL_CHANGE_MENU_LABEL = "Изменить почту";
+
+export function passwordLinkConfirmText(name: string, email: string): string {
+  return `Отправить ${name} ссылку для смены пароля на ${email}? Пароль не изменится, пока сотрудник сам не задаст новый; до этого он входит со старым.`;
+}
+
+export function passwordLinkSentText(email: string): string {
+  return `Ссылка отправляется на ${email}`;
+}
+
+export function emailChangeIntroText(name: string): string {
+  return `Укажите новую почту для ${name}. Письмо со ссылкой придёт на новый адрес, а на старый — уведомление. До подтверждения сотрудник входит со старой почтой.`;
+}
+
+export function emailChangeSentText(newEmail: string): string {
+  return `Письмо с подтверждением отправлено на ${newEmail}`;
+}
+
+/** Which rows get the menu: the owner acts on an administrator / a teacher, an administrator on a teacher (the server says the same). */
+export function canManageAccess(actorRole: string | null | undefined, targetRole: string | null | undefined): { password: boolean; email: boolean } {
+  if (actorRole === "owner") return { password: targetRole === "admin" || targetRole === "teacher", email: targetRole === "admin" || targetRole === "teacher" };
+  if (actorRole === "admin") return { password: targetRole === "teacher", email: false };
+  return { password: false, email: false };
 }
 
 /** Lists on the invitations tab: those that act first (soonest to lapse first), then the expired ones. */

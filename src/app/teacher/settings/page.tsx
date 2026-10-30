@@ -225,7 +225,7 @@ export default function TeacherSettingsPage() {
             <label className={labelClasses} htmlFor="teacher-settings-current-password">Текущий пароль</label>
             <input
               id="teacher-settings-current-password"
-              type="password"
+              type="password" autoComplete="current-password"
               value={pw.current_password}
               onChange={(event) => {
                 setPw({ ...pw, current_password: event.target.value });
@@ -240,7 +240,7 @@ export default function TeacherSettingsPage() {
               <label className={labelClasses} htmlFor="teacher-settings-new-password">Новый пароль</label>
               <input
                 id="teacher-settings-new-password"
-                type="password"
+                type="password" autoComplete="new-password"
                 value={pw.new_password}
                 onChange={(event) => {
                   setPw({ ...pw, new_password: event.target.value });
@@ -254,7 +254,7 @@ export default function TeacherSettingsPage() {
               <label className={labelClasses} htmlFor="teacher-settings-confirm-password">Повторите пароль</label>
               <input
                 id="teacher-settings-confirm-password"
-                type="password"
+                type="password" autoComplete="new-password"
                 value={pw.confirm}
                 onChange={(event) => {
                   setPw({ ...pw, confirm: event.target.value });

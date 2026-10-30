@@ -48,6 +48,6 @@ test("a visitor without a session is sent to the sign-in with the bare address k
     assert.equal(loginReturnTarget(`${bare}/`, "").replace(/\/$/, ""), bare);
   }
   const middleware = fs.readFileSync(path.join(root, "src/middleware.ts"), "utf8");
-  assert.match(middleware, /"\/owner": \["owner", "superadmin"\]/);
+  assert.match(middleware, /"\/owner": \["owner"\]/);
   assert.doesNotMatch(middleware, /PUBLIC_PATHS = \[[^\]]*"\/(owner|admin|teacher)"/);
 });

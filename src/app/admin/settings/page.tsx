@@ -89,15 +89,15 @@ export default function AdminSettingsPage() {
         <div className="grid gap-4">
           <div>
             <label htmlFor={`${uid}-current-password`} className="block text-sm font-semibold text-slate-700 mb-1.5">Текущий пароль</label>
-            <input id={`${uid}-current-password`} type="password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} placeholder="Текущий пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <input id={`${uid}-current-password`} type="password" autoComplete="current-password" value={pw.current_password} onChange={(e) => setPw({ ...pw, current_password: e.target.value })} placeholder="Текущий пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div>
             <label htmlFor={`${uid}-new-password`} className="block text-sm font-semibold text-slate-700 mb-1.5">Новый пароль</label>
-            <input id={`${uid}-new-password`} type="password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} placeholder="Новый пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <input id={`${uid}-new-password`} type="password" autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} placeholder="Новый пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div>
             <label htmlFor={`${uid}-confirm-password`} className="block text-sm font-semibold text-slate-700 mb-1.5">Подтвердите пароль</label>
-            <input id={`${uid}-confirm-password`} type="password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} placeholder="Подтвердите пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            <input id={`${uid}-confirm-password`} type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} placeholder="Подтвердите пароль" className="w-full px-3 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
           </div>
           <div className="flex justify-end">
             <button onClick={handlePw} disabled={savingPw || !pw.current_password || !pw.new_password} className="flex items-center gap-2 px-5 py-2 bg-primary-600 text-white rounded-xl hover:bg-primary-700 disabled:opacity-50">

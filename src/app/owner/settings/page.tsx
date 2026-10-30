@@ -750,8 +750,8 @@ function OwnerSettingsContent() {
       setPasswordMsg({ type: 'error', text: "Новые пароли не совпадают" });
       return;
     }
-    if (passwordForm.new_password.length < 6) {
-      setPasswordMsg({ type: 'error', text: "Пароль должен содержать минимум 6 символов" });
+    if (passwordForm.new_password.length < 8) {
+      setPasswordMsg({ type: 'error', text: "Минимум 8 символов" });
       return;
     }
     setSavingPassword(true);
@@ -890,7 +890,7 @@ function OwnerSettingsContent() {
                 <label htmlFor="owner-settings-tekuschiy-parol" className={labelClasses}>Текущий пароль</label>
                 <input
                   id="owner-settings-tekuschiy-parol"
-                  type="password"
+                  type="password" autoComplete="current-password"
                   value={passwordForm.old_password}
                   onChange={(e) => setPasswordForm({ ...passwordForm, old_password: e.target.value })}
                   className={inputClasses}
@@ -902,18 +902,18 @@ function OwnerSettingsContent() {
                   <label htmlFor="owner-settings-novyy-parol" className={labelClasses}>Новый пароль</label>
                   <input
                     id="owner-settings-novyy-parol"
-                    type="password"
+                    type="password" autoComplete="new-password"
                     value={passwordForm.new_password}
                     onChange={(e) => setPasswordForm({ ...passwordForm, new_password: e.target.value })}
                     className={inputClasses}
-                    placeholder="Минимум 6 символов"
+                    placeholder="Минимум 8 символов"
                   />
                 </div>
                 <div>
                   <label htmlFor="owner-settings-povtorite-parol" className={labelClasses}>Повторите пароль</label>
                   <input
                     id="owner-settings-povtorite-parol"
-                    type="password"
+                    type="password" autoComplete="new-password"
                     value={passwordForm.confirm}
                     onChange={(e) => setPasswordForm({ ...passwordForm, confirm: e.target.value })}
                     className={inputClasses}

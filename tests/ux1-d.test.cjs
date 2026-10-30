@@ -219,10 +219,10 @@ test("bottom bar, admin: Диагностика, Ученики, Группы, �
   const { splitBottomNav, BOTTOM_NAV_PRIORITY } = lib("bottom-nav.ts");
   const full = splitBottomNav(items(MENU.admin), BOTTOM_NAV_PRIORITY.admin);
   assert.deepEqual(hrefsAfterSplit(full.bar), ["/admin/diagnostics", "/admin/students", "/admin/groups", "/admin/payments"], "menu order");
-  assert.deepEqual(hrefsAfterSplit(full.more), ["/admin/exams", "/admin/attendance", "/admin/substitutions"]);
+  assert.deepEqual(hrefsAfterSplit(full.more), ["/admin/exams", "/admin/teachers", "/admin/attendance", "/admin/substitutions"]);   // K2-2: «Сотрудники» of the administrator rides on «Ещё»
   const noPayments = splitBottomNav(items(MENU.admin.filter((href) => href !== "/admin/payments")), BOTTOM_NAV_PRIORITY.admin);
   assert.deepEqual(hrefsAfterSplit(noPayments.bar), ["/admin/diagnostics", "/admin/students", "/admin/groups", "/admin/attendance"]);
-  assert.deepEqual(hrefsAfterSplit(noPayments.more), ["/admin/exams", "/admin/substitutions"]);
+  assert.deepEqual(hrefsAfterSplit(noPayments.more), ["/admin/exams", "/admin/teachers", "/admin/substitutions"]);
 });
 
 test("bottom bar, teacher: all four sections fit, in the order of the menu; «Ещё» has the profile and the quick action", () => {

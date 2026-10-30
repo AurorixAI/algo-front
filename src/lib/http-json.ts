@@ -16,6 +16,8 @@ export interface HttpErrorInit {
   fields?: Record<string, string>;
   retryAfter?: number;
   detail?: unknown;
+  /** The whole JSON body of the answer (a route may put extra keys next to `detail`: `purpose`, ...). */
+  body?: unknown;
 }
 
 export class HttpError extends Error {
@@ -26,6 +28,7 @@ export class HttpError extends Error {
   /** Seconds, from `Retry-After` (a 429 / 503). */
   retryAfter?: number;
   detail?: unknown;
+  body?: unknown;
   constructor(init: HttpErrorInit) {
     super(init.message);
     this.name = "HttpError";
@@ -34,6 +37,7 @@ export class HttpError extends Error {
     this.fields = init.fields ?? {};
     this.retryAfter = init.retryAfter;
     this.detail = init.detail;
+    this.body = init.body;
   }
   /** 0 = the request never reached the server. */
   get isNetwork(): boolean {
@@ -123,7 +127,7 @@ export function errorFromBody(status: number, body: unknown, retryAfter?: number
   if (status === 429 && !message) message = fallbackMessage(429, retryAfter);
   // A message that is not Russian (a framework default such as «Not Found») is never shown to a person.
   if (!message || !CYRILLIC.test(message)) message = fallbackMessage(status, retryAfter);
-  return new HttpError({ status, message, code, fields, retryAfter, detail });
+  return new HttpError({ status, message, code, fields, retryAfter, detail, body });
 }
 
 export interface JsonRequestOptions {

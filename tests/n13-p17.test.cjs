@@ -287,6 +287,7 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.match(read("components/students/student-profile-view.tsx"), /label=\{`Действия: \$\{student\.full_name\}`\}/);
   assert.match(read("components/students/student-groups-block.tsx"), /label=\{`Действия по группе: \$\{item\.group_name\}`\}/); // the pause / leaving of a group (IA audit F2, F8)
   assert.match(read("components/payments/statement-view.tsx"), /label=\{`Действия: \$\{entry\.title\}`\}/);
+  assert.match(read("components/staff/staff-access-menu.tsx"), /label=\{`Действия: \$\{name\}`\}/);   // K2-2: the «⋯» of the staff list
   assert.match(read("components/groups/group-payments-tab.tsx"), /label=\{`Действия по оплате: \$\{view\.name\}`\}/); // passed to the shared MembershipRowActions
   // all ten files that use <RowMenu> are listed above
   const users = fs.readdirSync(src("components"), { recursive: true }).filter((f) => /\.tsx$/.test(f) && !/row-menu\.tsx$/.test(f))
@@ -294,7 +295,7 @@ test("every row menu of the N13 screens carries a row-specific label", () => {
   assert.deepEqual(users, [
     "attendance/excuses-page.tsx", "attendance/open-lessons-view.tsx", "groups/group-detail-view.tsx", "groups/group-student-table.tsx",
     "payments/membership-row-actions.tsx", "payments/payments-page.tsx", "payments/statement-view.tsx",
-    "payroll/month-status.tsx", "students/student-groups-block.tsx", "students/student-profile-view.tsx",
+    "payroll/month-status.tsx", "staff/staff-access-menu.tsx", "students/student-groups-block.tsx", "students/student-profile-view.tsx",
   ]);
   assert.doesNotMatch(read("components/payroll/payroll-month-page.tsx"), /RowMenu/); // owner 22.10: a row keeps one action; «Отметить выплату» lives on the sheet card
 });

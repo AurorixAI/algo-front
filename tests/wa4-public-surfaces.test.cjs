@@ -171,9 +171,9 @@ test("only real static files skip the gate: a dot in an id of a protected page d
     for (const url of ["/favicon.ico", "/robots.txt", "/logo.PNG", "/fonts/a.woff2", "/_next/static/a.js", "/api/v1/x", "/api/demo/v1/auth/me"]) {
       assert.equal(visit(url).status, 200, url);
     }
-    // /forgot-password has no page: it is no longer announced as public
-    assert.ok(redirectsToLogin(visit("/forgot-password")));
-    for (const url of ["/", "/login", "/e/ABC123", "/d/ABC123", "/invite/X", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
+    // K2-2: /forgot-password is a real public page now (and so is the page of a new address)
+    assert.equal(visit("/forgot-password").status, 200);
+    for (const url of ["/", "/login", "/forgot-password", "/e/ABC123", "/d/ABC123", "/invite/X", "/set-password/T", "/confirm-email/T", "/diagnostic/Y"]) assert.equal(visit(url).status, 200, url);
   });
 });
 
@@ -350,8 +350,10 @@ test("signed-out visitors can open the site icon; the old /activate page is gone
   });
   const R = load("src/lib/safe-redirect.ts");
   assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login?redirect=%2Factivate%3Ftoken%3Dx");
-  // no page behind /forgot-password: it is an ordinary unknown path now
-  assert.equal(R.loginUrlForPage("/forgot-password", ""), "/login?redirect=%2Fforgot-password");
+  // K2-2: public pages (the forgot form, the pages of a token) are never a return address: the token stays out of the address bar
+  assert.equal(R.loginUrlForPage("/forgot-password", ""), "/login");
+  assert.equal(R.loginUrlForPage("/confirm-email/TOKEN", ""), "/login");
+  assert.equal(R.loginUrlForPage("/set-password/TOKEN", ""), "/login");
 });
 
 test("a file-like ending never skips the cookie check under /owner /admin /teacher", async () => {

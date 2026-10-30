@@ -7,7 +7,7 @@ import { REFRESH_UNAVAILABLE_MESSAGE } from "@/lib/api";
 import { forbiddenTarget, isRoleAllowed } from "@/lib/role-home";
 import { loginUrlForPage } from "@/lib/safe-redirect";
 
-type UserRole = "owner" | "admin" | "teacher" | "superadmin";
+type UserRole = "owner" | "admin" | "teacher";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -44,6 +44,7 @@ export function AuthGuard({
   const [isChecking, setIsChecking] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [closed, setClosed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
   const rolesKey = JSON.stringify(allowedRoles);
@@ -77,6 +78,12 @@ export function AuthGuard({
       const currentUser = useAuthStore.getState().user;
 
       if (!currentUser) {
+        // The server said 403 («Центр не активен», «Доступ приостановлен»): a screen with the reason instead of the loop through the sign-in (K2-2, F)
+        const problem = useAuthStore.getState().accessProblem;
+        if (problem) {
+          setClosed(problem);
+          return;
+        }
         router.replace(signIn());
         return;
       }
@@ -111,6 +118,27 @@ export function AuthGuard({
     checkAuth();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolesKey, loginPath, forbiddenPath, router, refreshProfile, attempt]);
+
+  if (closed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md text-center" role="alert" data-testid="access-closed">
+          <h1 className="text-xl font-bold text-slate-900">Доступ закрыт</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">{closed}</p>
+          <p className="mt-2 text-sm text-slate-500">Если это ошибка — свяжитесь с руководством центра или напишите на support@algolab.me.</p>
+          <button
+            type="button"
+            className="mt-6 px-5 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+            onClick={() => {
+              void useAuthStore.getState().logout().finally(() => { window.location.href = "/login"; });
+            }}
+          >
+            Выйти
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (unavailable) {
     return (

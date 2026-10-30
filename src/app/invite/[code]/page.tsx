@@ -53,8 +53,8 @@ export default function InviteAcceptPage() {
       setLocalError("Пароли не совпадают");
       return;
     }
-    if (password.length < 6) {
-      setLocalError("Пароль должен содержать минимум 6 символов");
+    if (password.length < 8) {
+      setLocalError("Минимум 8 символов");
       return;
     }
 
@@ -182,8 +182,8 @@ export default function InviteAcceptPage() {
 
               <Input
                 label="Пароль"
-                type="password"
-                placeholder="Минимум 6 символов"
+                type="password" autoComplete="new-password"
+                placeholder="Минимум 8 символов"
                 icon={<Lock className="w-4 h-4" />}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -191,7 +191,7 @@ export default function InviteAcceptPage() {
 
               <Input
                 label="Подтвердите пароль"
-                type="password"
+                type="password" autoComplete="new-password"
                 placeholder="Повторите пароль"
                 icon={<Lock className="w-4 h-4" />}
                 value={confirmPassword}

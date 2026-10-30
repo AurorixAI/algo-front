@@ -12,7 +12,7 @@ export const ROLE_HOME: Record<string, string> = {
 /** Sign-in fallback for an unknown role (kept as it was before the table was shared). */
 export const DEFAULT_HOME = "/admin/diagnostics";
 
-/** Home of a known role, or ``null`` (superadmin, unknown, missing). */
+/** Home of a known role, or ``null`` (unknown, missing). */
 export function roleHome(role?: string | null): string | null {
   return (role && Object.prototype.hasOwnProperty.call(ROLE_HOME, role) && ROLE_HOME[role]) || null;
 }
@@ -26,7 +26,7 @@ export function loginHome(role?: string | null): string {
  * Where a signed-in user goes after opening a workspace their role may not
  * use (a teacher on /owner/payments): their own home, never the public
  * landing page. An explicit per-role override wins; a role with no home of
- * its own (superadmin) falls back to ``forbiddenPath``.
+ * its own falls back to ``forbiddenPath``.
  */
 export function forbiddenTarget(
   roles: { orgRole?: string | null; accountRole?: string | null },
@@ -52,7 +52,7 @@ export function forbiddenTarget(
 
 /**
  * The role a signed-in user acts with: the live membership role of the organisation
- * (`org_role`) wins, the account role is the fallback (a superadmin has no membership).
+ * (`org_role`) wins, the account role is the fallback.
  */
 export function effectiveRole(user?: { role?: string | null; org_role?: string | null } | null): string | null {
   return user?.org_role || user?.role || null;

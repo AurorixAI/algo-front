@@ -6,6 +6,7 @@
  * may ever be followed (no open redirect). Pure helpers - no React, no window - so node:test can load
  * this file.
  */
+import { isPublicPage } from "./public-pages";
 import { WORKSPACE_ROLES, loginHome } from "./role-home";
 
 /** Longest return address kept (a URL longer than this is not worth a redirect). */
@@ -62,8 +63,7 @@ export function loginReturnTarget(pathname: string, search: string | null | unde
   return safeRedirectPath(`${pathname}${withoutInternalParams(search)}`);
 }
 
-/** Pages a signed-out visitor may open: coming back to them after a sign-in is meaningless. */
-const PUBLIC_PAGES = /^\/($|(login)(\/|$)|invite\/|d\/|e\/|diagnostic\/)/;
+/** Pages a signed-out visitor may open: coming back to them after a sign-in is meaningless (the one list: ``public-pages``; a token page must never land in ``?redirect=``). */
 
 /**
  * The sign-in address a CLIENT-side redirect uses (a dead session found by a failed request): `/login` with
@@ -71,7 +71,7 @@ const PUBLIC_PAGES = /^\/($|(login)(\/|$)|invite\/|d\/|e\/|diagnostic\/)/;
  * pages and unsafe addresses get the bare `/login`.
  */
 export function loginUrlForPage(pathname: string, search: string | null | undefined): string {
-  if (PUBLIC_PAGES.test(pathname)) return "/login";
+  if (isPublicPage(pathname)) return "/login";
   const target = loginReturnTarget(pathname, search);
   return target ? `/login?${new URLSearchParams({ redirect: target }).toString()}` : "/login";
 }

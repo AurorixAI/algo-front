@@ -204,21 +204,21 @@ const inspect = (reply) => createOnboardingApi({ fetchImpl: recorder(reply).fetc
 
 test("link state VALID: greets by name and centre", async () => {
   const state = await inspect(() => json(200, { valid: true, purpose: "centre_invite", first_name: "Иван", last_name: "Иванов", greeting: "Иван Петрович", email: "ivan@example.uz", org_name: "Учебный центр «Альфа»", expires_at: "2026-10-28T09:30:00Z" }));
-  assert.deepEqual(state, { kind: "valid", name: "Иван Петрович", centre: "Учебный центр «Альфа»", email: "ivan@example.uz", purpose: "centre_invite" });
+  assert.deepEqual(state, { kind: "valid", name: "Иван Петрович", centre: "Учебный центр «Альфа»", email: "ivan@example.uz", purpose: "centre_invite", expiresAt: "2026-10-28T09:30:00Z" });
   assert.equal((await inspect(() => json(200, { valid: true, purpose: "reset", first_name: "Иван", email: "i@e.uz" }))).purpose, "reset");
   assert.equal((await inspect(() => json(200, { valid: true, first_name: "Иван" }))).name, "Иван");
 });
 
 test("link state USED / EXPIRED / REVOKED / INVALID by the server's codes", async () => {
-  assert.deepEqual(await inspect(() => json(410, { detail: "Эта ссылка уже использована.", code: "link_used" })), { kind: "used" });
-  assert.deepEqual(await inspect(() => json(410, { detail: "Срок действия ссылки истёк.", code: "link_expired" })), { kind: "expired" });
-  assert.deepEqual(await inspect(() => json(410, { detail: "Выдана новая ссылка.", code: "link_revoked" })), { kind: "revoked" });
+  assert.deepEqual(await inspect(() => json(410, { detail: "Эта ссылка уже использована.", code: "link_used" })), { kind: "used", purpose: null });
+  assert.deepEqual(await inspect(() => json(410, { detail: "Срок действия ссылки истёк.", code: "link_expired" })), { kind: "expired", purpose: null });
+  assert.deepEqual(await inspect(() => json(410, { detail: "Выдана новая ссылка.", code: "link_revoked" })), { kind: "revoked", purpose: null });
   assert.deepEqual(await inspect(() => json(404, { detail: "Ссылка недействительна.", code: "link_not_found" })), { kind: "invalid" });
   assert.deepEqual(await inspect(() => json(404, { detail: "Not Found" })), { kind: "invalid" });
   for (const kind of ["used", "expired", "revoked", "invalid"]) {
     assert.ok(S.DEAD_LINK_COPY[kind].title && S.DEAD_LINK_COPY[kind].text, kind);
   }
-  assert.match(S.DEAD_LINK_COPY.expired.text, /Ответьте на письмо/);
+  assert.match(S.DEAD_LINK_COPY.expired.text, /Запросите новую/);   // K2-2: a reset asks for a new link on the page of the form
 });
 
 test("link state UNAVAILABLE: a dead network or a 5xx is not «invalid» - the person may simply try again", async () => {
@@ -250,7 +250,7 @@ test("setting the password: body, rules, the answers that end the link", async (
   assert.equal(S.canSetPassword("longenough1", "longenough2"), false);
 
   const used = createOnboardingApi({ fetchImpl: async () => json(410, { detail: "Эта ссылка уже использована.", code: "link_used" }), baseUrl: "/api/v1" });
-  assert.deepEqual(await used.setPasswordByLink("t", "longenough1", "longenough1").catch(S.linkStateFromError), { kind: "used" });
+  assert.deepEqual(await used.setPasswordByLink("t", "longenough1", "longenough1").catch(S.linkStateFromError), { kind: "used", purpose: null });
   const bad = createOnboardingApi({ fetchImpl: async () => json(422, { detail: "x", code: "validation_error", fields: { password: "Пароль не короче 8 символов" } }), baseUrl: "/api/v1" });
   const error = await bad.setPasswordByLink("t", "x", "x").catch((e) => e);
   assert.equal(error.fields.password, "Пароль не короче 8 символов");

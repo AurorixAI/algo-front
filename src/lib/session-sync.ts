@@ -110,7 +110,7 @@ export function sessionVerdict(
   if (change === "none" || change === "signed_out") return { action: "none" }; // no id in the answer: unreadable
   return {
     action: "redirect",
-    // a role without a workspace of its own (superadmin) signs in again
+    // a role without a workspace of its own (unknown) signs in again
     target: roleHome(effectiveRole(me.user)) ?? "/login",
     notice: change === "other_user" ? SESSION_CHANGED_NOTICE : ROLE_CHANGED_NOTICE,
   };

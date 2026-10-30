@@ -14,6 +14,7 @@ import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
+import { StaffAccessMenu } from "@/components/staff/staff-access-menu";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
 import type { InvitationRow, InvitationSent, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
@@ -22,6 +23,11 @@ import {
   INVITE_AGAIN_LABEL,
   INVITE_EXPIRED_BADGE,
   INVITE_NOT_SENT_TEXT,
+  INVITE_POLL_EVERY_MS,
+  INVITE_POLL_MAX_MS,
+  hasLettersOnTheirWay,
+  inviteMailNote,
+  inviteSendingText,
   INVITE_RESEND_LABEL,
   RESTORE_TITLE,
   inviteEmailError,
@@ -96,6 +102,9 @@ function OwnerTeachersContent() {
   const [resendingId, setResendingId] = useState<string | null>(null);
   const resendBusy = useRef(false); // a second click before the repaint must not send a second letter (LESSONS 27)
 
+  // K2-2 (G2): the letters go in the background; while one is on its way the list is read again every 2 s (at most 40 s), so «Отправляем письмо…» turns
+  // into «Письмо не ушло — отправьте ещё раз» (or disappears) without a reload.
+  const pollSince = useRef<number | null>(null);
   const loadData = async () => {
     try {
       const [m, former, inv, rateList] = await Promise.all([
@@ -109,7 +118,9 @@ function OwnerTeachersContent() {
       setMembers(activeRows.filter((row) => row.is_active !== false));
       const formerRows = (Array.isArray(former) ? former : (former as any)?.items || []) as Member[];
       setFormerMembers(formerRows.filter((row) => row.is_active === false));
-      setInvites(Array.isArray(inv) ? inv : (inv as any)?.items || []);
+      const invRows = (Array.isArray(inv) ? inv : (inv as any)?.items || []) as Invitation[];
+      setInvites(invRows);
+      if (hasLettersOnTheirWay(invRows)) { if (pollSince.current === null) pollSince.current = Date.now(); } else { pollSince.current = null; }
       setRates(Object.fromEntries((rateList?.items ?? []).map((item) => [item.teacher_id, item])));
     } catch (e) {
       console.error(e);
@@ -119,6 +130,16 @@ function OwnerTeachersContent() {
   };
 
   useEffect(() => { loadData(); }, []);
+  const lettersOnTheirWay = hasLettersOnTheirWay(invites);
+  useEffect(() => {
+    if (!lettersOnTheirWay) return undefined;
+    const timer = window.setInterval(() => {
+      if (pollSince.current !== null && Date.now() - pollSince.current > INVITE_POLL_MAX_MS) { window.clearInterval(timer); return; }
+      void loadData();
+    }, INVITE_POLL_EVERY_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lettersOnTheirWay]);
 
   // `?teacher=<id>` opens the rate dialog of that teacher (once the rates are in).
   const openedFromLink = useRef<string | null>(null);
@@ -191,7 +212,7 @@ function OwnerTeachersContent() {
     setResendingId(id);
     try {
       const result = await orgApi.resendInvitation(id);
-      showToast(inviteOutcomeText(result), result.email_sent ? "success" : "error");
+      showToast(inviteOutcomeText(result), result.mail_status === "failed" ? "error" : "success");
       loadData();
     } catch (e: any) {
       showToast(e?.status === 429 ? errorMessageOf(e, INVITE_NOT_SENT_TEXT) : INVITE_NOT_SENT_TEXT, "error");
@@ -363,6 +384,7 @@ function OwnerTeachersContent() {
                                 Сменить роль
                               </button>
                             )}
+                            <StaffAccessMenu member={m} actorRole="owner" showToast={showToast} />
                             {m.org_role !== "owner" ? (
                               <button
                                 onClick={() => handleRemoveMember(m)}
@@ -424,6 +446,16 @@ function OwnerTeachersContent() {
                           </div>
                           {!expired && inviteValidUntilText(inv.expires_at) && (
                             <p className="mt-1 text-xs font-medium text-slate-500">{inviteValidUntilText(inv.expires_at)}</p>
+                          )}
+                          {!expired && inviteMailNote(inv) && (
+                            <p
+                              role="status"
+                              data-testid={`invite-mail-${inviteMailNote(inv)?.kind}`}
+                              className={`mt-1 flex items-center gap-1.5 text-xs font-semibold ${inviteMailNote(inv)?.kind === "failed" ? "text-amber-700" : "text-slate-500"}`}
+                            >
+                              {inviteMailNote(inv)?.kind === "failed" ? <AlertCircle className="h-3.5 w-3.5" /> : <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                              {inviteMailNote(inv)?.text}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -575,14 +607,13 @@ function OwnerTeachersContent() {
       >
         {sent ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${sent.email_sent ? "bg-emerald-50" : "bg-amber-50"}`}>
-              {sent.email_sent ? <CheckCircle className="w-10 h-10 text-emerald-500" /> : <AlertCircle className="w-10 h-10 text-amber-500" />}
+            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-emerald-50">
+              <CheckCircle className="w-10 h-10 text-emerald-500" />
             </div>
-            <h4 role="status" className="text-2xl font-bold text-slate-900 mb-2 break-words">{inviteOutcomeText(sent)}</h4>
+            <h4 role="status" className="text-2xl font-bold text-slate-900 mb-2 break-words">{inviteSendingText(sent.email)}</h4>
             <p className="text-sm text-slate-500 mb-6">
-              {sent.email_sent
-                ? "Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз. Ошиблись в адресе — отмените приглашение в списке."
-                : "Приглашение создано, но письмо не отправилось. Отправить его ещё раз можно из списка приглашений."}
+              Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз. Если письмо не уйдёт, в списке приглашений появится
+              пометка — оттуда его можно отправить ещё раз. Ошиблись в адресе — отмените приглашение в списке.
             </p>
 
             <button

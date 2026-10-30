@@ -638,7 +638,7 @@ export interface AuthUser {
   first_name: string;
   last_name: string;
   full_name: string;
-  role: "owner" | "admin" | "teacher" | "superadmin";
+  role: "owner" | "admin" | "teacher";
   default_org_id: string | null;
   org_role: string | null;
   org_name: string | null;
@@ -1380,6 +1380,15 @@ export const orgApi = {
     api<InvitationSent>(`/auth/org/invitations/${encodePathId(id)}/resend`, { method: "POST" }),
   revokeInvitation: (id: string) =>
     api<{ message: string }>(`/auth/org/invitations/${encodePathId(id)}`, { method: "DELETE" }),
+  /** K2-2 (C): «Отправить ссылку для смены пароля» - the letter goes to the EMPLOYEE (owner -> admin / teacher, admin -> teacher); the answer has no link. */
+  sendMemberPasswordLink: (memberId: string) =>
+    api<{ email: string; message: string }>(`/auth/org/members/${encodePathId(memberId)}/password-link`, { method: "POST" }),
+  /** K2-2 (E): «Изменить почту» (the owner only): the link goes to the NEW address, a notice to the old one. */
+  changeMemberEmail: (memberId: string, email: string) =>
+    api<{ email: string; new_email: string; expires_at: string; message: string }>(`/auth/org/members/${encodePathId(memberId)}/email-change`, {
+      method: "POST",
+      body: { email },
+    }),
 
   // Members
   /** `status`: `active` (the default), `removed` (the former staff) or `all` (LOGIC-B O2). */

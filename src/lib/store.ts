@@ -12,6 +12,13 @@ import { authApi, isTransientApiError, type AuthUser, type OrgInfo } from "./api
  */
 export type ProfileRefresh = "ok" | "ended" | "unavailable";
 
+/** K2-2 (F): `/auth/me` answered 403 (the centre is not active / blocked / the access was withdrawn): the text the screen «Доступ закрыт» shows instead of the loop through the sign-in. */
+export function accessProblemOf(error: unknown): string | null {
+  const status = (error as { status?: unknown } | null | undefined)?.status;
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  return status === 403 && typeof message === "string" && message.trim() ? message.trim() : null;
+}
+
 interface AuthState {
   user: AuthUser | null;
   org: OrgInfo | null;
@@ -19,6 +26,8 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   errorCode: string | null;
+  /** Set when `/auth/me` said 403 (see `accessProblemOf`); cleared by the next good answer. */
+  accessProblem: string | null;
 
   // Actions
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
@@ -55,6 +64,7 @@ export const useAuthStore = create<AuthState>()(
       isLoading: false,
       error: null,
       errorCode: null,
+      accessProblem: null,
 
       login: async (email, password, remember = false) => {
         set({ isLoading: true, error: null, errorCode: null });
@@ -144,12 +154,12 @@ export const useAuthStore = create<AuthState>()(
             set(signedOut);
             return "ended";
           }
-          set({ user, isAuthenticated: true });
+          set({ user, isAuthenticated: true, accessProblem: null });
           return "ok";
         } catch (err) {
           // A hiccup says nothing about the session: keep the stored sign-in and let the caller retry.
           if (isTransientApiError(err)) return "unavailable";
-          set(signedOut);
+          set({ ...signedOut, accessProblem: accessProblemOf(err) });
           return "ended";
         }
       },
