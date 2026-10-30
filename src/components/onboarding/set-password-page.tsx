@@ -31,7 +31,7 @@ export function SetPasswordPage({ token }: { token: string }) {
   const [formError, setFormError] = useState<string | null>(null);
   const [done, setDone] = useState<"signed-in" | "login" | null>(null);
   const inFlight = useRef(false);
-  const setFromTokens = useAuthStore((state) => state.setFromTokens);
+  const setSession = useAuthStore((state) => state.setSession);
 
   const check = () => {
     const controller = new AbortController();
@@ -57,13 +57,9 @@ export function SetPasswordPage({ token }: { token: string }) {
     setFormError(null);
     try {
       const result = await onboardingApi.setPasswordByLink(token, password, confirm);
-      if (result?.user && result.tokens) {
-        setFromTokens(
-          result.user as unknown as AuthUser,
-          result.tokens.access_token,
-          result.tokens.refresh_token,
-          (result.org as never) ?? null,
-        );
+      if (result?.user) {
+        // the answer set the httpOnly cookies; the page keeps nobody's token (K2-1, A2)
+        setSession(result.user as unknown as AuthUser, (result.org as never) ?? null);
         setDone("signed-in");
         // A hard navigation, as the login page does: the middleware sees the cookie the server just set.
         window.location.href = loginHome(result.user.org_role || result.user.role);

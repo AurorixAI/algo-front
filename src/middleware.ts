@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { loginReturnTarget } from "./lib/safe-redirect";
 import { DEMO_CONTACT_PATH, isLegacyDemoPath, legacyDemoAnswer } from "./lib/site-url";
+import { authCookieValue } from "./lib/auth-cookie";
 
 /**
  * Middleware для серверной защиты маршрутов.
@@ -18,7 +19,6 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   DEMO_CONTACT_PATH, // «Заявка на демо: напишите нам» (the answer of the old demo addresses when there is no landing to go to)
-  "/activate", // the activation link of an e-mail opens for a signed-out user
   "/icon",     // the site icon (src/app/icon.tsx) is requested before any sign-in
 ];
 
@@ -79,16 +79,16 @@ export function middleware(request: NextRequest) {
   // Zustand persist stores data in localStorage which middleware can't access.
   // The AuthGuard on client-side handles the actual role check.
   // Here we just check if ANY auth state exists via cookie.
-  // The server sets httpOnly cookie "algo_auth_token" on login/apply/refresh. The cookie lives as long
-  // as the refresh cookie (30 days) while the JWT inside expires after an hour: a stale JWT is NOT
-  // detected here (middleware cannot refresh) - the first API call answers 401 and api() refreshes.
+  // The server sets the httpOnly cookie "__Host-algo_auth_token" (plain "algo_auth_token" on http development) on login/refresh. It lives as long
+  // as the session cookie says (14 days with «Запомнить меня», until the browser closes without) while the JWT inside expires after an
+  // hour: a stale JWT is NOT detected here (middleware cannot refresh) - the first API call answers 401 and api() refreshes.
   // The demo session cookie counts ONLY in a demo build (NEXT_PUBLIC_DEMO_MODE=true); on a real deployment a
   // hand-made `algo_demo_session=1` must not pass the gate.
   const authCookie =
-    request.cookies.get("algo_auth_token") ??
-    (process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? request.cookies.get("algo_demo_session") : undefined);
+    authCookieValue((name) => request.cookies.get(name)) ??
+    (process.env.NEXT_PUBLIC_DEMO_MODE === "true" ? request.cookies.get("algo_demo_session")?.value : undefined);
 
-  if (!authCookie?.value) {
+  if (!authCookie) {
     // No token — redirect to login with the full return URL (path AND query), so that
     // /owner/settings?section=payments comes back as exactly that. Sanitised: the login
     // page follows it, and it must stay a path on this site.

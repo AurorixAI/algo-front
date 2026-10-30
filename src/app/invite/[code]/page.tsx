@@ -14,7 +14,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/lib/store";
 import { authApi } from "@/lib/api";
 import type { InviteInfo } from "@/lib/ops-b-types";
-import { INVITE_NOT_FOUND_TEXT, inviteAcceptErrorText, returningIntroText } from "@/lib/staff-lifecycle";
+import { inviteAcceptErrorText, inviteLoadErrorText, returningIntroText } from "@/lib/staff-lifecycle";
 
 export default function InviteAcceptPage() {
   const router = useRouter();
@@ -28,7 +28,6 @@ export default function InviteAcceptPage() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -38,9 +37,8 @@ export default function InviteAcceptPage() {
       try {
         const info = await authApi.getInviteInfo(code);
         setInviteInfo(info);
-        if (info.email) setEmail(info.email);
-      } catch {
-        setLoadError(INVITE_NOT_FOUND_TEXT);
+      } catch (failure) {
+        setLoadError(inviteLoadErrorText(failure));
       } finally {
         setLoadingInfo(false);
       }
@@ -61,9 +59,9 @@ export default function InviteAcceptPage() {
     }
 
     try {
+      // K2-1 (A1): the link came BY LETTER, so holding it proves the mailbox; the page neither shows nor sends the address
       await acceptInvite({
         code,
-        email: email.trim(),
         password,
         // a returning member keeps his name: the form does not ask for it
         ...(returning ? {} : { first_name: firstName.trim(), last_name: lastName.trim() }),
@@ -175,20 +173,11 @@ export default function InviteAcceptPage() {
               </div>
               )}
 
-              <Input
-                label="Email"
-                type="email"
-                placeholder="user@school.uz"
-                icon={<Mail className="w-4 h-4" />}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                // the invitation is for this address: it is shown and not edited (the server refuses another one)
-                readOnly={Boolean(inviteInfo?.email)}
-                aria-readonly={Boolean(inviteInfo?.email)}
-                className={inviteInfo?.email ? "bg-slate-100 text-slate-600 cursor-not-allowed" : undefined}
-              />
-              {inviteInfo?.email && (
-                <p className="-mt-2 text-xs font-medium text-slate-500">Приглашение выдано на этот email — изменить его нельзя.</p>
+              {inviteInfo?.email_masked && (
+                <p className="flex items-center gap-2 rounded-xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-600">
+                  <Mail className="w-4 h-4 shrink-0 text-slate-400" aria-hidden />
+                  <span>Приглашение выдано на {inviteInfo.email_masked}</span>
+                </p>
               )}
 
               <Input
@@ -212,7 +201,7 @@ export default function InviteAcceptPage() {
               <Button
                 onClick={handleAccept}
                 loading={isLoading}
-                disabled={(!returning && (!firstName || !lastName)) || !email || !password || !confirmPassword}
+                disabled={(!returning && (!firstName || !lastName)) || !password || !confirmPassword}
                 className="w-full"
                 size="lg"
                 icon={<ArrowRight className="w-4 h-4" />}

@@ -251,6 +251,21 @@ export function inviteValidUntilText(expiresAt: string | null | undefined): stri
 export const INVITE_EXPIRED_BADGE = "Истекло";
 export const INVITE_AGAIN_LABEL = "Пригласить заново";
 
+// ── the invitation goes by LETTER (K2-1, A1): the owner never sees or copies a link ──────────────────
+
+export const INVITE_RESEND_LABEL = "Отправить ещё раз";
+export const INVITE_NOT_SENT_TEXT = "Письмо не ушло, попробуйте ещё раз";
+
+/** «Приглашение отправлено на a***@x.uz» (the address is masked by the server). */
+export function inviteSentText(emailMasked: string): string {
+  return `Приглашение отправлено на ${emailMasked}`;
+}
+
+/** What the owner is told after «Пригласить» / «Отправить ещё раз»: the sent line, or the honest «не ушло» (the link is never shown either way). */
+export function inviteOutcomeText(result: { email_sent: boolean; email_masked: string }): string {
+  return result.email_sent ? inviteSentText(result.email_masked) : INVITE_NOT_SENT_TEXT;
+}
+
 /** Lists on the invitations tab: those that act first (soonest to lapse first), then the expired ones. */
 export function sortInvitations(rows: InvitationRow[], now = new Date()): InvitationRow[] {
   const rank = (row: InvitationRow) => (inviteState(row, now) === "pending" ? 0 : 1);
@@ -284,6 +299,13 @@ export function groupsCountText(count: number): string {
 // ── the page of an invitation (F8) ──────────────────────────────────────────────────────────────
 
 export const INVITE_NOT_FOUND_TEXT = "Приглашение не найдено, использовано или истекло.";
+/** 410 `link_revoked`: a newer letter replaced this link (or the centre cancelled the invitation). */
+export const INVITE_REVOKED_TEXT = "Это приглашение заменено новым или отозвано. Используйте ссылку из последнего письма или попросите отправить приглашение снова.";
+
+/** The text of the page of an invitation that could not be opened. */
+export function inviteLoadErrorText(error: unknown): string {
+  return opsErrorCode(error) === "link_revoked" ? INVITE_REVOKED_TEXT : INVITE_NOT_FOUND_TEXT;
+}
 export const INVITE_EMAIL_MISMATCH_TEXT = "Это приглашение выдано для другого email";
 export const EMAIL_IN_OTHER_ORG_TEXT = "Этот email уже зарегистрирован в другом центре. Пока один email работает только в одном центре.";
 

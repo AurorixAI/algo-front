@@ -342,14 +342,14 @@ test("exam info: has_group is read as it is, and from an older service's group_i
   assert.match(fs.readFileSync(path.join(root, "src/app/e/[code]/page.tsx"), "utf8"), /setExamInfo\(normalizeExamInfo\(info\)\)/);
 });
 
-test("signed-out visitors can open the e-mail activation link and the site icon", async () => {
+test("signed-out visitors can open the site icon; the old /activate page is gone (K2-1: dead since no link was ever sent)", async () => {
   await withEnv(undefined, async () => {
-    for (const url of ["/activate?token=abc123", "/activate", "/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
-    assert.ok(redirectsToLogin(visit("/activate/other")), "only the exact pages");
+    for (const url of ["/icon", "/icon?4e2f1a"]) assert.equal(visit(url).status, 200, url);
+    for (const url of ["/activate?token=abc123", "/activate", "/activate/other"]) assert.ok(redirectsToLogin(visit(url)), url);
     assert.ok(redirectsToLogin(visit("/owner/groups")));
   });
   const R = load("src/lib/safe-redirect.ts");
-  assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login");
+  assert.equal(R.loginUrlForPage("/activate", "?token=x"), "/login?redirect=%2Factivate%3Ftoken%3Dx");
   // no page behind /forgot-password: it is an ordinary unknown path now
   assert.equal(R.loginUrlForPage("/forgot-password", ""), "/login?redirect=%2Fforgot-password");
 });

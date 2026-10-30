@@ -46,7 +46,7 @@ export default function LoginPage() {
     clearError();
     setRoleMismatch(false);
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);  // K2-1 (D): the server keeps the mode (14 days, or until the browser closes)
       const user = useAuthStore.getState().user;
       const actualRole = user?.org_role || user?.role;
 

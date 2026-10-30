@@ -152,6 +152,7 @@ import type {
   ImportIssueB,
   ImportSkipped,
   InvitationRow,
+  InvitationSent,
   InviteInfo,
   LessonTeacherCandidates,
   LessonTeacherInfo,
@@ -196,7 +197,6 @@ const DIAG_API_V1 = DEMO_MODE
 interface ApiOptions {
   method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
   body?: any;
-  token?: string;
   noAuth?: boolean;
   /** Opaque, per-attempt capability for public student exam actions. */
   sessionToken?: string;
@@ -239,30 +239,15 @@ function retryAfterSeconds(response: Response, anyStatus = false): number | unde
   return left > 0 ? left : undefined;
 }
 
-/**
- * Get in-memory access token (NOT from localStorage — XSS safe).
- * Primary auth uses httpOnly cookies via credentials: "include".
- * This is a fallback for edge cases where cookie isn't available.
- */
-function getStoredToken(): string | null {
-  // Tokens are no longer persisted to localStorage.
-  // httpOnly cookies handle auth via credentials: "include".
-  return null;
-}
-
 async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
-  const { method = "GET", body, token, noAuth = false, signal } = options;
+  const { method = "GET", body, noAuth = false, signal } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers ?? {}),
   };
 
-  // Auto-inject token if not provided
-  const authToken = token || (!noAuth ? getStoredToken() : null);
-  if (authToken) {
-    headers["Authorization"] = `Bearer ${authToken}`;
-  }
+  // K2-1 (A2): the session lives in httpOnly cookies only (credentials: "include"); the page never sees, keeps or sends a token.
 
   let response: Response;
   try {
@@ -288,8 +273,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
       throw new ApiError(refresh.status, REFRESH_UNAVAILABLE_MESSAGE);
     }
     if (refresh.kind === "ok") {
-      // Retry with the new cookie (and the new token as a header, in case the cookie jar did not take it)
-      headers["Authorization"] = `Bearer ${refresh.accessToken}`;
+      // Retry: the browser sends the new cookies
       try {
         response = await fetch(`${AUTH_API_V1}${endpoint}`, {
           method,
@@ -325,6 +309,8 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
       message = error.detail.message || message;
       code = error.detail.code;
     }
+    // the new routes (password links, staff invitations) answer `{detail: "<text>", code: "<machine_code>"}`
+    if (!code && typeof error?.code === "string") code = error.code;
     throw new ApiError(response.status, message, code, undefined, error?.detail);
   }
 
@@ -347,7 +333,7 @@ const CLEAR_COOKIES_TIMEOUT_MS = 4_000;
  * touch the stored sign-in.
  */
 export type RefreshOutcome =
-  | { kind: "ok"; accessToken: string }
+  | { kind: "ok" }
   | { kind: "dead" }
   | { kind: "transient"; status: number };
 
@@ -422,11 +408,8 @@ async function requestRefresh(): Promise<RefreshOutcome> {
     if (resp.status === 401 || resp.status === 403) return { kind: "dead" };
     if (!resp.ok) return { kind: "transient", status: resp.status };
 
-    const data = await resp.json();
-    // New cookies are set by the backend response.
-    // Return access_token for the immediate retry.
-    if (!data || typeof data.access_token !== "string") return { kind: "transient", status: 502 };
-    return { kind: "ok", accessToken: data.access_token };
+    // The new cookies are set by the response itself (httpOnly): the body carries no token (K2-1, A2).
+    return { kind: "ok" };
   } catch {
     // network error, timeout (AbortError) or an unreadable body: no verdict on the session
     return { kind: "transient", status: 0 };
@@ -679,14 +662,9 @@ export interface OrgInfo {
   created_at: string | null;
 }
 
+/** The body of a sign-in: who signed in. The tokens are in the httpOnly cookies and nowhere else (K2-1, A2). */
 export interface AuthResponse {
   user: AuthUser;
-  tokens: {
-    access_token: string;
-    refresh_token: string;
-    token_type: string;
-    expires_in: number;
-  };
   org: OrgInfo | null;
 }
 
@@ -1317,17 +1295,11 @@ export const authApi = {
       noAuth: true,
     }),
 
-  activate: (token: string) =>
-    api<AuthResponse>("/auth/activate", {
-      method: "POST",
-      body: { token },
-      noAuth: true,
-    }),
-
-  login: (email: string, password: string) =>
+  /** `remember` = «Запомнить меня»: the server keeps the mode on the session (14 days, or until the browser closes and 12 h at most). */
+  login: (email: string, password: string, remember = false) =>
     api<AuthResponse>("/auth/login", {
       method: "POST",
-      body: { email, password },
+      body: { email, password, remember_me: remember },
       noAuth: true,
     }),
 
@@ -1339,7 +1311,6 @@ export const authApi = {
 
   acceptInvite: (data: {
     code: string;
-    email: string;
     password: string;
     /** Absent for a returning member (the server keeps his name). */
     first_name?: string;
@@ -1348,13 +1319,6 @@ export const authApi = {
     api<AuthResponse>("/auth/invite/accept", {
       method: "POST",
       body: data,
-      noAuth: true,
-    }),
-
-  refresh: (refresh_token: string) =>
-    api<{ access_token: string; refresh_token: string }>("/auth/refresh", {
-      method: "POST",
-      body: { refresh_token },
       noAuth: true,
     }),
 
@@ -1405,11 +1369,15 @@ export const orgApi = {
 
   // Invitations
   /** LOGIC-B (O10): the e-mail is required (422 EMAIL_REQUIRED); only the owner invites an administrator. */
+  /** The invitation goes to the person BY LETTER; the answer has no code and no link (K2-1, A1). */
   createInvitation: (data: { email: string; org_role: string }) =>
-    api<InvitationRow>("/auth/org/invitations", {
+    api<InvitationSent>("/auth/org/invitations", {
       method: "POST", body: data
     }),
   listInvitations: () => api<InvitationRow[]>("/auth/org/invitations"),
+  /** «Отправить ещё раз»: a new link by letter, the old one stops working. */
+  resendInvitation: (id: string) =>
+    api<InvitationSent>(`/auth/org/invitations/${encodePathId(id)}/resend`, { method: "POST" }),
   revokeInvitation: (id: string) =>
     api<{ message: string }>(`/auth/org/invitations/${encodePathId(id)}`, { method: "DELETE" }),
 

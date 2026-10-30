@@ -10,9 +10,9 @@ import type { Page } from "@playwright/test";
  * revokes only the session of that device.
  *
  * Two isolated browser contexts are the two devices; both are the SAME owner, signed in by /auth/dev-login (it issues a
- * separate session per call; no password is typed anywhere). The cookies are the product's: `algo_auth_token` (path /)
- * and `algo_refresh_token` (httpOnly, path /api/v1/auth - the browser sends it only to the auth routes, so a refresh
- * request that carries it proves the cookie reached the right path; without it the route answers 401).
+ * separate session per call; no password is typed anywhere). The cookies are the product's: `algo_auth_token` and
+ * `algo_refresh_token` (httpOnly, path / since K2-1: the `__Host-` rule needs the root path; a refresh request that carries it proves the
+ * cookie reached the route; without it the route answers 401).
  */
 const REFRESH_URL = `${AUTH_API}/auth/refresh`;
 const REFRESH_COOKIE = "algo_refresh_token";
@@ -42,8 +42,8 @@ async function refresh(device: Device) {
   expect(before, `${device.name}: the refresh cookie is sent to ${REFRESH_URL}`).toBeTruthy();
   const res = await postRefresh(device);
   expect(res.status(), `${device.name}: POST /auth/refresh`).toBe(200);
-  expect(res.headers()["set-cookie"] ?? "", `${device.name}: the answer sets the refresh cookie on the auth path`).toMatch(
-    /algo_refresh_token=[^\n]*Path=\/api\/v1\/auth/i,
+  expect(res.headers()["set-cookie"] ?? "", `${device.name}: the answer sets the refresh cookie`).toMatch(
+    /algo_refresh_token=[^\n]*Path=\/(;|$)/i,
   );
   const after = await refreshCookie(device.page);
   expect(after, `${device.name}: the jar holds the new refresh token`).toBeTruthy();
@@ -93,7 +93,7 @@ test("two devices of one user: interleaved refreshes keep both signed in, a logo
   await a.page.goto("/owner/dashboard");
   await expect(a.page, "A is signed out: a protected page sends to the login").toHaveURL(/\/login\?redirect=/);
   // the session of A is revoked on the server, not only forgotten by the browser: its last token no longer refreshes
-  const revoked = await request.post(REFRESH_URL, { data: { refresh_token: lastTokenOfA }, headers: { "X-Real-IP": a.ip } });
+  const revoked = await request.post(REFRESH_URL, { data: {}, headers: { "X-Real-IP": a.ip, Cookie: `${REFRESH_COOKIE}=${lastTokenOfA}` } }); // (K2-1: the refresh token is read from the cookie only)
   expect(revoked.status(), "A's last refresh token after its logout").toBe(401);
 
   await expectDashboard(b);

@@ -31,6 +31,14 @@ export interface Session {
   cookies: Cookie[];
 }
 
+/** `Set-Cookie` headers of an auth response -> the `Cookie` header of the next API call (`name=value; name=value`). */
+export function cookieHeader(setCookies: string[]): string {
+  return setCookies
+    .map((raw) => raw.split(";")[0].trim())
+    .filter((pair) => pair.indexOf("=") > 0)
+    .join("; ");
+}
+
 /** `Set-Cookie` headers of an auth response -> Playwright cookies of the `localhost` host. */
 function toCookies(setCookies: string[]): Cookie[] {
   const out: Cookie[] = [];
@@ -72,7 +80,8 @@ const randomClientIp = () => `10.${randomBytes(1)[0]}.${randomBytes(1)[0]}.${1 +
 
 export class Api {
   readonly clientIp = randomClientIp();
-  constructor(public token?: string) {}
+  /** K2-1 (A2): no answer carries a token any more; a signed-in API client sends the session cookies it got at sign-in (`name=value; ...`). */
+  constructor(public cookie?: string) {}
 
   async raw(method: string, path: string, opts: { query?: Record<string, unknown>; body?: unknown } = {}) {
     const url = new URL(`${AUTH_API}${path}`);
@@ -84,7 +93,7 @@ export class Api {
       headers: {
         "Content-Type": "application/json",
         "X-Real-IP": this.clientIp,
-        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {}),
+        ...(this.cookie ? { Cookie: this.cookie } : {}),
       },
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
     });
@@ -118,7 +127,7 @@ export class Api {
 
 function sessionFrom(data: any, res: Response, password?: string): Session {
   return {
-    api: new Api(data.tokens.access_token),
+    api: new Api(cookieHeader(res.headers.getSetCookie())),
     userId: data.user.id,
     email: data.user.email,
     fullName: data.user.full_name,
@@ -195,11 +204,13 @@ export class Org {
     const email = `${role}-${this.tag}-${n}@e2e.algo.test`;
     // LOGIC-B (O7): an invitation is addressed to an e-mail and can be accepted only with it
     const invite = await this.owner.api.post("/auth/org/invitations", { org_role: role, email });
+    // K2-1 (A1): the code travels in the letter only; a development stack has no mailbox, so the harness asks the dev router for it
+    const { code } = await new Api().get<{ code: string }>("/auth/dev-invite-code", { email });
     const firstName = role === "teacher" ? "Учитель" : "Админ";
     const last = lastName ?? `${role === "teacher" ? "Преподавателев" : "Администраторов"}${this.tag}${n}`;
     const password = `Pw-${rand(12)}`;
     const { data, res } = await new Api().raw("POST", "/auth/invite/accept", {
-      body: { code: invite.code, email, password, first_name: firstName, last_name: last },
+      body: { code, email, password, first_name: firstName, last_name: last },
     });
     const staff: Staff = { ...sessionFrom(data, res), role, firstName, lastName: last };
     this.staff.push(staff);

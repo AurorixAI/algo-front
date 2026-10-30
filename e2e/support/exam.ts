@@ -28,7 +28,7 @@ export class ExamApi {
       headers: {
         "Content-Type": "application/json",
         "X-Real-IP": this.ip,
-        Authorization: `Bearer ${this.session.api.token}`,
+        Cookie: this.session.api.cookie ?? "",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });

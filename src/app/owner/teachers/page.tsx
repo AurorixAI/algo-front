@@ -9,21 +9,24 @@ import { useAuthStore } from "@/lib/store";
 import { staffDisplayName } from "@/lib/staff-name";
 import { formatBusinessDate } from "@/lib/business-time";
 import { rateItemLine, type PayrollRateItem } from "@/lib/payroll";
-import { Users, Plus, Copy, CheckCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, RotateCcw, Loader2 } from "lucide-react";
+import { Users, Plus, Send, CheckCircle, AlertCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, RotateCcw, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
-import type { InvitationRow, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
+import type { InvitationRow, InvitationSent, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
 import {
   INVITE_ADMIN_HINT,
   INVITE_AGAIN_LABEL,
   INVITE_EXPIRED_BADGE,
+  INVITE_NOT_SENT_TEXT,
+  INVITE_RESEND_LABEL,
   RESTORE_TITLE,
   inviteEmailError,
   inviteErrorText,
+  inviteOutcomeText,
   inviteState,
   inviteValidUntilText,
   normalizeEmail,
@@ -88,8 +91,10 @@ function OwnerTeachersContent() {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteForm, setInviteForm] = useState({ email: "", org_role: "teacher" });
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
-  const [newCode, setNewCode] = useState<string | null>(null);
+  /** The answer of «Пригласить» / «Отправить ещё раз» (K2-1, A1): the masked address and whether the letter left. There is no link to show. */
+  const [sent, setSent] = useState<InvitationSent | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const resendBusy = useRef(false); // a second click before the repaint must not send a second letter (LESSONS 27)
 
   const loadData = async () => {
     try {
@@ -142,7 +147,7 @@ function OwnerTeachersContent() {
         email: normalizeEmail(inviteForm.email),
         org_role: inviteForm.org_role,
       });
-      setNewCode(result.code);
+      setSent(result);
       setInviteForm({ email: "", org_role: "teacher" });
       loadData();
     } catch (e: any) {
@@ -156,7 +161,7 @@ function OwnerTeachersContent() {
   const inviteAgain = (inv: Invitation) => {
     setInviteForm({ email: inv.email ?? "", org_role: inv.org_role === "admin" ? "admin" : "teacher" });
     setInviteError(null);
-    setNewCode(null);
+    setSent(null);
     setShowInvite(true);
   };
 
@@ -179,11 +184,22 @@ function OwnerTeachersContent() {
     }
   };
 
-  const handleCopy = (code: string) => {
-    const link = `${window.location.origin}/invite/${code}`;
-    navigator.clipboard.writeText(link);
-    setCopied(code);
-    setTimeout(() => setCopied(null), 2000);
+  /** «Отправить ещё раз»: a new link by letter, the old one stops working. The owner never sees the link. */
+  const handleResend = async (id: string) => {
+    if (resendBusy.current) return;
+    resendBusy.current = true;
+    setResendingId(id);
+    try {
+      const result = await orgApi.resendInvitation(id);
+      if (showInvite) setSent(result);
+      showToast(inviteOutcomeText(result), result.email_sent ? "success" : "error");
+      loadData();
+    } catch (e: any) {
+      showToast(e?.status === 429 ? errorMessageOf(e, INVITE_NOT_SENT_TEXT) : INVITE_NOT_SENT_TEXT, "error");
+    } finally {
+      resendBusy.current = false;
+      setResendingId(null);
+    }
   };
 
   // DELETE /org/members/{id} expects OrganizationMember.id (`member_id`), not the user id.
@@ -227,7 +243,7 @@ function OwnerTeachersContent() {
           <p className="text-slate-500 mt-1 font-medium">Управление доступом и сотрудниками организации</p>
         </div>
         <button
-          onClick={() => { setInviteForm({ email: "", org_role: "teacher" }); setInviteError(null); setShowInvite(true); setNewCode(null); }}
+          onClick={() => { setInviteForm({ email: "", org_role: "teacher" }); setInviteError(null); setShowInvite(true); setSent(null); }}
           className="flex items-center gap-2 px-5 py-2.5 bg-primary-600 text-white font-medium rounded-xl hover:bg-primary-700 active:scale-95 transition-all shadow-sm shadow-primary-600/20"
         >
           <Plus className="w-4 h-4" /> Пригласить сотрудника
@@ -399,7 +415,7 @@ function OwnerTeachersContent() {
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2 mb-1">
-                            <p className={`font-mono font-bold bg-slate-100 px-2 py-0.5 rounded text-sm ${expired ? "text-slate-400 line-through" : "text-slate-800"}`}>{inv.code}</p>
+                            <p className={`font-semibold text-sm break-all ${expired ? "text-slate-400" : "text-slate-800"}`}>{inv.email || "Без email"}</p>
                             <span className={`px-2 py-0.5 rounded-md text-xs font-semibold border ${rConfig.badge}`}>
                               {rConfig.label}
                             </span>
@@ -407,11 +423,6 @@ function OwnerTeachersContent() {
                               <span className="px-2 py-0.5 rounded-md text-xs font-semibold border border-slate-200 bg-slate-100 text-slate-500">{INVITE_EXPIRED_BADGE}</span>
                             )}
                           </div>
-                          {inv.email && (
-                            <div className="flex items-center gap-1.5 text-sm font-medium text-slate-500 mt-1">
-                              <Mail className="w-3.5 h-3.5" /> {inv.email}
-                            </div>
-                          )}
                           {!expired && inviteValidUntilText(inv.expires_at) && (
                             <p className="mt-1 text-xs font-medium text-slate-500">{inviteValidUntilText(inv.expires_at)}</p>
                           )}
@@ -427,15 +438,13 @@ function OwnerTeachersContent() {
                             <RotateCcw className="w-4 h-4" /> {INVITE_AGAIN_LABEL}
                           </button>
                         ) : (
-                          <button 
-                            onClick={() => handleCopy(inv.code)} 
-                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 rounded-xl transition-all text-sm font-medium shadow-sm"
+                          <button
+                            type="button"
+                            onClick={() => handleResend(inv.id)}
+                            disabled={resendingId !== null}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-primary-600 hover:border-primary-200 rounded-xl transition-all text-sm font-medium shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            {copied === inv.code ? (
-                              <><CheckCircle className="w-4 h-4 text-emerald-500" /> Скопировано</>
-                            ) : (
-                              <><Copy className="w-4 h-4" /> Копировать ссылку</>
-                            )}
+                            {resendingId === inv.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {INVITE_RESEND_LABEL}
                           </button>
                         )}
                         {!expired && (
@@ -559,43 +568,41 @@ function OwnerTeachersContent() {
       <Modal
         open={showInvite}
         title="Новый сотрудник"
-        description="Сгенерируйте ссылку для приглашения"
+        description="Приглашение придёт сотруднику на почту"
         onClose={() => setShowInvite(false)}
         busy={saving}
         maxWidthClassName="max-w-lg"
         bodyClassName="p-6 sm:p-8 overflow-y-auto overscroll-contain min-h-0"
       >
-        {newCode ? (
+        {sent ? (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle className="w-10 h-10 text-emerald-500" />
+            <div className={`w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 ${sent.email_sent ? "bg-emerald-50" : "bg-amber-50"}`}>
+              {sent.email_sent ? <CheckCircle className="w-10 h-10 text-emerald-500" /> : <AlertCircle className="w-10 h-10 text-amber-500" />}
             </div>
-            <h4 className="text-2xl font-bold text-slate-900 mb-2">Приглашение готово!</h4>
-            <p className="text-slate-500 mb-6">Отправьте эту ссылку сотруднику. Она позволит ему зарегистрироваться и сразу присоединиться к вашей организации.</p>
-            
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between gap-4 mb-6">
-              <div className="text-left overflow-hidden">
-                <p className="text-xs font-semibold text-slate-500 mb-1">Код доступа</p>
-                <p className="font-mono text-lg font-bold text-slate-900">{newCode}</p>
-              </div>
-              <button 
-                onClick={() => handleCopy(newCode)} 
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
-                  copied === newCode 
-                    ? "bg-emerald-100 text-emerald-700" 
-                    : "bg-primary-100 text-primary-700 hover:bg-primary-200"
-                }`}
+            <h4 role="status" className="text-2xl font-bold text-slate-900 mb-2 break-words">{inviteOutcomeText(sent)}</h4>
+            <p className="text-sm text-slate-500 mb-6">
+              {sent.email_sent
+                ? "Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз."
+                : "Приглашение создано, но письмо не отправилось. Нажмите «Отправить ещё раз»."}
+            </p>
+
+            <div className="flex flex-col-reverse sm:flex-row gap-3">
+              <button
+                type="button"
+                onClick={() => handleResend(sent.id)}
+                disabled={resendingId !== null}
+                className="flex-1 flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:border-primary-200 hover:text-primary-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
-                {copied === newCode ? "Скопировано!" : "Копировать"}
+                {resendingId === sent.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} {INVITE_RESEND_LABEL}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setShowInvite(false); setSent(null); }}
+                className="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
+              >
+                Готово
               </button>
             </div>
-            
-            <button 
-              onClick={() => { setShowInvite(false); setNewCode(null); }}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
-            >
-              Готово
-            </button>
           </motion.div>
         ) : (
           <div className="space-y-6">
@@ -645,7 +652,7 @@ function OwnerTeachersContent() {
                 className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all font-medium placeholder:text-slate-400"
               />
               <p className="text-xs font-medium text-slate-500 mt-2">
-                Приглашение привязано к этому email: зарегистрироваться по ссылке сможет только его владелец. Ссылка действует 7 дней.
+                Приглашение придёт на этот email. Принять его сможет только тот, кто получил письмо. Ссылка действует 7 дней.
               </p>
               {inviteError && <p role="alert" className="mt-2 text-xs font-semibold text-rose-600">{inviteError}</p>}
             </div>
@@ -659,7 +666,7 @@ function OwnerTeachersContent() {
                 {saving ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <>Сгенерировать ссылку</>
+                  <>Отправить приглашение</>
                 )}
               </button>
             </div>

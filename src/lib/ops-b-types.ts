@@ -267,7 +267,7 @@ export type InvitationStatus = "pending" | "accepted" | "expired" | "cancelled";
 
 export interface InvitationRow {
   id: string;
-  code: string;
+  /** K2-1 (A1): NO code and no link - the invitation reaches the person by letter only. */
   email?: string | null;
   org_role: string;
   status: InvitationStatus | string;
@@ -277,10 +277,20 @@ export interface InvitationRow {
   is_returning?: boolean;
 }
 
+/** The answer of «Пригласить» / «Отправить ещё раз»: the address masked (`a***@x.uz`), `email_sent` says whether the letter left. */
+export interface InvitationSent {
+  id: string;
+  email_masked: string;
+  /** UTC with `+00:00`. */
+  expires_at: string;
+  email_sent: boolean;
+}
+
 export interface InviteInfo {
   org_name: string;
   org_role: string;
-  email?: string | null;
+  /** Masked: `a***@x.uz`. The whole address is known to the owner of the mailbox only. */
+  email_masked?: string;
   is_returning?: boolean;
 }
 

@@ -347,7 +347,7 @@ test("a failing best-effort logout does not keep the user on a dead page", async
 });
 
 test("a dead session on a public page goes to the bare /login", async () => {
-  for (const pathname of ["/e/ABC123", "/d/ABC123", "/activate", "/"]) {
+  for (const pathname of ["/e/ABC123", "/d/ABC123", "/"]) {
     const state = world({ refreshWorks: false, pathname, search: "?x=1" });
     const { authApi } = loadApi();
     await authApi.me();
@@ -514,7 +514,7 @@ test("loginUrlForPage: the page asked for travels to the login, public pages do 
   assert.equal(R.loginUrlForPage("/owner/settings", "?section=payments"), "/login?redirect=%2Fowner%2Fsettings%3Fsection%3Dpayments");
   assert.equal(R.loginUrlForPage("/teacher/groups", ""), "/login?redirect=%2Fteacher%2Fgroups");
   assert.equal(R.loginUrlForPage("/teacher/groups", "?_rsc=a1&tab=x"), "/login?redirect=%2Fteacher%2Fgroups%3Ftab%3Dx");
-  for (const pathname of ["/", "/login", "/login/", "/activate", "/e/ABC", "/d/ABC", "/invite/X", "/diagnostic/Y"]) {
+  for (const pathname of ["/", "/login", "/login/", "/e/ABC", "/d/ABC", "/invite/X", "/diagnostic/Y"]) {
     assert.equal(R.loginUrlForPage(pathname, "?a=1"), "/login", pathname);
   }
   assert.equal(R.loginUrlForPage("/loginx", ""), "/login?redirect=%2Floginx");

@@ -10,11 +10,10 @@ import type { PasswordLinkInfo } from "./set-password";
 // An empty NEXT_PUBLIC_AUTH_API_URL = the site the page was opened from (K3 P1): see lib/api-base.ts.
 export const AUTH_API_BASE = serviceApiV1(process.env.NEXT_PUBLIC_AUTH_API_URL, "http://localhost:8000");
 
-/** What the server returns when a link is used to set the password (the same shape as a sign-in). */
+/** What the server returns when a link is used to set the password (the same shape as a sign-in: who signed in; the cookies carry the session). */
 export interface PasswordSetResult {
   user?: { role?: string; org_role?: string | null; [key: string]: unknown };
   org?: Record<string, unknown> | null;
-  tokens?: { access_token: string; refresh_token: string } | null;
 }
 
 export function createOnboardingApi(config: Partial<JsonClientConfig> = {}) {

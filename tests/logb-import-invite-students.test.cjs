@@ -115,12 +115,12 @@ test("the import modal is wired: the CSV button, the retry text, no loss of the 
 
 // ── O10 / F8: the page of an invitation ────────────────────────────────────────────────────────
 
-test("[O10.R1][O10.R9] the page of a returning member: the words of the spec, the e-mail is shown and not edited", () => {
+test("[O10.R1][O10.R9] the page of a returning member: the words of the spec, the e-mail is shown MASKED and neither edited nor sent", () => {
   const info = fixture("c6_invite_info_returning");
   assert.equal(info.is_returning, true);
   assert.equal(S.returningIntroText(info.org_name), "Вы возвращаетесь в «Алго Тест». Задайте новый пароль для входа.");
   const page = read("src/app/invite/[code]/page.tsx");
-  for (const needle of [/returningIntroText\(inviteInfo\.org_name\)/, /readOnly=\{Boolean\(inviteInfo\?\.email\)\}/, /inviteAcceptErrorText\(failure\)/, /INVITE_NOT_FOUND_TEXT/, /\{!returning && \(/, /returning \? \{\} : \{ first_name/]) assert.match(page, needle, String(needle));
+  for (const needle of [/returningIntroText\(inviteInfo\.org_name\)/, /inviteInfo\.email_masked/, /inviteAcceptErrorText\(failure\)/, /inviteLoadErrorText\(failure\)/, /\{!returning && \(/, /returning \? \{\} : \{ first_name/]) assert.match(page, needle, String(needle));
   assert.doesNotMatch(page, /Приглашение не найдено или истекло"/);
 });
 

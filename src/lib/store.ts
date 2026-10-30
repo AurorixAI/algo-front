@@ -15,15 +15,13 @@ export type ProfileRefresh = "ok" | "ended" | "unavailable";
 interface AuthState {
   user: AuthUser | null;
   org: OrgInfo | null;
-  token: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
   errorCode: string | null;
 
   // Actions
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, remember?: boolean) => Promise<void>;
   applyOrg: (data: {
     org_name: string;
     org_type?: string;
@@ -36,7 +34,6 @@ interface AuthState {
   }) => Promise<void>;
   acceptInvite: (data: {
     code: string;
-    email: string;
     password: string;
     first_name?: string;
     last_name?: string;
@@ -45,7 +42,8 @@ interface AuthState {
   refreshProfile: () => Promise<ProfileRefresh>;
   updateUser: (updates: Partial<AuthUser>) => void;
   clearError: () => void;
-  setFromTokens: (user: AuthUser, accessToken: string, refreshToken: string, org?: OrgInfo | null) => void;
+  /** The sign-in is known from an answer that set the cookies (a link): K2-1 (A2) - no token is ever read or kept here. */
+  setSession: (user: AuthUser, org?: OrgInfo | null) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -53,22 +51,18 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       org: null,
-      token: null,
-      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
       errorCode: null,
 
-      login: async (email, password) => {
+      login: async (email, password, remember = false) => {
         set({ isLoading: true, error: null, errorCode: null });
         try {
-          const response = await authApi.login(email, password);
+          const response = await authApi.login(email, password, remember);
           set({
             user: response.user,
             org: response.org,
-            token: response.tokens.access_token,
-            refreshToken: response.tokens.refresh_token,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -110,8 +104,6 @@ export const useAuthStore = create<AuthState>()(
           set({
             user: response.user,
             org: response.org,
-            token: response.tokens.access_token,
-            refreshToken: response.tokens.refresh_token,
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -134,8 +126,6 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           org: null,
-          token: null,
-          refreshToken: null,
           isAuthenticated: false,
           error: null,
         });
@@ -145,8 +135,6 @@ export const useAuthStore = create<AuthState>()(
         const signedOut = {
           user: null,
           org: null,
-          token: null,
-          refreshToken: null,
           isAuthenticated: false,
         };
         try {
@@ -173,12 +161,10 @@ export const useAuthStore = create<AuthState>()(
 
       clearError: () => set({ error: null, errorCode: null }),
 
-      setFromTokens: (user, accessToken, refreshToken, org = null) => {
+      setSession: (user, org = null) => {
         set({
           user,
           org,
-          token: accessToken,
-          refreshToken,
           isAuthenticated: true,
           isLoading: false,
           error: null,
@@ -190,8 +176,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         org: state.org,
-        // token and refreshToken intentionally NOT persisted to localStorage
-        // — httpOnly cookies handle auth, keeping tokens out of XSS reach
+        // K2-1 (A2): no token exists in the page at all (the cookies are httpOnly); this record only remembers who the
+        // cookies belong to, and /auth/me decides whether they are still alive
         isAuthenticated: state.isAuthenticated,
       }),
     }
