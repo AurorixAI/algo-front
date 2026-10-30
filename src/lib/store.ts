@@ -13,10 +13,14 @@ import { authApi, isTransientApiError, type AuthUser, type OrgInfo } from "./api
 export type ProfileRefresh = "ok" | "ended" | "unavailable";
 
 /** K2-2 (F): `/auth/me` answered 403 (the centre is not active / blocked / the access was withdrawn): the text the screen «Доступ закрыт» shows instead of the loop through the sign-in. */
+export const ACCESS_CLOSED_TEXT = "Доступ закрыт. Обратитесь к руководству центра";
+
 export function accessProblemOf(error: unknown): string | null {
   const status = (error as { status?: unknown } | null | undefined)?.status;
   const message = (error as { message?: unknown } | null | undefined)?.message;
-  return status === 403 && typeof message === "string" && message.trim() ? message.trim() : null;
+  if (status !== 403) return null;
+  // K2-2 R3 (13): the server's own Russian text is shown as it is; anything else (a proxy's «Forbidden», an empty body) becomes the standard sentence
+  return typeof message === "string" && /[а-яё]/i.test(message) ? message.trim() : ACCESS_CLOSED_TEXT;
 }
 
 interface AuthState {
