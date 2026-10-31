@@ -11,6 +11,7 @@ import { supportApi } from "@/lib/api";
 import { formatUtcNaiveAsBusinessDateTime } from "@/lib/business-time";
 import { prepareScreenshot } from "@/lib/support-image";
 import { useSupportDialog } from "@/lib/support-store";
+import { useSupportUnread } from "@/lib/support-unread";
 import {
   SUPPORT_CLOSED_NOTE,
   SUPPORT_EMPTY_TEXT,
@@ -119,7 +120,7 @@ function TicketCard({ id, onClose, onChanged }: { id: string | null; onClose: ()
     if (!id) return undefined;
     let alive = true;
     supportApi.get(id)
-      .then((data) => { if (alive && data) setCard(data); })
+      .then((data) => { if (alive && data) { setCard(data); void useSupportUnread.getState().load(); } })  // opening the card is the look: the badge is asked again
       .catch((cause) => { if (alive) setError(cause instanceof Error ? cause.message : "Не удалось открыть обращение."); });
     return () => { alive = false; };
   }, [id]);

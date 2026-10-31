@@ -18,6 +18,7 @@ import {
   SUPPORT_MY_LABEL,
   SUPPORT_SENT_NOTE,
   SUPPORT_TEXT_MAX,
+  lostReason,
   newClientKey,
   pageTemplate,
   recentClientErrors,
@@ -30,7 +31,8 @@ import {
 
 export const SUPPORT_CHANGED = "support:changed";
 
-interface Sent { number: number; lost: number }
+interface Lost { name: string; reason: string }
+interface Sent { number: number; lost: Lost[] }
 
 /** The success window of «Поддержка»: the same one view as «Пригласить сотрудника» (K2-2): a short title, one note, «Готово» as the main button with the focus. */
 export function SupportSentView({ sent, myPath, onDone }: { sent: Sent; myPath: string; onDone: () => void }) {
@@ -46,10 +48,14 @@ export function SupportSentView({ sent, myPath, onDone }: { sent: Sent; myPath: 
         <Clock className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
         <span className="min-w-0">{SUPPORT_SENT_NOTE}</span>
       </p>
-      {sent.lost > 0 && (
-        <p role="alert" data-testid="support-sent-lost" className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
-          {sent.lost === 1 ? "Один снимок не загрузился." : `Снимков не загрузилось: ${sent.lost}.`} Откройте обращение в «{SUPPORT_MY_LABEL}» и приложите снова.
-        </p>
+      {sent.lost.length > 0 && (
+        <div role="alert" data-testid="support-sent-lost" className="mb-5 rounded-xl bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
+          <p className="font-medium">{sent.lost.length === 1 ? "Один снимок не загрузился:" : `Снимков не загрузилось: ${sent.lost.length}.`}</p>
+          <ul className="mt-1 space-y-0.5">
+            {sent.lost.map((item, index) => <li key={`${item.name}-${index}`} className="break-words">{item.name} — {item.reason}</li>)}
+          </ul>
+          <p className="mt-1.5">Обращение принято. Откройте его в «{SUPPORT_MY_LABEL}» и приложите снова.</p>
+        </div>
       )}
       <Button ref={done} type="button" size="lg" className="w-full" onClick={onDone}>Готово</Button>
       <Link href={myPath} onClick={onDone} className="mt-3 inline-block text-sm font-medium text-primary-700 hover:underline">Открыть «{SUPPORT_MY_LABEL}»</Link>
@@ -104,13 +110,13 @@ export function SupportDialog() {
     try {
       const created = await supportApi.create({ text: text.trim(), client_key: keyRef.current, page: pageTemplate(pathname), errors: recentClientErrors() });
       if (!created) return; // the session ended: the app is already on its way to the sign-in
-      let lost = 0;
+      const lost: Lost[] = [];
       for (const file of files) {
         try {
           const ready = await prepareScreenshot(file);
           await supportApi.attach(created.id, ready.blob, ready.name);
-        } catch {
-          lost += 1;
+        } catch (cause) {
+          lost.push({ name: file.name || "Снимок", reason: lostReason(cause) }); // the size, the format, the limit of 3, the network: said, not swallowed
         }
       }
       window.dispatchEvent(new Event(SUPPORT_CHANGED));

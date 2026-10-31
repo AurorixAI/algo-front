@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LifeBuoy, LogOut, MoreHorizontal, Settings, X } from "lucide-react";
+import { LifeBuoy, LogOut, MessagesSquare, MoreHorizontal, Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isNavActive, moreBadgeTotal } from "@/lib/bottom-nav";
 import { navBadgeText } from "@/lib/nav-badge";
-import { SUPPORT_LABEL } from "@/lib/support";
+import { SUPPORT_LABEL, SUPPORT_MY_LABEL } from "@/lib/support";
 import { useDialogKeys, useScrollLock } from "@/components/ui/modal";
 
 export interface BottomNavItem {
@@ -38,6 +38,10 @@ export interface BottomNavProps {
   onLogout: () => void;
   /** «Поддержка» (K4a): opens the window to write to the ALGO team; the row is under «Настройки». */
   onSupport?: () => void;
+  /** «Мои обращения» (K4a, R3-1): the page of the person's own tickets; the row is next to «Поддержка».  Absent = no row (the demo). */
+  supportPath?: string;
+  /** How many tickets have an answer of the team the person has not opened: a counter on the row and on «Ещё». */
+  supportUnread?: number;
 }
 
 const MORE_ID = "bottom-nav-more";
@@ -77,7 +81,7 @@ function Counter({ count, className }: { count: number | undefined; className?: 
  * «Ещё» opens a bottom sheet with the remaining sections, the profile, the settings and «Выйти из системы».  The
  * counters of the sections hidden in the sheet are summed on the «Ещё» icon.
  */
-export function BottomNav({ bar, more, pending = false, pathname, quickAction, settingsPath, profile, onLogout, onSupport }: BottomNavProps) {
+export function BottomNav({ bar, more, pending = false, pathname, quickAction, settingsPath, profile, onLogout, onSupport, supportPath, supportUnread = 0 }: BottomNavProps) {
   const [open, setOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -100,7 +104,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
     return () => media.removeEventListener("change", onChange);
   }, []);
 
-  const moreCount = moreBadgeTotal(more);
+  const moreCount = moreBadgeTotal(more) + supportUnread;
   const moreActive = more.some((item) => isNavActive(pathname, item.href)) || isNavActive(pathname, settingsPath);
   const moreName = moreCount ? `Ещё, требуют действий: ${moreCount}` : "Ещё";
 
@@ -164,7 +168,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
               <span className={cn("flex h-7 w-14 items-center justify-center rounded-full transition-colors", moreActive || open ? "bg-primary-100 text-primary-700" : "text-slate-500")}>
                 <span className="relative flex">
                   <MoreHorizontal className="h-[22px] w-[22px]" />
-                  <Counter count={more.some((item) => item.badge !== undefined) ? moreCount : undefined} />
+                  <Counter count={more.some((item) => item.badge !== undefined) || supportPath ? moreCount : undefined} />
                 </span>
               </span>
               <span className={cn("max-w-full truncate text-[11px] max-[359px]:text-[10px] leading-none tracking-tight", moreActive || open ? "font-semibold text-primary-700" : "font-medium text-slate-500")}>Ещё</span>
@@ -185,6 +189,8 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
         profile={profile}
         onLogout={onLogout}
         onSupport={onSupport}
+        supportPath={supportPath}
+        supportUnread={supportUnread}
       />
     </>
   );
@@ -198,7 +204,7 @@ interface MoreSheetProps extends Omit<BottomNavProps, "bar"> {
 
 const ROW = "flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-500/40";
 
-function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, settingsPath, profile, onLogout, onSupport }: MoreSheetProps) {
+function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, settingsPath, profile, onLogout, onSupport, supportPath, supportUnread = 0 }: MoreSheetProps) {
   const [mounted, setMounted] = useState(false);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const reduceMotion = useReducedMotion();
@@ -317,6 +323,20 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                     <span className="min-w-0 flex-1 truncate">Настройки</span>
                   </Link>
                 </li>
+                {supportPath && (
+                  <li>
+                    <Link href={supportPath} data-sheet-row data-testid="more-my-support" aria-current={isNavActive(pathname, supportPath) ? "page" : undefined} onClick={onClose}
+                      className={cn(ROW, isNavActive(pathname, supportPath) ? "bg-primary-50 font-bold text-primary-700" : "text-slate-700 active:bg-slate-100")}>
+                      <MessagesSquare className={cn("h-5 w-5 shrink-0", isNavActive(pathname, supportPath) ? "text-primary-600" : "text-slate-400")} />
+                      <span className="min-w-0 flex-1 truncate">{SUPPORT_MY_LABEL}</span>
+                      {supportUnread > 0 && (
+                        <span data-testid="support-unread-badge" aria-label={`Есть ответ: ${supportUnread}`} className="h-5 min-w-[20px] shrink-0 rounded-full bg-rose-500 px-1.5 text-center text-xs font-bold leading-5 text-white">
+                          {navBadgeText(supportUnread)}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                )}
                 {onSupport && (
                   <li>
                     <button type="button" data-sheet-row data-testid="more-support" onClick={() => { onClose(); onSupport(); }} className={cn(ROW, "text-slate-700 active:bg-slate-100")}>

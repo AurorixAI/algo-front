@@ -20,6 +20,7 @@ import {
   Banknote,
   Repeat2,
   LifeBuoy,
+  MessagesSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -39,7 +40,8 @@ import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomN
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { SupportDialog } from "@/components/support/support-dialog";
 import { useSupportDialog } from "@/lib/support-store";
-import { SUPPORT_LABEL } from "@/lib/support";
+import { SUPPORT_LABEL, SUPPORT_MY_LABEL, bindClientErrorsTo, resetClientErrors } from "@/lib/support";
+import { SUPPORT_UNREAD_POLL_MS, useSupportUnread } from "@/lib/support-unread";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -198,10 +200,23 @@ export function Sidebar() {
   });
 
   const showSupport = useSupportDialog((state) => state.show);
+  const supportPath = rawRole === "owner" ? "/owner/support" : role === "admin" ? "/admin/support" : "/teacher/support";
+  const supportUnread = useSupportUnread((state) => state.count);
+
+  // The failed calls of the ring belong to the person who is signed in now; the badge of «Мои обращения» asks at sign-in and every two minutes (not in the demo: no server).
+  useEffect(() => {
+    bindClientErrorsTo(user?.id);
+    if (DEMO_MODE || !user?.id) return undefined;
+    void useSupportUnread.getState().load();
+    const timer = window.setInterval(() => void useSupportUnread.getState().load(), SUPPORT_UNREAD_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [user?.id]);
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();
     useSubstitutionBadge.getState().reset();
+    useSupportUnread.getState().reset();
+    resetClientErrors();
     logout();
     router.push("/login");
   };
@@ -471,6 +486,22 @@ export function Sidebar() {
                   <span>{SUPPORT_LABEL}</span>
                 </button>
               )}
+              {!DEMO_MODE && (
+                <button
+                  type="button"
+                  onClick={() => { setProfileOpen(false); router.push(supportPath); }}
+                  data-testid="profile-my-support"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
+                >
+                  <MessagesSquare className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{SUPPORT_MY_LABEL}</span>
+                  {supportUnread > 0 && (
+                    <span data-testid="support-unread-badge" aria-label={`Есть ответ: ${supportUnread}`} className="h-4 min-w-[16px] shrink-0 rounded-full bg-rose-500 px-1 text-center text-[10px] font-bold leading-4 text-white">
+                      {navBadgeText(supportUnread)}
+                    </span>
+                  )}
+                </button>
+              )}
               <div className="my-1 border-t border-slate-100" />
               <button
                 type="button"
@@ -496,8 +527,9 @@ export function Sidebar() {
             profileOpen ? "bg-slate-100" : "hover:bg-slate-50"
           )}
         >
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-2xs uppercase">
+          <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-indigo-600 flex items-center justify-center text-xs font-bold text-white shrink-0 shadow-2xs uppercase">
             {user?.first_name?.[0] || user?.full_name?.[0] || role[0]}
+            {supportUnread > 0 && <span aria-hidden="true" data-testid="support-unread-dot" className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />}
           </div>
           <div
             className={cn(
@@ -529,6 +561,8 @@ export function Sidebar() {
         initial: user?.first_name?.[0] || user?.full_name?.[0] || role[0],
       }}
       onLogout={handleLogout}
+      supportPath={DEMO_MODE ? undefined : supportPath}
+      supportUnread={supportUnread}
       onSupport={DEMO_MODE ? undefined : showSupport}  // the demo has no accounting server: nobody to write to
     />
     <SupportDialog />
