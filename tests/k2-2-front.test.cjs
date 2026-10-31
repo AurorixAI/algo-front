@@ -25,7 +25,6 @@ const SR = lib("safe-redirect.ts");
 const PP = lib("public-pages.ts");
 const FP = lib("forgot-password.ts");
 const CE = lib("confirm-email.ts");
-const LM = lib("login-messages.ts");
 const store = lib("store.ts");
 
 function walk(dir, out = []) {
@@ -232,12 +231,21 @@ test("[M1][G2] the list says «Письмо не ушло — отправьте
 
 // ── F: sign-in messages, autoComplete, the screen of a closed access ─────────────────────
 
-test("[F] the role is named only after the right password: «Эта почта — учётная запись «Учитель». Выберите её вверху»", () => {
-  assert.equal(LM.roleMismatchText("teacher"), "Эта почта — учётная запись «Учитель». Выберите её вверху");
-  assert.equal(LM.roleMismatchText("admin"), "Эта почта — учётная запись «Админ». Выберите её вверху");
-  assert.equal(LM.roleMismatchText("owner"), "Эта почта — учётная запись «Владелец». Выберите её вверху");
+test("[F] a right password with the «wrong» role above is simply a sign-in: the person goes to HIS cabinet, no sign-out, no «выберите роль»", () => {
+  const LF = lib("login-flow.ts");
+  // «Владелец» selected on the page, the server's answer says the account is a teacher (the dropdown is not an input of the destination)
+  assert.equal(LF.loginDestination(null, { org_role: "teacher", role: "teacher" }), "/teacher/dashboard");
+  assert.equal(LF.loginDestination(null, { org_role: "admin", role: "admin" }), "/admin/diagnostics");
+  assert.equal(LF.loginDestination(null, { org_role: "owner", role: "owner" }), "/owner/dashboard");
+  assert.equal(LF.loginDestination(null, { org_role: null, role: "teacher" }), "/teacher/dashboard");
+  assert.equal(LF.loginDestination("/owner/payments", { org_role: "teacher", role: "teacher" }), "/teacher/dashboard");   // a page of another role is not followed
+  assert.equal(LF.loginDestination("/teacher/groups", { org_role: "teacher", role: "teacher" }), "/teacher/groups");
   const login = read("src/app/login/page.tsx");
-  assert.match(login, /setRoleMismatch\(roleMismatchText\(actualRole\)\)/);
+  const handler = login.slice(login.indexOf("const handleLogin"), login.indexOf("const handleKeyDown"));
+  assert.doesNotMatch(handler, /logout\(/, "no sign-out after a right password");
+  assert.doesNotMatch(login, /roleMismatch|учётная запись «/);
+  assert.match(handler, /loginDestination\(/);
+  assert.ok(!exists("src/lib/login-messages.ts"));
   assert.match(login, /autoComplete="username"/);
   assert.match(login, /autoComplete="current-password"/);
 });

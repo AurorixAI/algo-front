@@ -9,9 +9,8 @@ import { Select } from "@/components/ui/select";
 import { ArrowRight, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useAuthStore } from "@/lib/store";
-import { postLoginTarget } from "@/lib/safe-redirect";
 import { Checkbox } from "@/components/ui/checkbox";
-import { roleMismatchText } from "@/lib/login-messages";
+import { loginDestination } from "@/lib/login-flow";
 
 const ROLE_OPTIONS = [
   { value: "owner", label: "Владелец" },
@@ -20,8 +19,8 @@ const ROLE_OPTIONS = [
 ];
 
 // ONE text for "no such account" and "wrong password" (the server answers both alike): the page must not tell which of them it was.
-// K2-2 (F): a person whose PASSWORD WAS RIGHT is told the truth: his account is blocked / closed by the centre (the server says it), or that the e-mail is
-// the account of ANOTHER role (the page says it: «Эта почта — учётная запись «Учитель». Выберите её вверху»).
+// K2-2 (F): a person whose PASSWORD WAS RIGHT is told the truth: his account is blocked / closed by the centre (the server says it). A right password with
+// another role in the dropdown is simply a sign-in to his own cabinet (stage walk).
 // «Нет доступа? Запросить демо»: the request form is on the landing.  The link is the relative `/request-demo` of this origin:
 // the middleware sends it to the landing, whose address is the RUNTIME variable SITE_URL (one front image on prod and stage, K3 P2).
 const DEMO_REQUEST_URL = "/request-demo";
@@ -32,7 +31,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
-  const [roleMismatch, setRoleMismatch] = useState<string | null>(null);
 
   // NOTE: deliberately no router.prefetch() of the dashboards here. Prefetching
   // them while unauthenticated makes Next.js's middleware redirect them to
@@ -44,21 +42,11 @@ export default function LoginPage() {
 
   const handleLogin = async () => {
     clearError();
-    setRoleMismatch(null);
     try {
       await login(email, password, rememberMe);  // K2-1 (D): the server keeps the mode (14 days, or until the browser closes)
-      const user = useAuthStore.getState().user;
-      const actualRole = user?.org_role || user?.role;
-
-      // The role dropdown isn't just cosmetic — the account's real role must
-      // match what was selected, otherwise a teacher picking "Владелец" (or
-      // vice versa) would silently land in someone else's dashboard context.
-      // The password was right, so naming the role of the account reveals nothing (K2-2, F).
-      if (actualRole && actualRole !== role) {
-        await useAuthStore.getState().logout();
-        setRoleMismatch(roleMismatchText(actualRole));
-        return;
-      }
+      // K2-2 (stage walk): the password was RIGHT, so the person goes to HIS cabinet, whatever the «Кто входит?» above says: the account decides the role
+      // (the server gave it in the answer), not the dropdown. No sign-out, no «выберите роль»: a teacher who left «Владелец» is simply signed in.
+      const destination = loginDestination(new URLSearchParams(window.location.search).get("redirect"), useAuthStore.getState().user);
 
       // Hard navigation (not router.push) — guarantees a fresh request that
       // the middleware evaluates with the just-set cookie, bypassing any
@@ -66,10 +54,7 @@ export default function LoginPage() {
       // `?redirect=` is whatever page the middleware bounced the visitor from. It comes from the
       // address bar, so postLoginTarget only follows a same-site path that this role may open
       // (no `//host`, `/\host`, absolute URL, `javascript:`), else the role's own home.
-      window.location.href = postLoginTarget(
-        new URLSearchParams(window.location.search).get("redirect"),
-        actualRole,
-      );
+      window.location.href = destination;
     } catch {
       // Error already set in store
     }
@@ -82,7 +67,7 @@ export default function LoginPage() {
   };
 
   const isOwner = role === "owner";
-  const errorMessage = roleMismatch ?? error;
+  const errorMessage = error;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-6 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))] relative overflow-hidden">
@@ -129,7 +114,7 @@ export default function LoginPage() {
                 label="Кто входит?"
                 options={ROLE_OPTIONS}
                 value={role}
-                onChange={(e) => { setRole(e.target.value); setRoleMismatch(null); }}
+                onChange={(e) => setRole(e.target.value)}
               />
 
               <Input

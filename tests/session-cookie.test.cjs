@@ -102,19 +102,20 @@ test("after sign-in: the page the visitor came from, if this role may open it, e
 
 test("the login page follows ?redirect= only through postLoginTarget", () => {
   const page = read("src/app/login/page.tsx");
-  assert.match(page, /postLoginTarget\(\s*new URLSearchParams\(window\.location\.search\)\.get\("redirect"\),\s*actualRole,?\s*\)/);
+  assert.match(page, /loginDestination\(\s*new URLSearchParams\(window\.location\.search\)\.get\("redirect"\),\s*useAuthStore\.getState\(\)\.user\s*\)/);
+  assert.match(read("src/lib/login-flow.ts"), /postLoginTarget\(rawRedirect, user\?\.org_role \|\| user\?\.role\)/);
   // no other use of the parameter: no raw assignment of it anywhere
   assert.equal((page.match(/get\("redirect"\)/g) || []).length, 1);
   assert.doesNotMatch(page, /router\.(push|replace)\([^)]*redirect/);
-  assert.doesNotMatch(page, /location\.href = (?!postLoginTarget)/);
+  assert.doesNotMatch(page, /location\.href = (?!destination)/);
 });
 
 test("the login page gives ONE answer to every refused sign-in (no account enumeration)", () => {
   const page = read("src/app/login/page.tsx");
   // the server answers unknown e-mail / wrong password alike (K2-2, F: a person whose password was RIGHT is told the truth - blocked, closed by the
   // centre, or «Эта почта — учётная запись «Учитель»»: that reveals nothing to someone who does not know the password)
-  assert.match(page, /const errorMessage = roleMismatch \?\? error;/);
-  assert.match(page, /roleMismatchText\(actualRole\)/);
+  assert.match(page, /const errorMessage = error;/);
+  assert.match(page, /loginDestination\(/);
   // nothing branches on "no such account" / "blocked" any more
   assert.doesNotMatch(page, /ACCOUNT_NOT_FOUND|ACCOUNT_INACTIVE|INVALID_PASSWORD|errorCode|accountNotFound|не найден/);
   // the only onboarding link is the footer's «Запросить демо» (registration is closed, access is by invitation; the form is
