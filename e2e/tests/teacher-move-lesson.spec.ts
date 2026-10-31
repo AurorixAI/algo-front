@@ -54,7 +54,7 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   await expect(menu.getByTestId("lesson-menu-group-0")).toContainText("Этот урок");
   await expect(menu.getByTestId("lesson-menu-move")).toBeVisible();
   await expect(menu.getByTestId("lesson-menu-request")).toBeVisible();
-  await expect(menu.getByTestId("lesson-menu-cancel")).toBeVisible();
+  await expect(menu.getByTestId("lesson-menu-cancel")).toHaveCount(0);   // W1 S27: «Урока не было» only after the end of a lesson - this one is next week
   await page.waitForTimeout(300);
   await page.screenshot({ path: `/Users/arslan/Desktop/ALGO/artifacts/batch_2510/shots/27-teacher-panel-menu-open-${project}.png` });
   await page.keyboard.press("Escape");                       // the menu closes first, the panel stays
@@ -102,9 +102,11 @@ test("the teacher moves next Monday to Wednesday 15:00; the owner reads who move
   await ownerPage.goto("/owner/substitutions");
   await ownerPage.getByRole("tab", { name: /Решённые/ }).click();
   const row = ownerPage.getByRole("listitem").filter({ hasText: group.name });
-  await expect(row).toContainText(/Перенёс: преподаватель Переносов/);
-  await expect(row).toContainText("Олимпиада у школы");
-  await expect(row).toContainText(/Урок перенесён на/);
+  // #159 U1-U5 / W1: the row says who moved it («Переносов У.», «без запроса»), where («→ ср, 04.11, 15:00») and the kind («Урок перенесён»); a move has no reason plate
+  await expect(row).toContainText(/Переносов У\./);
+  await expect(row).toContainText("без запроса");
+  await expect(row).toContainText(/→ ср, \d\d\.\d\d, 15:00/);
+  await expect(row).toContainText("Урок перенесён");
   await shot(ownerPage, `04-journal-${project}`);
 
   // --- 6. the student's card: the lesson moved
@@ -159,7 +161,7 @@ test("both week grids carry the date under the day name; the status chip of the 
       return r.right <= c.right - 1 && chip.scrollWidth <= chip.clientWidth + 1 ? [] : [`${chip.textContent}: chip ${Math.round(r.right)} card ${Math.round(c.right)} scroll ${chip.scrollWidth}/${chip.clientWidth}`];
     }));
     expect(clipped, `chips fit at ${size?.width ?? "phone"}`).toEqual([]);
-    for (let i = 0; i < 7; i++) await expect(ownerPage.getByText(dateOf(addDays(monday, 7 + i))).first()).toBeVisible();
+    for (let i = 0; i < 7; i++) await expect(ownerPage.getByText(dateOf(addDays(monday, 7 + i))).locator("visible=true").first()).toBeVisible(); // the date is written twice (a phone line is hidden from md up): look at the visible one
     await expectNoHorizontalScroll(ownerPage);
     await shot(ownerPage, `07-owner-grid-${size?.width ?? "375"}-${project}`);
   }

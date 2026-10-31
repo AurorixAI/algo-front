@@ -60,7 +60,7 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   await ownerPage.goto("/owner/substitutions");
   const row = ownerPage.getByRole("listitem").filter({ hasText: group.name });
   await expect(row).toContainText("Болезнь");
-  await expect(row).toContainText("Температура");
+  await expect(row).toContainText("Есть комментарий"); // #159 U1-U5: the text of the comment is behind the mark, not in the row
   await row.getByRole("button", { name: /^Решить/ }).click();
   const decision = ownerPage.getByRole("dialog");
   await expect(decision).toContainText("не сможет провести урок");
@@ -68,7 +68,7 @@ test("«Не смогу провести» -> admin assigns a colleague -> the s
   await decision.getByRole("button", { name: "Назначить замену" }).click();
   await expect(ownerPage.getByRole("dialog")).toHaveCount(0);
   await ownerPage.getByRole("tab", { name: /Решённые/ }).click();
-  await expect(ownerPage.getByRole("listitem").filter({ hasText: group.name })).toContainText(/Просящий У\. → Заменяющий У\./); // P1.2: the journal says «кто → кто» (it said «Замена: …»)
+  await expect(ownerPage.getByRole("listitem").filter({ hasText: group.name })).toContainText(/Просящий У\.\s*→ Заменяющий У\./); // P1.2: the journal says «кто → кто» (it said «Замена: …»)
 
   // --- 3. the substitute holds this lesson only (his schedule shows it as a substitution)
   const substitutePage = await signIn(substitute);
