@@ -194,3 +194,28 @@ test("library: 150 exams of two teachers, each teacher gets his 75 through «П�
     await shot(page, `6-library-all-75-${tag === "А" ? "teacher1" : "teacher2"}`);
   }
 });
+
+test("library: a substitute sees the exam of the lesson he substitutes in, a stranger does not (real auth: mine?past_days=7) @exam", async ({ signIn }) => {
+  const owner = org.owner;
+  const teacher = await org.addStaff("teacher", "Основной");
+  const substitute = await org.addStaff("teacher", "Заменяющий");
+  const stranger = await org.addStaff("teacher", "Посторонний");
+  const group = await org.createGroup({ name: "Группа З1", teacherId: teacher.userId });
+  const lesson = await org.createLessonStartingNow(group.id, teacher, 45);
+  const draft = await new ExamApi(teacher).createDraft({ title: "E2E Экзамен замены", groupId: group.id, tasks: 2, skillId: STUB_SKILL20_ID });
+  await new ExamApi(teacher).call("POST", `/exams/${draft.exam_id}/assign`, { group_id: group.id, publish: true, lesson_id: lesson.id, lesson_date: lesson.date });
+  // the administrator puts the substitute on this lesson
+  await owner.api.put(`/auth/org/groups/${group.id}/lesson-teacher`, {
+    lessonDate: lesson.date, lessonId: lesson.id, teacherId: substitute.userId, reason: "Болезнь",
+  });
+  for (const [who, expected] of [[substitute, 1], [stranger, 0], [teacher, 0]] as const) {
+    // the substitute: the exam of HIS lesson (through mine?past_days=7); the stranger and - since the lesson is led by the substitute now - nobody else's
+    const list = await new ExamApi(who).call<any>("GET", "/exams", undefined, { page: 1, size: 50 });
+    const titles = list.items.map((i: any) => i.title);
+    if (who === teacher) expect(titles).toContain("E2E Экзамен замены");   // the group's teacher keeps his group's exams
+    else expect(titles.filter((t: string) => t === "E2E Экзамен замены")).toHaveLength(expected);
+  }
+  const page = await signIn(substitute);
+  await page.goto("/teacher/exams?status=scheduled");                       // a lobby of today's lesson that has not begun: «Запланированы»
+  await expect(page.getByRole("link", { name: /E2E Экзамен замены/ })).toBeVisible();
+});
