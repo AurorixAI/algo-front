@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { LogOut, MoreHorizontal, Settings, X } from "lucide-react";
+import { LifeBuoy, LogOut, MoreHorizontal, Settings, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isNavActive, moreBadgeTotal } from "@/lib/bottom-nav";
 import { navBadgeText } from "@/lib/nav-badge";
+import { SUPPORT_LABEL } from "@/lib/support";
 import { useDialogKeys, useScrollLock } from "@/components/ui/modal";
 
 export interface BottomNavItem {
@@ -35,6 +36,8 @@ export interface BottomNavProps {
   settingsPath: string;
   profile: { name: string; role: string; org: string; initial: string };
   onLogout: () => void;
+  /** «Поддержка» (K4a): opens the window to write to the ALGO team; the row is under «Настройки». */
+  onSupport?: () => void;
 }
 
 const MORE_ID = "bottom-nav-more";
@@ -74,7 +77,7 @@ function Counter({ count, className }: { count: number | undefined; className?: 
  * «Ещё» opens a bottom sheet with the remaining sections, the profile, the settings and «Выйти из системы».  The
  * counters of the sections hidden in the sheet are summed on the «Ещё» icon.
  */
-export function BottomNav({ bar, more, pending = false, pathname, quickAction, settingsPath, profile, onLogout }: BottomNavProps) {
+export function BottomNav({ bar, more, pending = false, pathname, quickAction, settingsPath, profile, onLogout, onSupport }: BottomNavProps) {
   const [open, setOpen] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
@@ -181,6 +184,7 @@ export function BottomNav({ bar, more, pending = false, pathname, quickAction, s
         settingsPath={settingsPath}
         profile={profile}
         onLogout={onLogout}
+        onSupport={onSupport}
       />
     </>
   );
@@ -194,7 +198,7 @@ interface MoreSheetProps extends Omit<BottomNavProps, "bar"> {
 
 const ROW = "flex min-h-[48px] w-full items-center gap-3 rounded-xl px-3 text-left text-[15px] font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary-500/40";
 
-function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, settingsPath, profile, onLogout }: MoreSheetProps) {
+function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, settingsPath, profile, onLogout, onSupport }: MoreSheetProps) {
   const [mounted, setMounted] = useState(false);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const reduceMotion = useReducedMotion();
@@ -313,6 +317,14 @@ function MoreSheet({ open, onClose, returnFocusTo, more, pathname, quickAction, 
                     <span className="min-w-0 flex-1 truncate">Настройки</span>
                   </Link>
                 </li>
+                {onSupport && (
+                  <li>
+                    <button type="button" data-sheet-row data-testid="more-support" onClick={() => { onClose(); onSupport(); }} className={cn(ROW, "text-slate-700 active:bg-slate-100")}>
+                      <LifeBuoy className="h-5 w-5 shrink-0 text-slate-400" />
+                      <span className="min-w-0 flex-1 truncate">{SUPPORT_LABEL}</span>
+                    </button>
+                  </li>
+                )}
                 <li>
                   <button type="button" data-sheet-row onClick={() => { onClose(); onLogout(); }} className={cn(ROW, "text-red-600 active:bg-red-50")}>
                     <LogOut className="h-5 w-5 shrink-0 text-red-500" />

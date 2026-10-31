@@ -19,6 +19,7 @@ import {
   Wallet,
   Banknote,
   Repeat2,
+  LifeBuoy,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LOCK_COPY } from "@/lib/lock-copy";
@@ -36,6 +37,9 @@ import { navBadgeText } from "@/lib/nav-badge";
 import { debtorsCount } from "@/lib/payments";
 import { BOTTOM_BAR_WAIT_MS, BOTTOM_NAV_PRIORITY, bottomBarPending, splitBottomNav } from "@/lib/bottom-nav";
 import { BottomNav } from "@/components/layout/bottom-nav";
+import { SupportDialog } from "@/components/support/support-dialog";
+import { useSupportDialog } from "@/lib/support-store";
+import { SUPPORT_LABEL } from "@/lib/support";
 
 // Shared sidebar state so layouts can read collapsed width
 export const useSidebarStore = create<{
@@ -192,6 +196,8 @@ export function Sidebar() {
     summaryLoaded: paymentsKnown,
     gaveUp: barGaveUp,
   });
+
+  const showSupport = useSupportDialog((state) => state.show);
 
   const handleLogout = () => {
     usePaymentsSummary.getState().reset();
@@ -454,6 +460,17 @@ export function Sidebar() {
                 <Settings className="w-4 h-4 text-slate-400 shrink-0" />
                 <span>Настройки</span>
               </button>
+              {!DEMO_MODE && (
+                <button
+                  type="button"
+                  onClick={() => { setProfileOpen(false); showSupport(); }}
+                  data-testid="profile-support"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors text-left"
+                >
+                  <LifeBuoy className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>{SUPPORT_LABEL}</span>
+                </button>
+              )}
               <div className="my-1 border-t border-slate-100" />
               <button
                 type="button"
@@ -512,7 +529,9 @@ export function Sidebar() {
         initial: user?.first_name?.[0] || user?.full_name?.[0] || role[0],
       }}
       onLogout={handleLogout}
+      onSupport={DEMO_MODE ? undefined : showSupport}  // the demo has no accounting server: nobody to write to
     />
+    <SupportDialog />
     </>
   );
 }
