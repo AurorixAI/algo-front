@@ -64,6 +64,8 @@ import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
+import { DAYS, formatExamQueueCount, getLessonTimeStatus } from "@/lib/schedule-time";
+import { lessonCancelRef, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites } from "@/lib/lesson-panel-data";
 import { staffDisplayName } from "@/lib/staff-name";
 import { useScrollLock } from "@/components/ui/modal";
 import { roomLabel } from "@/lib/schedule-slots";
@@ -73,23 +75,13 @@ import { examSyncNotice, lessonFailure, openLessonAccess } from "@/lib/attendanc
 import { LESSON_TOO_OLD_HINT, LESSON_TOO_OLD_TEXT, NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
 import { lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
-import { createToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
+import { createToast, narrowToFrozenRoster, occurrenceChips, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { MovedFrom, SubstitutionItem, SubstitutionOutcome, SubstitutionRequestMark } from "@/lib/substitution-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
 import { LessonActionsMenu, TeacherLessonControls, teacherLessonMenuItems, useTeacherLessonActions } from "@/components/substitutions/teacher-lesson-controls";
 import { useToast } from "@/components/ui/toast";
 import { RequestDialog } from "@/components/substitutions/request-dialog";
 import { TeacherRequestsBlock } from "@/components/substitutions/teacher-requests-block";
-
-const DAYS = [
-  { id: 1, name: "Понедельник", short: "ПН" },
-  { id: 2, name: "Вторник", short: "ВТ" },
-  { id: 3, name: "Среда", short: "СР" },
-  { id: 4, name: "Четверг", short: "ЧТ" },
-  { id: 5, name: "Пятница", short: "ПТ" },
-  { id: 6, name: "Суббота", short: "СБ" },
-  { id: 7, name: "Воскресенье", short: "ВС" },
-];
 
 interface LessonSummary {
   id: string;
@@ -157,101 +149,6 @@ function lessonFromAttendanceAction(action: OpenAttendanceAction): LessonSummary
   };
 }
 
-function formatExamQueueCount(count: number) {
-  const remainder100 = count % 100;
-  const remainder10 = count % 10;
-  const word = remainder100 >= 11 && remainder100 <= 14
-    ? "экзаменов"
-    : remainder10 === 1
-      ? "экзамен"
-      : remainder10 >= 2 && remainder10 <= 4
-        ? "экзамена"
-        : "экзаменов";
-  return `${count} ${word}`;
-}
-
-function getLessonTimeStatus(
-  lesson?: { startTime?: string; endTime?: string; dayOfWeek?: number } | null,
-  todayDayOfWeek?: number,
-  isAttendanceMarked?: boolean,
-  isCompletedExplicitly?: boolean
-) {
-  if (!lesson || !lesson.startTime || !lesson.endTime) {
-    return {
-      type: "other_day" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: false,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  const isToday = lesson.dayOfWeek === todayDayOfWeek;
-  if (!isToday) {
-    return {
-      type: "other_day" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: false,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  if (isCompletedExplicitly) {
-    return {
-      type: "completed" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: true,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  const currentMinutes = businessTimeMinutes();
-  const [startH, startM] = (lesson.startTime || "00:00").split(":").map(Number);
-  const [endH, endM] = (lesson.endTime || "00:00").split(":").map(Number);
-  const startMinutes = (startH || 0) * 60 + (startM || 0);
-  const endMinutes = (endH || 0) * 60 + (endM || 0);
-
-  if (currentMinutes < startMinutes) {
-    const diffMinutes = startMinutes - currentMinutes;
-    return {
-      type: "upcoming" as const,
-      isLive: false,
-      isUpcoming: true,
-      isPast: false,
-      canStart: false,
-      diffMinutes,
-      startMinutes,
-      endMinutes,
-      isPastEndTime: false,
-    };
-  } else {
-    // Lesson has started and is NOT finished until teacher explicitly clicks "Завершить урок"
-    const isPastEndTime = currentMinutes > endMinutes;
-    return {
-      type: "live" as const,
-      isLive: true,
-      isUpcoming: false,
-      isPast: false,
-      canStart: true,
-      diffMinutes: 0,
-      startMinutes,
-      endMinutes,
-      isPastEndTime,
-    };
-  }
-}
-
 export default function TeacherDashboardPage() {
   const router = useRouter();
   const { user } = useAuthStore();
@@ -293,11 +190,9 @@ export default function TeacherDashboardPage() {
   const [excuseReasons, setExcuseReasons] = useState<Record<string, string>>({});
   const [savedExcuses, setSavedExcuses] = useState<Record<string, { reason: string }>>({});
   const [excuseReasonInvalidId, setExcuseReasonInvalidId] = useState<string | null>(null);
-  const [loadingStudents, setLoadingStudents] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
   const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
-  const [savingAttendance, setSavingAttendance] = useState(false);
   // LOGIC-B: the version of the lesson record, the conflict of two editors, the exam a finish waits for.
   const marksOps = useLessonMarksOps();
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
@@ -462,9 +357,15 @@ export default function TeacherDashboardPage() {
     setActiveLesson(null);
   }, [businessDate]);
 
-  // Load students and attendance for active lesson
-  useEffect(() => {
-    if (!activeLesson || !activeLesson.groupId) {
+  // The panel of the open lesson (WB-P3): the journal of THIS lesson only - an answer of a lesson opened before is dropped whole (F-A10),
+  // the roster is the one rule of both screens (F-A12), a write asks `panel.target(...)` for the lesson id and its version
+  const panel = useLessonPanelData<LessonSummary>(activeLesson, {
+    businessDate,
+    ownGroupIds: groups.map((group) => group.id),
+    getGroup: (id) => orgApi.getGroup(id),
+    getJournal: (groupId, date) => orgApi.getGroupAttendance(groupId, { dateFrom: date, dateTo: date }),
+    versionBody: marksOps.versionBody,
+    onClose: () => {
       setIsMarkingAttendance(false);
       setIsAttendanceSaved(false);
       setIsAttendanceDirty(false);
@@ -478,122 +379,57 @@ export default function TeacherDashboardPage() {
       setActiveTeacherInfo(null);
       setActiveRequestMark(null);
       setActiveRosterSource("group");
-      return;
-    }
-    setLoadingStudents(true);
-    // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
-    setActiveTeacherInfo(teacherInfoOfOccurrence(activeLesson));
-    setActiveRequestMark(activeLesson.substitutionRequest ?? null);
-    setIsMarkingAttendance(false);
-    setIsAttendanceSaved(false);
-    setIsAttendanceDirty(false);
-    setAttendanceError(null);
-    setIsCancellingLesson(false);
-    setCancellationReason("");
-    setLessonExamBinding(null);
-    setGroupStudents([]);
-    setAttendance({});
-    setExcuseReasons({});
-    setSavedExcuses({});
-    setExcuseReasonInvalidId(null);
-    const lessonDate = activeLesson.occurrenceDate || businessDate;
-    const isTodayLesson = lessonDate === businessDate;
-    const lessonKey = `${lessonDate}_${activeLesson.id}`;
+      marksOps.reset(undefined, {});
+    },
+    onOpen: (lesson, { source }) => {
+      // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
+      setActiveTeacherInfo(teacherInfoOfOccurrence(lesson));
+      setActiveRequestMark(lesson.substitutionRequest ?? null);
+      setIsMarkingAttendance(false);
+      setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
+      setAttendanceError(null);
+      setIsCancellingLesson(false);
+      setCancellationReason("");
+      setLessonExamBinding(null);
+      setGroupStudents([]);
+      setAttendance({});
+      setExcuseReasons({});
+      setSavedExcuses({});
+      setExcuseReasonInvalidId(null);
+      setActiveRosterSource(source);
+      // the version of the lesson that was open before is not the version of this one
+      marksOps.reset(undefined, {});
+    },
+    onLoaded: (snapshot, lesson) => {
+      setActiveRequestMark(snapshot.requestMark);
+      setGroupStudents(snapshot.students);
+      marksOps.reset(snapshot.version, snapshot.baseRecords);
+      setActiveTeacherInfo(snapshot.teacherInfo);
+      setActiveInstanceStatus(snapshot.status);
+      setActiveCancellationReason(snapshot.cancellationReason);
+      if (snapshot.isToday) {
+        setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: snapshot.status }));
+      }
+      setSavedExcuses(snapshot.savedExcuses);
+      setAttendance(snapshot.marks);
+      setIsAttendanceSaved(snapshot.isSaved);
+      if (snapshot.isSaved && snapshot.isToday) {
+        setLessonAttendanceMap((prev) => ({ ...prev, [lesson.id]: true }));
+      }
+    },
+    onFailed: (error) => {
+      setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
+    },
+  });
+  const loadingStudents = panel.loading;
+  // the writes in flight, by lesson: a second press of the same lesson is one request, and the buttons of ANOTHER lesson stay free
+  const writes = useLessonWrites();
+  const activeKey = activeLesson ? lessonPanelKey(activeLesson, businessDate) : null;
+  const savingAttendance = writes.isBusy(activeKey);
+  /** The refusal of a write whose panel is already gone: a toast that stays (a toast with details lives 10 s and has a cross). */
+  const showRefusedWrite = (notice: string | null, reason: string) => { if (notice) showToast(notice, "error", [reason]); };
 
-    // LOGIC-B2: the lesson of a substitute (or of a former teacher) is not in «his» groups and he has no group page (it answers 403):
-    // the roster of the lesson comes with the journal (`lessonRoster`), and no call goes to the group.
-    const source = rosterSource({ isManager: user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner", groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
-    setActiveRosterSource(source);
-    readLessonRoster({
-      source,
-      groupId: activeLesson.groupId,
-      getGroup: (id) => orgApi.getGroup(id),
-      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: lessonDate, dateTo: lessonDate }),
-    })
-      .then(([g, att]) => {
-        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
-        if (source === "journal") {
-          setGroupStudents(rosterFromJournal(att?.lessonRoster));
-        } else if (g?.students) {
-          // Attendance belongs to the roster frozen when the lesson was
-          // started. In the rare case of a later transfer, do not let the
-          // current group roster add/remove people from this open lesson.
-          const hasFrozenRoster = Boolean(
-            att?.rosterStudentIds
-            && Object.prototype.hasOwnProperty.call(att.rosterStudentIds, lessonKey),
-          );
-          const frozenRosterIds = att?.rosterStudentIds?.[lessonKey] || [];
-          if (hasFrozenRoster) {
-            const currentById = new Map(g.students.map((student) => [student.id, student]));
-            const historicalById = new Map((att?.historicalStudents || []).map((student) => [
-              student.id,
-              {
-                id: student.id,
-                first_name: student.first_name || "",
-                last_name: student.last_name || "",
-                full_name: student.full_name || "Ученик",
-                class_level: student.class_level || 0,
-                status: "active",
-                display_id: student.display_id || null,
-                student_phone: null,
-                joined_at: null,
-                last_theta: null,
-                last_level: null,
-                last_diagnosed_at: null,
-              } satisfies StudentInGroup,
-            ]));
-            setGroupStudents(frozenRosterIds.flatMap((studentId) => {
-              const student = currentById.get(studentId) || historicalById.get(studentId);
-              return student ? [student] : [];
-            }));
-          } else {
-            // a student on a pause today is not in the class (before the start the group list still holds him)
-            setGroupStudents(isTodayLesson ? withoutPaused(g.students) : g.students);
-          }
-        } else {
-          setGroupStudents([]);
-        }
-
-        const status = att?.statuses?.[lessonKey] || "scheduled";
-        marksOps.reset(att?.versions?.[lessonKey], att?.records?.[lessonKey] || {});
-        setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
-        setActiveInstanceStatus(status);
-        setActiveCancellationReason(att?.cancellationReasons?.[lessonKey] || null);
-        if (isTodayLesson) {
-          setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: status }));
-        }
-
-        setSavedExcuses(
-          Object.fromEntries(
-            Object.entries(att?.excuses?.[lessonKey] || {}).map(([studentId, info]) => [studentId, { reason: info.reason }]),
-          ),
-        );
-
-        if (status === "cancelled") {
-          setAttendance({});
-          setIsAttendanceSaved(false);
-        } else if (att?.records) {
-          const lessonRecords = att.records[lessonKey] || {};
-          if (Object.keys(lessonRecords).length > 0) {
-            setAttendance(lessonRecords as any);
-            setIsAttendanceSaved(true);
-            if (isTodayLesson) {
-              setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
-            }
-          } else {
-            setAttendance({});
-            setIsAttendanceSaved(false);
-          }
-        } else {
-          setAttendance({});
-          setIsAttendanceSaved(false);
-        }
-      })
-      .catch((error) => {
-        setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
-      })
-      .finally(() => setLoadingStudents(false));
-  }, [activeLesson, businessDate]);
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
     setAttendance((prev) => {
@@ -666,6 +502,8 @@ export default function TeacherDashboardPage() {
 
   const handleStartLesson = async () => {
     if (!activeLesson || activeInstanceStatus !== "scheduled") return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
 
     const blocked = startBlockedReason(lessonDateRelation(activeLesson.occurrenceDate || businessDate, businessDate));
     if (blocked) {
@@ -687,33 +525,34 @@ export default function TeacherDashboardPage() {
       return;
     }
 
+    if (!writes.begin(target.key)) return; // a second press while the start is on its way
     setAttendanceError(null);
-    setSavingAttendance(true);
     try {
-      const started = await orgApi.startGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate || businessDate,
-        lessonId: activeLesson.id,
-        topic: activeLesson.topic,
-      });
-      marksOps.noteVersion(started);
+      const started = await orgApi.startGroupAttendance(target.groupId, lessonStartBody(target, activeLesson.topic));
+      if (panel.isOpen(target.key)) marksOps.noteVersion(started);
       // the roster is frozen by the start: a student on a pause that day is not in it
       {
-        const startedDate = activeLesson.occurrenceDate || businessDate;
-        const att = await orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: startedDate, dateTo: startedDate }).catch(() => null);
-        const frozen = att?.rosterStudentIds?.[`${startedDate}_${activeLesson.id}`];
-        if (frozen) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
+        const att = await orgApi.getGroupAttendance(target.groupId, { dateFrom: target.lessonDate, dateTo: target.lessonDate }).catch(() => null);
+        const frozen = att?.rosterStudentIds?.[target.key];
+        // the teacher may have opened another lesson while the start was on its way: the roster of the screen is not this lesson's any more
+        if (frozen && panel.isOpen(target.key)) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
       }
-      setActiveInstanceStatus("in_progress");
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
       }
       void orgApi.getOpenAttendanceActions().then(setOpenAttendanceActions).catch(() => undefined);
-      setIsMarkingAttendance(true);
+      if (panel.isOpen(target.key)) {
+        setActiveInstanceStatus("in_progress");
+        setIsMarkingAttendance(true);
+      }
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
+      const failure = lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: failure.kind === "conflict" ? "conflict" : "other" } });
+      if (plan.applyToPanel) setAttendanceError(failure.text);
+      else showRefusedWrite(plan.notice, failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
@@ -814,6 +653,8 @@ export default function TeacherDashboardPage() {
 
   const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     // «Оставить мои» repeats this very action with the merged marks
     const marks = override ?? attendance;
     if (override) setAttendance(override);
@@ -834,25 +675,25 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    setSavingAttendance(true);
+    if (!writes.begin(target.key)) return;
     try {
-      const saved = await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate || businessDate,
-        lessonId: activeLesson.id,
-        topic: activeLesson.topic,
-        status: "in_progress",
+      const saved = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic, {
+        status: "in_progress" as const,
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...marksOps.versionBody(),
-      });
-      marksOps.noteSaved(saved, marks);
-      rememberSavedExcuses(prepared.reasons, marks);
-      setIsAttendanceSaved(true);
-      setIsAttendanceDirty(false);
+      }));
+      // what the screen holds of the lesson (version, marks, flags) changes only while THIS lesson is the open one
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
+      if (here) {
+        marksOps.noteSaved(saved, marks);
+        rememberSavedExcuses(prepared.reasons, marks);
+        setIsAttendanceSaved(true);
+        setIsAttendanceDirty(false);
+        setActiveInstanceStatus("in_progress");
+      }
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
       }
-      setActiveInstanceStatus("in_progress");
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
       }
@@ -868,19 +709,24 @@ export default function TeacherDashboardPage() {
           remainingCount: Math.max(rosterCount - markedCount, 0),
         };
       }));
-      setIsMarkingAttendance(false);
+      if (here) setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to save attendance:", err);
+      const refusal = lessonFailure(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; } // another lesson is on the screen now: not the place for the dialog, the notice stays
       const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
       if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
   const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
@@ -913,24 +759,23 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    setSavingAttendance(true);
+    if (!writes.begin(target.key)) return;
     try {
-      const finished = await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate || businessDate,
-        lessonId: activeLesson.id,
-        topic: activeLesson.topic,
-        status: "completed",
+      const finished = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic, {
+        status: "completed" as const,
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...marksOps.versionBody(),
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
-      });
-      marksOps.noteSaved(finished, marks);
-      marksOps.clearLiveExams();
+      }));
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
+      if (here) {
+        marksOps.noteSaved(finished, marks);
+        marksOps.clearLiveExams();
+        rememberSavedExcuses(prepared.reasons, marks);
+      }
       // O8: the exam service could not be asked - the lesson is closed anyway; say so
       const syncNotice = examSyncNotice(finished?.examSync);
       if (syncNotice) setDashboardNotice(syncNotice);
-      rememberSavedExcuses(prepared.reasons, marks);
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
@@ -938,19 +783,24 @@ export default function TeacherDashboardPage() {
       setOpenAttendanceActions((previous) => previous.filter(
         (action) => !(action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === (activeLesson.occurrenceDate || businessDate)),
       ));
-      setActiveLesson(null);
+      if (here) setActiveLesson(null); // the panel of ANOTHER lesson, opened meanwhile, stays
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
+      const refusal = lessonFailure(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; anything else is the text of the panel
       if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
   const handleCancelLesson = async () => {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled" || cancelSending.current) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     const reasonProblem = cancelReasonProblem(reason);
@@ -958,18 +808,21 @@ export default function TeacherDashboardPage() {
       setAttendanceError(reasonProblem);
       return;
     }
+    if (!writes.begin(target.key)) return;
     cancelSending.current = true;
     setAttendanceError(null);
-    setSavingAttendance(true);
     try {
       const notes = await sendTeacherCancel(
         cancelRoute,
-        { groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate || businessDate, topic: activeLesson.topic },
+        lessonCancelRef(target, activeLesson.topic),
         reason,
-        marksOps.versionBody(),
+        target.versionBody,
       );
-      setActiveInstanceStatus("cancelled");
-      setActiveCancellationReason(reason);
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
+      if (here) {
+        setActiveInstanceStatus("cancelled");
+        setActiveCancellationReason(reason);
+      }
       if (!activeLesson.occurrenceDate || activeLesson.occurrenceDate === businessDate) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
         setLessonAttendanceMap((previous) => ({ ...previous, [activeLesson.id]: false }));
@@ -978,20 +831,25 @@ export default function TeacherDashboardPage() {
       setOpenAttendanceActions((previous) => previous.filter(
         (action) => !(action.groupId === activeLesson.groupId && action.lessonId === activeLesson.id && action.lessonDate === (activeLesson.occurrenceDate || businessDate)),
       ));
-      setAttendance({});
-      setIsAttendanceSaved(false);
-      setIsAttendanceDirty(false);
-      setIsMarkingAttendance(false);
-      setIsCancellingLesson(false);
-      setLessonExamBinding(null);
+      if (here) {
+        setAttendance({});
+        setIsAttendanceSaved(false);
+        setIsAttendanceDirty(false);
+        setIsMarkingAttendance(false);
+        setIsCancellingLesson(false);
+        setLessonExamBinding(null);
+      }
       if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
+      const refusal = lessonFailure(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.", attendance);
       if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
       cancelSending.current = false;
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
@@ -1002,6 +860,7 @@ export default function TeacherDashboardPage() {
     setCancelVariant(offer.variant);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
+    const alive = panel.alive(); // the token of the run that read this lesson's journal: the answer of another run is dropped exactly like the journal's
 
     try {
       const binding = await examsApi.getLessonBinding({
@@ -1009,6 +868,7 @@ export default function TeacherDashboardPage() {
         lessonId: activeLesson.id,
         lessonDate: activeLesson.occurrenceDate || businessDate,
       });
+      if (!alive()) return; // the answer of the lesson that was open before is not the answer for this one
       setLessonExamBinding({
         loading: false,
         attached: binding.attached,
@@ -1018,6 +878,7 @@ export default function TeacherDashboardPage() {
       });
     } catch (err) {
       console.error("Failed to check exam binding before lesson cancellation:", err);
+      if (!alive()) return;
       setLessonExamBinding({
         loading: false,
         attached: false,
@@ -2478,7 +2339,8 @@ export default function TeacherDashboardPage() {
                             <button
                               type="button"
                               onClick={handleStartLesson}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+                              disabled={savingAttendance}
+                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
                             >
                               Начать урок сейчас
                             </button>
@@ -2503,7 +2365,8 @@ export default function TeacherDashboardPage() {
                           <button
                             type="button"
                             onClick={handleStartLesson}
-                            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 shrink-0"
+                            disabled={savingAttendance}
+                            className="disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 shrink-0"
                           >
                             <Play className="w-3.5 h-3.5 fill-white" />
                             Начать урок

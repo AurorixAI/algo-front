@@ -66,9 +66,10 @@ test("the dialog «Преподаватель урока»: roles, the reason in
   await page.getByRole("dialog", { name: "Тема Сменная" }).getByRole("button", { name: "Назначить замену" }).click();
   const dialog = page.getByRole("dialog").filter({ has: page.getByRole("radiogroup", { name: "Преподаватель урока" }) });
   await expect(dialog).toBeVisible();
-  const roles = await dialog.getByTestId("candidate-role").allTextContents();
-  expect(roles.length).toBeGreaterThanOrEqual(9);
-  expect(new Set(roles)).toEqual(new Set(["Владелец", "Администратор", "Преподаватель"]));
+  // W1 round 2: only teachers lead lessons - the list has the 8 teachers of the centre, no role chip, neither the owner nor the administrator is offered
+  await expect(dialog.getByRole("radio")).toHaveCount(8);
+  await expect(dialog.getByTestId("candidate-role")).toHaveCount(0);
+  await expect(dialog.getByRole("radio", { name: /Админова/ })).toHaveCount(0);
   await expectWithinViewport(page, dialog.getByLabel("Причина замены"));
   await expectNoHorizontalScroll(page);
   await dialog.getByRole("radio", { name: new RegExp(`^${second.lastName}`) }).click();
@@ -101,8 +102,9 @@ test("the dialog «Преподаватель урока»: roles, the reason in
   await page.goto("/owner/substitutions");
   await page.getByRole("tab", { name: /Решённые/ }).click();
   const rows = page.getByRole("listitem").filter({ hasText: group.name });
-  await expect(rows.filter({ hasText: /Заменена на .+ — решил\(а\) .+, \d\d\.\d\d \d\d:\d\d/ })).toHaveCount(1);
-  await expect(rows.filter({ hasText: /Замену снял\(а\) .+, \d\d\.\d\d \d\d:\d\d/ })).toHaveCount(1);
+  // #159: the outcome is ONE short chip with the time under it (the names are in the row): «Заменён другим» and «Замена снята»
+  await expect(rows.filter({ hasText: /Заменён другим\s*\d\d\.\d\d \d\d:\d\d/ })).toHaveCount(1);
+  await expect(rows.filter({ hasText: /Замена снята\s*\d\d\.\d\d \d\d:\d\d/ })).toHaveCount(1);
   await expect(rows.filter({ hasText: "Замена снята:" })).toHaveCount(0);
   await expectNoHorizontalScroll(page);
   await shot(page, `17-owner-journal-chain-${project}`);
@@ -111,8 +113,8 @@ test("the dialog «Преподаватель урока»: roles, the reason in
   const mine = await signIn(main);
   await mine.goto("/teacher/dashboard");
   const block = mine.getByRole("region", { name: "Запросы на замену" });
-  await expect(block).toContainText(/Заменена на .+ — решил\(а\)/);
-  await expect(block).toContainText(/Замену снял\(а\)/);
+  await expect(block).toContainText("Заменён другим");
+  await expect(block).toContainText("Замена снята");
   await expect(block).not.toContainText("Администратор заменил");
   await expectNoHorizontalScroll(mine);
   await shot(mine, `18-teacher-requests-chain-${project}`);
@@ -140,7 +142,7 @@ test("a day off: the dry run lists the lessons «группа · дата · в�
   await expect(summary).toHaveText("Будут отменены 2 урока в 2 группах");               // the sentence has no names of groups in it any more
   const list = dialog.getByTestId("day-off-cancellable").getByRole("listitem");
   await expect(list).toHaveCount(2);
-  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${name} · ${dmShort(d1)} · 10:00–11:00` })).toHaveCount(1);
+  for (const name of ["Группа В-1", "Группа В-2"]) await expect(list.filter({ hasText: `${dmShort(d1)} · 10:00–11:00 · ${name}` })).toHaveCount(1);
   await expectNoHorizontalScroll(page);
   await shot(page, `19-day-off-list-preview-${project}`);
   await dialog.getByTestId("day-off-apply").click();
@@ -200,7 +202,7 @@ test("three weekdays at once: one request per weekday and ONE line about a busy 
   await shot(page, `21-room-busy-one-line-${project}`);
 });
 
-test("the last hour: «Перенести урок» is a disabled row of the «⋯» menu with the reason; «Не смогу провести» and the cancellation stay; the menu is grouped @mobile", async ({ signIn }, info) => {
+test("the last hour: «Перенести урок» is a disabled row of the «⋯» menu with the reason; «Не смогу провести» stays; «Урока не было» is not offered before the lesson has ended (W1 S27); the menu is grouped @mobile", async ({ signIn }, info) => {
   test.setTimeout(180_000);
   const project = info.project.name;
   const org = await Org.create("Меню 25.10");
@@ -219,7 +221,7 @@ test("the last hour: «Перенести урок» is a disabled row of the «
   await move.dispatchEvent("click");                                         // an off row does nothing (a real click would wait for it to be enabled)
   await expect(page.getByRole("dialog").filter({ has: page.getByLabel("Новая дата") })).toHaveCount(0);
   await expect(menu.getByTestId("lesson-menu-request")).not.toHaveAttribute("aria-disabled", "true");
-  await expect(menu.getByTestId("lesson-menu-cancel")).toBeVisible();
+  await expect(menu.getByTestId("lesson-menu-cancel")).toHaveCount(0);   // W1 S27: a teacher marks «Урока не было» only after the end of the lesson
   await expectNoHorizontalScroll(page);
   await shot(page, `27-teacher-panel-menu-last-hour-${project}`);
 });

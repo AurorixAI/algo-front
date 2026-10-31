@@ -663,14 +663,17 @@ test("[access] the group's own teacher and the managers read the group page as b
 test("[access] both lesson panels go through the helper: the group page is read only by readLessonRoster, and its link is shown only with the group source", () => {
   for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
     const page = read(file);
-    assert.match(page, /rosterSource\(/, file);
-    assert.match(page, /readLessonRoster\(/, file);
-    assert.match(page, /source === "journal"/, file);
-    assert.match(page, /rosterFromJournal\(att\?\.lessonRoster\)/, file);
+    // WB-P3: the roster is read in ONE place (the hook of the panel, lib/lesson-panel-data.ts); the screens only wire it
+    assert.match(page, /useLessonPanelData</, file);
     assert.match(page, /showsGroupLinks\(activeRosterSource\)/, file);
     assert.equal((page.match(/orgApi\.getGroup\(/g) || []).length, 1, `${file}: the one call of the group page is inside readLessonRoster`);
     assert.match(page, /getGroup: \(id\) => orgApi\.getGroup\(id\)/, file);
   }
+  const panelLib = read("src/lib/lesson-panel-data.ts");
+  assert.match(panelLib, /rosterSource\(/);
+  assert.match(panelLib, /readLessonRoster\(/);
+  assert.match(panelLib, /source === "journal"/);
+  assert.match(panelLib, /rosterFromJournal\(journal\?\.lessonRoster\)/);
   // no screen of the substitution pack asks for the group page or the students' cards
   for (const file of walk(path.join(root, "src/components/substitutions")).map((f) => path.relative(root, f))) {
     const code = read(file);
@@ -734,13 +737,14 @@ test("[T1] the lesson panels carry the control and the teacher's dashboard carri
   for (const [name, page] of [["dashboard", dashboard], ["schedule", schedule]]) {
     assert.match(page, /<TeacherLessonControls/, name);          // «Не смогу провести» (RequestControl) + P1.1 «Перенести урок»
     assert.match(page, /mark=\{activeRequestMark\}/, name);
-    assert.match(page, /att\?\.substitutionRequests\?\.\[lessonKey\]/, name);
+    assert.match(page, /setActiveRequestMark\(snapshot\.requestMark\)/, name);
     assert.match(page, /substituteGroupLabel\(activeLesson\.groupName\)/, name);
   }
   assert.match(dashboard, /<TeacherRequestsBlock/);
   assert.match(dashboard, /canAskForSubstitute/);
   assert.match(dashboard, /<RequestDialog\s+open=\{newRequestOpen\}\s+lesson=\{null\}/);
-  assert.match(schedule, /occurrenceChips\(l, user\?\.id, \{ manager: isManager, groupsBase: groupsBaseOf\(user\?\.org_role\) \}\)/);
+  assert.match(read("src/lib/lesson-panel-data.ts"), /journal\?\.substitutionRequests\?\.\[key\]/);
+  assert.match(schedule, /occurrenceChips\(l, user\?\.id, \{ groupsBase: groupsBaseOf\(user\?\.org_role\) \}\)/);
   // the journal and the schedule overview of the owner / administrator carry the marks
   assert.match(read("src/components/groups/group-attendance-journal.tsx"), /lessonMarks\(attendanceData\?\.substitutionRequests\?\.\[key\]/);
   assert.match(read("src/components/groups/group-schedule-overview.tsx"), /lessonMarks\(attendance\?\.substitutionRequests\?\.\[key\]/);

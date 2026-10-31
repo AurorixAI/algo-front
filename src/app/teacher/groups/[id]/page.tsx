@@ -26,6 +26,7 @@ import { businessDateWithOffset, formatIsoDateLabel, formatUtcNaiveAsBusinessDat
 import { examListState, examTabOf, lobbyExamLabel, type ExamTab } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
 import { useScrollLock } from "@/components/ui/modal";
+import { DAYS } from "@/lib/schedule-time";
 
 type Tab = "students" | "exams" | "attendance";
 type ExamStatusFilter = ExamTab;
@@ -41,16 +42,6 @@ function parseExamStatusFilter(value: string | null): ExamStatusFilter {
     ? value
     : "active";
 }
-
-const DAYS = [
-  { id: 1, name: "Понедельник", short: "Пн" },
-  { id: 2, name: "Вторник", short: "Вт" },
-  { id: 3, name: "Среда", short: "Ср" },
-  { id: 4, name: "Четверг", short: "Чт" },
-  { id: 5, name: "Пятница", short: "Пт" },
-  { id: 6, name: "Суббота", short: "Сб" },
-  { id: 7, name: "Воскресенье", short: "Вс" },
-];
 
 interface ScheduleLesson {
   id: string;
