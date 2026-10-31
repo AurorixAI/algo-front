@@ -1,4 +1,5 @@
 import { encodePathId } from "./encode-id";
+import { recordClientError, type SupportCard, type SupportCreateBody, type SupportCreated, type SupportFileInfo, type SupportItem } from "./support";
 import { listQuery } from "./substitutions";
 import { serviceApiV1 } from "./api-base";
 import type {
@@ -311,6 +312,7 @@ async function api<T>(endpoint: string, options: ApiOptions = {}): Promise<T> {
     }
     // the new routes (password links, staff invitations) answer `{detail: "<text>", code: "<machine_code>"}`
     if (!code && typeof error?.code === "string") code = error.code;
+    recordClientError(response.status, method, endpoint); // K4a: status + method + the template of the route, for a later request to the support (never the text of the answer)
     throw new ApiError(response.status, message, code, undefined, error?.detail);
   }
 
@@ -537,6 +539,7 @@ async function examApi<T>(endpoint: string, audience: ApiAudience, options: ApiO
     }
     // The exam service names an expected refusal next to its text: `{detail: "...", code: "EXAM_NOT_ARCHIVED"}`.
     const code = typeof error?.code === "string" ? error.code : undefined;
+    recordClientError(response.status, method, endpoint); // K4a: the template of the route, never the text
     throw new ApiError(response.status, message, code, undefined, undefined, retryAfterSeconds(response, response.status === 409));
   }
 
@@ -622,6 +625,7 @@ async function diagServiceApi<T>(endpoint: string, audience: ApiAudience, option
     } else if (typeof error?.detail === "object" && error.detail !== null) {
       message = (error.detail as any).message || JSON.stringify(error.detail);
     }
+    recordClientError(response.status, method, endpoint); // K4a: the template of the route, never the text
     throw new ApiError(response.status, message, error?.detail?.code, error?.detail?.action);
   }
 
@@ -3127,6 +3131,20 @@ export const opsApi = {
     api<{ member_id: string; is_active: boolean }>(`/auth/org/members/${encodePathId(memberId)}/restore`, { method: "POST" }),
   listMembersByStatus: (status: MemberListStatus) =>
     api<OrgMemberRow[]>(`/auth/org/members?status=${encodeURIComponent(status)}`),
+};
+
+// ── K4a «Поддержка»: the author's own tickets (the three cabinets) ───────────────────────────────────────────────────────
+
+export const supportApi = {
+  create: (body: SupportCreateBody) => api<SupportCreated>("/auth/support/tickets", { method: "POST", body }),
+  list: () => api<{ items: SupportItem[] }>("/auth/support/tickets"),
+  get: (id: string) => api<SupportCard>(`/auth/support/tickets/${encodePathId(id)}`),
+  reply: (id: string, text: string) => api<SupportCard>(`/auth/support/tickets/${encodePathId(id)}/messages`, { method: "POST", body: { text } }),
+  /** One screenshot per request (the server takes JPEG / PNG up to 2 MB). */
+  attach: (id: string, file: Blob, filename: string) =>
+    uploadMultipart<Pick<SupportFileInfo, "id" | "content_type" | "size">>(`/auth/support/tickets/${encodePathId(id)}/attachments`, file, filename, "Не удалось приложить снимок."),
+  /** The address of a screenshot for a link (the cookie of the session goes with it). */
+  fileUrl: (fileId: string) => `${AUTH_API_V1}/auth/support/attachments/${encodePathId(fileId)}`,
 };
 
 // ── LOGIC-B2 («Замены»): the request of a teacher and the decision of an administrator ──────────────────────────────
