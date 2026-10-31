@@ -37,7 +37,7 @@ import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
 import { businessDateWithOffset, formatIsoDateLabel } from "@/lib/business-time";
 import { examListState, examTabOf, lobbyExamLabel, type DashboardExamState, type ExamTab } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
-import { appendExamPage, tabCountLabel } from "@/lib/exam-library-paging";
+import { loadLibraryPages, loadNextLibraryPage, tabCountLabel } from "@/lib/exam-library-paging";
 import { examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
@@ -564,6 +564,7 @@ export default function TeacherExamsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState<string | null>(null);
   const pagesLoadedRef = useRef(0);
+  const examsRef = useRef<ExamSummary[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -578,21 +579,10 @@ export default function TeacherExamsPage() {
   const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
   const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string } | null>(null);
 
-  const fetchLibraryPages = useCallback(async (pages: number): Promise<{ items: ExamSummary[]; hasMore: boolean; total: number }> => {
-    let items: ExamSummary[] = [];
-    let more = false;
-    let total = 0;
-    for (let page = 1; page <= pages; page += 1) {
-      const result = await examsApi.listPage({ page, size: LIBRARY_PAGE_SIZE, includeArchived: true });
-      // An older server answers a plain array (everything it has): there is nothing more to ask for.
-      if (Array.isArray(result)) return { items: appendExamPage(items, result), hasMore: false, total: result.length };
-      items = appendExamPage(items, result.items || []);
-      more = Boolean(result.has_more);
-      total = Number(result.total || 0);
-      if (!more) break;
-    }
-    return { items, hasMore: more, total };
-  }, []);
+  const fetchLibraryPage = useCallback(
+    (page: number) => examsApi.listPage({ page, size: LIBRARY_PAGE_SIZE, includeArchived: true }),
+    [],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -602,14 +592,14 @@ export default function TeacherExamsPage() {
     try {
       const [examsResult, groupsResult] = await Promise.allSettled([
         // a refresh keeps as many pages as the teacher had already opened
-        fetchLibraryPages(Math.max(1, pagesLoadedRef.current)),
+        loadLibraryPages<ExamSummary>(fetchLibraryPage, pagesLoadedRef.current),
         orgApi.listGroups(),
       ]);
       if (examsResult.status === "fulfilled") {
         setExams(examsResult.value.items);
         setHasMore(examsResult.value.hasMore);
         setTotalExams(examsResult.value.total);
-        pagesLoadedRef.current = Math.max(1, Math.ceil(examsResult.value.items.length / LIBRARY_PAGE_SIZE));
+        pagesLoadedRef.current = examsResult.value.pagesLoaded;
       } else {
         // Never replace the library with an empty state after a failed retry.
         setLoadError(getDataLoadErrorMessage(examsResult.reason));
@@ -622,8 +612,9 @@ export default function TeacherExamsPage() {
     } finally {
       setLoading(false);
     }
-  }, [fetchLibraryPages]);
+  }, [fetchLibraryPage]);
 
+  examsRef.current = exams;
   const loadMoreRef = useRef(false);
   const loadMore = useCallback(async () => {
     if (loadMoreRef.current) return; // a double click must not ask for the same page twice
@@ -631,20 +622,19 @@ export default function TeacherExamsPage() {
     setLoadingMore(true);
     setMoreError(null);
     try {
-      const nextPage = pagesLoadedRef.current + 1;
-      const result = await examsApi.listPage({ page: nextPage, size: LIBRARY_PAGE_SIZE, includeArchived: true });
-      if (Array.isArray(result)) return;
-      pagesLoadedRef.current = nextPage;
-      setExams((previous) => appendExamPage(previous, result.items || []));
-      setHasMore(Boolean(result.has_more));
-      setTotalExams(Number(result.total || 0));
+      // `exams` of the moment of the click: the loader appends to it, a failure leaves it untouched
+      const next = await loadNextLibraryPage<ExamSummary>(fetchLibraryPage, examsRef.current, pagesLoadedRef.current);
+      pagesLoadedRef.current = next.pagesLoaded;
+      setExams(next.items);
+      setHasMore(next.hasMore);
+      setTotalExams(next.total);
     } catch (error) {
       setMoreError(getDataLoadErrorMessage(error));
     } finally {
       loadMoreRef.current = false;
       setLoadingMore(false);
     }
-  }, []);
+  }, [fetchLibraryPage]);
 
   useEffect(() => {
     if (pathname !== "/teacher/exams") return;

@@ -1,6 +1,6 @@
 "use client";
 
-import { examPassThreshold, passThresholdTileLabel } from "@/lib/exam-pass-threshold";
+import { examPassThreshold, passThresholdTileLabel, resultBand, resultBandLabel } from "@/lib/exam-pass-threshold";
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -314,11 +314,12 @@ export default function ExamReportPage() {
     const total = Math.max(1, submitted.length);
     let excellent = 0, good = 0, satisfactory = 0, needHelp = 0;
 
+    const threshold = examPassThreshold(report);
     submitted.forEach((s) => {
-      const pct = Number(s.percentage || 0);
-      if (pct >= 85) excellent++;
-      else if (pct >= 70) good++;
-      else if (pct >= 50) satisfactory++;
+      const band = resultBand(Number(s.percentage || 0), threshold);
+      if (band === "excellent") excellent++;
+      else if (band === "good") good++;
+      else if (band === "satisfactory") satisfactory++;
       else needHelp++;
     });
 
@@ -328,7 +329,7 @@ export default function ExamReportPage() {
       satisfactory: { count: satisfactory, pct: Math.round((satisfactory / total) * 100) },
       needHelp: { count: needHelp, pct: Math.round((needHelp / total) * 100) },
     };
-  }, [sessions]);
+  }, [sessions, report]);
 
   if (loading) {
     return (
@@ -354,6 +355,7 @@ export default function ExamReportPage() {
 
   const avgPct = Number(report?.avg_score_pct ?? 0);
   const passPct = Number(report?.pass_rate_pct ?? 0);
+  const reportThreshold = examPassThreshold(report);
   const problemTasksList = structured.problem_tasks_analysis || [];
 
   return (
@@ -497,27 +499,27 @@ export default function ExamReportPage() {
               <span className="text-xs font-bold text-slate-600">Оценки</span>
             </div>
             <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div style={{ width: `${scoreDistribution.excellent.pct}%` }} className="bg-emerald-500" title={`85-100%: ${scoreDistribution.excellent.count}`} />
-              <div style={{ width: `${scoreDistribution.good.pct}%` }} className="bg-blue-400" title={`70-84%: ${scoreDistribution.good.count}`} />
-              <div style={{ width: `${scoreDistribution.satisfactory.pct}%` }} className="bg-amber-400" title={`50-69%: ${scoreDistribution.satisfactory.count}`} />
-              <div style={{ width: `${scoreDistribution.needHelp.pct}%` }} className="bg-rose-500" title={`<50%: ${scoreDistribution.needHelp.count}`} />
+              <div style={{ width: `${scoreDistribution.excellent.pct}%` }} className="bg-emerald-500" title={`${resultBandLabel("excellent", reportThreshold)}: ${scoreDistribution.excellent.count}`} />
+              <div style={{ width: `${scoreDistribution.good.pct}%` }} className="bg-blue-400" title={`${resultBandLabel("good", reportThreshold)}: ${scoreDistribution.good.count}`} />
+              <div style={{ width: `${scoreDistribution.satisfactory.pct}%` }} className="bg-amber-400" title={`${resultBandLabel("satisfactory", reportThreshold)}: ${scoreDistribution.satisfactory.count}`} />
+              <div style={{ width: `${scoreDistribution.needHelp.pct}%` }} className="bg-rose-500" title={`${resultBandLabel("needHelp", reportThreshold)}: ${scoreDistribution.needHelp.count}`} />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-1 text-[11px] text-slate-600">
               <span className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                85–100%: {scoreDistribution.excellent.count}
+                {resultBandLabel("excellent", reportThreshold)}: {scoreDistribution.excellent.count}
               </span>
               <span className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-blue-400" />
-                70–84%: {scoreDistribution.good.count}
+                {resultBandLabel("good", reportThreshold)}: {scoreDistribution.good.count}
               </span>
               <span className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-amber-400" />
-                50–69%: {scoreDistribution.satisfactory.count}
+                {resultBandLabel("satisfactory", reportThreshold)}: {scoreDistribution.satisfactory.count}
               </span>
               <span className="flex items-center gap-1">
                 <span className="h-2 w-2 rounded-full bg-rose-500" />
-                &lt;50%: {scoreDistribution.needHelp.count}
+                {resultBandLabel("needHelp", reportThreshold)}: {scoreDistribution.needHelp.count}
               </span>
             </div>
           </div>

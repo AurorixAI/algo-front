@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_PASS_THRESHOLD_PCT, examPassThreshold, resultTone } from "@/lib/exam-pass-threshold";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -39,11 +40,13 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function PercentBadge({ pct }: { pct: number }) {
+function PercentBadge({ pct, threshold }: { pct: number; threshold: number }) {
+  // the line between «passed» and «not passed» is the exam's own pass threshold
+  const tone = resultTone(pct, threshold);
   const color =
-    pct >= 80
+    tone === "excellent"
       ? "bg-emerald-100 text-emerald-700"
-      : pct >= 60
+      : tone === "passed"
       ? "bg-amber-100 text-amber-700"
       : "bg-red-100 text-red-700";
   return (
@@ -58,6 +61,7 @@ export default function ExamSessionsPage() {
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [examTitle, setExamTitle] = useState<string>("");
+  const [passThreshold, setPassThreshold] = useState<number>(DEFAULT_PASS_THRESHOLD_PCT);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
@@ -70,7 +74,10 @@ export default function ExamSessionsPage() {
     ])
       .then(([sData, draft]) => {
         setSessions(Array.isArray(sData) ? sData : []);
-        if (draft) setExamTitle(draft.title);
+        if (draft) {
+          setExamTitle(draft.title);
+          setPassThreshold(examPassThreshold(draft));
+        }
       })
       .catch((error) => setLoadError(getDataLoadErrorMessage(error)))
       .finally(() => setLoading(false));
@@ -240,7 +247,7 @@ export default function ExamSessionsPage() {
                           <span className="text-slate-700 font-medium">
                             {s.score}/{s.max_score}
                           </span>
-                          <PercentBadge pct={s.percentage} />
+                          <PercentBadge pct={s.percentage} threshold={passThreshold} />
                         </div>
                       ) : (
                         <span className="text-slate-400">—</span>
@@ -295,7 +302,7 @@ export default function ExamSessionsPage() {
                         {idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}
                       </span>
                       <span className="font-medium text-slate-700">{s.student_name}</span>
-                      <PercentBadge pct={s.percentage} />
+                      <PercentBadge pct={s.percentage} threshold={passThreshold} />
                     </div>
                   ))}
               </div>

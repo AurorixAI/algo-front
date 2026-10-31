@@ -50,7 +50,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
-import { DEFAULT_PASS_THRESHOLD_PCT, PASS_THRESHOLD_HINT, parsePassThreshold } from "@/lib/exam-pass-threshold";
+import { DEFAULT_PASS_THRESHOLD_PCT, PASS_THRESHOLD_HINT, parsePassThreshold, thresholdForPayload } from "@/lib/exam-pass-threshold";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type SourceType = "topics" | "textbook" | "custom";
@@ -555,7 +555,7 @@ export default function NewExamPage() {
         tasks_count: config.questionsCount,
         difficulty_distribution: config.difficulty,
         time_minutes: config.duration,
-        pass_threshold_pct: parsePassThreshold(config.passThreshold) ?? DEFAULT_PASS_THRESHOLD_PCT,
+        pass_threshold_pct: thresholdForPayload(config.passThreshold),
         // Tasks remain in the prepared section order.  Choice options are
         // shuffled only for online students and remain stable after reconnect.
         // In online delivery this is an invariant: each student receives a

@@ -18,7 +18,7 @@ import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { PassThresholdModal } from "@/components/exam/pass-threshold-modal";
-import { canEditPassThreshold, examPassThreshold, passThresholdTileLabel } from "@/lib/exam-pass-threshold";
+import { canEditPassThreshold, examPassThreshold, passThresholdTileLabel, resultTone } from "@/lib/exam-pass-threshold";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
@@ -2143,9 +2143,9 @@ export default function ExamHubPage() {
                               <span
                                 className={cn(
                                   "px-2.5 py-1 rounded-full text-xs font-semibold",
-                                  scorePercent >= 80
+                                  resultTone(scorePercent, examPassThreshold(exam)) === "excellent"
                                     ? "bg-emerald-100 text-emerald-800"
-                                    : scorePercent >= 50
+                                    : resultTone(scorePercent, examPassThreshold(exam)) === "passed"
                                     ? "bg-amber-100 text-amber-800"
                                     : "bg-rose-100 text-rose-800"
                                 )}
