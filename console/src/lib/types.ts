@@ -257,7 +257,7 @@ export interface AuditAction {
 // ---- K4a «Поддержка» (auth `support_console_router.py`) ------------------------------------------------------------------
 
 export type SupportStatus = "new" | "in_progress" | "waiting" | "resolved";
-export type SupportMail = "pending" | "sent" | "failed" | "skipped";
+export type SupportMail = "pending" | "sent" | "failed" | "skipped" | "throttled";
 
 export interface SupportAuthor {
   id: string | null;
@@ -306,6 +306,8 @@ export interface SupportTicketCard extends SupportTicket {
   browser: string;
   client_errors: { status: number; method: string; route_template: string; at: string | null }[];
   resolved_at: string | null;
+  /** How it was closed: a person of the team (`manual`) or the clock (`auto`); the name can be lost (the employee was deleted), the kind is not. */
+  resolved_kind: "manual" | "auto" | null;
   resolved_by: Named | null;
   attachments: SupportFile[];
   messages: SupportThreadMessage[];

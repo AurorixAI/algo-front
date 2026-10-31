@@ -135,7 +135,14 @@ export function supportMailMark(mail: SupportMail | null | undefined, toAuthor: 
   switch (mail) {
     case "failed": return { text: toAuthor ? "письмо автору не ушло" : "письмо команде не ушло", problem: true };
     case "skipped": return { text: toAuthor ? "письмо не отправлялось (суточный предел или нет доступа)" : "письмо не отправлялось (суточный предел)", problem: true };
+    case "throttled": return { text: toAuthor ? "письмо не отправлялось: недавно уже было" : "письмо не отправлялось: по этому обращению недавно уже писали", problem: false };
     case "pending": return { text: "письмо отправляется", problem: false };
     default: return null;
   }
+}
+
+/** «Решено …» under the status: WHO closed it only when it was a person and the name is known; the clock only when the kind says so (the name of a deleted employee is gone, the kind stays). */
+export function supportResolvedNote(kind: "manual" | "auto" | null | undefined, whenText: string, byName?: string | null): string {
+  if (kind === "auto") return `Решено ${whenText} автоматически: 14 дней без ответа`;
+  return byName ? `Решено ${whenText}, ${byName}` : `Решено ${whenText}`;
 }

@@ -14,7 +14,7 @@ import { useSession } from "../lib/session";
 import { can } from "../lib/permissions";
 import { errorText, useDebounced, useResource, useUrlId } from "../lib/hooks";
 import { DASH, fmtDateTime } from "../lib/format";
-import { SETTABLE_SUPPORT_STATUSES, SUPPORT_ROLES, SUPPORT_STATUSES, supportMailMark, supportStatus } from "../lib/labels";
+import { SETTABLE_SUPPORT_STATUSES, SUPPORT_ROLES, SUPPORT_STATUSES, supportMailMark, supportResolvedNote, supportStatus } from "../lib/labels";
 import { EMPTY_SUPPORT_FILTERS, PAGE_SIZE, hasFilters, supportQuery, type SupportFilters } from "../lib/queries";
 import type { SupportMail, SupportStatus, SupportTicket, SupportTicketCard } from "../lib/types";
 import { Facts, Notice, PageHeader, Panel, Pill, SectionTitle } from "./bits";
@@ -120,7 +120,7 @@ export function SupportScreen() {
         </div>
         <FilterBar onReset={() => { setFilters(EMPTY_SUPPORT_FILTERS); setPage(1); }} canReset={hasFilters(filters)}>
           <SearchField value={filters.q} onChange={(q) => change({ q })} placeholder="Номер, текст, автор" width="w-64" />
-          <Field label="Центр" width="w-48"><Input aria-label="Центр" value={filters.org} onChange={(e) => change({ org: e.target.value })} className="py-2 text-sm" /></Field>
+          <Field label="Центр" width="w-48"><Input aria-label="Центр" placeholder="Название центра" value={filters.org} onChange={(e) => change({ org: e.target.value })} className="py-2 text-sm" /></Field>
           <Field label="Роль автора" width="w-48">
             <Select
               ariaLabel="Роль автора"
@@ -131,6 +131,33 @@ export function SupportScreen() {
             />
           </Field>
         </FilterBar>
+        {list.data && list.data.items.length > 0 && (
+          <ul className="divide-y divide-slate-100 md:hidden" data-testid="support-cards" aria-label="Обращения в поддержку">
+            {list.data.items.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenId(t.id)}
+                  aria-label={`Открыть обращение №${t.number}: ${t.org.name}`}
+                  data-testid="support-card-row"
+                  className="block w-full px-4 py-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-900">№{t.number}</span>
+                    <Pill tone={supportStatus(t.status).tone}>{supportStatus(t.status).label}</Pill>
+                  </span>
+                  <span className="mt-0.5 block break-words text-sm text-slate-600">{t.org.name} · {t.author.role_text}</span>
+                  <span className="mt-1 block whitespace-pre-wrap break-words text-sm text-slate-900">{t.preview}</span>
+                  <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+                    <span>{fmtDateTime(t.updated_at)}</span>
+                    <TicketFlags ticket={t} />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className={list.data && list.data.items.length > 0 ? "hidden md:block" : undefined}>
         <DataTable
           caption="Обращения в поддержку"
           columns={columns}
@@ -151,6 +178,7 @@ export function SupportScreen() {
               : { title: "Обращений пока нет", text: "Когда владелец, администратор или преподаватель напишет в поддержку, обращение появится здесь." }
           }
         />
+        </div>
         {list.data && <Pagination page={list.data.page} pages={list.data.pages} total={list.data.total} pageSize={PAGE_SIZE} onPage={setPage} disabled={list.refreshing} />}
       </Panel>
 
@@ -357,7 +385,7 @@ function TicketCardView({
                 <Button variant="secondary" size="md" onClick={saveStatus} loading={statusBusy} disabled={status === data.status}>Сменить статус</Button>
               </div>
               {statusError && <p role="alert" className="mt-2 text-sm text-red-600">{statusError}</p>}
-              {data.resolved_at && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />Решено {fmtDateTime(data.resolved_at)}{data.resolved_by ? `, ${data.resolved_by.name}` : " автоматически: 14 дней без ответа"}</p>}
+              {data.resolved_at && <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500"><AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />{supportResolvedNote(data.resolved_kind, fmtDateTime(data.resolved_at), data.resolved_by?.name)}</p>}
             </section>
           )}
 
