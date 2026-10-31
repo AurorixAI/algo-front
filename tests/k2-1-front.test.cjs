@@ -145,12 +145,12 @@ test("[A1] the owner is told «Приглашение отправлено на 
   assert.doesNotMatch(page, /handleCopy|navigator\.clipboard|Копировать|Скопировано|inv\.code|newCode|\/invite\/\$\{/);
   assert.match(page, /orgApi\.resendInvitation\(id\)/);
   assert.match(page, /resendBusy\.current/, "a second click before the repaint sends no second letter (LESSONS 27)");
-  assert.match(page, /<h4 role="status"[^>]*>\{inviteSendingText\(sent\.email\)\}<\/h4>/);
-  // the window after sending offers «Готово» only: «Отправить ещё раз» lives in the list (a second letter right after the first is a double mail)
-  const from = page.indexOf("{sent ? (");
-  const windowBlock = page.slice(from, page.indexOf('<div className="space-y-6">', from));
-  assert.ok(windowBlock.length > 300 && windowBlock.includes("Готово"), "the success window was found");
-  assert.doesNotMatch(windowBlock, /INVITE_RESEND_LABEL|handleResend/);
+  // the window after sending (K2-2 stage walk: ONE view, `InviteSentView`) offers «Готово» only: «Отправить ещё раз» lives in the list (a second letter right after the first is a double mail)
+  const view = read("src/components/staff/invite-sent-view.tsx");
+  assert.match(page, /<InviteSentView email=\{sent\.email\}/);
+  assert.match(view, /<h4 role="status"[^>]*>\{INVITE_SENT_TITLE\}<\/h4>/);
+  assert.ok(view.includes("Готово"), "the success window was found");
+  assert.doesNotMatch(view, /INVITE_RESEND_LABEL|handleResend/);
   assert.match(page, /Отправить приглашение/);
   assert.doesNotMatch(page, /Сгенерировать ссылку|Приглашение готово/);
 });

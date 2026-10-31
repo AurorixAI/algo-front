@@ -9,12 +9,13 @@ import { useAuthStore } from "@/lib/store";
 import { staffDisplayName } from "@/lib/staff-name";
 import { formatBusinessDate } from "@/lib/business-time";
 import { rateItemLine, type PayrollRateItem } from "@/lib/payroll";
-import { Users, Plus, Send, CheckCircle, AlertCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, RotateCcw, Loader2 } from "lucide-react";
+import { Users, Plus, Send, AlertCircle, X, Shield, Trash2, Mail, Clock, ShieldCheck, RotateCcw, Loader2 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
 import { useToast } from "@/components/ui/toast";
 import { TeacherRateDialog } from "@/components/payroll/rate-dialog";
 import { RemoveMemberDialog, RoleToAdminNotes, type MemberAction } from "@/components/staff/remove-member-dialog";
 import { StaffAccessMenu } from "@/components/staff/staff-access-menu";
+import { InviteSentView } from "@/components/staff/invite-sent-view";
 import { opsApi } from "@/lib/api";
 import { errorMessageOf, opsErrorCode } from "@/lib/ops-errors";
 import type { InvitationRow, InvitationSent, OrgMemberRow, RemovalImpact } from "@/lib/ops-b-types";
@@ -26,7 +27,6 @@ import {
   invitePollDelay,
   hasLettersOnTheirWay,
   inviteMailNote,
-  inviteSendingText,
   INVITE_RESEND_LABEL,
   RESTORE_TITLE,
   inviteEmailError,
@@ -603,31 +603,14 @@ function OwnerTeachersContent() {
       <Modal
         open={showInvite}
         title="Новый сотрудник"
-        description="Приглашение придёт сотруднику на почту"
+        description={sent ? undefined : "Приглашение придёт сотруднику на почту"}
         onClose={() => setShowInvite(false)}
         busy={saving}
         maxWidthClassName="max-w-lg"
         bodyClassName="p-6 sm:p-8 overflow-y-auto overscroll-contain min-h-0"
       >
         {sent ? (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <div className="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 bg-emerald-50">
-              <CheckCircle className="w-10 h-10 text-emerald-500" />
-            </div>
-            <h4 role="status" className="text-2xl font-bold text-slate-900 mb-2 break-words">{inviteSendingText(sent.email)}</h4>
-            <p className="text-sm text-slate-500 mb-6">
-              Сотрудник примет приглашение по ссылке из письма. Ссылка действует 7 дней и открывается один раз. Если письмо не уйдёт, в списке приглашений появится
-              пометка — оттуда его можно отправить ещё раз. Ошиблись в адресе — отмените приглашение в списке.
-            </p>
-
-            <button
-              type="button"
-              onClick={() => { setShowInvite(false); setSent(null); selectTab("invites"); }}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-semibold rounded-xl transition-colors"
-            >
-              Готово
-            </button>
-          </motion.div>
+          <InviteSentView email={sent.email} onDone={() => { setShowInvite(false); setSent(null); selectTab("invites"); }} />
         ) : (
           <div className="space-y-6">
             <div>

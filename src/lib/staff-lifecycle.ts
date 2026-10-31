@@ -274,6 +274,14 @@ export function inviteOutcomeText(result: { mail_status?: MailStatusValue; email
   return result.mail_status === "sent" ? inviteSentText(result.email) : inviteSendingText(result.email);
 }
 
+/** The success window of «Пригласить сотрудника»: the title and three short notes (the address has its own line under the title). */
+export const INVITE_SENT_TITLE = "Приглашение отправлено";
+export const INVITE_SENT_NOTES = [
+  "Ссылка действует 7 дней и открывается один раз",
+  "Если письмо не дойдёт — в «Приглашениях» появится пометка и кнопка «Отправить ещё раз»",
+  "Ошиблись адресом — отмените приглашение там же",
+] as const;
+
 export const INVITE_FAILED_BADGE = "Письмо не ушло — отправьте ещё раз";
 export const INVITE_SENDING_BADGE = "Отправляем письмо…";
 

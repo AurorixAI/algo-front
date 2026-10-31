@@ -320,3 +320,27 @@ test("the comment of the polling is the real rule (2 s, then 5 s, 150 s)", () =>
   assert.doesNotMatch(page, /at most 40 s/);
   assert.match(page, /at most 150 s/);
 });
+
+// ── the success window of «Пригласить сотрудника» (owner's remark): short title, the address on its own line, three notes, one main button ───
+
+test("[G2][UX] the success window: «Приглашение отправлено», the address apart, three short notes, «Готово» is the main blue button and takes the focus", () => {
+  assert.equal(SL.INVITE_SENT_TITLE, "Приглашение отправлено");
+  assert.deepEqual([...SL.INVITE_SENT_NOTES], [
+    "Ссылка действует 7 дней и открывается один раз",
+    "Если письмо не дойдёт — в «Приглашениях» появится пометка и кнопка «Отправить ещё раз»",
+    "Ошиблись адресом — отмените приглашение там же",
+  ]);
+  const view = read("src/components/staff/invite-sent-view.tsx");
+  assert.match(view, /<h4 role="status" className="[^"]*text-lg font-semibold/);
+  assert.match(view, /bg-slate-50[^"]*|rounded-xl bg-slate-50/);
+  assert.match(view, /break-all/, "a long address wraps by characters: no horizontal overflow");
+  assert.match(view, /title=\{email\}/);
+  assert.match(view, /<Mail className/);
+  assert.match(view, /<Button ref=\{done\} type="button" size="lg" className="w-full" onClick=\{onDone\}>Готово<\/Button>/, "the shared Button (variant primary = the blue of the cabinet)");
+  assert.match(view, /done\.current\?\.focus\(\)/, "«Готово» takes the focus");
+  assert.doesNotMatch(view, /bg-slate-900/);
+  const page = read("src/app/owner/teachers/page.tsx");
+  assert.match(page, /description=\{sent \? undefined : "Приглашение придёт сотруднику на почту"\}/, "the subtitle is not shown in the success state");
+  assert.equal((page.match(/<InviteSentView/g) || []).length, 1, "one view for «Пригласить» and «Пригласить заново»");
+  assert.doesNotMatch(page, /Сотрудник примет приглашение по ссылке из письма\. Ссылка действует/);
+});
