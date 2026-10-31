@@ -37,7 +37,6 @@ import {
   Sparkles,
   ArrowRight,
   X,
-  GraduationCap,
   CheckCircle2,
   AlertCircle,
   Edit2,
@@ -48,6 +47,8 @@ import {
   Loader2,
 } from "lucide-react";
 import { pluralRu } from "@/lib/payments";
+import { DAYS, classCountLabel, completedLessonsProgressLabel, getLessonTimeStatus } from "@/lib/schedule-time";
+import { LESSON_NOT_LOADED_TEXT, lessonPanelKey, useLessonPanelData } from "@/lib/lesson-panel-data";
 import { useScrollLock } from "@/components/ui/modal";
 import {
   validFromBadge, validFromError,
@@ -55,8 +56,8 @@ import {
 import { refusalText } from "@/lib/weekly-lessons";
 import { NO_ONE_OFF_RIGHT_TEXT, choiceProblem, emptyChoice, groupsBaseOf, oneOffRoleOf, type OneOffChoice } from "@/lib/one-off";
 import { OneOffPurposeFields, candidatesOf, useMakeupCandidates } from "@/components/schedule/one-off-purpose";
-import { REPLACE_TEACHER_ACTION, canReplaceTeacher, lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
-import { assignmentNotes, directAssignToast, narrowToFrozenRoster, withoutPaused, occurrenceChips, readLessonRoster, rosterFromJournal, rosterSource, showsGroupLinks, substituteGroupLabel, substitutionsHref, substitutionsPathFor, type RosterSource } from "@/lib/substitutions";
+import { lessonBelongsToOther, notYourLessonText, teacherInfoOfOccurrence } from "@/lib/lesson-teacher";
+import { narrowToFrozenRoster, occurrenceChips, showsGroupLinks, substituteGroupLabel, type RosterSource } from "@/lib/substitutions";
 import type { SubstitutionRequestMark } from "@/lib/substitution-types";
 import type { LessonTeacherInfo } from "@/lib/ops-b-types";
 import { LessonChips } from "@/components/substitutions/lesson-chips";
@@ -67,115 +68,12 @@ import { useLessonMarksOps } from "@/lib/use-lesson-marks-ops";
 import { AttendanceConflictDialog, LiveExamConfirmDialog } from "@/components/attendance/attendance-ops-dialogs";
 import { examSyncNotice, lessonFailure } from "@/lib/attendance-ops";
 import { NO_STUDENTS_FINISH_TEXT, NO_STUDENTS_START_TEXT } from "@/lib/ops-errors";
-import { LessonTeacherDialog, type LessonTeacherTarget } from "@/components/groups/lesson-teacher-dialog";
 import { LessonScopeFields, LessonSlotFields, ShiftedDayNote } from "@/components/schedule/lesson-slot-fields";
 import { createOneOff, createWeeklyLessons, weeklyResolver } from "@/lib/weekly-lessons";
 import { EditWeeklyLessonDialog, EndWeeklyLessonDialog } from "@/components/schedule/weekly-lesson-dialogs";
-import { COLOR_CLASSES, DAYS, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
-
-function russianPlural(count: number, one: string, few: string, many: string) {
-  const absolute = Math.abs(count) % 100;
-  const lastDigit = absolute % 10;
-
-  if (absolute > 10 && absolute < 20) return many;
-  if (lastDigit === 1) return one;
-  if (lastDigit >= 2 && lastDigit <= 4) return few;
-  return many;
-}
-
-function classCountLabel(count: number) {
-  return `${count} ${russianPlural(count, "занятие", "занятия", "занятий")}`;
-}
-
-function completedLessonsProgressLabel(completed: number, total: number) {
-  const absolute = Math.abs(total) % 100;
-  const isSingularGenitive = absolute % 10 === 1 && absolute !== 11;
-  return `Завершено: ${completed} из ${total} ${isSingularGenitive ? "урока" : "уроков"}`;
-}
+import { COLOR_CLASSES, nextBusinessDate, DAY_REQUIRED_TEXT, canVaryTimes, dayShort, dayTimeProblem, dayTimesOf, overlappingLesson, pastDayPlan, reconcileDayTimes, suggestedTimes, weeklyResultText, type DayTimes } from "@/lib/lesson-slot-form";
 
 type LessonOccurrence = ScheduleOccurrence;
-
-function getLessonTimeStatus(
-  lesson?: { startTime?: string; endTime?: string; dayOfWeek?: number } | null,
-  todayDayOfWeek?: number,
-  isAttendanceMarked?: boolean,
-  isCompletedExplicitly?: boolean
-) {
-  if (!lesson || !lesson.startTime || !lesson.endTime) {
-    return {
-      type: "other_day" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: false,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  const isToday = lesson.dayOfWeek === todayDayOfWeek;
-  if (!isToday) {
-    return {
-      type: "other_day" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: false,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  if (isCompletedExplicitly) {
-    return {
-      type: "completed" as const,
-      isLive: false,
-      isUpcoming: false,
-      isPast: true,
-      canStart: false,
-      diffMinutes: 0,
-      startMinutes: 0,
-      endMinutes: 0,
-    };
-  }
-
-  const currentMinutes = businessTimeMinutes();
-  const [startH, startM] = (lesson.startTime || "00:00").split(":").map(Number);
-  const [endH, endM] = (lesson.endTime || "00:00").split(":").map(Number);
-  const startMinutes = (startH || 0) * 60 + (startM || 0);
-  const endMinutes = (endH || 0) * 60 + (endM || 0);
-
-  if (currentMinutes < startMinutes) {
-    const diffMinutes = startMinutes - currentMinutes;
-    return {
-      type: "upcoming" as const,
-      isLive: false,
-      isUpcoming: true,
-      isPast: false,
-      canStart: false,
-      diffMinutes,
-      startMinutes,
-      endMinutes,
-      isPastEndTime: false,
-    };
-  } else {
-    // Lesson has started and is NOT finished until teacher explicitly clicks "Завершить урок"
-    const isPastEndTime = currentMinutes > endMinutes;
-    return {
-      type: "live" as const,
-      isLive: true,
-      isUpcoming: false,
-      isPast: false,
-      canStart: true,
-      diffMinutes: 0,
-      startMinutes,
-      endMinutes,
-      isPastEndTime,
-    };
-  }
-}
 
 export default function TeacherSchedulePage() {
   const { user } = useAuthStore();
@@ -208,10 +106,6 @@ export default function TeacherSchedulePage() {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   // LOGIC-B: the version of the lesson record (O7), a running exam at the finish (O8), the teacher of the lesson (O5).
   const marksOps = useLessonMarksOps();
-  const isManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-  /** LOGIC-B2: a chip «Ждёт замены» leads the manager to the request. */
-  const requestHrefFor = (requestId: string) => substitutionsHref(substitutionsPathFor(user), requestId);
-  const [teacherTarget, setTeacherTarget] = useState<LessonTeacherTarget | null>(null);
   /** LOGIC-B2: who teaches the open lesson, the request «Не смогу провести» for it, and where its roster comes from. */
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
   const [activeRequestMark, setActiveRequestMark] = useState<SubstitutionRequestMark | null>(null);
@@ -244,7 +138,6 @@ export default function TeacherSchedulePage() {
   const [excuseReasons, setExcuseReasons] = useState<Record<string, string>>({});
   const [savedExcuses, setSavedExcuses] = useState<Record<string, { reason: string }>>({});
   const [excuseReasonInvalidId, setExcuseReasonInvalidId] = useState<string | null>(null);
-  const [loadingStudents, setLoadingStudents] = useState(false);
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
   const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
@@ -343,17 +236,16 @@ export default function TeacherSchedulePage() {
     setIsRefreshing(true);
     setLoadError(null);
     try {
-      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
       const todayStr = businessDate;
       // Treat the schedule snapshot as an atomic read. If one authoritative
       // source fails, do not mix a fresh group list with stale lessons, or
       // substitute a failed source with an empty one.
       const [fetchedGroups, loadedLessons, loadedTodayOccurrences] = await Promise.all([
-        isOrgManager ? orgApi.listGroups() : orgApi.listGroups({ teacher_id: user.id }),
-        orgApi.getSchedule(isOrgManager ? undefined : user.id),
+        orgApi.listGroups({ teacher_id: user.id }),
+        orgApi.getSchedule(user.id),
         orgApi.getScheduleOccurrences(
           { dateFrom: todayStr, dateTo: todayStr },
-          isOrgManager ? undefined : user.id,
+          user.id,
         ),
       ]);
 
@@ -575,9 +467,15 @@ export default function TeacherSchedulePage() {
     setCancellationReason("");
   }, [scheduleDataUnavailable]);
 
-  // Load students and attendance for active lesson
-  useEffect(() => {
-    if (!activeLesson) {
+  // The panel of the open lesson (WB-P3): the journal of THIS lesson only - an answer of a lesson opened before is dropped whole (F-A10),
+  // the roster is the one rule of both screens (F-A12), a write asks `panel.target(...)` for the lesson id and its version
+  const panel = useLessonPanelData<LessonOccurrence>(activeLesson, {
+    businessDate,
+    ownGroupIds: groups.map((group) => group.id),
+    getGroup: (id) => orgApi.getGroup(id),
+    getJournal: (groupId, date) => orgApi.getGroupAttendance(groupId, { dateFrom: date, dateTo: date }),
+    versionBody: marksOps.versionBody,
+    onClose: () => {
       setIsMarkingAttendance(false);
       setIsAttendanceSaved(false);
       setIsAttendanceDirty(false);
@@ -588,80 +486,45 @@ export default function TeacherSchedulePage() {
       setActiveTeacherInfo(null);
       setActiveRequestMark(null);
       setActiveRosterSource("group");
-      return;
-    }
-    setLoadingStudents(true);
-    // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
-    setActiveTeacherInfo(teacherInfoOfOccurrence(activeLesson));
-    setActiveRequestMark(activeLesson.substitutionRequest ?? null);
-    setIsMarkingAttendance(false);
-    setIsAttendanceSaved(false);
-    setIsAttendanceDirty(false);
-    setAttendanceError(null);
-    setGroupStudents([]);
-    setAttendance({});
-    setExcuseReasons({});
-    setSavedExcuses({});
-    setExcuseReasonInvalidId(null);
-    const occurrenceDate = activeLesson.occurrenceDate;
-    const lessonKey = `${occurrenceDate}_${activeLesson.id}`;
-    // LOGIC-B2: a substitute (or a former teacher) has no group page (403): the roster of his lesson comes with the journal.
-    const source = rosterSource({ isManager, groupId: activeLesson.groupId, ownGroupIds: groups.map((group) => group.id) });
-    setActiveRosterSource(source);
-    readLessonRoster({
-      source,
-      groupId: activeLesson.groupId,
-      getGroup: (id) => orgApi.getGroup(id),
-      getJournal: () => orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: occurrenceDate, dateTo: occurrenceDate }),
-    })
-      .then(([g, att]) => {
-        setActiveTeacherInfo(att?.lessonTeachers?.[lessonKey] ?? null);
-        setActiveRequestMark(att?.substitutionRequests?.[lessonKey] ?? null);
-        if (source === "journal") {
-          setGroupStudents(rosterFromJournal(att?.lessonRoster));
-        } else if (g?.students) {
-          // a student on a pause today is not in the class (before the start the group list still holds him)
-          setGroupStudents(occurrenceDate === formatBusinessDate() ? withoutPaused(g.students) : g.students);
-        } else {
-          setGroupStudents([]);
-        }
+      marksOps.reset(undefined, {});
+    },
+    onOpen: (lesson, { source }) => {
+      // W1 (server R3): the occurrence carries who leads it and the request of this lesson - the panel knows them before the journal is read
+      setActiveTeacherInfo(teacherInfoOfOccurrence(lesson));
+      setActiveRequestMark(lesson.substitutionRequest ?? null);
+      setIsMarkingAttendance(false);
+      setIsAttendanceSaved(false);
+      setIsAttendanceDirty(false);
+      setAttendanceError(null);
+      setGroupStudents([]);
+      setAttendance({});
+      setExcuseReasons({});
+      setSavedExcuses({});
+      setExcuseReasonInvalidId(null);
+      setActiveRosterSource(source);
+      // the version of the lesson that was open before is not the version of this one
+      marksOps.reset(undefined, {});
+    },
+    onLoaded: (snapshot, lesson) => {
+      setActiveTeacherInfo(snapshot.teacherInfo);
+      setActiveRequestMark(snapshot.requestMark);
+      setGroupStudents(snapshot.students);
+      marksOps.reset(snapshot.version, snapshot.baseRecords);
+      setActiveLessonStatus(snapshot.status);
+      setActiveCancellationReason(snapshot.cancellationReason);
+      if (snapshot.isToday) {
+        setLessonStatusMap((previous) => ({ ...previous, [lesson.id]: snapshot.status }));
+      }
+      setSavedExcuses(snapshot.savedExcuses);
+      setAttendance(snapshot.marks);
+      setIsAttendanceSaved(snapshot.isSaved);
+    },
+    onFailed: (error) => {
+      setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
+    },
+  });
+  const loadingStudents = panel.loading;
 
-        const status = att?.statuses?.[lessonKey] || "scheduled";
-        marksOps.reset(att?.versions?.[lessonKey], att?.records?.[lessonKey] || {});
-        setActiveLessonStatus(status);
-        setActiveCancellationReason(att?.cancellationReasons?.[lessonKey] || null);
-        if (occurrenceDate === formatBusinessDate()) {
-          setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: status }));
-        }
-
-        setSavedExcuses(
-          Object.fromEntries(
-            Object.entries(att?.excuses?.[lessonKey] || {}).map(([studentId, info]) => [studentId, { reason: info.reason }]),
-          ),
-        );
-
-        if (status === "cancelled") {
-          setAttendance({});
-          setIsAttendanceSaved(false);
-        } else if (att?.records) {
-          const lessonRecords = att.records[lessonKey] || {};
-          if (Object.keys(lessonRecords).length > 0) {
-            setAttendance(lessonRecords as any);
-            setIsAttendanceSaved(true);
-          } else {
-            setAttendance({});
-            setIsAttendanceSaved(false);
-          }
-        } else {
-          setAttendance({});
-          setIsAttendanceSaved(false);
-        }
-      })
-      .catch((error) => {
-        setAttendanceError(`Не удалось загрузить журнал посещаемости: ${getDataLoadErrorMessage(error)}`);
-      })
-      .finally(() => setLoadingStudents(false));
-  }, [activeLesson]);
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
     setAttendance((prev) => {
@@ -715,6 +578,8 @@ export default function TeacherSchedulePage() {
 
   const handleStartLesson = async () => {
     if (!activeLesson || activeLessonStatus !== "scheduled") return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
 
     const subsequentLesson = activeLesson.occurrenceDate === formatBusinessDate()
       ? getSubsequentStartedLesson(activeLesson)
@@ -735,19 +600,20 @@ export default function TeacherSchedulePage() {
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
-      const started = await orgApi.startGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate,
-        lessonId: activeLesson.id,
+      const started = await orgApi.startGroupAttendance(target.groupId, {
+        lessonDate: target.lessonDate,
+        lessonId: target.lessonId,
         topic: activeLesson.topic,
       });
-      marksOps.noteVersion(started);
+      if (panel.isOpen(target.key)) marksOps.noteVersion(started);
       // the roster is frozen by the start: a student on a pause that day is not in it
       {
-        const att = await orgApi.getGroupAttendance(activeLesson.groupId, { dateFrom: activeLesson.occurrenceDate, dateTo: activeLesson.occurrenceDate }).catch(() => null);
-        const frozen = att?.rosterStudentIds?.[`${activeLesson.occurrenceDate}_${activeLesson.id}`];
-        if (frozen) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
+        const att = await orgApi.getGroupAttendance(target.groupId, { dateFrom: target.lessonDate, dateTo: target.lessonDate }).catch(() => null);
+        const frozen = att?.rosterStudentIds?.[target.key];
+        // the teacher may have opened another lesson while the start was on its way: the roster of the screen is not this lesson's any more
+        if (frozen && panel.isOpen(target.key)) setGroupStudents((previous) => narrowToFrozenRoster(previous, frozen));
       }
-      setActiveLessonStatus("in_progress");
+      if (panel.isOpen(target.key)) setActiveLessonStatus("in_progress");
       setWeekLessonStatusMap((previous) => ({
         ...previous,
         [`${activeLesson.occurrenceDate}_${activeLesson.id}`]: "in_progress",
@@ -755,10 +621,10 @@ export default function TeacherSchedulePage() {
       if (activeLesson.occurrenceDate === formatBusinessDate()) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
       }
-      setIsMarkingAttendance(true);
+      if (panel.isOpen(target.key)) setIsMarkingAttendance(true);
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
+      if (panel.isOpen(target.key)) setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
     } finally {
       setSavingAttendance(false);
     }
@@ -801,6 +667,8 @@ export default function TeacherSchedulePage() {
 
   const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
     // «Оставить мои» repeats this very action with the merged marks
     const marks = override ?? attendance;
     if (override) setAttendance(override);
@@ -823,21 +691,25 @@ export default function TeacherSchedulePage() {
 
     setSavingAttendance(true);
     try {
-      const saved = await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate,
-        lessonId: activeLesson.id,
+      const saved = await orgApi.saveGroupAttendance(target.groupId, {
+        lessonDate: target.lessonDate,
+        lessonId: target.lessonId,
         topic: activeLesson.topic,
         status: "in_progress",
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...marksOps.versionBody(),
+        ...target.versionBody,
       });
-      marksOps.noteSaved(saved, marks);
-      rememberSavedExcuses(prepared.reasons, marks);
-      setIsAttendanceSaved(true);
-      setIsAttendanceDirty(false);
+      // what the screen holds of the lesson (version, marks, flags) changes only while THIS lesson is the open one
+      const here = panel.isOpen(target.key);
+      if (here) {
+        marksOps.noteSaved(saved, marks);
+        rememberSavedExcuses(prepared.reasons, marks);
+        setIsAttendanceSaved(true);
+        setIsAttendanceDirty(false);
+        setActiveLessonStatus("in_progress");
+      }
       setLessonAttendanceMap((prev) => ({ ...prev, [activeLesson.id]: true }));
-      setActiveLessonStatus("in_progress");
       setWeekLessonStatusMap((previous) => ({
         ...previous,
         [`${activeLesson.occurrenceDate}_${activeLesson.id}`]: "in_progress",
@@ -845,9 +717,10 @@ export default function TeacherSchedulePage() {
       if (activeLesson.occurrenceDate === formatBusinessDate()) {
         setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "in_progress" }));
       }
-      setIsMarkingAttendance(false);
+      if (here) setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to sync attendance:", err);
+      if (!panel.isOpen(target.key)) return; // another lesson is on the screen now: its panel is not the place for this refusal
       const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
       if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
@@ -858,6 +731,8 @@ export default function TeacherSchedulePage() {
 
   const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
@@ -890,31 +765,35 @@ export default function TeacherSchedulePage() {
 
     setSavingAttendance(true);
     try {
-      const finished = await orgApi.saveGroupAttendance(activeLesson.groupId, {
-        lessonDate: activeLesson.occurrenceDate,
-        lessonId: activeLesson.id,
+      const finished = await orgApi.saveGroupAttendance(target.groupId, {
+        lessonDate: target.lessonDate,
+        lessonId: target.lessonId,
         topic: activeLesson.topic,
         status: "completed",
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...marksOps.versionBody(),
+        ...target.versionBody,
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
       });
-      marksOps.noteSaved(finished, marks);
-      marksOps.clearLiveExams();
+      const here = panel.isOpen(target.key);
+      if (here) {
+        marksOps.noteSaved(finished, marks);
+        marksOps.clearLiveExams();
+        rememberSavedExcuses(prepared.reasons, marks);
+      }
       // O8: the exam service could not be asked - the lesson is closed anyway; say so
       const syncNotice = examSyncNotice(finished?.examSync);
       if (syncNotice) setScheduleNotices([syncNotice]);
-      rememberSavedExcuses(prepared.reasons, marks);
       setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: true }));
       setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "completed" }));
       setWeekLessonStatusMap((previous) => ({
         ...previous,
         [`${activeLesson.occurrenceDate}_${activeLesson.id}`]: "completed",
       }));
-      setActiveLesson(null);
+      if (here) setActiveLesson(null); // the panel of ANOTHER lesson, opened meanwhile, stays
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
+      if (!panel.isOpen(target.key)) return;
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
@@ -924,6 +803,8 @@ export default function TeacherSchedulePage() {
 
   const handleCancelLesson = async () => {
     if (!activeLesson || activeLessonStatus === "completed" || activeLessonStatus === "cancelled" || cancelSending.current) return;
+    const target = panel.target(activeLesson);
+    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     const reasonProblem = cancelReasonProblem(reason);
@@ -936,7 +817,8 @@ export default function TeacherSchedulePage() {
     setAttendanceError(null);
     setSavingAttendance(true);
     try {
-      const notes = await sendTeacherCancel(cancelRoute, { groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate, topic: activeLesson.topic }, reason, marksOps.versionBody());
+      const notes = await sendTeacherCancel(cancelRoute, { groupId: target.groupId, lessonId: target.lessonId, lessonDate: target.lessonDate, topic: activeLesson.topic }, reason, target.versionBody);
+      const here = panel.isOpen(target.key);
       setLessonStatusMap((previous) => ({ ...previous, [activeLesson.id]: "cancelled" }));
       setLessonAttendanceMap((previous) => ({ ...previous, [activeLesson.id]: false }));
       setCompletedLessonsMap((previous) => ({ ...previous, [activeLesson.id]: false }));
@@ -944,17 +826,20 @@ export default function TeacherSchedulePage() {
         ...previous,
         [`${activeLesson.occurrenceDate}_${activeLesson.id}`]: "cancelled",
       }));
-      setActiveLessonStatus("cancelled");
-      setActiveCancellationReason(reason);
-      setAttendance({});
-      setIsAttendanceSaved(false);
-      setIsAttendanceDirty(false);
-      setIsMarkingAttendance(false);
-      setIsCancellingLesson(false);
-      setLessonExamBinding(null);
+      if (here) {
+        setActiveLessonStatus("cancelled");
+        setActiveCancellationReason(reason);
+        setAttendance({});
+        setIsAttendanceSaved(false);
+        setIsAttendanceDirty(false);
+        setIsMarkingAttendance(false);
+        setIsCancellingLesson(false);
+        setLessonExamBinding(null);
+      }
       if (notes.length > 0) setScheduleNotices(notes);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
+      if (!panel.isOpen(target.key)) return;
       const failure = marksOps.refused(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.", attendance);
       if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
@@ -970,12 +855,14 @@ export default function TeacherSchedulePage() {
     setCancelVariant(offer.variant);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
+    const openedKey = lessonPanelKey(activeLesson, businessDate);
     try {
       const binding = await examsApi.getLessonBinding({
         groupId: activeLesson.groupId,
         lessonId: activeLesson.id,
         lessonDate: activeLesson.occurrenceDate,
       });
+      if (!panel.isOpen(openedKey)) return; // the answer of the lesson that was open before is not the answer for this one
       setLessonExamBinding({
         loading: false,
         attached: binding.attached,
@@ -985,6 +872,7 @@ export default function TeacherSchedulePage() {
       });
     } catch (err) {
       console.error("Failed to check exam binding before lesson cancellation:", err);
+      if (!panel.isOpen(openedKey)) return;
       setLessonExamBinding({
         loading: false,
         attached: false,
@@ -1110,11 +998,10 @@ export default function TeacherSchedulePage() {
         setNewTopic("");
         return;
       }
-      const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
       try {
         const refreshedWeek = await orgApi.getScheduleOccurrences(
           { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-          isOrgManager ? undefined : user?.id,
+          user?.id,
         );
         setLoadedWeek({ start: weekPeriod.start, lessons: refreshedWeek });
       } catch (error) {
@@ -1192,11 +1079,10 @@ export default function TeacherSchedulePage() {
   const reloadAfterWeeklyChange = async (): Promise<boolean> => {
     const reloaded = await loadData();
     if (!reloaded) return false;
-    const isOrgManager = user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
     try {
       const refreshedWeek = await orgApi.getScheduleOccurrences(
         { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-        isOrgManager ? undefined : user?.id,
+        user?.id,
       );
       setLoadedWeek({ start: weekPeriod.start, lessons: refreshedWeek });
     } catch (error) {
@@ -1209,7 +1095,6 @@ export default function TeacherSchedulePage() {
   useEffect(() => {
     if (!user?.id) return;
     const currentUserId = user.id;
-    const isOrgManager = user.org_role === "owner" || user.org_role === "admin" || user.role === "owner";
     let isCurrent = true;
 
     async function loadWeekSummary() {
@@ -1217,7 +1102,7 @@ export default function TeacherSchedulePage() {
       try {
         const occurrences = await orgApi.getScheduleOccurrences(
           { dateFrom: weekPeriod.start, dateTo: weekPeriod.end },
-          isOrgManager ? undefined : currentUserId,
+          currentUserId,
         );
         if (!isCurrent) return;
 
@@ -1485,18 +1370,6 @@ export default function TeacherSchedulePage() {
                 label: "Этот урок",
                 items: [
                   ...teacherLessonMenuItems(lessonActions, () => setIsRecurringActionsOpen(false), { offer: cancelOffer, open: () => { if (cancelOffer) void openCancelLessonPanel(cancelOffer); } }),
-                  ...(isManager && activeLesson && canReplaceTeacher(user?.org_role ?? null, activeLessonStatus) ? [{
-                    key: "replace", label: REPLACE_TEACHER_ACTION, hint: "Только на выбранную дату.", icon: GraduationCap,
-                    onSelect: () => {
-                      setIsRecurringActionsOpen(false);
-                      setTeacherTarget({
-                        groupId: activeLesson.groupId, lessonId: activeLesson.id, lessonDate: activeLesson.occurrenceDate,
-                        startTime: activeLesson.startTime, endTime: activeLesson.endTime, info: activeLesson,
-                      });
-                      // the lesson panel is a layer of its own above the dialogs: it gives way to the dialog
-                      setActiveLesson(null);
-                    },
-                  }] : []),
                 ],
               },
               {
@@ -1598,7 +1471,7 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">План недели</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {weekKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">{russianPlural(weekKpi.planned, "урок", "урока", "уроков")}</span>
+              <span className="text-xs font-medium text-slate-400 ml-1.5">{pluralRu(weekKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
             <p className={`text-xs mt-1.5 leading-5 ${weekKpi.completionTarget > 0 && weekKpi.completed === weekKpi.completionTarget ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {weekKpiDescription}
@@ -1615,7 +1488,7 @@ export default function TeacherSchedulePage() {
             <p className="text-xs text-slate-500 font-semibold">Сегодня</p>
             <p className="text-2xl font-bold tracking-tight text-slate-900 mt-1">
               {todayKpi.planned}
-              <span className="text-xs font-medium text-slate-400 ml-1.5">{russianPlural(todayKpi.planned, "урок", "урока", "уроков")}</span>
+              <span className="text-xs font-medium text-slate-400 ml-1.5">{pluralRu(todayKpi.planned, "урок", "урока", "уроков")}</span>
             </p>
             <p className={`text-xs mt-1.5 leading-5 ${todayKpi.planned > 0 && todayKpi.completed === todayKpi.planned ? "text-emerald-700 font-semibold" : "text-slate-500"}`}>
               {todayKpiDescription}
@@ -1977,7 +1850,7 @@ export default function TeacherSchedulePage() {
                               {validFromBadge(l.validFrom, businessDate)}
                             </span>
                           )}
-                          <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager, groupsBase: groupsBaseOf(user?.org_role) })} requestHref={isManager ? requestHrefFor : undefined} className="ml-1" />
+                          <LessonChips marks={occurrenceChips(l, user?.id, { groupsBase: groupsBaseOf(user?.org_role) })} className="ml-1" />
 
                           <h4 className="font-bold text-xs text-slate-900 leading-snug line-clamp-2">
                             {l.groupName}
@@ -2166,7 +2039,7 @@ export default function TeacherSchedulePage() {
                         {l.groupName}
                       </h3>
                       <p className="text-xs text-slate-500 font-medium">{l.subject}</p>
-                      <LessonChips marks={occurrenceChips(l, user?.id, { manager: isManager, groupsBase: groupsBaseOf(user?.org_role) })} requestHref={isManager ? requestHrefFor : undefined} className="mt-1.5" />
+                      <LessonChips marks={occurrenceChips(l, user?.id, { groupsBase: groupsBaseOf(user?.org_role) })} className="mt-1.5" />
                     </div>
 
                     {/* Bottom row */}
@@ -2386,14 +2259,6 @@ export default function TeacherSchedulePage() {
                     {activeLesson.topic}
                   </p>
                 </div>
-              )}
-
-              {/* LOGIC-B2: the manager sees that a request waits and goes to it */}
-              {isManager && activeRequestMark?.status === "pending" && (
-                <p role="status" className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-900">
-                  <span>Ждёт замены{activeRequestMark.teacherName ? `: ${activeRequestMark.teacherName}` : ""}</span>
-                  <Link href={requestHrefFor(activeRequestMark.id)} className="font-semibold text-amber-900 underline underline-offset-2 hover:text-amber-950">Открыть запрос</Link>
-                </p>
               )}
 
               {/* LOGIC-B2: «Не смогу провести» / «Вы запросили замену» */}
@@ -3082,11 +2947,6 @@ export default function TeacherSchedulePage() {
         busy={savingAttendance}
         onBack={marksOps.clearLiveExams}
         onConfirm={() => void handleFinishLesson(true)}
-      />
-      <LessonTeacherDialog
-        target={teacherTarget}
-        onClose={() => setTeacherTarget(null)}
-        onChanged={(result) => { setTeacherTarget(null); setActiveLesson(null); const notes = assignmentNotes(result); showToast(directAssignToast(result), notes.length ? "warning" : "success", notes); void loadData(); }}
       />
       {toastNode}
     </div>

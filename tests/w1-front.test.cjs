@@ -238,7 +238,7 @@ test("F5: «Ставка не задана» in EVERY window of assigning (each 
   assert.deepEqual(S.assignmentNotes({ payrollSheetsAffected: [] }), []);
   // both lists use the same helper (rule 38), and the three screens that assign show the notes
   for (const file of ["src/components/groups/lesson-teacher-dialog.tsx", "src/components/substitutions/decision-dialog.tsx"]) assert.match(read(file), /candidateMoneyLines\(candidate, role\)/, file);
-  for (const file of ["src/components/groups/group-schedule-overview.tsx", "src/components/groups/group-attendance-journal.tsx", "src/app/teacher/schedule/page.tsx"]) assert.match(read(file), /assignmentNotes\(result\)/, file);
+  for (const file of ["src/components/groups/group-schedule-overview.tsx", "src/components/groups/group-attendance-journal.tsx"]) assert.match(read(file), /assignmentNotes\(result\)/, file);
   assert.match(read("src/components/substitutions/substitutions-page.tsx"), /assignmentNotes\(out\.result \?\? \{\}\)/);
 });
 
@@ -658,8 +658,8 @@ test("R3 11 / F10: the dashboard summary carries createdBy, the request mark and
   assert.equal(lt.teacherInfoOfOccurrence({}), null, "an older server: nothing to say");
   for (const file of ["src/app/teacher/schedule/page.tsx", "src/app/teacher/dashboard/page.tsx"]) {
     const page = read(file);
-    assert.match(page, /setActiveTeacherInfo\(teacherInfoOfOccurrence\(activeLesson\)\)/, file);
-    assert.match(page, /setActiveRequestMark\(activeLesson\.substitutionRequest \?\? null\)/, file);
+    assert.match(page, /setActiveTeacherInfo\(teacherInfoOfOccurrence\(lesson\)\)/, file);
+    assert.match(page, /setActiveRequestMark\(lesson\.substitutionRequest \?\? null\)/, file);
     assert.match(page, /data-testid="led-by-other"/, file);
     assert.match(page, /Boolean\(activeLesson\?\.replacedBy\) \|\| lessonBelongsToOther\(activeTeacherInfo, user\?\.id\)/, file);
   }

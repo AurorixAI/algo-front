@@ -345,7 +345,7 @@ test("[R7.R1] the refusal LESSON_TOO_OLD is shown in the words of the spec", () 
 test("the lesson panels, the journal and the lists are wired for the pack", () => {
   for (const file of ["src/app/teacher/dashboard/page.tsx", "src/app/teacher/schedule/page.tsx"]) {
     const page = read(file);
-    for (const needle of [/useLessonMarksOps/, /marksOps\.versionBody\(\)/, /acknowledgeLiveExam/, /AttendanceConflictDialog/, /LiveExamConfirmDialog/, /NO_STUDENTS_START_TEXT/, /NO_STUDENTS_FINISH_TEXT/, /examSyncNotice/, /aboveLessonPanel/]) {
+    for (const needle of [/useLessonMarksOps/, /panel\.target\(activeLesson\)/, /target\.versionBody/, /acknowledgeLiveExam/, /AttendanceConflictDialog/, /LiveExamConfirmDialog/, /NO_STUDENTS_START_TEXT/, /NO_STUDENTS_FINISH_TEXT/, /examSyncNotice/, /aboveLessonPanel/]) {
       assert.match(page, needle, `${file} ${needle}`);
     }
     // ROADMAP #114: one row of buttons while the marks are entered, no «Закрыть» that repeats the cross

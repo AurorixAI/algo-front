@@ -6,6 +6,7 @@ import type { LessonEvent } from "./api";
 import { addIsoDays, businessDayOfWeek, businessWeekdayDate } from "./business-time";
 import { MONTHS_RU_GENITIVE } from "./form-fields";
 import { roomForSave } from "./schedule-slots";
+import { DAYS } from "./schedule-time";
 
 /** The weekly lesson as the schedule screens and the shared dialogs know it (`LessonEvent` of the schedule, or an occurrence of it). */
 export type WeeklyLesson = Pick<LessonEvent, "id" | "groupName" | "classLevel" | "dayOfWeek" | "startTime" | "endTime" | "room" | "format" | "color"> & { topic?: string; groupId?: string };
@@ -64,15 +65,7 @@ export const COLOR_NAMES: Record<string, string> = {
   rose: "Розовый",
 };
 
-export const DAYS = [
-  { id: 1, name: "Понедельник", short: "Пн" },
-  { id: 2, name: "Вторник", short: "Вт" },
-  { id: 3, name: "Среда", short: "Ср" },
-  { id: 4, name: "Четверг", short: "Чт" },
-  { id: 5, name: "Пятница", short: "Пт" },
-  { id: 6, name: "Суббота", short: "Сб" },
-  { id: 7, name: "Воскресенье", short: "Вс" },
-];
+export { DAYS };
 
 export const FORMAT_OPTIONS = [
   { value: "offline", label: "Офлайн в классе" },
