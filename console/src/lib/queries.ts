@@ -88,3 +88,15 @@ export function auditQuery(f: AuditFilters, page: number, order: "asc" | "desc")
 export function hasFilters(f: object): boolean {
   return Object.values(f).some((value) => typeof value === "string" && value.trim() !== "");
 }
+
+export interface SupportFilters {
+  q: string;
+  status: string;
+  org: string;
+  role: string;
+}
+export const EMPTY_SUPPORT_FILTERS: SupportFilters = { q: "", status: "", org: "", role: "" };
+
+export function supportQuery(f: SupportFilters, page: number, sort: { key: string; order: "asc" | "desc" }) {
+  return { page, page_size: PAGE_SIZE, sort: sort.key, order: sort.order, q: text(f.q), status: f.status || undefined, org: text(f.org), role: f.role || undefined };
+}

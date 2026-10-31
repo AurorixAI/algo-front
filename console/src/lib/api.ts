@@ -24,6 +24,9 @@ import type {
   Role,
   Staff,
   StaffCreateBody,
+  SupportList,
+  SupportStatus,
+  SupportTicketCard,
   UserCard,
 } from "./types";
 
@@ -92,6 +95,16 @@ export function createConsoleApi(config: Partial<JsonClientConfig> = {}, hooks: 
       approve: (id: string, body: ApproveBody = {}) => send<ApproveResult>("POST", `/demo-requests/${seg(id)}/approve`, body),
       decline: (id: string, reason: string, sendEmail: boolean) =>
         send<DemoRequestCard>("POST", `/demo-requests/${seg(id)}/decline`, { reason, send_email: sendEmail }),
+    },
+
+    support: {
+      summary: (signal?: AbortSignal) => get<{ new: number; open: number }>("/support/summary", undefined, signal),
+      list: (query: ListQuery & { status?: string; org?: string; role?: string; q?: string }, signal?: AbortSignal) => get<SupportList>("/support/tickets", query, signal),
+      get: (id: string, signal?: AbortSignal) => get<SupportTicketCard>(`/support/tickets/${seg(id)}`, undefined, signal),
+      setStatus: (id: string, status: Exclude<SupportStatus, "new">) => send<SupportTicketCard>("PATCH", `/support/tickets/${seg(id)}/status`, { status }),
+      reply: (id: string, text: string) => send<SupportTicketCard>("POST", `/support/tickets/${seg(id)}/messages`, { text }),
+      /** The address of a screenshot for an `<img>` (same origin as the console: the cookie of the session goes with it). */
+      fileUrl: (fileId: string) => `${CONSOLE_API_BASE}/support/attachments/${seg(fileId)}`,
     },
 
     orgs: {

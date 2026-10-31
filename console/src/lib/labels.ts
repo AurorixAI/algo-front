@@ -1,4 +1,4 @@
-import type { OrgStatus, RequestStatus, UserStatus } from "./types";
+import type { OrgStatus, RequestStatus, SupportMail, SupportStatus, UserStatus } from "./types";
 
 export type Tone = "slate" | "blue" | "amber" | "green" | "red" | "violet";
 
@@ -59,6 +59,7 @@ export const TARGET_TYPES: { value: string; label: string }[] = [
   { value: "staff", label: "Сотрудник" },
   { value: "role", label: "Роль" },
   { value: "console", label: "Вход в консоль" },
+  { value: "support_ticket", label: "Обращение" },
 ];
 
 export function targetTypeLabel(type: string): string {
@@ -105,4 +106,36 @@ export function needsLabel(codes: readonly string[] | null | undefined): string 
 export function branchesLabel(count: number | null | undefined): string | null {
   if (count === null || count === undefined) return null;
   return count === 0 ? "Филиалов нет" : String(count);
+}
+
+// ---- K4a «Поддержка» ---------------------------------------------------------------------------------------------------------
+
+export const SUPPORT_STATUSES: { value: SupportStatus; label: string; tone: Tone }[] = [
+  { value: "new", label: "Новое", tone: "blue" },
+  { value: "in_progress", label: "В работе", tone: "amber" },
+  { value: "waiting", label: "Ждём ответа", tone: "violet" },
+  { value: "resolved", label: "Решено", tone: "green" },
+];
+
+export function supportStatus(status: string): { label: string; tone: Tone } {
+  return SUPPORT_STATUSES.find((item) => item.value === status) ?? { label: status, tone: "slate" };
+}
+
+/** The statuses the team sets by hand («Новое» is only the state of a ticket nobody has touched, or one the author opened again). */
+export const SETTABLE_SUPPORT_STATUSES = SUPPORT_STATUSES.filter((item) => item.value !== "new");
+
+export const SUPPORT_ROLES: { value: string; label: string }[] = [
+  { value: "owner", label: "Владелец" },
+  { value: "admin", label: "Администратор" },
+  { value: "teacher", label: "Преподаватель" },
+];
+
+/** The outcome of a letter in words; `null` = nothing to say (sent, or not applicable).  A letter that did not go is a red mark, the answer is in the cabinet anyway. */
+export function supportMailMark(mail: SupportMail | null | undefined, toAuthor: boolean): { text: string; problem: boolean } | null {
+  switch (mail) {
+    case "failed": return { text: toAuthor ? "письмо автору не ушло" : "письмо команде не ушло", problem: true };
+    case "skipped": return { text: toAuthor ? "письмо не отправлялось (суточный предел или нет доступа)" : "письмо не отправлялось (суточный предел)", problem: true };
+    case "pending": return { text: "письмо отправляется", problem: false };
+    default: return null;
+  }
 }

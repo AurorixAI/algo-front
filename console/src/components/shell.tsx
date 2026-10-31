@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Building2, Inbox, LogOut, Menu, ScrollText, ShieldCheck, UserCog, Users, X, type LucideIcon } from "lucide-react";
+import { Building2, Inbox, LifeBuoy, LogOut, Menu, ScrollText, ShieldCheck, UserCog, Users, X, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { consoleApi } from "../lib/api";
 import { SessionGate, useSession } from "../lib/session";
@@ -13,6 +13,7 @@ import type { Me } from "../lib/types";
 
 const ICONS: Record<NavItem["key"], LucideIcon> = {
   requests: Inbox,
+  support: LifeBuoy,
   centres: Building2,
   users: Users,
   team: UserCog,
@@ -28,21 +29,27 @@ export function notifyRequestsChanged() {
 
 const BADGE_REFRESH_MS = 60_000;
 
-function useNewRequestsCount(enabled: boolean): number | null {
+/** Dispatched after a ticket changes (an answer, a status), so the badge of «Обращения» does not wait for its timer. */
+export const SUPPORT_CHANGED = "console:support-changed";
+export function notifySupportChanged() {
+  window.dispatchEvent(new Event(SUPPORT_CHANGED));
+}
+
+/** A number for a badge of the sidebar: loaded now, every minute, and when `event` is dispatched.  A failure keeps the last number (the badge is a hint). */
+function useBadgeCount(enabled: boolean, load: () => Promise<number>, event: string): number | null {
   const [count, setCount] = useState<number | null>(null);
+  const loadRef = useRef(load);
+  loadRef.current = load;
   const refresh = useCallback(() => {
     if (!enabled) return;
-    consoleApi.requests
-      .list({ page_size: 1 })
-      .then((page) => setCount(page.counts?.new ?? 0))
-      .catch(() => { /* the badge is a hint: a failure keeps the last number */ });
+    loadRef.current().then(setCount).catch(() => { /* the badge is a hint: a failure keeps the last number */ });
   }, [enabled]);
   useEffect(() => {
     refresh();
     const timer = setInterval(refresh, BADGE_REFRESH_MS);
-    window.addEventListener(REQUESTS_CHANGED, refresh);
-    return () => { clearInterval(timer); window.removeEventListener(REQUESTS_CHANGED, refresh); };
-  }, [refresh]);
+    window.addEventListener(event, refresh);
+    return () => { clearInterval(timer); window.removeEventListener(event, refresh); };
+  }, [refresh, event]);
   return count;
 }
 
@@ -50,7 +57,8 @@ function Sidebar({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
   const pathname = usePathname() ?? "";
   const active = activeNav(pathname);
   const { signOut } = useSession();
-  const newCount = useNewRequestsCount(can(me, "requests.view"));
+  const newCount = useBadgeCount(can(me, "requests.view"), () => consoleApi.requests.list({ page_size: 1 }).then((page) => page.counts?.new ?? 0), REQUESTS_CHANGED);
+  const supportNew = useBadgeCount(can(me, "support.manage"), () => consoleApi.support.summary().then((data) => data.new ?? 0), SUPPORT_CHANGED);
   const items = visibleNav(me);
   const [confirmAll, setConfirmAll] = useState(false);
 
@@ -87,6 +95,15 @@ function Sidebar({ me, onNavigate }: { me: Me; onNavigate?: () => void }) {
                   data-testid="new-requests-badge"
                 >
                   {newCount > 99 ? "99+" : newCount}
+                </span>
+              )}
+              {item.key === "support" && supportNew !== null && supportNew > 0 && (
+                <span
+                  className="min-w-[1.4rem] rounded-full bg-primary-500 px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white"
+                  aria-label={`Новых обращений: ${supportNew}`}
+                  data-testid="new-support-badge"
+                >
+                  {supportNew > 99 ? "99+" : supportNew}
                 </span>
               )}
             </Link>

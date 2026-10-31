@@ -9,7 +9,7 @@ export function can(me: Rights, key: string): boolean {
 }
 
 export interface NavItem {
-  key: "requests" | "centres" | "users" | "team" | "roles" | "audit";
+  key: "requests" | "support" | "centres" | "users" | "team" | "roles" | "audit";
   label: string;
   href: string;
   /** The permission that shows the item (the server checks it again on every call). */
@@ -19,6 +19,7 @@ export interface NavItem {
 /** The sections of the sidebar, in order. */
 export const NAV_ITEMS: NavItem[] = [
   { key: "requests", label: "Заявки", href: "/requests/", permission: "requests.view" },
+  { key: "support", label: "Обращения", href: "/support/", permission: "support.manage" },
   { key: "centres", label: "Центры", href: "/centres/", permission: "orgs.view" },
   { key: "users", label: "Пользователи", href: "/users/", permission: "users.view" },
   { key: "team", label: "Команда", href: "/team/", permission: "team.manage" },

@@ -253,3 +253,61 @@ export interface AuditAction {
   action: string;
   label: string;
 }
+
+// ---- K4a «Поддержка» (auth `support_console_router.py`) ------------------------------------------------------------------
+
+export type SupportStatus = "new" | "in_progress" | "waiting" | "resolved";
+export type SupportMail = "pending" | "sent" | "failed" | "skipped";
+
+export interface SupportAuthor {
+  id: string | null;
+  name: string;
+  email: string | null;
+  role: "owner" | "admin" | "teacher";
+  role_text: string;
+  has_access: boolean;
+  /** Why the person has no access any more (in words); null when he has. */
+  access_note: string | null;
+}
+
+export interface SupportTicket {
+  id: string;
+  number: number;
+  status: SupportStatus;
+  preview: string;
+  org: { id: string; name: string };
+  author: SupportAuthor;
+  attachments_count: number;
+  created_at: string;
+  updated_at: string;
+  last_author_reply_at: string | null;
+  last_staff_reply_at: string | null;
+  /** The letter to the team about the new ticket. */
+  team_mail: SupportMail | null;
+}
+
+export type SupportCounts = Record<SupportStatus | "all", number>;
+export interface SupportList extends Page<SupportTicket> { counts: SupportCounts }
+
+export interface SupportFile { id: string; content_type: string; size: number; index: number }
+export interface SupportThreadMessage {
+  id: string;
+  from: "author" | "staff";
+  text: string;
+  created_at: string;
+  staff_name: string | null;
+  /** The outcome of the letter that goes with the message (to the author for a team answer, to the team for an author's reply). */
+  mail: SupportMail | null;
+}
+
+export interface SupportTicketCard extends SupportTicket {
+  text: string;
+  page_template: string;
+  browser: string;
+  client_errors: { status: number; method: string; route_template: string; at: string | null }[];
+  resolved_at: string | null;
+  resolved_by: Named | null;
+  attachments: SupportFile[];
+  messages: SupportThreadMessage[];
+  history: AuditRow[];
+}
