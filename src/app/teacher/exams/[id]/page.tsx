@@ -17,6 +17,8 @@ import { FloatingPanel } from "@/components/ui/floating-panel";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { DataLoadError, getDataLoadErrorMessage } from "@/components/ui/data-load-error";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { PassThresholdModal } from "@/components/exam/pass-threshold-modal";
+import { canEditPassThreshold, examPassThreshold, passThresholdTileLabel } from "@/lib/exam-pass-threshold";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { pickAnswerDisplayText, pickDistractorExplanation, formatErrorType } from "@/lib/task-display";
@@ -126,6 +128,8 @@ interface ExamDetail {
   delivery_mode: "online" | "print";
   print_package?: PrintPackageMetadata | null;
   is_pinned?: boolean;
+  pass_threshold_pct?: number;
+  pass_threshold_locked?: boolean;
   variants: DraftVariant[];
   created_at: string;
 }
@@ -273,6 +277,7 @@ export default function ExamHubPage() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showThresholdModal, setShowThresholdModal] = useState(false);
   const [showDeliveryDecisionModal, setShowDeliveryDecisionModal] = useState(false);
   const [showDeliveryCancellation, setShowDeliveryCancellation] = useState(false);
   const [returnToDeliveryDecision, setReturnToDeliveryDecision] = useState(false);
@@ -528,6 +533,11 @@ export default function ExamHubPage() {
   const handleRename = async (title: string) => {
     const result = await examsApi.rename(examId, title);
     setExam((previous) => previous ? { ...previous, title: result.title } : previous);
+  };
+
+  const handleSetThreshold = async (threshold: number) => {
+    const result = await examsApi.setPassThreshold(examId, threshold);
+    setExam((previous) => previous ? { ...previous, pass_threshold_pct: result.pass_threshold_pct } : previous);
   };
 
   const handlePin = async () => {
@@ -980,6 +990,13 @@ export default function ExamHubPage() {
                           : "Завершён"}
                       </span>
 
+                      <span
+                        title="Ученик с результатом не ниже порога считается справившимся"
+                        className="px-3 py-1 rounded-xl font-medium flex items-center gap-1.5 border bg-slate-50 text-slate-700 border-slate-200 whitespace-nowrap"
+                      >
+                        <Target className="w-3.5 h-3.5 text-slate-400" />
+                        Порог: {examPassThreshold(exam)}%
+                      </span>
                     </>
                   )}
                 </div>
@@ -1153,6 +1170,20 @@ export default function ExamHubPage() {
                         >
                           <Edit3 className="w-4 h-4 text-primary-500" />
                           Изменить название
+                        </button>
+                      )}
+
+                      {canEditPassThreshold(exam) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHeaderMenuOpen(false);
+                            setShowThresholdModal(true);
+                          }}
+                          className="w-full text-left px-4 py-2.5 text-slate-700 hover:bg-primary-50 hover:text-primary-700 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer"
+                        >
+                          <Target className="w-4 h-4 text-primary-500" />
+                          Изменить порог
                         </button>
                       )}
 
@@ -1927,8 +1958,10 @@ export default function ExamHubPage() {
             </GlassCard>
 
             <GlassCard variant="panel" className="p-5 text-center">
-              <p className="text-xs font-semibold text-slate-500 mb-1">Длительность</p>
-              <p className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">{exam.total_time_minutes} мин</p>
+              <p className="text-xs font-semibold text-slate-500 mb-1">{passThresholdTileLabel(Number(analytics?.pass_threshold_pct ?? examPassThreshold(exam)))}</p>
+              <p className="text-2xl sm:text-3xl font-bold tracking-tight text-emerald-600" data-testid="analytics-pass-rate">
+                {analytics && Number(analytics.submitted_sessions) > 0 ? `${Math.round(Number(analytics.pass_rate_pct))}%` : "—"}
+              </p>
             </GlassCard>
           </div>
 
@@ -2584,6 +2617,13 @@ export default function ExamHubPage() {
           />
         )}
       </AnimatePresence>
+
+      <PassThresholdModal
+        open={showThresholdModal}
+        current={examPassThreshold(exam)}
+        onClose={() => setShowThresholdModal(false)}
+        onSave={handleSetThreshold}
+      />
 
       <RenameExamModal
         open={showRenameModal}

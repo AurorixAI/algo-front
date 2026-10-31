@@ -1,5 +1,6 @@
 "use client";
 
+import { examPassThreshold, passThresholdTileLabel } from "@/lib/exam-pass-threshold";
 import { Chip } from "@/components/ui/chip";
 import { examStatusView } from "@/lib/status-registry";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -183,7 +184,7 @@ function AnalyticsTab({ exam, sessions, analytics, submitted }: { exam: AdminExa
     { label: "Всего участников", value: analytics?.total_sessions ?? sessions.length, tone: "text-slate-900" },
     { label: "Сдали работы", value: analytics?.submitted_sessions ?? submitted, tone: "text-emerald-600" },
     { label: "Средний балл", value: average === null ? "—" : `${average}%`, tone: "text-primary-600" },
-    { label: "Длительность", value: `${exam.total_time_minutes || 45} мин`, tone: "text-slate-900" },
+    { label: passThresholdTileLabel(examPassThreshold(analytics)), value: analytics && submitted ? `${Math.round(Number(analytics.pass_rate_pct ?? 0))}%` : "—", tone: "text-emerald-600" },
   ];
   return <div className="space-y-5"><section className="grid grid-cols-2 gap-3 sm:grid-cols-4">{values.map((item) => <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm"><p className="text-xs font-semibold text-slate-500">{item.label}</p><p className={cn("mt-2 text-2xl font-black", item.tone)}>{item.value}</p></div>)}</section><section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 px-5 py-4"><h2 className="font-bold text-slate-900">Результаты участников</h2><p className="mt-0.5 text-sm text-slate-500">Фактические результаты экзамена без изменения данных.</p></div>{sessions.length === 0 ? <div className="px-5 py-14 text-center"><BarChart3 className="mx-auto h-10 w-10 text-slate-300" /><h3 className="mt-4 font-bold text-slate-800">Пока нет сданных работ</h3><p className="mt-1 text-sm text-slate-500">Результаты появятся после сдачи экзамена учениками.</p></div> : <div className="divide-y divide-slate-100">{sessions.map((student) => <div key={student.session_id} className="flex items-center justify-between gap-4 px-5 py-4"><div><p className="font-semibold text-slate-800">{student.student_name}</p><p className="mt-0.5 text-xs text-slate-400">{student.submitted_at ? `Сдано: ${asDateTime(student.submitted_at)}` : participantStatus(student.status)}</p></div><div className="text-right"><p className="text-lg font-bold text-slate-900">{student.status === "submitted" ? `${Math.round(student.percentage ?? 0)}%` : "—"}</p><p className="text-xs text-slate-500">{student.status === "submitted" ? `${student.score ?? 0}/${student.max_score ?? 0} баллов` : "Нет результата"}</p></div></div>)}</div>}</section></div>;
 }

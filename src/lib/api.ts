@@ -2376,6 +2376,8 @@ export interface ExamSummary {
   is_pinned?: boolean;
   source_exam_id?: string | null;
   skills_covered?: string[];
+  /** Pass threshold of this exam, % of the maximum score (1..100). */
+  pass_threshold_pct?: number;
   recent_events?: Array<{
     type: string;
     at: string;
@@ -2515,6 +2517,8 @@ export const examsApi = {
     mc_mode?: string;
     teacher_name?: string;
     delivery_mode?: "online" | "print";
+    /** Pass threshold of this exam, 1..100 % (the server default is 60). */
+    pass_threshold_pct?: number;
   }) =>
     examApi<{ exam_id: string; access_code?: string; status: string; tasks_count: number; variants_count: number; group_id?: string; group_name?: string; class_level?: number; skills_covered: string[] }>(
       "/exams/generate", "staff",
@@ -2530,6 +2534,16 @@ export const examsApi = {
     if (opts?.includeArchived) params.set("include_archived", "true");
     const qs = params.toString();
     return examApi<ExamSummary[]>(qs ? `/exams?${qs}` : "/exams", "staff");
+  },
+
+  /** One page of the library: the server decides who may see what BEFORE it cuts the page, `has_more` says whether to offer «Показать ещё». */
+  listPage: (opts: { page: number; size?: number; includeArchived?: boolean }) => {
+    const params = new URLSearchParams({ page: String(opts.page), size: String(opts.size ?? 50) });
+    if (opts.includeArchived) params.set("include_archived", "true");
+    // An older server (a rolling release) ignores `page` and answers the plain array of everything it has.
+    return examApi<{ items: ExamSummary[]; total: number; page: number; size: number; has_more: boolean } | ExamSummary[]>(
+      `/exams?${params.toString()}`, "staff",
+    );
   },
 
   /**
@@ -2615,6 +2629,9 @@ export const examsApi = {
       class_level?: number | null;
       scheduled_lesson_id?: string | null;
       scheduled_lesson_date?: string | null;
+      /** % of the maximum score from which a student counts as having passed; locked once a work is submitted. */
+      pass_threshold_pct?: number;
+      pass_threshold_locked?: boolean;
       settings: Record<string, any>;
       delivery_mode: "online" | "print";
       print_package?: PrintPackageMetadata | null;
@@ -2757,6 +2774,13 @@ export const examsApi = {
     examApi<{ exam_id: string; title: string; status: string }>(`/exams/${encodePathId(examId)}/title`, "staff", {
       method: "PATCH",
       body: { title },
+    }),
+
+  /** Change the pass threshold (1..100 %). The server answers 409 «Порог нельзя изменить…» once a work is submitted. */
+  setPassThreshold: (examId: string, passThresholdPct: number) =>
+    examApi<{ exam_id: string; pass_threshold_pct: number }>(`/exams/${encodePathId(examId)}/pass-threshold`, "staff", {
+      method: "PATCH",
+      body: { pass_threshold_pct: passThresholdPct },
     }),
 
   /** Assign a draft to a group; publishing additionally requires one lesson occurrence. */

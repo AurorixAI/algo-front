@@ -16,6 +16,7 @@
  *   E2E_REUSE=1         reuse a stack that is already up (implies E2E_KEEP) and an existing .next-e2e build
  *   E2E_SKIP_BUILD=1    do not rebuild the front when .next-e2e exists
  *   E2E_FRONT_PORT / E2E_AUTH_PORT / E2E_EXAM_PORT   host ports (13000 / 18000 / 18003)
+ *   E2E_PROJECT         docker compose project name (default algo-e2e): a second stack beside the default one needs its own name and ports
  *   E2E_WORKERS         parallel Playwright workers (default 3 locally, 2 in CI)
  *   E2E_CONSOLE_PORT    the port console-k1.spec.ts serves the console on (13100)
  *
@@ -39,6 +40,8 @@ const FRONT_PORT = Number(env.E2E_FRONT_PORT || 13000);
 const AUTH_PORT = Number(env.E2E_AUTH_PORT || 18000);
 const EXAM_PORT = Number(env.E2E_EXAM_PORT || 18003);
 const WITH_EXAM = env.E2E_EXAM === "1";
+// A second stack next to the default one (another checkout running at the same time): its own compose project, its own ports
+const PROJECT = env.E2E_PROJECT || "algo-e2e";
 const REUSE = env.E2E_REUSE === "1";
 const KEEP = env.E2E_KEEP === "1" || REUSE;
 const FRONT_ORIGIN = `http://localhost:${FRONT_PORT}`;
@@ -54,7 +57,7 @@ const composeEnv = {
   E2E_EXAM_PORT: String(EXAM_PORT),
   E2E_FRONT_ORIGIN: FRONT_ORIGIN,
 };
-const composeBase = ["compose", "-p", "algo-e2e", "-f", composeFile, ...(WITH_EXAM ? ["--profile", "exam"] : [])];
+const composeBase = ["compose", "-p", PROJECT, "-f", composeFile, ...(WITH_EXAM ? ["--profile", "exam"] : [])];
 
 const t0 = Date.now();
 const stamp = () => `[e2e +${Math.round((Date.now() - t0) / 1000)}s]`;
@@ -112,7 +115,7 @@ function teardown() {
   stopFront();
   log("docker compose down -v");
   // always with the `exam` profile: a stack started with E2E_EXAM=1 must be removed whole, whatever the env of this call
-  spawnSync("docker", ["compose", "-p", "algo-e2e", "-f", composeFile, "--profile", "exam", "down", "-v", "--remove-orphans"], {
+  spawnSync("docker", ["compose", "-p", PROJECT, "-f", composeFile, "--profile", "exam", "down", "-v", "--remove-orphans"], {
     env: composeEnv,
     stdio: "ignore",
     cwd: repoDir,
@@ -131,7 +134,7 @@ if (!existsSync(path.join(authPath, "Dockerfile"))) {
 }
 if (WITH_EXAM && !existsSync(path.join(examPath, "Dockerfile"))) fail(`exam-service checkout not found at ${examPath} (EXAM_SERVICE_PATH)`);
 
-const alreadyUp = spawnSync("docker", ["compose", "-p", "algo-e2e", "ps", "-q"], { env: composeEnv, encoding: "utf8" }).stdout.trim() !== "";
+const alreadyUp = spawnSync("docker", ["compose", "-p", PROJECT, "ps", "-q"], { env: composeEnv, encoding: "utf8" }).stdout.trim() !== "";
 if (!REUSE || !alreadyUp) {
   for (const [port, what] of [[FRONT_PORT, "E2E_FRONT_PORT"], [AUTH_PORT, "E2E_AUTH_PORT"], ...(WITH_EXAM ? [[EXAM_PORT, "E2E_EXAM_PORT"]] : [])]) {
     if (!alreadyUp && (await portBusy(port))) fail(`port ${port} is busy (another program listens there). Choose another with ${what}=...`);

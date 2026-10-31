@@ -73,14 +73,36 @@ def make_task(index, a, b, words):
 TASKS = [make_task(i + 1, a, b, words) for i, (a, b, words) in enumerate(PAIRS)]
 BY_ID = {t["id"]: t for t in TASKS}
 
+# A second skill with 20 tasks (wave B P1): percentages in steps of 5 % (55 %, 75 %) need a 20-task exam. The task i is
+# "Прибавьте 100 к числу i", the key is 100 + i. They are served ONLY for skill E2E-S2-SK: the five tasks above and every
+# scenario that uses them stay as they were.
+SKILL2_ID = "E2E-SK-2"
+TASKS2 = []
+for _i in range(1, 21):
+    _task = make_task(_i, 100, _i, f"Прибавьте 100 к числу {_i}")
+    _task.update(id=f"E2E-S2-{_i}", task_id=f"E2E-S2-{_i}", skill_id=SKILL2_ID, skill_name="Сложение со ста", question_text=f"Прибавьте 100 к числу {_i}.")
+    TASKS2.append(_task)
+    BY_ID[_task["id"]] = _task
+
+# The skill tree the create form shows: level 1 > level 2 > the selectable skill (level 3, the one the tasks belong to)
+def _group(node_id, level, parent_id, name):
+    return {
+        "id": node_id, "level": level, "parent_id": parent_id, "name_ru": name, "description": "E2E",
+        "class_level_start": 1, "class_level_end": 11, "sequence_order": 1, "importance": 5,
+        "cognitive_type": "procedural", "is_active": True, "example_task": None,
+        "assessed_ability": None, "difficulty_level": None, "formula": None, "tasks_count": 5,
+    }
+
+
+SKILL_GROUPS = [_group("E2E-L1", 1, None, "Арифметика"), _group("E2E-L2", 2, "E2E-L1", "Сложение чисел")]
 SKILL = {
-    "id": SKILL_ID, "level": 3, "parent_id": None, "name_ru": "Сложение", "description": "E2E",
+    "id": SKILL_ID, "level": 3, "parent_id": "E2E-L2", "tasks_count": 5, "name_ru": "Сложение", "description": "E2E",
     "class_level_start": 1, "class_level_end": 11, "sequence_order": 1, "importance": 5,
     "cognitive_type": "procedural", "is_active": True, "example_task": None,
     "assessed_ability": None, "difficulty_level": None, "formula": None,
 }
 TEXTBOOK = {
-    "textbook_id": TEXTBOOK_ID, "title": "E2E: Математика", "subtitle": None, "authors": "E2E",
+    "textbook_id": TEXTBOOK_ID, "title": "E2E: Математика", "subtitle": None, "authors": ["E2E"],
     "class_level": 7, "subject": "math", "publisher": None, "year": 2026, "total_tasks": len(TASKS),
     "digitized_tasks": len(TASKS), "is_active": True,
 }
@@ -117,8 +139,9 @@ class Handler(BaseHTTPRequestHandler):
             tocs = [int(x) for x in query.get("toc_ids") or []]
             excluded = set(query.get("exclude_ids") or [])
             limit = int((query.get("limit") or ["50"])[0])
+            pool = TASKS2 if SKILL2_ID in skills else TASKS
             rows = [
-                t for t in TASKS
+                t for t in pool
                 if t["id"] not in excluded
                 and (not skills or t["skill_id"] in skills)
                 and (not tocs or TOC_ID in tocs)
@@ -139,7 +162,7 @@ class Handler(BaseHTTPRequestHandler):
         if re.fullmatch(r"/toc/\d+/skills", path):
             return self._send([{"id": SKILL_ID, "name_ru": "Сложение", "role": "main", "confidence": 1.0, "is_main": True}])
         if path == "/skills":
-            return self._send([SKILL])
+            return self._send([*SKILL_GROUPS, SKILL])
         match = re.fullmatch(r"/skills/(.+)", path)
         if match and unquote(match.group(1)) == SKILL_ID:
             return self._send(SKILL)

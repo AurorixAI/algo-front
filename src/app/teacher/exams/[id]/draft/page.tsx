@@ -13,9 +13,12 @@ import QRCode from "qrcode.react";
 import { TaskFigureDrawer } from "@/components/tasks/TaskFigureDrawer";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
+import { PassThresholdModal } from "@/components/exam/pass-threshold-modal";
+import { canEditPassThreshold, examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
 import {
   ArrowLeft,
+  Target,
   Check,
   CheckCircle2,
   Copy,
@@ -92,6 +95,8 @@ interface DraftData {
   group_name?: string | null;
   class_level?: number | null;
   is_pinned?: boolean;
+  pass_threshold_pct?: number;
+  pass_threshold_locked?: boolean;
   settings: Record<string, any>;
   delivery_mode: "online" | "print";
   skills_covered: string[];
@@ -204,6 +209,7 @@ export default function ExamDraftPage() {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showThresholdModal, setShowThresholdModal] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const headerMenuTriggerRef = useRef<HTMLButtonElement>(null);
   const [assignLoading, setAssignLoading] = useState(false);
@@ -368,6 +374,11 @@ export default function ExamDraftPage() {
   const handleRename = async (title: string) => {
     const result = await examsApi.rename(examId, title);
     setDraft((previous) => previous ? { ...previous, title: result.title } : previous);
+  };
+
+  const handleSetThreshold = async (threshold: number) => {
+    const result = await examsApi.setPassThreshold(examId, threshold);
+    setDraft((previous) => previous ? { ...previous, pass_threshold_pct: result.pass_threshold_pct } : previous);
   };
 
   const handleClone = async () => {
@@ -708,6 +719,7 @@ export default function ExamDraftPage() {
             <p className="text-sm text-slate-500 mt-0.5">
               {draft.variants_count} вариант{draft.variants_count > 1 ? "ов" : ""} · {totalTasks}{" "}
               заданий · {draft.total_time_minutes} мин
+              {draft.delivery_mode !== "print" && <> · порог {examPassThreshold(draft)}%</>}
             </p>
           </div>
         </div>
@@ -763,6 +775,19 @@ export default function ExamDraftPage() {
                     <Edit3 className="h-4 w-4 text-primary-500" />
                     Изменить название
                   </button>
+                  {canEditPassThreshold(draft) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setHeaderMenuOpen(false);
+                        setShowThresholdModal(true);
+                      }}
+                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left font-semibold text-slate-700 transition-colors hover:bg-primary-50 hover:text-primary-700"
+                    >
+                      <Target className="h-4 w-4 text-primary-500" />
+                      Изменить порог
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => {
@@ -1249,6 +1274,15 @@ export default function ExamDraftPage() {
           />
         )}
       </AnimatePresence>
+
+      {draft && (
+        <PassThresholdModal
+          open={showThresholdModal}
+          current={examPassThreshold(draft)}
+          onClose={() => setShowThresholdModal(false)}
+          onSave={handleSetThreshold}
+        />
+      )}
 
       {draft && (
         <RenameExamModal

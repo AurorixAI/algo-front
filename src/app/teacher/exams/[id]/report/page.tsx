@@ -1,5 +1,6 @@
 "use client";
 
+import { examPassThreshold, passThresholdTileLabel } from "@/lib/exam-pass-threshold";
 import { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
@@ -69,6 +70,7 @@ interface ExamReportData {
   submitted_count: number;
   avg_score_pct: number;
   pass_rate_pct: number;
+  pass_threshold_pct?: number;
   task_analytics: TaskAnalytic[];
   top_errors: TopError[];
   narrative_ru?: string | null;
@@ -452,7 +454,7 @@ export default function ExamReportPage() {
           {/* 2. Сдали порог */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500">Сдали порог (≥60%)</span>
+              <span className="text-xs font-semibold text-slate-500">{passThresholdTileLabel(examPassThreshold(report))}</span>
               <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
                 <Award className="h-4 w-4" />
               </div>

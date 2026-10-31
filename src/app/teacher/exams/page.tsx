@@ -31,11 +31,14 @@ import {
   Radio,
   Archive,
   RotateCcw,
+  Target,
 } from "lucide-react";
 import { examsApi, orgApi, type ExamSummary, type Group } from "@/lib/api";
 import { businessDateWithOffset, formatIsoDateLabel } from "@/lib/business-time";
 import { examListState, examTabOf, lobbyExamLabel, type DashboardExamState, type ExamTab } from "@/lib/exam-lobby";
 import { useTodayLessonStatuses } from "@/lib/use-exam-lessons";
+import { appendExamPage, tabCountLabel } from "@/lib/exam-library-paging";
+import { examPassThreshold } from "@/lib/exam-pass-threshold";
 import { ScheduleExamModal } from "@/components/exam/schedule-exam-modal";
 import { RenameExamModal } from "@/components/exam/rename-exam-modal";
 import { ExamRemovalDialog, useExamRemoval } from "@/components/exam/exam-removal";
@@ -331,6 +334,12 @@ function ExamCard({
                     {exam.total_time_minutes} мин
                   </span>
                 )}
+                {exam.delivery_mode !== "print" && (
+                  <span className="flex items-center gap-1">
+                    <Target className="w-3 h-3" />
+                    Порог: {examPassThreshold(exam)}%
+                  </span>
+                )}
                 {exam.scheduled_lesson_date && (
                   <span className="flex items-center gap-1 font-medium text-primary-700">
                     <Clock className="w-3 h-3" />
@@ -524,6 +533,8 @@ function ExamCard({
   );
 }
 
+const LIBRARY_PAGE_SIZE = 50;
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 type StatusTab = ExamTab;
 
@@ -547,6 +558,12 @@ export default function TeacherExamsPage() {
   const searchParams = useSearchParams();
 
   const [exams, setExams] = useState<ExamSummary[]>([]);
+  // The library arrives by pages: the server decides who may see what BEFORE it cuts a page, «Показать ещё» asks for the next one.
+  const [hasMore, setHasMore] = useState(false);
+  const [totalExams, setTotalExams] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const pagesLoadedRef = useRef(0);
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -561,17 +578,38 @@ export default function TeacherExamsPage() {
   const [assignTarget, setAssignTarget] = useState<ExamSummary | null>(null);
   const [assignResult, setAssignResult] = useState<{ access_code?: string | null; url?: string | null; group_name?: string | null; exam_id: string } | null>(null);
 
+  const fetchLibraryPages = useCallback(async (pages: number): Promise<{ items: ExamSummary[]; hasMore: boolean; total: number }> => {
+    let items: ExamSummary[] = [];
+    let more = false;
+    let total = 0;
+    for (let page = 1; page <= pages; page += 1) {
+      const result = await examsApi.listPage({ page, size: LIBRARY_PAGE_SIZE, includeArchived: true });
+      // An older server answers a plain array (everything it has): there is nothing more to ask for.
+      if (Array.isArray(result)) return { items: appendExamPage(items, result), hasMore: false, total: result.length };
+      items = appendExamPage(items, result.items || []);
+      more = Boolean(result.has_more);
+      total = Number(result.total || 0);
+      if (!more) break;
+    }
+    return { items, hasMore: more, total };
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     setGroupsLoadError(null);
+    setMoreError(null);
     try {
       const [examsResult, groupsResult] = await Promise.allSettled([
-        examsApi.list({ includeArchived: true }),
+        // a refresh keeps as many pages as the teacher had already opened
+        fetchLibraryPages(Math.max(1, pagesLoadedRef.current)),
         orgApi.listGroups(),
       ]);
       if (examsResult.status === "fulfilled") {
-        setExams(Array.isArray(examsResult.value) ? examsResult.value : []);
+        setExams(examsResult.value.items);
+        setHasMore(examsResult.value.hasMore);
+        setTotalExams(examsResult.value.total);
+        pagesLoadedRef.current = Math.max(1, Math.ceil(examsResult.value.items.length / LIBRARY_PAGE_SIZE));
       } else {
         // Never replace the library with an empty state after a failed retry.
         setLoadError(getDataLoadErrorMessage(examsResult.reason));
@@ -583,6 +621,28 @@ export default function TeacherExamsPage() {
       }
     } finally {
       setLoading(false);
+    }
+  }, [fetchLibraryPages]);
+
+  const loadMoreRef = useRef(false);
+  const loadMore = useCallback(async () => {
+    if (loadMoreRef.current) return; // a double click must not ask for the same page twice
+    loadMoreRef.current = true;
+    setLoadingMore(true);
+    setMoreError(null);
+    try {
+      const nextPage = pagesLoadedRef.current + 1;
+      const result = await examsApi.listPage({ page: nextPage, size: LIBRARY_PAGE_SIZE, includeArchived: true });
+      if (Array.isArray(result)) return;
+      pagesLoadedRef.current = nextPage;
+      setExams((previous) => appendExamPage(previous, result.items || []));
+      setHasMore(Boolean(result.has_more));
+      setTotalExams(Number(result.total || 0));
+    } catch (error) {
+      setMoreError(getDataLoadErrorMessage(error));
+    } finally {
+      loadMoreRef.current = false;
+      setLoadingMore(false);
     }
   }, []);
 
@@ -607,6 +667,11 @@ export default function TeacherExamsPage() {
   };
 
   const currentLibraryHref = libraryHref(statusTab, searchQuery);
+
+  // A search must not miss an exam that is on a page not opened yet: while a query is typed, the rest is fetched.
+  useEffect(() => {
+    if (searchQuery.trim() && hasMore && !loading && !loadingMore && !moreError) void loadMore();
+  }, [searchQuery, hasMore, loading, loadingMore, moreError, loadMore, exams.length]);
 
   const handleCopyCode = (exam: ExamSummary, e: React.MouseEvent) => {
     e.preventDefault();
@@ -752,11 +817,11 @@ export default function TeacherExamsPage() {
       {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
-          { label: "Текущие", value: counts.active, color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
-          { label: "Лобби открыто", value: counts.lobby, color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
-          { label: "Запланированы", value: counts.scheduled, color: "text-sky-700", bg: "bg-sky-50", icon: <Clock className="w-4 h-4 text-sky-500" /> },
-          { label: "Черновики", value: counts.draft, color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
-          { label: "Завершены", value: counts.closed, color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
+          { label: "Текущие", value: tabCountLabel(counts.active, hasMore), color: "text-emerald-700", bg: "bg-emerald-50", icon: <Zap className="w-4 h-4 text-emerald-500" /> },
+          { label: "Лобби открыто", value: tabCountLabel(counts.lobby, hasMore), color: "text-indigo-700", bg: "bg-indigo-50", icon: <Radio className="w-4 h-4 text-indigo-500" /> },
+          { label: "Запланированы", value: tabCountLabel(counts.scheduled, hasMore), color: "text-sky-700", bg: "bg-sky-50", icon: <Clock className="w-4 h-4 text-sky-500" /> },
+          { label: "Черновики", value: tabCountLabel(counts.draft, hasMore), color: "text-amber-700", bg: "bg-amber-50", icon: <AlertCircle className="w-4 h-4 text-amber-500" /> },
+          { label: "Завершены", value: tabCountLabel(counts.closed, hasMore), color: "text-slate-500", bg: "bg-slate-100", icon: <XCircle className="w-4 h-4 text-slate-400" /> },
         ].map((s, index, all) => (
           // #159 E9: five cards in two columns - the odd last one takes the whole row of a phone instead of standing alone
           <div key={s.label} className={`${s.bg} rounded-2xl p-4 border border-white shadow-sm flex items-center gap-3 ${index === all.length - 1 && all.length % 2 === 1 ? "col-span-2 md:col-span-1" : ""}`}>
@@ -799,7 +864,7 @@ export default function TeacherExamsPage() {
                   <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] ${
                     statusTab === tab ? "bg-primary-100 text-primary-700" : "bg-slate-200 text-slate-500"
                   }`}>
-                    {counts[tab]}
+                    {tabCountLabel(counts[tab], hasMore)}
                   </span>
                 )}
               </button>
@@ -828,7 +893,7 @@ export default function TeacherExamsPage() {
         </div>
       ) : loadError && exams.length === 0 ? (
         <DataLoadError title="Не удалось загрузить экзамены" message={loadError} onRetry={loadData} />
-      ) : filteredExams.length === 0 ? (
+      ) : filteredExams.length === 0 && !hasMore ? (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -860,6 +925,7 @@ export default function TeacherExamsPage() {
           )}
         </motion.div>
       ) : (
+        <>
         <AnimatePresence mode="popLayout">
           <div className="space-y-3">
             {filteredExams.map((ex) => (
@@ -881,6 +947,28 @@ export default function TeacherExamsPage() {
             ))}
           </div>
         </AnimatePresence>
+        {filteredExams.length === 0 && (
+          <p className="text-center text-sm text-slate-500">
+            {searchQuery ? "Ищем среди остальных экзаменов…" : "Среди уже загруженных экзаменов здесь пусто."}
+          </p>
+        )}
+        </>
+      )}
+
+      {hasMore && !loading && (
+        <div className="flex flex-col items-center gap-2 pt-1">
+          <p className="text-xs text-slate-500">Показано {exams.length} из {totalExams}</p>
+          <button
+            type="button"
+            onClick={() => void loadMore()}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-primary-300 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {loadingMore && <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-300 border-t-primary-600" />}
+            Показать ещё
+          </button>
+          {moreError && <p role="alert" className="text-xs font-medium text-rose-600">{moreError} Нажмите «Показать ещё», чтобы повторить.</p>}
+        </div>
       )}
 
       <ExamRemovalDialog

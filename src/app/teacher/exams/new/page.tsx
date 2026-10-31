@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
+import { DEFAULT_PASS_THRESHOLD_PCT, PASS_THRESHOLD_HINT, parsePassThreshold } from "@/lib/exam-pass-threshold";
 
 type Step = 1 | 2 | 3 | 4 | 5;
 type SourceType = "topics" | "textbook" | "custom";
@@ -67,6 +68,8 @@ interface ExamConfig {
   subjectFilter: "all" | "algebra" | "geometry";
   questionsCount: number;
   duration: number;
+  /** The text of the field «Проходной порог, %» (parsed on use, 1..100). */
+  passThreshold: string;
   difficulty: { easy: number; medium: number; hard: number };
   mode: ExamMode;
 }
@@ -343,6 +346,7 @@ export default function NewExamPage() {
     subjectFilter: "all",
     questionsCount: 8,
     duration: 45,
+    passThreshold: String(DEFAULT_PASS_THRESHOLD_PCT),
     difficulty: { easy: 30, medium: 50, hard: 20 },
     mode: "online",
   });
@@ -551,6 +555,7 @@ export default function NewExamPage() {
         tasks_count: config.questionsCount,
         difficulty_distribution: config.difficulty,
         time_minutes: config.duration,
+        pass_threshold_pct: parsePassThreshold(config.passThreshold) ?? DEFAULT_PASS_THRESHOLD_PCT,
         // Tasks remain in the prepared section order.  Choice options are
         // shuffled only for online students and remain stable after reconnect.
         // In online delivery this is an invariant: each student receives a
@@ -578,7 +583,7 @@ export default function NewExamPage() {
         if (config.sourceType === "topics") return config.selectedTopics.size > 0;
         if (config.sourceType === "textbook") return config.selectedSections.size > 0;
         return true;
-      case 3: return config.questionsCount > 0;
+      case 3: return config.questionsCount > 0 && parsePassThreshold(config.passThreshold) !== null;
       case 4: return true;
       default: return false;
     }
@@ -891,6 +896,33 @@ export default function NewExamPage() {
                             </button>
                           ))}
                         </div>
+                      </div>
+
+                      {/* Pass threshold of THIS exam */}
+                      <div>
+                        <label htmlFor="exam-new-pass-threshold" className="text-sm font-medium text-slate-700 mb-2 flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5 text-slate-400" />
+                          Проходной порог, %
+                        </label>
+                        <div className="flex items-center gap-2 mt-2">
+                          <input
+                            id="exam-new-pass-threshold"
+                            inputMode="numeric"
+                            maxLength={3}
+                            value={config.passThreshold}
+                            aria-invalid={parsePassThreshold(config.passThreshold) === null}
+                            aria-describedby="exam-new-pass-threshold-hint"
+                            onChange={(event) => setConfig({ ...config, passThreshold: event.target.value })}
+                            className="h-11 w-24 rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-base font-medium text-slate-900 outline-none transition focus:border-primary-400 focus:bg-white focus:ring-4 focus:ring-primary-100"
+                          />
+                          <span className="text-sm font-semibold text-slate-500">%</span>
+                        </div>
+                        <p
+                          id="exam-new-pass-threshold-hint"
+                          className={`mt-1.5 text-xs ${parsePassThreshold(config.passThreshold) === null ? "text-rose-600 font-medium" : "text-slate-500"}`}
+                        >
+                          {parsePassThreshold(config.passThreshold) === null ? "Введите целое число от 1 до 100." : PASS_THRESHOLD_HINT}
+                        </p>
                       </div>
                     </div>
                   </GlassCard>
