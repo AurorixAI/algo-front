@@ -73,10 +73,22 @@ test("[11] the template of a page: words stay, ids / numbers / codes / tokens be
   assert.equal(S.pageTemplate("/" + Array(20).fill("a").join("/")).split("/").length - 1, 8);   // a bounded path
 });
 
-test("[11] every token page and code page of the product masks its segment (ONE list, public-pages.ts)", () => {
+test("[R3-4] the token words are ONE list (public-pages.ts): the support's mask uses exactly it, and it covers every token page, code page and masked API route", () => {
   const PP = require(path.join(root, "src/lib/public-pages.ts"));
-  for (const page of [...PP.TOKEN_PAGES, ...PP.CODE_PAGES]) assert.equal(S.pageTemplate(`${page}sometokenwithlowercaseonly`), `${page}[id]`, page);
+  assert.deepEqual([...S.TOKEN_PREFIXES].sort(), [...PP.TOKEN_SEGMENTS].sort());
+  for (const page of [...PP.TOKEN_PAGES, ...PP.CODE_PAGES]) {
+    assert.ok(S.TOKEN_PREFIXES.has(page.replace(/\//g, "")), page);
+    assert.equal(S.pageTemplate(`${page}sometokenwithlowercaseonly`), `${page}[id]`, page);
+  }
+  for (const word of PP.TOKEN_SEGMENTS) {
+    assert.equal(S.pageTemplate(`/${word}/abc`), `/${word}/[id]`, word);
+    assert.equal(S.pageTemplate(`/api/v1/auth/${word}/abc/more`), `/api/v1/auth/${word}/[id]/more`, word);
+  }
+  // the same words the nginx masks of the logs know (algo-infrastructure/tests/test_k4a_token_masks.py) and the auth-service holds (tests/test_k4a_support_unit.py): change TOGETHER (LESSONS 77)
+  assert.deepEqual([...PP.TOKEN_SEGMENTS_MASKED_BY_NGINX].sort(), ["by-code", "confirm-email", "d", "diagnostic", "e", "email-change", "invite", "password-links", "set-password"]);
+  assert.deepEqual([...PP.TOKEN_SEGMENTS_OF_THE_SUPPORT_ONLY].sort(), ["reset", "session-status", "support-login"]);
   assert.match(read("src/lib/support.ts"), /from "\.\/public-pages"/);
+  assert.equal(S.pageTemplate("/api/v1/auth/password-links/abc"), "/api/v1/auth/password-links/[id]");
 });
 
 test("[11] the ring of the last errors: 5 at most, status + method + the template of the route, nothing else", () => {
@@ -101,6 +113,27 @@ test("[11] the ring of the last errors: 5 at most, status + method + the templat
   S.resetClientErrors();
 });
 
+test("[R3-10] the ring belongs to one person: another user or a sign-out empties it", () => {
+  S.resetClientErrors();
+  S.bindClientErrorsTo("user-1");
+  S.recordClientError(500, "GET", "/auth/org/groups/1");
+  S.bindClientErrorsTo("user-1");                                                      // the same person (a re-render): the ring stays
+  assert.equal(S.recentClientErrors().length, 1);
+  S.bindClientErrorsTo("user-2");                                                      // another person on the same computer
+  assert.equal(S.recentClientErrors().length, 0);
+  S.recordClientError(500, "GET", "/auth/org/groups/1");
+  S.bindClientErrorsTo(null);                                                          // nobody is signed in
+  assert.equal(S.recentClientErrors().length, 0);
+  S.recordClientError(409, "POST", "/auth/x");
+  S.resetClientErrors();                                                               // the sign-out
+  assert.equal(S.recentClientErrors().length, 0);
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  assert.match(sidebar, /bindClientErrorsTo\(user\?\.id\)/);
+  assert.match(sidebar, /resetClientErrors\(\);\s*logout\(\);/);
+  assert.match(read("src/lib/api.ts"), /resetClientErrors\(\); \/\/ the next person/);       // a session that died by itself (endDeadSession)
+  S.bindClientErrorsTo(null);
+});
+
 test("[11] the api layer records the failed calls with status, method and the ENDPOINT only (never the answer)", () => {
   const api = read("src/lib/api.ts");
   assert.equal((api.match(/recordClientError\(response\.status, method, endpoint\)/g) || []).length, 3, "the auth api, the exam api and the diagnostic api");
@@ -121,20 +154,37 @@ test("the text: 10 to 2000 characters, counted without the spaces around", () =>
   assert.match(S.supportTextProblem("x".repeat(2001)), /максимум 2000/);
 });
 
-test("the screenshots: at most 3, only pictures; a PNG within the limit goes as it is, anything else is drawn again, the long side is 1600", () => {
+test("the screenshots: at most 3, only pictures; EVERY picture is drawn again as a JPEG with the long side at most 2560 (R3-11)", () => {
   assert.equal(S.screenshotProblem({ type: "image/png", size: 10 }, 0), null);
   assert.match(S.screenshotProblem({ type: "image/png", size: 10 }, 3), /не больше 3/);
   assert.match(S.screenshotProblem({ type: "application/pdf", size: 10 }, 0), /JPEG или PNG/);
   assert.match(S.screenshotProblem({ type: "", size: 10 }, 0), /JPEG или PNG/);
-  assert.equal(S.screenshotProblem({ type: "image/heic", size: 10 }, 2), null);       // the browser may draw it; the server only ever sees JPEG / PNG
-  assert.equal(S.sendAsIs({ type: "image/png", size: 500_000 }), true);
-  assert.equal(S.sendAsIs({ type: "image/png", size: 2 * 1024 * 1024 }), false);
-  assert.equal(S.sendAsIs({ type: "image/jpeg", size: 100 }), false);                 // a photo carries its place and time: always drawn again
-  assert.equal(S.sendAsIs({ type: "image/heic", size: 100 }), false);
-  assert.deepEqual(S.scaledSize(4000, 3000), { width: 1600, height: 1200 });
-  assert.deepEqual(S.scaledSize(1200, 2400), { width: 800, height: 1600 });
+  assert.equal(S.screenshotProblem({ type: "image/heic", size: 10 }, 2), null);       // the browser may draw it; the server only ever sees JPEG
+  assert.equal(S.sendAsIs, undefined, "no picture goes as it is: a PNG carries text blocks, a JPEG carries the place and the time");
+  assert.deepEqual(S.scaledSize(4000, 3000), { width: 2560, height: 1920 });
+  assert.deepEqual(S.scaledSize(1200, 4800), { width: 640, height: 2560 });
   assert.deepEqual(S.scaledSize(800, 600), { width: 800, height: 600 });
   assert.ok(S.SUPPORT_TARGET_FILE_BYTES < S.SUPPORT_MAX_FILE_BYTES);
+  const image = read("src/lib/support-image.ts");
+  assert.doesNotMatch(image, /sendAsIs|return \{ blob: file/, "the original file is never what is sent");
+  assert.match(image, /canvas\.toBlob|toBlob\(canvas/);
+  assert.match(image, /image\/jpeg/);
+  assert.ok(S.SHRINK_ROUNDS >= 1 && S.SHRINK_STEP < 1);
+});
+
+test("[R3-13] why a screenshot did not go: the size, the format, the limit of 3, the network, a picture the browser cannot draw", () => {
+  const api = (status, message) => Object.assign(new Error(message), { status });
+  assert.equal(S.lostReason(api(413, "Снимок слишком большой (макс. 2 МБ).")), "больше 2 МБ");
+  assert.equal(S.lostReason(api(415, "Нужен снимок в формате JPEG или PNG.")), "формат не подходит (нужен JPEG или PNG)");
+  assert.equal(S.lostReason(api(415, "Изображение слишком большое.")), "слишком большое изображение");
+  assert.equal(S.lostReason(api(409, "К обращению можно приложить не больше 3 снимков.")), "уже приложено 3 снимка");
+  assert.equal(S.lostReason(api(0, "Не удалось подключиться к сервису. Проверьте соединение и повторите попытку.")), "нет связи");
+  assert.match(S.lostReason(api(429, "x")), /повторите позже/);
+  assert.equal(S.lostReason(new Error("Не удалось прочитать снимок. Приложите JPEG или PNG.")), "не удалось прочитать снимок. Приложите JPEG или PNG");
+  assert.equal(S.lostReason(null), "не удалось загрузить");
+  const dialog = read("src/components/support/support-dialog.tsx");
+  assert.match(dialog, /lost\.push\(\{ name: file\.name \|\| "Снимок", reason: lostReason\(cause\) \}\)/);
+  assert.doesNotMatch(dialog, /catch \{\s*lost/);
 });
 
 test("the words: the author's statuses, the success title, the empty state, the closed note", () => {
@@ -181,6 +231,29 @@ test("[14] «Поддержка» is in the profile menu of the rail AND in «Е
   assert.ok(sidebar.indexOf("profile-support") < sidebar.lastIndexOf("Выйти из системы"), "the row is above «Выйти»");
   assert.ok(nav.indexOf("more-support") < nav.lastIndexOf("Выйти из системы"), "the row is above «Выйти»");
   assert.doesNotMatch(sidebar + nav, /dangerouslySetInnerHTML/);
+});
+
+test("[R3-1] «Мои обращения» is a row of the profile menu AND of «Ещё», next to «Поддержка», to the page of the person's own cabinet, with the badge «есть ответ»", () => {
+  const sidebar = read("src/components/layout/sidebar.tsx");
+  const nav = read("src/components/layout/bottom-nav.tsx");
+  assert.match(sidebar, /data-testid="profile-my-support"/);
+  assert.match(sidebar, /router\.push\(supportPath\)/);
+  assert.match(sidebar, /const supportPath = rawRole === "owner" \? "\/owner\/support" : role === "admin" \? "\/admin\/support" : "\/teacher\/support"/);
+  assert.match(sidebar, /supportPath=\{DEMO_MODE \? undefined : supportPath\}/);
+  assert.match(nav, /data-testid="more-my-support"/);
+  assert.match(nav, /<Link href=\{supportPath\}/);
+  assert.match(nav, /SUPPORT_MY_LABEL/);
+  for (const source of [sidebar, nav]) assert.match(source, /data-testid="support-unread-badge"/);
+  assert.match(sidebar, /data-testid="support-unread-dot"/);                            // the avatar: the menu is closed most of the time
+  assert.ok(sidebar.indexOf("profile-support") < sidebar.indexOf("profile-my-support"));
+  assert.ok(nav.indexOf("more-my-support") < nav.indexOf("more-support"));
+  for (const role of ["owner", "admin", "teacher"]) assert.equal(S.supportPathOf(`/${role}/dashboard`), `/${role}/support`);
+  const store = read("src/lib/support-unread.ts");
+  assert.match(store, /SUPPORT_UNREAD_POLL_MS = 120_000/);
+  assert.match(sidebar, /window\.setInterval\(\(\) => void useSupportUnread\.getState\(\)\.load\(\), SUPPORT_UNREAD_POLL_MS\)/);
+  assert.match(sidebar, /void useSupportUnread\.getState\(\)\.load\(\);/);          // at sign-in
+  assert.match(read("src/components/support/support-page.tsx"), /useSupportUnread\.getState\(\)\.load\(\)/);   // after the card is opened
+  assert.match(read("src/lib/api.ts"), /unread: \(\) => api<\{ count: number \}>\("\/auth\/support\/unread"\)/);
 });
 
 test("the three cabinets have the page «Мои обращения», all the same component", () => {
@@ -239,6 +312,22 @@ test("the console: the section «Обращения» is for support.manage only
   assert.deepEqual(perms.visibleNav(staff([], true)).map((i) => i.key), nav);
   assert.ok(exists("console/src/app/(panel)/support/page.tsx"));
   assert.match(read("console/src/components/shell.tsx"), /data-testid="new-support-badge"/);
+});
+
+test("[R3-7][R3-9] the console: cards on a phone instead of the table; the note of closing follows the kind, not the name", () => {
+  const screen = read("console/src/components/support.tsx");
+  assert.match(screen, /data-testid="support-cards"/);
+  assert.match(screen, /md:hidden/);
+  assert.match(screen, /hidden md:block/);                                               // the table stays for a computer
+  assert.doesNotMatch(screen.slice(screen.indexOf('data-testid="support-cards"'), screen.indexOf("</ul>", screen.indexOf('data-testid="support-cards"'))), /line-clamp|truncate/, "no cutting on a phone");
+  assert.match(screen, /№\{t\.number\}/);
+  assert.equal(labels.supportResolvedNote("auto", "31.10.2026 14:00", null), "Решено 31.10.2026 14:00 автоматически: 14 дней без ответа");
+  assert.equal(labels.supportResolvedNote("manual", "31.10.2026 14:00", null), "Решено 31.10.2026 14:00");   // the employee was deleted: NOT «автоматически»
+  assert.equal(labels.supportResolvedNote("manual", "31.10.2026 14:00", "Сергей Поддержкин"), "Решено 31.10.2026 14:00, Сергей Поддержкин");
+  assert.equal(labels.supportResolvedNote(null, "31.10.2026 14:00", null), "Решено 31.10.2026 14:00");
+  assert.match(screen, /supportResolvedNote\(data\.resolved_kind/);
+  assert.doesNotMatch(screen, /resolved_by \? .* : " автоматически/);
+  assert.deepEqual(labels.supportMailMark("throttled", false), { text: "письмо не отправлялось: по этому обращению недавно уже писали", problem: false });
 });
 
 test("the console: statuses, filters, mail marks", () => {
