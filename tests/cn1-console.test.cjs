@@ -240,7 +240,7 @@ test("the panel holds back its content until the server has said who is signed i
 
 test("permissions: the owner has everything; a role sees only its sections; nobody sees «Команда» and «Роли» without team.manage", () => {
   const owner = ME({ permissions: [] });
-  assert.deepEqual(perms.visibleNav(owner).map((i) => i.label), ["Заявки", "Центры", "Пользователи", "Команда", "Роли", "Журнал"]);
+  assert.deepEqual(perms.visibleNav(owner).map((i) => i.label), ["Заявки", "Обращения", "Центры", "Пользователи", "Команда", "Роли", "Журнал"]);
   const sales = ME({ is_owner: false, permissions: ["requests.view", "requests.manage", "orgs.view"] });
   assert.deepEqual(perms.visibleNav(sales).map((i) => i.key), ["requests", "centres"]);
   assert.equal(perms.can(sales, "requests.manage"), true);
