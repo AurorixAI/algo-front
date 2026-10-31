@@ -251,6 +251,11 @@ for (const screen of ["dashboard", "schedule"] as const) {
 
       const journalA = await teacher.api.get(`/auth/org/groups/${groupA.id}/attendance`, { date_from: lessonA.date, date_to: lessonA.date });
       const recordsA = journalA.records[`${lessonA.date}_${lessonA.id}`];
+      // the dashboard shows a toast; the schedule keeps the notice in the list of its page AND shows a toast (the list lies under the open panel)
+      const expectNotice = async (text: string) => {
+        await expect(page.locator("#toast-host").getByText(text)).toBeVisible();
+        if (screen === "schedule") await expect(page.getByRole("listitem").filter({ hasText: text })).toHaveCount(1);
+      };
       const refusedText = `Не сохранено: ${groupA.name}, ${dayLabel(lessonA.date)} — откройте урок и повторите`;
       const conflictText = "Урок изменили в другом окне — откройте его снова";
       if (variant === "accepted") {
@@ -258,10 +263,10 @@ for (const screen of ["dashboard", "schedule"] as const) {
         await expect(page.getByText(/Не сохранено|Урок изменили/)).toHaveCount(0);
       } else if (variant === "refused") {
         expect(recordsA).toEqual({ [a1.id]: "present", [a2.id]: "present" });
-        await expect(page.getByText(refusedText)).toBeVisible();
+        await expectNotice(refusedText);
       } else {
         expect(recordsA).toEqual({ [a1.id]: "absent", [a2.id]: "present" }); // the other window's save stands
-        await expect(page.getByText(conflictText)).toBeVisible();
+        await expectNotice(conflictText);
       }
       if (process.env.E2E_SHOTS && variant === "refused") await page.screenshot({ path: `${process.env.E2E_SHOTS}/after-write-refused-${screen}-${page.viewportSize()?.width}.png` });
     });
