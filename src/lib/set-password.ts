@@ -106,14 +106,22 @@ export const DEAD_LINK_COPY: Record<DeadLinkKind, { title: string; text: string 
     text: "Запросите новую ссылку — она придёт на вашу почту.",
   },
   revoked: {
-    title: "Выдана новая ссылка",
-    text: "Эта ссылка заменена новой. Используйте ссылку из самого последнего письма от ALGO.",
+    // the link may have died for several reasons (a password changed, a sign-in, a newer link, a change of the e-mail): the words do not claim one of them
+    title: "Ссылка больше не действует",
+    text: "После этого письма пароль уже меняли, вы вошли со своим паролем или пришла более новая ссылка. Нужен новый пароль — запросите ссылку ещё раз.",
   },
   invalid: {
     title: "Ссылка не найдена",
     text: "Возможно, она скопирована не полностью. Откройте письмо от ALGO ещё раз или запросите новую ссылку.",
   },
 };
+
+/** The line over the card: a reset (asked for by the person or sent by the leadership) is «Восстановление доступа»; the welcome link of a new owner keeps «по приглашению». */
+export function linkCaption(state: { kind: string; purpose?: string | null }): string {
+  if (state.purpose === "reset") return "Восстановление доступа";
+  if (state.purpose === "centre_invite") return "Доступ к ALGO — по приглашению";
+  return "Доступ к ALGO";
+}
 
 /** A dead link of the first password of a new owner cannot be asked for again on the sign-in page: the team sends it. */
 export const DEAD_WELCOME_LINK_TEXT = "Напишите нам — мы пришлём новую ссылку.";
@@ -122,7 +130,7 @@ export const DEAD_WELCOME_LINK_TEXT = "Напишите нам — мы приш
 export function deadLinkText(state: { kind: DeadLinkKind; purpose?: string | null }): string {
   if (state.purpose !== "centre_invite") return DEAD_LINK_COPY[state.kind].text;
   if (state.kind === "used") return "Пароль по этой ссылке уже задан. Войдите с вашей почтой и паролем.";
-  if (state.kind === "revoked") return DEAD_LINK_COPY.revoked.text;
+  if (state.kind === "revoked") return `${DEAD_LINK_COPY.revoked.title}. ${DEAD_WELCOME_LINK_TEXT}`;
   return `${state.kind === "expired" ? "Срок действия ссылки истёк." : "Ссылка не найдена."} ${DEAD_WELCOME_LINK_TEXT}`;
 }
 

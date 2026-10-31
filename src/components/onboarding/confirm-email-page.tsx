@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/glass-card";
 import { NarrowPage } from "@/components/onboarding/onboarding-shell";
 import { onboardingApi } from "@/lib/onboarding-api";
-import { CONFIRM_DEAD_COPY, CONFIRM_TAKEN_COPY, confirmStateFromError, confirmStateFromInfo, type ConfirmState } from "@/lib/confirm-email";
+import { CONFIRM_CAPTION, CONFIRM_DEAD_COPY, CONFIRM_TAKEN_COPY, confirmStateFromError, confirmStateFromInfo, type ConfirmState } from "@/lib/confirm-email";
 
 /** The page of the letter that went to the NEW address of an employee: a view first (a mail scanner opens links), the button confirms. No sign-in is needed. */
 export function ConfirmEmailPage({ token }: { token: string }) {
@@ -50,7 +50,7 @@ export function ConfirmEmailPage({ token }: { token: string }) {
   };
 
   return (
-    <NarrowPage caption="Доступ к ALGO — по ссылке из письма">
+    <NarrowPage caption={CONFIRM_CAPTION}>
       <GlassCard variant="elevated" className="p-8">
         {state.kind === "loading" && (
           <div className="py-8 text-center" role="status" aria-live="polite">

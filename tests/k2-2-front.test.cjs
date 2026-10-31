@@ -274,3 +274,41 @@ test("[H1] the role superadmin is not in the cabinet's code and the work areas k
   assert.deepEqual(Object.keys(roles.ROLE_HOME).sort(), ["admin", "owner", "teacher"]);
   for (const file of walk("console/src")) assert.doesNotMatch(read(file), /superadmin/i, file);
 });
+
+// ── the walk of stage: honest words of a dead link, the line over the card ─────────────────────────────
+
+test("[B][C] a dead link that was replaced / cancelled says only what is certain and offers a new one; the welcome link says «напишите нам»", () => {
+  assert.equal(SP.DEAD_LINK_COPY.revoked.title, "Ссылка больше не действует");
+  assert.equal(SP.DEAD_LINK_COPY.revoked.text, "После этого письма пароль уже меняли, вы вошли со своим паролем или пришла более новая ссылка. Нужен новый пароль — запросите ссылку ещё раз.");
+  const reset = dead("link_revoked", "reset");
+  assert.equal(SP.deadLinkText(reset), SP.DEAD_LINK_COPY.revoked.text);
+  assert.equal(SP.canRequestNewLink(reset), true);                                       // the page offers «Запросить новую ссылку» for a revoked reset too
+  assert.doesNotMatch(read("src/components/onboarding/set-password-page.tsx"), /link\.kind !== "revoked" && canRequestNewLink/);
+  const welcome = dead("link_revoked", "centre_invite");
+  assert.equal(SP.canRequestNewLink(welcome), false);
+  assert.match(SP.deadLinkText(welcome), /Напишите нам — мы пришлём новую ссылку\.$/);
+  assert.doesNotMatch(SP.deadLinkText(welcome), /Выдана новая|заменена новой/);
+  assert.doesNotMatch(read("src/lib/set-password.ts"), /Выдана новая ссылка|заменена новой/);
+});
+
+test("[E] the page of a new address says the same about a dead link: asked again, or the password changed", () => {
+  assert.equal(CE.CONFIRM_DEAD_COPY.revoked.title, "Ссылка больше не действует");
+  assert.equal(CE.CONFIRM_DEAD_COPY.revoked.text, "Смену почты запросили заново или пароль изменился. Попросите владельца центра отправить ссылку ещё раз.");
+});
+
+test("[F] the line over the card: a reset (asked for or sent) — «Восстановление доступа»; the invitation as before; the page of the e-mail — «Смена почты для входа»", () => {
+  assert.equal(SP.linkCaption({ kind: "valid", purpose: "reset" }), "Восстановление доступа");
+  assert.equal(SP.linkCaption(dead("link_used", "reset")), "Восстановление доступа");
+  assert.equal(SP.linkCaption({ kind: "valid", purpose: "centre_invite" }), "Доступ к ALGO — по приглашению");
+  assert.equal(SP.linkCaption({ kind: "loading" }), "Доступ к ALGO");
+  assert.equal(CE.CONFIRM_CAPTION, "Смена почты для входа");
+  assert.match(read("src/components/onboarding/set-password-page.tsx"), /<NarrowPage caption=\{linkCaption\(link\)\}>/);
+  assert.match(read("src/components/onboarding/confirm-email-page.tsx"), /<NarrowPage caption=\{CONFIRM_CAPTION\}>/);
+  assert.doesNotMatch(read("src/components/onboarding/confirm-email-page.tsx"), /по ссылке из письма/);
+});
+
+test("the comment of the polling is the real rule (2 s, then 5 s, 150 s)", () => {
+  const page = read("src/app/owner/teachers/page.tsx");
+  assert.doesNotMatch(page, /at most 40 s/);
+  assert.match(page, /at most 150 s/);
+});

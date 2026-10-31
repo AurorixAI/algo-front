@@ -15,6 +15,7 @@ import { useAuthStore } from "@/lib/store";
 import {
   DEAD_LINK_COPY,
   deadLinkText,
+  linkCaption,
   MAX_PASSWORD_LENGTH,
   canRequestNewLink,
   canSetPassword,
@@ -87,7 +88,7 @@ export function SetPasswordPage({ token }: { token: string }) {
   const rules = passwordRules(password, confirm);
 
   return (
-    <NarrowPage caption="Доступ к ALGO — по приглашению">
+    <NarrowPage caption={linkCaption(link)}>
       <GlassCard variant="elevated" className="p-8">
         {link.kind === "loading" && (
           <div className="py-8 text-center" role="status" aria-live="polite">
@@ -126,7 +127,7 @@ export function SetPasswordPage({ token }: { token: string }) {
             </div>
             <h2 className="mt-4 text-xl font-bold text-slate-900">{DEAD_LINK_COPY[link.kind].title}</h2>
             <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-slate-600">{deadLinkText(link)}</p>
-            {link.kind !== "revoked" && canRequestNewLink(link) && (
+            {canRequestNewLink(link) && (
               <Link
                 href="/forgot-password"
                 data-testid="request-new-link"
