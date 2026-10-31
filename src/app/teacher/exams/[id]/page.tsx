@@ -888,16 +888,18 @@ export default function ExamHubPage() {
         </div>
 
         <div className="p-6 md:p-7">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Title and labels take the whole width; the action buttons sit in a row under them. Side by side only from 1536 px,
+              where the title column still keeps 26rem (a running exam has three buttons and «⋯»: at 1280 they squeezed the title to «E2E / Порог / 70»). */}
+          <div className="flex flex-col gap-5 2xl:flex-row 2xl:items-center 2xl:justify-between">
             {/* Left Side: Icon + Title + Metadata row */}
-            <div className="flex items-start gap-4 sm:gap-5">
+            <div className="flex min-w-0 items-start gap-4 sm:gap-5 2xl:min-w-[26rem]">
               <div className="w-14 h-14 rounded-2xl bg-primary-50 border border-primary-100/80 flex items-center justify-center text-primary-600 shrink-0 shadow-xs">
                 <FileText className="w-7 h-7" />
               </div>
 
-              <div className="space-y-2">
+              <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-xl sm:text-[1.7rem] font-medium text-slate-800 tracking-[-0.02em] leading-snug">
+                  <h1 className="min-w-0 break-words text-xl sm:text-[1.7rem] font-medium text-slate-800 tracking-[-0.02em] leading-snug">
                     {exam.title}
                   </h1>
                   {exam.is_pinned && (
@@ -1004,7 +1006,7 @@ export default function ExamHubPage() {
             </div>
 
             {/* Right Side: Quick Action Buttons & 3-dots Menu */}
-            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 2xl:shrink-0 2xl:flex-nowrap">
               {!exam.group_id ? (
                 <Button
                   variant="primary"
