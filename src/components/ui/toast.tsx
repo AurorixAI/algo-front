@@ -27,8 +27,9 @@ const HOST_ID = "toast-host";
  * and would drop that translate, leaving the toast starting at the middle of the screen and cut off on the right.
  * The bottom padding keeps clear of the phone's home indicator (safe area).
  */
+// z-[100020]: above the lesson panels (99999) and the floating layers over them (100000-100010): a refusal of a write that finds the panel of another lesson open must be SEEN
 const HOST_CLASS =
-  "pointer-events-none fixed inset-x-0 bottom-0 z-[120] flex flex-col items-center gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] print:hidden";
+  "pointer-events-none fixed inset-x-0 bottom-0 z-[100020] flex flex-col items-center gap-2 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))] sm:pb-[max(1.5rem,env(safe-area-inset-bottom))] print:hidden";
 
 function ToastPortal({ children }: { children: ReactNode }) {
   const [host, setHost] = useState<HTMLElement | null>(null);

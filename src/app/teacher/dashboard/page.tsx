@@ -65,8 +65,7 @@ import { NextActionCard } from "@/components/teacher/next-action-card";
 import { useRouter } from "next/navigation";
 import { pluralRu } from "@/lib/payments";
 import { DAYS, formatExamQueueCount, getLessonTimeStatus } from "@/lib/schedule-time";
-import { LESSON_NOT_LOADED_TEXT, lessonPanelKey, useLessonPanelData } from "@/lib/lesson-panel-data";
-import { isOrgManager } from "@/lib/role-home";
+import { lessonCancelRef, lessonPanelKey, lessonStartBody, lessonWriteBody, planAfterWrite, useLessonPanelData, useLessonWrites } from "@/lib/lesson-panel-data";
 import { staffDisplayName } from "@/lib/staff-name";
 import { useScrollLock } from "@/components/ui/modal";
 import { roomLabel } from "@/lib/schedule-slots";
@@ -194,7 +193,6 @@ export default function TeacherDashboardPage() {
   const [isMarkingAttendance, setIsMarkingAttendance] = useState(false);
   const [isAttendanceSaved, setIsAttendanceSaved] = useState(false);
   const [isAttendanceDirty, setIsAttendanceDirty] = useState(false);
-  const [savingAttendance, setSavingAttendance] = useState(false);
   // LOGIC-B: the version of the lesson record, the conflict of two editors, the exam a finish waits for.
   const marksOps = useLessonMarksOps();
   const [activeTeacherInfo, setActiveTeacherInfo] = useState<LessonTeacherInfo | null>(null);
@@ -363,7 +361,6 @@ export default function TeacherDashboardPage() {
   // the roster is the one rule of both screens (F-A12), a write asks `panel.target(...)` for the lesson id and its version
   const panel = useLessonPanelData<LessonSummary>(activeLesson, {
     businessDate,
-    isManager: isOrgManager(user),
     ownGroupIds: groups.map((group) => group.id),
     getGroup: (id) => orgApi.getGroup(id),
     getJournal: (groupId, date) => orgApi.getGroupAttendance(groupId, { dateFrom: date, dateTo: date }),
@@ -426,6 +423,12 @@ export default function TeacherDashboardPage() {
     },
   });
   const loadingStudents = panel.loading;
+  // the writes in flight, by lesson: a second press of the same lesson is one request, and the buttons of ANOTHER lesson stay free
+  const writes = useLessonWrites();
+  const activeKey = activeLesson ? lessonPanelKey(activeLesson, businessDate) : null;
+  const savingAttendance = writes.isBusy(activeKey);
+  /** The refusal of a write whose panel is already gone: a toast that stays (a toast with details lives 10 s and has a cross). */
+  const showRefusedWrite = (notice: string | null, reason: string) => { if (notice) showToast(notice, "error", [reason]); };
 
 
   const handleAttendanceChange = (studentId: string, status: AttendanceStatus) => {
@@ -500,7 +503,7 @@ export default function TeacherDashboardPage() {
   const handleStartLesson = async () => {
     if (!activeLesson || activeInstanceStatus !== "scheduled") return;
     const target = panel.target(activeLesson);
-    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
 
     const blocked = startBlockedReason(lessonDateRelation(activeLesson.occurrenceDate || businessDate, businessDate));
     if (blocked) {
@@ -522,14 +525,10 @@ export default function TeacherDashboardPage() {
       return;
     }
 
+    if (!writes.begin(target.key)) return; // a second press while the start is on its way
     setAttendanceError(null);
-    setSavingAttendance(true);
     try {
-      const started = await orgApi.startGroupAttendance(target.groupId, {
-        lessonDate: target.lessonDate,
-        lessonId: target.lessonId,
-        topic: activeLesson.topic,
-      });
+      const started = await orgApi.startGroupAttendance(target.groupId, lessonStartBody(target, activeLesson.topic));
       if (panel.isOpen(target.key)) marksOps.noteVersion(started);
       // the roster is frozen by the start: a student on a pause that day is not in it
       {
@@ -548,9 +547,12 @@ export default function TeacherDashboardPage() {
       }
     } catch (err) {
       console.error("Failed to start lesson:", err);
-      if (panel.isOpen(target.key)) setAttendanceError(lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.").text);
+      const failure = lessonFailure(err, "start", "Не удалось начать урок. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: failure.kind === "conflict" ? "conflict" : "other" } });
+      if (plan.applyToPanel) setAttendanceError(failure.text);
+      else showRefusedWrite(plan.notice, failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
@@ -652,7 +654,7 @@ export default function TeacherDashboardPage() {
   const handleSaveAttendance = async (override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
     const target = panel.target(activeLesson);
-    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     // «Оставить мои» repeats this very action with the merged marks
     const marks = override ?? attendance;
     if (override) setAttendance(override);
@@ -673,19 +675,15 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    setSavingAttendance(true);
+    if (!writes.begin(target.key)) return;
     try {
-      const saved = await orgApi.saveGroupAttendance(target.groupId, {
-        lessonDate: target.lessonDate,
-        lessonId: target.lessonId,
-        topic: activeLesson.topic,
-        status: "in_progress",
+      const saved = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic, {
+        status: "in_progress" as const,
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...target.versionBody,
-      });
+      }));
       // what the screen holds of the lesson (version, marks, flags) changes only while THIS lesson is the open one
-      const here = panel.isOpen(target.key);
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
       if (here) {
         marksOps.noteSaved(saved, marks);
         rememberSavedExcuses(prepared.reasons, marks);
@@ -714,19 +712,21 @@ export default function TeacherDashboardPage() {
       if (here) setIsMarkingAttendance(false);
     } catch (err) {
       console.error("Failed to save attendance:", err);
-      if (!panel.isOpen(target.key)) return; // another lesson is on the screen now: its panel is not the place for this refusal
+      const refusal = lessonFailure(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; } // another lesson is on the screen now: not the place for the dialog, the notice stays
       const failure = marksOps.refused(err, "save", "Не удалось сохранить посещаемость. Данные не изменены.", marks);
       // a conflict is decided in its dialog (my marks stay on screen); anything else is the text of the panel
       if (failure.kind !== "conflict") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
   const handleFinishLesson = async (acknowledgeLiveExam = false, override?: Record<string, AttendanceStatus>) => {
     if (!activeLesson) return;
     const target = panel.target(activeLesson);
-    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     const marks = override ?? attendance;
     if (override) setAttendance(override);
 
@@ -759,19 +759,15 @@ export default function TeacherDashboardPage() {
       return;
     }
 
-    setSavingAttendance(true);
+    if (!writes.begin(target.key)) return;
     try {
-      const finished = await orgApi.saveGroupAttendance(target.groupId, {
-        lessonDate: target.lessonDate,
-        lessonId: target.lessonId,
-        topic: activeLesson.topic,
-        status: "completed",
+      const finished = await orgApi.saveGroupAttendance(target.groupId, lessonWriteBody(target, activeLesson.topic, {
+        status: "completed" as const,
         records: marks,
         ...(Object.keys(prepared.reasons).length ? { excuseReasons: prepared.reasons } : {}),
-        ...target.versionBody,
         ...(acknowledgeLiveExam ? { acknowledgeLiveExam: true } : {}),
-      });
-      const here = panel.isOpen(target.key);
+      }));
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
       if (here) {
         marksOps.noteSaved(finished, marks);
         marksOps.clearLiveExams();
@@ -790,19 +786,21 @@ export default function TeacherDashboardPage() {
       if (here) setActiveLesson(null); // the panel of ANOTHER lesson, opened meanwhile, stays
     } catch (err) {
       console.error("Failed to sync completed status with server:", err);
-      if (!panel.isOpen(target.key)) return;
+      const refusal = lessonFailure(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "finish", "Не удалось завершить урок. Отметки сохранены, попробуйте ещё раз.", marks);
       // a running exam / a conflict is decided in its dialog; anything else is the text of the panel
       if (failure.kind !== "conflict" && failure.kind !== "live_exam") setAttendanceError(excuseReasonHint(err) ?? failure.text);
     } finally {
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
   const handleCancelLesson = async () => {
     if (!activeLesson || activeInstanceStatus === "completed" || activeInstanceStatus === "cancelled" || cancelSending.current) return;
     const target = panel.target(activeLesson);
-    if (!target) { setAttendanceError(LESSON_NOT_LOADED_TEXT); return; }
+    if (!target) { setAttendanceError(panel.notReadyText); return; }
     if (!lessonExamBinding || lessonExamBinding.loading || !lessonExamBinding.canCancel) return;
     const reason = cancellationReason.trim();
     const reasonProblem = cancelReasonProblem(reason);
@@ -810,17 +808,17 @@ export default function TeacherDashboardPage() {
       setAttendanceError(reasonProblem);
       return;
     }
+    if (!writes.begin(target.key)) return;
     cancelSending.current = true;
     setAttendanceError(null);
-    setSavingAttendance(true);
     try {
       const notes = await sendTeacherCancel(
         cancelRoute,
-        { groupId: target.groupId, lessonId: target.lessonId, lessonDate: target.lessonDate, topic: activeLesson.topic },
+        lessonCancelRef(target, activeLesson.topic),
         reason,
         target.versionBody,
       );
-      const here = panel.isOpen(target.key);
+      const here = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: true } }).applyToPanel;
       if (here) {
         setActiveInstanceStatus("cancelled");
         setActiveCancellationReason(reason);
@@ -844,12 +842,14 @@ export default function TeacherDashboardPage() {
       if (notes.length > 0) showToast("Урок отмечен как не состоявшийся", "warning", notes);
     } catch (err) {
       console.error("Failed to cancel lesson:", err);
-      if (!panel.isOpen(target.key)) return;
+      const refusal = lessonFailure(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.");
+      const plan = planAfterWrite({ target, isOpen: panel.isOpen, outcome: { ok: false, kind: refusal.kind === "conflict" ? "conflict" : "other" } });
+      if (!plan.applyToPanel) { showRefusedWrite(plan.notice, refusal.text); return; }
       const failure = marksOps.refused(err, "cancel", "Не удалось отметить, что урока не было. Данные не изменены.", attendance);
       if (failure.kind !== "conflict") setAttendanceError(failure.text);
     } finally {
       cancelSending.current = false;
-      setSavingAttendance(false);
+      writes.end(target.key);
     }
   };
 
@@ -860,7 +860,7 @@ export default function TeacherDashboardPage() {
     setCancelVariant(offer.variant);
     setLessonExamBinding({ loading: true, attached: false, canCancel: false });
     setIsCancellingLesson(true);
-    const openedKey = lessonPanelKey(activeLesson, businessDate);
+    const alive = panel.alive(); // the token of the run that read this lesson's journal: the answer of another run is dropped exactly like the journal's
 
     try {
       const binding = await examsApi.getLessonBinding({
@@ -868,7 +868,7 @@ export default function TeacherDashboardPage() {
         lessonId: activeLesson.id,
         lessonDate: activeLesson.occurrenceDate || businessDate,
       });
-      if (!panel.isOpen(openedKey)) return; // the answer of the lesson that was open before is not the answer for this one
+      if (!alive()) return; // the answer of the lesson that was open before is not the answer for this one
       setLessonExamBinding({
         loading: false,
         attached: binding.attached,
@@ -878,7 +878,7 @@ export default function TeacherDashboardPage() {
       });
     } catch (err) {
       console.error("Failed to check exam binding before lesson cancellation:", err);
-      if (!panel.isOpen(openedKey)) return;
+      if (!alive()) return;
       setLessonExamBinding({
         loading: false,
         attached: false,
@@ -2339,7 +2339,8 @@ export default function TeacherDashboardPage() {
                             <button
                               type="button"
                               onClick={handleStartLesson}
-                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
+                              disabled={savingAttendance}
+                              className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shrink-0 shadow-xs"
                             >
                               Начать урок сейчас
                             </button>
@@ -2364,7 +2365,8 @@ export default function TeacherDashboardPage() {
                           <button
                             type="button"
                             onClick={handleStartLesson}
-                            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 shrink-0"
+                            disabled={savingAttendance}
+                            className="disabled:cursor-not-allowed disabled:opacity-50 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 shrink-0"
                           >
                             <Play className="w-3.5 h-3.5 fill-white" />
                             Начать урок

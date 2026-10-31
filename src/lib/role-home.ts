@@ -58,15 +58,6 @@ export function effectiveRole(user?: { role?: string | null; org_role?: string |
   return user?.org_role || user?.role || null;
 }
 
-/**
- * The owner or the administrator of the centre (the live membership role wins; an account `owner` without a membership counts too).
- * The one place of this condition: a lesson is led by a teacher only, so the teacher's screens do not use it for anything else than
- * the roster source of the lesson panel.
- */
-export function isOrgManager(user?: { role?: string | null; org_role?: string | null } | null): boolean {
-  return user?.org_role === "owner" || user?.org_role === "admin" || user?.role === "owner";
-}
-
 /** Whether `user` may open a workspace that allows `allowedRoles` (empty list: any signed-in user). */
 export function isRoleAllowed(
   allowedRoles: readonly string[],

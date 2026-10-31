@@ -181,3 +181,111 @@ test("schedule: start -> marks -> finish of a lesson", async ({ signIn }) => {
   const after = await teacher.api.get(`/auth/org/groups/${group.id}/attendance`, { date_from: lesson.date, date_to: lesson.date });
   expect(after.statuses[`${lesson.date}_${lesson.id}`]).toBe("completed");
 });
+
+/**
+ * R3 (1, 2): the answer of a WRITE. «Сохранить отметки» of lesson A is on its way (page.route holds the REAL request), the teacher closes the panel
+ * and opens lesson B, then A answers: the panel of B is not touched, a refusal of A is a notice of the page (the dashboard's toast, the schedule's
+ * list) and the journal of B stays as it was.
+ */
+async function writeRaceWorld(label: string) {
+  const teacher: Staff = await org.addStaff("teacher", `Писарев${label}`);
+  const groupA: GroupInfo = await org.createGroup({ name: `Группа В${label}`, teacherId: teacher.userId });
+  const groupB: GroupInfo = await org.createGroup({ name: `Группа Г${label}`, teacherId: teacher.userId });
+  const a1 = await org.addStudent(groupA, "Азиз", `Алиев${label}`);
+  const a2 = await org.addStudent(groupA, "Алина", `Абдуллаева${label}`);
+  const b1 = await org.addStudent(groupB, "Бобур", `Бакиров${label}`);
+  const b2 = await org.addStudent(groupB, "Барно", `Бекова${label}`);
+  const lessonA = await org.createLessonStartingNow(groupA.id);
+  const lessonB = await org.createLessonStartingNow(groupB.id, org.owner, 10, 12); // later today: not started, no record, no version
+  await runLesson(teacher, lessonA, { records: { [a1.id]: "present", [a2.id]: "present" } });
+  return { teacher, groupA, groupB, a1, a2, b1, b2, lessonA, lessonB };
+}
+
+const dayLabel = (date: string) => new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", day: "numeric", month: "long" }).format(new Date(`${date}T12:00:00Z`));
+
+for (const screen of ["dashboard", "schedule"] as const) {
+  for (const variant of ["accepted", "refused", "conflict"] as const) {
+    test(`${screen}: the answer of the save of lesson A (${variant}) after B was opened leaves the panel of B alone @mobile`, async ({ signIn }) => {
+      const world = await writeRaceWorld(`${screen[0]}${variant[0]}`);
+      const { teacher, groupA, groupB, a1, a2, lessonA, lessonB } = world;
+      const page = await signIn(teacher);
+      let armed = false;
+      let held = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => { release = resolve; });
+      await page.route(new RegExp(`/auth/org/groups/${groupA.id}/attendance$`), async (route) => {
+        if (!armed || route.request().method() !== "POST") return route.continue();
+        held += 1;
+        await gate;
+        if (variant === "refused") return route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ detail: "Нельзя сохранить" }) });
+        return route.continue(); // `conflict`: by now somebody else saved A, the request carries the old version and the server says so
+      });
+      await page.goto(`/teacher/${screen}`);
+      await expect(page.getByText(groupB.name, { exact: true }).first()).toBeVisible();
+
+      // A: change a mark and press «Сохранить отметки»; the request is held
+      await openLesson(page, screen, groupA);
+      await page.getByRole("button", { name: "Изменить отметки" }).click();
+      armed = true;
+      await markAbsentAndSave(page, a2.fullName);
+      await expect.poll(() => held).toBe(1);
+      // closes A while the save is on its way, opens B (later today: «Урок ещё не начался», no marks)
+      await page.keyboard.press("Escape");
+      await openLesson(page, screen, groupB);
+      await expect(page.getByText("Урок ещё не начался", { exact: true })).toBeVisible();
+      if (variant === "conflict") {
+        // somebody saves A in the other window: the version of A moves on
+        await teacher.api.post(`/auth/org/groups/${groupA.id}/attendance`, { lessonDate: lessonA.date, lessonId: lessonA.id, status: "in_progress", records: { [a1.id]: "absent", [a2.id]: "present" } });
+      }
+      release();
+      await page.waitForTimeout(900);
+
+      // the panel of B is B's: its roster, no marks, no status of A, no dialog of a conflict
+      await expect(page.getByText("Урок ещё не начался", { exact: true })).toBeVisible();
+      await expect(page.getByText("Идёт урок · Посещаемость отмечена")).toHaveCount(0);
+      await expect(page.getByRole("heading", { name: /Отметка посещаемости/ })).toHaveCount(0);
+      await expect(page.getByText("Принять чужие")).toHaveCount(0);
+      const journalB = await teacher.api.get(`/auth/org/groups/${groupB.id}/attendance`, { date_from: lessonB.date, date_to: lessonB.date });
+      expect(journalB.records?.[`${lessonB.date}_${lessonB.id}`] ?? {}).toEqual({});
+      expect(journalB.statuses?.[`${lessonB.date}_${lessonB.id}`] ?? "scheduled").toBe("scheduled");
+
+      const journalA = await teacher.api.get(`/auth/org/groups/${groupA.id}/attendance`, { date_from: lessonA.date, date_to: lessonA.date });
+      const recordsA = journalA.records[`${lessonA.date}_${lessonA.id}`];
+      const refusedText = `Не сохранено: ${groupA.name}, ${dayLabel(lessonA.date)} — откройте урок и повторите`;
+      const conflictText = "Урок изменили в другом окне — откройте его снова";
+      if (variant === "accepted") {
+        expect(recordsA).toEqual({ [a1.id]: "present", [a2.id]: "absent" });
+        await expect(page.getByText(/Не сохранено|Урок изменили/)).toHaveCount(0);
+      } else if (variant === "refused") {
+        expect(recordsA).toEqual({ [a1.id]: "present", [a2.id]: "present" });
+        await expect(page.getByText(refusedText)).toBeVisible();
+      } else {
+        expect(recordsA).toEqual({ [a1.id]: "absent", [a2.id]: "present" }); // the other window's save stands
+        await expect(page.getByText(conflictText)).toBeVisible();
+      }
+      if (process.env.E2E_SHOTS && variant === "refused") await page.screenshot({ path: `${process.env.E2E_SHOTS}/after-write-refused-${screen}-${page.viewportSize()?.width}.png` });
+    });
+  }
+}
+
+test("a double press of «Начать урок» is one request @mobile", async ({ signIn }) => {
+  const teacher: Staff = await org.addStaff("teacher", "Двойнов");
+  const group: GroupInfo = await org.createGroup({ name: "Группа Д1", teacherId: teacher.userId });
+  await org.addStudent(group, "Анвар", "Каримов-Д1");
+  await org.createLessonStartingNow(group.id);
+  const page = await signIn(teacher);
+  let starts = 0;
+  await page.route(new RegExp(`/auth/org/groups/${group.id}/attendance/start$`), async (route) => {
+    starts += 1;
+    await new Promise((resolve) => setTimeout(resolve, 600)); // a slow network: the second press comes while the first is on its way
+    await route.continue();
+  });
+  await page.goto("/teacher/dashboard");
+  await page.getByText(group.name, { exact: false }).first().waitFor();
+  await page.locator("p.truncate", { hasText: group.name }).first().click();
+  const start = page.getByRole("button", { name: "Начать урок", exact: true });
+  await start.dblclick();
+  await expect(page.getByRole("heading", { name: /Отметка посещаемости \(0 из 1\)/ })).toBeVisible();
+  expect(starts).toBe(1);
+  await expect(page.getByText(/Не удалось начать урок|уже начат/)).toHaveCount(0);
+});

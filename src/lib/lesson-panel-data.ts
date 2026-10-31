@@ -14,6 +14,7 @@
  * The screens keep their own state of the panel (marks, texts, dialogs): the hook calls them back (`onOpen`, `onLoaded`, `onFailed`, `onClose`).
  */
 import { useEffect, useRef, useState } from "react";
+import { formatIsoDateLabel } from "./business-time";
 import type { AttendanceStatus, GroupAttendance, GroupDetail, LessonAttendanceStatus, StudentInGroup } from "./api";
 import type { LessonTeacherInfo } from "./ops-b-types";
 import type { SubstitutionRequestMark } from "./substitution-types";
@@ -26,6 +27,8 @@ export interface PanelLesson {
   groupId?: string | null;
   /** The date of this occurrence; the dashboard's lessons of today may come without it. */
   occurrenceDate?: string | null;
+  /** For the words of a refusal that arrives after the panel was closed. */
+  groupName?: string | null;
 }
 
 export function lessonDateOf(lesson: PanelLesson, businessDate: string): string {
@@ -56,11 +59,21 @@ function historicalMember(student: HistoricalStudent): StudentInGroup {
   } satisfies StudentInGroup;
 }
 
+const NAME_ORDER = new Intl.Collator("ru");
+
+/** The order of every roster of the panel: by last name, then first name (the server's frozen list is by id, the group list is in the order of the base). */
+export function sortRoster<T extends { last_name?: string | null; first_name?: string | null; full_name?: string | null }>(students: readonly T[]): T[] {
+  return [...students].sort((a, b) =>
+    NAME_ORDER.compare(a.last_name || a.full_name || "", b.last_name || b.full_name || "")
+    || NAME_ORDER.compare(a.first_name || "", b.first_name || ""));
+}
+
 /**
- * The roster of a lesson, the one rule of both screens.
- *  - `journal` source (a substitute: the group page is closed to him): the roster that came with the journal;
- *  - the server froze a roster for this lesson (`rosterStudentIds[key]`, even an empty one - it is a fact): exactly those students, in the order
- *    of the frozen list, a student who left the group since is taken from `historicalStudents`;
+ * The roster of a lesson, the one rule of both screens, always by last name and first name.
+ *  - `journal` source (a substitute: the group page is closed to him): the roster that came with the journal - of THIS lesson: the server
+ *    sends the union of all lessons of the group of that day, so the frozen list of this lesson (when there is one) narrows it;
+ *  - the server froze a roster for this lesson (`rosterStudentIds[key]`, even an empty one - it is a fact): exactly those students,
+ *    a student who left the group since is taken from `historicalStudents`;
  *  - nothing frozen yet: the current group; for a lesson of today without the students on a pause (before the start the group list still holds them).
  */
 export function buildLessonRoster(input: {
@@ -71,18 +84,23 @@ export function buildLessonRoster(input: {
   journal: GroupAttendance | null | undefined;
 }): StudentInGroup[] {
   const { source, lessonKey, isToday, group, journal } = input;
-  if (source === "journal") return rosterFromJournal(journal?.lessonRoster);
-  if (!group?.students) return [];
   const frozen = journal?.rosterStudentIds && Object.prototype.hasOwnProperty.call(journal.rosterStudentIds, lessonKey)
     ? journal.rosterStudentIds[lessonKey] || []
     : null;
-  if (!frozen) return isToday ? withoutPaused(group.students) : group.students;
+  if (source === "journal") {
+    const ofTheDay = rosterFromJournal(journal?.lessonRoster);
+    if (!frozen) return sortRoster(ofTheDay);
+    const own = new Set(frozen);
+    return sortRoster(ofTheDay.filter((student) => own.has(student.id)));
+  }
+  if (!group?.students) return [];
+  if (!frozen) return sortRoster(isToday ? withoutPaused(group.students) : group.students);
   const current = new Map(group.students.map((student) => [student.id, student]));
   const historical = new Map((journal?.historicalStudents || []).map((student) => [student.id, historicalMember(student)]));
-  return frozen.flatMap((studentId) => {
+  return sortRoster(frozen.flatMap((studentId) => {
     const student = current.get(studentId) || historical.get(studentId);
     return student ? [student] : [];
-  });
+  }));
 }
 
 /** Everything the panel shows about ONE lesson, read from one answer of the group page and one answer of the journal. */
@@ -145,8 +163,6 @@ export function buildLessonSnapshot(input: {
 export interface LessonPanelOptions<L extends PanelLesson> {
   /** The business date of the centre now: the date of a lesson that carries none, and the «today» of the paused students. */
   businessDate: string;
-  /** Owner / administrator read the group page whatever the lesson is (see `rosterSource`); false on the teacher's screens. */
-  isManager?: boolean;
   /** The ids of the groups the viewer teaches: a lesson of another group is a substitution and its roster comes with the journal. */
   ownGroupIds: readonly string[];
   getGroup: (groupId: string) => Promise<GroupDetail>;
@@ -167,6 +183,7 @@ export interface LessonPanelOptions<L extends PanelLesson> {
 export interface LessonPanelTarget {
   key: string;
   groupId: string;
+  groupName: string | null;
   lessonId: string;
   lessonDate: string;
   versionBody: { expectedVersion?: number };
@@ -177,6 +194,13 @@ export interface LessonPanelData<L extends PanelLesson> {
   loading: boolean;
   /** The target of a write for `lesson`, or null while the panel does not hold the journal of exactly this lesson. */
   target: (lesson: L) => LessonPanelTarget | null;
+  /** What to tell the person when `target` is null: «still loading» is not «reopen the lesson». */
+  notReadyText: string;
+  /**
+   * A guard bound to the run of the effect that is current NOW (the token of the journal read): `() => true` while no newer run has started.
+   * For other answers about the same lesson (the exam binding) that must be dropped exactly when the journal's would be.
+   */
+  alive: () => () => boolean;
   /** Is the lesson with this key the one open now? Asked by a handler after its `await`. */
   isOpen: (key: string) => boolean;
 }
@@ -190,6 +214,7 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
   if (!sequenceRef.current) sequenceRef.current = createRequestSequence();
   const openKey = useRef<string | null>(null);
   const loadedKey = useRef<string | null>(null);
+  const tokenRef = useRef(0);
   const [phase, setPhase] = useState<Phase>({ key: null, status: "loaded" });
 
   const currentKey = lesson && lesson.groupId ? lessonPanelKey(lesson, options.businessDate) : null;
@@ -198,6 +223,7 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
   useEffect(() => {
     const sequence = sequenceRef.current!;
     const token = sequence.next();
+    tokenRef.current = token;
     const opts = optionsRef.current;
     openKey.current = null;
     loadedKey.current = null;
@@ -209,7 +235,7 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
     const groupId = lesson.groupId;
     const key = lessonPanelKey(lesson, opts.businessDate);
     const date = lessonDateOf(lesson, opts.businessDate);
-    const source = rosterSource({ isManager: opts.isManager ?? false, groupId, ownGroupIds: opts.ownGroupIds });
+    const source = rosterSource({ isManager: false, groupId, ownGroupIds: opts.ownGroupIds });
     openKey.current = key;
     setPhase({ key, status: "loading" });
     opts.onOpen(lesson, { key, source });
@@ -237,6 +263,12 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
 
   return {
     loading,
+    notReadyText: loading ? LESSON_LOADING_TEXT : LESSON_NOT_LOADED_TEXT,
+    alive: () => {
+      const sequence = sequenceRef.current!;
+      const token = tokenRef.current;
+      return () => sequence.isCurrent(token);
+    },
     target: (forLesson) => {
       if (!forLesson.groupId) return null;
       const key = lessonPanelKey(forLesson, optionsRef.current.businessDate);
@@ -244,6 +276,7 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
       return {
         key,
         groupId: forLesson.groupId,
+        groupName: forLesson.groupName ?? null,
         lessonId: forLesson.id,
         lessonDate: lessonDateOf(forLesson, optionsRef.current.businessDate),
         versionBody: optionsRef.current.versionBody(),
@@ -253,5 +286,75 @@ export function useLessonPanelData<L extends PanelLesson>(lesson: L | null, opti
   };
 }
 
-/** A write of the panel was asked before the journal of this lesson was on the screen (or after another lesson was opened). */
-export const LESSON_NOT_LOADED_TEXT = "Журнал этого урока ещё не загружен. Закройте окно и откройте урок снова.";
+/** A write of the panel was asked while its journal is still being read. */
+export const LESSON_LOADING_TEXT = "Журнал урока ещё загружается — повторите через секунду.";
+/** A write of the panel was asked, the journal of this lesson is not on the screen and is not coming (the read failed). */
+export const LESSON_NOT_LOADED_TEXT = "Журнал этого урока не загрузился. Закройте окно и откройте урок снова.";
+
+// ── what a write sends, and what the screen does with its answer (pure: the screens only call it) ──────────
+
+/** The part of every write that names the lesson: from the TARGET (the lesson whose journal the panel held), never from whatever is open at the moment of the call. */
+export function lessonWriteBody<E extends object>(target: LessonPanelTarget, topic: string | undefined, extra: E) {
+  return { lessonDate: target.lessonDate, lessonId: target.lessonId, topic, ...extra, ...target.versionBody };
+}
+
+/** The start carries no version: a lesson that is not started has no record yet. */
+export function lessonStartBody(target: LessonPanelTarget, topic: string | undefined) {
+  return { lessonDate: target.lessonDate, lessonId: target.lessonId, topic };
+}
+
+/** The lesson of a cancellation (`sendTeacherCancel`): the same rule, the lesson of the target. */
+export function lessonCancelRef(target: LessonPanelTarget, topic: string | undefined) {
+  return { groupId: target.groupId, lessonId: target.lessonId, lessonDate: target.lessonDate, topic };
+}
+
+export type WriteOutcome = { ok: true } | { ok: false; kind: "conflict" | "other" };
+
+export interface WritePlan {
+  /** The lesson of the write is still the open one: its answer may change the panel (version, marks, status, texts, dialogs). */
+  applyToPanel: boolean;
+  /** The refusal of a write whose panel was closed (or replaced by another lesson): the page shows it, nothing is lost silently. */
+  notice: string | null;
+}
+
+/** The words of a refusal that arrives when its panel is gone. */
+export function refusedWriteNotice(target: Pick<LessonPanelTarget, "groupName" | "lessonDate">, kind: "conflict" | "other"): string {
+  if (kind === "conflict") return "Урок изменили в другом окне — откройте его снова";
+  const date = formatIsoDateLabel(target.lessonDate, { day: "numeric", month: "long" });
+  return `Не сохранено: ${target.groupName || "урок"}, ${date} — откройте урок и повторите`;
+}
+
+/**
+ * What to do with the answer of a write: change the panel only while the lesson of the write is the open one (a card map by lesson id is
+ * always right and is the page's own business); a refusal that finds the panel gone becomes a notice of the page.
+ */
+export function planAfterWrite(input: { target: LessonPanelTarget; isOpen: (key: string) => boolean; outcome: WriteOutcome }): WritePlan {
+  const open = input.isOpen(input.target.key);
+  if (open || input.outcome.ok) return { applyToPanel: open, notice: null };
+  return { applyToPanel: false, notice: refusedWriteNotice(input.target, input.outcome.kind) };
+}
+
+/**
+ * The writes in flight, by the key of their lesson: `begin` answers false to a second press of the same lesson (a double click on «Начать урок»
+ * is one request, rule 27) and the buttons of ANOTHER lesson are not locked by it (`isBusy(key)`).
+ */
+export function useLessonWrites() {
+  const inFlight = useRef<Set<string> | null>(null);
+  if (!inFlight.current) inFlight.current = new Set();
+  const [busy, setBusy] = useState<string[]>([]);
+  return {
+    begin: (key: string): boolean => {
+      const set = inFlight.current!;
+      if (set.has(key)) return false;
+      set.add(key);
+      setBusy([...set]);
+      return true;
+    },
+    end: (key: string): void => {
+      const set = inFlight.current!;
+      set.delete(key);
+      setBusy([...set]);
+    },
+    isBusy: (key: string | null): boolean => key !== null && busy.includes(key),
+  };
+}
